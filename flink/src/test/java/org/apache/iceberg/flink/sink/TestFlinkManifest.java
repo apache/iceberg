@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
+import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.table.data.RowData;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.ContentFile;
@@ -35,6 +36,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -177,6 +179,48 @@ public class TestFlinkManifest {
     byte[] versionedSerializeData2 =
         SimpleVersionedSerialization.writeVersionAndSerialize(DeltaManifestsSerializer.INSTANCE, actual);
     Assert.assertArrayEquals(versionedSerializeData, versionedSerializeData2);
+  }
+
+  @Test
+  public void testCompatibility() throws IOException {
+    // The v2 deserializer should be able to deserialize the v1 binary.
+    long checkpointId = 1;
+    String flinkJobId = newFlinkJobId();
+    ManifestOutputFileFactory factory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, 1, 1);
+
+    List<DataFile> dataFiles = generateDataFiles(10);
+    ManifestFile manifest = FlinkManifestUtil.writeDataFiles(factory.create(checkpointId), table.spec(), dataFiles);
+    byte[] dataV1 = SimpleVersionedSerialization.writeVersionAndSerialize(new V1Serializer(), manifest);
+
+    DeltaManifests delta =
+        SimpleVersionedSerialization.readVersionAndDeSerialize(DeltaManifestsSerializer.INSTANCE, dataV1);
+    Assert.assertNull("Serialization v1 don't include delete files.", delta.deleteManifest());
+    Assert.assertNotNull("Serialization v1 should not have null data manifest.", delta.dataManifest());
+    checkManifestFile(manifest, delta.dataManifest());
+
+    List<DataFile> actualFiles = FlinkManifestUtil.readDataFiles(delta.dataManifest(), table.io());
+    Assert.assertEquals(10, actualFiles.size());
+    for (int i = 0; i < 10; i++) {
+      checkContentFile(dataFiles.get(i), actualFiles.get(i));
+    }
+  }
+
+  private static class V1Serializer implements SimpleVersionedSerializer<ManifestFile> {
+
+    @Override
+    public int getVersion() {
+      return 1;
+    }
+
+    @Override
+    public byte[] serialize(ManifestFile m) throws IOException {
+      return ManifestFiles.encode(m);
+    }
+
+    @Override
+    public ManifestFile deserialize(int version, byte[] serialized) throws IOException {
+      return ManifestFiles.decode(serialized);
+    }
   }
 
   private DataFile writeDataFile(String filename, List<RowData> rows) throws IOException {

@@ -30,14 +30,15 @@ import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class DeltaManifestsSerializer implements SimpleVersionedSerializer<DeltaManifests> {
-  private static final int VERSION_NUM = 1;
+  private static final int VERSION_1 = 1;
+  private static final int VERSION_2 = 2;
   private static final byte[] EMPTY_BINARY = new byte[0];
 
   static final DeltaManifestsSerializer INSTANCE = new DeltaManifestsSerializer();
 
   @Override
   public int getVersion() {
-    return VERSION_NUM;
+    return VERSION_2;
   }
 
   @Override
@@ -68,10 +69,26 @@ class DeltaManifestsSerializer implements SimpleVersionedSerializer<DeltaManifes
 
   @Override
   public DeltaManifests deserialize(int version, byte[] serialized) throws IOException {
+    if (version == VERSION_1) {
+      return deserializeV1(serialized);
+    } else if (version == VERSION_2) {
+      return deserializeV2(serialized);
+    } else {
+      throw new RuntimeException("Unknown serialize version: " + version);
+    }
+  }
+
+  private DeltaManifests deserializeV1(byte[] serialized) throws IOException {
+    return new DeltaManifests(ManifestFiles.decode(serialized), null);
+  }
+
+  private DeltaManifests deserializeV2(byte[] serialized) throws IOException {
+    ManifestFile dataManifest = null;
+    ManifestFile deleteManifest = null;
+
     ByteArrayInputStream binaryIn = new ByteArrayInputStream(serialized);
     DataInputStream in = new DataInputStream(binaryIn);
 
-    ManifestFile dataManifest = null;
     int dataManifestSize = in.readInt();
     if (dataManifestSize > 0) {
       byte[] dataManifestBinary = new byte[dataManifestSize];
@@ -80,7 +97,6 @@ class DeltaManifestsSerializer implements SimpleVersionedSerializer<DeltaManifes
       dataManifest = ManifestFiles.decode(dataManifestBinary);
     }
 
-    ManifestFile deleteManifest = null;
     int deleteManifestSize = in.readInt();
     if (deleteManifestSize > 0) {
       byte[] deleteManifestBinary = new byte[deleteManifestSize];
@@ -88,7 +104,6 @@ class DeltaManifestsSerializer implements SimpleVersionedSerializer<DeltaManifes
 
       deleteManifest = ManifestFiles.decode(deleteManifestBinary);
     }
-
     return new DeltaManifests(dataManifest, deleteManifest);
   }
 }

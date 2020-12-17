@@ -192,7 +192,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
                                     long checkpointId) throws IOException {
     NavigableMap<Long, byte[]> pendingMap = deltaManifestsMap.headMap(checkpointId, true);
 
-    List<DeltaManifests> deltaManifestsList = Lists.newArrayList();
+    List<ManifestFile> manifests = Lists.newArrayList();
     NavigableMap<Long, WriteResult> pendingResults = Maps.newTreeMap();
     for (Map.Entry<Long, byte[]> e : pendingMap.entrySet()) {
       if (Arrays.equals(EMPTY_MANIFEST_DATA, e.getValue())) {
@@ -200,11 +200,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         continue;
       }
 
-      DeltaManifests deltaManifests =
-          SimpleVersionedSerialization.readVersionAndDeSerialize(DeltaManifestsSerializer.INSTANCE, e.getValue());
-      deltaManifestsList.add(deltaManifests);
-
+      DeltaManifests deltaManifests = SimpleVersionedSerialization
+          .readVersionAndDeSerialize(DeltaManifestsSerializer.INSTANCE, e.getValue());
       pendingResults.put(e.getKey(), FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io()));
+      Iterables.addAll(manifests, deltaManifests);
     }
 
     if (replacePartitions) {
@@ -215,16 +214,16 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     pendingMap.clear();
 
-    // Delete the committed manifests and clear the committed files from dataFilesPerCheckpoint.
-    for (ManifestFile manifestFile : Iterables.concat(deltaManifestsList)) {
+    // Delete the committed manifests.
+    for (ManifestFile manifest : manifests) {
       try {
-        table.io().deleteFile(manifestFile.path());
+        table.io().deleteFile(manifest.path());
       } catch (Exception e) {
         // The flink manifests cleaning failure shouldn't abort the completed checkpoint.
         String details = MoreObjects.toStringHelper(this)
             .add("flinkJobId", newFlinkJobId)
             .add("checkpointId", checkpointId)
-            .add("manifestPath", manifestFile.path())
+            .add("manifestPath", manifest.path())
             .toString();
         LOG.warn("The iceberg transaction has been committed, but we failed to clean the temporary flink manifests: {}",
             details, e);
