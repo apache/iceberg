@@ -69,7 +69,7 @@ public class TestExceptionUtil {
   public void testRunSafelyTwoExceptions() {
     CustomCheckedException exc = new CustomCheckedException("test");
     try {
-      ExceptionUtil.runSafely(() -> {
+      ExceptionUtil.runSafely((ExceptionUtil.Block<Void, CustomCheckedException, IOException, RuntimeException>) () -> {
             throw exc;
           }, e -> {
             throw new Exception("test catch suppression");
@@ -103,7 +103,8 @@ public class TestExceptionUtil {
   public void testRunSafelyThreeExceptions() {
     CustomCheckedException exc = new CustomCheckedException("test");
     try {
-      ExceptionUtil.runSafely(() -> {
+      ExceptionUtil.runSafely((ExceptionUtil.Block<Void, CustomCheckedException, IOException, ClassNotFoundException>)
+          () -> {
             throw exc;
           }, e -> {
             throw new Exception("test catch suppression");
