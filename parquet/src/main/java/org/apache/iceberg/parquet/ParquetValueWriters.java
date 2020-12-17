@@ -31,6 +31,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.FieldMetrics;
+import org.apache.iceberg.FloatFieldMetrics;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -188,7 +189,7 @@ public class ParquetValueWriters {
 
     @Override
     public Stream<FieldMetrics> metrics() {
-      return Stream.of(new ParquetFieldMetrics(id, nanCount));
+      return Stream.of(new FloatFieldMetrics(id, nanCount));
     }
   }
 
@@ -212,7 +213,7 @@ public class ParquetValueWriters {
 
     @Override
     public Stream<FieldMetrics> metrics() {
-      return Stream.of(new ParquetFieldMetrics(id, nanCount));
+      return Stream.of(new FloatFieldMetrics(id, nanCount));
     }
   }
 

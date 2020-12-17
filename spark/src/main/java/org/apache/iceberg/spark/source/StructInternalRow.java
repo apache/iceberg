@@ -21,6 +21,10 @@ package org.apache.iceberg.spark.source;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +46,7 @@ import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.BooleanType;
 import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DateType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.DecimalType;
 import org.apache.spark.sql.types.DoubleType;
@@ -52,6 +57,7 @@ import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.unsafe.types.CalendarInterval;
 import org.apache.spark.unsafe.types.UTF8String;
 
@@ -115,12 +121,30 @@ class StructInternalRow extends InternalRow {
 
   @Override
   public int getInt(int ordinal) {
-    return struct.get(ordinal, Integer.class);
+    Object integer = struct.get(ordinal, Object.class);
+
+    if (integer instanceof Integer) {
+      return (int) integer;
+    } else if (integer instanceof LocalDate) {
+      return (int) ((LocalDate) integer).toEpochDay();
+    } else {
+      throw new IllegalStateException("Unknown type for int field. Type name: " + integer.getClass().getName());
+    }
   }
 
   @Override
   public long getLong(int ordinal) {
-    return struct.get(ordinal, Long.class);
+    Object longVal = struct.get(ordinal, Object.class);
+
+    if (longVal instanceof Long) {
+      return (long) longVal;
+    } else if (longVal instanceof OffsetDateTime) {
+      return Duration.between(Instant.EPOCH, (OffsetDateTime) longVal).toNanos() / 1000;
+    } else if (longVal instanceof LocalDate) {
+      return ((LocalDate) longVal).toEpochDay();
+    } else {
+      throw new IllegalStateException("Unknown type for long field. Type name: " + longVal.getClass().getName());
+    }
   }
 
   @Override
@@ -240,6 +264,10 @@ class StructInternalRow extends InternalRow {
       return getByte(ordinal);
     } else if (dataType instanceof ShortType) {
       return getShort(ordinal);
+    } else if (dataType instanceof DateType) {
+      return getInt(ordinal);
+    } else if (dataType instanceof TimestampType) {
+      return getLong(ordinal);
     }
     return null;
   }
