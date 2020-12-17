@@ -762,8 +762,6 @@ project(':iceberg-spark') {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
-    testCompile "org.apache.hadoop:hadoop-hdfs::tests"
-    testCompile "org.apache.hadoop:hadoop-common::tests"
     testCompile("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
@@ -819,8 +817,6 @@ if (jdkVersion == '8') {
 
       testCompile project(path: ':iceberg-spark', configuration: 'testArtifacts')
 
-      testCompile "org.apache.hadoop:hadoop-hdfs::tests"
-      testCompile "org.apache.hadoop:hadoop-common::tests"
       testCompile("org.apache.hadoop:hadoop-minicluster") {
         exclude group: 'org.apache.avro', module: 'avro'
       }
@@ -927,8 +923,6 @@ project(':iceberg-spark3') {
 
     testCompile project(path: ':iceberg-spark', configuration: 'testArtifacts')
 
-    testCompile "org.apache.hadoop:hadoop-hdfs::tests"
-    testCompile "org.apache.hadoop:hadoop-common::tests"
     testCompile("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
@@ -1073,8 +1067,6 @@ project(':iceberg-pig') {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
-    testCompile "org.apache.hadoop:hadoop-hdfs::tests"
-    testCompile "org.apache.hadoop:hadoop-common::tests"
     testCompile("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
