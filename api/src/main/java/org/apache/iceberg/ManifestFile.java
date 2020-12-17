@@ -203,8 +203,12 @@ public interface ManifestFile {
     /**
      * Returns true if at least one data file in the manifest has a nan value for the field.
      * Null if this information doesn't exist.
+     * <p>
+     * Default to return null to ensure backward compatibility.
      */
-    Boolean containsNaN();
+    default Boolean containsNaN() {
+      return null;
+    }
 
     /**
      * Returns a ByteBuffer that contains a serialized bound lower than all values of the field.
