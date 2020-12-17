@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.util;
 
+import java.io.IOException;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -55,12 +56,112 @@ public class TestExceptionUtil {
       Assert.assertEquals("Should have 2 suppressed exceptions", 2, e.getSuppressed().length);
 
       Throwable throwSuppressed = e.getSuppressed()[0];
-      Assert.assertTrue("Should be a CustomCheckedException", throwSuppressed instanceof Exception);
+      Assert.assertTrue("Should be an Exception", throwSuppressed instanceof Exception);
       Assert.assertEquals("Should have correct message", "test catch suppression", throwSuppressed.getMessage());
 
       Throwable finallySuppressed = e.getSuppressed()[1];
-      Assert.assertTrue("Should be a CustomCheckedException", finallySuppressed instanceof RuntimeException);
+      Assert.assertTrue("Should be a RuntimeException", finallySuppressed instanceof RuntimeException);
       Assert.assertEquals("Should have correct message", "test finally suppression", finallySuppressed.getMessage());
     }
   }
+
+  @Test
+  public void testRunSafelyTwoExceptions() {
+    CustomCheckedException exc = new CustomCheckedException("test");
+    try {
+      ExceptionUtil.runSafely(() -> {
+            throw exc;
+          }, e -> {
+            throw new Exception("test catch suppression");
+          }, () -> {
+            throw new RuntimeException("test finally suppression");
+          }, CustomCheckedException.class, IOException.class
+      );
+
+      Assert.fail("Should have thrown CustomCheckedException");
+
+    } catch (IOException e) {
+      Assert.fail("Should not have thrown exception class: " + e.getClass().getName());
+
+    } catch (CustomCheckedException e) {
+      LOG.info("Final exception", e);
+      Assert.assertEquals("Should throw correct exception instance", exc, e);
+      Assert.assertEquals("Should not alter exception message", "test", e.getMessage());
+      Assert.assertEquals("Should have 2 suppressed exceptions", 2, e.getSuppressed().length);
+
+      Throwable throwSuppressed = e.getSuppressed()[0];
+      Assert.assertTrue("Should be an Exception", throwSuppressed instanceof Exception);
+      Assert.assertEquals("Should have correct message", "test catch suppression", throwSuppressed.getMessage());
+
+      Throwable finallySuppressed = e.getSuppressed()[1];
+      Assert.assertTrue("Should be a RuntimeException", finallySuppressed instanceof RuntimeException);
+      Assert.assertEquals("Should have correct message", "test finally suppression", finallySuppressed.getMessage());
+    }
+  }
+
+  @Test
+  public void testRunSafelyThreeExceptions() {
+    CustomCheckedException exc = new CustomCheckedException("test");
+    try {
+      ExceptionUtil.runSafely(() -> {
+            throw exc;
+          }, e -> {
+            throw new Exception("test catch suppression");
+          }, () -> {
+            throw new RuntimeException("test finally suppression");
+          }, CustomCheckedException.class, IOException.class, ClassNotFoundException.class
+      );
+
+      Assert.fail("Should have thrown CustomCheckedException");
+
+    } catch (IOException | ClassNotFoundException e) {
+      Assert.fail("Should not have thrown exception class: " + e.getClass().getName());
+
+    } catch (CustomCheckedException e) {
+      LOG.info("Final exception", e);
+      Assert.assertEquals("Should throw correct exception instance", exc, e);
+      Assert.assertEquals("Should not alter exception message", "test", e.getMessage());
+      Assert.assertEquals("Should have 2 suppressed exceptions", 2, e.getSuppressed().length);
+
+      Throwable throwSuppressed = e.getSuppressed()[0];
+      Assert.assertTrue("Should be an Exception", throwSuppressed instanceof Exception);
+      Assert.assertEquals("Should have correct message", "test catch suppression", throwSuppressed.getMessage());
+
+      Throwable finallySuppressed = e.getSuppressed()[1];
+      Assert.assertTrue("Should be a RuntimeException", finallySuppressed instanceof RuntimeException);
+      Assert.assertEquals("Should have correct message", "test finally suppression", finallySuppressed.getMessage());
+    }
+  }
+
+  @Test
+  public void testRunSafelyRuntimeExceptions() {
+    RuntimeException exc = new RuntimeException("test");
+    try {
+      ExceptionUtil.runSafely(() -> {
+            throw exc;
+          }, e -> {
+            throw new Exception("test catch suppression");
+          }, () -> {
+            throw new CustomCheckedException("test finally suppression");
+          }
+      );
+
+      Assert.fail("Should have thrown RuntimeException");
+
+    } catch (RuntimeException e) {
+      LOG.info("Final exception", e);
+      Assert.assertEquals("Should throw correct exception instance", exc, e);
+      Assert.assertEquals("Should not alter exception message", "test", e.getMessage());
+      Assert.assertEquals("Should have 2 suppressed exceptions", 2, e.getSuppressed().length);
+
+      Throwable throwSuppressed = e.getSuppressed()[0];
+      Assert.assertTrue("Should be an Exception", throwSuppressed instanceof Exception);
+      Assert.assertEquals("Should have correct message", "test catch suppression", throwSuppressed.getMessage());
+
+      Throwable finallySuppressed = e.getSuppressed()[1];
+      Assert.assertTrue("Should be a CustomCheckedException", finallySuppressed instanceof CustomCheckedException);
+      Assert.assertEquals("Should have correct message", "test finally suppression", finallySuppressed.getMessage());
+    }
+  }
+
 }

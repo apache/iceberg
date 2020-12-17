@@ -85,11 +85,12 @@ public class ExceptionUtil {
       Class<? extends E1> e1Class,
       Class<? extends E2> e2Class,
       Class<? extends E3> e3Class) throws E1, E2, E3 {
-    Exception failure = null;
+
+    Throwable failure = null;
     try {
       return block.run();
 
-    } catch (Exception t) {
+    } catch (Throwable t) {
       failure = t;
 
       if (catchBlock != null) {
