@@ -33,6 +33,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -40,6 +41,9 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.flink.sink.FlinkAppenderFactory;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopTables;
@@ -51,6 +55,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.HashMultiset;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.junit.Assert;
 
 import static org.apache.iceberg.hadoop.HadoopOutputFile.fromPath;
@@ -133,14 +138,51 @@ public class SimpleDataUtil {
         .build();
   }
 
-  public static void assertTableRows(String tablePath, List<RowData> expected) throws IOException {
-    List<Record> expectedRecords = Lists.newArrayList();
-    for (RowData row : expected) {
+  public static DeleteFile writeEqDeleteFile(Table table, FileFormat format, String tablePath, String filename,
+                                             FileAppenderFactory<RowData> appenderFactory,
+                                             List<RowData> deletes) throws IOException {
+    EncryptedOutputFile outputFile =
+        table.encryption().encrypt(fromPath(new Path(tablePath, filename), new Configuration()));
+
+    EqualityDeleteWriter<RowData> eqWriter = appenderFactory.newEqDeleteWriter(outputFile, format, null);
+    try (EqualityDeleteWriter<RowData> writer = eqWriter) {
+      writer.deleteAll(deletes);
+    }
+    return eqWriter.toDeleteFile();
+  }
+
+  public static DeleteFile writePosDeleteFile(Table table, FileFormat format, String tablePath,
+                                              String filename,
+                                              FileAppenderFactory<RowData> appenderFactory,
+                                              List<Pair<CharSequence, Long>> positions) throws IOException {
+    EncryptedOutputFile outputFile =
+        table.encryption().encrypt(fromPath(new Path(tablePath, filename), new Configuration()));
+
+    PositionDeleteWriter<RowData> posWriter = appenderFactory.newPosDeleteWriter(outputFile, format, null);
+    try (PositionDeleteWriter<RowData> writer = posWriter) {
+      for (Pair<CharSequence, Long> p : positions) {
+        writer.delete(p.first(), p.second());
+      }
+    }
+    return posWriter.toDeleteFile();
+  }
+
+  private static List<Record> convertToRecords(List<RowData> rows) {
+    List<Record> records = Lists.newArrayList();
+    for (RowData row : rows) {
       Integer id = row.isNullAt(0) ? null : row.getInt(0);
       String data = row.isNullAt(1) ? null : row.getString(1).toString();
-      expectedRecords.add(createRecord(id, data));
+      records.add(createRecord(id, data));
     }
-    assertTableRecords(tablePath, expectedRecords);
+    return records;
+  }
+
+  public static void assertTableRows(String tablePath, List<RowData> expected) throws IOException {
+    assertTableRecords(tablePath, convertToRecords(expected));
+  }
+
+  public static void assertTableRows(Table table, List<RowData> expected) throws IOException {
+    assertTableRecords(table, convertToRecords(expected));
   }
 
   public static void assertTableRecords(Table table, List<Record> expected) throws IOException {

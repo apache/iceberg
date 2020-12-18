@@ -25,12 +25,12 @@ import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.io.TaskWriter;
+import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
-    implements OneInputStreamOperator<T, DataFile>, BoundedOneInput {
+class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
+    implements OneInputStreamOperator<T, WriteResult>, BoundedOneInput {
 
   private static final long serialVersionUID = 1L;
 
@@ -62,9 +62,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
   @Override
   public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
     // close all open files and emit files to downstream committer operator
-    for (DataFile dataFile : writer.dataFiles()) {
-      emit(dataFile);
-    }
+    emit(writer.complete());
 
     this.writer = taskWriterFactory.create();
   }
@@ -86,10 +84,8 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
   @Override
   public void endInput() throws IOException {
     // For bounded stream, it may don't enable the checkpoint mechanism so we'd better to emit the remaining
-    // data files to downstream before closing the writer so that we won't miss any of them.
-    for (DataFile dataFile : writer.dataFiles()) {
-      emit(dataFile);
-    }
+    // completed files to downstream before closing the writer so that we won't miss any of them.
+    emit(writer.complete());
   }
 
   @Override
@@ -101,7 +97,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<DataFile>
         .toString();
   }
 
-  private void emit(DataFile dataFile) {
-    output.collect(new StreamRecord<>(dataFile));
+  private void emit(WriteResult result) {
+    output.collect(new StreamRecord<>(result));
   }
 }

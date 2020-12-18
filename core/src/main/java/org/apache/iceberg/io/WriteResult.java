@@ -72,7 +72,13 @@ public class WriteResult implements Serializable {
     public Builder add(WriteResult result) {
       addDataFiles(result.dataFiles);
       addDeleteFiles(result.deleteFiles);
+      addReferencedDataFiles(result.referencedDataFiles);
 
+      return this;
+    }
+
+    public Builder addAll(Iterable<WriteResult> results) {
+      results.forEach(this::add);
       return this;
     }
 
