@@ -139,10 +139,10 @@ public class ManifestEntriesTable extends BaseMetadataTable {
       // Project data-file fields
       CloseableIterable<StructLike> prunedRows;
       if (manifest.content() == ManifestContent.DATA) {
-        prunedRows = CloseableIterable.transform(ManifestFiles.read(manifest, io).project(fileSchema).entries(),
+        prunedRows = CloseableIterable.transform(ManifestFiles.read(manifest, io, null, null).project(fileSchema).entries(),
             file -> (GenericManifestEntry<DataFile>) file);
       } else {
-        prunedRows = CloseableIterable.transform(ManifestFiles.readDeleteManifest(manifest, io, specsById)
+        prunedRows = CloseableIterable.transform(ManifestFiles.readDeleteManifest(manifest, io, specsById, null, null)
                 .project(fileSchema).entries(),
             file -> (GenericManifestEntry<DeleteFile>) file);
       }
