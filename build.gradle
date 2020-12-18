@@ -544,7 +544,7 @@ project(':iceberg-mr') {
 
   test {
     // testJoinTables / testScanTable
-    maxHeapSize '1500m'
+    maxHeapSize '2500m'
   }
 }
 
@@ -611,7 +611,7 @@ if (jdkVersion == '8') {
 
     test {
       // testJoinTables / testScanTable
-      maxHeapSize '1500m'
+      maxHeapSize '2500m'
     }
   }
 }

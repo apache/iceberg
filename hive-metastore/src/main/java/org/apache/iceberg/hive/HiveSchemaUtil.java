@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -61,6 +62,18 @@ public final class HiveSchemaUtil {
     }
 
     return HiveSchemaConverter.convert(names, typeInfos);
+  }
+
+  /**
+   * Converts the Hive partition columns to Iceberg identity partition specification.
+   * @param schema The Iceberg schema
+   * @param fieldSchemas The partition column specification
+   * @return The Iceberg partition specification
+   */
+  public static PartitionSpec spec(Schema schema, List<FieldSchema> fieldSchemas) {
+    PartitionSpec.Builder builder = PartitionSpec.builderFor(schema);
+    fieldSchemas.forEach(fieldSchema -> builder.identity(fieldSchema.getName()));
+    return builder.build();
   }
 
   /**
