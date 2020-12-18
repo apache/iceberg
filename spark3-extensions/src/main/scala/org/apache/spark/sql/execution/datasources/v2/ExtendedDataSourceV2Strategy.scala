@@ -19,18 +19,39 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.iceberg.spark.Spark3Util
+import org.apache.iceberg.spark.SparkCatalog
+import org.apache.iceberg.spark.SparkSessionCatalog
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.Strategy
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{Expression, GenericInternalRow}
-import org.apache.spark.sql.catalyst.plans.logical.{Call, DynamicFileFilter, LogicalPlan, ReplaceData}
-import org.apache.spark.sql.execution.{ProjectExec, SparkPlan}
+import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
+import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
+import org.apache.spark.sql.catalyst.plans.logical.Call
+import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
+import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
+import org.apache.spark.sql.connector.catalog.Identifier
+import org.apache.spark.sql.connector.catalog.TableCatalog
+import org.apache.spark.sql.execution.ProjectExec
+import org.apache.spark.sql.execution.SparkPlan
+import scala.collection.JavaConverters._
 
-object ExtendedDataSourceV2Strategy extends Strategy {
+case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
 
   override def apply(plan: LogicalPlan): Seq[SparkPlan] = plan match {
     case c @ Call(procedure, args) =>
       val input = buildInternalRow(args)
       CallExec(c.output, procedure, input) :: Nil
+
+    case AddPartitionField(IcebergCatalogAndIdentifier(catalog, ident), transform, name) =>
+      AddPartitionFieldExec(catalog, ident, transform, name) :: Nil
+
+    case DropPartitionField(IcebergCatalogAndIdentifier(catalog, ident), transform) =>
+      DropPartitionFieldExec(catalog, ident, transform) :: Nil
+
     case DynamicFileFilter(scanRelation, fileFilterPlan) =>
       // we don't use planLater here as we need ExtendedBatchScanExec, not BatchScanExec
       val scanExec = ExtendedBatchScanExec(scanRelation.output, scanRelation.scan)
@@ -41,8 +62,10 @@ object ExtendedDataSourceV2Strategy extends Strategy {
         // add a projection to ensure we have UnsafeRows required by some operations
         ProjectExec(scanRelation.output, dynamicFileFilter) :: Nil
       }
+
     case ReplaceData(_, batchWrite, query) =>
       ReplaceDataExec(batchWrite, planLater(query)) :: Nil
+
     case _ => Nil
   }
 
@@ -52,5 +75,19 @@ object ExtendedDataSourceV2Strategy extends Strategy {
       values(index) = exprs(index).eval()
     }
     new GenericInternalRow(values)
+  }
+
+  private object IcebergCatalogAndIdentifier {
+    def unapply(identifier: Seq[String]): Option[(TableCatalog, Identifier)] = {
+      val catalogAndIdentifier = Spark3Util.catalogAndIdentifier(spark, identifier.asJava)
+      catalogAndIdentifier.catalog match {
+        case icebergCatalog: SparkCatalog =>
+          Some((icebergCatalog, catalogAndIdentifier.identifier))
+        case icebergCatalog: SparkSessionCatalog[_] =>
+          Some((icebergCatalog, catalogAndIdentifier.identifier))
+        case _ =>
+          None
+      }
+    }
   }
 }

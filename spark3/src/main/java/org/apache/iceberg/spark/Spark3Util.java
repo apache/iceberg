@@ -34,6 +34,7 @@ import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.ExpressionVisitors;
+import org.apache.iceberg.expressions.Term;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.FileIO;
@@ -263,6 +264,32 @@ public class Spark3Util {
         });
 
     return transforms.toArray(new Transform[0]);
+  }
+
+  public static Term toIcebergTerm(Transform transform) {
+    Preconditions.checkArgument(transform.references().length == 1,
+        "Cannot convert transform with more than one column reference: %s", transform);
+    String colName = DOT.join(transform.references()[0].fieldNames());
+    switch (transform.name()) {
+      case "identity":
+        return org.apache.iceberg.expressions.Expressions.ref(colName);
+      case "bucket":
+        return org.apache.iceberg.expressions.Expressions.bucket(colName, findWidth(transform));
+      case "years":
+        return org.apache.iceberg.expressions.Expressions.year(colName);
+      case "months":
+        return org.apache.iceberg.expressions.Expressions.month(colName);
+      case "date":
+      case "days":
+        return org.apache.iceberg.expressions.Expressions.day(colName);
+      case "date_hour":
+      case "hours":
+        return org.apache.iceberg.expressions.Expressions.hour(colName);
+      case "truncate":
+        return org.apache.iceberg.expressions.Expressions.truncate(colName, findWidth(transform));
+      default:
+        throw new UnsupportedOperationException("Transform is not supported: " + transform);
+    }
   }
 
   /**

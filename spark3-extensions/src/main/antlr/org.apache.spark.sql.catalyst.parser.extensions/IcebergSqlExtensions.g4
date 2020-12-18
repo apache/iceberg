@@ -66,12 +66,25 @@ singleStatement
     ;
 
 statement
-    : CALL multipartIdentifier '(' (callArgument (',' callArgument)*)? ')'   #call
+    : CALL multipartIdentifier '(' (callArgument (',' callArgument)*)? ')'                  #call
+    | ALTER TABLE multipartIdentifier ADD PARTITION FIELD transform (AS name=identifier)?   #addPartitionField
+    | ALTER TABLE multipartIdentifier DROP PARTITION FIELD transform                        #dropPartitionField
     ;
 
 callArgument
     : expression                    #positionalArgument
     | identifier '=>' expression    #namedArgument
+    ;
+
+transform
+    : multipartIdentifier                                                       #identityTransform
+    | transformName=identifier
+      '(' arguments+=transformArgument (',' arguments+=transformArgument)* ')'  #applyTransform
+    ;
+
+transformArgument
+    : multipartIdentifier
+    | constant
     ;
 
 expression
@@ -121,12 +134,19 @@ quotedIdentifier
     ;
 
 nonReserved
-    : CALL
+    : ADD | ALTER | AS | CALL | DROP | FIELD | PARTITION | TABLE
     | TRUE | FALSE
     | MAP
     ;
 
+ADD: 'ADD';
+ALTER: 'ALTER';
+AS: 'AS';
 CALL: 'CALL';
+DROP: 'DROP';
+FIELD: 'FIELD';
+PARTITION: 'PARTITION';
+TABLE: 'TABLE';
 
 TRUE: 'TRUE';
 FALSE: 'FALSE';
