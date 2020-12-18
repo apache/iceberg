@@ -69,8 +69,8 @@ public class GlueCatalogTest {
   @Before
   public void before() {
     glue = Mockito.mock(GlueClient.class);
-    glueCatalog = new GlueCatalog(glue);
-    glueCatalog.initialize(CATALOG_NAME, WAREHOUSE_PATH, new AwsProperties(), null);
+    glueCatalog = new GlueCatalog();
+    glueCatalog.initialize(CATALOG_NAME, WAREHOUSE_PATH, new AwsProperties(), glue, null);
   }
 
   @Test
@@ -79,15 +79,15 @@ public class GlueCatalogTest {
         IllegalArgumentException.class,
         "Cannot initialize GlueCatalog because warehousePath must not be null",
         () -> {
-            GlueCatalog catalog = new GlueCatalog(glue);
-            catalog.initialize(CATALOG_NAME, null, new AwsProperties(), null);
+            GlueCatalog catalog = new GlueCatalog();
+            catalog.initialize(CATALOG_NAME, null, new AwsProperties(), glue, null);
         });
   }
 
   @Test
   public void constructor_warehousePathWithEndSlash() {
-    GlueCatalog catalogWithSlash = new GlueCatalog(glue);
-    catalogWithSlash.initialize(CATALOG_NAME, WAREHOUSE_PATH + "/", new AwsProperties(), null);
+    GlueCatalog catalogWithSlash = new GlueCatalog();
+    catalogWithSlash.initialize(CATALOG_NAME, WAREHOUSE_PATH + "/", new AwsProperties(), glue, null);
     Mockito.doReturn(GetDatabaseResponse.builder()
         .database(Database.builder().name("db").build()).build())
         .when(glue).getDatabase(Mockito.any(GetDatabaseRequest.class));

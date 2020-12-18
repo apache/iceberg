@@ -32,7 +32,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.aws.AwsClientUtil;
+import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.catalog.Namespace;
@@ -72,7 +72,7 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
   private static final Logger LOG = LoggerFactory.getLogger(GlueCatalog.class);
 
-  private final GlueClient glue;
+  private GlueClient glue;
   private Configuration hadoopConf;
   private String catalogName;
   private String warehousePath;
@@ -82,33 +82,38 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   /**
    * No-arg constructor to load the catalog dynamically.
    * <p>
-   * Only the AWS Glue client is initialized.
-   * Other fields must be initialized by calling {@link GlueCatalog#initialize(String, Map)} later.
+   * All fields are initialized by calling {@link GlueCatalog#initialize(String, Map)} later.
    */
   public GlueCatalog() {
-    this(AwsClientUtil.defaultGlueClient());
-  }
-
-  @VisibleForTesting
-  GlueCatalog(GlueClient glue) {
-    this.glue = glue;
   }
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
-    String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
     initialize(
         name,
         properties.get(CatalogProperties.WAREHOUSE_LOCATION),
         new AwsProperties(properties),
-        fileIOImpl == null ? new S3FileIO() : CatalogUtil.loadFileIO(fileIOImpl, properties, hadoopConf));
+        AwsClientFactories.from(properties).glue(),
+        initializeFileIO(properties));
+  }
+
+  private FileIO initializeFileIO(Map<String, String> properties) {
+    String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
+    if (fileIOImpl == null) {
+      FileIO io = new S3FileIO();
+      io.initialize(properties);
+      return io;
+    } else {
+      return CatalogUtil.loadFileIO(fileIOImpl, properties, hadoopConf);
+    }
   }
 
   @VisibleForTesting
-  void initialize(String name, String path, AwsProperties properties, FileIO io) {
+  void initialize(String name, String path, AwsProperties properties, GlueClient client, FileIO io) {
     this.catalogName = name;
     this.awsProperties = properties;
     this.warehousePath = cleanWarehousePath(path);
+    this.glue = client;
     this.fileIO = io;
   }
 

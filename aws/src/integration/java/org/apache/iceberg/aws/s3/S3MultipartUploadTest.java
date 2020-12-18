@@ -24,7 +24,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
-import org.apache.iceberg.aws.AwsClientUtil;
+import org.apache.iceberg.aws.AwsClientFactories;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.PositionOutputStream;
@@ -51,7 +51,7 @@ public class S3MultipartUploadTest {
 
   @BeforeClass
   public static void beforeClass() {
-    s3 = AwsClientUtil.defaultS3Client();
+    s3 = AwsClientFactories.defaultFactory().s3();
     bucketName = AwsIntegTestUtil.testBucketName();
     prefix = UUID.randomUUID().toString();
     properties = new AwsProperties();

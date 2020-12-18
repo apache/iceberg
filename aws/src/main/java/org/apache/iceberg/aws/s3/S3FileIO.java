@@ -20,7 +20,8 @@
 package org.apache.iceberg.aws.s3;
 
 import java.util.Map;
-import org.apache.iceberg.aws.AwsClientUtil;
+import org.apache.iceberg.aws.AwsClientFactories;
+import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -39,18 +40,36 @@ import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
  * Using this FileIO with other schemes will result in {@link org.apache.iceberg.exceptions.ValidationException}.
  */
 public class S3FileIO implements FileIO {
-  private final SerializableSupplier<S3Client> s3;
+  private SerializableSupplier<S3Client> s3;
   private AwsProperties awsProperties;
+  private AwsClientFactory awsClientFactory;
   private transient S3Client client;
 
+  /**
+   * No-arg constructor to load the FileIO dynamically.
+   * <p>
+   * All fields are initialized by calling {@link S3FileIO#initialize(Map)} later.
+   */
   public S3FileIO() {
-    this(AwsClientUtil::defaultS3Client);
   }
 
+  /**
+   * Constructor with custom s3 supplier and default AWS properties.
+   * <p>
+   * Calling {@link S3FileIO#initialize(Map)} will overwrite information set in this constructor.
+   * @param s3 s3 supplier
+   */
   public S3FileIO(SerializableSupplier<S3Client> s3) {
     this(s3, new AwsProperties());
   }
 
+  /**
+   * Constructor with custom s3 supplier and AWS properties.
+   * <p>
+   * Calling {@link S3FileIO#initialize(Map)} will overwrite information set in this constructor.
+   * @param s3 s3 supplier
+   * @param awsProperties aws properties
+   */
   public S3FileIO(SerializableSupplier<S3Client> s3, AwsProperties awsProperties) {
     this.s3 = s3;
     this.awsProperties = awsProperties;
@@ -87,5 +106,7 @@ public class S3FileIO implements FileIO {
   @Override
   public void initialize(Map<String, String> properties) {
     this.awsProperties = new AwsProperties(properties);
+    this.awsClientFactory = AwsClientFactories.from(properties);
+    this.s3 = awsClientFactory::s3;
   }
 }
