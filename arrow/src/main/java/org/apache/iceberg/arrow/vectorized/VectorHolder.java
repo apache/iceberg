@@ -63,6 +63,15 @@ public class VectorHolder {
     icebergType = null;
   }
 
+  private VectorHolder(FieldVector vec, Type type, NullabilityHolder nulls) {
+    columnDescriptor = null;
+    vector = vec;
+    isDictionaryEncoded = false;
+    dictionary = null;
+    nullabilityHolder = nulls;
+    icebergType = type;
+  }
+
   public ColumnDescriptor descriptor() {
     return columnDescriptor;
   }
@@ -128,6 +137,12 @@ public class VectorHolder {
 
     public Object getConstant() {
       return constantValue;
+    }
+  }
+
+  public static class PositionVectorHolder extends VectorHolder {
+    public PositionVectorHolder(FieldVector vector, Type type, NullabilityHolder nulls) {
+      super(vector, type, nulls);
     }
   }
 
