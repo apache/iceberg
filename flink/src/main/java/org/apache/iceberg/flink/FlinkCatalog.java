@@ -434,7 +434,7 @@ public class FlinkCatalog extends AbstractCatalog {
     commitChanges(icebergTable, setLocation, setSnapshotId, pickSnapshotId, setProperties);
   }
 
-  private static void validateFlinkTable(CatalogBaseTable table) {
+  private void validateFlinkTable(CatalogBaseTable table) {
     Preconditions.checkArgument(table instanceof CatalogTable, "The Table should be a CatalogTable.");
 
     TableSchema schema = table.getSchema();
@@ -453,13 +453,13 @@ public class FlinkCatalog extends AbstractCatalog {
     }
   }
 
-  private static PartitionSpec toPartitionSpec(List<String> partitionKeys, Schema icebergSchema) {
+  private PartitionSpec toPartitionSpec(List<String> partitionKeys, Schema icebergSchema) {
     PartitionSpec.Builder builder = PartitionSpec.builderFor(icebergSchema);
     partitionKeys.forEach(builder::identity);
     return builder.build();
   }
 
-  private static List<String> toPartitionKeys(PartitionSpec spec, Schema icebergSchema) {
+  private List<String> toPartitionKeys(PartitionSpec spec, Schema icebergSchema) {
     List<String> partitionKeys = Lists.newArrayList();
     for (PartitionField field : spec.fields()) {
       if (field.transform().isIdentity()) {
@@ -474,7 +474,7 @@ public class FlinkCatalog extends AbstractCatalog {
     return partitionKeys;
   }
 
-  private static void commitChanges(Table table, String setLocation, String setSnapshotId,
+  private void commitChanges(Table table, String setLocation, String setSnapshotId,
                                     String pickSnapshotId, Map<String, String> setProperties) {
     // don't allow setting the snapshot and picking a commit at the same time because order is ambiguous and choosing
     // one order leads to different results
@@ -515,7 +515,7 @@ public class FlinkCatalog extends AbstractCatalog {
     transaction.commitTransaction();
   }
 
-  static CatalogTable toCatalogTable(Table table) {
+  CatalogTable toCatalogTable(Table table) {
     TableSchema schema = FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(table.schema()));
     List<String> partitionKeys = toPartitionKeys(table.spec(), table.schema());
 
