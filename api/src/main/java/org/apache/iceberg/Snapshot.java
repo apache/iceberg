@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.io.FileIO;
 
 /**
  * A snapshot of the data in a table at a point in time.
@@ -135,4 +136,13 @@ public interface Snapshot extends Serializable {
   default Integer schemaId() {
     return null;
   }
+  
+   /**
+   *
+   * @return file io used for this snapshot
+   */
+   
+  FileIO io();
+  
+  
 }
