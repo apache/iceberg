@@ -54,7 +54,6 @@ case class DropPartitionFieldExec(
                 .commit()
         }
 
-
       case table =>
         throw new UnsupportedOperationException(s"Cannot drop partition field in non-Iceberg table: $table")
     }
