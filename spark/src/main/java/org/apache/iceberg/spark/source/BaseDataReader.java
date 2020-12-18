@@ -56,6 +56,7 @@ abstract class BaseDataReader<T> implements Closeable {
 
   private CloseableIterator<T> currentIterator;
   private T current = null;
+  private FileScanTask currentTask = null;
 
   BaseDataReader(CombinedScanTask task, FileIO io, EncryptionManager encryptionManager) {
     this.tasks = task.files().iterator();
@@ -77,16 +78,30 @@ abstract class BaseDataReader<T> implements Closeable {
   }
 
   public boolean next() throws IOException {
-    while (true) {
-      if (currentIterator.hasNext()) {
-        this.current = currentIterator.next();
-        return true;
-      } else if (tasks.hasNext()) {
-        this.currentIterator.close();
-        this.currentIterator = open(tasks.next());
+    try {
+      while (true) {
+        if (currentIterator.hasNext()) {
+          this.current = currentIterator.next();
+          return true;
+        } else if (tasks.hasNext()) {
+          this.currentIterator.close();
+          this.currentTask = tasks.next();
+          this.currentIterator = open(currentTask);
+        } else {
+          this.currentIterator.close();
+          return false;
+        }
+      }
+    } catch (IOException | RuntimeException e) {
+      if (currentTask == null || currentTask.isDataTask()) {
+        throw e;
       } else {
-        this.currentIterator.close();
-        return false;
+        String message = String.format("Error reading file: %s", getInputFile(currentTask).location());
+        if (e instanceof IOException) {
+          throw new IOException(message, e);
+        } else {
+          throw new RuntimeException(message, e);
+        }
       }
     }
   }
