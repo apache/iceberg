@@ -31,12 +31,12 @@ import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.Call
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
+import org.apache.spark.sql.catalyst.plans.logical.ExtendedScanRelation
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteOrder
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
-import org.apache.spark.sql.execution.ProjectExec
 import org.apache.spark.sql.execution.SparkPlan
 import scala.collection.JavaConverters._
 
@@ -56,16 +56,11 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
     case SetWriteOrder(IcebergCatalogAndIdentifier(catalog, ident), writeOrder) =>
       SetWriteOrderExec(catalog, ident, writeOrder) :: Nil
 
-    case DynamicFileFilter(scanRelation, fileFilterPlan) =>
-      // we don't use planLater here as we need ExtendedBatchScanExec, not BatchScanExec
-      val scanExec = ExtendedBatchScanExec(scanRelation.output, scanRelation.scan)
-      val dynamicFileFilter = DynamicFileFilterExec(scanExec, planLater(fileFilterPlan))
-      if (scanExec.supportsColumnar) {
-        dynamicFileFilter :: Nil
-      } else {
-        // add a projection to ensure we have UnsafeRows required by some operations
-        ProjectExec(scanRelation.output, dynamicFileFilter) :: Nil
-      }
+    case DynamicFileFilter(scanPlan, fileFilterPlan, filterable) =>
+      DynamicFileFilterExec(planLater(scanPlan), planLater(fileFilterPlan), filterable) :: Nil
+
+    case ExtendedScanRelation(relation) =>
+      ExtendedBatchScanExec(relation.output, relation.scan) :: Nil
 
     case ReplaceData(_, batchWrite, query) =>
       ReplaceDataExec(batchWrite, planLater(query)) :: Nil

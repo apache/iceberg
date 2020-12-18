@@ -96,7 +96,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
 
       } else {
         Preconditions.checkArgument(
-            field.isOptional() || field.fieldId() == MetadataColumns.ROW_POSITION.fieldId(),
+            field.isOptional() || MetadataColumns.metadataFieldIds().contains(field.fieldId()),
             "Missing required field: %s", field.name());
         // Create a field that will be defaulted to null. We assign a unique suffix to the field
         // to make sure that even if records in the file have the field it is not projected.
