@@ -33,6 +33,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
@@ -110,10 +111,16 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
   public void testFilterPushDown() {
     sql("INSERT INTO %s  VALUES (1,'a'),(2,'b'),(3,CAST(null AS VARCHAR))", TABLE_NAME);
 
+    String expectedExplain = "FilterPushDown";
+
+    // not push down
+    String sqlNoPushDown = "SELECT * FROM " + TABLE_NAME + " WHERE data LIKE '%a%' ";
+    String explainNoPushDown = getTableEnv().explainSql(sqlNoPushDown);
+    assertFalse("explain should not contains FilterPushDown", explainNoPushDown.contains(expectedExplain));
+
     // equal
     String sqlLiteralRight = String.format("SELECT * FROM %s WHERE id = 1 ", TABLE_NAME);
     String explain = getTableEnv().explainSql(sqlLiteralRight);
-    String expectedExplain = "FilterPushDown";
     assertTrue("explain should contains FilterPushDown", explain.contains(expectedExplain));
 
     List<Object[]> result = sql(sqlLiteralRight);

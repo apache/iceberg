@@ -22,6 +22,7 @@ package org.apache.iceberg.flink;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -119,9 +120,9 @@ public class IcebergTableSource
       explain += String.format(", LimitPushDown : %d", limit);
     }
 
-    if (filters != null) {
+    if (isFilterPushedDown()) {
       explain += String.format(", FilterPushDown,the filters :%s",
-          filters.stream().map(filter -> filter == null ? "" : filter.toString()).collect(Collectors.joining(",")));
+          filters.stream().map(filter -> filter.toString()).collect(Collectors.joining(",")));
     }
 
     return TableConnectorUtils.generateRuntimeName(getClass(), getTableSchema().getFieldNames()) + explain;
@@ -141,8 +142,10 @@ public class IcebergTableSource
   public TableSource<RowData> applyPredicate(List<Expression> predicates) {
     List<org.apache.iceberg.expressions.Expression> expressions = Lists.newArrayList();
     for (Expression predicate : predicates) {
-      org.apache.iceberg.expressions.Expression expression = FlinkFilters.convert(predicate);
-      expressions.add(expression);
+      Optional<org.apache.iceberg.expressions.Expression> expression = FlinkFilters.convert(predicate);
+      if (expression.isPresent()) {
+        expressions.add(expression.get());
+      }
     }
 
     return new IcebergTableSource(loader, schema, properties, projectedFields, isLimitPushDown, limit, expressions);
@@ -150,6 +153,6 @@ public class IcebergTableSource
 
   @Override
   public boolean isFilterPushedDown() {
-    return this.filters != null;
+    return this.filters != null && this.filters.size() > 0;
   }
 }

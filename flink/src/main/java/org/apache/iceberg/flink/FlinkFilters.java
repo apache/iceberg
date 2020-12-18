@@ -21,6 +21,7 @@ package org.apache.iceberg.flink;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import org.apache.flink.table.expressions.CallExpression;
@@ -57,9 +58,9 @@ public class FlinkFilters {
       .build();
 
 
-  public static Expression convert(org.apache.flink.table.expressions.Expression flinkExpression) {
+  public static Optional<Expression> convert(org.apache.flink.table.expressions.Expression flinkExpression) {
     if (!(flinkExpression instanceof CallExpression)) {
-      return null;
+      return Optional.empty();
     }
 
     CallExpression call = (CallExpression) flinkExpression;
@@ -68,11 +69,11 @@ public class FlinkFilters {
       switch (op) {
         case IS_NULL:
           FieldReferenceExpression isNullFilter = (FieldReferenceExpression) call.getResolvedChildren().get(0);
-          return Expressions.isNull(isNullFilter.getName());
+          return Optional.of(Expressions.isNull(isNullFilter.getName()));
 
         case NOT_NULL:
           FieldReferenceExpression notNullExpression = (FieldReferenceExpression) call.getResolvedChildren().get(0);
-          return Expressions.notNull(notNullExpression.getName());
+          return Optional.of(Expressions.notNull(notNullExpression.getName()));
 
         case LT:
           return convertComparisonExpression(Expressions::lessThan, call);
@@ -110,15 +111,15 @@ public class FlinkFilters {
             return valueLiteralExpression.getValueAs(valueLiteralExpression.getOutputDataType().getConversionClass())
                 .get();
           }).collect(Collectors.toList());
-          return Expressions.in(field.getName(), inputValues);
+          return Optional.of(Expressions.in(field.getName(), inputValues));
 
         case NOT:
-          Expression child = convert(call.getResolvedChildren().get(0));
-          if (child != null) {
-            return Expressions.not(child);
+          Optional<Expression> child = convert(call.getResolvedChildren().get(0));
+          if (child.isPresent()) {
+            return Optional.of(Expressions.not(child.get()));
           }
 
-          return null;
+          return Optional.empty();
 
         case AND: {
           return convertLogicExpression(Expressions::and, call);
@@ -130,23 +131,23 @@ public class FlinkFilters {
       }
     }
 
-    return null;
+    return Optional.empty();
   }
 
-  private static Expression convertLogicExpression(BiFunction<Expression, Expression, Expression> function,
-                                                   CallExpression call) {
+  private static Optional<Expression> convertLogicExpression(BiFunction<Expression, Expression, Expression> function,
+                                                             CallExpression call) {
     List<ResolvedExpression> args = call.getResolvedChildren();
-    Expression left = convert(args.get(0));
-    Expression right = convert(args.get(1));
-    if (left != null && right != null) {
-      return function.apply(left, right);
+    Optional<Expression> left = convert(args.get(0));
+    Optional<Expression> right = convert(args.get(1));
+    if (left.isPresent() && right.isPresent()) {
+      return Optional.of(function.apply(left.get(), right.get()));
     }
 
-    return null;
+    return Optional.empty();
   }
 
-  private static Expression convertComparisonExpression(BiFunction<String, Object, Expression> function,
-                                                        CallExpression call) {
+  private static Optional<Expression> convertComparisonExpression(BiFunction<String, Object, Expression> function,
+                                                                  CallExpression call) {
     List<ResolvedExpression> args = call.getResolvedChildren();
     FieldReferenceExpression fieldReferenceExpression;
     ValueLiteralExpression valueLiteralExpression;
@@ -163,23 +164,20 @@ public class FlinkFilters {
     Object value = valueLiteralExpression.getValueAs(clazz).get();
 
     BuiltInFunctionDefinition functionDefinition = (BuiltInFunctionDefinition) call.getFunctionDefinition();
-    if (functionDefinition.equals(BuiltInFunctionDefinitions.EQUALS)) {
+    if (functionDefinition.equals(BuiltInFunctionDefinitions.EQUALS) &&
+        functionDefinition.equals(BuiltInFunctionDefinitions.NOT_EQUALS)) {
       Preconditions.checkNotNull(value, "Expression is always false : %s", call);
-      return handleEqual(name, value);
+      if (NaNUtil.isNaN(value)) {
+        return Optional.of(Expressions.isNaN(name));
+      } else {
+        return Optional.of(function.apply(name, value));
+      }
     }
 
-    return function.apply(name, value);
+    return Optional.of(function.apply(name, value));
   }
 
   private static boolean literalOnRight(List<ResolvedExpression> args) {
     return args.get(0) instanceof FieldReferenceExpression && args.get(1) instanceof ValueLiteralExpression;
-  }
-
-  private static Expression handleEqual(String attribute, Object value) {
-    if (NaNUtil.isNaN(value)) {
-      return Expressions.isNaN(attribute);
-    } else {
-      return Expressions.equal(attribute, value);
-    }
   }
 }
