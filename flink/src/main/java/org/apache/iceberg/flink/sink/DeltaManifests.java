@@ -19,19 +19,29 @@
 
 package org.apache.iceberg.flink.sink;
 
-import java.util.Iterator;
 import java.util.List;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-class DeltaManifests implements Iterable<ManifestFile> {
+class DeltaManifests {
+
+  private static final CharSequence[] EMPTY_REF_DATA_FILES = new CharSequence[0];
 
   private final ManifestFile dataManifest;
   private final ManifestFile deleteManifest;
+  private final CharSequence[] referencedDataFiles;
 
   DeltaManifests(ManifestFile dataManifest, ManifestFile deleteManifest) {
+    this(dataManifest, deleteManifest, EMPTY_REF_DATA_FILES);
+  }
+
+  DeltaManifests(ManifestFile dataManifest, ManifestFile deleteManifest, CharSequence[] referencedDataFiles) {
+    Preconditions.checkNotNull(referencedDataFiles, "Referenced data files shouldn't be null.");
+
     this.dataManifest = dataManifest;
     this.deleteManifest = deleteManifest;
+    this.referencedDataFiles = referencedDataFiles;
   }
 
   ManifestFile dataManifest() {
@@ -42,8 +52,11 @@ class DeltaManifests implements Iterable<ManifestFile> {
     return deleteManifest;
   }
 
-  @Override
-  public Iterator<ManifestFile> iterator() {
+  CharSequence[] referencedDataFiles() {
+    return referencedDataFiles;
+  }
+
+  List<ManifestFile> manifests() {
     List<ManifestFile> manifests = Lists.newArrayListWithCapacity(2);
     if (dataManifest != null) {
       manifests.add(dataManifest);
@@ -53,6 +66,6 @@ class DeltaManifests implements Iterable<ManifestFile> {
       manifests.add(deleteManifest);
     }
 
-    return manifests.iterator();
+    return manifests;
   }
 }

@@ -94,7 +94,7 @@ class FlinkManifestUtil {
       deleteManifest = deleteManifestWriter.toManifestFile();
     }
 
-    return new DeltaManifests(dataManifest, deleteManifest);
+    return new DeltaManifests(dataManifest, deleteManifest, result.referencedDataFiles());
   }
 
   static WriteResult readCompletedFiles(DeltaManifests deltaManifests, FileIO io) throws IOException {
@@ -113,6 +113,7 @@ class FlinkManifestUtil {
       }
     }
 
-    return builder.build();
+    return builder.addReferencedDataFiles(deltaManifests.referencedDataFiles())
+        .build();
   }
 }

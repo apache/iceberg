@@ -64,6 +64,12 @@ class DeltaManifestsSerializer implements SimpleVersionedSerializer<DeltaManifes
     out.writeInt(deleteManifestBinary.length);
     out.write(deleteManifestBinary);
 
+    CharSequence[] referencedDataFiles = deltaManifests.referencedDataFiles();
+    out.writeInt(referencedDataFiles.length);
+    for (int i = 0; i < referencedDataFiles.length; i++) {
+      out.writeUTF(referencedDataFiles[i].toString());
+    }
+
     return binaryOut.toByteArray();
   }
 
@@ -104,6 +110,13 @@ class DeltaManifestsSerializer implements SimpleVersionedSerializer<DeltaManifes
 
       deleteManifest = ManifestFiles.decode(deleteManifestBinary);
     }
-    return new DeltaManifests(dataManifest, deleteManifest);
+
+    int referenceDataFileNum = in.readInt();
+    CharSequence[] referencedDataFiles = new CharSequence[referenceDataFileNum];
+    for (int i = 0; i < referenceDataFileNum; i++) {
+      referencedDataFiles[i] = in.readUTF();
+    }
+
+    return new DeltaManifests(dataManifest, deleteManifest, referencedDataFiles);
   }
 }

@@ -50,7 +50,7 @@ import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
@@ -201,7 +201,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       DeltaManifests deltaManifests = SimpleVersionedSerialization
           .readVersionAndDeSerialize(DeltaManifestsSerializer.INSTANCE, e.getValue());
       pendingResults.put(e.getKey(), FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io()));
-      Iterables.addAll(manifests, deltaManifests);
+      manifests.addAll(deltaManifests.manifests());
     }
 
     if (replacePartitions) {
@@ -240,6 +240,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     int numFiles = 0;
     for (WriteResult result : pendingResults.values()) {
+      Preconditions.checkState(result.referencedDataFiles().length == 0, "Should have no referenced data files.");
+
       numFiles += result.dataFiles().length;
       Arrays.stream(result.dataFiles()).forEach(dynamicOverwrite::addFile);
     }
@@ -256,6 +258,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
       int numFiles = 0;
       for (WriteResult result : pendingResults.values()) {
+        Preconditions.checkState(result.referencedDataFiles().length == 0, "Should have no referenced data files.");
+
         numFiles += result.dataFiles().length;
         Arrays.stream(result.dataFiles()).forEach(appendFiles::appendFile);
       }
@@ -268,7 +272,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         // txn2, the equality-delete files of txn2 are required to be applied to data files from txn1. Committing the
         // merged one will lead to the incorrect delete semantic.
         WriteResult result = e.getValue();
-        RowDelta rowDelta = table.newRowDelta();
+        RowDelta rowDelta = table.newRowDelta()
+            .validateDataFilesExist(ImmutableList.copyOf(result.referencedDataFiles()))
+            .validateDeletedFiles();
 
         int numDataFiles = result.dataFiles().length;
         Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
