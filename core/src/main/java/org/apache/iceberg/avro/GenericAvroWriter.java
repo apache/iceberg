@@ -68,9 +68,9 @@ class GenericAvroWriter<T> implements MetricsAwareDatumWriter<T> {
       Preconditions.checkArgument(options.size() == 2,
           "Cannot create writer for non-option union: %s", union);
       if (union.getTypes().get(0).getType() == Schema.Type.NULL) {
-        return ValueWriters.option(0, options.get(1));
+        return ValueWriters.option(0, options.get(1), union.getTypes().get(1).getType());
       } else {
-        return ValueWriters.option(1, options.get(0));
+        return ValueWriters.option(1, options.get(0), union.getTypes().get(0).getType());
       }
     }
 
@@ -86,29 +86,32 @@ class GenericAvroWriter<T> implements MetricsAwareDatumWriter<T> {
 
     @Override
     public ValueWriter<?> map(Schema map, ValueWriter<?> valueWriter) {
-      return ValueWriters.map(ValueWriters.strings(), valueWriter);
+      int keyId = AvroSchemaUtil.getKeyId(map);
+      return ValueWriters.map(ValueWriters.strings(keyId), valueWriter);
     }
 
     @Override
     public ValueWriter<?> primitive(Schema primitive) {
+      int fieldId = AvroSchemaUtil.fieldId(primitive, parentSchema(), this::lastFieldName);
+
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
         switch (logicalType.getName()) {
           case "date":
-            return ValueWriters.ints();
+            return ValueWriters.ints(fieldId);
 
           case "time-micros":
-            return ValueWriters.longs();
+            return ValueWriters.longs(fieldId);
 
           case "timestamp-micros":
-            return ValueWriters.longs();
+            return ValueWriters.longs(fieldId);
 
           case "decimal":
             LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
-            return ValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
+            return ValueWriters.decimal(fieldId, decimal.getPrecision(), decimal.getScale());
 
           case "uuid":
-            return ValueWriters.uuids();
+            return ValueWriters.uuids(fieldId);
 
           default:
             throw new IllegalArgumentException("Unsupported logical type: " + logicalType);
@@ -119,21 +122,21 @@ class GenericAvroWriter<T> implements MetricsAwareDatumWriter<T> {
         case NULL:
           return ValueWriters.nulls();
         case BOOLEAN:
-          return ValueWriters.booleans();
+          return ValueWriters.booleans(fieldId);
         case INT:
-          return ValueWriters.ints();
+          return ValueWriters.ints(fieldId);
         case LONG:
-          return ValueWriters.longs();
+          return ValueWriters.longs(fieldId);
         case FLOAT:
-          return ValueWriters.floats();
+          return ValueWriters.floats(fieldId);
         case DOUBLE:
-          return ValueWriters.doubles();
+          return ValueWriters.doubles(fieldId);
         case STRING:
-          return ValueWriters.strings();
+          return ValueWriters.strings(fieldId);
         case FIXED:
-          return ValueWriters.genericFixed(primitive.getFixedSize());
+          return ValueWriters.genericFixed(fieldId, primitive.getFixedSize());
         case BYTES:
-          return ValueWriters.byteBuffers();
+          return ValueWriters.byteBuffers(fieldId);
         default:
           throw new IllegalArgumentException("Unsupported type: " + primitive);
       }

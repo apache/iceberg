@@ -32,6 +32,7 @@ import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.avro.MetricsAwareDatumWriter;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.ValueWriter;
 import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -75,9 +76,9 @@ public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
       Preconditions.checkArgument(options.size() == 2,
           "Cannot create writer for non-option union: %s", union);
       if (union.getTypes().get(0).getType() == Schema.Type.NULL) {
-        return ValueWriters.option(0, options.get(1));
+        return ValueWriters.option(0, options.get(1), union.getTypes().get(1).getType());
       } else {
-        return ValueWriters.option(1, options.get(0));
+        return ValueWriters.option(1, options.get(0), union.getTypes().get(0).getType());
       }
     }
 
@@ -88,7 +89,8 @@ public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
 
     @Override
     public ValueWriter<?> map(LogicalType sMap, Schema map, ValueWriter<?> valueReader) {
-      return FlinkValueWriters.map(FlinkValueWriters.strings(), mapKeyType(sMap), valueReader, mapValueType(sMap));
+      int keyId = AvroSchemaUtil.getKeyId(map);
+      return FlinkValueWriters.map(FlinkValueWriters.strings(keyId), mapKeyType(sMap), valueReader, mapValueType(sMap));
     }
 
     @Override
@@ -98,24 +100,26 @@ public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
 
     @Override
     public ValueWriter<?> primitive(LogicalType type, Schema primitive) {
+      int fieldId = AvroSchemaUtil.fieldId(primitive, parentSchema(), this::lastFieldName);
+
       org.apache.avro.LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
         switch (logicalType.getName()) {
           case "date":
-            return ValueWriters.ints();
+            return ValueWriters.ints(fieldId);
 
           case "time-micros":
-            return FlinkValueWriters.timeMicros();
+            return FlinkValueWriters.timeMicros(fieldId);
 
           case "timestamp-micros":
-            return FlinkValueWriters.timestampMicros();
+            return FlinkValueWriters.timestampMicros(fieldId);
 
           case "decimal":
             LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
-            return FlinkValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
+            return FlinkValueWriters.decimal(fieldId, decimal.getPrecision(), decimal.getScale());
 
           case "uuid":
-            return ValueWriters.uuids();
+            return ValueWriters.uuids(fieldId);
 
           default:
             throw new IllegalArgumentException("Unsupported logical type: " + logicalType);
@@ -126,28 +130,28 @@ public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
         case NULL:
           return ValueWriters.nulls();
         case BOOLEAN:
-          return ValueWriters.booleans();
+          return ValueWriters.booleans(fieldId);
         case INT:
           switch (type.getTypeRoot()) {
             case TINYINT:
-              return ValueWriters.tinyints();
+              return ValueWriters.tinyints(fieldId);
             case SMALLINT:
-              return ValueWriters.shorts();
+              return ValueWriters.shorts(fieldId);
             default:
-              return ValueWriters.ints();
+              return ValueWriters.ints(fieldId);
           }
         case LONG:
-          return ValueWriters.longs();
+          return ValueWriters.longs(fieldId);
         case FLOAT:
-          return ValueWriters.floats();
+          return ValueWriters.floats(fieldId);
         case DOUBLE:
-          return ValueWriters.doubles();
+          return ValueWriters.doubles(fieldId);
         case STRING:
-          return FlinkValueWriters.strings();
+          return FlinkValueWriters.strings(fieldId);
         case FIXED:
-          return ValueWriters.fixed(primitive.getFixedSize());
+          return ValueWriters.fixed(fieldId, primitive.getFixedSize());
         case BYTES:
-          return ValueWriters.bytes();
+          return ValueWriters.bytes(fieldId);
         default:
           throw new IllegalArgumentException("Unsupported type: " + primitive);
       }
