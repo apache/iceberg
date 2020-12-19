@@ -44,6 +44,8 @@ import org.apache.iceberg.util.ByteBuffers;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Base class of Spark readers.
@@ -51,11 +53,14 @@ import org.apache.spark.unsafe.types.UTF8String;
  * @param <T> is the Java class returned by this reader whose objects contain one or more rows.
  */
 abstract class BaseDataReader<T> implements Closeable {
+  private static final Logger LOG = LoggerFactory.getLogger(BaseDataReader.class);
+
   private final Iterator<FileScanTask> tasks;
   private final Map<String, InputFile> inputFiles;
 
   private CloseableIterator<T> currentIterator;
   private T current = null;
+  private FileScanTask currentTask = null;
 
   BaseDataReader(CombinedScanTask task, FileIO io, EncryptionManager encryptionManager) {
     this.tasks = task.files().iterator();
@@ -77,17 +82,25 @@ abstract class BaseDataReader<T> implements Closeable {
   }
 
   public boolean next() throws IOException {
-    while (true) {
-      if (currentIterator.hasNext()) {
-        this.current = currentIterator.next();
-        return true;
-      } else if (tasks.hasNext()) {
-        this.currentIterator.close();
-        this.currentIterator = open(tasks.next());
-      } else {
-        this.currentIterator.close();
-        return false;
+    try {
+      while (true) {
+        if (currentIterator.hasNext()) {
+          this.current = currentIterator.next();
+          return true;
+        } else if (tasks.hasNext()) {
+          this.currentIterator.close();
+          this.currentTask = tasks.next();
+          this.currentIterator = open(currentTask);
+        } else {
+          this.currentIterator.close();
+          return false;
+        }
       }
+    } catch (IOException | RuntimeException e) {
+      if (currentTask != null && !currentTask.isDataTask()) {
+        LOG.error("Error reading file: {}", getInputFile(currentTask).location(), e);
+      }
+      throw e;
     }
   }
 
