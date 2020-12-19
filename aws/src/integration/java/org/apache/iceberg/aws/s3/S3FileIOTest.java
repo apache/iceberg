@@ -29,11 +29,14 @@ import java.util.Base64;
 import java.util.UUID;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
-import org.apache.iceberg.aws.AwsClientUtil;
+import org.apache.commons.lang3.SerializationUtils;
+import org.apache.iceberg.aws.AwsClientFactories;
+import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -57,6 +60,7 @@ import software.amazon.awssdk.utils.IoUtils;
 
 public class S3FileIOTest {
 
+  private static AwsClientFactory clientFactory;
   private static S3Client s3;
   private static KmsClient kms;
   private static String bucketName;
@@ -69,8 +73,9 @@ public class S3FileIOTest {
 
   @BeforeClass
   public static void beforeClass() {
-    s3 = AwsClientUtil.defaultS3Client();
-    kms = AwsClientUtil.defaultKmsClient();
+    clientFactory = AwsClientFactories.defaultFactory();
+    s3 = clientFactory.s3();
+    kms = clientFactory.kms();
     bucketName = AwsIntegTestUtil.testBucketName();
     prefix = UUID.randomUUID().toString();
     contentBytes = new byte[1024 * 1024 * 10];
@@ -94,13 +99,13 @@ public class S3FileIOTest {
   public void testNewInputStream() throws Exception {
     s3.putObject(PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
         RequestBody.fromBytes(contentBytes));
-    S3FileIO s3FileIO = new S3FileIO();
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
     validateRead(s3FileIO);
   }
 
   @Test
   public void testNewOutputStream() throws Exception {
-    S3FileIO s3FileIO = new S3FileIO();
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
     write(s3FileIO);
     InputStream stream = s3.getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build());
     String result = IoUtils.toUtf8String(stream);
@@ -112,7 +117,7 @@ public class S3FileIOTest {
   public void testSSE_S3() throws Exception {
     AwsProperties properties = new AwsProperties();
     properties.setS3FileIoSseType(AwsProperties.S3FILEIO_SSE_TYPE_S3);
-    S3FileIO s3FileIO = new S3FileIO(AwsClientUtil::defaultS3Client, properties);
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, properties);
     write(s3FileIO);
     validateRead(s3FileIO);
     GetObjectResponse response = s3.getObject(
@@ -125,7 +130,7 @@ public class S3FileIOTest {
     AwsProperties properties = new AwsProperties();
     properties.setS3FileIoSseType(AwsProperties.S3FILEIO_SSE_TYPE_KMS);
     properties.setS3FileIoSseKey(kmsKeyArn);
-    S3FileIO s3FileIO = new S3FileIO(AwsClientUtil::defaultS3Client, properties);
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, properties);
     write(s3FileIO);
     validateRead(s3FileIO);
     GetObjectResponse response = s3.getObject(
@@ -138,7 +143,7 @@ public class S3FileIOTest {
   public void testSSE_KMS_default() throws Exception {
     AwsProperties properties = new AwsProperties();
     properties.setS3FileIoSseType(AwsProperties.S3FILEIO_SSE_TYPE_KMS);
-    S3FileIO s3FileIO = new S3FileIO(AwsClientUtil::defaultS3Client, properties);
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, properties);
     write(s3FileIO);
     validateRead(s3FileIO);
     GetObjectResponse response = s3.getObject(
@@ -167,7 +172,7 @@ public class S3FileIOTest {
     properties.setS3FileIoSseType(AwsProperties.S3FILEIO_SSE_TYPE_CUSTOM);
     properties.setS3FileIoSseKey(encodedKey);
     properties.setS3FileIoSseMd5(md5);
-    S3FileIO s3FileIO = new S3FileIO(AwsClientUtil::defaultS3Client, properties);
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, properties);
     write(s3FileIO);
     validateRead(s3FileIO);
     GetObjectResponse response = s3.getObject(
@@ -185,7 +190,7 @@ public class S3FileIOTest {
   public void testACL() throws Exception {
     AwsProperties properties = new AwsProperties();
     properties.setS3FileIoAcl(ObjectCannedACL.BUCKET_OWNER_FULL_CONTROL);
-    S3FileIO s3FileIO = new S3FileIO(AwsClientUtil::defaultS3Client, properties);
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, properties);
     write(s3FileIO);
     validateRead(s3FileIO);
     GetObjectAclResponse response = s3.getObjectAcl(
@@ -193,6 +198,16 @@ public class S3FileIOTest {
     Assert.assertTrue(response.hasGrants());
     Assert.assertEquals(1, response.grants().size());
     Assert.assertEquals(Permission.FULL_CONTROL, response.grants().get(0).permission());
+  }
+
+  @Test
+  public void testClientFactorySerialization() throws Exception {
+    S3FileIO fileIO = new S3FileIO();
+    fileIO.initialize(Maps.newHashMap());
+    write(fileIO);
+    byte [] data = SerializationUtils.serialize(fileIO);
+    S3FileIO fileIO2 = SerializationUtils.deserialize(data);
+    validateRead(fileIO2);
   }
 
   private void write(S3FileIO s3FileIO) throws Exception {

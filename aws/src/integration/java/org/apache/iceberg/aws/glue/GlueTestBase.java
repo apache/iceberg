@@ -23,7 +23,8 @@ import java.util.List;
 import java.util.UUID;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.aws.AwsClientUtil;
+import org.apache.iceberg.aws.AwsClientFactories;
+import org.apache.iceberg.aws.AwsClientFactory;
 import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.s3.S3FileIO;
@@ -51,8 +52,9 @@ public class GlueTestBase {
   static final List<String> namespaces = Lists.newArrayList();
 
   // aws clients
-  static final GlueClient glue = AwsClientUtil.defaultGlueClient();
-  static final S3Client s3 = AwsClientUtil.defaultS3Client();
+  static final AwsClientFactory clientFactory = AwsClientFactories.defaultFactory();
+  static final GlueClient glue = clientFactory.glue();
+  static final S3Client s3 = clientFactory.s3();
 
   // iceberg
   static GlueCatalog glueCatalog;
@@ -64,13 +66,13 @@ public class GlueTestBase {
   @BeforeClass
   public static void beforeClass() {
     String testBucketPath = "s3://" + testBucketName + "/" + testPathPrefix;
-    S3FileIO fileIO = new S3FileIO();
-    glueCatalog = new GlueCatalog(glue);
-    glueCatalog.initialize(catalogName, testBucketPath, new AwsProperties(), fileIO);
+    S3FileIO fileIO = new S3FileIO(clientFactory::s3);
+    glueCatalog = new GlueCatalog();
+    glueCatalog.initialize(catalogName, testBucketPath, new AwsProperties(), glue, fileIO);
     AwsProperties properties = new AwsProperties();
     properties.setGlueCatalogSkipArchive(true);
-    glueCatalogWithSkip = new GlueCatalog(glue);
-    glueCatalogWithSkip.initialize(catalogName, testBucketPath, properties, fileIO);
+    glueCatalogWithSkip = new GlueCatalog();
+    glueCatalogWithSkip.initialize(catalogName, testBucketPath, properties, glue, fileIO);
   }
 
   @AfterClass
