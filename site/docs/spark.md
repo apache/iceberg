@@ -347,6 +347,28 @@ df.createOrReplaceTempView("table")
 spark.sql("""select count(1) from table""").show()
 ```
 
+**Note**: Dataframe read options are available as static constants in [SparkReadOptions](https://github.com/apache/iceberg/blob/master/core/src/main/java/org/apache/iceberg/types/SparkReadOptions.java) class.
+
+| Spark Read option    | Constant               |
+| --------------- | --------------------- |
+| snapshot-id     | SNAPSHOT_ID              |
+| as-of-timestamp | AS_OF_TIMESTAMP              |
+| split-size      | SPLIT_SIZE |
+| lookback        | LOOKBACK |
+| file-open-cost  | FILE_OPEN_COST |
+| vectorization-enabled  | VECTORIZATION_ENABLED |
+| batch-size  | VECTORIZATION_BATCH_SIZE |
+
+Usage:
+```
+ex: spark
+      .read
+      .format("iceberg")
+      .option(SparkReadOptions.VECTORIZATION_ENABLED, "true" )
+      .load(<path>)
+```
+
+
 
 ## Writing with SQL
 
@@ -512,6 +534,27 @@ data.write
     **The behavior of overwrite mode changed between Spark 2.4 and Spark 3**.
 
 The behavior of DataFrameWriter overwrite mode was undefined in Spark 2.4, but is required to overwrite the entire table in Spark 3. Because of this new requirement, the Iceberg source's behavior changed in Spark 3. In Spark 2.4, the behavior was to dynamically overwrite partitions. To use the Spark 2.4 behavior, add option `overwrite-mode=dynamic`.
+
+**Note**: Dataframe write options are available as static constants in [SparkWriteOptions](https://github.com/apache/iceberg/blob/master/core/src/main/java/org/apache/iceberg/types/SparkWriteOptions.java) class.
+
+| Spark write option           | Constant                    |
+| ---------------------- | -------------------------- |
+| write-format           | WRITE_FORMAT |
+| target-file-size-bytes | TARGET_FILE_SIZE_BYTES      |
+| check-nullability      | CHECK_NULLABILITY                       |
+| snapshot-property._custom-key_    |SNAPSHOT_PROPERTY_PREFIX._custom-key_)            |
+| fanout-enabled       | FANOUT_ENABLED        |
+| check-ordering       | CHECK_ORDERING        |
+
+Usage:
+```
+ex: spark
+      .write
+      .format("iceberg")
+      .option(SparkWriteOptions.WRITE_FORMAT, "orc")
+      .load(<path>)
+```
+
 
 ### Creating tables
 

@@ -383,8 +383,8 @@ public abstract class TestDataSourceOptions {
     originalDf.select("id", "data").write()
             .format("iceberg")
             .mode("append")
-            .option("snapshot-property.extra-key", "someValue")
-            .option("snapshot-property.another-key", "anotherValue")
+            .option(SparkWriteOptions.SNAPSHOT_PROPERTY_PREFIX + ".extra-key", "someValue")
+            .option(SparkWriteOptions.SNAPSHOT_PROPERTY_PREFIX + ".another-key", "anotherValue")
             .save(tableLocation);
 
     Table table = tables.load(tableLocation);
