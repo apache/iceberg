@@ -68,18 +68,7 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(file.path().toString(), task.start(), task.length());
 
-    // schema or rows returned by readers
-    PartitionSpec spec = task.spec();
-    Set<Integer> idColumns = spec.identitySourceIds();
-    Schema partitionSchema = TypeUtil.select(expectedSchema, idColumns);
-    boolean projectsIdentityPartitionColumns = !partitionSchema.columns().isEmpty();
-
-    Map<Integer, ?> idToConstant;
-    if (projectsIdentityPartitionColumns) {
-      idToConstant = PartitionUtil.constantsMap(task, BatchDataReader::convertConstant);
-    } else {
-      idToConstant = ImmutableMap.of();
-    }
+    Map<Integer, ?> idToConstant = PartitionUtil.constantsMap(task, BatchDataReader::convertConstant);
 
     CloseableIterable<ColumnarBatch> iter;
     InputFile location = getInputFile(task);

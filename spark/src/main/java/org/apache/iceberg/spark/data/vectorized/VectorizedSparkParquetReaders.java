@@ -103,7 +103,7 @@ public class VectorizedSparkParquetReaders {
         int id = field.fieldId();
         VectorizedReader<?> reader = readersById.get(id);
         if (idToConstant.containsKey(id)) {
-          reorderedFields.add(new ConstantVectorReader(idToConstant.get(id)));
+          reorderedFields.add(new ConstantVectorReader<>(idToConstant.get(id)));
         } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
           reorderedFields.add(VectorizedArrowReader.positions());
         } else if (reader != null) {
