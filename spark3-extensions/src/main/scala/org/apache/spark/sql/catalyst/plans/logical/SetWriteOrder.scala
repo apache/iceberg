@@ -31,7 +31,7 @@ case class SetWriteOrder(
 
   override def output: Seq[Attribute] = Nil
 
-  override def simpleString: String = {
+  override def simpleString(maxFields: Int): String = {
     val order = sortOrder.map {
       case (term, direction, nullOrder) => s"$term $direction $nullOrder"
     }.mkString(", ")
