@@ -43,12 +43,12 @@ public class IcebergTimestampWithZoneObjectInspector extends AbstractPrimitiveJa
   @Override
   public OffsetDateTime convert(Object o) {
     return o == null ? null :
-        OffsetDateTime.of(((TimestampWritable) o).getTimestamp().toLocalDateTime(), ZoneOffset.UTC);
+        OffsetDateTime.ofInstant(((TimestampWritable) o).getTimestamp().toInstant(), ZoneOffset.UTC);
   }
 
   @Override
   public Timestamp getPrimitiveJavaObject(Object o) {
-    return o == null ? null : Timestamp.valueOf(((OffsetDateTime) o).toLocalDateTime());
+    return o == null ? null : Timestamp.from(((OffsetDateTime) o).toInstant());
   }
 
   @Override
@@ -66,7 +66,7 @@ public class IcebergTimestampWithZoneObjectInspector extends AbstractPrimitiveJa
       return copy;
     } else if (o instanceof OffsetDateTime) {
       OffsetDateTime odt = (OffsetDateTime) o;
-      return OffsetDateTime.of(odt.toLocalDateTime(), odt.getOffset());
+      return OffsetDateTime.ofInstant(odt.toInstant(), odt.getOffset());
     } else {
       return o;
     }
