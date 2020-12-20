@@ -384,6 +384,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         nulls = new NullabilityHolder(numValsToRead);
       }
 
+      rowStart += numValsToRead;
       vec.setValueCount(numValsToRead);
       nulls.setNotNulls(0, numValsToRead);
 

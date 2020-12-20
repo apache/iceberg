@@ -79,12 +79,13 @@ public class TestSparkParquetReadMetadataColumns {
   private static final List<InternalRow> EXPECTED_ROWS;
   private static final int NUM_ROW_GROUPS = 10;
   private static final int ROWS_PER_SPLIT = NUM_ROWS / NUM_ROW_GROUPS;
+  private static final int RECORDS_PER_BATCH = ROWS_PER_SPLIT / 10;
 
   static {
     DATA_ROWS = Lists.newArrayListWithCapacity(NUM_ROWS);
     for (long i = 0; i < NUM_ROWS; i += 1) {
       InternalRow row = new GenericInternalRow(DATA_SCHEMA.columns().size());
-      if (i >= 500) {
+      if (i >= NUM_ROWS / 2) {
         row.update(0, 2 * i);
       } else {
         row.update(0, i);
@@ -96,7 +97,7 @@ public class TestSparkParquetReadMetadataColumns {
     EXPECTED_ROWS = Lists.newArrayListWithCapacity(NUM_ROWS);
     for (long i = 0; i < NUM_ROWS; i += 1) {
       InternalRow row = new GenericInternalRow(PROJECTION_SCHEMA.columns().size());
-      if (i >= 500) {
+      if (i >= NUM_ROWS / 2) {
         row.update(0, 2 * i);
       } else {
         row.update(0, i);
@@ -167,11 +168,11 @@ public class TestSparkParquetReadMetadataColumns {
     // current iceberg supports row group filter.
     for (int i = 1; i < 5; i += 1) {
       readAndValidate(
-          Expressions.and(Expressions.lessThan("id", 500),
+          Expressions.and(Expressions.lessThan("id", NUM_ROWS / 2),
               Expressions.greaterThanOrEqual("id", i * ROWS_PER_SPLIT)),
           null,
           null,
-          EXPECTED_ROWS.subList(i * ROWS_PER_SPLIT, 500));
+          EXPECTED_ROWS.subList(i * ROWS_PER_SPLIT, NUM_ROWS / 2));
     }
   }
 
@@ -196,6 +197,7 @@ public class TestSparkParquetReadMetadataColumns {
     if (vectorized) {
       builder.createBatchedReaderFunc(fileSchema -> VectorizedSparkParquetReaders.buildReader(PROJECTION_SCHEMA,
           fileSchema, NullCheckingForGet.NULL_CHECKING_ENABLED));
+      builder.recordsPerBatch(RECORDS_PER_BATCH);
     } else {
       builder = builder.createReaderFunc(msgType -> SparkParquetReaders.buildReader(PROJECTION_SCHEMA, msgType));
     }
