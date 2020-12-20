@@ -210,7 +210,7 @@ DROP TABLE hive_catalog.default.sample;
 Iceberg does not support streaming read in flink now, it's still working in-progress. But it support batch read to scan the existing records in iceberg table.
 
 ```sql
--- Execute the flink job in streaming mode for current session context
+-- Execute the flink job in batch mode for current session context
 SET execution.type = batch ;
 SELECT * FROM sample       ;
 ```
