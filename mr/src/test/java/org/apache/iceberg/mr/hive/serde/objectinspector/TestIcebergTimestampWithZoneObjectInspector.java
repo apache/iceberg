@@ -52,7 +52,7 @@ public class TestIcebergTimestampWithZoneObjectInspector {
 
     LocalDateTime local = LocalDateTime.of(2020, 1, 1, 16, 45, 33, 456000);
     OffsetDateTime offsetDateTime = OffsetDateTime.of(local, ZoneOffset.ofHours(-5));
-    Timestamp ts = Timestamp.valueOf(offsetDateTime.toLocalDateTime());
+    Timestamp ts = Timestamp.from(offsetDateTime.toInstant());
 
     Assert.assertEquals(ts, oi.getPrimitiveJavaObject(offsetDateTime));
     Assert.assertEquals(new TimestampWritable(ts), oi.getPrimitiveWritableObject(offsetDateTime));
@@ -64,7 +64,11 @@ public class TestIcebergTimestampWithZoneObjectInspector {
 
     Assert.assertFalse(oi.preferWritable());
 
-    Assert.assertEquals(OffsetDateTime.of(local, ZoneOffset.UTC), oi.convert(new TimestampWritable(ts)));
+    Assert.assertEquals(OffsetDateTime.ofInstant(local.toInstant(ZoneOffset.ofHours(-5)), ZoneOffset.UTC),
+            oi.convert(new TimestampWritable(ts)));
+
+    Assert.assertEquals(offsetDateTime.withOffsetSameInstant(ZoneOffset.UTC),
+            oi.convert(new TimestampWritable(Timestamp.from(offsetDateTime.toInstant()))));
   }
 
 }
