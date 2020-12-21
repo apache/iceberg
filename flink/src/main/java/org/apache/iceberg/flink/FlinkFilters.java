@@ -19,30 +19,41 @@
 
 package org.apache.iceberg.flink;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.expressions.CallExpression;
 import org.apache.flink.table.expressions.FieldReferenceExpression;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.expressions.ValueLiteralExpression;
-import org.apache.flink.table.functions.BuiltInFunctionDefinition;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
+import org.apache.flink.table.functions.FunctionDefinition;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.NaNUtil;
+
+import static org.apache.iceberg.expressions.Expressions.isNaN;
 
 public class FlinkFilters {
   private FlinkFilters() {
   }
 
-  private static final Map<BuiltInFunctionDefinition, Operation> FILTERS = ImmutableMap
-      .<BuiltInFunctionDefinition, Operation>builder()
+  private static final Pattern STARTS_WITH_PATTERN = Pattern.compile("([^%]+)%");
+
+  private static final Map<FunctionDefinition, Operation> FILTERS = ImmutableMap
+      .<FunctionDefinition, Operation>builder()
       .put(BuiltInFunctionDefinitions.EQUALS, Operation.EQ)
       .put(BuiltInFunctionDefinitions.NOT_EQUALS, Operation.NOT_EQ)
       .put(BuiltInFunctionDefinitions.GREATER_THAN, Operation.GT)
@@ -55,11 +66,11 @@ public class FlinkFilters {
       .put(BuiltInFunctionDefinitions.AND, Operation.AND)
       .put(BuiltInFunctionDefinitions.OR, Operation.OR)
       .put(BuiltInFunctionDefinitions.NOT, Operation.NOT)
+      .put(BuiltInFunctionDefinitions.LIKE, Operation.STARTS_WITH)
       .build();
 
-
   public static Optional<Expression> convert(org.apache.flink.table.expressions.Expression flinkExpression) {
-    if (!(flinkExpression instanceof CallExpression)) {
+    if (flinkExpression == null || !(flinkExpression instanceof CallExpression)) {
       return Optional.empty();
     }
 
@@ -68,12 +79,12 @@ public class FlinkFilters {
     if (op != null) {
       switch (op) {
         case IS_NULL:
-          FieldReferenceExpression isNullFilter = (FieldReferenceExpression) call.getResolvedChildren().get(0);
-          return Optional.of(Expressions.isNull(isNullFilter.getName()));
+          Optional<String> name = toReference(getOnlyChild(call, FieldReferenceExpression.class).orElse(null));
+          return name.map(Expressions::isNull);
 
         case NOT_NULL:
-          FieldReferenceExpression notNullExpression = (FieldReferenceExpression) call.getResolvedChildren().get(0);
-          return Optional.of(Expressions.notNull(notNullExpression.getName()));
+          Optional<String> nameNotNull = toReference(getOnlyChild(call, FieldReferenceExpression.class).orElse(null));
+          return nameNotNull.map(Expressions::notNull);
 
         case LT:
           return convertComparisonExpression(Expressions::lessThan, call);
@@ -88,47 +99,75 @@ public class FlinkFilters {
           return convertComparisonExpression(Expressions::greaterThanOrEqual, call);
 
         case EQ:
-          return convertComparisonExpression(Expressions::equal, call);
+          return handleNaN(Expressions::equal, call);
 
         case NOT_EQ:
-          return convertComparisonExpression(Expressions::notEqual, call);
+          return handleNaN(Expressions::notEqual, call);
 
         case IN:
           List<ResolvedExpression> args = call.getResolvedChildren();
-          FieldReferenceExpression field = (FieldReferenceExpression) args.get(0);
+          Optional<String> fieldName = toReference(args.get(0));
           List<ResolvedExpression> values = args.subList(1, args.size());
 
-          List<Object> inputValues = values.stream().filter(
-              expression -> {
-                if (expression instanceof ValueLiteralExpression) {
-                  return !((ValueLiteralExpression) flinkExpression).isNull();
-                }
+          List<Object> inputValues = values.stream().filter(expression -> {
+            if (expression instanceof ValueLiteralExpression) {
+              return !((ValueLiteralExpression) expression).isNull();
+            }
 
-                return false;
-              }
-          ).map(expression -> {
-            ValueLiteralExpression valueLiteralExpression = (ValueLiteralExpression) expression;
-            return valueLiteralExpression.getValueAs(valueLiteralExpression.getOutputDataType().getConversionClass())
-                .get();
+            return false;
+          }).map(expression -> {
+            Optional<Object> value = toLiteral(expression);
+            return value.get();
           }).collect(Collectors.toList());
-          return Optional.of(Expressions.in(field.getName(), inputValues));
+
+          return Optional.of(Expressions.in(fieldName.get(), inputValues));
 
         case NOT:
-          Optional<Expression> child = convert(call.getResolvedChildren().get(0));
-          if (child.isPresent()) {
-            return Optional.of(Expressions.not(child.get()));
-          }
+          Optional<Expression> child = convert(getOnlyChild(call, CallExpression.class).orElse(null));
+          return child.map(Expressions::not);
 
-          return Optional.empty();
-
-        case AND: {
+        case AND:
           return convertLogicExpression(Expressions::and, call);
-        }
 
-        case OR: {
+        case OR:
           return convertLogicExpression(Expressions::or, call);
-        }
+
+        case STARTS_WITH:
+          return convertLike(call);
       }
+    }
+
+    return Optional.empty();
+  }
+
+  private static <T extends ResolvedExpression> Optional<T> getOnlyChild(CallExpression call,
+                                                                         Class<T> expectedChildClass) {
+    List<ResolvedExpression> children = call.getResolvedChildren();
+    if (children.size() != 1) {
+      return Optional.empty();
+    }
+
+    ResolvedExpression child = children.get(0);
+    if (!expectedChildClass.isInstance(child)) {
+      return Optional.empty();
+    }
+
+    return Optional.of(expectedChildClass.cast(child));
+  }
+
+  private static Optional<Expression> convertLike(CallExpression call) {
+    Tuple2<String, Object> tuple2 = convertBinaryExpress(call);
+    if (tuple2 == null) {
+      return Optional.empty();
+    }
+
+    String pattern = tuple2.f1.toString();
+    Matcher matcher = STARTS_WITH_PATTERN.matcher(pattern);
+
+    // exclude special char of LIKE
+    // '_' is the wildcard of the SQL LIKE
+    if (!pattern.contains("_") && matcher.matches()) {
+      return Optional.of(Expressions.startsWith(tuple2.f0, matcher.group(1)));
     }
 
     return Optional.empty();
@@ -148,36 +187,84 @@ public class FlinkFilters {
 
   private static Optional<Expression> convertComparisonExpression(BiFunction<String, Object, Expression> function,
                                                                   CallExpression call) {
-    List<ResolvedExpression> args = call.getResolvedChildren();
-    FieldReferenceExpression fieldReferenceExpression;
-    ValueLiteralExpression valueLiteralExpression;
-    if (literalOnRight(args)) {
-      fieldReferenceExpression = (FieldReferenceExpression) args.get(0);
-      valueLiteralExpression = (ValueLiteralExpression) args.get(1);
+    Tuple2<String, Object> tuple2 = convertBinaryExpress(call);
+    if (tuple2 != null) {
+      return Optional.of(function.apply(tuple2.f0, tuple2.f1));
     } else {
-      fieldReferenceExpression = (FieldReferenceExpression) args.get(1);
-      valueLiteralExpression = (ValueLiteralExpression) args.get(0);
+      return Optional.empty();
+    }
+  }
+
+  private static Optional<String> toReference(org.apache.flink.table.expressions.Expression expression) {
+    return expression instanceof FieldReferenceExpression ?
+        Optional.of(((FieldReferenceExpression) expression).getName()) :
+        Optional.empty();
+  }
+
+  private static Optional<Object> toLiteral(org.apache.flink.table.expressions.Expression expression) {
+    // Not support null literal
+    return expression instanceof ValueLiteralExpression ?
+        convertLiteral((ValueLiteralExpression) expression) :
+        Optional.empty();
+  }
+
+  private static Optional<Expression> handleNaN(BiFunction<String, Object, Expression> function, CallExpression call) {
+    Tuple2<String, Object> tuple2 = convertBinaryExpress(call);
+    if (tuple2 == null) {
+      return Optional.empty();
     }
 
-    String name = fieldReferenceExpression.getName();
-    Class clazz = valueLiteralExpression.getOutputDataType().getConversionClass();
-    Object value = valueLiteralExpression.getValueAs(clazz).get();
+    String name = tuple2.f0;
+    Object value = tuple2.f1;
 
-    BuiltInFunctionDefinition functionDefinition = (BuiltInFunctionDefinition) call.getFunctionDefinition();
-    if (functionDefinition.equals(BuiltInFunctionDefinitions.EQUALS) &&
-        functionDefinition.equals(BuiltInFunctionDefinitions.NOT_EQUALS)) {
-      Preconditions.checkNotNull(value, "Expression is always false : %s", call);
-      if (NaNUtil.isNaN(value)) {
-        return Optional.of(Expressions.isNaN(name));
-      } else {
-        return Optional.of(function.apply(name, value));
+    if (NaNUtil.isNaN(value)) {
+      return Optional.of(isNaN(name));
+    } else {
+      return Optional.of(function.apply(name, value));
+    }
+  }
+
+  private static Optional<Object> convertLiteral(ValueLiteralExpression expression) {
+    Optional<?> value = expression.getValueAs(expression.getOutputDataType().getLogicalType().getDefaultConversion());
+    return value.map(o -> {
+      if (o instanceof LocalDateTime) {
+        return DateTimeUtil.microsFromTimestamp((LocalDateTime) o);
+      } else if (o instanceof Instant) {
+        return DateTimeUtil.microsFromInstant((Instant) o);
+      } else if (o instanceof LocalTime) {
+        return DateTimeUtil.microsFromTime((LocalTime) o);
+      } else if (o instanceof LocalDate) {
+        return DateTimeUtil.daysFromDate((LocalDate) o);
       }
-    }
 
-    return Optional.of(function.apply(name, value));
+      return o;
+    });
   }
 
   private static boolean literalOnRight(List<ResolvedExpression> args) {
     return args.get(0) instanceof FieldReferenceExpression && args.get(1) instanceof ValueLiteralExpression;
+  }
+
+  private static Tuple2<String, Object> convertBinaryExpress(CallExpression call) {
+    List<ResolvedExpression> args = call.getResolvedChildren();
+    if (args.size() != 2) {
+      return null;
+    }
+
+    Optional<String> name;
+    Optional<Object> value;
+    if (literalOnRight(args)) {
+      name = toReference(args.get(0));
+      value = toLiteral(args.get(1));
+    } else {
+      name = toReference(args.get(1));
+      value = toLiteral(args.get(0));
+    }
+
+    if (name.isPresent() && value.isPresent()) {
+      return Tuple2.of(name.get(), value.get());
+    } else {
+      return null;
+    }
   }
 }

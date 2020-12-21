@@ -81,7 +81,8 @@ public abstract class FlinkTestBase extends AbstractTestBase {
   }
 
   protected List<Object[]> sql(String query, Object... args) {
-    TableResult tableResult = exec(String.format(query, args));
+    String sql = args.length > 0 ? String.format(query, args) : query;
+    TableResult tableResult = exec(sql);
 
     tableResult.getJobClient().ifPresent(c -> {
       try {
@@ -103,4 +104,5 @@ public abstract class FlinkTestBase extends AbstractTestBase {
 
     return results;
   }
+}
 }
