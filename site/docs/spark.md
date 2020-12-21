@@ -360,12 +360,12 @@ spark.sql("""select count(1) from table""").show()
 | batch-size  | VECTORIZATION_BATCH_SIZE |
 
 Usage:
-```
-ex: spark
-      .read
-      .format("iceberg")
-      .option(SparkReadOptions.VECTORIZATION_ENABLED, "true" )
-      .load(<path>)
+```scala
+spark
+  .read
+  .format("iceberg")
+  .option(SparkReadOptions.VECTORIZATION_ENABLED, "true" )
+  .load(<path>)
 ```
 
 
@@ -547,12 +547,12 @@ The behavior of DataFrameWriter overwrite mode was undefined in Spark 2.4, but i
 | check-ordering       | CHECK_ORDERING        |
 
 Usage:
-```
-ex: spark
-      .write
-      .format("iceberg")
-      .option(SparkWriteOptions.WRITE_FORMAT, "orc")
-      .load(<path>)
+```scala
+spark
+  .write
+  .format("iceberg")
+  .option(SparkWriteOptions.WRITE_FORMAT, "orc")
+  .load(<path>)
 ```
 
 
