@@ -21,19 +21,41 @@ package org.apache.spark.sql.catalyst.optimizer
 
 import java.util.UUID
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.{sources, AnalysisException}
-import org.apache.spark.sql.catalyst.expressions.{Alias, Ascending, Attribute, AttributeReference, EqualNullSafe, Expression, InputFileName, Literal, Not, PredicateHelper, SortOrder, SubqueryExpression}
-import org.apache.spark.sql.catalyst.plans.logical.{Aggregate, DeleteFromTable, DynamicFileFilter, Filter, LogicalPlan, Project, RepartitionByExpression, ReplaceData, Sort}
+import org.apache.spark.sql.AnalysisException
+import org.apache.spark.sql.catalyst.expressions.Ascending
+import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.catalyst.expressions.AttributeReference
+import org.apache.spark.sql.catalyst.expressions.EqualNullSafe
+import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.expressions.Literal
+import org.apache.spark.sql.catalyst.expressions.Not
+import org.apache.spark.sql.catalyst.expressions.PredicateHelper
+import org.apache.spark.sql.catalyst.expressions.SortOrder
+import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
+import org.apache.spark.sql.catalyst.plans.logical.Aggregate
+import org.apache.spark.sql.catalyst.plans.logical.DeleteFromTable
+import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
+import org.apache.spark.sql.catalyst.plans.logical.Filter
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.Project
+import org.apache.spark.sql.catalyst.plans.logical.RepartitionByExpression
+import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
+import org.apache.spark.sql.catalyst.plans.logical.Sort
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.iceberg.catalog.ExtendedSupportsDelete
 import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter
 import org.apache.spark.sql.connector.iceberg.write.MergeBuilder
-import org.apache.spark.sql.connector.write.{LogicalWriteInfo, LogicalWriteInfoImpl}
+import org.apache.spark.sql.connector.write.LogicalWriteInfo
+import org.apache.spark.sql.connector.write.LogicalWriteInfoImpl
 import org.apache.spark.sql.execution.datasources.DataSourceStrategy
-import org.apache.spark.sql.execution.datasources.v2.{DataSourceV2Relation, DataSourceV2ScanRelation, PushDownUtils}
+import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
+import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
+import org.apache.spark.sql.execution.datasources.v2.PushDownUtils
 import org.apache.spark.sql.internal.SQLConf
-import org.apache.spark.sql.types.{BooleanType, StructType}
+import org.apache.spark.sql.sources
+import org.apache.spark.sql.types.BooleanType
+import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 // TODO: should be part of early scan push down after the delete condition is optimized
@@ -42,6 +64,7 @@ object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper with Logging
   import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implicits._
 
   private val FILE_NAME_COL = "_file"
+  private val ROW_POS_COL = "_pos"
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     // don't rewrite deletes that can be answered by passing filters to deleteWhere in SupportsDelete
@@ -77,33 +100,28 @@ object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper with Logging
     PushDownUtils.pushFilters(scanBuilder, normalizedPredicates)
 
     val scan = scanBuilder.build()
-    val scanRelation = DataSourceV2ScanRelation(table, scan, output)
+    val scanRelation = DataSourceV2ScanRelation(table, scan, toOutputAttrs(scan.readSchema(), output))
 
-    val scanPlan = scan match {
-      case _: SupportsFileFilter =>
+    scan match {
+      case filterable: SupportsFileFilter =>
         val matchingFilePlan = buildFileFilterPlan(cond, scanRelation)
-        val dynamicFileFilter = DynamicFileFilter(scanRelation, matchingFilePlan)
+        val dynamicFileFilter = DynamicFileFilter(scanRelation, matchingFilePlan, filterable)
         dynamicFileFilter
       case _ =>
         scanRelation
     }
-
-    // include file name so that we can group data back
-    val fileNameExpr = Alias(InputFileName(), FILE_NAME_COL)()
-    Project(scanPlan.output :+ fileNameExpr, scanPlan)
   }
 
   private def buildWritePlan(
       remainingRowsPlan: LogicalPlan,
       output: Seq[AttributeReference]): LogicalPlan = {
 
-    // TODO: sort by _pos to keep the original ordering of rows
-    // TODO: consider setting a file size limit
-
     val fileNameCol = findOutputAttr(remainingRowsPlan, FILE_NAME_COL)
+    val rowPosCol = findOutputAttr(remainingRowsPlan, ROW_POS_COL)
+    val order = Seq(SortOrder(fileNameCol, Ascending), SortOrder(rowPosCol, Ascending))
     val numShufflePartitions = SQLConf.get.numShufflePartitions
     val repartition = RepartitionByExpression(Seq(fileNameCol), remainingRowsPlan, numShufflePartitions)
-    val sort = Sort(Seq(SortOrder(fileNameCol, Ascending)), global = false, repartition)
+    val sort = Sort(order, global = false, repartition)
     Project(output, sort)
   }
 
@@ -135,9 +153,7 @@ object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper with Logging
   }
 
   private def buildFileFilterPlan(cond: Expression, scanRelation: DataSourceV2ScanRelation): LogicalPlan = {
-    val fileNameExpr = Alias(InputFileName(), FILE_NAME_COL)()
-    val fileNameProjection = Project(scanRelation.output :+ fileNameExpr, scanRelation)
-    val matchingFilter = Filter(cond, fileNameProjection)
+    val matchingFilter = Filter(cond, scanRelation)
     val fileAttr = findOutputAttr(matchingFilter, FILE_NAME_COL)
     val agg = Aggregate(Seq(fileAttr), Seq(fileAttr), matchingFilter)
     Project(Seq(findOutputAttr(agg, FILE_NAME_COL)), agg)
@@ -147,6 +163,20 @@ object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper with Logging
     val resolver = SQLConf.get.resolver
     plan.output.find(attr => resolver(attr.name, attrName)).getOrElse {
       throw new AnalysisException(s"Cannot find $attrName in ${plan.output}")
+    }
+  }
+
+  private def toOutputAttrs(schema: StructType, output: Seq[AttributeReference]): Seq[AttributeReference] = {
+    val nameToAttr = output.map(_.name).zip(output).toMap
+    schema.toAttributes.map {
+      a => nameToAttr.get(a.name) match {
+        case Some(ref) =>
+          // keep the attribute id if it was present in the relation
+          a.withExprId(ref.exprId)
+        case _ =>
+          // if the field is new, create a new attribute
+          AttributeReference(a.name, a.dataType, a.nullable, a.metadata)()
+      }
     }
   }
 }

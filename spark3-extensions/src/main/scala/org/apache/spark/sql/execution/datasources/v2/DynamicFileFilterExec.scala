@@ -28,7 +28,10 @@ import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter
 import org.apache.spark.sql.execution.{BinaryExecNode, SparkPlan}
 import org.apache.spark.sql.vectorized.ColumnarBatch
 
-case class DynamicFileFilterExec(scanExec: ExtendedBatchScanExec, fileFilterExec: SparkPlan) extends BinaryExecNode {
+case class DynamicFileFilterExec(
+    scanExec: SparkPlan,
+    fileFilterExec: SparkPlan,
+    @transient filterable: SupportsFileFilter) extends BinaryExecNode {
 
   @transient
   override lazy val references: AttributeSet = AttributeSet(fileFilterExec.output)
@@ -44,12 +47,8 @@ case class DynamicFileFilterExec(scanExec: ExtendedBatchScanExec, fileFilterExec
   override protected def doExecuteColumnar(): RDD[ColumnarBatch] = scanExec.executeColumnar()
 
   override protected def doPrepare(): Unit = {
-    scanExec.scan match {
-      case s: SupportsFileFilter =>
-        val rows = fileFilterExec.executeCollect()
-        val matchedFileLocations = rows.map(_.getString(0))
-        s.filterFiles(matchedFileLocations.toSet.asJava)
-      case _ => // do nothing
-    }
+    val rows = fileFilterExec.executeCollect()
+    val matchedFileLocations = rows.map(_.getString(0))
+    filterable.filterFiles(matchedFileLocations.toSet.asJava)
   }
 }
