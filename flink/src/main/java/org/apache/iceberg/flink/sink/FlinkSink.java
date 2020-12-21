@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -113,6 +114,7 @@ public class FlinkSink {
     private TableSchema tableSchema;
     private boolean overwrite = false;
     private Integer writeParallelism = null;
+    private List<Integer> equalityFieldIds = null;
 
     private Builder() {
     }
@@ -169,6 +171,11 @@ public class FlinkSink {
       return this;
     }
 
+    public Builder equalityFieldIds(List<Integer> newEqualityFieldIds) {
+      this.equalityFieldIds = newEqualityFieldIds;
+      return this;
+    }
+
     @SuppressWarnings("unchecked")
     public DataStreamSink<RowData> build() {
       Preconditions.checkArgument(rowDataInput != null,
@@ -184,7 +191,7 @@ public class FlinkSink {
         }
       }
 
-      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, tableSchema);
+      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, tableSchema, equalityFieldIds);
       IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
 
       this.writeParallelism = writeParallelism == null ? rowDataInput.getParallelism() : writeParallelism;
@@ -202,7 +209,8 @@ public class FlinkSink {
     }
   }
 
-  static IcebergStreamWriter<RowData> createStreamWriter(Table table, TableSchema requestedSchema) {
+  static IcebergStreamWriter<RowData> createStreamWriter(Table table, TableSchema requestedSchema,
+                                                         List<Integer> equalityFieldIds) {
     Preconditions.checkArgument(table != null, "Iceberg table should't be null");
 
     RowType flinkSchema;
@@ -226,7 +234,7 @@ public class FlinkSink {
 
     TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(), flinkSchema,
         table.spec(), table.locationProvider(), table.io(), table.encryption(), targetFileSize, fileFormat, props,
-        null);
+        equalityFieldIds);
 
     return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
   }
