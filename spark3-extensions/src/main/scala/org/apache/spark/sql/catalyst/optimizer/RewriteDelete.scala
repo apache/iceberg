@@ -103,7 +103,7 @@ object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper with Logging
     val scan = scanBuilder.build()
     val scanRelation = DataSourceV2ScanRelation(table, scan, toOutputAttrs(scan.readSchema(), output))
 
-    val scanPlan = scan match {
+    scan match {
       case filterable: SupportsFileFilter =>
         val matchingFilePlan = buildFileFilterPlan(cond, scanRelation)
         val dynamicFileFilter = DynamicFileFilter(ExtendedScanRelation(scanRelation), matchingFilePlan, filterable)
@@ -111,8 +111,6 @@ object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper with Logging
       case _ =>
         scanRelation
     }
-
-    scanPlan
   }
 
   private def buildWritePlan(
