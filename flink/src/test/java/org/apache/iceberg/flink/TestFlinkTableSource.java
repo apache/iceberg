@@ -92,7 +92,7 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
     String sqlLimitExceed = String.format("SELECT * FROM %s LIMIT 3", TABLE_NAME);
     List<Object[]> resultExceed = sql(sqlLimitExceed);
     Assert.assertEquals("should have 2 record", 2, resultExceed.size());
-    List expectedList = Lists.newArrayList();
+    List<Object[]> expectedList = Lists.newArrayList();
     expectedList.add(new Object[] {1, "a"});
     expectedList.add(new Object[] {2, "b"});
     Assert.assertArrayEquals("Should produce the expected records", resultExceed.toArray(), expectedList.toArray());
