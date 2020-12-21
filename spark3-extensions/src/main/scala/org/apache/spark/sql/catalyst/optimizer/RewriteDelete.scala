@@ -35,7 +35,6 @@ import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.plans.logical.Aggregate
 import org.apache.spark.sql.catalyst.plans.logical.DeleteFromTable
 import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
-import org.apache.spark.sql.catalyst.plans.logical.ExtendedScanRelation
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
@@ -106,7 +105,7 @@ object RewriteDelete extends Rule[LogicalPlan] with PredicateHelper with Logging
     scan match {
       case filterable: SupportsFileFilter =>
         val matchingFilePlan = buildFileFilterPlan(cond, scanRelation)
-        val dynamicFileFilter = DynamicFileFilter(ExtendedScanRelation(scanRelation), matchingFilePlan, filterable)
+        val dynamicFileFilter = DynamicFileFilter(scanRelation, matchingFilePlan, filterable)
         dynamicFileFilter
       case _ =>
         scanRelation
