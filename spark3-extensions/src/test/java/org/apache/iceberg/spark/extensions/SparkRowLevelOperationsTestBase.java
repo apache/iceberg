@@ -48,14 +48,14 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, format = {3}, vectorized = {4}")
   public static Object[][] parameters() {
     return new Object[][] {
-//        { "testhive", SparkCatalog.class.getName(),
-//            ImmutableMap.of(
-//                "type", "hive",
-//                "default-namespace", "default"
-//            ),
-//            "orc",
-//            true
-//        },
+        { "testhive", SparkCatalog.class.getName(),
+            ImmutableMap.of(
+                "type", "hive",
+                "default-namespace", "default"
+            ),
+            "orc",
+            true
+        },
         { "testhadoop", SparkCatalog.class.getName(),
             ImmutableMap.of(
                 "type", "hadoop"
@@ -63,17 +63,17 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
             "parquet",
             RANDOM.nextBoolean()
         },
-//        { "spark_catalog", SparkSessionCatalog.class.getName(),
-//            ImmutableMap.of(
-//                "type", "hive",
-//                "default-namespace", "default",
-//                "clients", "1",
-//                "parquet-enabled", "false",
-//                "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
-//            ),
-//            "avro",
-//            false
-//        }
+        { "spark_catalog", SparkSessionCatalog.class.getName(),
+            ImmutableMap.of(
+                "type", "hive",
+                "default-namespace", "default",
+                "clients", "1",
+                "parquet-enabled", "false",
+                "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
+            ),
+            "avro",
+            false
+        }
     };
   }
 }
