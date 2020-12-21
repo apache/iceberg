@@ -277,7 +277,7 @@ public class ParquetUtil {
     }
 
     // without EncodingStats, fall back to testing the encoding list
-    Set<Encoding> encodings = new HashSet<Encoding>(meta.getEncodings());
+    Set<Encoding> encodings = new HashSet<>(meta.getEncodings());
     if (encodings.remove(Encoding.PLAIN_DICTIONARY)) {
       // if remove returned true, PLAIN_DICTIONARY was present, which means at
       // least one page was dictionary encoded and 1.0 encodings are used
