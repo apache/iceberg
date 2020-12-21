@@ -22,6 +22,10 @@ package org.apache.spark.sql.catalyst.parser.extensions
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime.tree.TerminalNode
+import org.apache.iceberg.NullOrder
+import org.apache.iceberg.SortDirection
+import org.apache.iceberg.expressions.Term
+import org.apache.iceberg.spark.Spark3Util
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.parser.ParseException
@@ -35,6 +39,7 @@ import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.NamedArgument
 import org.apache.spark.sql.catalyst.plans.logical.PositionalArgument
+import org.apache.spark.sql.catalyst.plans.logical.SetWriteOrder
 import org.apache.spark.sql.connector.expressions
 import org.apache.spark.sql.connector.expressions.ApplyTransform
 import org.apache.spark.sql.connector.expressions.FieldReference
@@ -67,10 +72,33 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   /**
    * Create a DROP PARTITION FIELD logical command.
    */
-  override def visitDropPartitionField(ctx: DropPartitionFieldContext): DropPartitionField = {
+  override def visitDropPartitionField(ctx: DropPartitionFieldContext): DropPartitionField = withOrigin(ctx) {
     DropPartitionField(
       typedVisit[Seq[String]](ctx.multipartIdentifier),
       typedVisit[Transform](ctx.transform))
+  }
+
+  /**
+   * Create a WRITE ORDERED BY logical command.
+   */
+  override def visitSetTableOrder(ctx: SetTableOrderContext): SetWriteOrder = withOrigin(ctx) {
+    SetWriteOrder(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.order.fields.asScala.map(typedVisit[(Term, SortDirection, NullOrder)]).toArray)
+  }
+
+  /**
+   * Create an order field.
+   */
+  override def visitOrderField(ctx: OrderFieldContext): (Term, SortDirection, NullOrder) = {
+    val term = Spark3Util.toIcebergTerm(typedVisit[Transform](ctx.transform))
+    val direction = Option(ctx.ASC).map(_ => SortDirection.ASC)
+        .orElse(Option(ctx.DESC).map(_ => SortDirection.DESC))
+        .getOrElse(SortDirection.ASC)
+    val nullOrder = Option(ctx.FIRST).map(_ => NullOrder.NULLS_FIRST)
+        .orElse(Option(ctx.LAST).map(_ => NullOrder.NULLS_LAST))
+        .getOrElse(if (direction == SortDirection.ASC) NullOrder.NULLS_FIRST else NullOrder.NULLS_LAST)
+    (term, direction, nullOrder)
   }
 
   /**

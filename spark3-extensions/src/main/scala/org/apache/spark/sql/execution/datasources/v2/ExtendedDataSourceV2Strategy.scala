@@ -33,6 +33,7 @@ import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
+import org.apache.spark.sql.catalyst.plans.logical.SetWriteOrder
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.execution.ProjectExec
@@ -51,6 +52,9 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
 
     case DropPartitionField(IcebergCatalogAndIdentifier(catalog, ident), transform) =>
       DropPartitionFieldExec(catalog, ident, transform) :: Nil
+
+    case SetWriteOrder(IcebergCatalogAndIdentifier(catalog, ident), writeOrder) =>
+      SetWriteOrderExec(catalog, ident, writeOrder) :: Nil
 
     case DynamicFileFilter(scanRelation, fileFilterPlan) =>
       // we don't use planLater here as we need ExtendedBatchScanExec, not BatchScanExec
