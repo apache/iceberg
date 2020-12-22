@@ -34,6 +34,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalog.Catalog;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -82,6 +83,10 @@ public class TestCustomCatalog {
 
   @Before
   public void setupTable() throws Exception {
+    SparkConf sparkConf = spark.sparkContext().conf();
+    sparkConf.set(
+        String.format("%s.%s", CustomCatalogs.ICEBERG_CATALOG_PREFIX, CustomCatalogs.ICEBERG_DEFAULT_CATALOG),
+        Catalog.class.getName());
     this.tables = new HadoopTables(spark.sessionState().newHadoopConf());
     this.tableDir = temp.newFolder();
     tableDir.delete(); // created by table create
@@ -114,7 +119,8 @@ public class TestCustomCatalog {
     );
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
-    AssertHelpers.assertThrows("We have not set all properties", IllegalArgumentException.class, () ->
+    AssertHelpers.assertThrows("We have not set all properties", IllegalArgumentException.class,
+        "A warehouse parameter must be set", () ->
         df.select("id", "data").write()
             .format("iceberg")
             .mode("append")

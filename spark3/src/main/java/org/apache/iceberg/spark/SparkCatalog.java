@@ -22,6 +22,7 @@ package org.apache.iceberg.spark;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogUtil;
@@ -94,7 +95,9 @@ public class SparkCatalog extends BaseCatalog {
    */
   protected Catalog buildIcebergCatalog(String name, CaseInsensitiveStringMap options) {
     Configuration conf = SparkSession.active().sessionState().newHadoopConf();
-    return CatalogUtil.buildIcebergCatalog(name, options.asCaseSensitiveMap(), conf);
+    Map<String, String> optionsMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    optionsMap.putAll(options);
+    return CatalogUtil.buildIcebergCatalog(name, optionsMap, conf);
   }
 
   /**

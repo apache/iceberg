@@ -677,7 +677,7 @@ public class Spark3Util {
         "Cannot determine catalog and Identifier from empty name parts");
     CatalogManager catalogManager = spark.sessionState().catalogManager();
     int lastElementIndex = nameParts.size() - 1;
-    String name = nameParts.get(lastElementIndex);
+
     String[] currentNamespace;
     if (defaultCatalog.equals(catalogManager.currentCatalog())) {
       currentNamespace = catalogManager.currentNamespace();
@@ -685,21 +685,19 @@ public class Spark3Util {
       currentNamespace = defaultCatalog.defaultNamespace();
     }
 
-    if (nameParts.size() == 1) {
-      // Only a single element, use current catalog and namespace
-      return new CatalogAndIdentifier(defaultCatalog, Identifier.of(currentNamespace, name));
-    } else {
-      try {
-        // Assume the first element is a valid catalog
-        CatalogPlugin namedCatalog = catalogManager.catalog(nameParts.get(0));
-        String[] namespace = nameParts.subList(1, lastElementIndex).toArray(new String[0]);
-        return new CatalogAndIdentifier(namedCatalog, Identifier.of(namespace, name));
-      } catch (Exception e) {
-        // The first element was not a valid catalog, treat it like part of the namespace
-        String[] namespace =  nameParts.subList(0, lastElementIndex).toArray(new String[0]);
-        return new CatalogAndIdentifier(defaultCatalog, Identifier.of(namespace, name));
-      }
-    }
+    Pair<CatalogPlugin, Identifier> catalogIdentifier = SparkUtil.catalogAndIdentifier(nameParts,
+        catalogName ->  {
+          try {
+            return catalogManager.catalog(catalogName);
+          } catch (Exception e) {
+            return null;
+          }
+        },
+        Identifier::of,
+        defaultCatalog,
+        currentNamespace
+    );
+    return new CatalogAndIdentifier(catalogIdentifier);
   }
 
   /**

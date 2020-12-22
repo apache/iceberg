@@ -85,7 +85,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   /**
    * Hive Catalog constructor.
    *
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog
+   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
+   * v0.12.0
    * @param name catalog name
    * @param uri Hive metastore uri
    * @param clientPoolSize size of client pool
@@ -99,7 +100,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   /**
    * Hive Catalog constructor.
    *
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog
+   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
+   * v0.12.0
    * @param name catalog name
    * @param uri Hive metastore uri
    * @param warehouse location of Hive warehouse
@@ -114,7 +116,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   /**
    * Hive Catalog constructor.
    *
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog
+   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
+   * v0.12.0
    * @param name catalog name
    * @param uri Hive metastore uri
    * @param warehouse location of Hive warehouse

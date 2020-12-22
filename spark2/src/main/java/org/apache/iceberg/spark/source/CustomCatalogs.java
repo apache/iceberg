@@ -52,10 +52,10 @@ public final class CustomCatalogs {
    * Build an Iceberg {@link Catalog} to be used by this Spark source adapter.
    *
    * <p>
-   *   The cache is to facilitate reuse of catalogs, especially if wrapped in CachingCatalog. For non-Hive catalogs all
-   *   custom parameters passed to the catalog are considered in the cache key. Hive catalogs only cache based on
-   *   the Metastore URIs as per previous behaviour.
-   * </p>
+   * The cache is to facilitate reuse of catalogs, especially if wrapped in CachingCatalog. For non-Hive catalogs all
+   * custom parameters passed to the catalog are considered in the cache key. Hive catalogs only cache based on
+   * the Metastore URIs as per previous behaviour.
+   *
    *
    * @param spark Spark Session
    * @param name Catalog Name
@@ -67,17 +67,21 @@ public final class CustomCatalogs {
 
   private static Catalog load(Pair<SparkSession, String> sparkAndName) {
     SparkSession spark = sparkAndName.first();
-    String name =  sparkAndName.second() == null ? ICEBERG_DEFAULT_CATALOG : sparkAndName.second();
+    String name = sparkAndName.second();
     SparkConf sparkConf = spark.sparkContext().getConf();
     Configuration conf = spark.sessionState().newHadoopConf();
 
-    String catalogPrefix = String.format("%s.%s.", ICEBERG_CATALOG_PREFIX, name);
-    Map<String, String> options = Arrays.stream(sparkConf.getAllWithPrefix(catalogPrefix))
-        .collect(Collectors.toMap(x -> x._1, x -> x._2));
-
-    if (options.isEmpty() && !name.equals(ICEBERG_DEFAULT_CATALOG)) {
-      throw new IllegalArgumentException(String.format("Cannot instantiate catalog %s. Incorrect Parameters", name));
+    String catalogPrefix = String.format("%s.%s", ICEBERG_CATALOG_PREFIX, name);
+    String catalogName = sparkConf.get(catalogPrefix, null);
+    if (!name.equals(ICEBERG_DEFAULT_CATALOG) &&
+        !org.apache.spark.sql.catalog.Catalog.class.getName().equals(catalogName)) {
+      // we return null if spark.sql.catalog.<name> is not the Spark Catalog
+      // and we aren't looking for the default catalog
+      return null;
     }
+
+    Map<String, String> options = Arrays.stream(sparkConf.getAllWithPrefix(catalogPrefix + "."))
+        .collect(Collectors.toMap(x -> x._1, x -> x._2));
 
     return CatalogUtil.buildIcebergCatalog(name, options, conf);
   }
@@ -93,6 +97,7 @@ public final class CustomCatalogs {
     return SparkUtil.catalogAndIdentifier(nameParts,
         s -> buildIcebergCatalog(spark, s),
         (n, t) -> TableIdentifier.of(Namespace.of(n), t),
+        buildIcebergCatalog(spark, ICEBERG_DEFAULT_CATALOG),
         currentNamespace);
   }
 

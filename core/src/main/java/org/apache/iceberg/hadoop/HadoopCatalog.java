@@ -22,7 +22,6 @@ package org.apache.iceberg.hadoop;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -89,7 +88,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   /**
    * The constructor of the HadoopCatalog. It uses the passed location as its warehouse directory.
    *
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog
+   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
+   * v0.12.0
    * @param name The catalog name
    * @param conf The Hadoop configuration
    * @param warehouseLocation The location used as warehouse directory
@@ -102,7 +102,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   /**
    * The all-arg constructor of the HadoopCatalog.
    *
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog
+   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
+   * v0.12.0
    * @param name The catalog name
    * @param conf The Hadoop configuration
    * @param warehouseLocation The location used as warehouse directory
@@ -111,10 +112,9 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   @Deprecated
   public HadoopCatalog(String name, Configuration conf, String warehouseLocation, Map<String, String> properties) {
     Preconditions.checkArgument(warehouseLocation != null && !warehouseLocation.equals(""),
-        "no location provided for warehouse");
+        "Cannot instantiate hadoop catalog. No location provided for warehouse");
     setConf(conf);
-    Map<String, String> props = new HashMap<>(properties);
-    props.putAll(properties);
+    Map<String, String> props = Maps.newHashMap(properties);
     props.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
     initialize(name, props);
   }
@@ -123,7 +123,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   public void initialize(String name, Map<String, String> properties) {
     String inputWarehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
     Preconditions.checkArgument(inputWarehouseLocation != null && !inputWarehouseLocation.equals(""),
-        "no location provided for warehouse");
+        "Cannot instantiate hadoop catalog. No location provided for warehouse (Set warehouse config)");
     this.catalogName = name;
     this.warehouseLocation = inputWarehouseLocation.replaceAll("/*$", "");
     this.fs = Util.getFs(new Path(warehouseLocation), conf);

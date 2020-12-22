@@ -176,7 +176,6 @@ public class CatalogUtil {
   }
 
   public static Catalog buildIcebergCatalog(String name, Map<String, String> options, Configuration conf) {
-
     String catalogImpl = options.get(CatalogProperties.CATALOG_IMPL);
     if (catalogImpl == null) {
       String catalogType = options.getOrDefault(ICEBERG_CATALOG_TYPE, ICEBERG_CATALOG_TYPE_HIVE);
@@ -191,8 +190,8 @@ public class CatalogUtil {
           throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
       }
     }
-    return CatalogUtil.loadCatalog(catalogImpl, name, options, conf);
 
+    return CatalogUtil.loadCatalog(catalogImpl, name, options, conf);
   }
 
   /**
