@@ -45,6 +45,7 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -114,7 +115,7 @@ public class FlinkSink {
     private TableSchema tableSchema;
     private boolean overwrite = false;
     private Integer writeParallelism = null;
-    private List<Integer> equalityFieldIds = null;
+    private List<String> equalityFieldColumns = null;
 
     private Builder() {
     }
@@ -171,8 +172,14 @@ public class FlinkSink {
       return this;
     }
 
-    public Builder equalityFieldIds(List<Integer> newEqualityFieldIds) {
-      this.equalityFieldIds = newEqualityFieldIds;
+    /**
+     * Configuring the equality field columns for iceberg table that accept CDC or UPSERT events.
+     *
+     * @param columns defines the iceberg table's key.
+     * @return {@link Builder} to connect the iceberg table.
+     */
+    public Builder equalityFieldColumns(List<String> columns) {
+      this.equalityFieldColumns = columns;
       return this;
     }
 
@@ -188,6 +195,17 @@ public class FlinkSink {
           this.table = loader.loadTable();
         } catch (IOException e) {
           throw new UncheckedIOException("Failed to load iceberg table from table loader: " + tableLoader, e);
+        }
+      }
+
+      // Find out the equality field id list based on the user-provided equality field column names.
+      List<Integer> equalityFieldIds = Lists.newArrayList();
+      if (equalityFieldColumns != null && equalityFieldColumns.size() > 0) {
+        for (String column : equalityFieldColumns) {
+          org.apache.iceberg.types.Types.NestedField field = table.schema().findField(column);
+          Preconditions.checkNotNull(field, "Missing required equality field column '%s' in table schema %s",
+              column, table.schema());
+          equalityFieldIds.add(field.fieldId());
         }
       }
 

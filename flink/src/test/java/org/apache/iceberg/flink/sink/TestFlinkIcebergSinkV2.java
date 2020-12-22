@@ -111,14 +111,6 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
     tableLoader = new TestTableLoader(tableDir.getAbsolutePath());
   }
 
-  private int idFieldId() {
-    return table.schema().findField("id").fieldId();
-  }
-
-  private int dataFieldId() {
-    return table.schema().findField("data").fieldId();
-  }
-
   private List<Snapshot> findValidSnapshots(Table table) {
     List<Snapshot> validSnapshots = Lists.newArrayList();
     for (Snapshot snapshot : table.snapshots()) {
@@ -129,7 +121,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
     return validSnapshots;
   }
 
-  private void testChangeLogs(List<Integer> equalityFieldIds,
+  private void testChangeLogs(List<String> equalityFieldColumns,
                               KeySelector<Row, Row> keySelector,
                               List<List<Row>> elementsPerCheckpoint,
                               List<List<Record>> expectedRecordsPerCheckpoint) throws Exception {
@@ -143,7 +135,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         .tableLoader(tableLoader)
         .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
         .writeParallelism(parallelism)
-        .equalityFieldIds(equalityFieldIds)
+        .equalityFieldColumns(equalityFieldColumns)
         .build();
 
     // Execute the program.
@@ -183,7 +175,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
 
   @Test
   public void testChangeLogOnIdKey() throws Exception {
-    List<Integer> equalityFieldIds = ImmutableList.of(idFieldId());
+    List<String> equalityFieldIds = ImmutableList.of("id");
     List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
         ImmutableList.of(
             row("+I", 1, "aaa"),
@@ -218,7 +210,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
 
   @Test
   public void testChangeLogOnDataKey() throws Exception {
-    List<Integer> equalityFieldIds = ImmutableList.of(dataFieldId());
+    List<String> equalityFieldIds = ImmutableList.of("data");
     List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
         ImmutableList.of(
             row("+I", 1, "aaa"),
@@ -250,7 +242,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
 
   @Test
   public void testChangeLogOnIdDataKey() throws Exception {
-    List<Integer> equalityFieldIds = ImmutableList.of(dataFieldId(), idFieldId());
+    List<String> equalityFieldIds = ImmutableList.of("data", "id");
     List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
         ImmutableList.of(
             row("+I", 1, "aaa"),
@@ -282,7 +274,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
 
   @Test
   public void testChangeLogOnSameKey() throws Exception {
-    List<Integer> equalityFieldIds = ImmutableList.of(idFieldId(), dataFieldId());
+    List<String> equalityFieldIds = ImmutableList.of("id", "data");
 
     List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
         // Checkpoint #1
