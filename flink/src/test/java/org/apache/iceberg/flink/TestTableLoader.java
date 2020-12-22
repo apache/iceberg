@@ -24,7 +24,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TestTables;
 
 public class TestTableLoader implements TableLoader {
-  private File dir = null;
+  private File dir;
 
   public TestTableLoader(String dir) {
     this.dir = new File(dir);
