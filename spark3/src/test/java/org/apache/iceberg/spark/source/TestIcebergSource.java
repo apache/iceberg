@@ -19,9 +19,10 @@
 
 package org.apache.iceberg.spark.source;
 
-import java.util.Map;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 public class TestIcebergSource extends IcebergSource {
   @Override
@@ -30,7 +31,14 @@ public class TestIcebergSource extends IcebergSource {
   }
 
   @Override
-  protected Table findTable(Map<String, String> options, Configuration conf) {
-    return TestTables.load(options.get("iceberg.table.name"));
+  public Identifier extractIdentifier(CaseInsensitiveStringMap options) {
+    TableIdentifier ti = TableIdentifier.parse(options.get("iceberg.table.name"));
+    return Identifier.of(ti.namespace().levels(), ti.name());
   }
+
+  @Override
+  public String extractCatalog(CaseInsensitiveStringMap options) {
+    return SparkSession.active().sessionState().catalogManager().currentCatalog().name();
+  }
+
 }

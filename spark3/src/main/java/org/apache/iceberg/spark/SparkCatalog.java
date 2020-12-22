@@ -131,7 +131,7 @@ public class SparkCatalog extends BaseCatalog {
    * @return an Iceberg identifier
    */
   protected TableIdentifier buildIdentifier(Identifier identifier) {
-    return TableIdentifier.of(Namespace.of(identifier.namespace()), identifier.name());
+    return Spark3Util.identifierToTableIdentifier(identifier);
   }
 
   @Override

@@ -19,5 +19,19 @@
 
 package org.apache.iceberg.spark.source;
 
-public class TestSparkSchema3 extends TestSparkSchema {
+import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkSessionCatalog;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
+import org.apache.spark.sql.connector.catalog.Table;
+import org.apache.spark.sql.connector.catalog.TableCatalog;
+
+public class TestSparkCatalog<T extends TableCatalog & SupportsNamespaces> extends SparkSessionCatalog<T> {
+
+  @Override
+  public Table loadTable(Identifier ident) throws NoSuchTableException {
+    TestTables.TestTable table = TestTables.load(Spark3Util.identifierToTableIdentifier(ident).toString());
+    return new SparkTable(table, false);
+  }
 }
