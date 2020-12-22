@@ -72,6 +72,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   private static final String ICEBERG_HADOOP_WAREHOUSE_BASE = "iceberg/warehouse";
   private static final String TABLE_METADATA_FILE_EXTENSION = ".metadata.json";
+  private static final PathFilter METADATA_FILTER = path -> path.getName().equals("metadata");
   private static final Joiner SLASH = Joiner.on("/");
   private static final PathFilter TABLE_FILTER = path -> path.getName().endsWith(TABLE_METADATA_FILE_EXTENSION);
 
@@ -139,6 +140,25 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     return catalogName;
   }
 
+  private boolean isTableDir(Path path) {
+    Path metadataPath = new Path(path, "metadata");
+    // Only the path which contains metadata is the path for table, otherwise it could be
+    // still a namespace.
+    try {
+      return fs.listStatus(metadataPath, TABLE_FILTER).length >= 1;
+    } catch (IOException e) {
+      return false;
+    }
+  }
+
+  private boolean isDirectory(Path path) {
+    try {
+      return fs.getFileStatus(path).isDirectory();
+    } catch (IOException e) {
+      return false;
+    }
+  }
+
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
     Preconditions.checkArgument(namespace.levels().length >= 1,
@@ -148,22 +168,18 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     Set<TableIdentifier> tblIdents = Sets.newHashSet();
 
     try {
-      if (!fs.exists(nsPath) || !fs.isDirectory(nsPath)) {
+      if (!isDirectory(nsPath)) {
         throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
       }
 
       for (FileStatus s : fs.listStatus(nsPath)) {
-        Path path = s.getPath();
-        if (!fs.isDirectory(path)) {
+        if (!s.isDirectory()) {
           // Ignore the path which is not a directory.
           continue;
         }
 
-        Path metadataPath = new Path(path, "metadata");
-        if (fs.exists(metadataPath) && fs.isDirectory(metadataPath) &&
-            (fs.listStatus(metadataPath, TABLE_FILTER).length >= 1)) {
-          // Only the path which contains metadata is the path for table, otherwise it could be
-          // still a namespace.
+        Path path = s.getPath();
+        if (isTableDir(path)) {
           TableIdentifier tblIdent = TableIdentifier.of(namespace, path.getName());
           tblIdents.add(tblIdent);
         }
@@ -323,14 +339,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   }
 
   private boolean isNamespace(Path path) {
-    Path metadataPath = new Path(path, "metadata");
-    try {
-      return fs.isDirectory(path) && !(fs.exists(metadataPath) && fs.isDirectory(metadataPath) &&
-          (fs.listStatus(metadataPath, TABLE_FILTER).length >= 1));
-
-    } catch (IOException ioe) {
-      throw new RuntimeIOException(ioe, "Failed to list namespace info: %s ", path);
-    }
+    return isDirectory(path) && !isTableDir(path);
   }
 
   @Override
