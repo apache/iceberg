@@ -27,6 +27,7 @@ import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.config.TableConfigOptions;
 import org.apache.flink.types.Row;
+import org.apache.flink.util.CloseableIterator;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers;
@@ -47,7 +48,7 @@ import org.junit.Test;
  */
 public class TestFlinkScanSql extends TestFlinkScan {
 
-  private TableEnvironment tEnv;
+  private volatile TableEnvironment tEnv;
 
   public TestFlinkScanSql(String fileFormat) {
     super(fileFormat);
@@ -56,12 +57,25 @@ public class TestFlinkScanSql extends TestFlinkScan {
   @Override
   public void before() throws IOException {
     super.before();
-    tEnv = TableEnvironment.create(EnvironmentSettings.newInstance().useBlinkPlanner().inBatchMode().build());
-    tEnv.executeSql(String.format(
+    getTableEnv().executeSql(String.format(
         "create catalog iceberg_catalog with ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
         warehouse));
-    tEnv.executeSql("use catalog iceberg_catalog");
-    tEnv.getConfig().getConfiguration().set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
+    getTableEnv().executeSql("use catalog iceberg_catalog");
+    getTableEnv().getConfig().getConfiguration().set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
+  }
+
+  private TableEnvironment getTableEnv() {
+    if (tEnv == null) {
+      synchronized (this) {
+        if (tEnv == null) {
+          this.tEnv = TableEnvironment.create(EnvironmentSettings
+              .newInstance()
+              .useBlinkPlanner()
+              .inBatchMode().build());
+        }
+      }
+    }
+    return tEnv;
   }
 
   @Override
@@ -166,7 +180,14 @@ public class TestFlinkScanSql extends TestFlinkScan {
   }
 
   private List<Row> executeSQL(String sql) {
-    return Lists.newArrayList(tEnv.executeSql(sql).collect());
+    CloseableIterator<Row> iter = getTableEnv().executeSql(sql).collect();
+    List<Row> results = Lists.newArrayList(iter);
+    try {
+      iter.close();
+    } catch (Exception e) {
+      throw new RuntimeException("failed to close  table result iterator", e);
+    }
+    return results;
   }
 
   private String optionToKv(String key, Object value) {
