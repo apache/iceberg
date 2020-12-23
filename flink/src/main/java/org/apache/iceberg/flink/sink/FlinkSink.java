@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -44,6 +45,7 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -113,6 +115,7 @@ public class FlinkSink {
     private TableSchema tableSchema;
     private boolean overwrite = false;
     private Integer writeParallelism = null;
+    private List<String> equalityFieldColumns = null;
 
     private Builder() {
     }
@@ -169,6 +172,17 @@ public class FlinkSink {
       return this;
     }
 
+    /**
+     * Configuring the equality field columns for iceberg table that accept CDC or UPSERT events.
+     *
+     * @param columns defines the iceberg table's key.
+     * @return {@link Builder} to connect the iceberg table.
+     */
+    public Builder equalityFieldColumns(List<String> columns) {
+      this.equalityFieldColumns = columns;
+      return this;
+    }
+
     @SuppressWarnings("unchecked")
     public DataStreamSink<RowData> build() {
       Preconditions.checkArgument(rowDataInput != null,
@@ -184,7 +198,18 @@ public class FlinkSink {
         }
       }
 
-      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, tableSchema);
+      // Find out the equality field id list based on the user-provided equality field column names.
+      List<Integer> equalityFieldIds = Lists.newArrayList();
+      if (equalityFieldColumns != null && equalityFieldColumns.size() > 0) {
+        for (String column : equalityFieldColumns) {
+          org.apache.iceberg.types.Types.NestedField field = table.schema().findField(column);
+          Preconditions.checkNotNull(field, "Missing required equality field column '%s' in table schema %s",
+              column, table.schema());
+          equalityFieldIds.add(field.fieldId());
+        }
+      }
+
+      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, tableSchema, equalityFieldIds);
       IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
 
       this.writeParallelism = writeParallelism == null ? rowDataInput.getParallelism() : writeParallelism;
@@ -202,7 +227,8 @@ public class FlinkSink {
     }
   }
 
-  static IcebergStreamWriter<RowData> createStreamWriter(Table table, TableSchema requestedSchema) {
+  static IcebergStreamWriter<RowData> createStreamWriter(Table table, TableSchema requestedSchema,
+                                                         List<Integer> equalityFieldIds) {
     Preconditions.checkArgument(table != null, "Iceberg table should't be null");
 
     RowType flinkSchema;
@@ -226,7 +252,7 @@ public class FlinkSink {
 
     TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(), flinkSchema,
         table.spec(), table.locationProvider(), table.io(), table.encryption(), targetFileSize, fileFormat, props,
-        null);
+        equalityFieldIds);
 
     return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
   }

@@ -48,13 +48,11 @@ import org.apache.iceberg.GenericManifestFile;
 import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.TableTestBase;
-import org.apache.iceberg.TestTables;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
-import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.TestTableLoader;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -859,29 +857,6 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     @Override
     public Class<? extends StreamOperator> getStreamOperatorClass(ClassLoader classLoader) {
       return IcebergFilesCommitter.class;
-    }
-  }
-
-  private static class TestTableLoader implements TableLoader {
-    private File dir = null;
-
-    TestTableLoader(String dir) {
-      this.dir = new File(dir);
-    }
-
-    @Override
-    public void open() {
-
-    }
-
-    @Override
-    public Table loadTable() {
-      return TestTables.load(dir, "test");
-    }
-
-    @Override
-    public void close() {
-
     }
   }
 }
