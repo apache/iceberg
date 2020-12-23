@@ -37,24 +37,22 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   private final String catalogName;
   private final TableIdentifier tableIdentifier;
   private final FileIO fileIO;
-  private final JdbcClientPool dbConnPool;
+  private final TableSQL tableSQL;
 
-  protected JdbcTableOperations(JdbcClientPool dbConnPool, FileIO fileIO, String catalogName,
-                                TableIdentifier tableIdentifier) {
-    this.dbConnPool = dbConnPool;
+  protected JdbcTableOperations(TableSQL tableSQL, FileIO fileIO, String catalogName, TableIdentifier tableIdentifier) {
     this.catalogName = catalogName;
     this.tableIdentifier = tableIdentifier;
     this.fileIO = fileIO;
+    this.tableSQL = tableSQL;
   }
 
   @Override
   public void doRefresh() {
     String metadataLocation = null;
-    TableSQL tableDao = new TableSQL(dbConnPool, catalogName);
     Map<String, String> table;
 
     try {
-      table = tableDao.getTable(tableIdentifier);
+      table = tableSQL.getTable(tableIdentifier);
     } catch (SQLException | InterruptedException e) {
       // unknown exception happened when getting table from catalog
       throw new RuntimeException(String.format("Failed to get table from catalog %s.%s", catalogName,
@@ -83,16 +81,15 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
 
   @Override
   public void doCommit(TableMetadata base, TableMetadata metadata) {
-    TableSQL tableDao = new TableSQL(dbConnPool, catalogName);
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
     String oldMetadataLocation = null;
     try {
-      if (tableDao.exists(tableIdentifier)) {
-        Map<String, String> table = tableDao.getTable(tableIdentifier);
+      if (tableSQL.exists(tableIdentifier)) {
+        Map<String, String> table = tableSQL.getTable(tableIdentifier);
         oldMetadataLocation = table.get("metadata_location");
         validateMetadataLocation(table, base);
         // Start atomic update
-        int updatedRecords = tableDao.doCommit(tableIdentifier, oldMetadataLocation, newMetadataLocation);
+        int updatedRecords = tableSQL.doCommit(tableIdentifier, oldMetadataLocation, newMetadataLocation);
         if (updatedRecords == 1) {
           LOG.debug("Successfully committed to existing table: {}", tableIdentifier);
         } else {
@@ -100,7 +97,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
                   catalogName, tableIdentifier);
         }
       } else {
-        tableDao.doCommitCreate(tableIdentifier, oldMetadataLocation, newMetadataLocation);
+        tableSQL.doCommitCreate(tableIdentifier, newMetadataLocation);
         LOG.debug("Successfully committed to new table: {}", tableIdentifier);
       }
     } catch (SQLException | InterruptedException e) {

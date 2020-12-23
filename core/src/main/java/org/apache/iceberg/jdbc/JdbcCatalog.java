@@ -22,7 +22,6 @@ package org.apache.iceberg.jdbc;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +59,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
   private String warehouseLocation;
   private Configuration hadoopConf;
   private JdbcClientPool dbConnPool;
+  private TableSQL tableSQL;
 
   public JdbcCatalog() {
   }
@@ -90,26 +90,16 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
           dbProps.put(prop.getKey().substring(JDBC_PARAM_PREFIX.length()), prop.getValue());
         }
       }
-
       dbConnPool = new JdbcClientPool(properties.get(CatalogProperties.HIVE_URI), dbProps);
-      initializeCatalogTables();
-
+      tableSQL = new TableSQL(dbConnPool, name);
     } catch (SQLException | InterruptedException e) {
       throw new UncheckedIOException("Failed to initialize Jdbc Catalog!", new IOException(e));
     }
   }
 
-  private void initializeCatalogTables() throws InterruptedException, SQLException {
-    // create table if not exits
-    if (!TableSQL.tableExists(dbConnPool.run(Connection::getMetaData), TableSQL.SQL_TABLE_NAME)) {
-      dbConnPool.run(conn -> conn.prepareStatement(TableSQL.SQL_TABLE_DDL).execute());
-      LOG.debug("Created table {} to store iceberg tables!", TableSQL.SQL_TABLE_NAME);
-    }
-  }
-
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-    return new JdbcTableOperations(dbConnPool, fileIO, name, tableIdentifier);
+    return new JdbcTableOperations(tableSQL, fileIO, name, tableIdentifier);
   }
 
   @Override
@@ -125,7 +115,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     TableOperations ops = newTableOps(identifier);
     TableMetadata lastMetadata = ops.current();
     try {
-      new TableSQL(dbConnPool, name).dropTable(identifier);
+      tableSQL.dropTable(identifier);
       if (purge && lastMetadata != null) {
         CatalogUtil.dropTableData(ops.io(), lastMetadata);
         LOG.info("Table {} data purged!", identifier);
@@ -140,12 +130,11 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
-    TableSQL tableDao = new TableSQL(dbConnPool, name);
-    if (!tableDao.namespaceExists(namespace)) {
+    if (!tableSQL.namespaceExists(namespace)) {
       throw new NoSuchNamespaceException("Namespace %s does not exist!", namespace);
     }
     try {
-      return tableDao.listTables(namespace);
+      return tableSQL.listTables(namespace);
     } catch (SQLException | InterruptedException e) {
       LOG.error("Failed to list tables!", e);
       return null;
@@ -154,13 +143,11 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
-    TableSQL tableDao = new TableSQL(dbConnPool, name);
     try {
-      if (tableDao.getTable(from).isEmpty()) {
+      if (tableSQL.getTable(from).isEmpty()) {
         throw new NoSuchTableException("Failed to rename table! Table '%s' not found in the catalog!", from);
       }
-      // turn autocommit off and rollback if anything goes wrong
-      int updatedRecords = tableDao.renameTable(from, to);
+      int updatedRecords = tableSQL.renameTable(from, to);
       if (updatedRecords == 1) {
         LOG.debug("Successfully renamed table from {} to {}!", from, to);
       } else if (updatedRecords == 0) {
@@ -169,7 +156,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
         throw new UncheckedIOException(new IOException("Failed to rename table! Rename operation Failed"));
       }
       // validate rename operation succeeded
-      if (!tableDao.exists(to)) {
+      if (!tableSQL.exists(to)) {
         throw new NoSuchTableException("Rename Operation Failed! Table '%s' not found after the rename!", to);
       }
     } catch (SQLException | InterruptedException e) {
@@ -201,12 +188,11 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
-    TableSQL dao = new TableSQL(dbConnPool, name);
-    if (!namespace.isEmpty() && !dao.namespaceExists(namespace)) {
+    if (!namespace.isEmpty() && !tableSQL.namespaceExists(namespace)) {
       throw new NoSuchNamespaceException("Namespace does not exist %s", namespace);
     }
     try {
-      List<Namespace> nsList = dao.listNamespaces(namespace);
+      List<Namespace> nsList = tableSQL.listNamespaces(namespace);
       LOG.debug("From the namespace '{}' found: {}", namespace, nsList);
       return nsList;
     } catch (Exception e) {
@@ -218,8 +204,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
     Path nsPath = new Path(warehouseLocation, TableSQL.JOINER_DOT.join(namespace.levels()));
-    TableSQL dao = new TableSQL(dbConnPool, name);
-    if (!dao.namespaceExists(namespace) || namespace.isEmpty()) {
+    if (!tableSQL.namespaceExists(namespace) || namespace.isEmpty()) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
@@ -228,8 +213,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
   @Override
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
-    TableSQL dao = new TableSQL(dbConnPool, name);
-    if (!dao.namespaceExists(namespace)) {
+    if (!tableSQL.namespaceExists(namespace)) {
       throw new NoSuchNamespaceException("Cannot drop namespace %s because it is not found!", namespace);
     }
 
@@ -257,7 +241,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
   }
 
   @Override
-  public void close() throws IOException {
+  public void close() {
     this.dbConnPool.close();
   }
 }

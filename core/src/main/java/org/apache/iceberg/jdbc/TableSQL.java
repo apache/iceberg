@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.jdbc;
 
+import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -58,7 +59,7 @@ public class TableSQL {
           " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? AND metadata_location = ?";
   public static final String SQL_INSERT = "INSERT INTO " + SQL_TABLE_NAME +
           " (catalog_name, table_namespace, table_name, metadata_location, previous_metadata_location) " +
-          " VALUES (?,?,?,?,?)";
+          " VALUES (?,?,?,?,null)";
   public static final String SQL_UPDATE_TABLE_NAME = "UPDATE " + SQL_TABLE_NAME +
           " SET table_namespace = ? , table_name = ? " +
           " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? ";
@@ -72,33 +73,42 @@ public class TableSQL {
   protected static final Splitter SPLITTER_DOT = Splitter.on('.');
   private static final Logger LOG = LoggerFactory.getLogger(TableSQL.class);
   private final String catalogName;
-  private final JdbcClientPool dbConn;
+  private final JdbcClientPool dbConnPool;
 
-  public TableSQL(JdbcClientPool dbConn, String catalogName) {
-    this.dbConn = dbConn;
+  public TableSQL(JdbcClientPool dbConnPool, String catalogName) throws SQLException, InterruptedException {
+    this.dbConnPool = dbConnPool;
     this.catalogName = catalogName;
+    initializeCatalogTables();
   }
 
   public static boolean tableExists(DatabaseMetaData jdbcMetadata, String tableName) throws SQLException {
     // need to check multiple times because some databases using different naming standards. ex: H2db keeping
     // tables with uppercase name
-    boolean isExists = false;
+    boolean exists = false;
     ResultSet tables = jdbcMetadata.getTables(null, null, tableName, new String[]{"TABLE"});
     if (tables.next()) {
-      isExists = true;
+      exists = true;
     }
     tables.close();
     ResultSet tablesUpper = jdbcMetadata.getTables(null, null, tableName.toUpperCase(), new String[]{"TABLE"});
     if (tablesUpper.next()) {
-      isExists = true;
+      exists = true;
     }
     tablesUpper.close();
     ResultSet tablesLower = jdbcMetadata.getTables(null, null, tableName.toLowerCase(), new String[]{"TABLE"});
     if (tablesLower.next()) {
-      isExists = true;
+      exists = true;
     }
     tablesLower.close();
-    return isExists;
+    return exists;
+  }
+
+  private void initializeCatalogTables() throws InterruptedException, SQLException {
+    // create table if not exits
+    if (!TableSQL.tableExists(dbConnPool.run(Connection::getMetaData), TableSQL.SQL_TABLE_NAME)) {
+      dbConnPool.run(conn -> conn.prepareStatement(TableSQL.SQL_TABLE_DDL).execute());
+      LOG.debug("Created table {} to store iceberg tables!", TableSQL.SQL_TABLE_NAME);
+    }
   }
 
   public Namespace stringToNamespace(String string) {
@@ -127,7 +137,7 @@ public class TableSQL {
   public boolean namespaceExists(Namespace namespace) {
     boolean exists = false;
     try {
-      PreparedStatement sql = dbConn.run(c -> c.prepareStatement(SQL_SELECT_NAMESPACE));
+      PreparedStatement sql = dbConnPool.run(c -> c.prepareStatement(SQL_SELECT_NAMESPACE));
       sql.setString(1, this.namespaceToString(namespace) + "%");
       ResultSet rs = sql.executeQuery();
       if (rs.next()) {
@@ -140,15 +150,9 @@ public class TableSQL {
     return exists;
   }
 
-  /**
-   * List namespaces from the namespace. For example, if table a.b.t exists, use 'SELECT NAMESPACE IN a' this method
-   * must return Namepace.of("a","b") {@link Namespace}.
-   **/
   public List<Namespace> listNamespaces(Namespace namespace) throws SQLException, InterruptedException {
     List<Namespace> namespaces = Lists.newArrayList();
-    List<Map<String, String>> results = Lists.newArrayList();
-    PreparedStatement sql = dbConn.run(c -> c.prepareStatement(SQL_SELECT_NAMESPACES));
-    // SELECT DISTINCT table_namespace FROM iceberg_tables WHERE table_namespace LIKE 'ns%'
+    PreparedStatement sql = dbConnPool.run(c -> c.prepareStatement(SQL_SELECT_NAMESPACES));
     if (namespace.isEmpty()) {
       sql.setString(1, this.namespaceToString(namespace) + "%");
     } else {
@@ -175,7 +179,7 @@ public class TableSQL {
 
   public Map<String, String> getTable(TableIdentifier tableIdentifier) throws SQLException, InterruptedException {
     Map<String, String> table = Maps.newHashMap();
-    PreparedStatement sql = dbConn.run(c -> c.prepareStatement(SQL_SELECT));
+    PreparedStatement sql = dbConnPool.run(c -> c.prepareStatement(SQL_SELECT));
     sql.setString(1, catalogName);
     sql.setString(2, this.namespaceToString(tableIdentifier.namespace()));
     sql.setString(3, tableIdentifier.name());
@@ -193,7 +197,7 @@ public class TableSQL {
 
   public List<TableIdentifier> listTables(Namespace namespace) throws SQLException, InterruptedException {
     List<TableIdentifier> results = Lists.newArrayList();
-    PreparedStatement sql = dbConn.run(c -> c.prepareStatement(SQL_SELECT_ALL));
+    PreparedStatement sql = dbConnPool.run(c -> c.prepareStatement(SQL_SELECT_ALL));
     sql.setString(1, catalogName);
     sql.setString(2, this.namespaceToString(namespace));
     ResultSet rs = sql.executeQuery();
@@ -209,7 +213,7 @@ public class TableSQL {
 
   public int doCommit(TableIdentifier tableIdentifier, String oldMetadataLocation,
                       String newMetadataLocation) throws SQLException, InterruptedException {
-    PreparedStatement sql = dbConn.run(c -> c.prepareStatement(SQL_UPDATE_METADATA_LOCATION));
+    PreparedStatement sql = dbConnPool.run(c -> c.prepareStatement(SQL_UPDATE_METADATA_LOCATION));
     // UPDATE
     sql.setString(1, newMetadataLocation);
     sql.setString(2, oldMetadataLocation);
@@ -221,20 +225,19 @@ public class TableSQL {
     return sql.executeUpdate();
   }
 
-  public int doCommitCreate(TableIdentifier tableIdentifier, String oldMetadataLocation,
-                            String newMetadataLocation) throws SQLException, InterruptedException {
-    PreparedStatement sql = dbConn.run(c -> c.prepareStatement(SQL_INSERT));
+  public int doCommitCreate(TableIdentifier tableIdentifier, String newMetadataLocation)
+          throws SQLException, InterruptedException {
+    PreparedStatement sql = dbConnPool.run(c -> c.prepareStatement(SQL_INSERT));
     sql.setString(1, catalogName);
     sql.setString(2, this.namespaceToString(tableIdentifier.namespace()));
     sql.setString(3, tableIdentifier.name());
     sql.setString(4, newMetadataLocation);
-    sql.setString(5, oldMetadataLocation);
     return sql.executeUpdate();
 
   }
 
   public int renameTable(TableIdentifier from, TableIdentifier to) throws SQLException, InterruptedException {
-    PreparedStatement sql = dbConn.run(c -> c.prepareStatement(SQL_UPDATE_TABLE_NAME));
+    PreparedStatement sql = dbConnPool.run(c -> c.prepareStatement(SQL_UPDATE_TABLE_NAME));
     sql.setString(1, this.namespaceToString(to.namespace()));
     sql.setString(2, to.name());
     sql.setString(3, catalogName);
@@ -245,7 +248,7 @@ public class TableSQL {
   }
 
   public int dropTable(TableIdentifier identifier) throws SQLException, InterruptedException {
-    PreparedStatement sql = dbConn.run(c -> c.prepareStatement(SQL_DELETE));
+    PreparedStatement sql = dbConnPool.run(c -> c.prepareStatement(SQL_DELETE));
     sql.setString(1, catalogName);
     sql.setString(2, this.namespaceToString(identifier.namespace()));
     sql.setString(3, identifier.name());

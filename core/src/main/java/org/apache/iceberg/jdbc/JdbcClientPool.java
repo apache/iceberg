@@ -45,7 +45,7 @@ public class JdbcClientPool extends ClientPool<Connection, SQLException> {
     try {
       return DriverManager.getConnection(dbUrl, dbProperties);
     } catch (SQLException e) {
-      throw new RuntimeException("Failed to connect to Jdbc Databse!", e);
+      throw new RuntimeException("Failed to connect to database!", e);
     }
   }
 
@@ -60,7 +60,7 @@ public class JdbcClientPool extends ClientPool<Connection, SQLException> {
     try {
       client.close();
     } catch (SQLException e) {
-      throw new RuntimeException("Failed to connect to Jdbc Databse!", e);
+      throw new RuntimeException("Failed to connect to database!", e);
     }
   }
 }
