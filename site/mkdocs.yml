@@ -62,6 +62,7 @@ nav:
   - Presto: https://prestosql.io/docs/current/connector/iceberg.html
   - Flink: flink.md
   - Hive: hive.md
+  - Beam: beam.md
   - API:
     - Javadoc: /javadoc/
     - Java API intro: api.md

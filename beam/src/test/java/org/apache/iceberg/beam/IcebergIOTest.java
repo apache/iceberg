@@ -78,27 +78,27 @@ public class IcebergIOTest {
 
     @Test
     public void testWriteFiles() {
-        PipelineOptions options = PipelineOptionsFactory.create();
-        Pipeline p = Pipeline.create(options);
-        String hiveMetastoreUrl = "thrift://localhost:9083/default";
+        final PipelineOptions options = PipelineOptionsFactory.create();
+        final Pipeline p = Pipeline.create(options);
 
-        Schema schema = new Schema.Parser().parse(stringSchema);
-        p.getCoderRegistry().registerCoderForClass(GenericRecord.class, AvroCoder.of(schema));
+        Schema avroSchema = new Schema.Parser().parse(stringSchema);
+        p.getCoderRegistry().registerCoderForClass(GenericRecord.class, AvroCoder.of(avroSchema));
 
         PCollection<String> lines = p.apply(TextIO.read().from(getInputFile("words.txt"))).setCoder(StringUtf8Coder.of());
 
         PCollection<GenericRecord> records = lines.apply(ParDo.of(new StringToGenericRecord()));
 
-        FileIO.Write<Void, GenericRecord> fileIO = FileIO.<GenericRecord>write()
-                .via(AvroIO.sink(schema))
+        final String hiveMetastoreUrl = "thrift://localhost:9083/default";
+        FileIO.Write<Void, GenericRecord> avroFileIO = FileIO.<GenericRecord>write()
+                .via(AvroIO.sink(avroSchema))
                 .to("/tmp/fokko/")
                 .withSuffix(".avro");
 
-        WriteFilesResult<Void> output = records.apply(fileIO);
-        org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(schema);
+        WriteFilesResult<Void> filesWritten = records.apply(avroFileIO);
+        org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
         TableIdentifier name = TableIdentifier.of("default", "test");
 
-        IcebergIO.write(name, icebergSchema, hiveMetastoreUrl, output);
+        IcebergIO.write(name, icebergSchema, hiveMetastoreUrl, filesWritten);
 
         p.run();
     }
