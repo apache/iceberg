@@ -72,7 +72,6 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   private static final String ICEBERG_HADOOP_WAREHOUSE_BASE = "iceberg/warehouse";
   private static final String TABLE_METADATA_FILE_EXTENSION = ".metadata.json";
-  private static final PathFilter METADATA_FILTER = path -> path.getName().equals("metadata");
   private static final Joiner SLASH = Joiner.on("/");
   private static final PathFilter TABLE_FILTER = path -> path.getName().endsWith(TABLE_METADATA_FILE_EXTENSION);
 
