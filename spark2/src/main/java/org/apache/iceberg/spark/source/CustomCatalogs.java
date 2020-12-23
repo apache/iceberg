@@ -61,20 +61,19 @@ public final class CustomCatalogs {
    * @param name Catalog Name
    * @return an Iceberg catalog
    */
-  public static Catalog buildIcebergCatalog(SparkSession spark, String name) {
-    return CATALOG_CACHE.get(Pair.of(spark, name), CustomCatalogs::load);
+  public static Catalog loadCatalog(SparkSession spark, String name) {
+    return CATALOG_CACHE.get(Pair.of(spark, name), CustomCatalogs::buildCatalog);
   }
 
-  private static Catalog load(Pair<SparkSession, String> sparkAndName) {
+  private static Catalog buildCatalog(Pair<SparkSession, String> sparkAndName) {
     SparkSession spark = sparkAndName.first();
     String name = sparkAndName.second();
     SparkConf sparkConf = spark.sparkContext().getConf();
     Configuration conf = spark.sessionState().newHadoopConf();
 
     String catalogPrefix = String.format("%s.%s", ICEBERG_CATALOG_PREFIX, name);
-    String catalogName = sparkConf.get(catalogPrefix, null);
     if (!name.equals(ICEBERG_DEFAULT_CATALOG) &&
-        !org.apache.spark.sql.catalog.Catalog.class.getName().equals(catalogName)) {
+        !sparkConf.contains(catalogPrefix)) {
       // we return null if spark.sql.catalog.<name> is not the Spark Catalog
       // and we aren't looking for the default catalog
       return null;
@@ -95,9 +94,9 @@ public final class CustomCatalogs {
     String[] currentNamespace = new String[]{spark.catalog().currentDatabase()};
     List<String> nameParts = Splitter.on(".").splitToList(path);
     return SparkUtil.catalogAndIdentifier(nameParts,
-        s -> buildIcebergCatalog(spark, s),
+        s -> loadCatalog(spark, s),
         (n, t) -> TableIdentifier.of(Namespace.of(n), t),
-        buildIcebergCatalog(spark, ICEBERG_DEFAULT_CATALOG),
+        loadCatalog(spark, ICEBERG_DEFAULT_CATALOG),
         currentNamespace);
   }
 

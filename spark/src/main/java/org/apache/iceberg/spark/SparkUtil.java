@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark;
 
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionField;
@@ -74,33 +75,29 @@ public class SparkUtil {
    */
   public static <C, T> Pair<C, T> catalogAndIdentifier(List<String> nameParts,
                                                        Function<String, C> catalogProvider,
-                                                       IdentiferFunction<T> identiferProvider,
-                                                       C defaultCatalog,
+                                                       BiFunction<String[], String, T> identiferProvider,
+                                                       C currentCatalog,
                                                        String[] currentNamespace) {
     Preconditions.checkArgument(!nameParts.isEmpty(),
-        "Cannot determine catalog and Identifier from empty name parts");
+        "Cannot determine catalog and identifier from empty name");
 
     int lastElementIndex = nameParts.size() - 1;
     String name = nameParts.get(lastElementIndex);
 
     if (nameParts.size() == 1) {
       // Only a single element, use current catalog and namespace
-      return Pair.of(defaultCatalog, identiferProvider.of(currentNamespace, name));
+      return Pair.of(currentCatalog, identiferProvider.apply(currentNamespace, name));
     } else {
       C catalog = catalogProvider.apply(nameParts.get(0));
       if (catalog == null) {
         // The first element was not a valid catalog, treat it like part of the namespace
         String[] namespace =  nameParts.subList(0, lastElementIndex).toArray(new String[0]);
-        return Pair.of(defaultCatalog, identiferProvider.of(namespace, name));
+        return Pair.of(currentCatalog, identiferProvider.apply(namespace, name));
       } else {
         // Assume the first element is a valid catalog
         String[] namespace = nameParts.subList(1, lastElementIndex).toArray(new String[0]);
-        return Pair.of(catalog, identiferProvider.of(namespace, name));
+        return Pair.of(catalog, identiferProvider.apply(namespace, name));
       }
     }
-  }
-
-  public interface IdentiferFunction<T> {
-    T of(String[] namespace, String name);
   }
 }

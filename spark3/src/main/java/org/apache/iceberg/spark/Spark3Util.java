@@ -673,10 +673,7 @@ public class Spark3Util {
    */
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, List<String> nameParts,
                                                           CatalogPlugin defaultCatalog) {
-    Preconditions.checkArgument(!nameParts.isEmpty(),
-        "Cannot determine catalog and Identifier from empty name parts");
     CatalogManager catalogManager = spark.sessionState().catalogManager();
-    int lastElementIndex = nameParts.size() - 1;
 
     String[] currentNamespace;
     if (defaultCatalog.equals(catalogManager.currentCatalog())) {

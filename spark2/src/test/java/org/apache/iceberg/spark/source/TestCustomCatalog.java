@@ -34,7 +34,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalog.Catalog;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -86,7 +85,7 @@ public class TestCustomCatalog {
     SparkConf sparkConf = spark.sparkContext().conf();
     sparkConf.set(
         String.format("%s.%s", CustomCatalogs.ICEBERG_CATALOG_PREFIX, CustomCatalogs.ICEBERG_DEFAULT_CATALOG),
-        Catalog.class.getName());
+        "placeholder");
     this.tables = new HadoopTables(spark.sessionState().newHadoopConf());
     this.tableDir = temp.newFolder();
     tableDir.delete(); // created by table create
