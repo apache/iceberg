@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.table.api.DataTypes;
@@ -56,6 +57,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
 
 import static org.apache.iceberg.hadoop.HadoopOutputFile.fromPath;
@@ -196,5 +198,20 @@ public class SimpleDataUtil {
   public static void assertTableRecords(String tablePath, List<Record> expected) throws IOException {
     Preconditions.checkArgument(expected != null, "expected records shouldn't be null");
     assertTableRecords(new HadoopTables().load(tablePath), expected);
+  }
+
+  public static StructLikeSet expectedRowSet(Table table, Record... records) {
+    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
+    Collections.addAll(set, records);
+    return set;
+  }
+
+  public static StructLikeSet actualRowSet(Table table, String... columns) throws IOException {
+    table.refresh();
+    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
+    try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
+      reader.forEach(set::add);
+    }
+    return set;
   }
 }

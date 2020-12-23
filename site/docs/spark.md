@@ -325,6 +325,21 @@ spark.read
 
 Time travel is not yet supported by Spark's SQL syntax.
 
+### Table names and paths
+
+Paths and table names can be loaded from the Spark3 dataframe interface. How paths/tables are loaded depends on how
+the identifier is specified. When using `spark.read().format("iceberg").path(table)` or `spark.table(table)` the `table`
+variable can take a number of forms as listed below:
+
+*  `file:/path/to/table` -> loads a HadoopTable at given path
+*  `tablename` -> loads `currentCatalog.currentNamespace.tablename`
+*  `catalog.tablename` -> load `tablename` from the specified catalog.
+*  `namespace.tablename` -> load `namespace.tablename` from current catalog
+*  `catalog.namespace.tablename` -> load `namespace.tablename` from the specified catalog.
+*  `namespace1.namespace2.tablename` -> load `namespace1.namespace2.tablename` from current catalog
+
+The above list is in order of priority. For example: a matching catalog will take priority over any namespace resolution.
+
 ### Spark 2.4
 
 Spark 2.4 requires using the DataFrame reader with `iceberg` as a format, because 2.4 does not support catalogs:

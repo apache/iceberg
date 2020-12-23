@@ -17,28 +17,31 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.source;
+package org.apache.iceberg.flink;
 
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.connector.catalog.Identifier;
-import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import java.io.File;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TestTables;
 
-public class TestIcebergSource extends IcebergSource {
-  @Override
-  public String shortName() {
-    return "iceberg-test";
+public class TestTableLoader implements TableLoader {
+  private File dir;
+
+  public TestTableLoader(String dir) {
+    this.dir = new File(dir);
   }
 
   @Override
-  public Identifier extractIdentifier(CaseInsensitiveStringMap options) {
-    TableIdentifier ti = TableIdentifier.parse(options.get("iceberg.table.name"));
-    return Identifier.of(ti.namespace().levels(), ti.name());
+  public void open() {
+
   }
 
   @Override
-  public String extractCatalog(CaseInsensitiveStringMap options) {
-    return SparkSession.active().sessionState().catalogManager().currentCatalog().name();
+  public Table loadTable() {
+    return TestTables.load(dir, "test");
   }
 
+  @Override
+  public void close() {
+
+  }
 }

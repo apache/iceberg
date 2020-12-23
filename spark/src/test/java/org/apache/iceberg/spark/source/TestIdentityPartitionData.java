@@ -33,15 +33,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
+import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -49,7 +47,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public abstract class TestIdentityPartitionData  {
+public abstract class TestIdentityPartitionData extends SparkTestBase {
   private static final Configuration CONF = new Configuration();
   private static final HadoopTables TABLES = new HadoopTables(CONF);
 
@@ -70,20 +68,6 @@ public abstract class TestIdentityPartitionData  {
   public TestIdentityPartitionData(String format, boolean vectorized) {
     this.format = format;
     this.vectorized = vectorized;
-  }
-
-  private static SparkSession spark = null;
-
-  @BeforeClass
-  public static void startSpark() {
-    TestIdentityPartitionData.spark = SparkSession.builder().master("local[2]").getOrCreate();
-  }
-
-  @AfterClass
-  public static void stopSpark() {
-    SparkSession currentSpark = TestIdentityPartitionData.spark;
-    TestIdentityPartitionData.spark = null;
-    currentSpark.stop();
   }
 
   private static final Schema LOG_SCHEMA = new Schema(
