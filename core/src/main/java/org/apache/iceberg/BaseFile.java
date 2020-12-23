@@ -73,6 +73,7 @@ abstract class BaseFile<F>
   private long[] splitOffsets = null;
   private int[] equalityIds = null;
   private byte[] keyMetadata = null;
+  private Integer sortOrderId;
 
   // cached schema
   private transient Schema avroSchema = null;
@@ -121,7 +122,7 @@ abstract class BaseFile<F>
            Map<Integer, Long> columnSizes, Map<Integer, Long> valueCounts,
            Map<Integer, Long> nullValueCounts, Map<Integer, Long> nanValueCounts,
            Map<Integer, ByteBuffer> lowerBounds, Map<Integer, ByteBuffer> upperBounds, List<Long> splitOffsets,
-           int[] equalityFieldIds, ByteBuffer keyMetadata) {
+           int[] equalityFieldIds, Integer sortOrderId, ByteBuffer keyMetadata) {
     this.partitionSpecId = specId;
     this.content = content;
     this.filePath = filePath;
@@ -147,6 +148,7 @@ abstract class BaseFile<F>
     this.upperBounds = SerializableByteBufferMap.wrap(upperBounds);
     this.splitOffsets = ArrayUtil.toLongArray(splitOffsets);
     this.equalityIds = equalityFieldIds;
+    this.sortOrderId = sortOrderId;
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
   }
 
@@ -187,6 +189,7 @@ abstract class BaseFile<F>
     this.splitOffsets = toCopy.splitOffsets == null ? null :
         Arrays.copyOf(toCopy.splitOffsets, toCopy.splitOffsets.length);
     this.equalityIds = toCopy.equalityIds != null ? Arrays.copyOf(toCopy.equalityIds, toCopy.equalityIds.length) : null;
+    this.sortOrderId = toCopy.sortOrderId;
   }
 
   /**
@@ -270,6 +273,9 @@ abstract class BaseFile<F>
         this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
         return;
       case 15:
+        this.sortOrderId = (Integer) value;
+        return;
+      case 16:
         this.fileOrdinal = (long) value;
         return;
       default:
@@ -321,6 +327,8 @@ abstract class BaseFile<F>
       case 14:
         return equalityFieldIds();
       case 15:
+        return sortOrderId;
+      case 16:
         return pos;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -417,6 +425,11 @@ abstract class BaseFile<F>
     return ArrayUtil.toIntList(equalityIds);
   }
 
+  @Override
+  public Integer sortOrderId() {
+    return sortOrderId;
+  }
+
   private static <K, V> Map<K, V> copy(Map<K, V> map) {
     if (map != null) {
       Map<K, V> copy = Maps.newHashMapWithExpectedSize(map.size());
@@ -444,6 +457,7 @@ abstract class BaseFile<F>
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
         .add("equality_ids", equalityIds == null ? "null" : equalityFieldIds())
+        .add("sort_order_id", sortOrderId)
         .toString();
   }
 

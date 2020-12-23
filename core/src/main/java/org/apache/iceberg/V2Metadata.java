@@ -255,7 +255,8 @@ class V2Metadata {
         DataFile.UPPER_BOUNDS,
         DataFile.KEY_METADATA,
         DataFile.SPLIT_OFFSETS,
-        DataFile.EQUALITY_IDS
+        DataFile.EQUALITY_IDS,
+        DataFile.SORT_ORDER_ID
     );
   }
 
@@ -409,6 +410,8 @@ class V2Metadata {
           return wrapped.splitOffsets();
         case 14:
           return wrapped.equalityFieldIds();
+        case 15:
+          return wrapped.sortOrderId();
       }
       throw new IllegalArgumentException("Unknown field ordinal: " + pos);
     }
@@ -501,6 +504,11 @@ class V2Metadata {
     @Override
     public List<Integer> equalityFieldIds() {
       return wrapped.equalityFieldIds();
+    }
+
+    @Override
+    public Integer sortOrderId() {
+      return wrapped.sortOrderId();
     }
 
     @Override
