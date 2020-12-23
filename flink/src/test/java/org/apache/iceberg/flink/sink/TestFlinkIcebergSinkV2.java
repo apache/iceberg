@@ -59,6 +59,15 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
   private static final TypeInformation<Row> ROW_TYPE_INFO =
       new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
 
+  private static final Map<String, RowKind> ROW_KIND_MAP = ImmutableMap.of(
+      "+I", RowKind.INSERT,
+      "-D", RowKind.DELETE,
+      "-U", RowKind.UPDATE_BEFORE,
+      "+U", RowKind.UPDATE_AFTER);
+
+  private static final int ROW_ID_POS = 0;
+  private static final int ROW_DATA_POS = 1;
+
   private final FileFormat format;
   private final int parallelism;
   private final boolean partitioned;
@@ -122,13 +131,13 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
   }
 
   private void testChangeLogs(List<String> equalityFieldColumns,
-                              KeySelector<Row, Row> keySelector,
+                              KeySelector<Row, Object> keySelector,
                               List<List<Row>> elementsPerCheckpoint,
                               List<List<Record>> expectedRecordsPerCheckpoint) throws Exception {
     DataStream<Row> dataStream = env.addSource(new BoundedTestSource<>(elementsPerCheckpoint), ROW_TYPE_INFO);
 
-    // Shuffle by the equality key, so that different operations from the same key could be wrote in order when
-    // executing tasks in parallelism.
+    // Shuffle by the equality key, so that different operations of the same key could be wrote in order when
+    // executing tasks in parallel.
     dataStream = dataStream.keyBy(keySelector);
 
     FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
@@ -155,13 +164,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
   }
 
   private Row row(String rowKind, int id, String data) {
-    Map<String, RowKind> mapping = ImmutableMap.of(
-        "+I", RowKind.INSERT,
-        "-D", RowKind.DELETE,
-        "-U", RowKind.UPDATE_BEFORE,
-        "+U", RowKind.UPDATE_AFTER);
-
-    RowKind kind = mapping.get(rowKind);
+    RowKind kind = ROW_KIND_MAP.get(rowKind);
     if (kind == null) {
       throw new IllegalArgumentException("Unknown row kind: " + rowKind);
     }
@@ -175,7 +178,6 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
 
   @Test
   public void testChangeLogOnIdKey() throws Exception {
-    List<String> equalityFieldIds = ImmutableList.of("id");
     List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
         ImmutableList.of(
             row("+I", 1, "aaa"),
@@ -205,12 +207,11 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         ImmutableList.of(record(1, "ddd"), record(2, "ddd"))
     );
 
-    testChangeLogs(equalityFieldIds, row -> Row.of(row.getField(0)), elementsPerCheckpoint, expectedRecords);
+    testChangeLogs(ImmutableList.of("id"), row -> row.getField(ROW_ID_POS), elementsPerCheckpoint, expectedRecords);
   }
 
   @Test
   public void testChangeLogOnDataKey() throws Exception {
-    List<String> equalityFieldIds = ImmutableList.of("data");
     List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
         ImmutableList.of(
             row("+I", 1, "aaa"),
@@ -237,12 +238,11 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         ImmutableList.of(record(1, "aaa"), record(1, "ccc"), record(2, "aaa"), record(2, "ccc"))
     );
 
-    testChangeLogs(equalityFieldIds, row -> Row.of(row.getField(1)), elementsPerCheckpoint, expectedRecords);
+    testChangeLogs(ImmutableList.of("data"), row -> row.getField(ROW_DATA_POS), elementsPerCheckpoint, expectedRecords);
   }
 
   @Test
   public void testChangeLogOnIdDataKey() throws Exception {
-    List<String> equalityFieldIds = ImmutableList.of("data", "id");
     List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
         ImmutableList.of(
             row("+I", 1, "aaa"),
@@ -268,14 +268,12 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         ImmutableList.of(record(1, "aaa"), record(1, "ccc"), record(2, "aaa"), record(2, "bbb"))
     );
 
-    testChangeLogs(equalityFieldIds, row -> Row.of(row.getField(0), row.getField(1)), elementsPerCheckpoint,
-        expectedRecords);
+    testChangeLogs(ImmutableList.of("data", "id"), row -> Row.of(row.getField(ROW_ID_POS), row.getField(ROW_DATA_POS)),
+        elementsPerCheckpoint, expectedRecords);
   }
 
   @Test
   public void testChangeLogOnSameKey() throws Exception {
-    List<String> equalityFieldIds = ImmutableList.of("id", "data");
-
     List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
         // Checkpoint #1
         ImmutableList.of(
@@ -308,7 +306,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         ImmutableList.of(record(1, "aaa"), record(1, "aaa"))
     );
 
-    testChangeLogs(equalityFieldIds, row -> Row.of(row.getField(0), row.getField(1)),
+    testChangeLogs(ImmutableList.of("id", "data"), row -> Row.of(row.getField(ROW_ID_POS), row.getField(ROW_DATA_POS)),
         elementsPerCheckpoint, expectedRecords);
   }
 
