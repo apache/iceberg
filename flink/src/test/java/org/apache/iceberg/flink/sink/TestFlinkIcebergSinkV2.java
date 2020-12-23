@@ -59,12 +59,6 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
   private static final TypeInformation<Row> ROW_TYPE_INFO =
       new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
 
-  private static final Map<String, RowKind> ROW_KIND_MAP = ImmutableMap.of(
-      "+I", RowKind.INSERT,
-      "-D", RowKind.DELETE,
-      "-U", RowKind.UPDATE_BEFORE,
-      "+U", RowKind.UPDATE_AFTER);
-
   private static final int ROW_ID_POS = 0;
   private static final int ROW_DATA_POS = 1;
 
@@ -164,12 +158,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
   }
 
   private Row row(String rowKind, int id, String data) {
-    RowKind kind = ROW_KIND_MAP.get(rowKind);
-    if (kind == null) {
-      throw new IllegalArgumentException("Unknown row kind: " + rowKind);
-    }
-
-    return Row.ofKind(kind, id, data);
+    return SimpleDataUtil.createRow(rowKind, id, data);
   }
 
   private Record record(int id, String data) {

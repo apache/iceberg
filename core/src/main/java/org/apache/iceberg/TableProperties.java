@@ -161,4 +161,7 @@ public class TableProperties {
 
   public static final String EQUALITY_FIELD_COLUMNS = "equality.field.columns";
   public static final String DEFAULT_EQUALITY_FIELD_COLUMNS = null;
+
+  public static final String FORMAT_VERSION = "format.version";
+  public static final int DEFAULT_FORMAT_VERSION = 1;
 }
