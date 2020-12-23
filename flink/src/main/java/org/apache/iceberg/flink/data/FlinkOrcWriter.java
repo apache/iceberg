@@ -96,6 +96,8 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
               return GenericOrcWriters.bytes();
             case SMALLINT:
               return GenericOrcWriters.shorts();
+            default:
+              break;
           }
           return GenericOrcWriters.ints();
         case LONG:
