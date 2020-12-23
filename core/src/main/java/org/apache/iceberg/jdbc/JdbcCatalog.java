@@ -20,7 +20,6 @@
 package org.apache.iceberg.jdbc;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.sql.SQLException;
 import java.util.List;
@@ -41,6 +40,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.UncheckedSQLIOException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -93,7 +93,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       dbConnPool = new JdbcClientPool(properties.get(CatalogProperties.HIVE_URI), dbProps);
       tableSQL = new TableSQL(dbConnPool, name);
     } catch (SQLException | InterruptedException e) {
-      throw new UncheckedIOException("Failed to initialize Jdbc Catalog!", new IOException(e));
+      throw new UncheckedSQLIOException("Failed to initialize Jdbc Catalog!", e);
     }
   }
 
@@ -122,9 +122,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       }
       return true;
     } catch (SQLException | InterruptedException e) {
-      LOG.error("Cannot complete drop table operation for {} due to unexpected exception {}!", identifier,
-              e.getMessage(), e);
-      throw new UncheckedIOException("Failed to drop table!", new IOException(e));
+      throw new UncheckedSQLIOException("Failed to drop table!", e);
     }
   }
 
@@ -153,15 +151,14 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       } else if (updatedRecords == 0) {
         throw new NoSuchTableException("Failed to rename table! Table '%s' not found in the catalog!", from);
       } else {
-        throw new UncheckedIOException(new IOException("Failed to rename table! Rename operation Failed"));
+        throw new UncheckedSQLIOException("Failed to rename table! Rename operation Failed");
       }
       // validate rename operation succeeded
       if (!tableSQL.exists(to)) {
         throw new NoSuchTableException("Rename Operation Failed! Table '%s' not found after the rename!", to);
       }
     } catch (SQLException | InterruptedException e) {
-      LOG.debug("Failed to rename table from {} to {}", from, to, e);
-      throw new UncheckedIOException("Failed to rename table!", new IOException(e));
+      throw new UncheckedSQLIOException("Failed to rename table!", e);
     }
   }
 
