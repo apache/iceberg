@@ -19,13 +19,13 @@
 
 package org.apache.iceberg.exceptions;
 
-public class UncheckedSQLIOException extends RuntimeException {
+public class UncheckedIOException extends RuntimeException {
 
-  public UncheckedSQLIOException(String message) {
+  public UncheckedIOException(String message) {
     super(message);
   }
 
-  public UncheckedSQLIOException(String message, Exception cause) {
+  public UncheckedIOException(String message, Exception cause) {
     super(message, cause);
   }
 

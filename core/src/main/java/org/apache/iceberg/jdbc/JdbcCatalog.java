@@ -20,7 +20,6 @@
 package org.apache.iceberg.jdbc;
 
 import java.io.Closeable;
-import java.io.UncheckedIOException;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +39,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.UncheckedSQLIOException;
+import org.apache.iceberg.exceptions.UncheckedIOException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -66,7 +65,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
   @SuppressWarnings("checkstyle:HiddenField")
   @Override
-  public void initialize(String name, Map<String, String> properties) throws UncheckedIOException {
+  public void initialize(String name, Map<String, String> properties) throws java.io.UncheckedIOException {
     Preconditions.checkArgument(!properties.getOrDefault(CatalogProperties.HIVE_URI, "").isEmpty(),
             "No connection url provided for jdbc catalog!");
     Preconditions.checkArgument(!properties.getOrDefault(CatalogProperties.WAREHOUSE_LOCATION, "").isEmpty(),
@@ -81,7 +80,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     initializeConnection(properties);
   }
 
-  private void initializeConnection(Map<String, String> properties) throws UncheckedIOException {
+  private void initializeConnection(Map<String, String> properties) throws java.io.UncheckedIOException {
     try {
       LOG.debug("Connecting to Jdbc database {}", properties.get(CatalogProperties.HIVE_URI));
       Properties dbProps = new Properties();
@@ -93,7 +92,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       dbConnPool = new JdbcClientPool(properties.get(CatalogProperties.HIVE_URI), dbProps);
       tableSQL = new TableSQL(dbConnPool, name);
     } catch (SQLException | InterruptedException e) {
-      throw new UncheckedSQLIOException("Failed to initialize Jdbc Catalog!", e);
+      throw new UncheckedIOException("Failed to initialize Jdbc Catalog!", e);
     }
   }
 
@@ -122,7 +121,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       }
       return true;
     } catch (SQLException | InterruptedException e) {
-      throw new UncheckedSQLIOException("Failed to drop table!", e);
+      throw new UncheckedIOException("Failed to drop table!", e);
     }
   }
 
@@ -151,14 +150,14 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       } else if (updatedRecords == 0) {
         throw new NoSuchTableException("Failed to rename table! Table '%s' not found in the catalog!", from);
       } else {
-        throw new UncheckedSQLIOException("Failed to rename table! Rename operation Failed");
+        throw new UncheckedIOException("Failed to rename table! Rename operation Failed");
       }
       // validate rename operation succeeded
       if (!tableSQL.exists(to)) {
         throw new NoSuchTableException("Rename Operation Failed! Table '%s' not found after the rename!", to);
       }
     } catch (SQLException | InterruptedException e) {
-      throw new UncheckedSQLIOException("Failed to rename table!", e);
+      throw new UncheckedIOException("Failed to rename table!", e);
     }
   }
 
