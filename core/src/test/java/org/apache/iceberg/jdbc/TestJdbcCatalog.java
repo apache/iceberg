@@ -46,6 +46,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Util;
@@ -72,25 +73,17 @@ public class TestJdbcCatalog {
           required(2, "data", Types.StringType.get())
   );
 
-  // This is the actual schema for the table, with column IDs reassigned
-  static final Schema TABLE_SCHEMA = new Schema(
-          required(1, "id", Types.IntegerType.get(), "unique ID"),
-          required(2, "data", Types.StringType.get())
-  );
-
   // Partition spec used to create tables
-  static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
+  static final PartitionSpec PARTITION_SPEC = PartitionSpec.builderFor(SCHEMA)
           .bucket("data", 16)
           .build();
 
-  private static final ImmutableMap<String, String> meta = ImmutableMap.of();
   static Configuration conf;
   private static JdbcCatalog catalog;
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
   File tableDir = null;
   String tableLocation = null;
-  String warehousePath;
 
   protected List<String> metadataVersionFiles(String location) {
     return Stream.of(new File(location).listFiles())
@@ -116,15 +109,13 @@ public class TestJdbcCatalog {
     tableDir.delete(); // created by table create
 
     this.tableLocation = tableDir.toURI().toString();
-
-    warehousePath = temp.newFolder().getAbsolutePath();
     Map<String, String> properties = new HashMap<>();
     properties.put(CatalogProperties.HIVE_URI,
             "jdbc:h2:mem:ic" + UUID.randomUUID().toString().replace("-", "") + ";");
 
     properties.put(JdbcCatalog.JDBC_PARAM_PREFIX + "username", "user");
     properties.put(JdbcCatalog.JDBC_PARAM_PREFIX + "password", "password");
-    properties.put(CatalogProperties.WAREHOUSE_LOCATION, warehousePath);
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.getAbsolutePath());
     conf = new Configuration();
     catalog = new JdbcCatalog();
     catalog.setConf(conf);
@@ -134,7 +125,7 @@ public class TestJdbcCatalog {
   @Test
   public void testInitialize() {
     Map<String, String> properties = new HashMap<>();
-    properties.put(CatalogProperties.WAREHOUSE_LOCATION, warehousePath);
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.getAbsolutePath());
     properties.put(CatalogProperties.HIVE_URI, "jdbc:h2:mem:icebergDB;create=true");
     JdbcCatalog jdbcCatalog = new JdbcCatalog();
     jdbcCatalog.setConf(conf);
@@ -148,13 +139,13 @@ public class TestJdbcCatalog {
   public void testCreateTableBuilder() {
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     Table table = catalog.buildTable(tableIdent, SCHEMA)
-            .withPartitionSpec(SPEC)
+            .withPartitionSpec(PARTITION_SPEC)
             .withProperties(null)
             .withProperty("key1", "value1")
             .withProperties(ImmutableMap.of("key2", "value2"))
             .create();
 
-    Assert.assertEquals(TABLE_SCHEMA.toString(), table.schema().toString());
+    Assert.assertEquals(SCHEMA.toString(), table.schema().toString());
     Assert.assertEquals(1, table.spec().fields().size());
     Assert.assertEquals("value1", table.properties().get("key1"));
     Assert.assertEquals("value2", table.properties().get("key2"));
@@ -169,7 +160,7 @@ public class TestJdbcCatalog {
     txn.commitTransaction();
     Table table = catalog.loadTable(tableIdent);
 
-    Assert.assertEquals(TABLE_SCHEMA.toString(), table.schema().toString());
+    Assert.assertEquals(SCHEMA.toString(), table.schema().toString());
     Assert.assertTrue(table.spec().isUnpartitioned());
   }
 
@@ -177,7 +168,7 @@ public class TestJdbcCatalog {
   public void testReplaceTxnBuilder() {
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
 
-    final DataFile fileA = DataFiles.builder(SPEC)
+    final DataFile fileA = DataFiles.builder(PARTITION_SPEC)
             .withPath("/path/to/data-a.parquet")
             .withFileSizeInBytes(0)
             .withPartitionPath("data_bucket=0") // easy way to set partition data for now
@@ -185,7 +176,7 @@ public class TestJdbcCatalog {
             .build();
 
     Transaction createTxn = catalog.buildTable(tableIdent, SCHEMA)
-            .withPartitionSpec(SPEC)
+            .withPartitionSpec(PARTITION_SPEC)
             .withProperty("key1", "value1")
             .createOrReplaceTransaction();
 
@@ -213,7 +204,7 @@ public class TestJdbcCatalog {
   @Test
   public void testCreateTableDefaultSortOrder() {
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
-    Table table = catalog.createTable(tableIdent, SCHEMA, SPEC);
+    Table table = catalog.createTable(tableIdent, SCHEMA, PARTITION_SPEC);
 
     SortOrder sortOrder = table.sortOrder();
     Assert.assertEquals("Order ID must match", 0, sortOrder.orderId());
@@ -227,7 +218,7 @@ public class TestJdbcCatalog {
             .asc("id", NULLS_FIRST)
             .build();
     Table table = catalog.buildTable(tableIdent, SCHEMA)
-            .withPartitionSpec(SPEC)
+            .withPartitionSpec(PARTITION_SPEC)
             .withSortOrder(order)
             .create();
 
@@ -249,6 +240,11 @@ public class TestJdbcCatalog {
     FileSystem fs = Util.getFs(new Path(metaLocation), conf);
     Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
 
+    AssertHelpers.assertThrows("should throw exception", AlreadyExistsException.class,
+            "already exists", () ->
+                    catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned())
+    );
+
     catalog.dropTable(testTable);
   }
 
@@ -257,7 +253,7 @@ public class TestJdbcCatalog {
     TableIdentifier testTable = TableIdentifier.of("tbl");
     Table table = catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
 
-    Assert.assertEquals(table.schema().toString(), TABLE_SCHEMA.toString());
+    Assert.assertEquals(table.schema().toString(), SCHEMA.toString());
     Assert.assertEquals(catalog.name() + ".tbl", table.name());
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
@@ -269,6 +265,7 @@ public class TestJdbcCatalog {
 
   @Test
   public void testCommitHistory() throws IOException {
+//    // @TODO insert same table twice!
     TableIdentifier testTable = TableIdentifier.of("namespace", "tbl", "tbl2");
     catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
     Table table = catalog.loadTable(testTable);
@@ -305,15 +302,22 @@ public class TestJdbcCatalog {
   }
 
   @Test
-  public void testDropTable() throws Exception {
+  public void testDropTable() {
     TableIdentifier testTable = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    TableIdentifier testTable2 = TableIdentifier.of("db", "ns1", "ns2", "tbl2");
     catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
-    String metaLocation = catalog.defaultWarehouseLocation(testTable);
-
-    FileSystem fs = Util.getFs(new Path(metaLocation), conf);
-    Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
-
+    catalog.createTable(testTable2, SCHEMA, PartitionSpec.unpartitioned());
     catalog.dropTable(testTable);
+    Assert.assertFalse(catalog.listTables(testTable.namespace()).contains(testTable));
+    catalog.dropTable(testTable2);
+    AssertHelpers.assertThrows("should throw exception", NoSuchNamespaceException.class,
+            "not exist", () -> catalog.listTables(testTable2.namespace())
+    );
+
+    AssertHelpers.assertThrows("should throw exception",
+            NoSuchTableException.class, "not found in the catalog", () ->
+                    catalog.dropTable(TableIdentifier.of("db", "tbl-not-exists"))
+    );
   }
 
   @Test
@@ -323,18 +327,20 @@ public class TestJdbcCatalog {
     catalog.createTable(from, SCHEMA, PartitionSpec.unpartitioned());
     catalog.renameTable(from, to);
     Assert.assertTrue(catalog.listTables(to.namespace()).contains(to));
-    Assert.assertTrue(catalog.dropTable(to, true));
-
-    // test db rollback
-    final TableIdentifier from2 = TableIdentifier.of("db", "tbl-not-exists");
-    final TableIdentifier to2 = TableIdentifier.of("new_namespace", "tbl-new-name");
+    Assert.assertFalse(catalog.listTables(to.namespace()).contains(from));
+    Assert.assertTrue(catalog.loadTable(to).name().endsWith(to.name()));
 
     AssertHelpers.assertThrows("should throw exception", NoSuchTableException.class,
-            "not found in the catalog", () -> catalog.renameTable(from2, to2));
+            "not found in the catalog", () ->
+                    catalog.renameTable(TableIdentifier.of("db", "tbl-not-exists"), to)
+    );
 
-    // check if its rolled back!
-    AssertHelpers.assertThrows("should throw exception", NoSuchNamespaceException.class,
-            "it is not found", () -> catalog.dropNamespace(to2.namespace()));
+    // rename table to existing table name!
+    TableIdentifier from2 = TableIdentifier.of("db", "tbl2");
+    catalog.createTable(from2, SCHEMA, PartitionSpec.unpartitioned());
+    AssertHelpers.assertThrows("should throw exception", AlreadyExistsException.class,
+            "already exists in the catalog", () -> catalog.renameTable(from2, to)
+    );
   }
 
   @Test
@@ -395,7 +401,7 @@ public class TestJdbcCatalog {
   public void testTableName() {
     TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     catalog.buildTable(tableIdent, SCHEMA)
-            .withPartitionSpec(SPEC)
+            .withPartitionSpec(PARTITION_SPEC)
             .create();
     Table table = catalog.loadTable(tableIdent);
     Assert.assertEquals("Name must match", catalog.name() + ".db.ns1.ns2.tbl", table.name());
@@ -435,7 +441,7 @@ public class TestJdbcCatalog {
     Assert.assertEquals(tblSet2.size(), 2);
     Assert.assertTrue(tblSet2.contains("db"));
     Assert.assertTrue(tblSet2.contains("db2"));
-    // @TODO
+
     List<Namespace> nsp4 = catalog.listNamespaces();
     Set<String> tblSet3 = Sets.newHashSet(nsp4.stream().map(Namespace::toString).iterator());
     Assert.assertEquals(tblSet3.size(), 2);
@@ -478,7 +484,14 @@ public class TestJdbcCatalog {
     Assert.assertTrue("Should true to namespace exist",
             catalog.namespaceExists(Namespace.of("db", "ns1", "ns2")));
     Assert.assertFalse("Should false to namespace doesn't exist",
-            catalog.namespaceExists(Namespace.of("db", "db2", "ns2")));
+            catalog.namespaceExists(Namespace.of("db", "db2", "not_exist")));
+  }
+
+  @Test
+  public void testConversions() {
+    Namespace ns = Namespace.of("db", "db2", "ns2");
+    String nsString = JdbcUtil.namespaceToString(ns);
+    Assert.assertEquals(ns, JdbcUtil.stringToNamespace(nsString));
   }
 
 }

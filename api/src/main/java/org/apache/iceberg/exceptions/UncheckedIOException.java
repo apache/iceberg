@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.exceptions;
 
+import java.sql.SQLException;
+
 public class UncheckedIOException extends RuntimeException {
 
   public UncheckedIOException(String message) {
@@ -29,4 +31,7 @@ public class UncheckedIOException extends RuntimeException {
     super(message, cause);
   }
 
+  public UncheckedIOException(SQLException cause) {
+    super(cause);
+  }
 }

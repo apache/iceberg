@@ -20,11 +20,17 @@
 package org.apache.iceberg.jdbc;
 
 import java.io.Closeable;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -36,6 +42,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -45,20 +52,44 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, SupportsNamespaces, Closeable {
 
+  public static final String SQL_TABLE_NAME = "iceberg_tables";
+  public static final String SQL_TABLE_DDL =
+          "CREATE TABLE " + SQL_TABLE_NAME +
+                  "(catalog_name VARCHAR(1255) NOT NULL," +
+                  "table_namespace VARCHAR(1255) NOT NULL," +
+                  "table_name VARCHAR(1255) NOT NULL," +
+                  "metadata_location VARCHAR(32768)," +
+                  "previous_metadata_location VARCHAR(32768)," +
+                  "PRIMARY KEY (catalog_name, table_namespace, table_name)" +
+                  ")";
+  public static final String SQL_SELECT_TABLE = "SELECT * FROM " + SQL_TABLE_NAME +
+          " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? ";
+  public static final String SQL_SELECT_ALL = "SELECT * FROM " + SQL_TABLE_NAME +
+          " WHERE catalog_name = ? AND table_namespace = ?";
+  public static final String SQL_UPDATE_TABLE_NAME = "UPDATE " + SQL_TABLE_NAME +
+          " SET table_namespace = ? , table_name = ? " +
+          " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? ";
+  public static final String SQL_DELETE_TABLE = "DELETE FROM " + SQL_TABLE_NAME +
+          " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? ";
+  public static final String SQL_SELECT_NAMESPACE = "SELECT table_namespace FROM " + SQL_TABLE_NAME +
+          " WHERE catalog_name = ? AND table_namespace LIKE ? LIMIT 1";
+  public static final String SQL_SELECT_NAMESPACES = "SELECT DISTINCT table_namespace FROM " + SQL_TABLE_NAME +
+          " WHERE catalog_name = ? AND table_namespace LIKE ?";
   public static final String JDBC_PARAM_PREFIX = "connection.parameter.";
   private static final Logger LOG = LoggerFactory.getLogger(JdbcCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
+
   private FileIO fileIO;
-  private String name = "jdbc";
+  private String catalogName = "jdbc";
   private String warehouseLocation;
   private Configuration hadoopConf;
   private JdbcClientPool dbConnPool;
-  private TableSQL tableSQL;
 
   public JdbcCatalog() {
   }
@@ -72,7 +103,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
             "Cannot initialize Jdbc Catalog because warehousePath must not be null!");
 
     this.warehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION).replaceAll("/$", "");
-    this.name = name == null ? "jdbc" : name;
+    this.catalogName = name == null ? "jdbc" : name;
     String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
     this.fileIO = fileIOImpl == null ?
             new HadoopFileIO(hadoopConf) :
@@ -90,15 +121,43 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
         }
       }
       dbConnPool = new JdbcClientPool(properties.get(CatalogProperties.HIVE_URI), dbProps);
-      tableSQL = new TableSQL(dbConnPool, name);
+      initializeCatalogTables();
     } catch (SQLException | InterruptedException e) {
       throw new UncheckedIOException("Failed to initialize Jdbc Catalog!", e);
     }
   }
 
+  private void initializeCatalogTables() throws InterruptedException, SQLException {
+    // need to check multiple times because some databases are using different naming standard. ex: H2db keeping
+    // table names as uppercase
+    boolean exists = false;
+    DatabaseMetaData dbMeta = dbConnPool.run(Connection::getMetaData);
+    ResultSet tables = dbMeta.getTables(null, null, SQL_TABLE_NAME, null);
+    if (tables.next()) {
+      exists = true;
+    }
+    tables.close();
+    ResultSet tablesUpper = dbMeta.getTables(null, null, SQL_TABLE_NAME.toUpperCase(), null);
+    if (tablesUpper.next()) {
+      exists = true;
+    }
+    tablesUpper.close();
+    ResultSet tablesLower = dbMeta.getTables(null, null, SQL_TABLE_NAME.toLowerCase(), null);
+    if (tablesLower.next()) {
+      exists = true;
+    }
+    tablesLower.close();
+
+    // create table if not exits
+    if (!exists) {
+      dbConnPool.run(conn -> conn.prepareStatement(SQL_TABLE_DDL).execute());
+      LOG.debug("Created table {} to store iceberg tables!", SQL_TABLE_NAME);
+    }
+  }
+
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-    return new JdbcTableOperations(tableSQL, fileIO, name, tableIdentifier);
+    return new JdbcTableOperations(dbConnPool, fileIO, catalogName, tableIdentifier);
   }
 
   @Override
@@ -114,7 +173,18 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     TableOperations ops = newTableOps(identifier);
     TableMetadata lastMetadata = ops.current();
     try {
-      tableSQL.dropTable(identifier);
+      PreparedStatement sql = dbConnPool.run(c -> c.prepareStatement(SQL_DELETE_TABLE));
+      sql.setString(1, catalogName);
+      sql.setString(2, JdbcUtil.namespaceToString(identifier.namespace()));
+      sql.setString(3, identifier.name());
+      int deletedRecords = sql.executeUpdate();
+
+      if (deletedRecords > 0) {
+        LOG.debug("Successfully dropped table {}.", identifier);
+      } else {
+        throw new NoSuchTableException("Cannot drop table %s! table not found in the catalog.", identifier);
+      }
+
       if (purge && lastMetadata != null) {
         CatalogUtil.dropTableData(ops.io(), lastMetadata);
         LOG.info("Table {} data purged!", identifier);
@@ -127,11 +197,24 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
-    if (!tableSQL.namespaceExists(namespace)) {
+    if (!this.namespaceExists(namespace)) {
       throw new NoSuchNamespaceException("Namespace %s does not exist!", namespace);
     }
     try {
-      return tableSQL.listTables(namespace);
+      List<TableIdentifier> results = Lists.newArrayList();
+      PreparedStatement sql = dbConnPool.run(c -> c.prepareStatement(SQL_SELECT_ALL));
+      sql.setString(1, catalogName);
+      sql.setString(2, JdbcUtil.namespaceToString(namespace));
+      ResultSet rs = sql.executeQuery();
+
+      while (rs.next()) {
+        final TableIdentifier table = JdbcUtil.stringToTableIdentifier(
+                rs.getString("table_namespace"), rs.getString("table_name"));
+        results.add(table);
+      }
+      rs.close();
+      return results;
+
     } catch (SQLException | InterruptedException e) {
       LOG.error("Failed to list tables!", e);
       return null;
@@ -141,10 +224,16 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier to) {
     try {
-      if (tableSQL.getTable(from).isEmpty()) {
-        throw new NoSuchTableException("Failed to rename table! Table '%s' not found in the catalog!", from);
-      }
-      int updatedRecords = tableSQL.renameTable(from, to);
+      PreparedStatement sql = dbConnPool.run(c -> c.prepareStatement(SQL_UPDATE_TABLE_NAME));
+      // SET
+      sql.setString(1, JdbcUtil.namespaceToString(to.namespace()));
+      sql.setString(2, to.name());
+      // WHERE
+      sql.setString(3, catalogName);
+      sql.setString(4, JdbcUtil.namespaceToString(from.namespace()));
+      sql.setString(5, from.name());
+      int updatedRecords = sql.executeUpdate();
+
       if (updatedRecords == 1) {
         LOG.debug("Successfully renamed table from {} to {}!", from, to);
       } else if (updatedRecords == 0) {
@@ -152,18 +241,20 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       } else {
         throw new UncheckedIOException("Failed to rename table! Rename operation Failed");
       }
-      // validate rename operation succeeded
-      if (!tableSQL.exists(to)) {
-        throw new NoSuchTableException("Rename Operation Failed! Table '%s' not found after the rename!", to);
+    } catch (SQLException e) {
+      if (e.getSQLState().startsWith("23")) { // Unique index or primary key violation
+        throw new AlreadyExistsException("Table with name '%s' already exists in the catalog!", to);
+      } else {
+        throw new UncheckedIOException("Failed to rename table!", e);
       }
-    } catch (SQLException | InterruptedException e) {
+    } catch (InterruptedException e) {
       throw new UncheckedIOException("Failed to rename table!", e);
     }
   }
 
   @Override
   public String name() {
-    return name;
+    return catalogName;
   }
 
   @Override
@@ -184,13 +275,39 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
-    if (!namespace.isEmpty() && !tableSQL.namespaceExists(namespace)) {
+    if (!this.namespaceExists(namespace)) {
       throw new NoSuchNamespaceException("Namespace does not exist %s", namespace);
     }
     try {
-      List<Namespace> nsList = tableSQL.listNamespaces(namespace);
-      LOG.debug("From the namespace '{}' found: {}", namespace, nsList);
-      return nsList;
+      List<Namespace> namespaces = Lists.newArrayList();
+      PreparedStatement sql = dbConnPool.run(c -> c.prepareStatement(SQL_SELECT_NAMESPACES));
+      sql.setString(1, catalogName);
+      if (namespace.isEmpty()) {
+        sql.setString(2, JdbcUtil.namespaceToString(namespace) + "%");
+      } else {
+        sql.setString(2, JdbcUtil.namespaceToString(namespace) + ".%");
+      }
+      ResultSet rs = sql.executeQuery();
+      while (rs.next()) {
+        rs.getString("table_namespace");
+        namespaces.add(JdbcUtil.stringToNamespace(rs.getString("table_namespace")));
+      }
+      rs.close();
+      int subNamespaceLevelLength = namespace.levels().length + 1;
+      namespaces = namespaces.stream()
+              // exclude itself
+              .filter(n -> !n.equals(namespace))
+              // only get sub namespaces/children
+              .map(n -> Namespace.of(
+                      Arrays.stream(n.levels()).limit(subNamespaceLevelLength).toArray(String[]::new)
+                      )
+              )
+              // remove duplicates
+              .distinct()
+              .collect(Collectors.toList());
+
+      LOG.debug("From the namespace '{}' found: {}", namespace, namespaces);
+      return namespaces;
     } catch (Exception e) {
       LOG.error("Failed to list namespace!", e);
       return null;
@@ -199,8 +316,8 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
-    Path nsPath = new Path(warehouseLocation, TableSQL.JOINER_DOT.join(namespace.levels()));
-    if (!tableSQL.namespaceExists(namespace) || namespace.isEmpty()) {
+    Path nsPath = new Path(warehouseLocation, JdbcUtil.JOINER_DOT.join(namespace.levels()));
+    if (!this.namespaceExists(namespace) || namespace.isEmpty()) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
@@ -209,7 +326,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
   @Override
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
-    if (!tableSQL.namespaceExists(namespace)) {
+    if (!this.namespaceExists(namespace)) {
       throw new NoSuchNamespaceException("Cannot drop namespace %s because it is not found!", namespace);
     }
 
@@ -218,8 +335,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       throw new NamespaceNotEmptyException("Cannot drop namespace %s because it is not empty. " +
               "The following tables still exist under the namespace: %s", namespace, tableIdentifiers);
     }
-    // namespaces are created/deleted by tables
-    // by default return true
+    // namespaces are created/deleted by tables by default return true
     return true;
   }
 
@@ -240,4 +356,22 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
   public void close() {
     this.dbConnPool.close();
   }
+
+  public boolean namespaceExists(Namespace namespace) {
+    boolean exists = false;
+    try {
+      PreparedStatement sql = dbConnPool.run(c -> c.prepareStatement(SQL_SELECT_NAMESPACE));
+      sql.setString(1, catalogName);
+      sql.setString(2, JdbcUtil.namespaceToString(namespace) + "%");
+      ResultSet rs = sql.executeQuery();
+      if (rs.next()) {
+        exists = true;
+      }
+      rs.close();
+    } catch (SQLException | InterruptedException e) {
+      LOG.warn("SQLException! ", e);
+    }
+    return exists;
+  }
+
 }
