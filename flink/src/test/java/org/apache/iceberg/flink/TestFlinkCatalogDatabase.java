@@ -36,7 +36,7 @@ import org.junit.Test;
 
 public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
 
-  public TestFlinkCatalogDatabase(String catalogName, String[] baseNamepace) {
+  public TestFlinkCatalogDatabase(String catalogName, Namespace baseNamepace) {
     super(catalogName, baseNamepace);
   }
 
@@ -153,9 +153,9 @@ public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
       Assert.assertEquals("Should have db and default database",
           Sets.newHashSet("default", "db"), Sets.newHashSet(databases.get(0)[0], databases.get(1)[0]));
 
-      if (baseNamespace.length > 0) {
+      if (!baseNamespace.isEmpty()) {
         // test namespace not belongs to this catalog
-        validationNamespaceCatalog.createNamespace(Namespace.of(baseNamespace[0], "UNKNOWN_NAMESPACE"));
+        validationNamespaceCatalog.createNamespace(Namespace.of(baseNamespace.level(0), "UNKNOWN_NAMESPACE"));
         databases = sql("SHOW DATABASES");
         Assert.assertEquals("Should have 2 database", 2, databases.size());
         Assert.assertEquals("Should have db and default database",
