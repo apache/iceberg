@@ -95,9 +95,9 @@ object RewriteMergeInto extends Rule[LogicalPlan]
     val scanRelation = DataSourceV2ScanRelation(table, scan, output)
 
     scan match {
-      case _: SupportsFileFilter =>
+      case filterable: SupportsFileFilter =>
         val matchingFilePlan = buildFileFilterPlan(prunedTargetPlan)
-        val dynamicFileFilter = DynamicFileFilter(scanRelation, matchingFilePlan)
+        val dynamicFileFilter = DynamicFileFilter(scanRelation, matchingFilePlan, filterable)
         dynamicFileFilter
       case _ =>
         scanRelation
