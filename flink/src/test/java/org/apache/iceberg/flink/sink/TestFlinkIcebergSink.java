@@ -29,7 +29,6 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.util.FiniteTestSource;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
@@ -41,8 +40,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.source.BoundedTestSource;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Before;
@@ -118,6 +117,10 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
     return rows.stream().map(CONVERTER::toInternal).collect(Collectors.toList());
   }
 
+  private BoundedTestSource<Row> createBoundedSource(List<Row> rows) {
+    return new BoundedTestSource<>(rows.toArray(new Row[0]));
+  }
+
   @Test
   public void testWriteRowData() throws Exception {
     List<Row> rows = Lists.newArrayList(
@@ -125,7 +128,7 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
         Row.of(2, "world"),
         Row.of(3, "foo")
     );
-    DataStream<RowData> dataStream = env.addSource(new FiniteTestSource<>(rows), ROW_TYPE_INFO)
+    DataStream<RowData> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
         .map(CONVERTER::toInternal, RowDataTypeInfo.of(SimpleDataUtil.ROW_TYPE));
 
     FlinkSink.forRowData(dataStream)
@@ -137,10 +140,8 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
     // Execute the program.
     env.execute("Test Iceberg DataStream");
 
-    // Assert the iceberg table's records. NOTICE: the FiniteTestSource will checkpoint the same rows twice, so it will
-    // commit the same row list into iceberg twice.
-    List<RowData> expectedRows = Lists.newArrayList(Iterables.concat(convertToRowData(rows), convertToRowData(rows)));
-    SimpleDataUtil.assertTableRows(tablePath, expectedRows);
+    // Assert the iceberg table's records.
+    SimpleDataUtil.assertTableRows(tablePath, convertToRowData(rows));
   }
 
   private void testWriteRow(TableSchema tableSchema) throws Exception {
@@ -148,7 +149,7 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
         Row.of(4, "bar"),
         Row.of(5, "apache")
     );
-    DataStream<Row> dataStream = env.addSource(new FiniteTestSource<>(rows), ROW_TYPE_INFO);
+    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
     FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(table)
@@ -160,8 +161,7 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
     // Execute the program.
     env.execute("Test Iceberg DataStream.");
 
-    List<RowData> expectedRows = Lists.newArrayList(Iterables.concat(convertToRowData(rows), convertToRowData(rows)));
-    SimpleDataUtil.assertTableRows(tablePath, expectedRows);
+    SimpleDataUtil.assertTableRows(tablePath, convertToRowData(rows));
   }
 
   @Test
