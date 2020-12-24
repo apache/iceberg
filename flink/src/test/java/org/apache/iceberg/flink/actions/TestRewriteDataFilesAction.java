@@ -68,7 +68,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     for (FileFormat format : new FileFormat[] {FileFormat.AVRO, FileFormat.ORC, FileFormat.PARQUET}) {
       for (Object[] catalogParams : FlinkCatalogTestBase.parameters()) {
         String catalogName = (String) catalogParams[0];
-        String[] baseNamespace = (String[]) catalogParams[1];
+        Namespace baseNamespace = (Namespace) catalogParams[1];
         parameters.add(new Object[] {catalogName, baseNamespace, format});
       }
     }
