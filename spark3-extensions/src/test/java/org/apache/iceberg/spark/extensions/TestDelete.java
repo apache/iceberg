@@ -694,20 +694,6 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
   // TODO: multiple stripes for ORC
 
-  protected void validateSnapshot(Snapshot snapshot, String operation, String changedPartitionCount,
-                                  String deletedDataFiles, String addedDataFiles) {
-    Assert.assertEquals("Operation must match", operation, snapshot.operation());
-    Assert.assertEquals("Changed partitions count must match",
-        changedPartitionCount,
-        snapshot.summary().get("changed-partition-count"));
-    Assert.assertEquals("Deleted data files count must match",
-        deletedDataFiles,
-        snapshot.summary().get("deleted-data-files"));
-    Assert.assertEquals("Added data files count must match",
-        addedDataFiles,
-        snapshot.summary().get("added-data-files"));
-  }
-
   protected void createAndInitPartitionedTable() {
     sql("CREATE TABLE %s (id INT, dep STRING) USING iceberg PARTITIONED BY (dep)", tableName);
     initTable();
@@ -731,13 +717,5 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     List<Employee> input = Arrays.asList(employees);
     Dataset<Row> inputDF = spark.createDataFrame(input, Employee.class);
     inputDF.coalesce(1).writeTo(tableName).append();
-  }
-
-  protected void sleep(long millis) {
-    try {
-      Thread.sleep(millis);
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
   }
 }
