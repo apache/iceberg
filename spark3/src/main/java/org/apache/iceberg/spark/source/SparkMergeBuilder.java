@@ -33,6 +33,8 @@ import org.apache.spark.sql.connector.write.WriteBuilder;
 
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL_DEFAULT;
+import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL;
+import static org.apache.iceberg.TableProperties.UPDATE_ISOLATION_LEVEL_DEFAULT;
 
 class SparkMergeBuilder implements MergeBuilder {
 
@@ -57,6 +59,8 @@ class SparkMergeBuilder implements MergeBuilder {
     String isolationLevelAsString;
     if (operation.equalsIgnoreCase("delete")) {
       isolationLevelAsString = props.getOrDefault(DELETE_ISOLATION_LEVEL, DELETE_ISOLATION_LEVEL_DEFAULT);
+    } else if (operation.equalsIgnoreCase("update")) {
+      isolationLevelAsString = props.getOrDefault(UPDATE_ISOLATION_LEVEL, UPDATE_ISOLATION_LEVEL_DEFAULT);
     } else {
       throw new IllegalArgumentException("Unsupported operation: " + operation);
     }
