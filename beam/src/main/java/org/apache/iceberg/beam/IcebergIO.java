@@ -18,11 +18,9 @@ import org.apache.beam.sdk.io.WriteFilesResult;
 import org.apache.beam.sdk.transforms.Combine;
 import org.apache.beam.sdk.values.KV;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.DataFiles;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
+import org.apache.iceberg.*;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -34,12 +32,11 @@ import java.util.List;
 public class IcebergIO {
   public static void write(TableIdentifier table, Schema schema, String hiveMetastoreUrl, WriteFilesResult<Void> resultFiles) {
     resultFiles.getPerDestinationOutputFilenames().apply(
-        // TBD
         Combine.globally(new FileCombiner(table, schema, hiveMetastoreUrl))
     );
   }
 
-  private static class FileCombiner extends Combine.CombineFn<KV<Void, String>, List<String>, Integer> {
+  private static class FileCombiner extends Combine.CombineFn<KV<Void, String>, List<String>, Snapshot> {
     private final TableIdentifier tableIdentifier;
     private final Schema schema;
     private final String hiveMetastoreUrl;
@@ -67,14 +64,20 @@ public class IcebergIO {
     }
 
     @Override
-    public Integer extractOutput(List<String> accumulator) {
+    public Snapshot extractOutput(List<String> accumulator) {
       try (HiveCatalog catalog = new HiveCatalog(
           HiveCatalog.DEFAULT_NAME,
           this.hiveMetastoreUrl,
           1,
           new Configuration()
       )) {
-        Table table = catalog.loadTable(this.tableIdentifier);
+        Table table;
+        try {
+          table = catalog.loadTable(this.tableIdentifier);
+        } catch (NoSuchTableException e) {
+          // If it doesn't exist, we just create the table
+          table = catalog.createTable(this.tableIdentifier, schema);
+        }
 
         // In case the schema has changed
         if (table.schema() != this.schema) {
@@ -82,7 +85,7 @@ public class IcebergIO {
         }
 
         // Append the new files
-        AppendFiles app = table.newAppend();
+        final AppendFiles app = table.newAppend();
         // We need to get the statistics, not easy to get them through Beam
         for (String filename : accumulator) {
           app.appendFile(DataFiles.builder(table.spec())
@@ -92,10 +95,9 @@ public class IcebergIO {
               .build());
         }
         app.commit();
-      }
 
-      // Maybe we can return something sensible here
-      return 0;
+        return table.currentSnapshot();
+      }
     }
   }
 }
