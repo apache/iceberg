@@ -19,9 +19,15 @@
 
 package org.apache.iceberg.jdbc;
 
+import java.sql.DataTruncation;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLIntegrityConstraintViolationException;
+import java.sql.SQLNonTransientConnectionException;
+import java.sql.SQLTimeoutException;
+import java.sql.SQLTransientConnectionException;
+import java.sql.SQLWarning;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.iceberg.BaseMetastoreTableOperations;
@@ -30,6 +36,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.UncheckedIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
@@ -63,7 +70,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
 
     try {
       table = this.getTable();
-    } catch (SQLException | InterruptedException e) {
+    } catch (UncheckedIOException e) {
       // unknown exception happened when getting table from catalog
       throw new RuntimeException(String.format("Failed to get table from catalog %s.%s", catalogName,
               tableIdentifier), e);
@@ -128,14 +135,20 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
           throw new CommitFailedException("Failed to commit table: %s.%s", catalogName, tableIdentifier);
         }
       }
+    } catch (SQLIntegrityConstraintViolationException e) {
+      throw new AlreadyExistsException(e, "Table already exists! maybe another process created it!");
+    } catch (SQLTimeoutException e) {
+      throw new UncheckedIOException("Database Connection timeout!", e);
+    } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
+      throw new UncheckedIOException("Database Connection failed!", e);
+    } catch (DataTruncation e) {
+      throw new UncheckedIOException("Database data truncation error!", e);
+    } catch (SQLWarning e) {
+      throw new UncheckedIOException("Database warning!", e);
     } catch (SQLException e) {
-      if (e.getSQLState().startsWith("23")) { // Unique index or primary key violation
-        throw new AlreadyExistsException(e, "Table already exists! maybe another process created it!");
-      } else {
-        throw new CommitFailedException(e, "Failed to commit table: %s.%s", catalogName, tableIdentifier);
-      }
+      throw new UncheckedIOException("Failed to connect to database!", e);
     } catch (InterruptedException e) {
-      throw new CommitFailedException(e, "Failed to commit table: %s.%s", catalogName, tableIdentifier);
+      throw new UncheckedIOException("Database Connection interrupted!", e);
     }
   }
 
@@ -159,21 +172,33 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     return tableIdentifier.toString();
   }
 
-  private Map<String, String> getTable() throws SQLException, InterruptedException {
+  private Map<String, String> getTable() throws UncheckedIOException {
     Map<String, String> table = Maps.newHashMap();
-    PreparedStatement sql = dbConnPool.run(c -> c.prepareStatement(JdbcCatalog.SQL_SELECT_TABLE));
-    sql.setString(1, catalogName);
-    sql.setString(2, JdbcUtil.namespaceToString(tableIdentifier.namespace()));
-    sql.setString(3, tableIdentifier.name());
-    ResultSet rs = sql.executeQuery();
-    if (rs.next()) {
-      table.put("catalog_name", rs.getString("catalog_name"));
-      table.put("table_namespace", rs.getString("table_namespace"));
-      table.put("table_name", rs.getString("table_name"));
-      table.put("metadata_location", rs.getString("metadata_location"));
-      table.put("previous_metadata_location", rs.getString("previous_metadata_location"));
+    try {
+      PreparedStatement sql = dbConnPool.run(c -> c.prepareStatement(JdbcCatalog.SQL_SELECT_TABLE));
+      sql.setString(1, catalogName);
+      sql.setString(2, JdbcUtil.namespaceToString(tableIdentifier.namespace()));
+      sql.setString(3, tableIdentifier.name());
+      ResultSet rs = sql.executeQuery();
+      if (rs.next()) {
+        table.put("catalog_name", rs.getString("catalog_name"));
+        table.put("table_namespace", rs.getString("table_namespace"));
+        table.put("table_name", rs.getString("table_name"));
+        table.put("metadata_location", rs.getString("metadata_location"));
+        table.put("previous_metadata_location", rs.getString("previous_metadata_location"));
+      }
+      rs.close();
+    } catch (SQLTimeoutException e) {
+      throw new UncheckedIOException("Connection timeout!", e);
+    } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
+      throw new UncheckedIOException("Connection failed!", e);
+    } catch (SQLWarning e) {
+      throw new UncheckedIOException("Database connection warning!", e);
+    } catch (SQLException e) {
+      throw new UncheckedIOException("Failed to connect to database!", e);
+    } catch (InterruptedException e) {
+      throw new UncheckedIOException("Connection interrupted!", e);
     }
-    rs.close();
     return table;
   }
 

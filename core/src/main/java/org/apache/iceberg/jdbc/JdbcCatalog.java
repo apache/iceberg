@@ -21,10 +21,16 @@ package org.apache.iceberg.jdbc;
 
 import java.io.Closeable;
 import java.sql.Connection;
+import java.sql.DataTruncation;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLIntegrityConstraintViolationException;
+import java.sql.SQLNonTransientConnectionException;
+import java.sql.SQLTimeoutException;
+import java.sql.SQLTransientConnectionException;
+import java.sql.SQLWarning;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -122,6 +128,12 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       }
       dbConnPool = new JdbcClientPool(properties.get(CatalogProperties.HIVE_URI), dbProps);
       initializeCatalogTables();
+    } catch (SQLTimeoutException e) {
+      throw new UncheckedIOException("Database Connection timeout!", e);
+    } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
+      throw new UncheckedIOException("Database Connection failed!", e);
+    } catch (SQLWarning e) {
+      throw new UncheckedIOException("Database connection warning!", e);
     } catch (SQLException | InterruptedException e) {
       throw new UncheckedIOException("Failed to initialize Jdbc Catalog!", e);
     }
@@ -241,14 +253,16 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       } else {
         throw new UncheckedIOException("Failed to rename table! Rename operation Failed");
       }
+    } catch (SQLIntegrityConstraintViolationException e) {
+      throw new AlreadyExistsException("Table with name '%s' already exists in the catalog!", to);
+    } catch (DataTruncation e) {
+      throw new UncheckedIOException("Database data truncation error!", e);
+    } catch (SQLWarning e) {
+      throw new UncheckedIOException("Database warning!", e);
     } catch (SQLException e) {
-      if (e.getSQLState().startsWith("23")) { // Unique index or primary key violation
-        throw new AlreadyExistsException("Table with name '%s' already exists in the catalog!", to);
-      } else {
-        throw new UncheckedIOException("Failed to rename table!", e);
-      }
-    } catch (InterruptedException e) {
       throw new UncheckedIOException("Failed to rename table!", e);
+    } catch (InterruptedException e) {
+      throw new UncheckedIOException("Database Connection interrupted!", e);
     }
   }
 
