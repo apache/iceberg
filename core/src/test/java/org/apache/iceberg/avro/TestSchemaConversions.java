@@ -246,6 +246,27 @@ public class TestSchemaConversions {
   }
 
   @Test
+  public void testFieldDocsArePreserved() {
+    org.apache.iceberg.Schema icebergSchema = new org.apache.iceberg.Schema(
+        required(1, "id", Types.IntegerType.get()),
+        optional(2, "data", Types.StringType.get(), "iceberg originating field doc")
+    );
+
+    List<String> expectedFieldDocs = Lists.newArrayList(null, "iceberg originating field doc");
+
+    // Convert to avro and ensure field docs are preserved
+    Schema avroSchema = AvroSchemaUtil.convert(icebergSchema, "newTableWithFieldDocs");
+    List<String> fieldDocsFromAvro = Lists.newArrayList(Iterables.transform(avroSchema.getFields(), Schema.Field::doc));
+    Assert.assertEquals(fieldDocsFromAvro, expectedFieldDocs);
+
+    // Convert the avro format back to Iceberg and ensure field docs are preserved
+    org.apache.iceberg.Schema roundTripIcebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
+    List<String> fieldDocsFromRoundTrip = Lists.newArrayList(
+            Iterables.transform(roundTripIcebergSchema.columns(), Types.NestedField::doc));
+    Assert.assertEquals(fieldDocsFromRoundTrip, expectedFieldDocs);
+  }
+
+  @Test
   public void testComplexSchema() {
     org.apache.iceberg.Schema schema = new org.apache.iceberg.Schema(
         required(1, "id", Types.IntegerType.get()),
