@@ -264,9 +264,36 @@ public class TestJdbcCatalog {
   }
 
   @Test
+  public void testConcurrentCommit() throws IOException {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
+    // append file and commit!
+    String data = temp.newFile("data.parquet").getPath();
+    Files.write(Paths.get(data), new ArrayList<>(), StandardCharsets.UTF_8);
+    DataFile dataFile = DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(data)
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    table.newAppend().appendFile(dataFile).commit();
+    Assert.assertEquals(1, table.history().size());
+    catalog.dropTable(tableIdentifier);
+    data = temp.newFile("data2.parquet").getPath();
+    Files.write(Paths.get(data), new ArrayList<>(), StandardCharsets.UTF_8);
+    DataFile dataFile2 = DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(data)
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+
+    AssertHelpers.assertThrows("Should fail", NoSuchTableException.class,
+            "maybe another process deleted it", () -> table.newAppend().appendFile(dataFile2).commit()
+    );
+  }
+
+  @Test
   public void testCommitHistory() throws IOException {
-//    // @TODO insert same table twice!
-    TableIdentifier testTable = TableIdentifier.of("namespace", "tbl", "tbl2");
+    TableIdentifier testTable = TableIdentifier.of("db", "ns", "tbl");
     catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
     Table table = catalog.loadTable(testTable);
 

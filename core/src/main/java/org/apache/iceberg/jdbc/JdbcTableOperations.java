@@ -91,12 +91,11 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   @Override
   public void doCommit(TableMetadata base, TableMetadata metadata) {
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
-    String oldMetadataLocation;
     try {
       Map<String, String> table = this.getTable();
       if (!table.isEmpty()) {
-        oldMetadataLocation = table.get("metadata_location");
         validateMetadataLocation(table, base);
+        String oldMetadataLocation = base.metadataFileLocation();
         // Start atomic update
         PreparedStatement sql = dbConnPool.run(c -> c.prepareStatement(SQL_UPDATE_METADATA_LOCATION));
         // UPDATE
