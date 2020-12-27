@@ -67,23 +67,20 @@ import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestJdbcCatalog {
-  // Schema passed to create tables
+
   static final Schema SCHEMA = new Schema(
           required(1, "id", Types.IntegerType.get(), "unique ID"),
           required(2, "data", Types.StringType.get())
   );
-
-  // Partition spec used to create tables
   static final PartitionSpec PARTITION_SPEC = PartitionSpec.builderFor(SCHEMA)
           .bucket("data", 16)
           .build();
 
-  static Configuration conf;
+  static Configuration conf = new Configuration();
   private static JdbcCatalog catalog;
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
   File tableDir = null;
-  String tableLocation = null;
 
   protected List<String> metadataVersionFiles(String location) {
     return Stream.of(new File(location).listFiles())
@@ -107,8 +104,6 @@ public class TestJdbcCatalog {
   public void setupTable() throws Exception {
     this.tableDir = temp.newFolder();
     tableDir.delete(); // created by table create
-
-    this.tableLocation = tableDir.toURI().toString();
     Map<String, String> properties = new HashMap<>();
     properties.put(CatalogProperties.HIVE_URI,
             "jdbc:h2:mem:ic" + UUID.randomUUID().toString().replace("-", "") + ";");
@@ -116,7 +111,6 @@ public class TestJdbcCatalog {
     properties.put(JdbcCatalog.JDBC_PARAM_PREFIX + "username", "user");
     properties.put(JdbcCatalog.JDBC_PARAM_PREFIX + "password", "password");
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.getAbsolutePath());
-    conf = new Configuration();
     catalog = new JdbcCatalog();
     catalog.setConf(conf);
     catalog.initialize("test_jdbc_catalog", properties);
