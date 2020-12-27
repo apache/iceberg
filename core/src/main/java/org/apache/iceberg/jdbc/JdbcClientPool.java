@@ -28,7 +28,7 @@ import java.sql.SQLTransientConnectionException;
 import java.sql.SQLWarning;
 import java.util.Properties;
 import org.apache.iceberg.ClientPool;
-import org.apache.iceberg.exceptions.UncheckedIOException;
+import org.apache.iceberg.exceptions.UncheckedSQLException;
 
 public class JdbcClientPool extends ClientPool<Connection, SQLException> {
 
@@ -50,13 +50,13 @@ public class JdbcClientPool extends ClientPool<Connection, SQLException> {
     try {
       return DriverManager.getConnection(dbUrl, dbProperties);
     } catch (SQLTimeoutException e) {
-      throw new UncheckedIOException("Connection timeout!", e);
+      throw new UncheckedSQLException("Connection timeout!", e);
     } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
-      throw new UncheckedIOException("Connection failed!", e);
+      throw new UncheckedSQLException("Connection failed!", e);
     } catch (SQLWarning e) {
-      throw new UncheckedIOException("Database connection warning!", e);
+      throw new UncheckedSQLException("Database connection warning!", e);
     } catch (SQLException e) {
-      throw new UncheckedIOException("Failed to connect to database!", e);
+      throw new UncheckedSQLException("Failed to connect to database!", e);
     }
   }
 

@@ -52,7 +52,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.UncheckedIOException;
+import org.apache.iceberg.exceptions.UncheckedSQLException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -102,7 +102,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
   @SuppressWarnings("checkstyle:HiddenField")
   @Override
-  public void initialize(String name, Map<String, String> properties) throws java.io.UncheckedIOException {
+  public void initialize(String name, Map<String, String> properties) {
     Preconditions.checkArgument(!properties.getOrDefault(CatalogProperties.HIVE_URI, "").isEmpty(),
             "No connection url provided for jdbc catalog!");
     Preconditions.checkArgument(!properties.getOrDefault(CatalogProperties.WAREHOUSE_LOCATION, "").isEmpty(),
@@ -117,7 +117,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     initializeConnection(properties);
   }
 
-  private void initializeConnection(Map<String, String> properties) throws java.io.UncheckedIOException {
+  private void initializeConnection(Map<String, String> properties) {
     try {
       LOG.debug("Connecting to Jdbc database {}", properties.get(CatalogProperties.HIVE_URI));
       Properties dbProps = new Properties();
@@ -129,13 +129,13 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       dbConnPool = new JdbcClientPool(properties.get(CatalogProperties.HIVE_URI), dbProps);
       initializeCatalogTables();
     } catch (SQLTimeoutException e) {
-      throw new UncheckedIOException("Database Connection timeout!", e);
+      throw new UncheckedSQLException("Database Connection timeout!", e);
     } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
-      throw new UncheckedIOException("Database Connection failed!", e);
+      throw new UncheckedSQLException("Database Connection failed!", e);
     } catch (SQLWarning e) {
-      throw new UncheckedIOException("Database connection warning!", e);
+      throw new UncheckedSQLException("Database connection warning!", e);
     } catch (SQLException | InterruptedException e) {
-      throw new UncheckedIOException("Failed to initialize Jdbc Catalog!", e);
+      throw new UncheckedSQLException("Failed to initialize Jdbc Catalog!", e);
     }
   }
 
@@ -203,7 +203,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       }
       return true;
     } catch (SQLException | InterruptedException e) {
-      throw new UncheckedIOException("Failed to drop table!", e);
+      throw new UncheckedSQLException("Failed to drop table!", e);
     }
   }
 
@@ -251,18 +251,18 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       } else if (updatedRecords == 0) {
         throw new NoSuchTableException("Failed to rename table! Table '%s' not found in the catalog!", from);
       } else {
-        throw new UncheckedIOException("Failed to rename table! Rename operation Failed");
+        throw new UncheckedSQLException("Failed to rename table! Rename operation Failed");
       }
     } catch (SQLIntegrityConstraintViolationException e) {
       throw new AlreadyExistsException("Table with name '%s' already exists in the catalog!", to);
     } catch (DataTruncation e) {
-      throw new UncheckedIOException("Database data truncation error!", e);
+      throw new UncheckedSQLException("Database data truncation error!", e);
     } catch (SQLWarning e) {
-      throw new UncheckedIOException("Database warning!", e);
+      throw new UncheckedSQLException("Database warning!", e);
     } catch (SQLException e) {
-      throw new UncheckedIOException("Failed to rename table!", e);
+      throw new UncheckedSQLException("Failed to rename table!", e);
     } catch (InterruptedException e) {
-      throw new UncheckedIOException("Database Connection interrupted!", e);
+      throw new UncheckedSQLException("Database Connection interrupted!", e);
     }
   }
 

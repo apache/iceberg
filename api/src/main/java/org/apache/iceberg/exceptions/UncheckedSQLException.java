@@ -19,19 +19,25 @@
 
 package org.apache.iceberg.exceptions;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.sql.SQLException;
 
-public class UncheckedIOException extends RuntimeException {
+public class UncheckedSQLException extends UncheckedIOException {
 
-  public UncheckedIOException(String message) {
-    super(message);
+  public UncheckedSQLException(String message, SQLException cause) {
+    super(message, new IOException(cause));
   }
 
-  public UncheckedIOException(String message, Exception cause) {
-    super(message, cause);
+  public UncheckedSQLException(String message, Exception cause) {
+    super(message, new IOException(cause));
   }
 
-  public UncheckedIOException(SQLException cause) {
-    super(cause);
+  public UncheckedSQLException(String message, InterruptedException cause) {
+    super(message, new IOException(cause));
+  }
+
+  public UncheckedSQLException(String message) {
+    super(new IOException(message));
   }
 }

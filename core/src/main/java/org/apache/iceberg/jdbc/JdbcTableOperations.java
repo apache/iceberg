@@ -36,7 +36,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.UncheckedIOException;
+import org.apache.iceberg.exceptions.UncheckedSQLException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
@@ -70,7 +70,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
 
     try {
       table = this.getTable();
-    } catch (UncheckedIOException e) {
+    } catch (UncheckedSQLException e) {
       // unknown exception happened when getting table from catalog
       throw new RuntimeException(String.format("Failed to get table from catalog %s.%s", catalogName,
               tableIdentifier), e);
@@ -138,17 +138,17 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     } catch (SQLIntegrityConstraintViolationException e) {
       throw new AlreadyExistsException(e, "Table already exists! maybe another process created it!");
     } catch (SQLTimeoutException e) {
-      throw new UncheckedIOException("Database Connection timeout!", e);
+      throw new UncheckedSQLException("Database Connection timeout!", e);
     } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
-      throw new UncheckedIOException("Database Connection failed!", e);
+      throw new UncheckedSQLException("Database Connection failed!", e);
     } catch (DataTruncation e) {
-      throw new UncheckedIOException("Database data truncation error!", e);
+      throw new UncheckedSQLException("Database data truncation error!", e);
     } catch (SQLWarning e) {
-      throw new UncheckedIOException("Database warning!", e);
+      throw new UncheckedSQLException("Database warning!", e);
     } catch (SQLException e) {
-      throw new UncheckedIOException("Failed to connect to database!", e);
+      throw new UncheckedSQLException("Failed to connect to database!", e);
     } catch (InterruptedException e) {
-      throw new UncheckedIOException("Database Connection interrupted!", e);
+      throw new UncheckedSQLException("Database Connection interrupted!", e);
     }
   }
 
@@ -172,7 +172,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     return tableIdentifier.toString();
   }
 
-  private Map<String, String> getTable() throws UncheckedIOException {
+  private Map<String, String> getTable() throws UncheckedSQLException {
     Map<String, String> table = Maps.newHashMap();
     try {
       PreparedStatement sql = dbConnPool.run(c -> c.prepareStatement(JdbcCatalog.SQL_SELECT_TABLE));
@@ -189,15 +189,15 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       }
       rs.close();
     } catch (SQLTimeoutException e) {
-      throw new UncheckedIOException("Connection timeout!", e);
+      throw new UncheckedSQLException("Connection timeout!", e);
     } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
-      throw new UncheckedIOException("Connection failed!", e);
+      throw new UncheckedSQLException("Connection failed!", e);
     } catch (SQLWarning e) {
-      throw new UncheckedIOException("Database connection warning!", e);
+      throw new UncheckedSQLException("Database connection warning!", e);
     } catch (SQLException e) {
-      throw new UncheckedIOException("Failed to connect to database!", e);
+      throw new UncheckedSQLException("Failed to connect to database!", e);
     } catch (InterruptedException e) {
-      throw new UncheckedIOException("Connection interrupted!", e);
+      throw new UncheckedSQLException("Connection interrupted!", e);
     }
     return table;
   }
