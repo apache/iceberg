@@ -102,7 +102,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       boolean isValidFieldName = AvroSchemaUtil.validAvroName(origFieldName);
       String fieldName =  isValidFieldName ? origFieldName : AvroSchemaUtil.sanitize(origFieldName);
       Schema.Field field = new Schema.Field(
-          fieldName, fieldSchemas.get(i), null,
+          fieldName, fieldSchemas.get(i), structField.doc(),
           structField.isOptional() ? JsonProperties.NULL_VALUE : null);
       if (!isValidFieldName) {
         field.addProp(AvroSchemaUtil.ICEBERG_FIELD_NAME_PROP, origFieldName);
@@ -111,6 +111,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       fields.add(field);
     }
 
+    // TODO(kbendick) - Capture top level doc when creating the record
     recordSchema = Schema.createRecord(recordName, null, null, false, fields);
 
     results.put(struct, recordSchema);

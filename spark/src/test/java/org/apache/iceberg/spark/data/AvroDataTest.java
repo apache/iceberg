@@ -42,7 +42,7 @@ public abstract class AvroDataTest {
 
   protected static final StructType SUPPORTED_PRIMITIVES = StructType.of(
       required(100, "id", LongType.get()),
-      optional(101, "data", Types.StringType.get()),
+      optional(101, "data", Types.StringType.get(), "optional blob field"),
       required(102, "b", Types.BooleanType.get()),
       optional(103, "i", Types.IntegerType.get()),
       required(104, "l", LongType.get()),
