@@ -147,7 +147,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
         .writeParallelism(parallelism)
         .equalityFieldColumns(equalityFieldColumns)
-        .insertAsUpsert(insertAsUpsert)
+        .upsert(insertAsUpsert)
         .build();
 
     // Execute the program.
@@ -320,13 +320,13 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
     List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
         ImmutableList.of(
             row("+I", 1, "aaa"),
-            row("+I", 1, "bbb")
+            row("+U", 1, "bbb")
         ),
         ImmutableList.of(
             row("+I", 1, "ccc")
         ),
         ImmutableList.of(
-            row("+I", 1, "ddd"),
+            row("+U", 1, "ddd"),
             row("+I", 1, "eee")
         )
     );
@@ -360,13 +360,13 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
             row("+I", 3, "bbb")
         ),
         ImmutableList.of(
-            row("+I", 4, "aaa"),
+            row("+U", 4, "aaa"),
             row("-U", 3, "bbb"),
             row("+U", 5, "bbb")
         ),
         ImmutableList.of(
             row("+I", 6, "aaa"),
-            row("+I", 7, "bbb")
+            row("+U", 7, "bbb")
         )
     );
 
@@ -385,7 +385,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
     List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
         ImmutableList.of(
             row("+I", 1, "aaa"),
-            row("+I", 1, "aaa"),
+            row("+U", 1, "aaa"),
             row("+I", 2, "bbb")
         ),
         ImmutableList.of(

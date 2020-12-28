@@ -339,7 +339,7 @@ public class TestIcebergStreamWriter {
   private OneInputStreamOperatorTestHarness<RowData, WriteResult> createIcebergStreamWriter(
       Table icebergTable, TableSchema flinkSchema) throws Exception {
     RowType rowType = (RowType) flinkSchema.toRowDataType().getLogicalType();
-    IcebergStreamWriter<RowData> streamWriter = FlinkSink.createStreamWriter(icebergTable, rowType, null);
+    IcebergStreamWriter<RowData> streamWriter = FlinkSink.createStreamWriter(icebergTable, rowType, null, false);
     OneInputStreamOperatorTestHarness<RowData, WriteResult> harness = new OneInputStreamOperatorTestHarness<>(
         streamWriter, 1, 1, 0);
 
