@@ -93,9 +93,9 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
       int fieldId = getId(field);
 
       if (AvroSchemaUtil.isOptionSchema(field.schema())) {
-        newFields.add(Types.NestedField.optional(fieldId, field.name(), fieldType));
+        newFields.add(Types.NestedField.optional(fieldId, field.name(), fieldType, field.doc()));
       } else {
-        newFields.add(Types.NestedField.required(fieldId, field.name(), fieldType));
+        newFields.add(Types.NestedField.required(fieldId, field.name(), fieldType, field.doc()));
       }
     }
 
