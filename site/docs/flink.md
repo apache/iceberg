@@ -172,18 +172,6 @@ Table create commands support the most commonly used [flink create clauses](http
 Currently, it does not support computed column, primary key and watermark definition etc.
 
 
-### `CREATE TABLE LIKE`
-
-```sql
-CREATE TABLE hive_catalog.default.sample (
-    id BIGINT COMMENT 'unique id',
-    data STRING
-);
-
-CREATE TABLE  hive_catalog.default.sample_like LIKE hive_catalog.default.sample;
-```
-we can  create a table based on a definition of an existing table ,the detail grammar please refer to [flink doc](https://ci.apache.org/projects/flink/flink-docs-release-1.11/dev/table/sql/create.html#create-table)
-
 ### `PARTITIONED BY`
 
 To create a partition table, use `PARTITIONED BY`:
@@ -196,6 +184,22 @@ CREATE TABLE hive_catalog.default.sample (
 ```
 
 Apache Iceberg support hidden partition but apache flink don't support partitioning by a function on columns, so we've no way to support hidden partition in flink DDL now, we will improve apache flink DDL in future.
+
+### `CREATE TABLE LIKE`
+
+To create a table with the same schema, partitioning, and table properties as another table, use `CREATE TABLE LIKE`.
+
+```sql
+CREATE TABLE hive_catalog.default.sample (
+    id BIGINT COMMENT 'unique id',
+    data STRING
+);
+
+CREATE TABLE  hive_catalog.default.sample_like LIKE hive_catalog.default.sample;
+```
+
+For more details, refer to the [Flink `CREATE TABLE` documentation](https://ci.apache.org/projects/flink/flink-docs-release-1.11/dev/table/sql/create.html#create-table).
+
 
 ### `ALTER TABLE`
 
