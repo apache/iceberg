@@ -171,7 +171,6 @@ Table create commands support the most commonly used [flink create clauses](http
 
 Currently, it does not support computed column, primary key and watermark definition etc.
 
-
 ### `PARTITIONED BY`
 
 To create a partition table, use `PARTITIONED BY`:
