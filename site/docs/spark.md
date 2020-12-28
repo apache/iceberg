@@ -347,6 +347,7 @@ df.createOrReplaceTempView("table")
 spark.sql("""select count(1) from table""").show()
 ```
 
+
 ## Writing with SQL
 
 Spark 3 supports SQL `INSERT INTO` and `INSERT OVERWRITE`, as well as the new `DataFrameWriterV2` API.
