@@ -20,7 +20,9 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Array;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -31,14 +33,18 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.functions.sink.DiscardingSink;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
 import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
+import org.apache.flink.types.RowKind;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -115,6 +121,7 @@ public class FlinkSink {
     private TableSchema tableSchema;
     private boolean overwrite = false;
     private Integer writeParallelism = null;
+    private boolean insertAsUpsert = false;
     private List<String> equalityFieldColumns = null;
 
     private Builder() {
@@ -173,6 +180,20 @@ public class FlinkSink {
     }
 
     /**
+     * All INSERT events from input stream will be transformed to UPSERT events, which means it will DELETE the old
+     * records and then INSERT the new records. In partitioned table, the partition fields should be a subset of
+     * equality fields, otherwise the old row that located in partition-A could not be deleted by the new row that
+     * located in partition-B.
+     *
+     * @param enable indicate whether it should transform all INSERT events to UPSERT.
+     * @return {@link Builder} to connect the iceberg table.
+     */
+    public Builder insertAsUpsert(boolean enable) {
+      this.insertAsUpsert = enable;
+      return this;
+    }
+
+    /**
      * Configuring the equality field columns for iceberg table that accept CDC or UPSERT events.
      *
      * @param columns defines the iceberg table's key.
@@ -181,6 +202,28 @@ public class FlinkSink {
     public Builder equalityFieldColumns(List<String> columns) {
       this.equalityFieldColumns = columns;
       return this;
+    }
+
+    private DataStream<RowData> transformInsertAsUpsert(RowType flinkSchema, DataStream<RowData> dataStream) {
+      RowDataCloner cloner = new RowDataCloner(flinkSchema);
+
+      return dataStream.flatMap((rowData, out) -> {
+        switch (rowData.getRowKind()) {
+          case INSERT:
+            out.collect(cloner.cloneAsDeleteRow(rowData));
+            out.collect(rowData);
+            break;
+
+          case DELETE:
+          case UPDATE_BEFORE:
+          case UPDATE_AFTER:
+            out.collect(rowData);
+            break;
+
+          default:
+            throw new UnsupportedOperationException("Unknown row kind: " + rowData.getRowKind());
+        }
+      }, RowDataTypeInfo.of(flinkSchema));
     }
 
     @SuppressWarnings("unchecked")
@@ -209,7 +252,24 @@ public class FlinkSink {
         }
       }
 
-      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, tableSchema, equalityFieldIds);
+      // Convert the iceberg schema to flink's RowType.
+      RowType flinkSchema = convertToRowType(table, tableSchema);
+
+      // Convert the INSERT stream to be an UPSERT stream if needed.
+      if (insertAsUpsert) {
+        Preconditions.checkState(!equalityFieldIds.isEmpty(),
+            "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
+        if (!table.spec().isUnpartitioned()) {
+          for (PartitionField partitionField : table.spec().fields()) {
+            Preconditions.checkState(equalityFieldIds.contains(partitionField.sourceId()),
+                "Partition field '%s' is not included in equality fields: '%s'", partitionField, equalityFieldColumns);
+          }
+        }
+
+        rowDataInput = transformInsertAsUpsert(flinkSchema, rowDataInput);
+      }
+
+      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkSchema, equalityFieldIds);
       IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
 
       this.writeParallelism = writeParallelism == null ? rowDataInput.getParallelism() : writeParallelism;
@@ -227,8 +287,7 @@ public class FlinkSink {
     }
   }
 
-  static IcebergStreamWriter<RowData> createStreamWriter(Table table, TableSchema requestedSchema,
-                                                         List<Integer> equalityFieldIds) {
+  private static RowType convertToRowType(Table table, TableSchema requestedSchema) {
     Preconditions.checkArgument(table != null, "Iceberg table should't be null");
 
     RowType flinkSchema;
@@ -245,6 +304,13 @@ public class FlinkSink {
     } else {
       flinkSchema = FlinkSchemaUtil.convert(table.schema());
     }
+
+    return flinkSchema;
+  }
+
+  static IcebergStreamWriter<RowData> createStreamWriter(Table table, RowType flinkSchema,
+                                                         List<Integer> equalityFieldIds) {
+    Preconditions.checkArgument(table != null, "Iceberg table should't be null");
 
     Map<String, String> props = table.properties();
     long targetFileSize = getTargetFileSizeBytes(props);
@@ -266,5 +332,25 @@ public class FlinkSink {
     return PropertyUtil.propertyAsLong(properties,
         WRITE_TARGET_FILE_SIZE_BYTES,
         WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+  }
+
+  private static class RowDataCloner implements Serializable {
+    private final RowData.FieldGetter[] fieldGetters;
+
+    private RowDataCloner(RowType schema) {
+      List<LogicalType> fieldTypes = schema.getChildren();
+      this.fieldGetters = (RowData.FieldGetter[]) Array.newInstance(RowData.FieldGetter.class, fieldTypes.size());
+      for (int i = 0; i < fieldTypes.size(); i++) {
+        fieldGetters[i] = RowData.createFieldGetter(fieldTypes.get(i), i);
+      }
+    }
+
+    private RowData cloneAsDeleteRow(RowData oldRow) {
+      GenericRowData newRowData = new GenericRowData(RowKind.DELETE, fieldGetters.length);
+      for (int i = 0; i < fieldGetters.length; i++) {
+        newRowData.setField(i, fieldGetters[i].getFieldOrNull(oldRow));
+      }
+      return newRowData;
+    }
   }
 }
