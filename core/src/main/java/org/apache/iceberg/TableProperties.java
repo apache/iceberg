@@ -158,4 +158,10 @@ public class TableProperties {
 
   public static final String UPDATE_MODE = "write.update.mode";
   public static final String UPDATE_MODE_DEFAULT = "copy-on-write";
+
+  public static final String MERGE_ISOLATION_LEVEL = "write.merge.isolation-level";
+  public static final String MERGE_ISOLATION_LEVEL_DEFAULT = "serializable";
+
+  public static final String MERGE_MODE = "write.merge.mode";
+  public static final String MERGE_MODE_DEFAULT = "copy-on-write";
 }
