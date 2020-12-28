@@ -207,11 +207,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       throw new RuntimeException("Interrupted during commit", e);
 
     } finally {
-      if (threw) {
-        // if anything went wrong, clean up the uncommitted metadata file
-        io().deleteFile(newMetadataLocation);
-      }
-      unlock(lockId);
+      cleanupMetadataAndUnlock(threw, newMetadataLocation, lockId);
     }
   }
 
@@ -365,6 +361,20 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
           "lock request ended in state %s", database, tableName, state);
     }
     return lockId;
+  }
+
+  private void cleanupMetadataAndUnlock(boolean errorThrown, String metadataLocation, Optional<Long> lockId) {
+    try {
+      if (errorThrown) {
+        // if anything went wrong, clean up the uncommitted metadata file
+        io().deleteFile(metadataLocation);
+      }
+    } catch (RuntimeException e) {
+      LOG.error("Fail to cleanup metadata file at {}", metadataLocation, e);
+      throw e;
+    } finally {
+      unlock(lockId);
+    }
   }
 
   private void unlock(Optional<Long> lockId) {
