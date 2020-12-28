@@ -269,10 +269,10 @@ project(':iceberg-aws') {
     compile project(':iceberg-api')
     compile project(':iceberg-core')
 
-    compile 'software.amazon.awssdk:url-connection-client'
-    compile 'software.amazon.awssdk:s3'
-    compile 'software.amazon.awssdk:kms'
-    compile 'software.amazon.awssdk:glue'
+    compileOnly 'software.amazon.awssdk:url-connection-client'
+    compileOnly 'software.amazon.awssdk:s3'
+    compileOnly 'software.amazon.awssdk:kms'
+    compileOnly 'software.amazon.awssdk:glue'
 
     compileOnly("org.apache.hadoop:hadoop-common") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -397,6 +397,7 @@ project(':iceberg-flink-runtime') {
 
   dependencies {
     compile project(':iceberg-flink')
+    compile project(':iceberg-aws')
   }
 
   shadowJar {
@@ -860,6 +861,7 @@ if (jdkVersion == '8') {
 
     dependencies {
       compile project(':iceberg-spark2')
+      compile project(':iceberg-aws')
       compile 'org.apache.spark:spark-hive_2.11'
     }
 
@@ -1008,6 +1010,7 @@ project(':iceberg-spark3-runtime') {
 
   dependencies {
     compile project(':iceberg-spark3')
+    compile project(':iceberg-aws')
     compile 'org.apache.spark:spark-hive_2.11'
   }
 
