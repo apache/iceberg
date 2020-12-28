@@ -111,7 +111,6 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       fields.add(field);
     }
 
-    // TODO(kbendick) - Capture top level doc when creating the record
     recordSchema = Schema.createRecord(recordName, null, null, false, fields);
 
     results.put(struct, recordSchema);

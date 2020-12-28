@@ -79,7 +79,6 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
   }
 
   @Override
-  // TODO(kbendick) - Capture top level record doc comment?
   public Type record(Schema record, List<String> names, List<Type> fieldTypes) {
     List<Schema.Field> fields = record.getFields();
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(fields.size());
