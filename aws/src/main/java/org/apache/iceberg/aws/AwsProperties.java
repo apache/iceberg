@@ -130,6 +130,13 @@ public class AwsProperties implements Serializable {
    */
   public static final String S3FILEIO_ACL = "s3fileio.acl";
 
+  /**
+   * The implementation class of {@link AwsClientFactory} to customize AWS client configurations.
+   * If set, all AWS clients will be initialized by the specified factory.
+   * If not set, {@link AwsClientFactories#defaultFactory()} is used as default factory.
+   */
+  public static final String CLIENT_FACTORY = "client.factory";
+
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
   private String s3FileIoSseMd5;
@@ -264,7 +271,7 @@ public class AwsProperties implements Serializable {
     this.s3FileIoMultipartThresholdFactor = factor;
   }
 
-  public String getS3fileIoStagingDirectory() {
+  public String s3fileIoStagingDirectory() {
     return s3fileIoStagingDirectory;
   }
 
