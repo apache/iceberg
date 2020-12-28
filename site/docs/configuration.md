@@ -146,6 +146,8 @@ spark.read
 | split-size      | As per table property | Overrides this table's read.split.target-size and read.split.metadata-target-size         |
 | lookback        | As per table property | Overrides this table's read.split.planning-lookback                                       |
 | file-open-cost  | As per table property | Overrides this table's read.split.open-file-cost                                          |
+| vectorization-enabled  | As per table property | Overrides this table's read.parquet.vectorization.enabled                                          |
+| batch-size  | As per table property | Overrides this table's read.parquet.vectorization.batch-size                                          |
 
 ### Write options
 
@@ -155,6 +157,7 @@ Spark write options are passed when configuring the DataFrameWriter, like this:
 // write with Avro instead of Parquet
 df.write
     .option("write-format", "avro")
+    .option("snapshot-property.key", "value")
     .insertInto("catalog.db.table")
 ```
 
@@ -165,4 +168,5 @@ df.write
 | check-nullability      | true                       | Sets the nullable check on fields                            |
 | snapshot-property._custom-key_    | null            | Adds an entry with custom-key and corresponding value in the snapshot summary  |
 | fanout-enabled       | false        | Overrides this table's write.spark.fanout.enabled  |
+| check-ordering       | true        | Checks if input schema and table schema are same  |
 

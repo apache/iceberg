@@ -41,6 +41,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.data.GenericsHelpers;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
@@ -487,7 +488,7 @@ public class TestFilteredScan {
   public void testUnpartitionedStartsWith() {
     Dataset<Row> df = spark.read()
         .format("iceberg")
-        .option("vectorization-enabled", String.valueOf(vectorized))
+        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
         .load(unpartitioned.toString());
 
     List<String> matchedData = df.select("data")
@@ -554,7 +555,7 @@ public class TestFilteredScan {
     // copy the unpartitioned table into the partitioned table to produce the partitioned data
     Dataset<Row> allRows = spark.read()
         .format("iceberg")
-        .option("vectorization-enabled", String.valueOf(vectorized))
+        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
         .load(unpartitioned.toString());
 
     allRows
@@ -591,7 +592,7 @@ public class TestFilteredScan {
 
   private static List<Row> read(String table, boolean vectorized, String expr, String select0, String... selectN) {
     Dataset<Row> dataset = spark.read().format("iceberg")
-        .option("vectorization-enabled", String.valueOf(vectorized))
+        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
         .load(table).filter(expr)
         .select(select0, selectN);
     return dataset.collectAsList();

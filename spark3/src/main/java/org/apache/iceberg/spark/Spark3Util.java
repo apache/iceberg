@@ -416,13 +416,13 @@ public class Spark3Util {
     if (batchReadsSessionConf != null) {
       return Boolean.valueOf(batchReadsSessionConf);
     }
-    return readOptions.getBoolean("vectorization-enabled",
+    return readOptions.getBoolean(SparkReadOptions.VECTORIZATION_ENABLED,
         PropertyUtil.propertyAsBoolean(properties,
             TableProperties.PARQUET_VECTORIZATION_ENABLED, TableProperties.PARQUET_VECTORIZATION_ENABLED_DEFAULT));
   }
 
   public static int batchSize(Map<String, String> properties, CaseInsensitiveStringMap readOptions) {
-    return readOptions.getInt("batch-size",
+    return readOptions.getInt(SparkReadOptions.VECTORIZATION_BATCH_SIZE,
         PropertyUtil.propertyAsInt(properties,
             TableProperties.PARQUET_BATCH_SIZE, TableProperties.PARQUET_BATCH_SIZE_DEFAULT));
   }

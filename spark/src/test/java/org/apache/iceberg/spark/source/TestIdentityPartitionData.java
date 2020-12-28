@@ -31,6 +31,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTestBase;
@@ -139,7 +140,7 @@ public abstract class TestIdentityPartitionData extends SparkTestBase {
   public void testFullProjection() {
     List<Row> expected = logs.orderBy("id").collectAsList();
     List<Row> actual = spark.read().format("iceberg")
-        .option("vectorization-enabled", String.valueOf(vectorized))
+        .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
         .load(table.location()).orderBy("id")
         .select("id", "date", "level", "message")
         .collectAsList();
@@ -174,7 +175,7 @@ public abstract class TestIdentityPartitionData extends SparkTestBase {
       List<Row> expected = logs.select("id", ordering).orderBy("id").collectAsList();
       List<Row> actual = spark.read()
           .format("iceberg")
-          .option("vectorization-enabled", String.valueOf(vectorized))
+          .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
           .load(table.location())
           .select("id", ordering).orderBy("id")
           .collectAsList();
