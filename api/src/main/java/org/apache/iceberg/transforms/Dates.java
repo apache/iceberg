@@ -94,7 +94,7 @@ enum Dates implements Transform<Integer, Integer> {
   @Override
   public UnboundPredicate<Integer> project(String fieldName, BoundPredicate<Integer> pred) {
     if (pred.term() instanceof BoundTransform) {
-      return ProjectionUtil.projectTransformPredicate(this, name, pred);
+      return ProjectionUtil.projectTransformPredicate(this, fieldName, pred);
     }
 
     if (pred.isUnaryPredicate()) {
