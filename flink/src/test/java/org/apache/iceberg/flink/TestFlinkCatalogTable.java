@@ -42,6 +42,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -54,7 +55,7 @@ import org.junit.Test;
 
 public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
-  public TestFlinkCatalogTable(String catalogName, String[] baseNamepace) {
+  public TestFlinkCatalogTable(String catalogName, Namespace baseNamepace) {
     super(catalogName, baseNamepace);
   }
 

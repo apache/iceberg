@@ -24,6 +24,7 @@ import java.util.List;
 import org.apache.flink.table.api.SqlParserException;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.After;
 import org.junit.Assert;
@@ -44,14 +45,14 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
     for (FileFormat format : new FileFormat[] {FileFormat.ORC, FileFormat.AVRO, FileFormat.PARQUET}) {
       for (Object[] catalogParams : FlinkCatalogTestBase.parameters()) {
         String catalogName = (String) catalogParams[0];
-        String[] baseNamespace = (String[]) catalogParams[1];
+        Namespace baseNamespace = (Namespace) catalogParams[1];
         parameters.add(new Object[] {catalogName, baseNamespace, format});
       }
     }
     return parameters;
   }
 
-  public TestFlinkTableSource(String catalogName, String[] baseNamespace, FileFormat format) {
+  public TestFlinkTableSource(String catalogName, Namespace baseNamespace, FileFormat format) {
     super(catalogName, baseNamespace);
     this.format = format;
   }

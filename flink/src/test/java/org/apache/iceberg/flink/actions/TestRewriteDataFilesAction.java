@@ -29,6 +29,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFilesActionResult;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -56,7 +57,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
   private Table icebergTableUnPartitioned;
   private Table icebergTablePartitioned;
 
-  public TestRewriteDataFilesAction(String catalogName, String[] baseNamespace, FileFormat format) {
+  public TestRewriteDataFilesAction(String catalogName, Namespace baseNamespace, FileFormat format) {
     super(catalogName, baseNamespace);
     this.format = format;
   }
@@ -67,7 +68,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     for (FileFormat format : new FileFormat[] {FileFormat.AVRO, FileFormat.ORC, FileFormat.PARQUET}) {
       for (Object[] catalogParams : FlinkCatalogTestBase.parameters()) {
         String catalogName = (String) catalogParams[0];
-        String[] baseNamespace = (String[]) catalogParams[1];
+        Namespace baseNamespace = (Namespace) catalogParams[1];
         parameters.add(new Object[] {catalogName, baseNamespace, format});
       }
     }
