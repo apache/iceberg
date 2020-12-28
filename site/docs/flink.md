@@ -25,6 +25,7 @@ we only integrate iceberg with apache flink 1.11.x .
 | [SQL create catalog](#creating-catalogs-and-using-catalogs)            | ✔️                 |                                                        |
 | [SQL create database](#create-database)                                | ✔️                 |                                                        |
 | [SQL create table](#create-table)                                      | ✔️                 |                                                        |
+| [SQL create table like](#create-table-like)                            | ✔️                 |                                                        |
 | [SQL alter table](#alter-table)                                        | ✔️                 | Only support altering table properties, Columns/PartitionKey changes are not supported now|
 | [SQL drop_table](#drop-table)                                          | ✔️                 |                                                        |
 | [SQL select](#querying-with-sql)                                       | ✔️                 | Only support batch mode now.                           |
@@ -182,6 +183,22 @@ CREATE TABLE hive_catalog.default.sample (
 ```
 
 Apache Iceberg support hidden partition but apache flink don't support partitioning by a function on columns, so we've no way to support hidden partition in flink DDL now, we will improve apache flink DDL in future.
+
+### `CREATE TABLE LIKE`
+
+To create a table with the same schema, partitioning, and table properties as another table, use `CREATE TABLE LIKE`.
+
+```sql
+CREATE TABLE hive_catalog.default.sample (
+    id BIGINT COMMENT 'unique id',
+    data STRING
+);
+
+CREATE TABLE  hive_catalog.default.sample_like LIKE hive_catalog.default.sample;
+```
+
+For more details, refer to the [Flink `CREATE TABLE` documentation](https://ci.apache.org/projects/flink/flink-docs-release-1.11/dev/table/sql/create.html#create-table).
+
 
 ### `ALTER TABLE`
 

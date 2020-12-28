@@ -125,6 +125,22 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
   }
 
   @Test
+  public void testCreateTableLike() throws TableNotExistException {
+    sql("CREATE TABLE tl(id BIGINT)");
+    sql("CREATE TABLE tl2 LIKE tl");
+
+    Table table = table("tl2");
+    Assert.assertEquals(
+        new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
+        table.schema().asStruct());
+    Assert.assertEquals(Maps.newHashMap(), table.properties());
+
+    CatalogTable catalogTable = catalogTable("tl2");
+    Assert.assertEquals(TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
+    Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
+  }
+
+  @Test
   public void testCreateTableLocation() {
     Assume.assumeFalse("HadoopCatalog does not support creating table with location", isHadoopCatalog);
 
