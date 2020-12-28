@@ -49,6 +49,7 @@ import org.apache.iceberg.transforms.PartitionSpecVisitor;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -672,11 +673,8 @@ public class Spark3Util {
    */
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, List<String> nameParts,
                                                           CatalogPlugin defaultCatalog) {
-    Preconditions.checkArgument(!nameParts.isEmpty(),
-        "Cannot determine catalog and Identifier from empty name parts");
     CatalogManager catalogManager = spark.sessionState().catalogManager();
-    int lastElementIndex = nameParts.size() - 1;
-    String name = nameParts.get(lastElementIndex);
+
     String[] currentNamespace;
     if (defaultCatalog.equals(catalogManager.currentCatalog())) {
       currentNamespace = catalogManager.currentNamespace();
@@ -684,21 +682,19 @@ public class Spark3Util {
       currentNamespace = defaultCatalog.defaultNamespace();
     }
 
-    if (nameParts.size() == 1) {
-      // Only a single element, use current catalog and namespace
-      return new CatalogAndIdentifier(defaultCatalog, Identifier.of(currentNamespace, name));
-    } else {
-      try {
-        // Assume the first element is a valid catalog
-        CatalogPlugin namedCatalog = catalogManager.catalog(nameParts.get(0));
-        String[] namespace = nameParts.subList(1, lastElementIndex).toArray(new String[0]);
-        return new CatalogAndIdentifier(namedCatalog, Identifier.of(namespace, name));
-      } catch (Exception e) {
-        // The first element was not a valid catalog, treat it like part of the namespace
-        String[] namespace =  nameParts.subList(0, lastElementIndex).toArray(new String[0]);
-        return new CatalogAndIdentifier(defaultCatalog, Identifier.of(namespace, name));
-      }
-    }
+    Pair<CatalogPlugin, Identifier> catalogIdentifier = SparkUtil.catalogAndIdentifier(nameParts,
+        catalogName ->  {
+          try {
+            return catalogManager.catalog(catalogName);
+          } catch (Exception e) {
+            return null;
+          }
+        },
+        Identifier::of,
+        defaultCatalog,
+        currentNamespace
+    );
+    return new CatalogAndIdentifier(catalogIdentifier);
   }
 
   /**
@@ -712,6 +708,11 @@ public class Spark3Util {
     public CatalogAndIdentifier(CatalogPlugin catalog, Identifier identifier) {
       this.catalog = catalog;
       this.identifier = identifier;
+    }
+
+    public CatalogAndIdentifier(Pair<CatalogPlugin, Identifier> identifier) {
+      this.catalog = identifier.first();
+      this.identifier = identifier.second();
     }
 
     public CatalogPlugin catalog() {
