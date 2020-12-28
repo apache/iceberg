@@ -42,7 +42,7 @@ public class AwsClientFactoriesTest {
   @Test
   public void testLoadCustom() {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(AwsClientFactories.CLIENT_FACTORY_CONFIG_KEY, CustomFactory.class.getName());
+    properties.put(AwsProperties.CLIENT_FACTORY, CustomFactory.class.getName());
     Assert.assertTrue("should load custom class",
         AwsClientFactories.from(properties) instanceof CustomFactory);
   }

@@ -21,7 +21,6 @@ package org.apache.iceberg.aws;
 
 import java.util.Map;
 import org.apache.iceberg.common.DynConstructors;
-import org.apache.iceberg.io.FileIO;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.glue.GlueClient;
@@ -29,12 +28,6 @@ import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
 public class AwsClientFactories {
-
-  /**
-   * The implementation class of {@link AwsClientFactory} to customize AWS client configurations.
-   * If set, all AWS clients will be configured by the specified class before initialization.
-   */
-  public static final String CLIENT_FACTORY_CONFIG_KEY = "client.factory";
 
   private static final SdkHttpClient HTTP_CLIENT_DEFAULT = UrlConnectionHttpClient.create();
   private static final DefaultAwsClientFactory AWS_CLIENT_FACTORY_DEFAULT = new DefaultAwsClientFactory();
@@ -47,8 +40,8 @@ public class AwsClientFactories {
   }
 
   public static AwsClientFactory from(Map<String, String> properties) {
-    if (properties.containsKey(CLIENT_FACTORY_CONFIG_KEY)) {
-      return loadClientFactory(properties.get(CLIENT_FACTORY_CONFIG_KEY), properties);
+    if (properties.containsKey(AwsProperties.CLIENT_FACTORY)) {
+      return loadClientFactory(properties.get(AwsProperties.CLIENT_FACTORY), properties);
     } else {
       return defaultFactory();
     }
@@ -57,7 +50,7 @@ public class AwsClientFactories {
   private static AwsClientFactory loadClientFactory(String impl, Map<String, String> properties) {
     DynConstructors.Ctor<AwsClientFactory> ctor;
     try {
-      ctor = DynConstructors.builder(FileIO.class).impl(impl).buildChecked();
+      ctor = DynConstructors.builder(AwsClientFactory.class).impl(impl).buildChecked();
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(String.format(
           "Cannot initialize AwsClientFactory, missing no-arg constructor: %s", impl), e);

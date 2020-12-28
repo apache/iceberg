@@ -109,7 +109,7 @@ class S3OutputStream extends PositionOutputStream {
 
     multiPartSize = awsProperties.s3FileIoMultiPartSize();
     multiPartThresholdSize =  (int) (multiPartSize * awsProperties.s3FileIOMultipartThresholdFactor());
-    stagingDirectory = new File(awsProperties.getS3fileIoStagingDirectory());
+    stagingDirectory = new File(awsProperties.s3fileIoStagingDirectory());
 
     newStream();
   }
