@@ -209,7 +209,7 @@ This product includes a gradle wrapper.
 
 Copyright: 2010-2019 Gradle Authors.
 Home page: https://github.com/gradle/gradle
-License: http://www.apache.org/licenses/LICENSE-2.0
+License: https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -219,7 +219,7 @@ This product includes code from Apache Avro.
 
 Copyright: 2014-2017 The Apache Software Foundation.
 Home page: https://parquet.apache.org/
-License: http://www.apache.org/licenses/LICENSE-2.0
+License: https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -231,7 +231,7 @@ This product includes code from Apache Parquet.
 
 Copyright: 2014-2017 The Apache Software Foundation.
 Home page: https://parquet.apache.org/
-License: http://www.apache.org/licenses/LICENSE-2.0
+License: https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -241,7 +241,7 @@ This product includes code from Cloudera Kite.
 
 Copyright: 2013-2017 Cloudera Inc.
 Home page: https://kitesdk.org/
-License: http://www.apache.org/licenses/LICENSE-2.0
+License: https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -255,7 +255,7 @@ This product includes code from Presto.
 
 Copyright: 2016 Facebook and contributors
 Home page: https://prestodb.io/
-License: http://www.apache.org/licenses/LICENSE-2.0
+License: https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -264,8 +264,8 @@ This product includes code from Apache iBATIS.
 * Hive ScriptRunner.java
 
 Copyright: 2004 Clinton Begin
-Home page: http://ibatis.apache.org/
-License: http://www.apache.org/licenses/LICENSE-2.0
+Home page: https://ibatis.apache.org/
+License: https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -274,8 +274,8 @@ This product includes code from Apache Hive.
 * Hive metastore derby schema in hive-schema-3.1.0.derby.sql
 
 Copyright: 2011-2018 The Apache Software Foundation
-Home page: http://hive.apache.org/
-License: http://www.apache.org/licenses/LICENSE-2.0
+Home page: https://hive.apache.org/
+License: https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -286,6 +286,6 @@ This product includes code from Apache Spark.
 * portions of the extensions parser
 
 Copyright: 2011-2018 The Apache Software Foundation
-Home page: http://hive.apache.org/
-License: http://www.apache.org/licenses/LICENSE-2.0
+Home page: https://spark.apache.org/
+License: https://www.apache.org/licenses/LICENSE-2.0
 
