@@ -74,6 +74,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private long nextRowGroupSize = 0;
   private long recordCount = 0;
   private long nextCheckRecordCount = 10;
+  private boolean closed;
 
   private static final String COLUMN_INDEX_TRUNCATE_LENGTH = "parquet.columnindex.truncate.length";
   private static final int DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH = 64;
@@ -124,10 +125,20 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     return ParquetUtil.footerMetrics(writer.getFooter(), model.metrics(), metricsConfig);
   }
 
+  /**
+   * Returns the number of bytes written by this writer.
+   * NOTE: call {@link ParquetWriter#close()})} prior this method to get the exact number of bytes.
+   *
+   * @return the number of bytes written by this writer.
+   */
   @Override
   public long length() {
     try {
-      return writer.getPos() + (writeStore.isColumnFlushNeeded() ? writeStore.getBufferedSize() : 0);
+      if (this.closed) {
+        return writer.getPos();
+      } else {
+        return writer.getPos() + (writeStore.isColumnFlushNeeded() ? writeStore.getBufferedSize() : 0);
+      }
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to get file length");
     }
@@ -192,5 +203,6 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     flushRowGroup(true);
     writeStore.close();
     writer.end(metadata);
+    this.closed = true;
   }
 }

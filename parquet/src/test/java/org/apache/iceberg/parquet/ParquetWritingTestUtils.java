@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import org.apache.avro.generic.GenericData;
+import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
@@ -53,20 +54,43 @@ class ParquetWritingTestUtils {
   }
 
   static File writeRecords(
-      TemporaryFolder temp,
-      Schema schema, Map<String, String> properties,
-      Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
-      GenericData.Record... records) throws IOException {
+          TemporaryFolder temp,
+          Schema schema, Map<String, String> properties,
+          Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
+          GenericData.Record... records) throws IOException {
+    File file = createTempFile(temp);
+    write(file, schema, properties, createWriterFunc, records);
+    return file;
+  }
+
+  static long write(File file, Schema schema, Map<String, String> properties,
+                    Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
+                    GenericData.Record... records) throws IOException {
+    FileAppender<GenericData.Record> writer = Parquet.write(localOutput(file))
+            .schema(schema)
+            .setAll(properties)
+            .createWriterFunc(createWriterFunc)
+            .build();
+
+    writer.addAll(Lists.newArrayList(records));
+
+    long len = 0;
+
+    if (writer instanceof ParquetWriteAdapter) {
+      // in deprecated adapter we need to get the length first and then close the writer
+      // b/c close() function sets underlying writer to null which leads to NPE
+      len = writer.length();
+      IOUtils.closeQuietly(writer);
+    } else {
+      IOUtils.closeQuietly(writer);
+      len = writer.length();
+    }
+    return len;
+  }
+
+  static File createTempFile(TemporaryFolder temp) throws IOException {
     File tmpFolder = temp.newFolder("parquet");
     String filename = UUID.randomUUID().toString();
-    File file = new File(tmpFolder, FileFormat.PARQUET.addExtension(filename));
-    try (FileAppender<GenericData.Record> writer = Parquet.write(localOutput(file))
-        .schema(schema)
-        .setAll(properties)
-        .createWriterFunc(createWriterFunc)
-        .build()) {
-      writer.addAll(Lists.newArrayList(records));
-    }
-    return file;
+    return new File(tmpFolder, FileFormat.PARQUET.addExtension(filename));
   }
 }
