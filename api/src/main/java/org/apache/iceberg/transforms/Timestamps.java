@@ -54,14 +54,18 @@ enum Timestamps implements Transform<Long, Integer> {
 
     if (timestampMicros >= 0) {
       OffsetDateTime timestamp = Instant
-          .ofEpochSecond(Math.floorDiv(timestampMicros, 1_000_000), Math.floorMod(timestampMicros, 1_000_000))
+          .ofEpochSecond(
+              Math.floorDiv(timestampMicros, 1_000_000),
+              Math.floorMod(timestampMicros, 1_000_000) * 1000)
           .atOffset(ZoneOffset.UTC);
       return (int) granularity.between(EPOCH, timestamp);
     } else {
       // add 1 micro to the value to account for the case where there is exactly 1 unit between the timestamp and epoch
       // because the result will always be decremented.
       OffsetDateTime timestamp = Instant
-          .ofEpochSecond(Math.floorDiv(timestampMicros, 1_000_000), Math.floorMod(timestampMicros + 1, 1_000_000))
+          .ofEpochSecond(
+              Math.floorDiv(timestampMicros, 1_000_000),
+              Math.floorMod(timestampMicros + 1, 1_000_000) * 1000)
           .atOffset(ZoneOffset.UTC);
       return (int) granularity.between(EPOCH, timestamp) - 1;
     }
