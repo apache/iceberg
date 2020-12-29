@@ -258,6 +258,15 @@ class ProjectionUtil {
         Iterables.transform(predicate.asSetPredicate().literalSet(), transform::apply));
   }
 
+  /**
+   * Fixes an inclusive projection to account for incorrectly transformed values.
+   * <p>
+   * A bug in 0.10.0 and earlier caused negative values to be incorrectly transformed by date and timestamp transforms
+   * to 1 larger than the correct value. For example, day(1969-12-31 10:00:00) produced 0 instead of -1. To read data
+   * written by versions with this bug, this method adjusts the inclusive projection. The current inclusive projection
+   * is correct, so this modifies the "correct" projection when needed. For example, < day(1969-12-31 10:00:00) will
+   * produce <= -1 (= 1969-12-31) and is adjusted to <= 0 (= 1969-01-01) because the incorrect transformed value was 0.
+   */
   static UnboundPredicate<Integer> fixInclusiveTimeProjection(UnboundPredicate<Integer> projected) {
     if (projected == null) {
       return projected;
@@ -320,6 +329,13 @@ class ProjectionUtil {
     }
   }
 
+  /**
+   * Fixes a strict projection to account for incorrectly transformed values.
+   * <p>
+   * A bug in 0.10.0 and earlier caused negative values to be incorrectly transformed by date and timestamp transforms
+   * to 1 larger than the correct value. For example, day(1969-12-31 10:00:00) produced 0 instead of -1. To read data
+   * written by versions with this bug, this method adjusts the strict projection.
+   */
   static UnboundPredicate<Integer> fixStrictTimeProjection(UnboundPredicate<Integer> projected) {
     if (projected == null) {
       return null;
