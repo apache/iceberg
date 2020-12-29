@@ -96,7 +96,8 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
     TableMetadata updated = table.ops().current();
     Integer updatedVersion = TestTables.metadataVersion("test");
     Assert.assertEquals(current, updated);
-    Assert.assertEquals(++currentVersion, updatedVersion.intValue());
+    currentVersion += 1;
+    Assert.assertEquals(currentVersion, updatedVersion.intValue());
 
     // no-op commit due to no-op rename
     table.updateSpec()
@@ -105,7 +106,8 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
     updated = table.ops().current();
     updatedVersion = TestTables.metadataVersion("test");
     Assert.assertEquals(current, updated);
-    Assert.assertEquals(++currentVersion, updatedVersion.intValue());
+    currentVersion += 1;
+    Assert.assertEquals(currentVersion, updatedVersion.intValue());
   }
 
   @Test
