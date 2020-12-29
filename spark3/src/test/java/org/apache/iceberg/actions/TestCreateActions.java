@@ -21,11 +21,15 @@ package org.apache.iceberg.actions;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -44,6 +48,7 @@ import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.catalyst.analysis.NoSuchDatabaseException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.catalog.CatalogTable;
+import org.apache.spark.sql.catalyst.catalog.CatalogTablePartition;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -55,7 +60,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runners.Parameterized;
+import scala.Option;
 import scala.Some;
+import scala.collection.JavaConverters;
 import scala.collection.Seq;
 
 public class TestCreateActions extends SparkCatalogTestBase {
@@ -67,6 +74,8 @@ public class TestCreateActions extends SparkCatalogTestBase {
       "PARTITIONED BY (id INT) STORED AS parquet LOCATION '%s'";
   private static final String CREATE_HIVE_PARQUET = "CREATE TABLE %s (data STRING) " +
       "PARTITIONED BY (id INT) STORED AS parquet";
+  private static final String CREATE_HIVE_PARQUET_UNPARTITIONED = "CREATE EXTERNAL TABLE %s (id INT, data STRING) " +
+          "STORED AS parquet LOCATION '%s'";
 
   private static final String NAMESPACE = "default";
 
@@ -154,6 +163,54 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("test_migrate_partitioned_table");
     String dest = source;
     createSourceTable(CREATE_PARTITIONED_PARQUET, source);
+    assertMigratedFileCount(Actions.migrate(source), source, dest);
+  }
+
+  @Test
+  public void testPartitionedTableWithUnRecoveredPartitions() throws Exception {
+    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
+    Assume.assumeTrue("Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
+    String source = sourceName("test");
+    String dest = source;
+    File location = temp.newFolder();
+    spark.sql(String.format(CREATE_PARTITIONED_PARQUET, source, location));
+    spark.range(10)
+            .selectExpr("id", "cast(id as STRING) as data")
+            .write()
+            .partitionBy("id").mode("overwrite")
+            .parquet(location.toURI().toString());
+    spark.sql(String.format("alter table %s add partition(id=0)", source));
+    assertMigratedFileCount(Actions.migrate(source), source, dest);
+  }
+
+  @Test
+  public void testPartitionedTableWithCustomPartitions() throws Exception {
+    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
+    Assume.assumeTrue("Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
+    String source = sourceName("test");
+    String dest = source;
+    File tblLocation = temp.newFolder();
+    File partitionDataLoc = temp.newFolder();
+    spark.sql(String.format(CREATE_PARTITIONED_PARQUET, source, tblLocation));
+    spark.range(10)
+            .selectExpr("cast(id as STRING) as dAta")
+            .write()
+            .mode("overwrite").parquet(partitionDataLoc.toURI().toString());
+    assertMigratedFileCount(Actions.migrate(source), source, dest);
+  }
+
+  @Test
+  public void testCaseSensitiveSchemaTableMigrate() throws Exception {
+    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
+    Assume.assumeTrue("Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
+    String source = sourceName("test");
+    String dest = source;
+    File tblLocation = temp.newFolder();
+    spark.range(10)
+            .selectExpr("cast(iD as INT)", "cast(id as STRING) as data")
+            .write()
+            .mode("overwrite").parquet(tblLocation.toURI().toString());
+    spark.sql(String.format(CREATE_HIVE_PARQUET_UNPARTITIONED, source, tblLocation));
     assertMigratedFileCount(Actions.migrate(source), source, dest);
   }
 
@@ -296,14 +353,25 @@ public class TestCreateActions extends SparkCatalogTestBase {
   private void assertMigratedFileCount(CreateAction migrateAction, String source, String dest)
       throws NoSuchTableException, NoSuchDatabaseException, ParseException {
     CatalogTable sourceTable = loadSessionTable(source);
-    Path sourceDir = Paths.get(sourceTable.location());
-    List<File> files = FileUtils.listFiles(sourceDir.toFile(), TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE)
-        .stream()
-        .filter(file -> !file.toString().endsWith("crc") && !file.toString().contains("_SUCCESS"))
-        .collect(Collectors.toList());
-    long expectedMigratedFiles = files.size();
-    List<Row> expected = spark.table(source).collectAsList();
+    List<URI> uris;
+    if (sourceTable.partitionColumnNames().size() == 0) {
+      uris = new ArrayList<>();
+      uris.add(sourceTable.location());
+    } else {
+      Seq<CatalogTablePartition> catalogTablePartitionSeq =
+              spark.sessionState().catalog().listPartitions(sourceTable.identifier(), Option.apply(null));
+      uris = JavaConverters.seqAsJavaList(catalogTablePartitionSeq)
+              .stream()
+              .map(part -> part.location())
+              .collect(Collectors.toList());
+    }
+    long expectedMigratedFiles = uris.stream()
+            .flatMap(uri ->
+               FileUtils.listFiles(Paths.get(uri).toFile(), TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE).stream())
+            .filter(file -> !file.toString().endsWith("crc") && !file.toString().contains("_SUCCESS"))
+            .collect(Collectors.toList()).size();
 
+    List<Row> expected = spark.table(source).collectAsList();
     long migratedFiles = migrateAction.execute();
 
     SparkTable destTable = loadTable(dest);
