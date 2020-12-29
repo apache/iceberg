@@ -73,7 +73,9 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -367,8 +369,7 @@ public class FlinkCatalog extends AbstractCatalog {
     // Set the equality field columns.
     List<String> equalityFieldColumns = toEqualityColumns(table.getSchema());
     if (!equalityFieldColumns.isEmpty()) {
-      properties.put(TableProperties.EQUALITY_FIELD_COLUMNS,
-          org.apache.commons.lang.StringUtils.join(equalityFieldColumns, ","));
+      properties.put(TableProperties.EQUALITY_FIELD_COLUMNS, Joiner.on(',').join(equalityFieldColumns));
     }
 
     String location = null;
@@ -542,8 +543,8 @@ public class FlinkCatalog extends AbstractCatalog {
     String concatColumns = PropertyUtil.propertyAsString(table.properties(),
         TableProperties.EQUALITY_FIELD_COLUMNS,
         TableProperties.DEFAULT_EQUALITY_FIELD_COLUMNS);
-    String[] columns = org.apache.commons.lang3.StringUtils.split(concatColumns, ",");
-    if (columns != null && columns.length > 0) {
+    String[] columns = Splitter.on(',').splitToList(concatColumns).toArray(new String[0]);
+    if (columns.length > 0) {
       builder.primaryKey(columns);
     }
 

@@ -22,7 +22,6 @@ package org.apache.iceberg.flink;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.streaming.api.TimeCharacteristic;
@@ -38,12 +37,16 @@ import org.apache.flink.table.data.util.DataFormatConverters;
 import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.source.BoundedTestSource;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -57,7 +60,7 @@ import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
 public class TestFlinkTableSinkV2 extends FlinkCatalogTestBase {
-  private static final String TABLE_NAME_V2 = "test_table_v2";
+  private static final String TABLE_NAME = "test_table";
   private static final int ROW_ID_POS = 0;
   private static final int ROW_DATA_POS = 1;
 
@@ -89,7 +92,7 @@ public class TestFlinkTableSinkV2 extends FlinkCatalogTestBase {
     this.env = StreamExecutionEnvironment.getExecutionEnvironment().enableCheckpointing(400);
     env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
-    this.tableProps = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format, TableProperties.FORMAT_VERSION, "2");
+    this.tableProps = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format);
   }
 
   @Override
@@ -118,7 +121,7 @@ public class TestFlinkTableSinkV2 extends FlinkCatalogTestBase {
 
   @After
   public void clean() {
-    sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME_V2);
+    sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME);
     sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
     super.clean();
   }
@@ -272,16 +275,28 @@ public class TestFlinkTableSinkV2 extends FlinkCatalogTestBase {
     return SimpleDataUtil.createRecord(id, data);
   }
 
+  private Table createTable(List<String> equalityColumns, boolean isPartitioned) {
+    String partitionByCause = isPartitioned ? "PARTITIONED BY (data)" : "";
+    sql("CREATE TABLE %s (id INT, data VARCHAR, PRIMARY KEY(%s) NOT ENFORCED) %s WITH %s",
+        TABLE_NAME,
+        Joiner.on(',').join(equalityColumns),
+        partitionByCause,
+        toWithClause(tableProps));
+
+    // Upgrade the iceberg table to format v2.
+    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME));
+    TableOperations ops = ((BaseTable) table).operations();
+    TableMetadata meta = ops.current();
+    ops.commit(meta, meta.upgradeToFormatVersion(2));
+
+    return table;
+  }
+
   private void testSqlChangeLog(List<String> equalityColumns,
                                 KeySelector<Row, Row> keySelector,
                                 List<List<Row>> inputRowsPerCheckpoint,
                                 List<List<Record>> expectedRecordsPerCheckpoint) throws Exception {
-    String partitionByCause = partitioned ? "PARTITIONED BY (data)" : "";
-    sql("CREATE TABLE %s (id INT, data VARCHAR, PRIMARY KEY(%s) NOT ENFORCED) %s WITH %s",
-        TABLE_NAME_V2,
-        StringUtils.join(equalityColumns, ","),
-        partitionByCause,
-        toWithClause(tableProps));
+    Table table = createTable(equalityColumns, partitioned);
 
     TableSchema flinkSchema = TableSchema.builder()
         .field("id", DataTypes.INT().notNull())
@@ -298,9 +313,9 @@ public class TestFlinkTableSinkV2 extends FlinkCatalogTestBase {
 
     tEnv.createTemporaryView("source_change_logs", tEnv.fromDataStream(inputStream));
 
-    sql("INSERT INTO %s SELECT * FROM source_change_logs", TABLE_NAME_V2);
+    sql("INSERT INTO %s SELECT * FROM source_change_logs", TABLE_NAME);
 
-    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME_V2));
+    table.refresh();
     List<Snapshot> snapshots = findValidSnapshots(table);
     int expectedSnapshotNum = expectedRecordsPerCheckpoint.size();
     Assert.assertEquals("Should have the expected snapshot number", expectedSnapshotNum, snapshots.size());
