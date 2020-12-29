@@ -93,6 +93,8 @@ public class TableMetadataParser {
   static final String DEFAULT_SPEC_ID = "default-spec-id";
   static final String DEFAULT_SORT_ORDER_ID = "default-sort-order-id";
   static final String SORT_ORDERS = "sort-orders";
+  static final String DEFAULT_PRIMARY_KEY_ID = "default-primary-key-id";
+  static final String PRIMARY_KEYS = "primary-keys";
   static final String PROPERTIES = "properties";
   static final String CURRENT_SNAPSHOT_ID = "current-snapshot-id";
   static final String SNAPSHOTS = "snapshots";
@@ -178,10 +180,19 @@ public class TableMetadataParser {
     }
     generator.writeEndArray();
 
+    // write the default order ID and sort order list
     generator.writeNumberField(DEFAULT_SORT_ORDER_ID, metadata.defaultSortOrderId());
     generator.writeArrayFieldStart(SORT_ORDERS);
     for (SortOrder sortOrder : metadata.sortOrders()) {
       SortOrderParser.toJson(sortOrder, generator);
+    }
+    generator.writeEndArray();
+
+    // write the default primary key ID and primary key list.
+    generator.writeNumberField(DEFAULT_PRIMARY_KEY_ID, metadata.defaultPrimaryKeyId());
+    generator.writeArrayFieldStart(PRIMARY_KEYS);
+    for (PrimaryKey primaryKey : metadata.primaryKeys()) {
+      PrimaryKeyParser.toJson(primaryKey, generator);
     }
     generator.writeEndArray();
 
@@ -242,6 +253,7 @@ public class TableMetadataParser {
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   static TableMetadata fromJson(FileIO io, InputFile file, JsonNode node) {
     Preconditions.checkArgument(node.isObject(),
         "Cannot parse metadata from a non-object: %s", node);
@@ -261,6 +273,7 @@ public class TableMetadataParser {
     int lastAssignedColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
     Schema schema = SchemaParser.fromJson(node.get(SCHEMA));
 
+    // Parse the partition specs.
     JsonNode specArray = node.get(PARTITION_SPECS);
     List<PartitionSpec> specs;
     int defaultSpecId;
@@ -288,6 +301,7 @@ public class TableMetadataParser {
           schema, TableMetadata.INITIAL_SPEC_ID, node.get(PARTITION_SPEC)));
     }
 
+    // Parse the sort orders.
     JsonNode sortOrderArray = node.get(SORT_ORDERS);
     List<SortOrder> sortOrders;
     int defaultSortOrderId;
@@ -304,6 +318,25 @@ public class TableMetadataParser {
       SortOrder defaultSortOrder = SortOrder.unsorted();
       sortOrders = ImmutableList.of(defaultSortOrder);
       defaultSortOrderId = defaultSortOrder.orderId();
+    }
+
+    // Parse the primary keys.
+    JsonNode primaryKeyArray = node.get(PRIMARY_KEYS);
+    List<PrimaryKey> primaryKeys;
+    int defaultPrimaryKeyId;
+    if (primaryKeyArray != null) {
+      defaultPrimaryKeyId = JsonUtil.getInt(DEFAULT_PRIMARY_KEY_ID, node);
+      ImmutableList.Builder<PrimaryKey> builder = ImmutableList.builder();
+      for (JsonNode primaryKey : primaryKeyArray) {
+        builder.add(PrimaryKeyParser.fromJson(schema, primaryKey));
+      }
+      primaryKeys = builder.build();
+    } else {
+      Preconditions.checkArgument(formatVersion == 1,
+          "%s must exist in format v%d", PRIMARY_KEYS, formatVersion);
+      PrimaryKey defaultPrimaryKey = PrimaryKey.nonPrimaryKey();
+      primaryKeys = ImmutableList.of(defaultPrimaryKey);
+      defaultPrimaryKeyId = defaultPrimaryKey.keyId();
     }
 
     Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, node);
@@ -342,7 +375,7 @@ public class TableMetadataParser {
 
     return new TableMetadata(file, formatVersion, uuid, location,
         lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs,
-        defaultSortOrderId, sortOrders, properties, currentVersionId, snapshots, entries.build(),
-        metadataEntries.build());
+        defaultSortOrderId, sortOrders, defaultPrimaryKeyId, primaryKeys, properties, currentVersionId,
+        snapshots, entries.build(), metadataEntries.build());
   }
 }

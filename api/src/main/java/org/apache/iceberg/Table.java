@@ -89,6 +89,20 @@ public interface Table {
   Map<Integer, SortOrder> sortOrders();
 
   /**
+   * Return the {@link PrimaryKey primary key} for this table.
+   *
+   * @return this table's primary key.
+   */
+  PrimaryKey primaryKey();
+
+  /**
+   * Return a map of primary key IDs to {@link PrimaryKey primary keys} for this table.
+   *
+   * @return this table's primary keys map.
+   */
+  Map<Integer, PrimaryKey> primaryKeys();
+
+  /**
    * Return a map of string properties for this table.
    *
    * @return this table's properties map

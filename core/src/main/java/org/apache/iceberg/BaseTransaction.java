@@ -541,6 +541,16 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
+    public PrimaryKey primaryKey() {
+      return current.primaryKey();
+    }
+
+    @Override
+    public Map<Integer, PrimaryKey> primaryKeys() {
+      return current.primaryKeysById();
+    }
+
+    @Override
     public Map<String, String> properties() {
       return current.properties();
     }

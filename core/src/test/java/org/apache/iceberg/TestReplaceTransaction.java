@@ -70,7 +70,8 @@ public class TestReplaceTransaction extends TableTestBase {
         .build();
 
     Map<String, String> props = Maps.newHashMap();
-    Transaction replace = TestTables.beginReplace(tableDir, "test", schema, unpartitioned(), newSortOrder, props);
+    Transaction replace = TestTables.beginReplace(tableDir, "test", schema, unpartitioned(), newSortOrder,
+        PrimaryKey.nonPrimaryKey(), props);
     replace.commitTransaction();
 
     table.refresh();

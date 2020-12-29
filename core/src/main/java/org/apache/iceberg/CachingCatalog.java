@@ -187,6 +187,12 @@ public class CachingCatalog implements Catalog {
     }
 
     @Override
+    public TableBuilder withPrimaryKey(PrimaryKey primaryKey) {
+      innerBuilder.withPrimaryKey(primaryKey);
+      return this;
+    }
+
+    @Override
     public TableBuilder withLocation(String location) {
       innerBuilder.withLocation(location);
       return this;

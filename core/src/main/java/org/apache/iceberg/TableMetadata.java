@@ -52,6 +52,7 @@ public class TableMetadata implements Serializable {
   static final int SUPPORTED_TABLE_FORMAT_VERSION = 2;
   static final int INITIAL_SPEC_ID = 0;
   static final int INITIAL_SORT_ORDER_ID = 1;
+  static final int INITIAL_PRIMARY_KEY_ID = 1;
 
   private static final long ONE_MINUTE = TimeUnit.MINUTES.toMillis(1);
 
@@ -64,27 +65,31 @@ public class TableMetadata implements Serializable {
                                                PartitionSpec spec,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+    return newTableMetadata(schema, spec, SortOrder.unsorted(), PrimaryKey.nonPrimaryKey(), location, properties,
+        DEFAULT_TABLE_FORMAT_VERSION);
   }
 
   public static TableMetadata newTableMetadata(Schema schema,
                                                PartitionSpec spec,
                                                SortOrder sortOrder,
+                                               PrimaryKey primaryKey,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, sortOrder, location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+    return newTableMetadata(schema, spec, sortOrder, primaryKey, location, properties, DEFAULT_TABLE_FORMAT_VERSION);
   }
 
   public static TableMetadata newTableMetadata(Schema schema,
                                                PartitionSpec spec,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+    return newTableMetadata(schema, spec, SortOrder.unsorted(), PrimaryKey.nonPrimaryKey(), location, properties,
+        DEFAULT_TABLE_FORMAT_VERSION);
   }
 
   static TableMetadata newTableMetadata(Schema schema,
                                         PartitionSpec spec,
                                         SortOrder sortOrder,
+                                        PrimaryKey primaryKey,
                                         String location,
                                         Map<String, String> properties,
                                         int formatVersion) {
@@ -110,10 +115,15 @@ public class TableMetadata implements Serializable {
     int freshSortOrderId = sortOrder.isUnsorted() ? sortOrder.orderId() : INITIAL_SORT_ORDER_ID;
     SortOrder freshSortOrder = freshSortOrder(freshSortOrderId, freshSchema, sortOrder);
 
+    // rebuild the primary key using the new column ids
+    int freshPrimaryKeyId = primaryKey.isNonPrimaryKey() ? primaryKey.keyId() : INITIAL_PRIMARY_KEY_ID;
+    PrimaryKey freshPrimaryKey = freshPrimaryKey(freshPrimaryKeyId, freshSchema, primaryKey);
+
     return new TableMetadata(null, formatVersion, UUID.randomUUID().toString(), location,
         INITIAL_SEQUENCE_NUMBER, System.currentTimeMillis(),
         lastColumnId.get(), freshSchema, INITIAL_SPEC_ID, ImmutableList.of(freshSpec),
         freshSortOrderId, ImmutableList.of(freshSortOrder),
+        freshPrimaryKeyId, ImmutableList.of(freshPrimaryKey),
         ImmutableMap.copyOf(properties), -1, ImmutableList.of(),
         ImmutableList.of(), ImmutableList.of());
   }
@@ -220,12 +230,15 @@ public class TableMetadata implements Serializable {
   private final List<PartitionSpec> specs;
   private final int defaultSortOrderId;
   private final List<SortOrder> sortOrders;
+  private final int defaultPrimaryKeyId;
+  private final List<PrimaryKey> primaryKeys;
   private final Map<String, String> properties;
   private final long currentSnapshotId;
   private final List<Snapshot> snapshots;
   private final Map<Long, Snapshot> snapshotsById;
   private final Map<Integer, PartitionSpec> specsById;
   private final Map<Integer, SortOrder> sortOrdersById;
+  private final Map<Integer, PrimaryKey> primaryKeysById;
   private final List<HistoryEntry> snapshotLog;
   private final List<MetadataLogEntry> previousFiles;
 
@@ -242,6 +255,8 @@ public class TableMetadata implements Serializable {
                 List<PartitionSpec> specs,
                 int defaultSortOrderId,
                 List<SortOrder> sortOrders,
+                int defaultPrimaryKeyId,
+                List<PrimaryKey> primaryKeys,
                 Map<String, String> properties,
                 long currentSnapshotId,
                 List<Snapshot> snapshots,
@@ -249,6 +264,7 @@ public class TableMetadata implements Serializable {
                 List<MetadataLogEntry> previousFiles) {
     Preconditions.checkArgument(specs != null && !specs.isEmpty(), "Partition specs cannot be null or empty");
     Preconditions.checkArgument(sortOrders != null && !sortOrders.isEmpty(), "Sort orders cannot be null or empty");
+    Preconditions.checkArgument(primaryKeys != null && !primaryKeys.isEmpty(), "Primary keys cannot be null or empty");
     Preconditions.checkArgument(formatVersion <= SUPPORTED_TABLE_FORMAT_VERSION,
         "Unsupported format version: v%s", formatVersion);
     Preconditions.checkArgument(formatVersion == 1 || uuid != null,
@@ -269,6 +285,8 @@ public class TableMetadata implements Serializable {
     this.defaultSpecId = defaultSpecId;
     this.defaultSortOrderId = defaultSortOrderId;
     this.sortOrders = sortOrders;
+    this.defaultPrimaryKeyId = defaultPrimaryKeyId;
+    this.primaryKeys = primaryKeys;
     this.properties = properties;
     this.currentSnapshotId = currentSnapshotId;
     this.snapshots = snapshots;
@@ -278,6 +296,7 @@ public class TableMetadata implements Serializable {
     this.snapshotsById = indexAndValidateSnapshots(snapshots, lastSequenceNumber);
     this.specsById = indexSpecs(specs);
     this.sortOrdersById = indexSortOrders(sortOrders);
+    this.primaryKeysById = indexPrimaryKeys(primaryKeys);
 
     HistoryEntry last = null;
     for (HistoryEntry logEntry : snapshotLog) {
@@ -391,6 +410,22 @@ public class TableMetadata implements Serializable {
     return sortOrdersById;
   }
 
+  public int defaultPrimaryKeyId() {
+    return defaultPrimaryKeyId;
+  }
+
+  public PrimaryKey primaryKey() {
+    return primaryKeysById.get(defaultPrimaryKeyId);
+  }
+
+  public List<PrimaryKey> primaryKeys() {
+    return primaryKeys;
+  }
+
+  public Map<Integer, PrimaryKey> primaryKeysById() {
+    return primaryKeysById;
+  }
+
   public String location() {
     return location;
   }
@@ -441,8 +476,8 @@ public class TableMetadata implements Serializable {
     } else {
       return new TableMetadata(null, formatVersion, UUID.randomUUID().toString(), location,
           lastSequenceNumber, lastUpdatedMillis, lastColumnId, schema, defaultSpecId, specs,
-          defaultSortOrderId, sortOrders, properties, currentSnapshotId, snapshots, snapshotLog,
-          addPreviousFile(file, lastUpdatedMillis));
+          defaultSortOrderId, sortOrders, defaultPrimaryKeyId, primaryKeys, properties,
+          currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
     }
   }
 
@@ -452,10 +487,12 @@ public class TableMetadata implements Serializable {
     // rebuild all of the partition specs and sort orders for the new current schema
     List<PartitionSpec> updatedSpecs = Lists.transform(specs, spec -> updateSpecSchema(newSchema, spec));
     List<SortOrder> updatedSortOrders = Lists.transform(sortOrders, order -> updateSortOrderSchema(newSchema, order));
+    List<PrimaryKey> updatedPrimaryKeys = Lists.transform(primaryKeys,
+        primaryKey -> updatePrimaryKeySchema(newSchema, primaryKey));
     return new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), newLastColumnId, newSchema, defaultSpecId, updatedSpecs,
-        defaultSortOrderId, updatedSortOrders, properties, currentSnapshotId, snapshots, snapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+        defaultSortOrderId, updatedSortOrders, defaultPrimaryKeyId, updatedPrimaryKeys, properties, currentSnapshotId,
+        snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   // The caller is responsible to pass a newPartitionSpec with correct partition field IDs
@@ -489,7 +526,7 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, schema, newDefaultSpecId,
-        builder.build(), defaultSortOrderId, sortOrders, properties,
+        builder.build(), defaultSortOrderId, sortOrders, defaultPrimaryKeyId, primaryKeys, properties,
         currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
@@ -526,8 +563,45 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs,
-        newOrderId, builder.build(), properties, currentSnapshotId, snapshots, snapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+        newOrderId, builder.build(), defaultPrimaryKeyId, primaryKeys, properties, currentSnapshotId,
+        snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
+  }
+
+  public TableMetadata updatePrimaryKey(PrimaryKey newKey) {
+    // TODO should we need to check the compatibility ?
+
+    // determine the next primary key id.
+    int newPrimaryKeyId = INITIAL_PRIMARY_KEY_ID;
+    for (PrimaryKey primaryKey : primaryKeys) {
+      if (primaryKey.samePrimaryKey(newKey)) {
+        newPrimaryKeyId = primaryKey.keyId();
+        break;
+      } else if (newPrimaryKeyId <= primaryKey.keyId()) {
+        newPrimaryKeyId = primaryKey.keyId() + 1;
+      }
+    }
+
+    if (newPrimaryKeyId == defaultPrimaryKeyId) {
+      return this;
+    }
+
+    ImmutableList.Builder<PrimaryKey> builder = ImmutableList.builder();
+    builder.addAll(primaryKeys);
+
+    if (!primaryKeysById.containsKey(newPrimaryKeyId)) {
+      if (newKey.isNonPrimaryKey()) {
+        newPrimaryKeyId = PrimaryKey.nonPrimaryKey().keyId();
+        builder.add(PrimaryKey.nonPrimaryKey());
+      } else {
+        // Rebuild the primary key using new column ids.
+        builder.add(freshPrimaryKey(newPrimaryKeyId, schema, newKey));
+      }
+    }
+
+    return new TableMetadata(null, formatVersion, uuid, location,
+        lastSequenceNumber, System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs,
+        defaultSortOrderId, sortOrders, newPrimaryKeyId, builder.build(), properties, currentSnapshotId,
+        snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata addStagedSnapshot(Snapshot snapshot) {
@@ -542,8 +616,8 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, formatVersion, uuid, location,
         snapshot.sequenceNumber(), snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs,
-        defaultSortOrderId, sortOrders, properties, currentSnapshotId, newSnapshots, snapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+        defaultSortOrderId, sortOrders, defaultPrimaryKeyId, primaryKeys, properties, currentSnapshotId,
+        newSnapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata replaceCurrentSnapshot(Snapshot snapshot) {
@@ -567,8 +641,8 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, formatVersion, uuid, location,
         snapshot.sequenceNumber(), snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs,
-        defaultSortOrderId, sortOrders, properties, snapshot.snapshotId(), newSnapshots, newSnapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+        defaultSortOrderId, sortOrders, defaultPrimaryKeyId, primaryKeys, properties, snapshot.snapshotId(),
+        newSnapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
@@ -599,8 +673,8 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs,
-        defaultSortOrderId, sortOrders, properties, currentSnapshotId, filtered,
-        ImmutableList.copyOf(newSnapshotLog), addPreviousFile(file, lastUpdatedMillis));
+        defaultSortOrderId, sortOrders, defaultPrimaryKeyId, primaryKeys, properties, currentSnapshotId,
+        filtered, ImmutableList.copyOf(newSnapshotLog), addPreviousFile(file, lastUpdatedMillis));
   }
 
   private TableMetadata setCurrentSnapshotTo(Snapshot snapshot) {
@@ -623,16 +697,16 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, nowMillis, lastColumnId, schema, defaultSpecId, specs, defaultSortOrderId,
-        sortOrders, properties, snapshot.snapshotId(), snapshots, newSnapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+        sortOrders, defaultPrimaryKeyId, primaryKeys, properties, snapshot.snapshotId(), snapshots,
+        newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata replaceProperties(Map<String, String> newProperties) {
     ValidationException.check(newProperties != null, "Cannot set properties to null");
     return new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs,
-        defaultSortOrderId, sortOrders, newProperties, currentSnapshotId, snapshots, snapshotLog,
-        addPreviousFile(file, lastUpdatedMillis, newProperties));
+        defaultSortOrderId, sortOrders, defaultPrimaryKeyId, primaryKeys, newProperties, currentSnapshotId,
+        snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis, newProperties));
   }
 
   public TableMetadata removeSnapshotLogEntries(Set<Long> snapshotIds) {
@@ -650,14 +724,14 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs,
-        defaultSortOrderId, sortOrders, properties, currentSnapshotId, snapshots, newSnapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+        defaultSortOrderId, sortOrders, defaultPrimaryKeyId, primaryKeys, properties, currentSnapshotId,
+        snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   // The caller is responsible to pass a updatedPartitionSpec with correct partition field IDs
   public TableMetadata buildReplacement(Schema updatedSchema, PartitionSpec updatedPartitionSpec,
-                                        SortOrder updatedSortOrder, String newLocation,
-                                        Map<String, String> updatedProperties) {
+                                        SortOrder updatedSortOrder, PrimaryKey updatedPrimaryKey,
+                                        String newLocation, Map<String, String> updatedProperties) {
     ValidationException.check(formatVersion > 1 || PartitionSpec.hasSequentialIds(updatedPartitionSpec),
         "Spec does not use sequential IDs that are required in v1: %s", updatedPartitionSpec);
 
@@ -702,21 +776,42 @@ public class TableMetadata implements Serializable {
       sortOrdersBuilder.add(freshSortOrder);
     }
 
+    // determine the next primary key id
+    OptionalInt maxPrimaryKeyId = primaryKeys.stream().mapToInt(PrimaryKey::keyId).max();
+    int nextPrimaryKeyId = maxPrimaryKeyId.isPresent() ? maxPrimaryKeyId.getAsInt() + 1 : INITIAL_PRIMARY_KEY_ID;
+
+    // rebuild the primary key using new column ids
+    int freshPrimaryKeyId = updatedPrimaryKey.isNonPrimaryKey() ? updatedPrimaryKey.keyId() : nextPrimaryKeyId;
+    PrimaryKey freshPrimaryKey = freshPrimaryKey(freshPrimaryKeyId, freshSchema, updatedPrimaryKey);
+
+    // if the primary key already exists, use the same ID. otherwise, use the primary key ID.
+    int primaryKeyId = primaryKeys.stream()
+        .filter(primaryKey -> primaryKey.samePrimaryKey(primaryKey))
+        .findFirst()
+        .map(PrimaryKey::keyId)
+        .orElse(freshPrimaryKeyId);
+
+    ImmutableList.Builder<PrimaryKey> primaryKeyBuilder = ImmutableList.<PrimaryKey>builder().addAll(primaryKeys);
+    if (primaryKeysById.containsKey(primaryKeyId)) {
+      primaryKeyBuilder.add(freshPrimaryKey);
+    }
+
     Map<String, String> newProperties = Maps.newHashMap();
     newProperties.putAll(this.properties);
     newProperties.putAll(updatedProperties);
 
     return new TableMetadata(null, formatVersion, uuid, newLocation,
         lastSequenceNumber, System.currentTimeMillis(), newLastColumnId.get(), freshSchema,
-        specId, specListBuilder.build(), orderId, sortOrdersBuilder.build(), ImmutableMap.copyOf(newProperties),
-        -1, snapshots, ImmutableList.of(), addPreviousFile(file, lastUpdatedMillis, newProperties));
+        specId, specListBuilder.build(), orderId, sortOrdersBuilder.build(), primaryKeyId, primaryKeyBuilder.build(),
+        ImmutableMap.copyOf(newProperties), -1, snapshots, ImmutableList.of(),
+        addPreviousFile(file, lastUpdatedMillis, newProperties));
   }
 
   public TableMetadata updateLocation(String newLocation) {
     return new TableMetadata(null, formatVersion, uuid, newLocation,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs,
-        defaultSortOrderId, sortOrders, properties, currentSnapshotId, snapshots, snapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+        defaultSortOrderId, sortOrders, defaultPrimaryKeyId, primaryKeys, properties, currentSnapshotId,
+        snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata upgradeToFormatVersion(int newFormatVersion) {
@@ -732,8 +827,8 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, newFormatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs,
-        defaultSortOrderId, sortOrders, properties, currentSnapshotId, snapshots, snapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+        defaultSortOrderId, sortOrders, defaultPrimaryKeyId, primaryKeys, properties, currentSnapshotId,
+        snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   private List<MetadataLogEntry> addPreviousFile(InputFile previousFile, long timestampMillis) {
@@ -784,6 +879,17 @@ public class TableMetadata implements Serializable {
     return builder.build();
   }
 
+  private static PrimaryKey updatePrimaryKeySchema(Schema schema, PrimaryKey primaryKey) {
+    PrimaryKey.Builder builder = PrimaryKey.builderFor(schema).withKeyId(primaryKey.keyId());
+
+    // add all the fields to the builder, IDs should not change.
+    for (Integer fieldId : primaryKey.fieldIds()) {
+      builder.addFieldId(fieldId);
+    }
+
+    return builder.build();
+  }
+
   private static PartitionSpec freshSpec(int specId, Schema schema, PartitionSpec partitionSpec) {
     PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(schema)
         .withSpecId(specId);
@@ -819,6 +925,23 @@ public class TableMetadata implements Serializable {
     return builder.build();
   }
 
+  private static PrimaryKey freshPrimaryKey(int primaryKeyId, Schema schema, PrimaryKey primaryKey) {
+    PrimaryKey.Builder builder = PrimaryKey
+        .builderFor(schema)
+        .withKeyId(primaryKeyId)
+        .withEnforceUniqueness(primaryKey.enforceUniqueness());
+
+    for (Integer fieldId : primaryKey.fieldIds()) {
+      // look up the name of the source field in the old schema to get the new schema's id
+      String sourceName = primaryKey.schema().findColumnName(fieldId);
+      // reassign all primary keys with fresh primary field IDs.
+      int newFieldId = schema.findField(sourceName).fieldId();
+      builder.addFieldId(newFieldId);
+    }
+
+    return builder.build();
+  }
+
   private static Map<Long, Snapshot> indexAndValidateSnapshots(List<Snapshot> snapshots, long lastSequenceNumber) {
     ImmutableMap.Builder<Long, Snapshot> builder = ImmutableMap.builder();
     for (Snapshot snap : snapshots) {
@@ -842,6 +965,14 @@ public class TableMetadata implements Serializable {
     ImmutableMap.Builder<Integer, SortOrder> builder = ImmutableMap.builder();
     for (SortOrder sortOrder : sortOrders) {
       builder.put(sortOrder.orderId(), sortOrder);
+    }
+    return builder.build();
+  }
+
+  private static Map<Integer, PrimaryKey> indexPrimaryKeys(List<PrimaryKey> primaryKeys) {
+    ImmutableMap.Builder<Integer, PrimaryKey> builder = ImmutableMap.builder();
+    for (PrimaryKey primaryKey : primaryKeys) {
+      builder.put(primaryKey.keyId(), primaryKey);
     }
     return builder.build();
   }

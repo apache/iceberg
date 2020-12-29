@@ -30,6 +30,7 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PrimaryKey;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
@@ -128,7 +129,8 @@ public class TestHadoopTables {
     SortOrder order = SortOrder.builderFor(SCHEMA)
         .asc("id", NULLS_FIRST)
         .build();
-    Table table = TABLES.create(SCHEMA, spec, order, Maps.newHashMap(), tableDir.toURI().toString());
+    Table table = TABLES.create(SCHEMA, spec, order, PrimaryKey.nonPrimaryKey(),
+        Maps.newHashMap(), tableDir.toURI().toString());
 
     SortOrder sortOrder = table.sortOrder();
     Assert.assertEquals("Order ID must match", 1, sortOrder.orderId());

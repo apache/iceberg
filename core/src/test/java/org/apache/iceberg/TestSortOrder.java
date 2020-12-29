@@ -118,7 +118,8 @@ public class TestSortOrder {
         .asc("s.id", NULLS_LAST)
         .desc(truncate("data", 10), NULLS_FIRST)
         .build();
-    TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, spec, order, formatVersion);
+    TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, spec, order,
+        PrimaryKey.nonPrimaryKey(), formatVersion);
 
     Assert.assertEquals("Expected 1 sort order", 1, table.sortOrders().size());
     Assert.assertTrue("Order ID must be fresh", table.sortOrders().containsKey(TableMetadata.INITIAL_SORT_ORDER_ID));
@@ -282,7 +283,8 @@ public class TestSortOrder {
         .asc("s.id")
         .desc(truncate("data", 10))
         .build();
-    TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, spec, order, formatVersion);
+    TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, spec, order,
+        PrimaryKey.nonPrimaryKey(), formatVersion);
 
     table.updateSchema()
         .renameColumn("s.id", "s.id2")
@@ -303,7 +305,8 @@ public class TestSortOrder {
         .asc("s.id")
         .desc(truncate("data", 10))
         .build();
-    TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, spec, order, formatVersion);
+    TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, spec, order,
+        PrimaryKey.nonPrimaryKey(), formatVersion);
 
     AssertHelpers.assertThrows("Should reject deletion of sort columns",
         ValidationException.class, "Cannot find source column",

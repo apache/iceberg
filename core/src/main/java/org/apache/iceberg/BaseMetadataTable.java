@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 abstract class BaseMetadataTable implements Table {
   private final PartitionSpec spec = PartitionSpec.unpartitioned();
   private final SortOrder sortOrder = SortOrder.unsorted();
+  private final PrimaryKey primaryKey = PrimaryKey.nonPrimaryKey();
 
   abstract Table table();
 
@@ -75,6 +76,16 @@ abstract class BaseMetadataTable implements Table {
   @Override
   public Map<Integer, SortOrder> sortOrders() {
     return ImmutableMap.of(sortOrder.orderId(), sortOrder);
+  }
+
+  @Override
+  public PrimaryKey primaryKey() {
+    return primaryKey;
+  }
+
+  @Override
+  public Map<Integer, PrimaryKey> primaryKeys() {
+    return ImmutableMap.of(primaryKey.keyId(), primaryKey);
   }
 
   @Override

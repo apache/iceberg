@@ -30,6 +30,7 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PrimaryKey;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StaticTableOperations;
@@ -125,17 +126,21 @@ public class HadoopTables implements Tables, Configurable {
    * Create a table using the FileSystem implementation resolve from
    * location.
    *
-   * @param schema iceberg schema used to create the table
-   * @param spec partitioning spec, if null the table will be unpartitioned
+   * @param schema     iceberg schema used to create the table
+   * @param spec       partitioning spec, if null the table will be unpartitioned
+   * @param order      Sort order spec, if null the table will be unsorted.
+   * @param primaryKey Primary key spec, if null the table will have no primary key.
    * @param properties a string map of table properties, initialized to empty if null
-   * @param location a path URI (e.g. hdfs:///warehouse/my_table)
+   * @param location   a path URI (e.g. hdfs:///warehouse/my_table)
    * @return newly created table implementation
    */
   @Override
   public Table create(Schema schema, PartitionSpec spec, SortOrder order,
-                      Map<String, String> properties, String location) {
+                      PrimaryKey primaryKey, Map<String, String> properties,
+                      String location) {
     return buildTable(location, schema).withPartitionSpec(spec)
         .withSortOrder(order)
+        .withPrimaryKey(primaryKey)
         .withProperties(properties)
         .create();
   }
@@ -194,13 +199,15 @@ public class HadoopTables implements Tables, Configurable {
   }
 
   private TableMetadata tableMetadata(Schema schema, PartitionSpec spec, SortOrder order,
-                                      Map<String, String> properties, String location) {
+                                      PrimaryKey primaryKey, Map<String, String> properties,
+                                      String location) {
     Preconditions.checkNotNull(schema, "A table schema is required");
 
     Map<String, String> tableProps = properties == null ? ImmutableMap.of() : properties;
     PartitionSpec partitionSpec = spec == null ? PartitionSpec.unpartitioned() : spec;
     SortOrder sortOrder = order == null ? SortOrder.unsorted() : order;
-    return TableMetadata.newTableMetadata(schema, partitionSpec, sortOrder, location, tableProps);
+    PrimaryKey primaryKeySpec = primaryKey == null ? PrimaryKey.nonPrimaryKey() : primaryKey;
+    return TableMetadata.newTableMetadata(schema, partitionSpec, sortOrder, primaryKeySpec, location, tableProps);
   }
 
   /**
@@ -254,7 +261,7 @@ public class HadoopTables implements Tables, Configurable {
     private final ImmutableMap.Builder<String, String> propertiesBuilder = ImmutableMap.builder();
     private PartitionSpec spec = PartitionSpec.unpartitioned();
     private SortOrder sortOrder = SortOrder.unsorted();
-
+    private PrimaryKey primaryKey = PrimaryKey.nonPrimaryKey();
 
     HadoopTableBuilder(String location, Schema schema) {
       this.location = location;
@@ -270,6 +277,12 @@ public class HadoopTables implements Tables, Configurable {
     @Override
     public Catalog.TableBuilder withSortOrder(SortOrder newSortOrder) {
       this.sortOrder = newSortOrder != null ? newSortOrder : SortOrder.unsorted();
+      return this;
+    }
+
+    @Override
+    public Catalog.TableBuilder withPrimaryKey(PrimaryKey newPrimaryKey) {
+      this.primaryKey = newPrimaryKey != null ? newPrimaryKey : PrimaryKey.nonPrimaryKey();
       return this;
     }
 
@@ -303,7 +316,7 @@ public class HadoopTables implements Tables, Configurable {
       }
 
       Map<String, String> properties = propertiesBuilder.build();
-      TableMetadata metadata = tableMetadata(schema, spec, sortOrder, properties, location);
+      TableMetadata metadata = tableMetadata(schema, spec, sortOrder, primaryKey, properties, location);
       ops.commit(null, metadata);
       return new BaseTable(ops, location);
     }
@@ -316,7 +329,7 @@ public class HadoopTables implements Tables, Configurable {
       }
 
       Map<String, String> properties = propertiesBuilder.build();
-      TableMetadata metadata = tableMetadata(schema, spec, null, properties, location);
+      TableMetadata metadata = tableMetadata(schema, spec, null, primaryKey, properties, location);
       return Transactions.createTableTransaction(location, ops, metadata);
     }
 
@@ -339,9 +352,9 @@ public class HadoopTables implements Tables, Configurable {
       Map<String, String> properties = propertiesBuilder.build();
       TableMetadata metadata;
       if (ops.current() != null) {
-        metadata = ops.current().buildReplacement(schema, spec, sortOrder, location, properties);
+        metadata = ops.current().buildReplacement(schema, spec, sortOrder, primaryKey, location, properties);
       } else {
-        metadata = tableMetadata(schema, spec, sortOrder, properties, location);
+        metadata = tableMetadata(schema, spec, null, primaryKey, properties, location);
       }
 
       if (orCreate) {

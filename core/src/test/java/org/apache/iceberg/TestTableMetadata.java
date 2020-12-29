@@ -78,6 +78,12 @@ public class TestTableMetadata {
       .asc("y", NullOrder.NULLS_FIRST)
       .desc(Expressions.bucket("z", 4), NullOrder.NULLS_LAST)
       .build();
+  private static final PrimaryKey KEY_4 = PrimaryKey.builderFor(TEST_SCHEMA)
+      .withKeyId(4)
+      .withEnforceUniqueness(true)
+      .addFieldId(3)
+      .addFieldId(1)
+      .build();
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -102,7 +108,8 @@ public class TestTableMetadata {
 
     TableMetadata expected = new TableMetadata(null, 2, UUID.randomUUID().toString(), TEST_LOCATION,
         SEQ_NO, System.currentTimeMillis(), 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
-        3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
+        3, ImmutableList.of(SORT_ORDER_3), 4, ImmutableList.of(KEY_4),
+        ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog, ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
@@ -127,6 +134,18 @@ public class TestTableMetadata {
         expected.defaultSpecId(), metadata.defaultSpecId());
     Assert.assertEquals("PartitionSpec map should match",
         expected.specs(), metadata.specs());
+    Assert.assertEquals("Default sort ID should match",
+        expected.defaultSortOrderId(), metadata.defaultSortOrderId());
+    Assert.assertEquals("Sort order should match",
+        expected.sortOrder(), metadata.sortOrder());
+    Assert.assertEquals("Sort order map should match",
+        expected.sortOrders(), metadata.sortOrders());
+    Assert.assertEquals("Default primary key ID should match",
+        expected.defaultPrimaryKeyId(), metadata.defaultPrimaryKeyId());
+    Assert.assertEquals("Primary key should match",
+        expected.primaryKey(), metadata.primaryKey());
+    Assert.assertEquals("Primary key map should match",
+        expected.primaryKeys(), metadata.primaryKeys());
     Assert.assertEquals("Properties should match",
         expected.properties(), metadata.properties());
     Assert.assertEquals("Snapshot logs should match",
@@ -160,8 +179,9 @@ public class TestTableMetadata {
 
     TableMetadata expected = new TableMetadata(null, 1, null, TEST_LOCATION,
         0, System.currentTimeMillis(), 3, TEST_SCHEMA, 6, ImmutableList.of(spec),
-        TableMetadata.INITIAL_SORT_ORDER_ID, ImmutableList.of(sortOrder), ImmutableMap.of("property", "value"),
-        currentSnapshotId, Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of(), ImmutableList.of());
+        TableMetadata.INITIAL_SORT_ORDER_ID, ImmutableList.of(sortOrder), 4, ImmutableList.of(KEY_4),
+        ImmutableMap.of("property", "value"), currentSnapshotId,
+        Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of(), ImmutableList.of());
 
     String asJson = toJsonWithoutSpecList(expected);
     TableMetadata metadata = TableMetadataParser
@@ -270,7 +290,8 @@ public class TestTableMetadata {
 
     TableMetadata base = new TableMetadata(null, 1, UUID.randomUUID().toString(), TEST_LOCATION,
         0, System.currentTimeMillis(), 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
-        3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
+        3, ImmutableList.of(SORT_ORDER_3), 4, ImmutableList.of(KEY_4),
+        ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
 
@@ -305,7 +326,8 @@ public class TestTableMetadata {
 
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
         TEST_LOCATION, 0, currentTimestamp - 80, 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
-        3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
+        3, ImmutableList.of(SORT_ORDER_3), 4, ImmutableList.of(KEY_4),
+        ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
 
@@ -350,7 +372,7 @@ public class TestTableMetadata {
 
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
         TEST_LOCATION, 0, currentTimestamp - 50, 3, TEST_SCHEMA, 5,
-        ImmutableList.of(SPEC_5), 3, ImmutableList.of(SORT_ORDER_3),
+        ImmutableList.of(SPEC_5), 3, ImmutableList.of(SORT_ORDER_3), 4, ImmutableList.of(KEY_4),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
@@ -402,7 +424,7 @@ public class TestTableMetadata {
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
         TEST_LOCATION, 0, currentTimestamp - 50, 3, TEST_SCHEMA, 2,
         ImmutableList.of(SPEC_5), TableMetadata.INITIAL_SORT_ORDER_ID, ImmutableList.of(SortOrder.unsorted()),
-        ImmutableMap.of("property", "value"), currentSnapshotId,
+        4, ImmutableList.of(KEY_4), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
 
@@ -428,8 +450,8 @@ public class TestTableMetadata {
         IllegalArgumentException.class, "UUID is required in format v2",
         () -> new TableMetadata(null, 2, null, TEST_LOCATION, SEQ_NO, System.currentTimeMillis(),
             LAST_ASSIGNED_COLUMN_ID, TEST_SCHEMA, SPEC_5.specId(), ImmutableList.of(SPEC_5),
-            3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of(), -1L,
-            ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
+            3, ImmutableList.of(SORT_ORDER_3), 4, ImmutableList.of(KEY_4),
+            ImmutableMap.of(), -1L, ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
     );
   }
 
@@ -440,8 +462,8 @@ public class TestTableMetadata {
         IllegalArgumentException.class, "Unsupported format version: v" + unsupportedVersion,
         () -> new TableMetadata(null, unsupportedVersion, null, TEST_LOCATION, SEQ_NO,
             System.currentTimeMillis(), LAST_ASSIGNED_COLUMN_ID, TEST_SCHEMA, SPEC_5.specId(), ImmutableList.of(SPEC_5),
-            3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of(), -1L,
-            ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
+            3, ImmutableList.of(SORT_ORDER_3), 4, ImmutableList.of(KEY_4),
+            ImmutableMap.of(), -1L, ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
     );
   }
 
@@ -553,7 +575,7 @@ public class TestTableMetadata {
     SortOrder order = SortOrder.builderFor(schema).asc("x").build();
 
     TableMetadata sortedByX = TableMetadata.newTableMetadata(
-        schema, PartitionSpec.unpartitioned(), order, null, ImmutableMap.of());
+        schema, PartitionSpec.unpartitioned(), order, PrimaryKey.nonPrimaryKey(), null, ImmutableMap.of());
     Assert.assertEquals("Should have 1 sort order", 1, sortedByX.sortOrders().size());
     Assert.assertEquals("Should use orderId 1", 1, sortedByX.sortOrder().orderId());
     Assert.assertEquals("Should be sorted by one field", 1, sortedByX.sortOrder().fields().size());
@@ -583,5 +605,10 @@ public class TestTableMetadata {
         SortDirection.DESC, sortedByXDesc.sortOrder().fields().get(0).direction());
     Assert.assertEquals("Should be nulls first",
         NullOrder.NULLS_FIRST, sortedByX.sortOrder().fields().get(0).nullOrder());
+  }
+
+  @Test
+  public void testPrimaryKey() {
+
   }
 }

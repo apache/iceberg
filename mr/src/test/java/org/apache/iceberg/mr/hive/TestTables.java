@@ -28,6 +28,7 @@ import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PrimaryKey;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
@@ -208,12 +209,13 @@ abstract class TestTables {
     }
 
     @Override
-    public Table create(Schema schema, PartitionSpec spec, SortOrder sortOrder,
+    public Table create(Schema schema, PartitionSpec spec, SortOrder sortOrder, PrimaryKey primaryKey,
                         Map<String, String> properties, String tableIdentifier) {
       TableIdentifier tableIdent = TableIdentifier.parse(tableIdentifier);
       return catalog.buildTable(tableIdent, schema)
           .withPartitionSpec(spec)
           .withSortOrder(sortOrder)
+          .withPrimaryKey(primaryKey)
           .withProperties(properties)
           .create();
     }
