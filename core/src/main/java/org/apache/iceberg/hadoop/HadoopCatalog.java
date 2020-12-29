@@ -20,7 +20,9 @@
 package org.apache.iceberg.hadoop;
 
 import java.io.Closeable;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -80,6 +82,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   private final String warehouseLocation;
   private final FileSystem fs;
   private final FileIO fileIO;
+  private boolean suppressACLExcpetion = false;
 
   /**
    * The constructor of the HadoopCatalog. It uses the passed location as its warehouse directory.
@@ -145,16 +148,28 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     // still a namespace.
     try {
       return fs.listStatus(metadataPath, TABLE_FILTER).length >= 1;
-    } catch (IOException e) {
+    } catch (FileNotFoundException e) {
       return false;
+    } catch (IOException e) {
+      if (suppressACLExcpetion) {
+        return false;
+      } else {
+        throw new UncheckedIOException(e);
+      }
     }
   }
 
   private boolean isDirectory(Path path) {
     try {
       return fs.getFileStatus(path).isDirectory();
-    } catch (IOException e) {
+    } catch (FileNotFoundException e) {
       return false;
+    } catch (IOException e) {
+      if (suppressACLExcpetion) {
+        return false;
+      } else {
+        throw new UncheckedIOException(e);
+      }
     }
   }
 
