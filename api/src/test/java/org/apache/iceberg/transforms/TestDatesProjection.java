@@ -111,9 +111,8 @@ public class TestDatesProjection {
     Integer date = (Integer) Literal.of("1970-01-01").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).month("date").build();
 
-    // the boundary cannot be projected because fixing strict projection must fix cases where value + 1 = 0
-    assertProjectionStrictValue(spec, lessThan("date", date), Expression.Operation.FALSE);
-    assertProjectionStrictValue(spec, lessThanOrEqual("date", date), Expression.Operation.FALSE);
+    assertProjectionStrict(spec, lessThan("date", date), Expression.Operation.LT, "1970-01");
+    assertProjectionStrict(spec, lessThanOrEqual("date", date), Expression.Operation.LT, "1970-01");
     assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT, "1970-02");
     assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "1970-01");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "1970-01");
@@ -166,8 +165,8 @@ public class TestDatesProjection {
     Integer date = (Integer) Literal.of("1969-01-01").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).month("date").build();
 
-    assertProjectionStrictValue(spec, lessThan("date", date), Expression.Operation.FALSE);
-    assertProjectionStrictValue(spec, lessThanOrEqual("date", date), Expression.Operation.FALSE);
+    assertProjectionStrict(spec, lessThan("date", date), Expression.Operation.LT, "1969-01");
+    assertProjectionStrict(spec, lessThanOrEqual("date", date), Expression.Operation.LT, "1969-01");
     assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT, "1969-02");
     assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "1969-01");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_IN, "[1969-01, 1969-02]");
@@ -202,8 +201,8 @@ public class TestDatesProjection {
     Integer date = (Integer) Literal.of("1969-12-31").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).month("date").build();
 
-    assertProjectionStrictValue(spec, lessThan("date", date), Expression.Operation.FALSE);
-    assertProjectionStrictValue(spec, lessThanOrEqual("date", date), Expression.Operation.FALSE);
+    assertProjectionStrict(spec, lessThan("date", date), Expression.Operation.LT, "1969-12");
+    assertProjectionStrict(spec, lessThanOrEqual("date", date), Expression.Operation.LT, "1970-01");
     assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT, "1970-01");
     assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "1970-01");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_IN, "[1969-12, 1970-01]");
@@ -386,9 +385,8 @@ public class TestDatesProjection {
     Integer date = (Integer) Literal.of("1970-01-01").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).year("date").build();
 
-    // the boundary cannot be projected because fixing strict projection must fix cases where value + 1 = 0
-    assertProjectionStrictValue(spec, lessThan("date", date), Expression.Operation.FALSE);
-    assertProjectionStrictValue(spec, lessThanOrEqual("date", date), Expression.Operation.FALSE);
+    assertProjectionStrict(spec, lessThan("date", date), Expression.Operation.LT, "1970");
+    assertProjectionStrict(spec, lessThanOrEqual("date", date), Expression.Operation.LT, "1970");
     assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT, "1971");
     assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "1970");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_EQ, "1970");
@@ -423,8 +421,8 @@ public class TestDatesProjection {
     Integer date = (Integer) Literal.of("1969-12-31").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).year("date").build();
 
-    assertProjectionStrictValue(spec, lessThan("date", date), Expression.Operation.FALSE);
-    assertProjectionStrictValue(spec, lessThanOrEqual("date", date), Expression.Operation.FALSE);
+    assertProjectionStrict(spec, lessThan("date", date), Expression.Operation.LT, "1969");
+    assertProjectionStrict(spec, lessThanOrEqual("date", date), Expression.Operation.LT, "1970");
     assertProjectionStrict(spec, greaterThan("date", date), Expression.Operation.GT, "1970");
     assertProjectionStrict(spec, greaterThanOrEqual("date", date), Expression.Operation.GT, "1970");
     assertProjectionStrict(spec, notEqual("date", date), Expression.Operation.NOT_IN, "[1969, 1970]");

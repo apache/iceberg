@@ -344,13 +344,7 @@ class ProjectionUtil {
     switch (projected.op()) {
       case LT:
       case LT_EQ:
-        if (projected.literal().value() <= 0) {
-          // LT and LT_EQ cannot be fixed because adjusting the strict projection may include values that were not
-          // written incorrectly. for example, if the correct strict projection is x < 5, adjusting to produce x < 6
-          // cannot guarantee that all values match the original predicate
-          return null;
-        }
-
+        // the correct bound is a correct strict projection for the incorrectly transformed values.
         return projected;
 
       case GT:
