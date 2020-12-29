@@ -354,9 +354,20 @@ class ProjectionUtil {
         return projected;
 
       case GT:
+        // GT and GT_EQ need to be adjusted because values that do not match the predicate may have been transformed
+        // into partition values that match the projected predicate. For example, >= month(1969-11-31) is > -2, but
+        // 1969-10-31 was previously transformed to month -2 instead of -3. This must use the more strict value.
+        if (projected.literal().value() <= 0) {
+          return Expressions.greaterThan(projected.term(), projected.literal().value() + 1);
+        }
+
+        return projected;
+
       case GT_EQ:
-        // EQ and GT_EQ do not need to be adjusted because the incorrect value is more strict than the projection
-        // for example, if the correct strict projection is x > 5, the incorrect value, x > 6, is more strict
+        if (projected.literal().value() <= 0) {
+          return Expressions.greaterThanOrEqual(projected.term(), projected.literal().value() + 1);
+        }
+
         return projected;
 
       case EQ:

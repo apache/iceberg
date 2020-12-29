@@ -114,8 +114,8 @@ public class TestTimestampsProjection {
     // the boundary cannot be projected because fixing strict projection must fix cases where value + 1 = 0
     assertProjectionStrictValue(spec, lessThan("timestamp", date), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, lessThanOrEqual("timestamp", date), Expression.Operation.FALSE);
-    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "1970-01-01");
-    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "1969-12-31");
+    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "1970-01-02");
+    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "1970-01-01");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "1970-01-01");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
 
@@ -168,8 +168,8 @@ public class TestTimestampsProjection {
 
     assertProjectionStrictValue(spec, lessThan("timestamp", date), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, lessThanOrEqual("timestamp", date), Expression.Operation.FALSE);
-    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "1969-01");
-    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "1968-12");
+    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "1969-02");
+    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "1969-01");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_IN, "[1969-01, 1969-02]");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
 
@@ -204,8 +204,8 @@ public class TestTimestampsProjection {
 
     assertProjectionStrictValue(spec, lessThan("timestamp", date), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, lessThanOrEqual("timestamp", date), Expression.Operation.FALSE);
-    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "1969-12");
-    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "1969-12");
+    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "1970-01");
+    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "1970-01");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_IN, "[1969-12, 1970-01]");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
 
@@ -312,8 +312,8 @@ public class TestTimestampsProjection {
 
     assertProjectionStrictValue(spec, lessThan("timestamp", date), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, lessThanOrEqual("timestamp", date), Expression.Operation.FALSE);
-    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "1969-01-01");
-    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "1968-12-31");
+    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "1969-01-02");
+    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "1969-01-01");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_IN, "[1969-01-01, 1969-01-02]");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
 
@@ -348,8 +348,8 @@ public class TestTimestampsProjection {
 
     assertProjectionStrictValue(spec, lessThan("timestamp", date), Expression.Operation.FALSE);
     assertProjectionStrictValue(spec, lessThanOrEqual("timestamp", date), Expression.Operation.FALSE);
-    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "1969-12-31");
-    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "1969-12-31");
+    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "1970-01-01");
+    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "1970-01-01");
     assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_IN, "[1969-12-31, 1970-01-01]");
     assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
 
