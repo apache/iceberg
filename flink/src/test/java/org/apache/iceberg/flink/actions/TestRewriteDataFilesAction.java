@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -317,9 +318,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     try (FileAppender<Record> fileAppender = genericAppenderFactory.newAppender(Files.localOutput(file), format)) {
       long filesize = 20000;
       for (; fileAppender.length() < filesize; count++) {
-        Record record = RECORD.copy();
-        record.setField("id", count);
-        record.setField("data", "iceberg");
+        Record record = SimpleDataUtil.createRecord(count, "iceberg");
         fileAppender.add(record);
         expected.add(record);
       }
@@ -359,12 +358,12 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
     icebergTableUnPartitioned.refresh();
 
     CloseableIterable<FileScanTask> tasks1 = icebergTableUnPartitioned.newScan().planFiles();
-    List<DataFile> dataFilesRewrited = Lists.newArrayList(CloseableIterable.transform(tasks1, FileScanTask::file));
-    Assert.assertEquals("Should have 2 data files after rewrite", 2, dataFilesRewrited.size());
+    List<DataFile> dataFilesRewrote = Lists.newArrayList(CloseableIterable.transform(tasks1, FileScanTask::file));
+    Assert.assertEquals("Should have 2 data files after rewrite", 2, dataFilesRewrote.size());
 
-    // the biggest file do not be rewrited
-    List rewritedDataFileNames = dataFilesRewrited.stream().map(df -> df.path()).collect(Collectors.toList());
-    Assert.assertTrue(rewritedDataFileNames.contains(file.getAbsolutePath()));
+    // the biggest file do not be rewrote
+    List rewroteDataFileNames = dataFilesRewrote.stream().map(ContentFile::path).collect(Collectors.toList());
+    Assert.assertTrue(rewroteDataFileNames.contains(file.getAbsolutePath()));
 
     // Assert the table records as expected.
     expected.add(SimpleDataUtil.createRecord(1, "a"));
