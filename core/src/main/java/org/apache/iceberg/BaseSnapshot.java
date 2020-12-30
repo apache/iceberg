@@ -212,6 +212,32 @@ class BaseSnapshot implements Snapshot {
   }
 
   @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o instanceof BaseSnapshot) {
+      BaseSnapshot other = (BaseSnapshot) o;
+      return this.snapshotId == other.snapshotId() &&
+          this.parentId.equals(other.parentId()) &&
+          this.sequenceNumber == other.sequenceNumber() &&
+          this.timestampMillis == other.timestampMillis();
+
+    }
+    return false;
+  }
+
+  @Override
+  public int hashCode() {
+    int hash = 7;
+    hash = 31 * hash + (int) this.snapshotId;
+    hash = 31 * hash + (this.parentId == null ? 0 : this.parentId.hashCode());
+    hash = 31 * hash + (int) sequenceNumber;
+    hash = 31 * hash + (int) timestampMillis;
+    return hash;
+  }
+
+  @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("id", snapshotId)
