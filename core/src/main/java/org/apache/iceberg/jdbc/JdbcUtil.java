@@ -27,8 +27,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 public final class JdbcUtil {
 
-  protected static final Joiner JOINER_DOT = Joiner.on('.');
-  protected static final Splitter SPLITTER_DOT = Splitter.on('.');
+  private static final Joiner JOINER_DOT = Joiner.on('.');
+  private static final Splitter SPLITTER_DOT = Splitter.on('.');
 
   private JdbcUtil() {
   }

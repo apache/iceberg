@@ -23,46 +23,42 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.SQLNonTransientConnectionException;
-import java.sql.SQLTimeoutException;
-import java.sql.SQLTransientConnectionException;
-import java.sql.SQLWarning;
+import java.util.Map;
 import java.util.Properties;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.exceptions.UncheckedSQLException;
 
 public class JdbcClientPool extends ClientPool<Connection, SQLException> {
 
   private final String dbUrl;
-  private final Properties dbProperties;
+  private final Map<String, String> properties;
 
-  JdbcClientPool(String dbUrl, Properties props) {
-    this((Integer) props.getOrDefault("iceberg.jdbc.client-pool-size", 5), dbUrl, props);
+  JdbcClientPool(String dbUrl, Map<String, String> props) {
+    this(Integer.parseInt(props.getOrDefault(CatalogProperties.HIVE_CLIENT_POOL_SIZE,
+        String.valueOf(CatalogProperties.HIVE_CLIENT_POOL_SIZE_DEFAULT))), dbUrl, props);
   }
 
-  public JdbcClientPool(int poolSize, String dbUrl, Properties props) {
-    super(poolSize, SQLException.class);
-    dbProperties = props;
+  public JdbcClientPool(int poolSize, String dbUrl, Map<String, String> props) {
+    super(poolSize, SQLNonTransientConnectionException.class);
+    properties = props;
     this.dbUrl = dbUrl;
   }
 
   @Override
   protected Connection newClient() {
     try {
-      return DriverManager.getConnection(dbUrl, dbProperties);
-    } catch (SQLTimeoutException e) {
-      throw new UncheckedSQLException("Connection timeout!", e);
-    } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
-      throw new UncheckedSQLException("Connection failed!", e);
-    } catch (SQLWarning e) {
-      throw new UncheckedSQLException("Database connection warning!", e);
+      Properties dbProps = new Properties();
+      properties.forEach((key, value) -> dbProps.put(key.replace(JdbcCatalog.JDBC_PARAM_PREFIX, ""), value));
+      return DriverManager.getConnection(dbUrl, dbProps);
     } catch (SQLException e) {
-      throw new UncheckedSQLException("Failed to connect to database!", e);
+      throw new UncheckedSQLException("Failed to connect: " + dbUrl, e);
     }
   }
 
   @Override
   protected Connection reconnect(Connection client) {
-    this.close(client);
+    close(client);
     return newClient();
   }
 
