@@ -24,6 +24,7 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.Function;
@@ -73,7 +74,7 @@ public class ScanSummary {
     private final Map<Long, Long> snapshotTimestamps;
     private int limit = Integer.MAX_VALUE;
     private boolean throwIfLimited = false;
-    private List<UnboundPredicate<Long>> timeFilters = Lists.newArrayList();
+    private final List<UnboundPredicate<Long>> timeFilters = Lists.newArrayList();
 
     public Builder(TableScan scan) {
       this.scan = scan;
@@ -305,7 +306,7 @@ public class ScanSummary {
   private static class TopN<K, V> {
     private final int maxSize;
     private final boolean throwIfLimited;
-    private final SortedMap<K, V> map;
+    private final NavigableMap<K, V> map;
     private final Comparator<? super K> keyComparator;
     private K cut = null;
 

@@ -45,7 +45,7 @@ import org.slf4j.LoggerFactory;
  * Base class for {@link TableScan} implementations.
  */
 abstract class BaseTableScan implements TableScan {
-  private static final Logger LOG = LoggerFactory.getLogger(TableScan.class);
+  private static final Logger LOG = LoggerFactory.getLogger(BaseTableScan.class);
 
   private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
