@@ -127,16 +127,16 @@ public class PrimaryKey implements Serializable {
   public static class Builder {
     private final Schema schema;
     private final List<Integer> fieldIds = Lists.newArrayList();
-
-    private int primaryKeyId = 0;
+    // Default ID to 1 as 0 is reserved for non primary key.
+    private int keyId = 1;
     private boolean enforceUniqueness = false;
 
     private Builder(Schema schema) {
       this.schema = schema;
     }
 
-    public Builder withPrimaryKeyId(int newPrimaryKeyId) {
-      this.primaryKeyId = newPrimaryKeyId;
+    public Builder withKeyId(int newKeyId) {
+      this.keyId = newKeyId;
       return this;
     }
 
@@ -145,10 +145,23 @@ public class PrimaryKey implements Serializable {
       return this;
     }
 
-    public Builder addFieldId(int sourceId) {
+    public Builder addField(String name) {
+      Types.NestedField column = schema.findField(name);
+
+      Preconditions.checkNotNull(column, "Cannot find source column: %s", name);
+      Preconditions.checkArgument(column.isRequired(), "Cannot add optional source field to primary key: %s", name);
+
+      Type sourceType = column.type();
+      ValidationException.check(sourceType.isPrimitiveType(), "Cannot add non-primitive field: %s", sourceType);
+
+      fieldIds.add(column.fieldId());
+      return this;
+    }
+
+    public Builder addField(int sourceId) {
       Types.NestedField column = schema.findField(sourceId);
-      Preconditions.checkNotNull(column, "Cannot find source column: %s", sourceId);
-      Preconditions.checkArgument(column.isRequired(), "Cannot add optional source field to primary key: %s", sourceId);
+      Preconditions.checkNotNull(column, "Cannot find source column: %d", sourceId);
+      Preconditions.checkArgument(column.isRequired(), "Cannot add optional source field to primary key: %d", sourceId);
 
       Type sourceType = column.type();
       ValidationException.check(sourceType.isPrimitiveType(), "Cannot add non-primitive field: %s", sourceType);
@@ -158,7 +171,7 @@ public class PrimaryKey implements Serializable {
     }
 
     public PrimaryKey build() {
-      return new PrimaryKey(schema, primaryKeyId, enforceUniqueness, fieldIds);
+      return new PrimaryKey(schema, keyId, enforceUniqueness, fieldIds);
     }
   }
 }

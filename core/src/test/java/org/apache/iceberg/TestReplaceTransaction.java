@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transform;
@@ -90,6 +91,52 @@ public class TestReplaceTransaction extends TableTestBase {
     Assert.assertEquals("Null order must match ", NULLS_FIRST, sortOrder.fields().get(0).nullOrder());
     Transform<?, ?> transform = Transforms.identity(Types.IntegerType.get());
     Assert.assertEquals("Transform must match", transform, sortOrder.fields().get(0).transform());
+  }
+
+  @Test
+  public void testReplaceTransactionWithNewPrimaryKey() {
+    Snapshot start = table.currentSnapshot();
+    Schema schema = table.schema();
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    Assert.assertEquals("Version should be 1", 1L, (long) version());
+
+    validateSnapshot(start, table.currentSnapshot(), FILE_A);
+
+    PrimaryKey newPrimaryKey = PrimaryKey.builderFor(schema)
+        .withKeyId(1)
+        .withEnforceUniqueness(true)
+        .addField("id")
+        .addField("data")
+        .build();
+
+    Map<String, String> props = Maps.newHashMap();
+    Transaction replace = TestTables.beginReplace(tableDir, "test", schema, unpartitioned(),
+        SortOrder.unsorted(), newPrimaryKey, props);
+    replace.commitTransaction();
+
+    table.refresh();
+
+    Assert.assertEquals("Version should be 2", 2L, (long) version());
+    Assert.assertNull("Table should not have a current snapshot", table.currentSnapshot());
+    Assert.assertEquals("Schema should match previous schema",
+        schema.asStruct(), table.schema().asStruct());
+    Assert.assertEquals("Partition spec should have no fields",
+        0, table.spec().fields().size());
+    Assert.assertEquals("Table should have 1 orders", 1, table.sortOrders().size());
+    Assert.assertEquals("Sort order should have no fields", 0, table.sortOrder().fields().size());
+
+    Assert.assertEquals("Table should have 2 primary keys", 2, table.primaryKeys().size());
+    PrimaryKey primaryKey = table.primaryKey();
+    Assert.assertEquals("Primary key ID must match", 1, primaryKey.keyId());
+    Assert.assertEquals("Primary key must have 2 fields", 2, primaryKey.fieldIds().size());
+    Assert.assertTrue("Primary key must be enforced.", primaryKey.enforceUniqueness());
+    Assert.assertEquals("Field ID must match",
+        ImmutableList.of(table.schema().findField("id").fieldId(), table.schema().findField("data").fieldId()),
+        primaryKey.fieldIds());
   }
 
   @Test

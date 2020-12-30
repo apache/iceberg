@@ -777,19 +777,19 @@ public class TableMetadata implements Serializable {
     }
 
     // determine the next primary key id
-    OptionalInt maxPrimaryKeyId = primaryKeys.stream().mapToInt(PrimaryKey::keyId).max();
-    int nextPrimaryKeyId = maxPrimaryKeyId.isPresent() ? maxPrimaryKeyId.getAsInt() + 1 : INITIAL_PRIMARY_KEY_ID;
+    OptionalInt maxKeyId = primaryKeys.stream().mapToInt(PrimaryKey::keyId).max();
+    int nextKeyId = maxKeyId.isPresent() ? maxKeyId.getAsInt() + 1 : INITIAL_PRIMARY_KEY_ID;
 
     // rebuild the primary key using new column ids
-    int freshPrimaryKeyId = updatedPrimaryKey.isNonPrimaryKey() ? updatedPrimaryKey.keyId() : nextPrimaryKeyId;
-    PrimaryKey freshPrimaryKey = freshPrimaryKey(freshPrimaryKeyId, freshSchema, updatedPrimaryKey);
+    int freshKeyId = updatedPrimaryKey.isNonPrimaryKey() ? updatedPrimaryKey.keyId() : nextKeyId;
+    PrimaryKey freshPrimaryKey = freshPrimaryKey(freshKeyId, freshSchema, updatedPrimaryKey);
 
     // if the primary key already exists, use the same ID. otherwise, use the primary key ID.
     int primaryKeyId = primaryKeys.stream()
-        .filter(primaryKey -> primaryKey.samePrimaryKey(primaryKey))
+        .filter(primaryKey -> primaryKey.samePrimaryKey(freshPrimaryKey))
         .findFirst()
         .map(PrimaryKey::keyId)
-        .orElse(freshPrimaryKeyId);
+        .orElse(freshKeyId);
 
     ImmutableList.Builder<PrimaryKey> primaryKeyBuilder = ImmutableList.<PrimaryKey>builder().addAll(primaryKeys);
     if (!primaryKeysById.containsKey(primaryKeyId)) {
@@ -880,11 +880,11 @@ public class TableMetadata implements Serializable {
   }
 
   private static PrimaryKey updatePrimaryKeySchema(Schema schema, PrimaryKey primaryKey) {
-    PrimaryKey.Builder builder = PrimaryKey.builderFor(schema).withPrimaryKeyId(primaryKey.keyId());
+    PrimaryKey.Builder builder = PrimaryKey.builderFor(schema).withKeyId(primaryKey.keyId());
 
     // add all the fields to the builder, IDs should not change.
     for (Integer fieldId : primaryKey.fieldIds()) {
-      builder.addFieldId(fieldId);
+      builder.addField(fieldId);
     }
 
     return builder.build();
@@ -925,10 +925,10 @@ public class TableMetadata implements Serializable {
     return builder.build();
   }
 
-  private static PrimaryKey freshPrimaryKey(int primaryKeyId, Schema schema, PrimaryKey primaryKey) {
+  private static PrimaryKey freshPrimaryKey(int keyId, Schema schema, PrimaryKey primaryKey) {
     PrimaryKey.Builder builder = PrimaryKey
         .builderFor(schema)
-        .withPrimaryKeyId(primaryKeyId)
+        .withKeyId(keyId)
         .withEnforceUniqueness(primaryKey.enforceUniqueness());
 
     for (Integer fieldId : primaryKey.fieldIds()) {
@@ -936,7 +936,7 @@ public class TableMetadata implements Serializable {
       String sourceName = primaryKey.schema().findColumnName(fieldId);
       // reassign all primary keys with fresh primary field IDs.
       int newFieldId = schema.findField(sourceName).fieldId();
-      builder.addFieldId(newFieldId);
+      builder.addField(newFieldId);
     }
 
     return builder.build();
