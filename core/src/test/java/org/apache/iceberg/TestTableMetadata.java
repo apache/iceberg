@@ -79,7 +79,7 @@ public class TestTableMetadata {
       .desc(Expressions.bucket("z", 4), NullOrder.NULLS_LAST)
       .build();
   private static final PrimaryKey KEY_4 = PrimaryKey.builderFor(TEST_SCHEMA)
-      .withKeyId(4)
+      .withPrimaryKeyId(4)
       .withEnforceUniqueness(true)
       .addFieldId(3)
       .addFieldId(1)

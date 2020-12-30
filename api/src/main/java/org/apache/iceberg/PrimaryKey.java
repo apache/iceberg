@@ -128,15 +128,15 @@ public class PrimaryKey implements Serializable {
     private final Schema schema;
     private final List<Integer> fieldIds = Lists.newArrayList();
 
-    private int keyId = 0;
+    private int primaryKeyId = 0;
     private boolean enforceUniqueness = false;
 
     private Builder(Schema schema) {
       this.schema = schema;
     }
 
-    public Builder withKeyId(int newKeyId) {
-      this.keyId = newKeyId;
+    public Builder withPrimaryKeyId(int newPrimaryKeyId) {
+      this.primaryKeyId = newPrimaryKeyId;
       return this;
     }
 
@@ -158,7 +158,7 @@ public class PrimaryKey implements Serializable {
     }
 
     public PrimaryKey build() {
-      return new PrimaryKey(schema, keyId, enforceUniqueness, fieldIds);
+      return new PrimaryKey(schema, primaryKeyId, enforceUniqueness, fieldIds);
     }
   }
 }

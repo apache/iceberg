@@ -792,7 +792,7 @@ public class TableMetadata implements Serializable {
         .orElse(freshPrimaryKeyId);
 
     ImmutableList.Builder<PrimaryKey> primaryKeyBuilder = ImmutableList.<PrimaryKey>builder().addAll(primaryKeys);
-    if (primaryKeysById.containsKey(primaryKeyId)) {
+    if (!primaryKeysById.containsKey(primaryKeyId)) {
       primaryKeyBuilder.add(freshPrimaryKey);
     }
 
@@ -880,7 +880,7 @@ public class TableMetadata implements Serializable {
   }
 
   private static PrimaryKey updatePrimaryKeySchema(Schema schema, PrimaryKey primaryKey) {
-    PrimaryKey.Builder builder = PrimaryKey.builderFor(schema).withKeyId(primaryKey.keyId());
+    PrimaryKey.Builder builder = PrimaryKey.builderFor(schema).withPrimaryKeyId(primaryKey.keyId());
 
     // add all the fields to the builder, IDs should not change.
     for (Integer fieldId : primaryKey.fieldIds()) {
@@ -928,7 +928,7 @@ public class TableMetadata implements Serializable {
   private static PrimaryKey freshPrimaryKey(int primaryKeyId, Schema schema, PrimaryKey primaryKey) {
     PrimaryKey.Builder builder = PrimaryKey
         .builderFor(schema)
-        .withKeyId(primaryKeyId)
+        .withPrimaryKeyId(primaryKeyId)
         .withEnforceUniqueness(primaryKey.enforceUniqueness());
 
     for (Integer fieldId : primaryKey.fieldIds()) {

@@ -68,7 +68,7 @@ public class PrimaryKeyParser {
     int primaryKeyId = JsonUtil.getInt(PRIMARY_KEY_ID, json);
     boolean enforceUniqueness = JsonUtil.getBool(ENFORCE_UNIQUENESS, json);
     PrimaryKey.Builder builder = PrimaryKey.builderFor(schema)
-        .withKeyId(primaryKeyId)
+        .withPrimaryKeyId(primaryKeyId)
         .withEnforceUniqueness(enforceUniqueness);
     buildFromJsonFields(builder, json.get(FIELDS));
     return builder.build();
