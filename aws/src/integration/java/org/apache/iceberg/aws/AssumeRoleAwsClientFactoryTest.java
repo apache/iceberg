@@ -113,13 +113,14 @@ public class AssumeRoleAwsClientFactoryTest {
       Assert.assertEquals(AccessDeniedException.class, e.getClass());
     }
 
+    Namespace namespace = Namespace.of("allowed_" + UUID.randomUUID().toString().replace("-", ""));
     try {
-      Namespace namespace = Namespace.of("allowed_" + UUID.randomUUID().toString().replace("-", ""));
       glueCatalog.createNamespace(namespace);
-      glueCatalog.dropNamespace(namespace);
     } catch (GlueException e) {
       LOG.error("fail to create or delete Glue database", e);
-      Assert.fail("create and delete namespace should succeed");
+      Assert.fail("create namespace should succeed");
+    } finally {
+      glueCatalog.dropNamespace(namespace);
     }
   }
 
