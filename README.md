@@ -85,3 +85,4 @@ Iceberg's Spark integration is compatible with Spark 2.4 and Spark 3.0 using the
 | master branch   | spark-runtime | spark3-runtime |
 | 0.9.0           | spark-runtime | spark3-runtime |
 | 0.8.0           | spark-runtime |                |
+
