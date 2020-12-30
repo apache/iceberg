@@ -82,3 +82,4 @@ nav:
     - Events: https://www.apache.org/events/current-event.html
 redirects:
   time-travel/index: snapshots/index
+  presto/index: trino/index
