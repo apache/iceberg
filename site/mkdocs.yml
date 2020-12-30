@@ -59,7 +59,7 @@ nav:
     - Spark SQL: spark.md
     - Spark Streaming: spark-structured-streaming.md
     - Time Travel: spark#time-travel
-  - Presto: https://prestosql.io/docs/current/connector/iceberg.html
+  - Trino: https://trino.io/docs/current/connector/iceberg.html
   - Flink: flink.md
   - Hive: hive.md
   - API:
