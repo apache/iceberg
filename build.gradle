@@ -863,6 +863,9 @@ if (jdkVersion == '8') {
       compile project(':iceberg-spark2')
       compile project(':iceberg-aws')
       compile 'org.apache.spark:spark-hive_2.11'
+      compile(project(':iceberg-nessie')) {
+        exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      }
     }
 
     shadowJar {
@@ -1012,6 +1015,9 @@ project(':iceberg-spark3-runtime') {
     compile project(':iceberg-spark3')
     compile project(':iceberg-aws')
     compile 'org.apache.spark:spark-hive_2.11'
+    compile(project(':iceberg-nessie')) {
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
   }
 
   shadowJar {
