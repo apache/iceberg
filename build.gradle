@@ -866,14 +866,6 @@ if (jdkVersion == '8') {
       compile(project(':iceberg-nessie')) {
         exclude group: 'com.google.code.findbugs', module: 'jsr305'
       }
-
-      compile('org.glassfish.jersey.media:jersey-media-json-jackson:2.22.2') { // hardcoded version to match Spark
-        exclude group: 'org.glassfish.jersey.core', module: 'jersey-common'
-        exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
-        exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
-        exclude group: 'com.fasterxml.jackson.module', module: 'jackson-module-jaxb-annotations'
-        exclude group: 'jakarta.ws.rs', module: 'jakarta.ws.rs-api'
-      }
     }
 
     shadowJar {
@@ -1026,14 +1018,6 @@ project(':iceberg-spark3-runtime') {
     compile 'org.apache.spark:spark-hive_2.11'
     compile(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
-    }
-
-    compile('org.glassfish.jersey.media:jersey-media-json-jackson:2.30') { // hardcoded version to match Spark
-      exclude group: 'org.glassfish.jersey.core', module: 'jersey-common'
-      exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
-      exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
-      exclude group: 'com.fasterxml.jackson.module', module: 'jackson-module-jaxb-annotations'
-      exclude group: 'jakarta.ws.rs', module: 'jakarta.ws.rs-api'
     }
   }
 

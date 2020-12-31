@@ -587,11 +587,3 @@ Copyright: 2020 Dremio Corporation.
 Home page: https://projectnessie.org/
 License: http://www.apache.org/licenses/LICENSE-2.0
 
---------------------------------------------------------------------------------
-
-This binary artifact contains Eclipse Jersey bindings for jackson.
-
-Copyright: 201,2020 Oracle and/or its affiliates.
-Home page: https://github.com/eclipse-ee4j/jersey
-License: http://www.eclipse.org/legal/epl-2.0
-
