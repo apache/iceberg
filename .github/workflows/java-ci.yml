@@ -18,7 +18,17 @@
 #
 
 name: "Java CI"
-on: [push, pull_request]
+on:
+  push:
+    paths-ignore:
+    - '.github/workflows/python-ci.yml'
+    - 'python/**'
+    - 'site/**'
+  pull_request:
+    paths-ignore:
+    - '.github/workflows/python-ci.yml'
+    - 'python/**'
+    - 'site/**'
 
 jobs:
   check:
