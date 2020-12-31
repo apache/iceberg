@@ -22,13 +22,15 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
 public class PrimaryKeyParser {
-  private static final String PRIMARY_KEY_ID = "primary-key-id";
+  private static final String PRIMARY_KEY_ID = "key-id";
   private static final String ENFORCE_UNIQUENESS = "enforce-uniqueness";
   private static final String FIELDS = "fields";
   private static final String SOURCE_ID = "source-id";
@@ -45,11 +47,31 @@ public class PrimaryKeyParser {
     generator.writeEndObject();
   }
 
+  public static String toJson(PrimaryKey primaryKey) {
+    return toJson(primaryKey, false);
+  }
+
+  public static String toJson(PrimaryKey primaryKey, boolean pretty) {
+    try {
+      StringWriter writer = new StringWriter();
+      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+      if (pretty) {
+        generator.useDefaultPrettyPrinter();
+      }
+      toJson(primaryKey, generator);
+      generator.flush();
+      return writer.toString();
+
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
+    }
+  }
+
   private static void toJsonFields(PrimaryKey primaryKey, JsonGenerator generator) throws IOException {
     generator.writeStartArray();
-    for (Integer fieldId : primaryKey.fieldIds()) {
+    for (Integer sourceId : primaryKey.sourceIds()) {
       generator.writeStartObject();
-      generator.writeNumberField(SOURCE_ID, fieldId);
+      generator.writeNumberField(SOURCE_ID, sourceId);
       generator.writeEndObject();
     }
     generator.writeEndArray();

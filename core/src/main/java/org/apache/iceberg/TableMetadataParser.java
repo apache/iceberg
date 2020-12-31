@@ -333,7 +333,7 @@ public class TableMetadataParser {
       primaryKeys = builder.build();
     } else {
       Preconditions.checkArgument(formatVersion == 1,
-          "%s must exist in format v%d", PRIMARY_KEYS, formatVersion);
+          "%s must exist in format v%s", PRIMARY_KEYS, formatVersion);
       PrimaryKey defaultPrimaryKey = PrimaryKey.nonPrimaryKey();
       primaryKeys = ImmutableList.of(defaultPrimaryKey);
       defaultPrimaryKeyId = defaultPrimaryKey.keyId();

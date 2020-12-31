@@ -26,6 +26,7 @@ import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PrimaryKey;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
@@ -230,6 +231,61 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       Assert.assertEquals("Null order must match ", NULLS_FIRST, sortOrder.fields().get(0).nullOrder());
       Transform<?, ?> transform = Transforms.identity(Types.IntegerType.get());
       Assert.assertEquals("Transform must match", transform, sortOrder.fields().get(0).transform());
+    } finally {
+      catalog.dropTable(tableIdent);
+    }
+  }
+
+  @Test
+  public void testCreateTableDefaultPrimaryKey() {
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID"),
+        required(2, "data", Types.StringType.get())
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .bucket("data", 16)
+        .build();
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+
+    try {
+      Table table = catalog.createTable(tableIdent, schema, spec);
+      Assert.assertEquals("Primary key ID must match", 0, table.primaryKey().keyId());
+      Assert.assertTrue("Primary key must be non-primary key", table.primaryKey().isNonPrimaryKey());
+    } finally {
+      catalog.dropTable(tableIdent);
+    }
+  }
+
+  @Test
+  public void testCreateTableCustomPrimaryKey() {
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID"),
+        required(2, "data", Types.StringType.get())
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .bucket("data", 16)
+        .build();
+    PrimaryKey primaryKey = PrimaryKey.builderFor(schema)
+        .withKeyId(1)
+        .addField("id")
+        .addField("data")
+        .withEnforceUniqueness(true)
+        .build();
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+
+    try {
+      Table table = catalog.buildTable(tableIdent, schema)
+          .withPartitionSpec(spec)
+          .withPrimaryKey(primaryKey)
+          .create();
+
+      PrimaryKey actualKey = table.primaryKey();
+      Assert.assertEquals("Primary key ID must match", 1, actualKey.keyId());
+      Assert.assertEquals("Primary key must have 2 field", 2, actualKey.sourceIds().size());
+      Assert.assertEquals("Primary key must have the expected field", Integer.valueOf(1), actualKey.sourceIds().get(0));
+      Assert.assertEquals("Primary key must have the expected field", Integer.valueOf(2), actualKey.sourceIds().get(1));
+      Assert.assertTrue("Primary key must have enabled enforced", actualKey.enforceUniqueness());
+      Assert.assertEquals("Primary key must have expected schema", table.schema(), actualKey.schema());
     } finally {
       catalog.dropTable(tableIdent);
     }

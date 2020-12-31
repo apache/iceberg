@@ -30,6 +30,7 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PrimaryKey;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
@@ -177,6 +178,45 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     Assert.assertEquals("Null order must match ", NULLS_FIRST, sortOrder.fields().get(0).nullOrder());
     Transform<?, ?> transform = Transforms.identity(Types.IntegerType.get());
     Assert.assertEquals("Transform must match", transform, sortOrder.fields().get(0).transform());
+  }
+
+  @Test
+  public void testCreateTableDefaultPrimaryKey() throws Exception {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    Table table = catalog.createTable(tableIdent, SCHEMA, SPEC);
+
+    PrimaryKey key = table.primaryKey();
+    Assert.assertEquals("Primary key ID must match", 0, key.keyId());
+    Assert.assertTrue("Primary key must non-primary key", key.isNonPrimaryKey());
+  }
+
+  @Test
+  public void testCreateTableCustomPrimaryKey() throws Exception {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+
+    PrimaryKey key = PrimaryKey.builderFor(SCHEMA)
+        .addField("id")
+        .addField("data")
+        .withEnforceUniqueness(true)
+        .build();
+    Table table = catalog.buildTable(tableIdent, SCHEMA)
+        .withPartitionSpec(SPEC)
+        .withPrimaryKey(key)
+        .create();
+
+    PrimaryKey actualKey = table.primaryKey();
+    Assert.assertEquals("Primary key ID must match", 1, actualKey.keyId());
+    Assert.assertEquals("Primary key must have 2 field", 2, actualKey.sourceIds().size());
+    Assert.assertEquals("Primary key must have the expected field", Integer.valueOf(1), actualKey.sourceIds().get(0));
+    Assert.assertEquals("Primary key must have the expected field", Integer.valueOf(2), actualKey.sourceIds().get(1));
+    Assert.assertTrue("Primary key must have enabled enforced", actualKey.enforceUniqueness());
+    Assert.assertEquals("Primary key must have expected schema", table.schema(), actualKey.schema());
   }
 
   @Test

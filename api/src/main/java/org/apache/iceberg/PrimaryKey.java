@@ -37,15 +37,15 @@ public class PrimaryKey implements Serializable {
   private final Schema schema;
   private final int keyId;
   private final boolean enforceUniqueness;
-  private final Integer[] fieldIds;
+  private final Integer[] sourceIds;
 
-  private transient volatile List<Integer> fieldIdList;
+  private transient volatile List<Integer> sourceIdList;
 
-  private PrimaryKey(Schema schema, int keyId, boolean enforceUniqueness, List<Integer> fields) {
+  private PrimaryKey(Schema schema, int keyId, boolean enforceUniqueness, List<Integer> sourceIds) {
     this.schema = schema;
     this.keyId = keyId;
     this.enforceUniqueness = enforceUniqueness;
-    this.fieldIds = fields.toArray(new Integer[0]);
+    this.sourceIds = sourceIds.toArray(new Integer[0]);
   }
 
   public Schema schema() {
@@ -60,19 +60,19 @@ public class PrimaryKey implements Serializable {
     return enforceUniqueness;
   }
 
-  public List<Integer> fieldIds() {
-    if (fieldIdList == null) {
+  public List<Integer> sourceIds() {
+    if (sourceIdList == null) {
       synchronized (this) {
-        if (fieldIdList == null) {
-          this.fieldIdList = ImmutableList.copyOf(fieldIds);
+        if (sourceIdList == null) {
+          this.sourceIdList = ImmutableList.copyOf(sourceIds);
         }
       }
     }
-    return fieldIdList;
+    return sourceIdList;
   }
 
   public boolean isNonPrimaryKey() {
-    return fieldIds.length == 0;
+    return sourceIds.length == 0;
   }
 
   public static PrimaryKey nonPrimaryKey() {
@@ -80,7 +80,7 @@ public class PrimaryKey implements Serializable {
   }
 
   public boolean samePrimaryKey(PrimaryKey other) {
-    return Arrays.equals(fieldIds, other.fieldIds);
+    return Arrays.equals(sourceIds, other.sourceIds);
   }
 
   @Override
@@ -100,14 +100,14 @@ public class PrimaryKey implements Serializable {
       return false;
     }
 
-    return Arrays.equals(fieldIds, that.fieldIds);
+    return Arrays.equals(sourceIds, that.sourceIds);
   }
 
   @Override
   public int hashCode() {
     int hash = 31 * keyId;
     hash = hash + (enforceUniqueness ? 1 : 0);
-    hash += Arrays.hashCode(fieldIds);
+    hash += Arrays.hashCode(sourceIds);
     return hash;
   }
 
@@ -116,7 +116,7 @@ public class PrimaryKey implements Serializable {
     return MoreObjects.toStringHelper(this)
         .add("keyId", keyId)
         .add("enforceUniqueness", enforceUniqueness)
-        .add("fields", fieldIds())
+        .add("sourceIds", sourceIds())
         .toString();
   }
 
@@ -126,7 +126,7 @@ public class PrimaryKey implements Serializable {
 
   public static class Builder {
     private final Schema schema;
-    private final List<Integer> fieldIds = Lists.newArrayList();
+    private final List<Integer> sourceIds = Lists.newArrayList();
     // Default ID to 1 as 0 is reserved for non primary key.
     private int keyId = 1;
     private boolean enforceUniqueness = false;
@@ -154,24 +154,31 @@ public class PrimaryKey implements Serializable {
       Type sourceType = column.type();
       ValidationException.check(sourceType.isPrimitiveType(), "Cannot add non-primitive field: %s", sourceType);
 
-      fieldIds.add(column.fieldId());
+      sourceIds.add(column.fieldId());
       return this;
     }
 
     public Builder addField(int sourceId) {
       Types.NestedField column = schema.findField(sourceId);
-      Preconditions.checkNotNull(column, "Cannot find source column: %d", sourceId);
-      Preconditions.checkArgument(column.isRequired(), "Cannot add optional source field to primary key: %d", sourceId);
+      Preconditions.checkNotNull(column, "Cannot find source column: %s", sourceId);
+      Preconditions.checkArgument(column.isRequired(), "Cannot add optional source field to primary key: %s", sourceId);
 
       Type sourceType = column.type();
       ValidationException.check(sourceType.isPrimitiveType(), "Cannot add non-primitive field: %s", sourceType);
 
-      fieldIds.add(sourceId);
+      sourceIds.add(sourceId);
       return this;
     }
 
     public PrimaryKey build() {
-      return new PrimaryKey(schema, keyId, enforceUniqueness, fieldIds);
+      if (keyId == 0 && sourceIds.size() != 0) {
+        throw new IllegalArgumentException("Primary key ID 0 is reserved for non-primary key");
+      }
+      if (sourceIds.size() == 0 && keyId != 0) {
+        throw new IllegalArgumentException("Non-primary key ID must be 0");
+      }
+
+      return new PrimaryKey(schema, keyId, enforceUniqueness, sourceIds);
     }
   }
 }

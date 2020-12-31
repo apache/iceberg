@@ -132,11 +132,11 @@ public class TestReplaceTransaction extends TableTestBase {
     Assert.assertEquals("Table should have 2 primary keys", 2, table.primaryKeys().size());
     PrimaryKey primaryKey = table.primaryKey();
     Assert.assertEquals("Primary key ID must match", 1, primaryKey.keyId());
-    Assert.assertEquals("Primary key must have 2 fields", 2, primaryKey.fieldIds().size());
+    Assert.assertEquals("Primary key must have 2 fields", 2, primaryKey.sourceIds().size());
     Assert.assertTrue("Primary key must be enforced.", primaryKey.enforceUniqueness());
     Assert.assertEquals("Field ID must match",
         ImmutableList.of(table.schema().findField("id").fieldId(), table.schema().findField("data").fieldId()),
-        primaryKey.fieldIds());
+        primaryKey.sourceIds());
   }
 
   @Test

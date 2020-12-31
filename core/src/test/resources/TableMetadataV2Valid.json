@@ -43,6 +43,21 @@
       ]
     }
   ],
+  "default-primary-key-id": 3,
+  "primary-keys": [
+    {
+      "key-id": 3,
+      "enforce-uniqueness": true,
+      "fields": [
+        {
+          "source-id": 1
+        },
+        {
+          "source-id": 3
+        }
+      ]
+    }
+  ],
   "default-sort-order-id": 3,
   "sort-orders": [
     {

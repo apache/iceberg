@@ -883,7 +883,7 @@ public class TableMetadata implements Serializable {
     PrimaryKey.Builder builder = PrimaryKey.builderFor(schema).withKeyId(primaryKey.keyId());
 
     // add all the fields to the builder, IDs should not change.
-    for (Integer fieldId : primaryKey.fieldIds()) {
+    for (Integer fieldId : primaryKey.sourceIds()) {
       builder.addField(fieldId);
     }
 
@@ -931,7 +931,7 @@ public class TableMetadata implements Serializable {
         .withKeyId(keyId)
         .withEnforceUniqueness(primaryKey.enforceUniqueness());
 
-    for (Integer fieldId : primaryKey.fieldIds()) {
+    for (Integer fieldId : primaryKey.sourceIds()) {
       // look up the name of the source field in the old schema to get the new schema's id
       String sourceName = primaryKey.schema().findColumnName(fieldId);
       // reassign all primary keys with fresh primary field IDs.
