@@ -140,19 +140,21 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
 
     Assert.assertEquals("should match evolved spec", evolvedSpec, table.spec());
     Assert.assertEquals(1002, table.spec().lastAssignedFieldId());
+  }
 
+  @Test
+  public void testRenameOnlyEvolution() {
     table.updateSpec()
-        .renameField("id_bucket_8", "id_partition")
+        .renameField("data_bucket", "data_partition")
         .commit();
 
-    evolvedSpec = PartitionSpec.builderFor(table.schema())
-        .withSpecId(3)
-        .bucket("data", 16, "data_bucket")
-        .bucket("id", 8, "id_partition")
-        .truncate("id", 4, "id_trunc_4")
+    PartitionSpec evolvedSpec = PartitionSpec.builderFor(table.schema())
+        .withSpecId(1)
+        .bucket("data", 16, "data_partition")
         .build();
+
     Assert.assertEquals("should match evolved spec", evolvedSpec, table.spec());
-    Assert.assertEquals(1002, table.spec().lastAssignedFieldId());
+    Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
   }
 
   @Test
