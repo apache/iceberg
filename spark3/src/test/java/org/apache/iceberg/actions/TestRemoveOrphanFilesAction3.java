@@ -167,13 +167,13 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
 
   @Test
   public void testSparkCatalogNamedJdbcTable() throws Exception {
-    spark.conf().set("spark.sql.catalog.my_jdbccat", "org.apache.iceberg.spark.SparkCatalog");
-    spark.conf().set("spark.sql.catalog.my_jdbccat.type", "jdbc");
-    spark.conf().set("spark.sql.catalog.my_jdbccat.warehouse", tableLocation);
-    spark.conf().set("spark.sql.catalog.my_jdbccat.uri", "jdbc:h2:mem:icsparktestcat;");
-    spark.conf().set("spark.sql.catalog.my_jdbccat.connection.parameter.user", "testuser");
-    spark.conf().set("spark.sql.catalog.my_jdbccat.connection.parameter.password", "testpassword");
-    SparkCatalog cat = (SparkCatalog) spark.sessionState().catalogManager().catalog("my_jdbccat");
+    spark.conf().set("spark.sql.catalog.jdbc", "org.apache.iceberg.spark.SparkCatalog");
+    spark.conf().set("spark.sql.catalog.jdbc.type", "jdbc");
+    spark.conf().set("spark.sql.catalog.jdbc.warehouse", tableLocation);
+    spark.conf().set("spark.sql.catalog.jdbc.uri", "jdbc:h2:mem:icsparkjdbctestcat;");
+    spark.conf().set("spark.sql.catalog.jdbc.connection.parameter.user", "testuser");
+    spark.conf().set("spark.sql.catalog.jdbc.connection.parameter.password", "testpassword");
+    SparkCatalog cat = (SparkCatalog) spark.sessionState().catalogManager().catalog("jdbc");
 
     String[] database = {"default"};
     Identifier id = Identifier.of(database, "table");
@@ -182,15 +182,15 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, options);
     SparkTable table = cat.loadTable(id);
 
-    spark.sql("INSERT INTO my_jdbccat.default.table VALUES (1,1,1)");
+    spark.sql("INSERT INTO jdbc.default.table VALUES (1,1,1)");
 
     String location = table.table().location().replaceFirst("file:", "");
     new File(location + "/data/trashfile").createNewFile();
 
     List<String> results = Actions.forTable(table.table()).removeOrphanFiles()
-            .olderThan(System.currentTimeMillis() + 1000).execute();
+        .olderThan(System.currentTimeMillis() + 1000).execute();
     Assert.assertTrue("trash file should be removed",
-            results.contains("file:" + location + "/data/trashfile"));
+        results.contains("file:" + location + "/data/trashfile"));
   }
 
   @Test
@@ -217,9 +217,12 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     new File(location + "/data/trashfile").createNewFile();
 
     List<String> results = Actions.forTable(table.table()).removeOrphanFiles()
-            .olderThan(System.currentTimeMillis() + 1000).execute();
+        .olderThan(System.currentTimeMillis() + 1000).execute();
     Assert.assertTrue("trash file should be removed",
-            results.contains("file:" + location + "/data/trashfile"));
+        results.contains("file:" + location + "/data/trashfile"));
+    // reset spark_catalog to default
+    spark.conf().unset("spark.sql.catalog.spark_catalog");
+    spark.conf().unset("spark.sql.catalog.spark_catalog.type");
   }
 
 }
