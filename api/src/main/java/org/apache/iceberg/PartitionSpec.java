@@ -181,8 +181,8 @@ public class PartitionSpec implements Serializable {
   }
 
   /**
-   * Returns true if this spec is equivalent to the other, with field names and partition field ids ignored.
-   * That is, if both specs have the same number of fields, field order, source columns, and transforms.
+   * Returns true if this spec is equivalent to the other, with partition field ids ignored.
+   * That is, if both specs have the same number of fields, field order, field name, source columns, and transforms.
    *
    * @param other another PartitionSpec
    * @return true if the specs have the same fields, source columns, and transforms.
@@ -200,7 +200,8 @@ public class PartitionSpec implements Serializable {
       PartitionField thisField = fields[i];
       PartitionField thatField = other.fields[i];
       if (thisField.sourceId() != thatField.sourceId() ||
-          !thisField.transform().toString().equals(thatField.transform().toString())) {
+          !thisField.transform().toString().equals(thatField.transform().toString()) ||
+          !thisField.name().equals(thatField.name())) {
         return false;
       }
     }
