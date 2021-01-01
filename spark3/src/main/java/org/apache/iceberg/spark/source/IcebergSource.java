@@ -43,12 +43,12 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *
  * How paths/tables are loaded when using spark.read().format("iceberg").path(table)
  *
- *  table = "file:/path/to/table" -> loads a HadoopTable at given path
- *  table = "tablename" -> loads currentCatalog.currentNamespace.tablename
- *  table = "catalog.tablename" -> load "tablename" from the specified catalog.
- *  table = "namespace.tablename" -> load "namespace.tablename" from current catalog
- *  table = "catalog.namespace.tablename" -> "namespace.tablename" from the specified catalog.
- *  table = "namespace1.namespace2.tablename" -> load "namespace1.namespace2.tablename" from current catalog
+ *  table = "file:/path/to/table" -&gt; loads a HadoopTable at given path
+ *  table = "tablename" -&gt; loads currentCatalog.currentNamespace.tablename
+ *  table = "catalog.tablename" -&gt; load "tablename" from the specified catalog.
+ *  table = "namespace.tablename" -&gt; load "namespace.tablename" from current catalog
+ *  table = "catalog.namespace.tablename" -&gt; "namespace.tablename" from the specified catalog.
+ *  table = "namespace1.namespace2.tablename" -&gt; load "namespace1.namespace2.tablename" from current catalog
  *
  * The above list is in order of priority. For example: a matching catalog will take priority over any namespace
  * resolution.
