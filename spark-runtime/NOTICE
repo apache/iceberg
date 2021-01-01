@@ -495,3 +495,14 @@ file:
 |   * HOMEPAGE:
 |     * http://www.opensource.apple.com/source/configd/configd-453.19/dnsinfo/dnsinfo.h
 
+--------------------------------------------------------------------------------
+
+This binary artifact includes Project Nessie with the following in its NOTICE
+file:
+
+| Dremio
+| Copyright 2015-2017 Dremio Corporation
+|
+| This product includes software developed at
+| The Apache Software Foundation (http://www.apache.org/).
+

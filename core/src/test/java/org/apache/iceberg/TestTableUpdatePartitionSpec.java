@@ -143,6 +143,21 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
   }
 
   @Test
+  public void testRenameOnlyEvolution() {
+    table.updateSpec()
+        .renameField("data_bucket", "data_partition")
+        .commit();
+
+    PartitionSpec evolvedSpec = PartitionSpec.builderFor(table.schema())
+        .withSpecId(1)
+        .bucket("data", 16, "data_partition")
+        .build();
+
+    Assert.assertEquals("should match evolved spec", evolvedSpec, table.spec());
+    Assert.assertEquals(1000, table.spec().lastAssignedFieldId());
+  }
+
+  @Test
   public void testRemoveAndAddField() {
     table.updateSpec()
         .removeField("data_bucket")

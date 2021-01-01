@@ -21,6 +21,7 @@ package org.apache.iceberg.nessie;
 
 import com.dremio.nessie.api.TreeApi;
 import com.dremio.nessie.client.NessieClient;
+import com.dremio.nessie.client.NessieConfigConstants;
 import com.dremio.nessie.error.BaseNessieClientServerException;
 import com.dremio.nessie.error.NessieConflictException;
 import com.dremio.nessie.error.NessieNotFoundException;
@@ -95,7 +96,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     if (warehouseLocation == null) {
       throw new IllegalStateException("Parameter warehouse not set, nessie can't store data.");
     }
-    final String requestedRef = options.get(removePrefix.apply(NessieClient.CONF_NESSIE_REF));
+    final String requestedRef = options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF));
     this.reference = loadReference(requestedRef);
   }
 
@@ -303,7 +304,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
       throw new IllegalArgumentException(String.format("Nessie does not have an existing default branch." +
               "Either configure an alternative ref via %s or create the default branch on the server.",
-          NessieClient.CONF_NESSIE_REF), ex);
+          NessieConfigConstants.CONF_NESSIE_REF), ex);
     }
   }
 
