@@ -79,6 +79,7 @@ class SparkMergeBuilder implements MergeBuilder {
   private ScanBuilder scanBuilder() {
     if (lazyScanBuilder == null) {
       SparkScanBuilder scanBuilder = new SparkScanBuilder(spark, table, writeInfo.options()) {
+        @Override
         public Scan build() {
           Scan scan = super.buildMergeScan();
           SparkMergeBuilder.this.configuredScan = scan;
