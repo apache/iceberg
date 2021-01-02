@@ -49,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkFilters;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.TableScanUtil;
@@ -106,8 +107,8 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   Reader(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
       boolean caseSensitive, DataSourceOptions options) {
     this.table = table;
-    this.snapshotId = options.get("snapshot-id").map(Long::parseLong).orElse(null);
-    this.asOfTimestamp = options.get("as-of-timestamp").map(Long::parseLong).orElse(null);
+    this.snapshotId = options.get(SparkReadOptions.SNAPSHOT_ID).map(Long::parseLong).orElse(null);
+    this.asOfTimestamp = options.get(SparkReadOptions.AS_OF_TIMESTAMP).map(Long::parseLong).orElse(null);
     if (snapshotId != null && asOfTimestamp != null) {
       throw new IllegalArgumentException(
           "Cannot scan using both snapshot-id and as-of-timestamp to select the table snapshot");
@@ -128,9 +129,9 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     }
 
     // look for split behavior overrides in options
-    this.splitSize = options.get("split-size").map(Long::parseLong).orElse(null);
-    this.splitLookback = options.get("lookback").map(Integer::parseInt).orElse(null);
-    this.splitOpenFileCost = options.get("file-open-cost").map(Long::parseLong).orElse(null);
+    this.splitSize = options.get(SparkReadOptions.SPLIT_SIZE).map(Long::parseLong).orElse(null);
+    this.splitLookback = options.get(SparkReadOptions.LOOKBACK).map(Integer::parseInt).orElse(null);
+    this.splitOpenFileCost = options.get(SparkReadOptions.FILE_OPEN_COST).map(Long::parseLong).orElse(null);
 
     if (io.getValue() instanceof HadoopFileIO) {
       String fsscheme = "no_exist";
@@ -161,11 +162,12 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     if (batchReadsSessionConf != null) {
       this.batchReadsEnabled = Boolean.valueOf(batchReadsSessionConf);
     } else {
-      this.batchReadsEnabled = options.get("vectorization-enabled").map(Boolean::parseBoolean).orElseGet(() ->
+      this.batchReadsEnabled = options.get(SparkReadOptions.VECTORIZATION_ENABLED)
+          .map(Boolean::parseBoolean).orElseGet(() ->
           PropertyUtil.propertyAsBoolean(table.properties(), TableProperties.PARQUET_VECTORIZATION_ENABLED,
               TableProperties.PARQUET_VECTORIZATION_ENABLED_DEFAULT));
     }
-    this.batchSize = options.get("batch-size").map(Integer::parseInt).orElseGet(() ->
+    this.batchSize = options.get(SparkReadOptions.VECTORIZATION_BATCH_SIZE).map(Integer::parseInt).orElseGet(() ->
         PropertyUtil.propertyAsInt(table.properties(),
           TableProperties.PARQUET_BATCH_SIZE, TableProperties.PARQUET_BATCH_SIZE_DEFAULT));
   }

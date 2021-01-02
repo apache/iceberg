@@ -34,6 +34,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
@@ -55,8 +56,8 @@ class SparkBatchQueryScan extends SparkBatchScan {
 
     super(table, io, encryption, caseSensitive, expectedSchema, filters, options);
 
-    this.snapshotId = Spark3Util.propertyAsLong(options, "snapshot-id", null);
-    this.asOfTimestamp = Spark3Util.propertyAsLong(options, "as-of-timestamp", null);
+    this.snapshotId = Spark3Util.propertyAsLong(options, SparkReadOptions.SNAPSHOT_ID, null);
+    this.asOfTimestamp = Spark3Util.propertyAsLong(options, SparkReadOptions.AS_OF_TIMESTAMP, null);
 
     if (snapshotId != null && asOfTimestamp != null) {
       throw new IllegalArgumentException(
@@ -68,17 +69,17 @@ class SparkBatchQueryScan extends SparkBatchScan {
     if (snapshotId != null || asOfTimestamp != null) {
       if (startSnapshotId != null || endSnapshotId != null) {
         throw new IllegalArgumentException(
-            "Cannot specify start-snapshot-id and end-snapshot-id to do incremental scan when either snapshot-id or " +
-                "as-of-timestamp is specified");
+            "Cannot specify start-snapshot-id and end-snapshot-id to do incremental scan when either " +
+                SparkReadOptions.SNAPSHOT_ID + " or " + SparkReadOptions.AS_OF_TIMESTAMP + " is specified");
       }
     } else if (startSnapshotId == null && endSnapshotId != null) {
       throw new IllegalArgumentException("Cannot only specify option end-snapshot-id to do incremental scan");
     }
 
     // look for split behavior overrides in options
-    this.splitSize = Spark3Util.propertyAsLong(options, "split-size", null);
-    this.splitLookback = Spark3Util.propertyAsInt(options, "lookback", null);
-    this.splitOpenFileCost = Spark3Util.propertyAsLong(options, "file-open-cost", null);
+    this.splitSize = Spark3Util.propertyAsLong(options, SparkReadOptions.SPLIT_SIZE, null);
+    this.splitLookback = Spark3Util.propertyAsInt(options, SparkReadOptions.LOOKBACK, null);
+    this.splitOpenFileCost = Spark3Util.propertyAsLong(options, SparkReadOptions.FILE_OPEN_COST, null);
   }
 
   @Override

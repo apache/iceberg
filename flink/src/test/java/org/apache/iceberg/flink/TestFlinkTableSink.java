@@ -28,6 +28,7 @@ import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.After;
@@ -53,7 +54,7 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
       for (Boolean isStreaming : new Boolean[] {true, false}) {
         for (Object[] catalogParams : FlinkCatalogTestBase.parameters()) {
           String catalogName = (String) catalogParams[0];
-          String[] baseNamespace = (String[]) catalogParams[1];
+          Namespace baseNamespace = (Namespace) catalogParams[1];
           parameters.add(new Object[] {catalogName, baseNamespace, format, isStreaming});
         }
       }
@@ -61,7 +62,7 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
     return parameters;
   }
 
-  public TestFlinkTableSink(String catalogName, String[] baseNamespace, FileFormat format, Boolean isStreamingJob) {
+  public TestFlinkTableSink(String catalogName, Namespace baseNamespace, FileFormat format, Boolean isStreamingJob) {
     super(catalogName, baseNamespace);
     this.format = format;
     this.isStreamingJob = isStreamingJob;

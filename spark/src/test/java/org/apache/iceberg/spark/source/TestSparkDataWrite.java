@@ -39,6 +39,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -106,8 +107,8 @@ public abstract class TestSparkDataWrite {
     // TODO: incoming columns must be ordered according to the table's schema
     df.select("id", "data").write()
         .format("iceberg")
-        .option("write-format", format.toString())
-        .mode("append")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
         .save(location.toString());
 
     table.refresh();
@@ -166,14 +167,14 @@ public abstract class TestSparkDataWrite {
 
     df.select("id", "data").write()
         .format("iceberg")
-        .option("write-format", format.toString())
-        .mode("append")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
         .save(location.toString());
 
     df.withColumn("id", df.col("id").plus(3)).select("id", "data").write()
         .format("iceberg")
-        .option("write-format", format.toString())
-        .mode("append")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
         .save(location.toString());
 
     table.refresh();
@@ -214,15 +215,15 @@ public abstract class TestSparkDataWrite {
 
     df.select("id", "data").write()
         .format("iceberg")
-        .option("write-format", format.toString())
-        .mode("append")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
         .save(location.toString());
 
     // overwrite with 2*id to replace record 2, append 4 and 6
     df.withColumn("id", df.col("id").multiply(2)).select("id", "data").write()
         .format("iceberg")
-        .option("write-format", format.toString())
-        .mode("overwrite")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Overwrite)
         .option("overwrite-mode", "dynamic")
         .save(location.toString());
 
@@ -256,15 +257,15 @@ public abstract class TestSparkDataWrite {
 
     df.select("id", "data").write()
         .format("iceberg")
-        .option("write-format", format.toString())
-        .mode("append")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
         .save(location.toString());
 
     // overwrite with the same data; should not produce two copies
     df.select("id", "data").write()
         .format("iceberg")
-        .option("write-format", format.toString())
-        .mode("overwrite")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Overwrite)
         .save(location.toString());
 
     table.refresh();
@@ -300,8 +301,8 @@ public abstract class TestSparkDataWrite {
 
     df.select("id", "data").write()
         .format("iceberg")
-        .option("write-format", format.toString())
-        .mode("append")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
         .save(location.toString());
 
     table.refresh();
@@ -365,8 +366,8 @@ public abstract class TestSparkDataWrite {
 
     df.select("id").write() // select only id column
         .format("iceberg")
-        .option("write-format", format.toString())
-        .mode("append")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
         .save(location.toString());
 
     table.refresh();
@@ -408,8 +409,8 @@ public abstract class TestSparkDataWrite {
 
     df.select("c1", "c3").write()
         .format("iceberg")
-        .option("write-format", format.toString())
-        .mode("append")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
         .save(location.toString());
 
     table.refresh();
@@ -442,8 +443,8 @@ public abstract class TestSparkDataWrite {
 
     df.select("id", "data").write()
         .format("iceberg")
-        .option("write-format", format.toString())
-        .mode("append")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
         .save(location.toString());
 
     Dataset<Row> query = spark.read()
@@ -461,8 +462,8 @@ public abstract class TestSparkDataWrite {
 
     df.select("id", "data").write()
         .format("iceberg")
-        .option("write-format", format.toString())
-        .mode("append")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
         .save(location.toString());
 
     List<SimpleRecord> actual2 = spark.table("tmp").as(Encoders.bean(SimpleRecord.class)).collectAsList();
@@ -497,26 +498,26 @@ public abstract class TestSparkDataWrite {
       case NONE:
         df.select("id", "data").sort("data").write()
             .format("iceberg")
-            .option("write-format", format.toString())
-            .mode("append")
-            .option("target-file-size-bytes", 4) // ~4 bytes; low enough to trigger
+            .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+            .mode(SaveMode.Append)
+            .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, 4) // ~4 bytes; low enough to trigger
             .save(location.toString());
         break;
       case TABLE:
         table.updateProperties().set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true").commit();
         df.select("id", "data").write()
             .format("iceberg")
-            .option("write-format", format.toString())
-            .mode("append")
-            .option("target-file-size-bytes", 4) // ~4 bytes; low enough to trigger
+            .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+            .mode(SaveMode.Append)
+            .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, 4) // ~4 bytes; low enough to trigger
             .save(location.toString());
         break;
       case JOB:
         df.select("id", "data").write()
             .format("iceberg")
-            .option("write-format", format.toString())
-            .mode("append")
-            .option("target-file-size-bytes", 4) // ~4 bytes; low enough to trigger
+            .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+            .mode(SaveMode.Append)
+            .option(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, 4) // ~4 bytes; low enough to trigger
             .option(SparkWriteOptions.FANOUT_ENABLED, true)
             .save(location.toString());
         break;

@@ -42,6 +42,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.data.AvroDataTest;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkAvroReader;
@@ -295,7 +296,8 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
     // read from parquet and append to iceberg w/ nullability check disabled
     spark
         .read().schema(SparkSchemaUtil.convert(icebergSchema)).parquet(sourcePath)
-        .write().format("iceberg").option("check-nullability", false).mode(SaveMode.Append).save(targetPath);
+        .write().format("iceberg").option(SparkWriteOptions.CHECK_NULLABILITY, false)
+        .mode(SaveMode.Append).save(targetPath);
 
     // read all data
     List<Row> rows = spark.read().format("iceberg").load(targetPath).collectAsList();

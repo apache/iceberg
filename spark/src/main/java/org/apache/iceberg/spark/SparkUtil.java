@@ -19,14 +19,19 @@
 
 package org.apache.iceberg.spark;
 
+import java.util.List;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.UnknownTransform;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.util.SerializableConfiguration;
 
 public class SparkUtil {
@@ -59,6 +64,40 @@ public class SparkUtil {
 
       throw new UnsupportedOperationException(
           String.format("Cannot write using unsupported transforms: %s", unsupported));
+    }
+  }
+
+  /**
+   * A modified version of Spark's LookupCatalog.CatalogAndIdentifier.unapply
+   * Attempts to find the catalog and identifier a multipart identifier represents
+   * @param nameParts Multipart identifier representing a table
+   * @return The CatalogPlugin and Identifier for the table
+   */
+  public static <C, T> Pair<C, T> catalogAndIdentifier(List<String> nameParts,
+                                                       Function<String, C> catalogProvider,
+                                                       BiFunction<String[], String, T> identiferProvider,
+                                                       C currentCatalog,
+                                                       String[] currentNamespace) {
+    Preconditions.checkArgument(!nameParts.isEmpty(),
+        "Cannot determine catalog and identifier from empty name");
+
+    int lastElementIndex = nameParts.size() - 1;
+    String name = nameParts.get(lastElementIndex);
+
+    if (nameParts.size() == 1) {
+      // Only a single element, use current catalog and namespace
+      return Pair.of(currentCatalog, identiferProvider.apply(currentNamespace, name));
+    } else {
+      C catalog = catalogProvider.apply(nameParts.get(0));
+      if (catalog == null) {
+        // The first element was not a valid catalog, treat it like part of the namespace
+        String[] namespace =  nameParts.subList(0, lastElementIndex).toArray(new String[0]);
+        return Pair.of(currentCatalog, identiferProvider.apply(namespace, name));
+      } else {
+        // Assume the first element is a valid catalog
+        String[] namespace = nameParts.subList(1, lastElementIndex).toArray(new String[0]);
+        return Pair.of(catalog, identiferProvider.apply(namespace, name));
+      }
     }
   }
 }

@@ -33,6 +33,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
@@ -40,6 +41,7 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.AfterClass;
@@ -109,8 +111,8 @@ public abstract class TestWriteMetricsConfig {
         .coalesce(1)
         .write()
         .format("iceberg")
-        .option("write-format", "parquet")
-        .mode("append")
+        .option(SparkWriteOptions.WRITE_FORMAT, "parquet")
+        .mode(SaveMode.Append)
         .save(tableLocation);
 
     for (FileScanTask task : table.newScan().includeColumnStats().planFiles()) {
@@ -142,8 +144,8 @@ public abstract class TestWriteMetricsConfig {
         .coalesce(1)
         .write()
         .format("iceberg")
-        .option("write-format", "parquet")
-        .mode("append")
+        .option(SparkWriteOptions.WRITE_FORMAT, "parquet")
+        .mode(SaveMode.Append)
         .save(tableLocation);
 
     for (FileScanTask task : table.newScan().includeColumnStats().planFiles()) {
@@ -175,8 +177,8 @@ public abstract class TestWriteMetricsConfig {
         .coalesce(1)
         .write()
         .format("iceberg")
-        .option("write-format", "parquet")
-        .mode("append")
+        .option(SparkWriteOptions.WRITE_FORMAT, "parquet")
+        .mode(SaveMode.Append)
         .save(tableLocation);
 
     for (FileScanTask task : table.newScan().includeColumnStats().planFiles()) {
@@ -209,8 +211,8 @@ public abstract class TestWriteMetricsConfig {
         .coalesce(1)
         .write()
         .format("iceberg")
-        .option("write-format", "parquet")
-        .mode("append")
+        .option(SparkWriteOptions.WRITE_FORMAT, "parquet")
+        .mode(SaveMode.Append)
         .save(tableLocation);
 
     Schema schema = table.schema();
@@ -247,8 +249,8 @@ public abstract class TestWriteMetricsConfig {
 
     df.coalesce(1).write()
         .format("iceberg")
-        .option("write-format", "parquet")
-        .mode("append")
+        .option(SparkWriteOptions.WRITE_FORMAT, "parquet")
+        .mode(SaveMode.Append)
         .save(tableLocation);
 
     Schema schema = table.schema();
