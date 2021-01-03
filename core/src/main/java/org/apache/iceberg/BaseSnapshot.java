@@ -220,7 +220,7 @@ class BaseSnapshot implements Snapshot {
     if (o instanceof BaseSnapshot) {
       BaseSnapshot other = (BaseSnapshot) o;
       return this.snapshotId == other.snapshotId() &&
-          this.parentId.equals(other.parentId()) &&
+          Objects.equal(this.parentId, other.parentId()) &&
           this.sequenceNumber == other.sequenceNumber() &&
           this.timestampMillis == other.timestampMillis();
     }
