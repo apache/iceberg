@@ -170,11 +170,6 @@ public class IcebergIO {
           table = catalog.createTable(this.tableIdentifier, schema);
         }
 
-        // In case the schema has changed
-        if (table.schema() != this.schema) {
-          table.updateSchema().unionByNameWith(this.schema).commit();
-        }
-
         // Append the new files
         final AppendFiles app = table.newAppend();
         // We need to get the statistics, not easy to get them through Beam

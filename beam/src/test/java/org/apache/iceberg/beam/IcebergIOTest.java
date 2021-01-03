@@ -14,6 +14,7 @@
 
 package org.apache.iceberg.beam;
 
+import java.util.ArrayList;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
@@ -25,6 +26,7 @@ import org.apache.beam.sdk.io.FileIO;
 import org.apache.beam.sdk.io.WriteFilesResult;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
+import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.testing.TestStream;
 import org.apache.beam.sdk.transforms.Create;
@@ -118,6 +120,8 @@ public class IcebergIOTest {
 
   @Test
   public void testWriteFilesStreaming() {
+    final String table_name = "test_streaming_crc_naming";
+
     pipeline.getCoderRegistry().registerCoderForClass(GenericRecord.class, AvroCoder.of(avroSchema));
 
     // We should see four commits in the log
@@ -142,7 +146,7 @@ public class IcebergIOTest {
 
     FileIO.Write<Void, GenericRecord> avroFileIO = FileIO.<GenericRecord>write()
         .via(AvroIO.sink(avroSchema))
-        .to("/tmp/fokko/")
+        .to("/tmp/" + table_name + "/")
         .withNumShards(1)
         .withNaming(naming);
 
@@ -152,11 +156,11 @@ public class IcebergIOTest {
         .apply(avroFileIO);
 
     org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
-    TableIdentifier name = TableIdentifier.of("default", "test_streaming5");
+    TableIdentifier name = TableIdentifier.of("default", table_name);
 
     PCollection<Snapshot> snapshots = IcebergIO.write(name, icebergSchema, hiveMetastoreUrl, filesWritten);
+    PAssert.that(snapshots).containsInAnyOrder(new ArrayList<>());
 
-    //PAssert.that(snapshots).containsInAnyOrder(new ArrayList<>());
     pipeline.run(options).waitUntilFinish();
   }
 
