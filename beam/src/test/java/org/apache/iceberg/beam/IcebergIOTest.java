@@ -14,9 +14,9 @@
 
 package org.apache.iceberg.beam;
 
-import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.AvroCoder;
@@ -26,11 +26,9 @@ import org.apache.beam.sdk.io.FileIO;
 import org.apache.beam.sdk.io.WriteFilesResult;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
-import org.apache.beam.sdk.testing.PAssert;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.testing.TestStream;
 import org.apache.beam.sdk.transforms.Create;
-import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.transforms.windowing.FixedWindows;
 import org.apache.beam.sdk.transforms.windowing.Window;
@@ -43,9 +41,6 @@ import org.joda.time.Duration;
 import org.joda.time.Instant;
 import org.junit.Rule;
 import org.junit.Test;
-
-import java.util.Arrays;
-import java.util.List;
 
 public class IcebergIOTest {
   private static final List<String> SENTENCES =
@@ -77,21 +72,6 @@ public class IcebergIOTest {
 
   final Schema avroSchema = new Schema.Parser().parse(stringSchema);
 
-  public static class StringToGenericRecord extends DoFn<String, GenericRecord> {
-    private final Schema schema;
-
-    public StringToGenericRecord() {
-      schema = new Schema.Parser().parse(stringSchema);
-    }
-
-    @ProcessElement
-    public void processElement(@Element String word, OutputReceiver<GenericRecord> out) {
-      GenericRecord record = new GenericData.Record(schema);
-      record.put("word", word);
-      out.output(record);
-    }
-  }
-
   @Test
   public void testWriteFilesBatch() {
     final PipelineOptions options = PipelineOptionsFactory.create();
@@ -101,7 +81,7 @@ public class IcebergIOTest {
 
     PCollection<String> lines = p.apply(Create.of(SENTENCES)).setCoder(StringUtf8Coder.of());
 
-    PCollection<GenericRecord> records = lines.apply(ParDo.of(new StringToGenericRecord()));
+    PCollection<GenericRecord> records = lines.apply(ParDo.of(new StringToGenericRecord(stringSchema)));
 
     final String hiveMetastoreUrl = "thrift://localhost:9083/default";
     FileIO.Write<Void, GenericRecord> avroFileIO = FileIO.<GenericRecord>write()
@@ -140,9 +120,9 @@ public class IcebergIOTest {
     PCollection<GenericRecord> recordsStream = pipeline
         .apply(stringsStream)
         .setCoder(StringUtf8Coder.of())
-        .apply(ParDo.of(new StringToGenericRecord()));
+        .apply(ParDo.of(new StringToGenericRecord(stringSchema)));
 
-    FileIO.Write.FileNaming naming = new IcebergIO.HadoopCompatibleFilenamePolicy(".avro");
+    FileIO.Write.FileNaming naming = new HadoopCompatibleFilenamePolicy(".avro");
 
     FileIO.Write<Void, GenericRecord> avroFileIO = FileIO.<GenericRecord>write()
         .via(AvroIO.sink(avroSchema))
@@ -159,7 +139,6 @@ public class IcebergIOTest {
     TableIdentifier name = TableIdentifier.of("default", table_name);
 
     PCollection<Snapshot> snapshots = IcebergIO.write(name, icebergSchema, hiveMetastoreUrl, filesWritten);
-    PAssert.that(snapshots).containsInAnyOrder(new ArrayList<>());
 
     pipeline.run(options).waitUntilFinish();
   }
