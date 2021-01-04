@@ -126,10 +126,10 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   }
 
   /**
-   * Returns the number of bytes written by this writer.
-   * NOTE: call {@link ParquetWriter#close()})} prior this method to get the exact number of bytes.
-   *
-   * @return the number of bytes written by this writer.
+   * Returns the approximate length of the output file produced by this writer.
+   * <p>
+   * Prior to calling {@link ParquetWriter#close}, the result is approximate. After calling close, the length is
+   * exact.
    */
   @Override
   public long length() {
@@ -182,8 +182,9 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   private void startRowGroup() {
     if (this.closed) {
-      throw new IllegalStateException("writer is closed");
+      throw new IllegalStateException("Writer is closed");
     }
+
     try {
       this.nextRowGroupSize = Math.min(writer.getNextRowGroupSize(), targetRowGroupSize);
     } catch (IOException e) {
