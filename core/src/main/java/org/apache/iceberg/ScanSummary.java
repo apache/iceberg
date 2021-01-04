@@ -24,8 +24,8 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Set;
-import java.util.SortedMap;
 import java.util.function.Function;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.And;
@@ -39,6 +39,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSortedMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -73,7 +74,7 @@ public class ScanSummary {
     private final Map<Long, Long> snapshotTimestamps;
     private int limit = Integer.MAX_VALUE;
     private boolean throwIfLimited = false;
-    private List<UnboundPredicate<Long>> timeFilters = Lists.newArrayList();
+    private final List<UnboundPredicate<Long>> timeFilters = Lists.newArrayList();
 
     public Builder(TableScan scan) {
       this.scan = scan;
@@ -305,7 +306,7 @@ public class ScanSummary {
   private static class TopN<K, V> {
     private final int maxSize;
     private final boolean throwIfLimited;
-    private final SortedMap<K, V> map;
+    private final NavigableMap<K, V> map;
     private final Comparator<? super K> keyComparator;
     private K cut = null;
 
@@ -337,7 +338,7 @@ public class ScanSummary {
     }
 
     public Map<K, V> get() {
-      return ImmutableMap.copyOf(map);
+      return ImmutableSortedMap.copyOfSorted(map);
     }
   }
 

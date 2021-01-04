@@ -37,8 +37,6 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.mapping.NameMapping;
-import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.PropertyUtil;
@@ -257,7 +255,6 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
     private transient Schema tableSchema = null;
     private transient Schema expectedSchema = null;
-    private transient NameMapping nameMapping = null;
     private transient String[] preferredLocations = null;
 
     ReadTask(CombinedScanTask task, String tableSchemaString, String expectedSchemaString, String nameMappingString,
@@ -310,13 +307,6 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
         this.expectedSchema = SchemaParser.fromJson(expectedSchemaString);
       }
       return expectedSchema;
-    }
-
-    private NameMapping nameMapping() {
-      if (nameMapping == null) {
-        this.nameMapping = NameMappingParser.fromJson(nameMappingString);
-      }
-      return nameMapping;
     }
   }
 }
