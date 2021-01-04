@@ -114,6 +114,10 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
       hmsTable.getParameters().put(InputFormatConfig.EXTERNAL_TABLE_PURGE, "TRUE");
     }
 
+    // For a table created by Hive DDL to be readable by Impala, we need the Input and OutputFormat set explicitly
+    hmsTable.getSd().setInputFormat(HiveIcebergInputFormat.class.getCanonicalName());
+    hmsTable.getSd().setOutputFormat(HiveIcebergOutputFormat.class.getCanonicalName());
+
     // If the table is not managed by Hive catalog then the location should be set
     if (!Catalogs.hiveCatalog(conf)) {
       Preconditions.checkArgument(hmsTable.getSd() != null && hmsTable.getSd().getLocation() != null,
