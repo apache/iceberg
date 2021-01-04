@@ -20,7 +20,6 @@
 package org.apache.iceberg.actions;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -134,7 +133,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
   }
 
   @Test
-  public void testFilesCleaned() throws Exception {
+  public void testFilesCleaned() {
     table.newFastAppend()
         .appendFile(FILE_A)
         .commit();
@@ -158,7 +157,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
   }
 
   @Test
-  public void dataFilesCleanupWithParallelTasks() throws IOException {
+  public void dataFilesCleanupWithParallelTasks() {
 
     table.newFastAppend()
         .appendFile(FILE_A)
@@ -207,7 +206,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
   }
 
   @Test
-  public void testNoFilesDeletedWhenNoSnapshotsExpired() throws Exception {
+  public void testNoFilesDeletedWhenNoSnapshotsExpired() {
     table.newFastAppend()
         .appendFile(FILE_A)
         .commit();
@@ -217,7 +216,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
   }
 
   @Test
-  public void testCleanupRepeatedOverwrites() throws Exception {
+  public void testCleanupRepeatedOverwrites() {
     table.newFastAppend()
         .appendFile(FILE_A)
         .commit();
@@ -245,10 +244,6 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         .appendFile(FILE_A) // data_bucket=0
         .commit();
     long firstSnapshotId = table.currentSnapshot().snapshotId();
-    long t1 = System.currentTimeMillis();
-    while (t1 <= table.currentSnapshot().timestampMillis()) {
-      t1 = System.currentTimeMillis();
-    }
 
     table.newAppend()
         .appendFile(FILE_B) // data_bucket=1
@@ -271,7 +266,7 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
   }
 
   @Test
-  public void testExpireTwoSnapshotsById() throws Exception {
+  public void testExpireTwoSnapshotsById() {
     table.newAppend()
         .appendFile(FILE_A) // data_bucket=0
         .commit();
@@ -730,8 +725,6 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
 
     Snapshot firstSnapshot = table.currentSnapshot();
 
-    rightAfterSnapshot();
-
     table.newAppend()
         .appendFile(FILE_B)
         .commit();
@@ -765,8 +758,6 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     Assert.assertEquals("Should create one manifest",
         1, firstSnapshot.allManifests().size());
 
-    rightAfterSnapshot();
-
     table.newDelete()
         .deleteFile(FILE_A)
         .commit();
@@ -778,8 +769,6 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     table.newAppend()
         .appendFile(FILE_B)
         .commit();
-
-    rightAfterSnapshot();
 
     long snapshotId = table.currentSnapshot().snapshotId();
 
@@ -824,8 +813,6 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     Assert.assertEquals("Should create one manifest",
         1, firstSnapshot.allManifests().size());
 
-    rightAfterSnapshot();
-
     table.newDelete()
         .deleteFile(FILE_A) // FILE_B is still in the dataset
         .commit();
@@ -837,8 +824,6 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     table.newFastAppend() // do not merge to keep the last snapshot's manifest valid
         .appendFile(FILE_C)
         .commit();
-
-    rightAfterSnapshot();
 
     long snapshotId = table.currentSnapshot().snapshotId();
 
@@ -881,8 +866,6 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     Snapshot firstSnapshot = table.currentSnapshot();
     Assert.assertEquals("Should create one manifest",
         1, firstSnapshot.allManifests().size());
-
-    rightAfterSnapshot();
 
     table.newDelete()
         .deleteFile(FILE_B)
@@ -930,8 +913,6 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
     Snapshot firstSnapshot = table.currentSnapshot();
     Assert.assertEquals("Should create one manifest",
         1, firstSnapshot.allManifests().size());
-
-    rightAfterSnapshot();
 
     table.newAppend()
         .appendFile(FILE_B)
@@ -991,8 +972,6 @@ public abstract class TestExpireSnapshotsAction extends SparkTestBase {
         .commit();
 
     Snapshot firstSnapshot = table.currentSnapshot();
-
-    rightAfterSnapshot();
 
     table.newAppend()
         .appendFile(FILE_B)
