@@ -51,7 +51,7 @@ public class CatalogUtil {
   public static final String ICEBERG_CATALOG_TYPE_JDBC = "jdbc";
   public static final String ICEBERG_CATALOG_HIVE = "org.apache.iceberg.hive.HiveCatalog";
   public static final String ICEBERG_CATALOG_HADOOP = "org.apache.iceberg.hadoop.HadoopCatalog";
-  public static final String ICEBERG_CATALOG_JDBC = "org.apache.iceberg.hadoop.HadoopCatalog";
+  public static final String ICEBERG_CATALOG_JDBC = "org.apache.iceberg.jdbc.JdbcCatalog";
 
   private CatalogUtil() {
   }
