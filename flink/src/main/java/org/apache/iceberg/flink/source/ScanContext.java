@@ -176,6 +176,7 @@ class ScanContext implements Serializable {
         .nameMapping(nameMapping)
         .project(schema)
         .filters(filters)
+        .limit(limit)
         .build();
   }
 
@@ -194,6 +195,7 @@ class ScanContext implements Serializable {
         .nameMapping(nameMapping)
         .project(schema)
         .filters(filters)
+        .limit(limit)
         .build();
   }
 
@@ -285,7 +287,7 @@ class ScanContext implements Serializable {
       return this;
     }
 
-    public Builder limit(long newLimit) {
+    Builder limit(long newLimit) {
       this.limit = newLimit;
       return this;
     }
@@ -308,7 +310,8 @@ class ScanContext implements Serializable {
     public ScanContext build() {
       return new ScanContext(caseSensitive, snapshotId, startSnapshotId,
           endSnapshotId, asOfTimestamp, splitSize, splitLookback,
-          splitOpenFileCost, isStreaming, monitorInterval, nameMapping, projectedSchema, filters, limit);
+          splitOpenFileCost, isStreaming, monitorInterval, nameMapping, projectedSchema,
+          filters, limit);
     }
   }
 }
