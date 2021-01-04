@@ -105,9 +105,7 @@ public class PrimaryKeyParser {
       JsonNode element = elements.next();
       Preconditions.checkArgument(element.isObject(), "Cannot parse primary key field, not an object: %s", element);
 
-      int fieldId = JsonUtil.getInt(SOURCE_ID, element);
-
-      builder.addField(fieldId);
+      builder.addField(JsonUtil.getInt(SOURCE_ID, element));
     }
   }
 }

@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -132,10 +133,7 @@ public class PrimaryKey implements Serializable {
 
   @Override
   public int hashCode() {
-    int hash = 31 * keyId;
-    hash = hash + (enforceUniqueness ? 1 : 0);
-    hash += Arrays.hashCode(sourceIds);
-    return hash;
+    return Objects.hashCode(keyId, enforceUniqueness ? 1 : 0, Arrays.hashCode(sourceIds));
   }
 
   @Override

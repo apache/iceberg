@@ -41,6 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 
 /**
@@ -568,8 +569,6 @@ public class TableMetadata implements Serializable {
   }
 
   public TableMetadata updatePrimaryKey(PrimaryKey newKey) {
-    // TODO should we need to check the compatibility ?
-
     // determine the next primary key id.
     int newPrimaryKeyId = INITIAL_PRIMARY_KEY_ID;
     for (PrimaryKey primaryKey : primaryKeys) {
@@ -791,9 +790,9 @@ public class TableMetadata implements Serializable {
         .map(PrimaryKey::keyId)
         .orElse(freshKeyId);
 
-    ImmutableList.Builder<PrimaryKey> primaryKeyBuilder = ImmutableList.<PrimaryKey>builder().addAll(primaryKeys);
+    ImmutableList.Builder<PrimaryKey> primaryKeysBuilder = ImmutableList.<PrimaryKey>builder().addAll(primaryKeys);
     if (!primaryKeysById.containsKey(primaryKeyId)) {
-      primaryKeyBuilder.add(freshPrimaryKey);
+      primaryKeysBuilder.add(freshPrimaryKey);
     }
 
     Map<String, String> newProperties = Maps.newHashMap();
@@ -802,7 +801,7 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, formatVersion, uuid, newLocation,
         lastSequenceNumber, System.currentTimeMillis(), newLastColumnId.get(), freshSchema,
-        specId, specListBuilder.build(), orderId, sortOrdersBuilder.build(), primaryKeyId, primaryKeyBuilder.build(),
+        specId, specListBuilder.build(), orderId, sortOrdersBuilder.build(), primaryKeyId, primaryKeysBuilder.build(),
         ImmutableMap.copyOf(newProperties), -1, snapshots, ImmutableList.of(),
         addPreviousFile(file, lastUpdatedMillis, newProperties));
   }
@@ -880,7 +879,9 @@ public class TableMetadata implements Serializable {
   }
 
   private static PrimaryKey updatePrimaryKeySchema(Schema schema, PrimaryKey primaryKey) {
-    PrimaryKey.Builder builder = PrimaryKey.builderFor(schema).withKeyId(primaryKey.keyId());
+    PrimaryKey.Builder builder = PrimaryKey.builderFor(schema)
+        .withKeyId(primaryKey.keyId())
+        .withEnforceUniqueness(primaryKey.enforceUniqueness());
 
     // add all the fields to the builder, IDs should not change.
     for (Integer fieldId : primaryKey.sourceIds()) {
@@ -934,9 +935,14 @@ public class TableMetadata implements Serializable {
     for (Integer fieldId : primaryKey.sourceIds()) {
       // look up the name of the source field in the old schema to get the new schema's id
       String sourceName = primaryKey.schema().findColumnName(fieldId);
+      Preconditions.checkNotNull(sourceName,
+          "Cannot find column in the primary key's schema. id: %s, schema: %s", fieldId, primaryKey.schema());
+
       // reassign all primary keys with fresh primary field IDs.
-      int newFieldId = schema.findField(sourceName).fieldId();
-      builder.addField(newFieldId);
+      Types.NestedField field = schema.findField(sourceName);
+      Preconditions.checkNotNull(field,
+          "Cannot find column in the fresh schema. name: %s, schema: %s", sourceName, schema);
+      builder.addField(field.fieldId());
     }
 
     return builder.build();
