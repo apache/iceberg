@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.mr.hive;
 
+import java.io.Serializable;
 import java.util.Map;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
@@ -34,7 +35,6 @@ import org.apache.hadoop.hive.serde2.Deserializer;
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputFormat;
-import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
@@ -86,8 +86,8 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     map.put(InputFormatConfig.TABLE_IDENTIFIER, props.getProperty(Catalogs.NAME));
     map.put(InputFormatConfig.TABLE_LOCATION, table.location());
     map.put(InputFormatConfig.TABLE_SCHEMA, schemaJson);
-    if (table instanceof BaseTable) {
-      map.put(InputFormatConfig.METADATA_LOCATION, ((BaseTable) table).operations().current().metadataFileLocation());
+    if (table instanceof Serializable) {
+      map.put(InputFormatConfig.SERIALIZED_TABLE, SerializationUtil.serializeToBase64(table));
     }
 
     map.put(InputFormatConfig.FILE_IO, SerializationUtil.serializeToBase64(table.io()));
@@ -195,10 +195,10 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
    * Stores the serializable table data in the configuration.
    * Currently the following is handled:
    * <ul>
+   *   <li>- Table - in case the table is serializable</li>
    *   <li>- Location</li>
    *   <li>- Schema</li>
    *   <li>- Partition specification</li>
-   *   <li>- Metadata file location - in case of BaseTable is provided</li>
    *   <li>- FileIO for handling table files</li>
    *   <li>- Location provider used for file generation</li>
    *   <li>- Encryption manager for encryption handling</li>
@@ -208,16 +208,31 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
    */
   @VisibleForTesting
   static void put(Configuration config, Table table) {
+    // The Table contains a FileIO and the FileIO serializes the configuration so we might end up recursively
+    // serializing the objects. To avoid this unset the values for now before serializing.
+    config.unset(InputFormatConfig.SERIALIZED_TABLE);
+    config.unset(InputFormatConfig.FILE_IO);
+    config.unset(InputFormatConfig.LOCATION_PROVIDER);
+    config.unset(InputFormatConfig.ENCRYPTION_MANAGER);
+    config.unset(InputFormatConfig.TABLE_LOCATION);
+    config.unset(InputFormatConfig.TABLE_SCHEMA);
+    config.unset(InputFormatConfig.PARTITION_SPEC);
+
+    String base64Table = table instanceof Serializable ? SerializationUtil.serializeToBase64(table) : null;
+    String base64Io = SerializationUtil.serializeToBase64(table.io());
+    String base64LocationProvider = SerializationUtil.serializeToBase64(table.locationProvider());
+    String base64EncryptionManager = SerializationUtil.serializeToBase64(table.encryption());
+
+    if (base64Table != null) {
+      config.set(InputFormatConfig.SERIALIZED_TABLE, base64Table);
+    }
+
+    config.set(InputFormatConfig.FILE_IO, base64Io);
+    config.set(InputFormatConfig.LOCATION_PROVIDER, base64LocationProvider);
+    config.set(InputFormatConfig.ENCRYPTION_MANAGER, base64EncryptionManager);
+
     config.set(InputFormatConfig.TABLE_LOCATION, table.location());
     config.set(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(table.schema()));
     config.set(InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(table.spec()));
-    if (table instanceof BaseTable) {
-      config.set(InputFormatConfig.METADATA_LOCATION,
-          ((BaseTable) table).operations().current().metadataFileLocation());
-    }
-
-    config.set(InputFormatConfig.FILE_IO, SerializationUtil.serializeToBase64(table.io()));
-    config.set(InputFormatConfig.LOCATION_PROVIDER, SerializationUtil.serializeToBase64(table.locationProvider()));
-    config.set(InputFormatConfig.ENCRYPTION_MANAGER, SerializationUtil.serializeToBase64(table.encryption()));
   }
 }

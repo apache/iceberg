@@ -19,6 +19,8 @@
 
 package org.apache.iceberg;
 
+import java.io.ObjectStreamException;
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -30,13 +32,12 @@ import org.apache.iceberg.io.LocationProvider;
  * <p>
  * This can be extended by providing a {@link TableOperations} to the constructor.
  */
-public class BaseTable implements Table, HasTableOperations {
-  private final TableOperations ops;
-  private final String name;
+public class BaseTable implements Table, HasTableOperations, Serializable {
+  private transient TableOperations ops;
+  private transient String name;
 
   public BaseTable(TableOperations ops, String name) {
-    this.ops = ops;
-    this.name = name;
+    init(ops, name);
   }
 
   @Override
@@ -216,5 +217,14 @@ public class BaseTable implements Table, HasTableOperations {
   @Override
   public String toString() {
     return name();
+  }
+
+  Object writeReplace() throws ObjectStreamException {
+    return new StaticTable(ops.io(), name(), ops.current().metadataFileLocation());
+  }
+
+  void init(TableOperations tableOperations, String tableName) {
+    this.ops = tableOperations;
+    this.name = tableName;
   }
 }
