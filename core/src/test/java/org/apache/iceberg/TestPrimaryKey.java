@@ -196,8 +196,8 @@ public class TestPrimaryKey {
     Assert.assertFalse("Primary key must not be equivalent", pk3.samePrimaryKey(pk1));
 
     Assert.assertNotEquals("Primary key must not be equal", pk1, pk4);
-    Assert.assertTrue("Primary key must be equivalent", pk1.samePrimaryKey(pk4));
-    Assert.assertTrue("Primary key must be equivalent", pk4.samePrimaryKey(pk1));
+    Assert.assertFalse("Primary key must not be equivalent", pk1.samePrimaryKey(pk4));
+    Assert.assertFalse("Primary key must not be equivalent", pk4.samePrimaryKey(pk1));
 
     Assert.assertEquals("Primary key must be equal", pk1, pk5);
     Assert.assertTrue("Primary key must be equivalent", pk1.samePrimaryKey(pk5));

@@ -30,6 +30,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
+/**
+ * A primary key that defines which columns will be unique in this table.
+ */
 public class PrimaryKey implements Serializable {
 
   private static final PrimaryKey NON_PRIMARY_KEY = new PrimaryKey(null, 0, false, ImmutableList.of());
@@ -48,18 +51,30 @@ public class PrimaryKey implements Serializable {
     this.sourceIds = sourceIds.toArray(new Integer[0]);
   }
 
+  /**
+   * Returns the {@link Schema} for this primary key.
+   */
   public Schema schema() {
     return schema;
   }
 
+  /**
+   * Returns this ID of this primary key.
+   */
   public int keyId() {
     return keyId;
   }
 
+  /**
+   * Returns true if the uniqueness should be guaranteed when writing iceberg table.
+   */
   public boolean enforceUniqueness() {
     return enforceUniqueness;
   }
 
+  /**
+   * Returns the list of source field ids for this primary key.
+   */
   public List<Integer> sourceIds() {
     if (sourceIdList == null) {
       synchronized (this) {
@@ -71,16 +86,28 @@ public class PrimaryKey implements Serializable {
     return sourceIdList;
   }
 
+  /**
+   * Returns true if the primary key has no column.
+   */
   public boolean isNonPrimaryKey() {
     return sourceIds.length == 0;
   }
 
+  /**
+   * Returns a dummy primary key that has no column.
+   */
   public static PrimaryKey nonPrimaryKey() {
     return NON_PRIMARY_KEY;
   }
 
+  /**
+   * Checks whether this primary key is equivalent to another primary key while ignoring the primary key id.
+   *
+   * @param other a different primary key.
+   * @return true if this key is equivalent to the given key.
+   */
   public boolean samePrimaryKey(PrimaryKey other) {
-    return Arrays.equals(sourceIds, other.sourceIds);
+    return Arrays.equals(sourceIds, other.sourceIds) && enforceUniqueness == other.enforceUniqueness;
   }
 
   @Override
@@ -120,10 +147,20 @@ public class PrimaryKey implements Serializable {
         .toString();
   }
 
+  /**
+   * Creates a new {@link Builder primary key builder} for the given {@link Schema}.
+   *
+   * @param schema a schema
+   * @return a primary key builder for the given schema.
+   */
   public static Builder builderFor(Schema schema) {
     return new Builder(schema);
   }
 
+  /**
+   * A builder to create valid {@link PrimaryKey primary keys}. Call {@link #builderFor(Schema)} to create a new
+   * builder.
+   */
   public static class Builder {
     private final Schema schema;
     private final List<Integer> sourceIds = Lists.newArrayList();
