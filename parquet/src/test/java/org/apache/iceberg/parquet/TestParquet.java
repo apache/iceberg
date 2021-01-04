@@ -114,7 +114,7 @@ public class TestParquet {
       records.add(record);
     }
 
-    // Force multiple row groups by making the byte size vParquetWriteAdapterery small
+    // Force multiple row groups by making the byte size very small
     // Note there'a also minimumRowGroupRecordCount which cannot be configured so we have to write
     // at least that many records for a new row group to occur
     File file = createTempFile(temp);

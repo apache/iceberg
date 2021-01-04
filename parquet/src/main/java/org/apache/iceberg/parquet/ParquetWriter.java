@@ -181,6 +181,9 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   }
 
   private void startRowGroup() {
+    if (this.closed) {
+      throw new IllegalStateException("writer is closed");
+    }
     try {
       this.nextRowGroupSize = Math.min(writer.getNextRowGroupSize(), targetRowGroupSize);
     } catch (IOException e) {
@@ -200,9 +203,11 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   @Override
   public void close() throws IOException {
-    flushRowGroup(true);
-    writeStore.close();
-    writer.end(metadata);
-    this.closed = true;
+    if (!this.closed) {
+      this.closed = true;
+      flushRowGroup(true);
+      writeStore.close();
+      writer.end(metadata);
+    }
   }
 }

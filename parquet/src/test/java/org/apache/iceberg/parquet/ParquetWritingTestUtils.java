@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.parquet;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
@@ -26,7 +27,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import org.apache.avro.generic.GenericData;
-import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
@@ -66,23 +66,21 @@ class ParquetWritingTestUtils {
   static long write(File file, Schema schema, Map<String, String> properties,
                     Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
                     GenericData.Record... records) throws IOException {
+
+    long len = 0;
+
     FileAppender<GenericData.Record> writer = Parquet.write(localOutput(file))
             .schema(schema)
             .setAll(properties)
             .createWriterFunc(createWriterFunc)
             .build();
 
-    writer.addAll(Lists.newArrayList(records));
+    try (Closeable toClose = writer) {
+      writer.addAll(Lists.newArrayList(records));
+      len = writer.length(); // in deprecated adapter we need to get the length first and then close the writer
+    }
 
-    long len = 0;
-
-    if (writer instanceof ParquetWriteAdapter) {
-      // in deprecated adapter we need to get the length first and then close the writer
-      // b/c close() function sets underlying writer to null which leads to NPE
-      len = writer.length();
-      IOUtils.closeQuietly(writer);
-    } else {
-      IOUtils.closeQuietly(writer);
+    if (writer instanceof ParquetWriter) {
       len = writer.length();
     }
     return len;
