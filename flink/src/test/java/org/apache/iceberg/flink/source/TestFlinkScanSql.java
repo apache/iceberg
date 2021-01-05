@@ -25,6 +25,7 @@ import java.util.Map;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.api.config.TableConfigOptions;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.CloseableIterator;
@@ -180,14 +181,13 @@ public class TestFlinkScanSql extends TestFlinkScan {
   }
 
   private List<Row> executeSQL(String sql) {
-    CloseableIterator<Row> iter = getTableEnv().executeSql(sql).collect();
-    List<Row> results = Lists.newArrayList(iter);
-    try {
-      iter.close();
+    TableResult tableResult = getTableEnv().executeSql(sql);
+    try (CloseableIterator<Row> iter = tableResult.collect()) {
+      List<Row> results = Lists.newArrayList(iter);
+      return results;
     } catch (Exception e) {
-      throw new RuntimeException("failed to close  table result iterator", e);
+      throw new RuntimeException("Failed to collect table result", e);
     }
-    return results;
   }
 
   private String optionToKv(String key, Object value) {
