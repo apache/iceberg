@@ -82,7 +82,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   private final String warehouseLocation;
   private final FileSystem fs;
   private final FileIO fileIO;
-  private boolean suppressACLExcpetion = false;
+  private boolean suppressIOException = false;
 
   /**
    * The constructor of the HadoopCatalog. It uses the passed location as its warehouse directory.
@@ -113,6 +113,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     this.fs = Util.getFs(new Path(warehouseLocation), conf);
 
     String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
+    this.suppressIOException = Boolean.parseBoolean(properties.get(CatalogProperties.HADOOP_SUPPRESS_IOEXCEPTION));
+    
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(conf) : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
   }
 
@@ -151,7 +153,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     } catch (FileNotFoundException e) {
       return false;
     } catch (IOException e) {
-      if (suppressACLExcpetion) {
+      if (suppressIOException) {
         return false;
       } else {
         throw new UncheckedIOException(e);
@@ -165,7 +167,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     } catch (FileNotFoundException e) {
       return false;
     } catch (IOException e) {
-      if (suppressACLExcpetion) {
+      if (suppressIOException) {
         return false;
       } else {
         throw new UncheckedIOException(e);
