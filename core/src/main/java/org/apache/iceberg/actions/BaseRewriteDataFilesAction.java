@@ -67,7 +67,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
   private int splitLookback;
   private long splitOpenFileCost;
 
-  public BaseRewriteDataFilesAction(Table table) {
+  protected BaseRewriteDataFilesAction(Table table) {
     this.table = table;
     this.spec = table.spec();
     this.filter = Expressions.alwaysTrue();
