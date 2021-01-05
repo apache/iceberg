@@ -226,6 +226,9 @@ public class Parquet {
       set("parquet.avro.write-old-list-structure", "false");
       MessageType type = ParquetSchemaUtil.convert(schema, name);
 
+      // Check that our metrics make sense
+      metricsConfig.validateProperties(schema);
+
       if (createWriterFunc != null) {
         Preconditions.checkArgument(writeSupport == null,
             "Cannot write with both write support and Parquet value writer");
