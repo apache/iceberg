@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Expression;
 
@@ -45,6 +46,7 @@ public class InputFormatConfig {
   public static final String TABLE_LOCATION = "iceberg.mr.table.location";
   public static final String TABLE_SCHEMA = "iceberg.mr.table.schema";
   public static final String PARTITION_SPEC = "iceberg.mr.table.partition.spec";
+  public static final String SERIALIZED_TABLE = "iceberg.mr.serialized.table";
   public static final String LOCALITY = "iceberg.mr.locality";
   public static final String CATALOG = "iceberg.mr.catalog";
   public static final String HADOOP_CATALOG_WAREHOUSE_LOCATION = "iceberg.mr.catalog.hadoop.warehouse.location";
@@ -85,6 +87,14 @@ public class InputFormatConfig {
     }
 
     public Configuration conf() {
+      // Store the io and the current snapshot of the table in the configuration which are needed for the split
+      // generation
+      Table table = Catalogs.loadTable(conf);
+
+      // The FileIO serializes the configuration and we might end up recursively serializing the objects.
+      // To avoid this unset the value before serialization and set it again in the next line.
+      conf.unset(InputFormatConfig.FILE_IO);
+      conf.set(InputFormatConfig.FILE_IO, SerializationUtil.serializeToBase64(table.io()));
       return conf;
     }
 
