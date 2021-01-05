@@ -105,4 +105,3 @@ public abstract class FlinkTestBase extends AbstractTestBase {
     return results;
   }
 }
-}
