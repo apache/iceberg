@@ -217,7 +217,7 @@ class ScanContext implements Serializable {
     private String nameMapping;
     private Schema projectedSchema;
     private List<Expression> filters;
-    private Long limit;
+    private Long limit = -1L;
 
     private Builder() {
     }
@@ -237,8 +237,8 @@ class ScanContext implements Serializable {
       return this;
     }
 
-    Builder endSnapshotId(Long newEndsnapshotId) {
-      this.endSnapshotId = newEndsnapshotId;
+    Builder endSnapshotId(Long newEndSnapshotId) {
+      this.endSnapshotId = newEndSnapshotId;
       return this;
     }
 
@@ -304,6 +304,8 @@ class ScanContext implements Serializable {
           .splitSize(config.get(SPLIT_SIZE))
           .splitLookback(config.get(SPLIT_LOOKBACK))
           .splitOpenFileCost(config.get(SPLIT_FILE_OPEN_COST))
+          .streaming(config.get(STREAMING))
+          .monitorInterval(config.get(MONITOR_INTERVAL))
           .nameMapping(properties.get(DEFAULT_NAME_MAPPING));
     }
 

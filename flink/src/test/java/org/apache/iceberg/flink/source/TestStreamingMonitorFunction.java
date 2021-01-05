@@ -49,7 +49,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 public class TestStreamingMonitorFunction {
 
   @ClassRule
-  public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+  public static final TemporaryFolder TEMP = new TemporaryFolder();
 
   private static final Schema SCHEMA = new Schema(required(1, "data", Types.StringType.get()));
 
@@ -58,25 +58,28 @@ public class TestStreamingMonitorFunction {
 
   @Before
   public void before() throws IOException {
-    File warehouseFile = TEMPORARY_FOLDER.newFolder();
+    File warehouseFile = TEMP.newFolder();
     Assert.assertTrue(warehouseFile.delete());
     location = "file:" + warehouseFile;
     table = new HadoopTables(new Configuration()).create(SCHEMA, location);
   }
 
-  private StreamingMonitorFunction create() {
-    return new StreamingMonitorFunction(TableLoader.fromHadoopTable(location),
-        ScanContext.builder().monitorInterval(Duration.ofMillis(100)).build());
+  private StreamingMonitorFunction createStreamingMonitorFunction() {
+    ScanContext ctxt = ScanContext.builder()
+        .monitorInterval(Duration.ofMillis(100))
+        .build();
+
+    return new StreamingMonitorFunction(TableLoader.fromHadoopTable(location), ctxt);
   }
 
   @Test
   public void testCheckpointRestore() throws Exception {
-    GenericAppenderHelper appender = new GenericAppenderHelper(table, FileFormat.AVRO, TEMPORARY_FOLDER);
+    GenericAppenderHelper appender = new GenericAppenderHelper(table, FileFormat.AVRO, TEMP);
     final ConcurrentHashMap<String, List<FlinkInputSplit>> outputCollector = new ConcurrentHashMap<>();
 
     final OneShotLatch latchToTrigger1 = new OneShotLatch();
     final OneShotLatch latchToWait1 = new OneShotLatch();
-    StreamingMonitorFunction source1 = create();
+    StreamingMonitorFunction source1 = createStreamingMonitorFunction();
     StreamSource<FlinkInputSplit, StreamingMonitorFunction> src1 = new StreamSource<>(source1);
     AbstractStreamOperatorTestHarness<FlinkInputSplit> testHarness1 =
         new AbstractStreamOperatorTestHarness<>(src1, 1, 1, 0);
@@ -104,7 +107,7 @@ public class TestStreamingMonitorFunction {
 
     final OneShotLatch latchToTrigger2 = new OneShotLatch();
     final OneShotLatch latchToWait2 = new OneShotLatch();
-    StreamingMonitorFunction source2 = create();
+    StreamingMonitorFunction source2 = createStreamingMonitorFunction();
     StreamSource<FlinkInputSplit, StreamingMonitorFunction> src2 = new StreamSource<>(source2);
     AbstractStreamOperatorTestHarness<FlinkInputSplit> testHarness2 =
         new AbstractStreamOperatorTestHarness<>(src2, 1, 1, 0);

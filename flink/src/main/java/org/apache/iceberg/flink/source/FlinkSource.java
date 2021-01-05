@@ -71,7 +71,7 @@ public class FlinkSource {
     private Table table;
     private TableLoader tableLoader;
     private TableSchema projectedSchema;
-    private ScanContext.Builder ctxtBuilder = ScanContext.builder();
+    private final ScanContext.Builder ctxtBuilder = ScanContext.builder();
 
     public Builder tableLoader(TableLoader newLoader) {
       this.tableLoader = newLoader;
@@ -197,7 +197,7 @@ public class FlinkSource {
       ScanContext ctxt = ctxtBuilder.build();
       TypeInformation<RowData> typeInfo = RowDataTypeInfo.of(FlinkSchemaUtil.convert(ctxt.project()));
 
-      if (isBounded(ctxt)) {
+      if (!ctxt.isStreaming()) {
         return env.createInput(format, typeInfo);
       } else {
         OneInputStreamOperatorFactory<FlinkInputSplit, RowData> factory = StreamingReaderOperator.factory(format);
@@ -212,11 +212,7 @@ public class FlinkSource {
     }
   }
 
-  private static boolean isBounded(ScanContext context) {
-    return context.startSnapshotId() == null || context.endSnapshotId() != null;
-  }
-
   public static boolean isBounded(Map<String, String> properties) {
-    return isBounded(ScanContext.builder().fromProperties(properties).build());
+    return !ScanContext.builder().fromProperties(properties).build().isStreaming();
   }
 }

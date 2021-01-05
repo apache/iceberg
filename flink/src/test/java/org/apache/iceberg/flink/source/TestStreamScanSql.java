@@ -19,172 +19,223 @@
 
 package org.apache.iceberg.flink.source;
 
-import java.io.File;
 import java.io.IOException;
-import java.time.Duration;
 import java.util.Iterator;
 import java.util.List;
-import org.apache.flink.streaming.api.environment.ExecutionCheckpointingOptions;
+import org.apache.flink.core.execution.JobClient;
+import org.apache.flink.streaming.api.TimeCharacteristic;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableResult;
+import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.api.config.TableConfigOptions;
-import org.apache.flink.test.util.AbstractTestBase;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.CloseableIterator;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericAppenderHelper;
-import org.apache.iceberg.data.RandomGenericData;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.flink.FlinkCatalogTestBase;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.Types;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
-public class TestStreamScanSql extends AbstractTestBase {
-
-  private static final Schema SCHEMA = new Schema(
-      required(1, "data", Types.StringType.get()),
-      required(2, "id", Types.LongType.get()),
-      required(3, "dt", Types.StringType.get()));
-
-  private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA)
-      .identity("dt")
-      .bucket("id", 1)
-      .build();
-
-  private static final FileFormat FORMAT = FileFormat.AVRO;
+public class TestStreamScanSql extends FlinkCatalogTestBase {
+  private static final String TABLE = "test_table";
+  private static final FileFormat FORMAT = FileFormat.PARQUET;
 
   private TableEnvironment tEnv;
-  private HadoopCatalog catalog;
+
+  public TestStreamScanSql(String catalogName, Namespace baseNamespace) {
+    super(catalogName, baseNamespace);
+  }
+
+  @Override
+  protected TableEnvironment getTableEnv() {
+    if (tEnv == null) {
+      synchronized (this) {
+        if (tEnv == null) {
+          EnvironmentSettings.Builder settingsBuilder = EnvironmentSettings
+              .newInstance()
+              .useBlinkPlanner()
+              .inStreamingMode();
+
+          StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+          env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
+          env.enableCheckpointing(400);
+
+          StreamTableEnvironment streamTableEnv = StreamTableEnvironment.create(env, settingsBuilder.build());
+          streamTableEnv.getConfig()
+              .getConfiguration()
+              .set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
+          tEnv = streamTableEnv;
+        }
+      }
+    }
+    return tEnv;
+  }
 
   @Before
-  public void before() throws IOException {
-    File warehouseFile = TEMPORARY_FOLDER.newFolder();
-    Assert.assertTrue(warehouseFile.delete());
-    Configuration conf = new Configuration();
-    String warehouse = "file:" + warehouseFile;
-    catalog = new HadoopCatalog(conf, warehouse);
-
-    tEnv = TableEnvironment.create(EnvironmentSettings.newInstance().build());
-    tEnv.getConfig().getConfiguration().set(ExecutionCheckpointingOptions.CHECKPOINTING_INTERVAL,
-        Duration.ofSeconds(1));
-    tEnv.getConfig().getConfiguration().set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
-    tEnv.executeSql(String.format("create catalog iceberg_catalog with (" +
-        "'type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')", warehouse));
-    tEnv.executeSql("use catalog iceberg_catalog");
+  public void before() {
+    super.before();
+    sql("CREATE DATABASE %s", flinkDatabase);
+    sql("USE CATALOG %s", catalogName);
+    sql("USE %s", DATABASE);
   }
 
-  private List<Record> insertRandomData(Table table) throws IOException {
-    return insertRandomData(table, null);
+  @After
+  public void clean() {
+    sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE);
+    sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
+    super.clean();
   }
 
-  private List<Record> insertRandomData(Table table, String partition) throws IOException {
-    List<Record> records = RandomGenericData.generate(SCHEMA, 2, 0L);
+  private void insertRows(String partition, Table table, Row... rows) throws IOException {
     GenericAppenderHelper appender = new GenericAppenderHelper(table, FORMAT, TEMPORARY_FOLDER);
+
+    GenericRecord gRecord = GenericRecord.create(table.schema());
+    List<Record> records = Lists.newArrayList();
+    for (Row row : rows) {
+      records.add(gRecord.copy(
+          "id", row.getField(0),
+          "data", row.getField(1),
+          "dt", row.getField(2)
+      ));
+    }
+
     if (partition != null) {
-      records.get(0).set(2, partition);
-      records.get(1).set(2, partition);
-      appender.appendToTable(org.apache.iceberg.TestHelpers.Row.of(partition, 0), records);
+      appender.appendToTable(TestHelpers.Row.of(partition, 0), records);
     } else {
       appender.appendToTable(records);
     }
-
-    return records;
   }
 
-  private List<Row> nextRows(Iterator<Row> iterator, int number) {
-    List<Row> rows = Lists.newArrayList();
-    for (int i = 0; i < number; i++) {
-      if (!iterator.hasNext()) {
-        throw new RuntimeException("No more records.");
-      }
-      rows.add(iterator.next());
+  private void insertRows(Table table, Row... rows) throws IOException {
+    insertRows(null, table, rows);
+  }
+
+  private void assertRows(List<Row> expectedRows, Iterator<Row> iterator) {
+    for (Row expectedRow : expectedRows) {
+      Assert.assertTrue("Should have more records", iterator.hasNext());
+
+      Row actualRow = iterator.next();
+      Assert.assertEquals("Should have expected fields", 3, actualRow.getArity());
+      Assert.assertEquals("Should have expected id", expectedRow.getField(0), actualRow.getField(0));
+      Assert.assertEquals("Should have expected data", expectedRow.getField(1), actualRow.getField(1));
+      Assert.assertEquals("Should have expected dt", expectedRow.getField(2), actualRow.getField(2));
     }
-    return rows;
-  }
-
-  private void insertAndAssert(Iterator<Row> iterator, Table table) throws IOException {
-    insertAndAssert(iterator, table, null);
-  }
-
-  private void insertAndAssert(Iterator<Row> iterator, Table table, String partition) throws IOException {
-    List<Record> records = insertRandomData(table, partition);
-    List<Row> rows = nextRows(iterator, records.size());
-    TestFlinkScan.assertRecords(rows, records, table.schema());
   }
 
   @Test
   public void testUnPartitionedTable() throws Exception {
-    Table table = catalog.createTable(TableIdentifier.of("default", "t"), SCHEMA);
-    TableResult result = tEnv.executeSql("select * from t /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s')*/");
+    sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
+    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
+
+    TableResult result = exec("SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s')*/", TABLE);
     try (CloseableIterator<Row> iterator = result.collect()) {
-      insertAndAssert(iterator, table);
-      insertAndAssert(iterator, table);
-      insertAndAssert(iterator, table);
+
+      Row row1 = Row.of(1, "aaa", "2021-01-01");
+      insertRows(table, row1);
+      assertRows(ImmutableList.of(row1), iterator);
+
+      Row row2 = Row.of(2, "bbb", "2021-01-01");
+      insertRows(table, row2);
+      assertRows(ImmutableList.of(row2), iterator);
     }
-    result.getJobClient().get().cancel();
+    result.getJobClient().ifPresent(JobClient::cancel);
   }
+
 
   @Test
   public void testPartitionedTable() throws Exception {
-    Table table = catalog.createTable(TableIdentifier.of("default", "t"), SCHEMA, SPEC);
-    TableResult result = tEnv.executeSql("select * from t /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s')*/");
+    sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR) PARTITIONED BY (dt)", TABLE);
+    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
+
+    TableResult result = exec("SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s')*/", TABLE);
     try (CloseableIterator<Row> iterator = result.collect()) {
-      insertAndAssert(iterator, table, "2020-03-20");
-      insertAndAssert(iterator, table, "2020-03-20");
-      insertAndAssert(iterator, table, "2020-03-22");
-      insertAndAssert(iterator, table, "2020-03-20");
+      Row row1 = Row.of(1, "aaa", "2021-01-01");
+      insertRows("2021-01-01", table, row1);
+      assertRows(ImmutableList.of(row1), iterator);
+
+      Row row2 = Row.of(2, "bbb", "2021-01-02");
+      insertRows("2021-01-02", table, row2);
+      assertRows(ImmutableList.of(row2), iterator);
+
+      Row row3 = Row.of(1, "aaa", "2021-01-02");
+      insertRows("2021-01-02", table, row3);
+      assertRows(ImmutableList.of(row3), iterator);
+
+      Row row4 = Row.of(2, "bbb", "2021-01-01");
+      insertRows("2021-01-01", table, row4);
+      assertRows(ImmutableList.of(row4), iterator);
     }
-    result.getJobClient().get().cancel();
+    result.getJobClient().ifPresent(JobClient::cancel);
   }
 
   @Test
-  public void testExistData() throws Exception {
-    Table table = catalog.createTable(TableIdentifier.of("default", "t"), SCHEMA);
-    List<Record> records = insertRandomData(table);
-    TableResult result = tEnv.executeSql("select * from t /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s')*/");
-    try (CloseableIterator<Row> iterator = result.collect()) {
-      // check exist data first
-      List<Row> rows = nextRows(iterator, records.size());
-      TestFlinkScan.assertRecords(rows, records, SCHEMA);
+  public void testConsumeFromBeginning() throws Exception {
+    sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
+    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
 
-      insertAndAssert(iterator, table);
-      insertAndAssert(iterator, table);
+    Row row1 = Row.of(1, "aaa", "2021-01-01");
+    Row row2 = Row.of(2, "bbb", "2021-01-01");
+    insertRows(table, row1, row2);
+
+    TableResult result = exec("SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s')*/", TABLE);
+    try (CloseableIterator<Row> iterator = result.collect()) {
+      assertRows(ImmutableList.of(row1, row2), iterator);
+
+      Row row3 = Row.of(3, "ccc", "2021-01-01");
+      insertRows(table, row3);
+      assertRows(ImmutableList.of(row3), iterator);
+
+      Row row4 = Row.of(4, "ddd", "2021-01-01");
+      insertRows(table, row4);
+      assertRows(ImmutableList.of(row4), iterator);
     }
-    result.getJobClient().get().cancel();
+    result.getJobClient().ifPresent(JobClient::cancel);
   }
 
   @Test
-  public void testSpecifySnapshotId() throws Exception {
-    Table table = catalog.createTable(TableIdentifier.of("default", "t"), SCHEMA);
+  public void testConsumeFromStartSnapshotId() throws Exception {
+    sql("CREATE TABLE %s (id INT, data VARCHAR, dt VARCHAR)", TABLE);
+    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE));
 
-    insertRandomData(table);
-    insertRandomData(table);
-    long snapshotId = table.currentSnapshot().snapshotId();
+    // Produce two snapshots.
+    Row row1 = Row.of(1, "aaa", "2021-01-01");
+    Row row2 = Row.of(2, "bbb", "2021-01-01");
+    insertRows(table, row1);
+    insertRows(table, row2);
 
-    List<Record> records = insertRandomData(table);
+    long startSnapshotId = table.currentSnapshot().snapshotId();
 
-    TableResult result = tEnv.executeSql(
-        String.format("select * from t /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', " +
-            "'start-snapshot-id'='%d')*/", snapshotId));
+    Row row3 = Row.of(3, "ccc", "2021-01-01");
+    Row row4 = Row.of(4, "ddd", "2021-01-01");
+    insertRows(table, row3, row4);
+
+    TableResult result = exec("SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', " +
+        "'start-snapshot-id'='%d')*/", TABLE, startSnapshotId);
     try (CloseableIterator<Row> iterator = result.collect()) {
-      // check exist data first
-      List<Row> rows = nextRows(iterator, records.size());
-      TestFlinkScan.assertRecords(rows, records, SCHEMA);
+      // The row2 in start snapshot will be excluded.
+      assertRows(ImmutableList.of(row3, row4), iterator);
 
-      insertAndAssert(iterator, table);
-      insertAndAssert(iterator, table);
+      Row row5 = Row.of(5, "eee", "2021-01-01");
+      Row row6 = Row.of(6, "fff", "2021-01-01");
+      insertRows(table, row5, row6);
+      assertRows(ImmutableList.of(row5, row6), iterator);
+
+      Row row7 = Row.of(7, "ggg", "2021-01-01");
+      insertRows(table, row7);
+      assertRows(ImmutableList.of(row7), iterator);
     }
-    result.getJobClient().get().cancel();
+    result.getJobClient().ifPresent(JobClient::cancel);
   }
 }
