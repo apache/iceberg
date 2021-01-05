@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink;
 
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.IntStream;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
@@ -81,6 +82,14 @@ public abstract class FlinkTestBase extends AbstractTestBase {
 
   protected List<Object[]> sql(String query, Object... args) {
     TableResult tableResult = exec(String.format(query, args));
+
+    tableResult.getJobClient().ifPresent(c -> {
+      try {
+        c.getJobExecutionResult(Thread.currentThread().getContextClassLoader()).get();
+      } catch (InterruptedException | ExecutionException e) {
+        throw new RuntimeException(e);
+      }
+    });
 
     List<Object[]> results = Lists.newArrayList();
     try (CloseableIterator<Row> iter = tableResult.collect()) {
