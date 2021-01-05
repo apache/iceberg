@@ -19,31 +19,19 @@
 
 package org.apache.spark.sql.catalyst.optimizer
 
-import java.util.UUID
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.{AnalysisException, SparkSession}
-import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.catalyst.expressions._
-import org.apache.spark.sql.catalyst.plans.{FullOuter, Inner, JoinType}
+import org.apache.spark.sql.catalyst.plans.{FullOuter, Inner}
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.connector.catalog.Table
-import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter
-import org.apache.spark.sql.connector.iceberg.write.MergeBuilder
-import org.apache.spark.sql.connector.write.{LogicalWriteInfo, LogicalWriteInfoImpl}
-import org.apache.spark.sql.execution.datasources.v2.{DataSourceV2Relation, DataSourceV2ScanRelation}
+import org.apache.spark.sql.catalyst.utils.PlanHelper
+import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.internal.SQLConf
-import org.apache.spark.sql.types._
-import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
-object RewriteMergeInto extends Rule[LogicalPlan]
-  with PredicateHelper
-  with Logging  {
-  val ROW_ID_COL = "_row_id_"
-  val FILE_NAME_COL = "_file_name_"
-  val SOURCE_ROW_PRESENT_COL = "_source_row_present_"
-  val TARGET_ROW_PRESENT_COL = "_target_row_present_"
+object RewriteMergeInto extends Rule[LogicalPlan] with PlanHelper with Logging  {
+  val ROW_FROM_SOURCE = "_row_from_source_"
+  val ROW_FROM_TARGET = "_row_from_target_"
 
   import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implicits._
 
@@ -52,78 +40,41 @@ object RewriteMergeInto extends Rule[LogicalPlan]
       // rewrite all operations that require reading the table to delete records
       case MergeIntoTable(target: DataSourceV2Relation,
                           source: LogicalPlan, cond, actions, notActions) =>
-        // Find the files in target that matches the JOIN condition from source.
         val targetOutputCols = target.output
         val newProjectCols = target.output ++ Seq(Alias(InputFileName(), FILE_NAME_COL)())
         val newTargetTable = Project(newProjectCols, target)
-        val prunedTargetPlan = Join(source, newTargetTable, Inner, Some(cond), JoinHint.NONE)
 
+        // Construct the plan to prune target based on join condition between source and
+        // target.
+        val prunedTargetPlan = Join(source, newTargetTable, Inner, Some(cond), JoinHint.NONE)
         val writeInfo = newWriteInfo(target.schema)
         val mergeBuilder = target.table.asMergeable.newMergeBuilder("delete", writeInfo)
         val targetTableScan =  buildScanPlan(target.table, target.output, mergeBuilder, prunedTargetPlan)
-        val sourceTableProj = source.output ++ Seq(Alias(lit(true).expr, SOURCE_ROW_PRESENT_COL)())
-        val targetTableProj = target.output ++ Seq(Alias(lit(true).expr, TARGET_ROW_PRESENT_COL)())
+
+        // Construct an outer join to help track changes in source and target.
+        // TODO : Optimize this to use LEFT ANTI or RIGHT OUTER when applicable.
+        val sourceTableProj = source.output ++ Seq(Alias(lit(true).expr, ROW_FROM_SOURCE)())
+        val targetTableProj = target.output ++ Seq(Alias(lit(true).expr, ROW_FROM_TARGET)())
         val newTargetTableScan = Project(targetTableProj, targetTableScan)
         val newSourceTableScan = Project(sourceTableProj, source)
         val joinPlan = Join(newSourceTableScan, newTargetTableScan, FullOuter, Some(cond), JoinHint.NONE)
 
-        val mergeIntoProcessor = new MergeIntoProcessor(
-          isSourceRowNotPresent = resolveExprs(Seq(col(SOURCE_ROW_PRESENT_COL).isNull.expr), joinPlan).head,
-          isTargetRowNotPresent = resolveExprs(Seq(col(TARGET_ROW_PRESENT_COL).isNull.expr), joinPlan).head,
-          matchedConditions = actions.map(resolveClauseCondition(_, joinPlan)),
-          matchedOutputs = actions.map(actionOutput(_, targetOutputCols, joinPlan)),
-          notMatchedConditions = notActions.map(resolveClauseCondition(_, joinPlan)),
-          notMatchedOutputs = notActions.map(actionOutput(_, targetOutputCols, joinPlan)),
-          targetOutput = resolveExprs(targetOutputCols :+ Literal(false), joinPlan),
+        // Construct the plan to replace the data based on the output of `MergeInto`
+        val mergeParams = MergeIntoParams(
+          isSourceRowNotPresent = IsNull(findOutputAttr(joinPlan, ROW_FROM_SOURCE)),
+          isTargetRowNotPresent = IsNull(findOutputAttr(joinPlan, ROW_FROM_TARGET)),
+          matchedConditions = actions.map(getClauseCondition),
+          matchedOutputs = actions.map(actionOutput(_, targetOutputCols)),
+          notMatchedConditions = notActions.map(getClauseCondition),
+          notMatchedOutputs = notActions.map(actionOutput(_, targetOutputCols)),
+          targetOutput = targetOutputCols :+ Literal(false),
+          deleteOutput = targetOutputCols :+ Literal(true),
           joinedAttributes = joinPlan.output
         )
-
-        val mergePlan = MergeInto(mergeIntoProcessor, target, joinPlan)
+        val mergePlan = MergeInto(mergeParams, target, joinPlan)
         val batchWrite = mergeBuilder.asWriteBuilder.buildForBatch()
         ReplaceData(target, batchWrite, mergePlan)
     }
-  }
-
-  private def buildScanPlan(
-      table: Table,
-      output: Seq[AttributeReference],
-      mergeBuilder: MergeBuilder,
-      prunedTargetPlan: LogicalPlan): LogicalPlan = {
-
-    val scanBuilder = mergeBuilder.asScanBuilder
-    val scan = scanBuilder.build()
-    val scanRelation = DataSourceV2ScanRelation(table, scan, output)
-
-    scan match {
-      case filterable: SupportsFileFilter =>
-        val matchingFilePlan = buildFileFilterPlan(prunedTargetPlan)
-        val dynamicFileFilter = DynamicFileFilter(scanRelation, matchingFilePlan, filterable)
-        dynamicFileFilter
-      case _ =>
-        scanRelation
-    }
-  }
-
-  private def newWriteInfo(schema: StructType): LogicalWriteInfo = {
-    val uuid = UUID.randomUUID()
-    LogicalWriteInfoImpl(queryId = uuid.toString, schema, CaseInsensitiveStringMap.empty)
-  }
-
-  private def buildFileFilterPlan(prunedTargetPlan: LogicalPlan): LogicalPlan = {
-    val fileAttr = findOutputAttr(prunedTargetPlan, FILE_NAME_COL)
-    Aggregate(Seq(fileAttr), Seq(fileAttr), prunedTargetPlan)
-  }
-
-  private def findOutputAttr(plan: LogicalPlan, attrName: String): Attribute = {
-    val resolver = SQLConf.get.resolver
-    plan.output.find(attr => resolver(attr.name, attrName)).getOrElse {
-      throw new AnalysisException(s"Cannot find $attrName in ${plan.output}")
-    }
-  }
-
-  private def resolveExprs(exprs: Seq[Expression], plan: LogicalPlan): Seq[Expression] = {
-    val spark = SparkSession.active
-    exprs.map { expr => resolveExpressionInternal(spark, expr, plan) }
   }
 
   def getTargetOutputCols(target: DataSourceV2Relation): Seq[NamedExpression] = {
@@ -134,10 +85,8 @@ object RewriteMergeInto extends Rule[LogicalPlan]
     }
   }
 
-  def actionOutput(clause: MergeAction,
-                   targetOutputCols: Seq[Expression],
-                   plan: LogicalPlan): Seq[Expression] = {
-    val exprs = clause match {
+  def actionOutput(clause: MergeAction, targetOutputCols: Seq[Expression]): Seq[Expression] = {
+    clause match {
       case u: UpdateAction =>
         u.assignments.map(_.value) :+ Literal(false)
       case _: DeleteAction =>
@@ -145,20 +94,10 @@ object RewriteMergeInto extends Rule[LogicalPlan]
       case i: InsertAction =>
         i.assignments.map(_.value) :+ Literal(false)
     }
-    resolveExprs(exprs, plan)
   }
 
-  def resolveClauseCondition(clause: MergeAction, plan: LogicalPlan): Expression = {
-    val condExpr = clause.condition.getOrElse(Literal(true))
-    resolveExprs(Seq(condExpr), plan).head
-  }
-
-  def resolveExpressionInternal(spark: SparkSession, expr: Expression, plan: LogicalPlan): Expression = {
-    val dummyPlan = Filter(expr, plan)
-    spark.sessionState.analyzer.execute(dummyPlan) match {
-      case Filter(resolvedExpr, _) => resolvedExpr
-      case _ => throw new AnalysisException(s"Could not resolve expression $expr", plan = Option(plan))
-    }
+  def getClauseCondition(clause: MergeAction): Expression = {
+    clause.condition.getOrElse(Literal(true))
   }
 }
 
