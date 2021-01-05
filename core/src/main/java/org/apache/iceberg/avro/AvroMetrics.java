@@ -19,15 +19,19 @@
 
 package org.apache.iceberg.avro;
 
-import java.io.IOException;
-import java.util.stream.Stream;
-import org.apache.avro.io.Encoder;
-import org.apache.iceberg.FieldMetrics;
+import org.apache.avro.io.DatumWriter;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.Schema;
 
-public interface ValueWriter<D> {
-  void write(D datum, Encoder encoder) throws IOException;
+public class AvroMetrics {
 
-  default Stream<FieldMetrics> metrics() {
-    return Stream.empty(); // TODO will populate in following PRs
+  private AvroMetrics() {
+  }
+
+  static Metrics fromWriter(DatumWriter<?> datumWriter, Schema schema, long numRecords,
+                            MetricsConfig inputMetricsConfig) {
+    // TODO will populate in following PRs if datum writer is a MetricsAwareDatumWriter
+    return new Metrics(numRecords, null, null, null);
   }
 }

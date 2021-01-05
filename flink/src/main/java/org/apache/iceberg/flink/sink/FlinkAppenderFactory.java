@@ -102,6 +102,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .createWriterFunc(ignore -> new FlinkAvroWriter(flinkSchema))
               .setAll(props)
               .schema(schema)
+              .metricsConfig(metricsConfig)
               .overwrite()
               .build();
 

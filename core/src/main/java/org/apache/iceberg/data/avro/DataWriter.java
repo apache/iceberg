@@ -21,19 +21,21 @@ package org.apache.iceberg.data.avro;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Stream;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
-import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Encoder;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.AvroSchemaVisitor;
 import org.apache.iceberg.avro.LogicalMap;
+import org.apache.iceberg.avro.MetricsAwareDatumWriter;
 import org.apache.iceberg.avro.ValueWriter;
 import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public class DataWriter<T> implements DatumWriter<T> {
+public class DataWriter<T> implements MetricsAwareDatumWriter<T> {
   private ValueWriter<T> writer = null;
 
   public static <D> DataWriter<D> create(Schema schema) {
@@ -57,6 +59,11 @@ public class DataWriter<T> implements DatumWriter<T> {
 
   protected ValueWriter<?> createStructWriter(List<ValueWriter<?>> fields) {
     return GenericWriters.struct(fields);
+  }
+
+  @Override
+  public Stream<FieldMetrics> metrics() {
+    return writer.metrics();
   }
 
   private class WriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {

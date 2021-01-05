@@ -23,11 +23,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
-import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Encoder;
+import org.apache.iceberg.FieldMetrics;
+import org.apache.iceberg.avro.MetricsAwareDatumWriter;
 import org.apache.iceberg.avro.ValueWriter;
 import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -37,7 +39,7 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StructType;
 
-public class SparkAvroWriter implements DatumWriter<InternalRow> {
+public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
   private final StructType dsSchema;
   private ValueWriter<InternalRow> writer = null;
 
@@ -55,6 +57,11 @@ public class SparkAvroWriter implements DatumWriter<InternalRow> {
   @Override
   public void write(InternalRow datum, Encoder out) throws IOException {
     writer.write(datum, out);
+  }
+
+  @Override
+  public Stream<FieldMetrics> metrics() {
+    return writer.metrics();
   }
 
   private static class WriteBuilder extends AvroWithSparkSchemaVisitor<ValueWriter<?>> {

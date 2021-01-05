@@ -92,6 +92,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
           return Avro.write(outputFile)
               .schema(schema)
               .createWriterFunc(DataWriter::create)
+              .metricsConfig(metricsConfig)
               .setAll(config)
               .overwrite()
               .build();
