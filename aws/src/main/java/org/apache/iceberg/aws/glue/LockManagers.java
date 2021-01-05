@@ -71,7 +71,7 @@ class LockManagers {
     return lockManager;
   }
 
-  abstract static class LockManagerBase implements LockManager {
+  abstract static class BaseLockManager implements LockManager {
 
     private static volatile ScheduledExecutorService scheduler;
 
@@ -133,7 +133,7 @@ class LockManagers {
    * This implementation should only be used for testing,
    * or if the caller only needs locking within the same JVM during table commits.
    */
-  static class InMemoryLockManager extends LockManagerBase {
+  static class InMemoryLockManager extends BaseLockManager {
 
     private static final Map<String, DefaultLockContent> LOCKS = Maps.newConcurrentMap();
     private static final Map<String, ScheduledFuture<?>> HEARTBEATS = Maps.newHashMap();
