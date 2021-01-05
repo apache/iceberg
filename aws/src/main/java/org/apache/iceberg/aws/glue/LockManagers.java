@@ -23,11 +23,14 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 
@@ -106,7 +109,13 @@ class LockManagers {
       if (scheduler == null) {
         synchronized (this) {
           if (scheduler == null) {
-            scheduler = Executors.newScheduledThreadPool(heartbeatThreads);
+            scheduler = MoreExecutors.getExitingScheduledExecutorService(
+                (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(
+                    heartbeatThreads(),
+                    new ThreadFactoryBuilder()
+                        .setDaemon(true)
+                        .setNameFormat("iceberg-lock-manager-%d")
+                        .build()));
           }
         }
       }
