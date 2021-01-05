@@ -33,6 +33,8 @@ import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecut
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class LockManagers {
 
@@ -104,10 +106,9 @@ class LockManagers {
       return heartbeatThreads;
     }
 
-    @SuppressWarnings("StaticGuardedByInstance")
     public ScheduledExecutorService scheduler() {
       if (scheduler == null) {
-        synchronized (this) {
+        synchronized (BaseLockManager.class) {
           if (scheduler == null) {
             scheduler = MoreExecutors.getExitingScheduledExecutorService(
                 (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(
@@ -119,6 +120,7 @@ class LockManagers {
           }
         }
       }
+
       return scheduler;
     }
 
@@ -144,7 +146,9 @@ class LockManagers {
    */
   static class InMemoryLockManager extends BaseLockManager {
 
-    private static final Map<String, DefaultLockContent> LOCKS = Maps.newConcurrentMap();
+    private static final Logger LOG = LoggerFactory.getLogger(InMemoryLockManager.class);
+
+    private static final Map<String, InMemoryLockContent> LOCKS = Maps.newConcurrentMap();
     private static final Map<String, ScheduledFuture<?>> HEARTBEATS = Maps.newHashMap();
 
     InMemoryLockManager(Map<String, String> properties) {
@@ -153,7 +157,7 @@ class LockManagers {
 
     @VisibleForTesting
     void acquireOnce(String entityId, String ownerId) {
-      DefaultLockContent content = LOCKS.get(entityId);
+      InMemoryLockContent content = LOCKS.get(entityId);
       if (content != null && content.expireMs() > System.currentTimeMillis()) {
         throw new IllegalStateException(String.format("Lock for %s currently held by %s, expiration: %s",
             entityId, content.ownerId(), content.expireMs()));
@@ -162,11 +166,11 @@ class LockManagers {
       long expiration = System.currentTimeMillis() + heartbeatTimeoutMs();
       boolean succeed;
       if (content == null) {
-        DefaultLockContent previous = LOCKS.putIfAbsent(
-            entityId, new DefaultLockContent(ownerId, expiration));
+        InMemoryLockContent previous = LOCKS.putIfAbsent(
+            entityId, new InMemoryLockContent(ownerId, expiration));
         succeed = previous == null;
       } else {
-        succeed = LOCKS.replace(entityId, content, new DefaultLockContent(ownerId, expiration));
+        succeed = LOCKS.replace(entityId, content, new InMemoryLockContent(ownerId, expiration));
       }
 
       if (succeed) {
@@ -176,10 +180,10 @@ class LockManagers {
         }
 
         HEARTBEATS.put(entityId, scheduler().scheduleAtFixedRate(() -> {
-          DefaultLockContent lastContent = LOCKS.get(entityId);
+          InMemoryLockContent lastContent = LOCKS.get(entityId);
           try {
             long newExpiration = System.currentTimeMillis() + heartbeatTimeoutMs();
-            LOCKS.replace(entityId, lastContent, new DefaultLockContent(ownerId, newExpiration));
+            LOCKS.replace(entityId, lastContent, new InMemoryLockContent(ownerId, newExpiration));
           } catch (NullPointerException e) {
             throw new RuntimeException("Cannot heartbeat to a deleted lock " + entityId, e);
           }
@@ -207,18 +211,21 @@ class LockManagers {
     }
 
     @Override
-    public void release(String entityId, String ownerId) {
-      DefaultLockContent currentContent = LOCKS.get(entityId);
+    public boolean release(String entityId, String ownerId) {
+      InMemoryLockContent currentContent = LOCKS.get(entityId);
       if (currentContent == null) {
-        throw new IllegalArgumentException("Cannot find lock for entity " + entityId);
+        LOG.error("Cannot find lock for entity {}", entityId);
+        return false;
       }
 
       if (!currentContent.ownerId().equals(ownerId)) {
-        throw new IllegalArgumentException(String.format(
-            "Cannot unlock %s by %s, current owner: %s", entityId, ownerId, currentContent.ownerId()));
+        LOG.error("Cannot unlock {} by {}, current owner: {}", entityId, ownerId, currentContent.ownerId());
+        return false;
       }
+
       HEARTBEATS.remove(entityId).cancel(false);
       LOCKS.remove(entityId);
+      return true;
     }
 
     @Override
@@ -229,11 +236,11 @@ class LockManagers {
     }
   }
 
-  private static class DefaultLockContent {
+  private static class InMemoryLockContent {
     private final String ownerId;
     private final long expireMs;
 
-    DefaultLockContent(String ownerId, long expireMs) {
+    InMemoryLockContent(String ownerId, long expireMs) {
       this.ownerId = ownerId;
       this.expireMs = expireMs;
     }

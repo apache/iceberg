@@ -47,8 +47,8 @@ public class LockManagersTest {
     }
 
     @Override
-    public void release(String entityId, String ownerId) {
-
+    public boolean release(String entityId, String ownerId) {
+      return false;
     }
 
     @Override

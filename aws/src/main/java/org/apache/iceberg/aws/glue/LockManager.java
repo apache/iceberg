@@ -38,9 +38,9 @@ interface LockManager extends AutoCloseable {
    * Release a lock
    * @param entityId ID of the entity to lock
    * @param ownerId ID of the owner if the lock
-   * @throws IllegalArgumentException if lock entity not found or trying to unlock with a wrong owner ID
+   * @return if the lock for the entity of the owner is released
    */
-  void release(String entityId, String ownerId);
+  boolean release(String entityId, String ownerId);
 
   /**
    * Initialize lock manager from catalog properties.
