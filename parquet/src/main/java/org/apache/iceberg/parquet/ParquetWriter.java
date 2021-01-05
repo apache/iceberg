@@ -33,6 +33,7 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.parquet.bytes.ByteBufferAllocator;
 import org.apache.parquet.column.ColumnWriteStore;
@@ -130,6 +131,9 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
    * <p>
    * Prior to calling {@link ParquetWriter#close}, the result is approximate. After calling close, the length is
    * exact.
+   *
+   * @return the approximate length of the output file produced by this writer or the exact length if this writer is
+   * closed.
    */
   @Override
   public long length() {
@@ -181,9 +185,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   }
 
   private void startRowGroup() {
-    if (this.closed) {
-      throw new IllegalStateException("Writer is closed");
-    }
+    Preconditions.checkState(!closed, "Writer is closed");
 
     try {
       this.nextRowGroupSize = Math.min(writer.getNextRowGroupSize(), targetRowGroupSize);
@@ -204,7 +206,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   @Override
   public void close() throws IOException {
-    if (!this.closed) {
+    if (!closed) {
       this.closed = true;
       flushRowGroup(true);
       writeStore.close();
