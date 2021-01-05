@@ -80,6 +80,11 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
       try {
         this.icebergTable = Catalogs.loadTable(conf, catalogProperties);
 
+        // For non-HiveCatalog tables too, we should set the input and output format
+        // so that the table can be read by other engines like Impala
+        hmsTable.getSd().setInputFormat(HiveIcebergInputFormat.class.getCanonicalName());
+        hmsTable.getSd().setOutputFormat(HiveIcebergOutputFormat.class.getCanonicalName());
+
         Preconditions.checkArgument(catalogProperties.getProperty(InputFormatConfig.TABLE_SCHEMA) == null,
             "Iceberg table already created - can not use provided schema");
         Preconditions.checkArgument(catalogProperties.getProperty(InputFormatConfig.PARTITION_SPEC) == null,
@@ -113,10 +118,6 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     if (hmsTable.getParameters().get(InputFormatConfig.EXTERNAL_TABLE_PURGE) == null) {
       hmsTable.getParameters().put(InputFormatConfig.EXTERNAL_TABLE_PURGE, "TRUE");
     }
-
-    // For a table created by Hive DDL to be readable by Impala, we need the Input and OutputFormat set explicitly
-    hmsTable.getSd().setInputFormat(HiveIcebergInputFormat.class.getCanonicalName());
-    hmsTable.getSd().setOutputFormat(HiveIcebergOutputFormat.class.getCanonicalName());
 
     // If the table is not managed by Hive catalog then the location should be set
     if (!Catalogs.hiveCatalog(conf)) {
