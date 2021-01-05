@@ -76,14 +76,14 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
         BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase());
 
     if (!Catalogs.hiveCatalog(conf)) {
+      // For non-HiveCatalog tables too, we should set the input and output format
+      // so that the table can be read by other engines like Impala
+      hmsTable.getSd().setInputFormat(HiveIcebergInputFormat.class.getCanonicalName());
+      hmsTable.getSd().setOutputFormat(HiveIcebergOutputFormat.class.getCanonicalName());
+
       // If not using HiveCatalog check for existing table
       try {
         this.icebergTable = Catalogs.loadTable(conf, catalogProperties);
-
-        // For non-HiveCatalog tables too, we should set the input and output format
-        // so that the table can be read by other engines like Impala
-        hmsTable.getSd().setInputFormat(HiveIcebergInputFormat.class.getCanonicalName());
-        hmsTable.getSd().setOutputFormat(HiveIcebergOutputFormat.class.getCanonicalName());
 
         Preconditions.checkArgument(catalogProperties.getProperty(InputFormatConfig.TABLE_SCHEMA) == null,
             "Iceberg table already created - can not use provided schema");
