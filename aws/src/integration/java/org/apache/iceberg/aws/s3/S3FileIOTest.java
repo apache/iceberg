@@ -36,7 +36,6 @@ import org.apache.iceberg.aws.AwsIntegTestUtil;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -202,8 +201,7 @@ public class S3FileIOTest {
 
   @Test
   public void testClientFactorySerialization() throws Exception {
-    S3FileIO fileIO = new S3FileIO();
-    fileIO.initialize(Maps.newHashMap());
+    S3FileIO fileIO = new S3FileIO(clientFactory::s3);
     write(fileIO);
     byte [] data = SerializationUtils.serialize(fileIO);
     S3FileIO fileIO2 = SerializationUtils.deserialize(data);
