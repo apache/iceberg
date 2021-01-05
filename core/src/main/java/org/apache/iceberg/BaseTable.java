@@ -30,6 +30,10 @@ import org.apache.iceberg.io.LocationProvider;
  * Base {@link Table} implementation.
  * <p>
  * This can be extended by providing a {@link TableOperations} to the constructor.
+ * <p>
+ * Serializing and deserializing a BaseTable object returns a read only implementation of the BaseTable using a
+ * {@link StaticTableOperations}. This way no Catalog related calls are needed when reading the table data after
+ * deserialization.
  */
 public class BaseTable implements Table, HasTableOperations, Serializable {
   private final TableOperations ops;
@@ -234,6 +238,12 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
       metadataLocation = table.operations().current().metadataFileLocation();
     }
 
+    /**
+     * Returns a BaseTable with {@link StaticTableOperations} so after deserialization no Catalog related calls are
+     * needed for accessing the table snapshot data.
+     * @return The BaseTable object for reading the table data at the time of the serialization of the original
+     *         BaseTable object
+     */
     private Object readResolve()  {
       return new BaseTable(new StaticTableOperations(metadataLocation, io), name);
     }
