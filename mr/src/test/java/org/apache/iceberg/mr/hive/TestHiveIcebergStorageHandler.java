@@ -382,6 +382,11 @@ public class TestHiveIcebergStorageHandler {
     Assert.assertEquals(BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(),
         hmsTable.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP));
 
+    // verify that storage descriptor is filled out with inputformat/outputformat/serde
+    Assert.assertEquals(HiveIcebergInputFormat.class.getName(), hmsTable.getSd().getInputFormat());
+    Assert.assertEquals(HiveIcebergOutputFormat.class.getName(), hmsTable.getSd().getOutputFormat());
+    Assert.assertEquals(HiveIcebergSerDe.class.getName(), hmsTable.getSd().getSerdeInfo().getSerializationLib());
+
     if (!Catalogs.hiveCatalog(shell.getHiveConf())) {
       Assert.assertEquals(Collections.singletonMap("dummy", "test"), icebergTable.properties());
 
