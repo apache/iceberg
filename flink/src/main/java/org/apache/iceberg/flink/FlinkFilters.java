@@ -29,7 +29,6 @@ import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.expressions.CallExpression;
 import org.apache.flink.table.expressions.FieldReferenceExpression;
@@ -69,8 +68,18 @@ public class FlinkFilters {
       .put(BuiltInFunctionDefinitions.LIKE, Operation.STARTS_WITH)
       .build();
 
+  /**
+   * convert flink expression to iceberg expression.
+   * <p>
+   * the BETWEEN, NOT_BETWEEN,IN expression will be auto convert by flink. the BETWEEN will be convert to (GT_EQ AND
+   * LT_EQ), the NOT_BETWEEN will be convert to (LT_EQ OR GT_EQ), the IN will be convert to OR, so we do not add the
+   * convert here
+   *
+   * @param flinkExpression the flink expression
+   * @return the iceberg expression
+   */
   public static Optional<Expression> convert(org.apache.flink.table.expressions.Expression flinkExpression) {
-    if (flinkExpression == null || !(flinkExpression instanceof CallExpression)) {
+    if (!(flinkExpression instanceof CallExpression)) {
       return Optional.empty();
     }
 
@@ -79,24 +88,24 @@ public class FlinkFilters {
     if (op != null) {
       switch (op) {
         case IS_NULL:
-          Optional<String> name = toReference(getOnlyChild(call, FieldReferenceExpression.class).orElse(null));
+          Optional<String> name = toReference(singleton(call, FieldReferenceExpression.class).orElse(null));
           return name.map(Expressions::isNull);
 
         case NOT_NULL:
-          Optional<String> nameNotNull = toReference(getOnlyChild(call, FieldReferenceExpression.class).orElse(null));
+          Optional<String> nameNotNull = toReference(singleton(call, FieldReferenceExpression.class).orElse(null));
           return nameNotNull.map(Expressions::notNull);
 
         case LT:
-          return convertComparisonExpression(Expressions::lessThan, call);
+          return convertComparisonExpression(Expressions::lessThan, Expressions::greaterThan, call);
 
         case LT_EQ:
-          return convertComparisonExpression(Expressions::lessThanOrEqual, call);
+          return convertComparisonExpression(Expressions::lessThanOrEqual, Expressions::greaterThanOrEqual, call);
 
         case GT:
-          return convertComparisonExpression(Expressions::greaterThan, call);
+          return convertComparisonExpression(Expressions::greaterThan, Expressions::lessThan, call);
 
         case GT_EQ:
-          return convertComparisonExpression(Expressions::greaterThanOrEqual, call);
+          return convertComparisonExpression(Expressions::greaterThanOrEqual, Expressions::lessThanOrEqual, call);
 
         case EQ:
           return handleNaN(Expressions::equal, call);
@@ -104,26 +113,8 @@ public class FlinkFilters {
         case NOT_EQ:
           return handleNaN(Expressions::notEqual, call);
 
-        case IN:
-          List<ResolvedExpression> args = call.getResolvedChildren();
-          Optional<String> fieldName = toReference(args.get(0));
-          List<ResolvedExpression> values = args.subList(1, args.size());
-
-          List<Object> inputValues = values.stream().filter(expression -> {
-            if (expression instanceof ValueLiteralExpression) {
-              return !((ValueLiteralExpression) expression).isNull();
-            }
-
-            return false;
-          }).map(expression -> {
-            Optional<Object> value = toLiteral(expression);
-            return value.get();
-          }).collect(Collectors.toList());
-
-          return Optional.of(Expressions.in(fieldName.get(), inputValues));
-
         case NOT:
-          Optional<Expression> child = convert(getOnlyChild(call, CallExpression.class).orElse(null));
+          Optional<Expression> child = convert(singleton(call, CallExpression.class).orElse(null));
           return child.map(Expressions::not);
 
         case AND:
@@ -140,8 +131,8 @@ public class FlinkFilters {
     return Optional.empty();
   }
 
-  private static <T extends ResolvedExpression> Optional<T> getOnlyChild(CallExpression call,
-                                                                         Class<T> expectedChildClass) {
+  private static <T extends ResolvedExpression> Optional<T> singleton(CallExpression call,
+                                                                      Class<T> expectedChildClass) {
     List<ResolvedExpression> children = call.getResolvedChildren();
     if (children.size() != 1) {
       return Optional.empty();
@@ -185,11 +176,16 @@ public class FlinkFilters {
     return Optional.empty();
   }
 
-  private static Optional<Expression> convertComparisonExpression(BiFunction<String, Object, Expression> function,
-                                                                  CallExpression call) {
+  private static Optional<Expression> convertComparisonExpression(
+      BiFunction<String, Object, Expression> function, BiFunction<String, Object, Expression> reversedFunction,
+      CallExpression call) {
     Tuple2<String, Object> tuple2 = convertBinaryExpress(call);
     if (tuple2 != null) {
-      return Optional.of(function.apply(tuple2.f0, tuple2.f1));
+      if (literalOnRight(call.getResolvedChildren())) {
+        return Optional.of(function.apply(tuple2.f0, tuple2.f1));
+      } else {
+        return Optional.of(reversedFunction.apply(tuple2.f0, tuple2.f1));
+      }
     } else {
       return Optional.empty();
     }
