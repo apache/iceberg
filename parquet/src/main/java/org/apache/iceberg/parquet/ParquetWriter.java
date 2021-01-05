@@ -138,7 +138,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   @Override
   public long length() {
     try {
-      if (this.closed) {
+      if (closed) {
         return writer.getPos();
       } else {
         return writer.getPos() + (writeStore.isColumnFlushNeeded() ? writeStore.getBufferedSize() : 0);
