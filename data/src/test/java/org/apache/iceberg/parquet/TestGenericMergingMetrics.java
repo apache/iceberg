@@ -17,10 +17,12 @@
  * under the License.
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.parquet;
 
 import java.io.IOException;
 import java.util.List;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.TestMergingMetrics;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileAppender;

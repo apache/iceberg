@@ -27,11 +27,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.MetricsModes.MetricsMode;
+import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
@@ -83,22 +86,25 @@ public class OrcMetrics {
   static Metrics fromInputFile(InputFile file, Configuration config, MetricsConfig metricsConfig, NameMapping mapping) {
     try (Reader orcReader = ORC.newFileReader(file, config)) {
       return buildOrcMetrics(orcReader.getNumberOfRows(), orcReader.getSchema(), orcReader.getStatistics(),
-          metricsConfig, mapping);
+          Stream.empty(), metricsConfig, mapping);
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to open file: %s", file.location());
     }
   }
 
-  static Metrics fromWriter(Writer writer, MetricsConfig metricsConfig) {
+  static Metrics fromWriter(Writer writer, Stream<FieldMetrics> fieldMetricsStream, MetricsConfig metricsConfig) {
     try {
-      return buildOrcMetrics(writer.getNumberOfRows(), writer.getSchema(), writer.getStatistics(), metricsConfig, null);
+      return buildOrcMetrics(writer.getNumberOfRows(), writer.getSchema(), writer.getStatistics(),
+          fieldMetricsStream, metricsConfig, null);
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to get statistics from writer");
     }
   }
 
   private static Metrics buildOrcMetrics(final long numOfRows, final TypeDescription orcSchema,
-                                         final ColumnStatistics[] colStats, final MetricsConfig metricsConfig,
+                                         final ColumnStatistics[] colStats,
+                                         final Stream<FieldMetrics> fieldMetricsStream,
+                                         final MetricsConfig metricsConfig,
                                          final NameMapping mapping) {
     final TypeDescription orcSchemaWithIds = (!ORCSchemaUtil.hasIds(orcSchema) && mapping != null) ?
         ORCSchemaUtil.applyNameMapping(orcSchema, mapping) : orcSchema;
@@ -114,6 +120,7 @@ public class OrcMetrics {
           columnSizes,
           valueCounts,
           nullCounts,
+          null,
           null,
           null);
     }
@@ -167,6 +174,7 @@ public class OrcMetrics {
         columnSizes,
         valueCounts,
         nullCounts,
+        MetricsUtil.createNanValueCounts(fieldMetricsStream, effectiveMetricsConfig, schema),
         lowerBounds,
         upperBounds);
   }

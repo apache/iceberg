@@ -44,17 +44,39 @@ abstract class FlinkSchemaVisitor<T> {
       case MAP:
         MapType mapType = (MapType) flinkType;
         Types.MapType iMapType = iType.asMapType();
+        T key;
+        T value;
 
-        T key = visit(mapType.getKeyType(), iMapType.keyType(), visitor);
-        T value = visit(mapType.getValueType(), iMapType.valueType(), visitor);
+        Types.NestedField keyField = iMapType.field(iMapType.keyId());
+        visitor.beforeMapKey(keyField);
+        try {
+          key = visit(mapType.getKeyType(), iMapType.keyType(), visitor);
+        } finally {
+          visitor.afterMapKey(keyField);
+        }
+
+        Types.NestedField valueField = iMapType.field(iMapType.valueId());
+        visitor.beforeMapValue(valueField);
+        try {
+          value = visit(mapType.getValueType(), iMapType.valueType(), visitor);
+        } finally {
+          visitor.afterMapValue(valueField);
+        }
 
         return visitor.map(iMapType, key, value, mapType.getKeyType(), mapType.getValueType());
 
       case LIST:
         ArrayType listType = (ArrayType) flinkType;
         Types.ListType iListType = iType.asListType();
+        T element;
 
-        T element = visit(listType.getElementType(), iListType.elementType(), visitor);
+        Types.NestedField elementField = iListType.field(iListType.elementId());
+        visitor.beforeListElement(elementField);
+        try {
+          element = visit(listType.getElementType(), iListType.elementType(), visitor);
+        } finally {
+          visitor.afterListElement(elementField);
+        }
 
         return visitor.list(iListType, element, listType.getElementType());
 
@@ -82,7 +104,13 @@ abstract class FlinkSchemaVisitor<T> {
       LogicalType fieldFlinkType = rowType.getTypeAt(fieldIndex);
 
       fieldTypes.add(fieldFlinkType);
-      results.add(visit(fieldFlinkType, iField.type(), visitor));
+
+      visitor.beforeField(iField);
+      try {
+        results.add(visit(fieldFlinkType, iField.type(), visitor));
+      } finally {
+        visitor.afterField(iField);
+      }
     }
 
     return visitor.record(struct, results, fieldTypes);
@@ -102,5 +130,35 @@ abstract class FlinkSchemaVisitor<T> {
 
   public T primitive(Type.PrimitiveType iPrimitive, LogicalType flinkPrimitive) {
     return null;
+  }
+
+  public void beforeField(Types.NestedField field) {
+  }
+
+  public void afterField(Types.NestedField field) {
+  }
+
+  public void beforeListElement(Types.NestedField elementField) {
+    beforeField(elementField);
+  }
+
+  public void afterListElement(Types.NestedField elementField) {
+    afterField(elementField);
+  }
+
+  public void beforeMapKey(Types.NestedField keyField) {
+    beforeField(keyField);
+  }
+
+  public void afterMapKey(Types.NestedField keyField) {
+    afterField(keyField);
+  }
+
+  public void beforeMapValue(Types.NestedField valueField) {
+    beforeField(valueField);
+  }
+
+  public void afterMapValue(Types.NestedField valueField) {
+    afterField(valueField);
   }
 }

@@ -19,14 +19,18 @@
 
 package org.apache.iceberg.flink.data;
 
+import java.util.Deque;
 import java.util.List;
+import java.util.stream.Stream;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.orc.OrcRowWriter;
 import org.apache.iceberg.orc.OrcValueWriter;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -63,8 +67,25 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
     }
   }
 
+  @Override
+  public Stream<FieldMetrics> metrics() {
+    return writer.metrics();
+  }
+
   private static class WriteBuilder extends FlinkSchemaVisitor<OrcValueWriter<?>> {
+    private final Deque<Integer> fieldIds = Lists.newLinkedList();
+
     private WriteBuilder() {
+    }
+
+    @Override
+    public void beforeField(Types.NestedField field) {
+      fieldIds.push(field.fieldId());
+    }
+
+    @Override
+    public void afterField(Types.NestedField field) {
+      fieldIds.pop();
     }
 
     @Override
@@ -101,9 +122,15 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
         case LONG:
           return GenericOrcWriters.longs();
         case FLOAT:
-          return GenericOrcWriters.floats();
+          Preconditions.checkArgument(fieldIds.peek() != null,
+              String.format("[BUG] Cannot find field id for primitive field with type %s. This is likely because id " +
+                  "information is not properly pushed during schema visiting.", iPrimitive));
+          return GenericOrcWriters.floats(fieldIds.peek());
         case DOUBLE:
-          return GenericOrcWriters.doubles();
+          Preconditions.checkArgument(fieldIds.peek() != null,
+              String.format("[BUG] Cannot find field id for primitive field with type %s. This is likely because id " +
+              "information is not properly pushed during schema visiting.", iPrimitive));
+          return GenericOrcWriters.doubles(fieldIds.peek());
         case DATE:
           return FlinkOrcWriters.dates();
         case TIME:

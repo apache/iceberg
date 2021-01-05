@@ -19,6 +19,9 @@
 
 package org.apache.iceberg.spark.data;
 
+import java.util.stream.Stream;
+import org.apache.iceberg.FieldMetrics;
+import org.apache.iceberg.FloatFieldMetrics;
 import org.apache.orc.storage.common.type.HiveDecimal;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
@@ -56,12 +59,12 @@ class SparkOrcValueWriters {
     return LongWriter.INSTANCE;
   }
 
-  static SparkOrcValueWriter floats() {
-    return FloatWriter.INSTANCE;
+  static SparkOrcValueWriter floats(int id) {
+    return new FloatWriter(id);
   }
 
-  static SparkOrcValueWriter doubles() {
-    return DoubleWriter.INSTANCE;
+  static SparkOrcValueWriter doubles(int id) {
+    return new DoubleWriter(id);
   }
 
   static SparkOrcValueWriter byteArrays() {
@@ -138,20 +141,52 @@ class SparkOrcValueWriters {
   }
 
   private static class FloatWriter implements SparkOrcValueWriter {
-    private static final FloatWriter INSTANCE = new FloatWriter();
+    private final int id;
+    private long nanCount;
+
+    private FloatWriter(int id) {
+      this.id = id;
+      this.nanCount = 0;
+    }
 
     @Override
     public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
-      ((DoubleColumnVector) output).vector[rowId] = data.getFloat(column);
+      float floatValue = data.getFloat(column);
+      ((DoubleColumnVector) output).vector[rowId] = floatValue;
+
+      if (Float.isNaN(floatValue)) {
+        nanCount++;
+      }
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.of(new FloatFieldMetrics(id, nanCount));
     }
   }
 
   private static class DoubleWriter implements SparkOrcValueWriter {
-    private static final DoubleWriter INSTANCE = new DoubleWriter();
+    private final int id;
+    private long nanCount;
+
+    private DoubleWriter(int id) {
+      this.id = id;
+      this.nanCount = 0;
+    }
 
     @Override
     public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
-      ((DoubleColumnVector) output).vector[rowId] = data.getDouble(column);
+      double doubleValue = data.getDouble(column);
+      ((DoubleColumnVector) output).vector[rowId] = doubleValue;
+
+      if (Double.isNaN(doubleValue)) {
+        nanCount++;
+      }
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.of(new FloatFieldMetrics(id, nanCount));
     }
   }
 
@@ -244,6 +279,11 @@ class SparkOrcValueWriters {
         writer.write((int) (e + cv.offsets[rowId]), e, value, cv.child);
       }
     }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return writer.metrics();
+    }
   }
 
   private static class MapWriter implements SparkOrcValueWriter {
@@ -274,6 +314,11 @@ class SparkOrcValueWriters {
         keyWriter.write(pos, e, key, cv.keys);
         valueWriter.write(pos, e, value, cv.values);
       }
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
     }
   }
 }
