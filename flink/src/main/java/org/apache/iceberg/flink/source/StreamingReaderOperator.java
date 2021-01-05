@@ -49,7 +49,7 @@ import org.slf4j.LoggerFactory;
 /**
  * The operator that reads the {@link FlinkInputSplit splits} received from the preceding {@link
  * StreamingMonitorFunction}. Contrary to the {@link StreamingMonitorFunction} which has a parallelism of 1,
- * this operator can have DOP > 1.
+ * this operator can have multiple parallelism.
  *
  * <p>As soon as a split descriptor is received, it is put in a queue, and use {@link MailboxExecutor}
  * read the actual data of the split. This architecture allows the separation of the reading thread from the one split
