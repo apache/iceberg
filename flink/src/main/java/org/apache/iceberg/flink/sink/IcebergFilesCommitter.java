@@ -109,6 +109,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private transient ListState<SortedMap<Long, byte[]>> checkpointsState;
   private transient long lastCheckTime;
   private transient long maxCommitIdleTimeMs;
+
   IcebergFilesCommitter(TableLoader tableLoader, boolean replacePartitions) {
     this.tableLoader = tableLoader;
     this.replacePartitions = replacePartitions;
@@ -128,7 +129,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     this.manifestOutputFileFactory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, subTaskId, attemptId);
     this.maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
-    this.maxCommitIdleTimeMs = PropertyUtil.propertyAsLong(table.properties(), "flink.commit.max.idle.ms",-1);
+    this.maxCommitIdleTimeMs = PropertyUtil.propertyAsLong(table.properties(), "flink.commit.max.idle.ms", -1);
     this.checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     this.jobIdState = context.getOperatorStateStore().getListState(JOB_ID_DESCRIPTOR);
     if (context.isRestored()) {
@@ -180,7 +181,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private boolean checkNeedCommit(long current) {
     boolean needEmitToCommiter = true;
     boolean isEmptyCommit = writeResultsOfCurrentCkpt.stream().allMatch(WriteResult::isEmpty);
-    if (isEmptyCommit && current - lastCheckTime < maxCommitIdleTimeMs) { //to prevent frequent commit
+    if (isEmptyCommit && current - lastCheckTime < maxCommitIdleTimeMs) { // to prevent frequent commit
       needEmitToCommiter = false;
     }
     return needEmitToCommiter;
@@ -206,8 +207,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
                                     String newFlinkJobId,
                                     long checkpointId) throws IOException {
     NavigableMap<Long, byte[]> pendingMap = deltaManifestsMap.headMap(checkpointId, true);
-    if (pendingMap.isEmpty()){
-      LOG.info("No data to commit before the checkpoint {}",checkpointId);
+    if (pendingMap.isEmpty()) {
+      LOG.info("No data to commit before the checkpoint {}", checkpointId);
       return;
     }
     List<ManifestFile> manifests = Lists.newArrayList();
