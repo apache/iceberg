@@ -18,10 +18,20 @@
 #
 
 name: "Java CI"
-on: [push, pull_request]
+on:
+  push:
+    paths-ignore:
+    - '.github/workflows/python-ci.yml'
+    - 'python/**'
+    - 'site/**'
+  pull_request:
+    paths-ignore:
+    - '.github/workflows/python-ci.yml'
+    - 'python/**'
+    - 'site/**'
 
 jobs:
-  check:
+  run-tests:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -37,7 +47,7 @@ jobs:
         path: ~/.gradle/caches
         key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
         restore-keys: ${{ runner.os }}-gradle
-    - run: ./gradlew check
+    - run: ./gradlew check -Pquick=true -x javadoc
     - uses: actions/upload-artifact@v2
       if: failure()
       with:
@@ -45,3 +55,20 @@ jobs:
         path: |
           **/build/testlogs
 
+  extra-checks:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-java@v1
+      with:
+        java-version: 8
+    - run: ./gradlew build -x test -x javadoc
+
+  build-javadoc:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-java@v1
+      with:
+        java-version: 8
+    - run: ./gradlew -Pquick=true javadoc

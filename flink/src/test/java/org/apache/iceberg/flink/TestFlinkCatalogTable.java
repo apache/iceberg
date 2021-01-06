@@ -42,6 +42,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -54,7 +55,7 @@ import org.junit.Test;
 
 public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
-  public TestFlinkCatalogTable(String catalogName, String[] baseNamepace) {
+  public TestFlinkCatalogTable(String catalogName, Namespace baseNamepace) {
     super(catalogName, baseNamepace);
   }
 
@@ -119,6 +120,22 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals(Maps.newHashMap(), table.properties());
 
     CatalogTable catalogTable = catalogTable("tl");
+    Assert.assertEquals(TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
+    Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
+  }
+
+  @Test
+  public void testCreateTableLike() throws TableNotExistException {
+    sql("CREATE TABLE tl(id BIGINT)");
+    sql("CREATE TABLE tl2 LIKE tl");
+
+    Table table = table("tl2");
+    Assert.assertEquals(
+        new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())).asStruct(),
+        table.schema().asStruct());
+    Assert.assertEquals(Maps.newHashMap(), table.properties());
+
+    CatalogTable catalogTable = catalogTable("tl2");
     Assert.assertEquals(TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
   }

@@ -28,7 +28,6 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.hadoop.HadoopCatalog;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.After;
@@ -69,19 +68,16 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
   }
 
   @Parameterized.Parameters(name = "catalogName = {0} baseNamespace = {1}")
-  // baseNamespace comes out as a String[] memory reference due to lack
-  // of a meaningful toString method. We should convert baseNamespace to
-  // use Namespace instead: https://github.com/apache/iceberg/issues/1541
   public static Iterable<Object[]> parameters() {
     return Lists.newArrayList(
-        new Object[] {"testhive", new String[0]},
-        new Object[] {"testhadoop", new String[0]},
-        new Object[] {"testhadoop_basenamespace", new String[] {"l0", "l1"}}
+        new Object[] {"testhive", Namespace.empty()},
+        new Object[] {"testhadoop", Namespace.empty()},
+        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1")}
     );
   }
 
   protected final String catalogName;
-  protected final String[] baseNamespace;
+  protected final Namespace baseNamespace;
   protected final Catalog validationCatalog;
   protected final SupportsNamespaces validationNamespaceCatalog;
   protected final Map<String, String> config = Maps.newHashMap();
@@ -90,7 +86,7 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
   protected final Namespace icebergNamespace;
   protected final boolean isHadoopCatalog;
 
-  public FlinkCatalogTestBase(String catalogName, String[] baseNamespace) {
+  public FlinkCatalogTestBase(String catalogName, Namespace baseNamespace) {
     this.catalogName = catalogName;
     this.baseNamespace = baseNamespace;
     this.isHadoopCatalog = catalogName.startsWith("testhadoop");
@@ -100,8 +96,8 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
     this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
 
     config.put("type", "iceberg");
-    if (baseNamespace.length > 0) {
-      config.put(FlinkCatalogFactory.BASE_NAMESPACE, Joiner.on(".").join(baseNamespace));
+    if (!baseNamespace.isEmpty()) {
+      config.put(FlinkCatalogFactory.BASE_NAMESPACE, baseNamespace.toString());
     }
     if (isHadoopCatalog) {
       config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hadoop");
@@ -113,7 +109,7 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
     }
 
     this.flinkDatabase = catalogName + "." + DATABASE;
-    this.icebergNamespace = Namespace.of(ArrayUtils.concat(baseNamespace, new String[] {DATABASE}));
+    this.icebergNamespace = Namespace.of(ArrayUtils.concat(baseNamespace.levels(), new String[] {DATABASE}));
   }
 
   static String getURI(HiveConf conf) {

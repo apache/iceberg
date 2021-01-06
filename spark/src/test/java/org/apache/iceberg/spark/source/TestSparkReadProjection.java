@@ -34,8 +34,10 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkValueConverter;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -81,6 +83,14 @@ public abstract class TestSparkReadProjection extends TestReadProjection {
   @BeforeClass
   public static void startSpark() {
     TestSparkReadProjection.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    ImmutableMap<String, String> config = ImmutableMap.of(
+        "type", "hive",
+        "default-namespace", "default",
+        "parquet-enabled", "true",
+        "cache-enabled", "false"
+    );
+    spark.conf().set("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.source.TestSparkCatalog");
+    config.forEach((key, value) -> spark.conf().set("spark.sql.catalog.spark_catalog." + key, value));
   }
 
   @AfterClass
@@ -135,7 +145,7 @@ public abstract class TestSparkReadProjection extends TestReadProjection {
       Dataset<Row> df = spark.read()
           .format("org.apache.iceberg.spark.source.TestIcebergSource")
           .option("iceberg.table.name", desc)
-          .option("vectorization-enabled", String.valueOf(vectorized))
+          .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
           .load();
 
       return SparkValueConverter.convert(readSchema, df.collectAsList().get(0));

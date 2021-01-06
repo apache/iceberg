@@ -20,12 +20,11 @@
 package org.apache.iceberg.spark;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
-import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -37,7 +36,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -81,10 +79,6 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 public class SparkCatalog extends BaseCatalog {
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
 
-  public static final String ICEBERG_CATALOG_TYPE = "type";
-  public static final String ICEBERG_CATALOG_TYPE_HADOOP = "hadoop";
-  public static final String ICEBERG_CATALOG_TYPE_HIVE = "hive";
-
   private String catalogName = null;
   private Catalog icebergCatalog = null;
   private boolean cacheEnabled = true;
@@ -101,27 +95,9 @@ public class SparkCatalog extends BaseCatalog {
    */
   protected Catalog buildIcebergCatalog(String name, CaseInsensitiveStringMap options) {
     Configuration conf = SparkSession.active().sessionState().newHadoopConf();
-
-    String catalogImpl = options.get(CatalogProperties.CATALOG_IMPL);
-    if (catalogImpl != null) {
-      return CatalogUtil.loadCatalog(catalogImpl, name, options, conf);
-    }
-
-    String catalogType = options.getOrDefault(ICEBERG_CATALOG_TYPE, ICEBERG_CATALOG_TYPE_HIVE);
-    switch (catalogType.toLowerCase(Locale.ENGLISH)) {
-      case ICEBERG_CATALOG_TYPE_HIVE:
-        int clientPoolSize = options.getInt(CatalogProperties.HIVE_CLIENT_POOL_SIZE,
-            CatalogProperties.HIVE_CLIENT_POOL_SIZE_DEFAULT);
-        String uri = options.get(CatalogProperties.HIVE_URI);
-        return new HiveCatalog(name, uri, clientPoolSize, conf);
-
-      case ICEBERG_CATALOG_TYPE_HADOOP:
-        String warehouseLocation = options.get(CatalogProperties.WAREHOUSE_LOCATION);
-        return new HadoopCatalog(name, conf, warehouseLocation, options.asCaseSensitiveMap());
-
-      default:
-        throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
-    }
+    Map<String, String> optionsMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    optionsMap.putAll(options);
+    return CatalogUtil.buildIcebergCatalog(name, optionsMap, conf);
   }
 
   /**
@@ -131,7 +107,7 @@ public class SparkCatalog extends BaseCatalog {
    * @return an Iceberg identifier
    */
   protected TableIdentifier buildIdentifier(Identifier identifier) {
-    return TableIdentifier.of(Namespace.of(identifier.namespace()), identifier.name());
+    return Spark3Util.identifierToTableIdentifier(identifier);
   }
 
   @Override

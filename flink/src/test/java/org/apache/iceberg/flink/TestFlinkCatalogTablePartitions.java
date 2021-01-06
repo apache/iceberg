@@ -26,6 +26,7 @@ import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.After;
@@ -49,7 +50,7 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
       for (Boolean cacheEnabled : new Boolean[] {true, false}) {
         for (Object[] catalogParams : FlinkCatalogTestBase.parameters()) {
           String catalogName = (String) catalogParams[0];
-          String[] baseNamespace = (String[]) catalogParams[1];
+          Namespace baseNamespace = (Namespace) catalogParams[1];
           parameters.add(new Object[] {catalogName, baseNamespace, format, cacheEnabled});
         }
       }
@@ -57,7 +58,7 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
     return parameters;
   }
 
-  public TestFlinkCatalogTablePartitions(String catalogName, String[] baseNamespace, FileFormat format,
+  public TestFlinkCatalogTablePartitions(String catalogName, Namespace baseNamespace, FileFormat format,
                                          boolean cacheEnabled) {
     super(catalogName, baseNamespace);
     this.format = format;

@@ -131,6 +131,10 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
         .olderThan(System.currentTimeMillis() + 1000).execute();
     Assert.assertTrue("trash file should be removed",
         results.contains("file:" + location + "/data/trashfile"));
+    // reset spark_catalog to default
+    spark.conf().unset("spark.sql.catalog.spark_catalog");
+    spark.conf().unset("spark.sql.catalog.spark_catalog.type");
+    spark.conf().unset("spark.sql.catalog.spark_catalog.warehouse");
   }
 
   @Test
@@ -156,6 +160,9 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
         .olderThan(System.currentTimeMillis() + 1000).execute();
     Assert.assertTrue("trash file should be removed",
         results.contains("file:" + location + "/data/trashfile"));
+    // reset spark_catalog to default
+    spark.conf().unset("spark.sql.catalog.spark_catalog");
+    spark.conf().unset("spark.sql.catalog.spark_catalog.type");
   }
 
 }

@@ -71,8 +71,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Generic Mrv2 InputFormat API for Iceberg.
@@ -80,8 +78,6 @@ import org.slf4j.LoggerFactory;
  * @param <T> T is the in memory data model which can either be Pig tuples, Hive rows. Default is Iceberg records
  */
 public class IcebergInputFormat<T> extends InputFormat<Void, T> {
-  private static final Logger LOG = LoggerFactory.getLogger(IcebergInputFormat.class);
-
   /**
    * Configures the {@code Job} to use the {@code IcebergInputFormat} and
    * returns a helper to add further configuration.
@@ -96,7 +92,13 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   @Override
   public List<InputSplit> getSplits(JobContext context) {
     Configuration conf = context.getConfiguration();
-    Table table = Catalogs.loadTable(conf);
+    Table table;
+    if (conf.get(InputFormatConfig.SERIALIZED_TABLE) != null) {
+      table = SerializationUtil.deserializeFromBase64(conf.get(InputFormatConfig.SERIALIZED_TABLE));
+    } else {
+      table = Catalogs.loadTable(conf);
+    }
+
     TableScan scan = table.newScan()
             .caseSensitive(conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, true));
     long snapshotId = conf.getLong(InputFormatConfig.SNAPSHOT_ID, -1);

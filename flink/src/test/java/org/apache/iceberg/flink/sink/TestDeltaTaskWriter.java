@@ -25,7 +25,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -35,10 +34,9 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.TableTestBase;
-import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
-import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -325,17 +323,11 @@ public class TestDeltaTaskWriter extends TableTestBase {
   }
 
   private StructLikeSet expectedRowSet(Record... records) {
-    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
-    Collections.addAll(set, records);
-    return set;
+    return SimpleDataUtil.expectedRowSet(table, records);
   }
 
   private StructLikeSet actualRowSet(String... columns) throws IOException {
-    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
-    try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
-      reader.forEach(set::add);
-    }
-    return set;
+    return SimpleDataUtil.actualRowSet(table, columns);
   }
 
   private TaskWriterFactory<RowData> createTaskWriterFactory(List<Integer> equalityFieldIds) {

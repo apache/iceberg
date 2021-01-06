@@ -239,8 +239,10 @@ public class TestMergeAppend extends TableTestBase {
   public void testManifestMergeMinCount() throws IOException {
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
     table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "2")
-        // each manifest file is 5227 bytes, so 12000 bytes limit will give us 2 bins with 3 manifest/data files.
-        .set(TableProperties.MANIFEST_TARGET_SIZE_BYTES, "12000")
+        // Each initial v1/v2 ManifestFile is 5661/6397 bytes respectively. Merging two of the given
+        // manifests make one v1/v2 ManifestFile of 5672/6408 bytes respectively, so 15000 bytes
+        // limit will give us two bins with three manifest/data files.
+        .set(TableProperties.MANIFEST_TARGET_SIZE_BYTES, "15000")
         .commit();
 
     TableMetadata base = readMetadata();

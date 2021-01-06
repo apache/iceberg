@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.source.orc;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.source.IcebergSourceNestedDataBenchmark;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -85,7 +86,7 @@ public class IcebergSourceNestedORCDataReadBenchmark extends IcebergSourceNested
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
-      Dataset<Row> df = spark().read().option("vectorization-enabled", "true")
+      Dataset<Row> df = spark().read().option(SparkReadOptions.VECTORIZATION_ENABLED, "true")
           .format("iceberg").load(tableLocation);
       materialize(df);
     });
@@ -122,7 +123,7 @@ public class IcebergSourceNestedORCDataReadBenchmark extends IcebergSourceNested
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
-      Dataset<Row> df = spark().read().option("vectorization-enabled", "true")
+      Dataset<Row> df = spark().read().option(SparkReadOptions.VECTORIZATION_ENABLED, "true")
           .format("iceberg").load(tableLocation).selectExpr("nested.col3");
       materialize(df);
     });

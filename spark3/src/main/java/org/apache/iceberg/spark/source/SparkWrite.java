@@ -122,7 +122,7 @@ class SparkWrite {
 
     long tableTargetFileSize = PropertyUtil.propertyAsLong(
         table.properties(), WRITE_TARGET_FILE_SIZE_BYTES, WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
-    this.targetFileSize = writeInfo.options().getLong("target-file-size-bytes", tableTargetFileSize);
+    this.targetFileSize = writeInfo.options().getLong(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, tableTargetFileSize);
 
     boolean tablePartitionedFanoutEnabled = PropertyUtil.propertyAsBoolean(
         table.properties(), SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT);
@@ -155,7 +155,7 @@ class SparkWrite {
   }
 
   private FileFormat getFileFormat(Map<String, String> tableProperties, Map<String, String> options) {
-    Optional<String> formatOption = Optional.ofNullable(options.get("write-format"));
+    Optional<String> formatOption = Optional.ofNullable(options.get(SparkWriteOptions.WRITE_FORMAT));
     String formatString = formatOption
         .orElseGet(() -> tableProperties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT));
     return FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));

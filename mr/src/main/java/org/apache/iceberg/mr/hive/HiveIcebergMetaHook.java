@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.mr.hive;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
@@ -45,6 +44,7 @@ import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,6 +76,11 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
         BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase());
 
     if (!Catalogs.hiveCatalog(conf)) {
+      // For non-HiveCatalog tables too, we should set the input and output format
+      // so that the table can be read by other engines like Impala
+      hmsTable.getSd().setInputFormat(HiveIcebergInputFormat.class.getCanonicalName());
+      hmsTable.getSd().setOutputFormat(HiveIcebergOutputFormat.class.getCanonicalName());
+
       // If not using HiveCatalog check for existing table
       try {
         this.icebergTable = Catalogs.loadTable(conf, catalogProperties);
@@ -204,15 +209,13 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
   private static Schema schema(Properties properties, org.apache.hadoop.hive.metastore.api.Table hmsTable) {
     if (properties.getProperty(InputFormatConfig.TABLE_SCHEMA) != null) {
       return SchemaParser.fromJson(properties.getProperty(InputFormatConfig.TABLE_SCHEMA));
+    } else if (hmsTable.isSetPartitionKeys() && !hmsTable.getPartitionKeys().isEmpty()) {
+      // Add partitioning columns to the original column list before creating the Iceberg Schema
+      List<FieldSchema> cols = Lists.newArrayList(hmsTable.getSd().getCols());
+      cols.addAll(hmsTable.getPartitionKeys());
+      return HiveSchemaUtil.convert(cols);
     } else {
-      if (hmsTable.isSetPartitionKeys() && !hmsTable.getPartitionKeys().isEmpty()) {
-        // Add partitioning columns to the original column list before creating the Iceberg Schema
-        List<FieldSchema> cols = new ArrayList<>(hmsTable.getSd().getCols());
-        cols.addAll(hmsTable.getPartitionKeys());
-        return HiveSchemaUtil.convert(cols);
-      } else {
-        return HiveSchemaUtil.convert(hmsTable.getSd().getCols());
-      }
+      return HiveSchemaUtil.convert(hmsTable.getSd().getCols());
     }
   }
 
@@ -224,13 +227,11 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
           "Provide only one of the following: Hive partition specification, or the " +
               InputFormatConfig.PARTITION_SPEC + " property");
       return PartitionSpecParser.fromJson(schema, properties.getProperty(InputFormatConfig.PARTITION_SPEC));
+    } else if (hmsTable.isSetPartitionKeys() && !hmsTable.getPartitionKeys().isEmpty()) {
+      // If the table is partitioned then generate the identity partition definitions for the Iceberg table
+      return HiveSchemaUtil.spec(schema, hmsTable.getPartitionKeys());
     } else {
-      if (hmsTable.isSetPartitionKeys() && !hmsTable.getPartitionKeys().isEmpty()) {
-        // If the table is partitioned then generate the identity partition definitions for the Iceberg table
-        return HiveSchemaUtil.spec(schema, hmsTable.getPartitionKeys());
-      } else {
-        return PartitionSpec.unpartitioned();
-      }
+      return PartitionSpec.unpartitioned();
     }
   }
 }

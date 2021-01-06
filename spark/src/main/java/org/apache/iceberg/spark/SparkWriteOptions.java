@@ -27,6 +27,24 @@ public class SparkWriteOptions {
   private SparkWriteOptions() {
   }
 
+  // Fileformat for write operations(default: Table write.format.default )
+  public static final String WRITE_FORMAT = "write-format";
+
+  // Overrides this table's write.target-file-size-bytes
+  public static final String TARGET_FILE_SIZE_BYTES = "target-file-size-bytes";
+
+  //  Sets the nullable check on fields(default: true)
+  public static final String CHECK_NULLABILITY = "check-nullability";
+
+  // Adds an entry with custom-key and corresponding value in the snapshot summary
+  // ex: df.write().format(iceberg)
+  //     .option(SparkWriteOptions.SNAPSHOT_PROPERTY_PREFIX."key1", "value1")
+  //     .save(location)
+  public static final String SNAPSHOT_PROPERTY_PREFIX = "snapshot-property";
+
   // Overrides table property write.spark.fanout.enabled(default: false)
   public static final String FANOUT_ENABLED = "fanout-enabled";
+
+  // Checks if input schema and table schema are same(default: true)
+  public static final String CHECK_ORDERING = "check-ordering";
 }

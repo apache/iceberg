@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -72,7 +73,7 @@ import org.slf4j.LoggerFactory;
  *
  * Note: The HadoopCatalog requires that the underlying file system supports atomic rename.
  */
-public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces {
+public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces, Configurable {
 
   private static final Logger LOG = LoggerFactory.getLogger(HadoopCatalog.class);
 
@@ -81,20 +82,26 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   private static final Joiner SLASH = Joiner.on("/");
   private static final PathFilter TABLE_FILTER = path -> path.getName().endsWith(TABLE_METADATA_FILE_EXTENSION);
 
-  private final String catalogName;
-  private final Configuration conf;
-  private final String warehouseLocation;
-  private final FileSystem fs;
-  private final FileIO fileIO;
+  private String catalogName;
+  private Configuration conf;
+  private String warehouseLocation;
+  private FileSystem fs;
+  private FileIO fileIO;
   private boolean suppressIOException = false;
+
+  public HadoopCatalog(){
+  }
 
   /**
    * The constructor of the HadoopCatalog. It uses the passed location as its warehouse directory.
    *
+   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
+   * v0.12.0
    * @param name The catalog name
    * @param conf The Hadoop configuration
    * @param warehouseLocation The location used as warehouse directory
    */
+  @Deprecated
   public HadoopCatalog(String name, Configuration conf, String warehouseLocation) {
     this(name, conf, warehouseLocation, Maps.newHashMap());
   }
@@ -102,18 +109,30 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   /**
    * The all-arg constructor of the HadoopCatalog.
    *
+   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
+   * v0.12.0
    * @param name The catalog name
    * @param conf The Hadoop configuration
    * @param warehouseLocation The location used as warehouse directory
    * @param properties catalog properties
    */
+  @Deprecated
   public HadoopCatalog(String name, Configuration conf, String warehouseLocation, Map<String, String> properties) {
     Preconditions.checkArgument(warehouseLocation != null && !warehouseLocation.equals(""),
-        "no location provided for warehouse");
+        "Cannot instantiate hadoop catalog. No location provided for warehouse");
+    setConf(conf);
+    Map<String, String> props = Maps.newHashMap(properties);
+    props.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
+    initialize(name, props);
+  }
 
+  @Override
+  public void initialize(String name, Map<String, String> properties) {
+    String inputWarehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
+    Preconditions.checkArgument(inputWarehouseLocation != null && !inputWarehouseLocation.equals(""),
+        "Cannot instantiate hadoop catalog. No location provided for warehouse (Set warehouse config)");
     this.catalogName = name;
-    this.conf = conf;
-    this.warehouseLocation = warehouseLocation.replaceAll("/*$", "");
+    this.warehouseLocation = inputWarehouseLocation.replaceAll("/*$", "");
     this.fs = Util.getFs(new Path(warehouseLocation), conf);
 
     String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
@@ -384,6 +403,16 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   @Override
   public TableBuilder buildTable(TableIdentifier identifier, Schema schema) {
     return new HadoopCatalogTableBuilder(identifier, schema);
+  }
+
+  @Override
+  public void setConf(Configuration conf) {
+    this.conf = conf;
+  }
+
+  @Override
+  public Configuration getConf() {
+    return conf;
   }
 
   private class HadoopCatalogTableBuilder extends BaseMetastoreCatalogTableBuilder {

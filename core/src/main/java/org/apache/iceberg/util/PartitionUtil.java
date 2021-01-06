@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
@@ -39,13 +40,17 @@ public class PartitionUtil {
   }
 
   public static Map<Integer, ?> constantsMap(FileScanTask task, BiFunction<Type, Object, Object> convertConstant) {
-    return constantsMap(task.spec(), task.file().partition(), convertConstant);
-  }
+    PartitionSpec spec = task.spec();
+    StructLike partitionData = task.file().partition();
 
-  private static Map<Integer, ?> constantsMap(PartitionSpec spec, StructLike partitionData,
-                                              BiFunction<Type, Object, Object> convertConstant) {
     // use java.util.HashMap because partition data may contain null values
     Map<Integer, Object> idToConstant = new HashMap<>();
+
+    // add _file
+    idToConstant.put(
+        MetadataColumns.FILE_PATH.fieldId(),
+        convertConstant.apply(Types.StringType.get(), task.file().path()));
+
     List<Types.NestedField> partitionFields = spec.partitionType().fields();
     List<PartitionField> fields = spec.fields();
     for (int pos = 0; pos < fields.size(); pos += 1) {
@@ -55,6 +60,7 @@ public class PartitionUtil {
         idToConstant.put(field.sourceId(), converted);
       }
     }
+
     return idToConstant;
   }
 }

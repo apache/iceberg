@@ -24,15 +24,13 @@ import java.util.Optional;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.hive.HiveCatalog;
-import org.apache.iceberg.hive.HiveCatalogs;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
@@ -137,9 +135,7 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
       HadoopTables tables = new HadoopTables(conf);
       return tables.load(path.get());
     } else {
-      HiveCatalog hiveCatalog = HiveCatalogs.loadCatalog(conf);
-      TableIdentifier tableIdentifier = TableIdentifier.parse(path.get());
-      return hiveCatalog.loadTable(tableIdentifier);
+      return CustomCatalogs.table(lazySparkSession(), path.get());
     }
   }
 
@@ -186,14 +182,14 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
   private boolean checkNullability(DataSourceOptions options) {
     boolean sparkCheckNullability = Boolean.parseBoolean(lazySpark.conf()
         .get("spark.sql.iceberg.check-nullability", "true"));
-    boolean dataFrameCheckNullability = options.getBoolean("check-nullability", true);
+    boolean dataFrameCheckNullability = options.getBoolean(SparkWriteOptions.CHECK_NULLABILITY, true);
     return sparkCheckNullability && dataFrameCheckNullability;
   }
 
   private boolean checkOrdering(DataSourceOptions options) {
     boolean sparkCheckOrdering = Boolean.parseBoolean(lazySpark.conf()
             .get("spark.sql.iceberg.check-ordering", "true"));
-    boolean dataFrameCheckOrdering = options.getBoolean("check-ordering", true);
+    boolean dataFrameCheckOrdering = options.getBoolean(SparkWriteOptions.CHECK_ORDERING, true);
     return sparkCheckOrdering && dataFrameCheckOrdering;
   }
 }

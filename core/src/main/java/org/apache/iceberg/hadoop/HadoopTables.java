@@ -339,9 +339,9 @@ public class HadoopTables implements Tables, Configurable {
       Map<String, String> properties = propertiesBuilder.build();
       TableMetadata metadata;
       if (ops.current() != null) {
-        metadata = ops.current().buildReplacement(schema, spec, SortOrder.unsorted(), location, properties);
+        metadata = ops.current().buildReplacement(schema, spec, sortOrder, location, properties);
       } else {
-        metadata = tableMetadata(schema, spec, null, properties, location);
+        metadata = tableMetadata(schema, spec, sortOrder, properties, location);
       }
 
       if (orCreate) {

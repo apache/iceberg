@@ -47,6 +47,14 @@ public class AwsIntegTestUtil {
     return System.getenv("AWS_TEST_BUCKET");
   }
 
+  /**
+   * Set the environment variable AWS_TEST_ACCOUNT_ID for a default account to use for testing
+   * @return account id
+   */
+  public static String testAccountId() {
+    return System.getenv("AWS_TEST_ACCOUNT_ID");
+  }
+
   public static void cleanS3Bucket(S3Client s3, String bucketName, String prefix) {
     boolean hasContent = true;
     while (hasContent) {

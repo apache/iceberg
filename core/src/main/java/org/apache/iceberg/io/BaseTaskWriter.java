@@ -100,7 +100,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     private SortedPosDeleteWriter<T> posDeleteWriter;
     private Map<StructLike, PathOffset> insertedRowMap;
 
-    public BaseEqualityDeltaWriter(PartitionKey partition, Schema schema, Schema deleteSchema) {
+    protected BaseEqualityDeltaWriter(PartitionKey partition, Schema schema, Schema deleteSchema) {
       Preconditions.checkNotNull(schema, "Iceberg table schema cannot be null.");
       Preconditions.checkNotNull(deleteSchema, "Equality-delete schema cannot be null.");
       this.structProjection = StructProjection.create(schema, deleteSchema);

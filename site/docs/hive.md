@@ -28,10 +28,10 @@ Regardless of the table type, the `HiveIcebergStorageHandler` and supporting cla
 ```sql
 add jar /path/to/iceberg-hive-runtime.jar;
 ```
-There are many others ways to achieve this including adding the jar file to Hive's auxillary classpath (so it is available by default) - please refer to Hive's documentation for more information.
+There are many others ways to achieve this including adding the jar file to Hive's auxiliary classpath (so it is available by default) - please refer to Hive's documentation for more information.
 
 #### Using Hadoop Tables
-Iceberg tables created using `HadoopTables` are stored entirely in a directory in a filesytem like HDFS. 
+Iceberg tables created using `HadoopTables` are stored entirely in a directory in a filesystem like HDFS.
 
 ##### Create an Iceberg table
 The first step is to create an Iceberg table using the Spark/Java/Python API and `HadoopTables`. For the purposes of this documentation we will assume that the table is called `table_a` and that the table location is `hdfs://some_path/table_a`.
@@ -85,7 +85,7 @@ SELECT * from table_b;
 ```
 
 #### Using Hadoop Catalog
-Iceberg tables created using `HadoopCatalog` are stored entirely in a directory in a filesytem like HDFS. 
+Iceberg tables created using `HadoopCatalog` are stored entirely in a directory in a filesystem like HDFS.
 
 ##### Create an Iceberg table
 The first step is to create an Iceberg table using the Spark/Java/Python API and `HadoopCatalog`. For the purposes of this documentation we will assume that the fully qualified table identifier is `database_a.table_c` and that the Hadoop Catalog warehouse location is `hdfs://some_bucket/path_to_hadoop_warehouse`. Iceberg will therefore create the table at the location `hdfs://some_bucket/path_to_hadoop_warehouse/database_a/table_c`.

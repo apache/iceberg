@@ -53,6 +53,10 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.DELETE_MODE;
 import static org.apache.iceberg.TableProperties.DELETE_MODE_DEFAULT;
+import static org.apache.iceberg.TableProperties.MERGE_MODE;
+import static org.apache.iceberg.TableProperties.MERGE_MODE_DEFAULT;
+import static org.apache.iceberg.TableProperties.UPDATE_MODE;
+import static org.apache.iceberg.TableProperties.UPDATE_MODE_DEFAULT;
 
 public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     SupportsRead, SupportsWrite, ExtendedSupportsDelete, SupportsMerge {
@@ -178,6 +182,10 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     Map<String, String> props = icebergTable.properties();
     if (operation.equalsIgnoreCase("delete")) {
       return props.getOrDefault(DELETE_MODE, DELETE_MODE_DEFAULT);
+    } else if (operation.equalsIgnoreCase("update")) {
+      return props.getOrDefault(UPDATE_MODE, UPDATE_MODE_DEFAULT);
+    } else if (operation.equalsIgnoreCase("merge")) {
+      return props.getOrDefault(MERGE_MODE, MERGE_MODE_DEFAULT);
     } else {
       throw new IllegalArgumentException("Unsupported operation: " + operation);
     }

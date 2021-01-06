@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.apache.hadoop.conf.Configurable;
@@ -40,6 +41,11 @@ import org.slf4j.LoggerFactory;
 
 public class CatalogUtil {
   private static final Logger LOG = LoggerFactory.getLogger(CatalogUtil.class);
+  public static final String ICEBERG_CATALOG_TYPE = "type";
+  public static final String ICEBERG_CATALOG_TYPE_HADOOP = "hadoop";
+  public static final String ICEBERG_CATALOG_TYPE_HIVE = "hive";
+  public static final String ICEBERG_CATALOG_HIVE = "org.apache.iceberg.hive.HiveCatalog";
+  public static final String ICEBERG_CATALOG_HADOOP = "org.apache.iceberg.hadoop.HadoopCatalog";
 
   private CatalogUtil() {
   }
@@ -167,6 +173,25 @@ public class CatalogUtil {
 
     catalog.initialize(catalogName, properties);
     return catalog;
+  }
+
+  public static Catalog buildIcebergCatalog(String name, Map<String, String> options, Configuration conf) {
+    String catalogImpl = options.get(CatalogProperties.CATALOG_IMPL);
+    if (catalogImpl == null) {
+      String catalogType = options.getOrDefault(ICEBERG_CATALOG_TYPE, ICEBERG_CATALOG_TYPE_HIVE);
+      switch (catalogType.toLowerCase(Locale.ENGLISH)) {
+        case ICEBERG_CATALOG_TYPE_HIVE:
+          catalogImpl = ICEBERG_CATALOG_HIVE;
+          break;
+        case ICEBERG_CATALOG_TYPE_HADOOP:
+          catalogImpl = ICEBERG_CATALOG_HADOOP;
+          break;
+        default:
+          throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
+      }
+    }
+
+    return CatalogUtil.loadCatalog(catalogImpl, name, options, conf);
   }
 
   /**

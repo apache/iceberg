@@ -55,4 +55,16 @@ public class MetadataColumns {
   public static Set<Integer> metadataFieldIds() {
     return META_IDS;
   }
+
+  public static NestedField get(String name) {
+    return META_COLUMNS.get(name);
+  }
+
+  public static boolean isMetadataColumn(String name) {
+    return META_COLUMNS.containsKey(name);
+  }
+
+  public static boolean nonMetadataColumn(String name) {
+    return !META_COLUMNS.containsKey(name);
+  }
 }

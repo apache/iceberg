@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
+import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.DateDayVector;
 import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
@@ -380,6 +381,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         ((BigIntVector) vec).allocateNew(numValsToRead);
         for (int i = 0; i < numValsToRead; i += 1) {
           vec.getDataBuffer().setLong(i * Long.BYTES, rowStart + i);
+        }
+        for (int i = 0; i < numValsToRead; i += 1) {
+          BitVectorHelper.setValidityBitToOne(vec.getValidityBuffer(), i);
         }
         nulls = new NullabilityHolder(numValsToRead);
       }
