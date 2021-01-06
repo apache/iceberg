@@ -271,8 +271,10 @@ public class DataFiles {
       return withEncryptionKeyMetadata(newKeyMetadata.buffer());
     }
 
-    public Builder withSortOrderId(int newSortOrderId) {
-      this.sortOrderId = newSortOrderId;
+    public Builder withSortOrder(SortOrder newSortOrder) {
+      if (newSortOrder != null) {
+        this.sortOrderId = newSortOrder.orderId();
+      }
       return this;
     }
 

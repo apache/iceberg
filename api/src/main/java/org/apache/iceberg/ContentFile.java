@@ -124,6 +124,14 @@ public interface ContentFile<F> {
    */
   List<Integer> equalityFieldIds();
 
+  /**
+   * Returns the sort order id of this file, which describes how the file is ordered.
+   * This information will be useful for merging data and equality delete files more efficiently
+   * when they share the same sort order id.
+   */
+  default Integer sortOrderId() {
+    return null;
+  }
 
   /**
    * Copies this file. Manifest readers can reuse file instances; use
@@ -142,12 +150,4 @@ public interface ContentFile<F> {
    */
   F copyWithoutStats();
 
-  /**
-   * Returns the sort order id of this file, which describes how the file is ordered.
-   * This information will be useful for merging data and equality delete files more efficiently
-   * when they share the same sort order id.
-   */
-  default Integer sortOrderId() {
-    return null;
-  }
 }
