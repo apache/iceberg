@@ -64,9 +64,16 @@ public class TestHiveIcebergStorageHandlerLocalScan {
   @Parameters(name = "fileFormat={0}, catalog={1}")
   public static Collection<Object[]> parameters() {
     Collection<Object[]> testParams = new ArrayList<>();
+
+    // Run tests with every FileFormat for a single Catalog (HiveCatalog)
     for (FileFormat fileFormat : HiveIcebergStorageHandlerTestUtils.FILE_FORMATS) {
-      for (TestTables.TestTableType testTableType : TestTables.ALL_TABLE_TYPES) {
-        testParams.add(new Object[] {fileFormat, testTableType});
+      testParams.add(new Object[] {fileFormat, TestTables.TestTableType.HIVE_CATALOG});
+    }
+
+    // Run tests for every Catalog for a single FileFormat (PARQUET) - skip HiveCatalog tests as they are added before
+    for (TestTables.TestTableType testTableType : TestTables.ALL_TABLE_TYPES) {
+      if (!TestTables.TestTableType.HIVE_CATALOG.equals(testTableType)) {
+        testParams.add(new Object[]{FileFormat.PARQUET, testTableType});
       }
     }
 

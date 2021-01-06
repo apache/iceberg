@@ -49,7 +49,7 @@ import static org.junit.runners.Parameterized.Parameters;
 @RunWith(Parameterized.class)
 public class TestHiveIcebergStorageHandlerWithEngine {
 
-  private static final String[] EXECUTION_ENGINES = new String[] {"mr"};
+  private static final String[] EXECUTION_ENGINES = new String[] {"tez", "mr"};
 
   private static final Schema ORDER_SCHEMA = new Schema(
           required(1, "order_id", Types.LongType.get()),
@@ -70,17 +70,24 @@ public class TestHiveIcebergStorageHandlerWithEngine {
 
   @Parameters(name = "fileFormat={0}, engine={1}, catalog={2}")
   public static Collection<Object[]> parameters() {
+    Collection<Object[]> testParams = new ArrayList<>();
     String javaVersion = System.getProperty("java.specification.version");
 
-    Collection<Object[]> testParams = new ArrayList<>();
+    // Run tests with every FileFormat for a single Catalog (HiveCatalog)
     for (FileFormat fileFormat : HiveIcebergStorageHandlerTestUtils.FILE_FORMATS) {
       for (String engine : EXECUTION_ENGINES) {
         // include Tez tests only for Java 8
         if (javaVersion.equals("1.8") || "mr".equals(engine)) {
-          for (TestTables.TestTableType testTableType : TestTables.ALL_TABLE_TYPES) {
-            testParams.add(new Object[] {fileFormat, engine, testTableType});
-          }
+          testParams.add(new Object[] {fileFormat, engine, TestTables.TestTableType.HIVE_CATALOG});
         }
+      }
+    }
+
+    // Run tests for every Catalog for a single FileFormat (PARQUET) and execution engine (mr)
+    // skip HiveCatalog tests as they are added before
+    for (TestTables.TestTableType testTableType : TestTables.ALL_TABLE_TYPES) {
+      if (!TestTables.TestTableType.HIVE_CATALOG.equals(testTableType)) {
+        testParams.add(new Object[]{FileFormat.PARQUET, "mr", testTableType});
       }
     }
 
