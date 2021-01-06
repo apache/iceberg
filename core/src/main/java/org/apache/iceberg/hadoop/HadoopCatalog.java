@@ -56,6 +56,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * HadoopCatalog provides a way to use table names like db.table to work with path-based tables under a common
@@ -71,6 +73,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
  * Note: The HadoopCatalog requires that the underlying file system supports atomic rename.
  */
 public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces {
+
+  private static final Logger LOG = LoggerFactory.getLogger(HadoopCatalog.class);
 
   private static final String ICEBERG_HADOOP_WAREHOUSE_BASE = "iceberg/warehouse";
   private static final String TABLE_METADATA_FILE_EXTENSION = ".metadata.json";
@@ -114,7 +118,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
     String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
     this.suppressIOException = Boolean.parseBoolean(properties.get(CatalogProperties.HADOOP_SUPPRESS_IOEXCEPTION));
-    
+
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(conf) : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
   }
 
@@ -144,6 +148,11 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     return catalogName;
   }
 
+  private boolean shouldSuppressIOException(IOException ioException) {
+    String name = ioException.getClass().getName();
+    return suppressIOException && name.startsWith("org.apache.hadoop.fs.azurebfs");
+  }
+
   private boolean isTableDir(Path path) {
     Path metadataPath = new Path(path, "metadata");
     // Only the path which contains metadata is the path for table, otherwise it could be
@@ -153,7 +162,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     } catch (FileNotFoundException e) {
       return false;
     } catch (IOException e) {
-      if (suppressIOException) {
+      if (shouldSuppressIOException(e)) {
+        LOG.warn("Unalbe to metadata directory {}: {}", metadataPath, e);
         return false;
       } else {
         throw new UncheckedIOException(e);
@@ -167,7 +177,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     } catch (FileNotFoundException e) {
       return false;
     } catch (IOException e) {
-      if (suppressIOException) {
+      if (shouldSuppressIOException(e)) {
+        LOG.warn("Unalbe to list directory {}: {}", path, e);
         return false;
       } else {
         throw new UncheckedIOException(e);
