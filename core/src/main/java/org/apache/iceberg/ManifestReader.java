@@ -82,7 +82,7 @@ public class ManifestReader<F extends ContentFile<F>>
   private Expression partFilter = alwaysTrue();
   private Expression rowFilter = alwaysTrue();
   private Schema fileProjection = null;
-  private List<String> columns = null;
+  private Collection<String> columns = null;
   private boolean caseSensitive = true;
 
   // lazily initialized
@@ -137,7 +137,7 @@ public class ManifestReader<F extends ContentFile<F>>
     return spec;
   }
 
-  public ManifestReader<F> select(List<String> newColumns) {
+  public ManifestReader<F> select(Collection<String> newColumns) {
     Preconditions.checkState(fileProjection == null,
         "Cannot select columns using both select(String...) and project(Schema)");
     this.columns = newColumns;
@@ -288,15 +288,15 @@ public class ManifestReader<F extends ContentFile<F>>
     // is a primitive type.
     if (rowFilter != Expressions.alwaysTrue() && columns != null &&
         !columns.containsAll(ManifestReader.ALL_COLUMNS)) {
-      Set<String> interaction = Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS);
-      return interaction.isEmpty() || interaction.equals(Sets.newHashSet("record_count"));
+      Set<String> intersection = Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS);
+      return intersection.isEmpty() || intersection.equals(Sets.newHashSet("record_count"));
     }
     return false;
   }
 
-  static List<String> withStatsColumns(List<String> columns) {
+  static List<String> withStatsColumns(Collection<String> columns) {
     if (columns.containsAll(ManifestReader.ALL_COLUMNS)) {
-      return columns;
+      return Lists.newArrayList(columns);
     } else {
       List<String> projectColumns = Lists.newArrayList(columns);
       projectColumns.addAll(STATS_COLUMNS); // order doesn't matter

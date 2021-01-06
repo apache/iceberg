@@ -116,6 +116,18 @@ public class TestManifestReaderStats extends TableTestBase {
       assertStatsDropped(entry);
     }
   }
+
+  @Test
+  public void testReadIteratorWithFilterAndSelectRecordCountDropsStats() throws IOException {
+    ManifestFile manifest = writeManifest(1000L, FILE);
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
+        .select(ImmutableList.of("file_path", "record_count"))
+        .filterRows(Expressions.equal("id", 3))) {
+      DataFile entry = reader.iterator().next();
+      assertStatsDropped(entry);
+    }
+  }
+
   @Test
   public void testReadIteratorWithFilterAndSelectStatsIncludesFullStats() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE);
@@ -124,6 +136,9 @@ public class TestManifestReaderStats extends TableTestBase {
         .filterRows(Expressions.equal("id", 3))) {
       DataFile entry = reader.iterator().next();
       assertFullStats(entry);
+
+      // explicitly call copyWithoutStats and ensure record count will not be dropped
+      assertStatsDropped(entry.copyWithoutStats());
     }
   }
 
