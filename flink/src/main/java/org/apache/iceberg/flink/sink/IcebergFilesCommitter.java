@@ -55,6 +55,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -106,7 +107,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // All pending checkpoints states for this function.
   private static final ListStateDescriptor<SortedMap<Long, byte[]>> STATE_DESCRIPTOR = buildStateDescriptor();
   private transient ListState<SortedMap<Long, byte[]>> checkpointsState;
-
+  private transient long lastCheckTime;
+  private transient long maxCommitIdleTimeMs;
   IcebergFilesCommitter(TableLoader tableLoader, boolean replacePartitions) {
     this.tableLoader = tableLoader;
     this.replacePartitions = replacePartitions;
@@ -126,6 +128,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     this.manifestOutputFileFactory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, subTaskId, attemptId);
     this.maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
+    this.maxCommitIdleTimeMs = PropertyUtil.propertyAsLong(table.properties(), "flink.commit.max.idle.ms",-1);
     this.checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     this.jobIdState = context.getOperatorStateStore().getListState(JOB_ID_DESCRIPTOR);
     if (context.isRestored()) {
@@ -154,7 +157,12 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     super.snapshotState(context);
     long checkpointId = context.getCheckpointId();
     LOG.info("Start to flush snapshot state to state backend, table: {}, checkpointId: {}", table, checkpointId);
+    long current = System.currentTimeMillis();
 
+    if (checkNeedCommit(current)) {
+      dataFilesPerCheckpoint.put(checkpointId, writeToManifest(checkpointId));
+      lastCheckTime = current;
+    }
     // Update the checkpoint state.
     dataFilesPerCheckpoint.put(checkpointId, writeToManifest(checkpointId));
 
@@ -167,6 +175,15 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     // Clear the local buffer for current checkpoint.
     writeResultsOfCurrentCkpt.clear();
+  }
+
+  private boolean checkNeedCommit(long current) {
+    boolean needEmitToCommiter = true;
+    boolean isEmptyCommit = writeResultsOfCurrentCkpt.stream().allMatch(WriteResult::isEmpty);
+    if (isEmptyCommit && current - lastCheckTime < maxCommitIdleTimeMs) { //to prevent frequent commit
+      needEmitToCommiter = false;
+    }
+    return needEmitToCommiter;
   }
 
   @Override
@@ -189,7 +206,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
                                     String newFlinkJobId,
                                     long checkpointId) throws IOException {
     NavigableMap<Long, byte[]> pendingMap = deltaManifestsMap.headMap(checkpointId, true);
-
+    if (pendingMap.isEmpty()){
+      LOG.info("No data to commit before the checkpoint {}",checkpointId);
+      return;
+    }
     List<ManifestFile> manifests = Lists.newArrayList();
     NavigableMap<Long, WriteResult> pendingResults = Maps.newTreeMap();
     for (Map.Entry<Long, byte[]> e : pendingMap.entrySet()) {

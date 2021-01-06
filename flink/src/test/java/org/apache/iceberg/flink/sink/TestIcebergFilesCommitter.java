@@ -40,15 +40,7 @@ import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AssertHelpers;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.GenericManifestFile;
-import org.apache.iceberg.ManifestContent;
-import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.*;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -140,6 +132,42 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     }
   }
 
+  @Test
+  public void testEmptyCommitWhenCheckpoints() throws Exception {
+    table.updateProperties().set("flink.write.emit.max.idle.ms", Long.MAX_VALUE+"").commit();
+    int before = snapshotCount();
+    doEmptyCommit();
+    int after = snapshotCount();
+    Assert.assertEquals(after,before);
+    table.updateProperties().set("flink.write.emit.max.idle.ms", "-1").commit();
+    int before1 = snapshotCount();
+    doEmptyCommit();
+    int after1 = snapshotCount();
+    Assert.assertNotEquals(after1,before1);
+  }
+
+  private void doEmptyCommit() throws Exception {
+    JobID jobId = new JobID();
+    long checkpointId = 0;
+    long timestamp = 0;
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
+      harness.setup();
+      harness.open();
+      harness.processElement(WriteResult.builder().build(), ++timestamp);
+      harness.processElement(WriteResult.builder().build(), ++timestamp);
+      harness.snapshot(++checkpointId,++timestamp);
+      harness.notifyOfCompletedCheckpoint(checkpointId);
+    }
+  }
+
+  private int snapshotCount() {
+    int count = 0;
+    table.refresh();
+    for (Snapshot snapshot : table.snapshots()) {
+      count++;
+    }
+    return count;
+  }
   private WriteResult of(DataFile dataFile) {
     return WriteResult.builder().addDataFiles(dataFile).build();
   }

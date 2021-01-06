@@ -54,6 +54,9 @@ public class WriteResult implements Serializable {
     return referencedDataFiles;
   }
 
+  public boolean isEmpty() {
+    return dataFiles.length == 0 && deleteFiles.length == 0 && referencedDataFiles.length == 0;
+  }
   public static Builder builder() {
     return new Builder();
   }
