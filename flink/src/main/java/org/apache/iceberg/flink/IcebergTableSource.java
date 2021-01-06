@@ -22,8 +22,6 @@ package org.apache.iceberg.flink;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.stream.Collectors;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
@@ -37,6 +35,8 @@ import org.apache.flink.table.sources.TableSource;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.utils.TableConnectorUtils;
 import org.apache.iceberg.flink.source.FlinkSource;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
@@ -55,7 +55,7 @@ public class IcebergTableSource
   private final List<org.apache.iceberg.expressions.Expression> filters;
 
   public IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> properties) {
-    this(loader, schema, properties, null, false, -1, null);
+    this(loader, schema, properties, null, false, -1, ImmutableList.of());
   }
 
   private IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> properties,
@@ -121,8 +121,7 @@ public class IcebergTableSource
     }
 
     if (isFilterPushedDown()) {
-      explain += String.format(", FilterPushDown,the filters :%s",
-          filters.stream().map(filter -> filter.toString()).collect(Collectors.joining(",")));
+      explain += String.format(", FilterPushDown,the filters :%s", Joiner.on(",").join(filters));
     }
 
     return TableConnectorUtils.generateRuntimeName(getClass(), getTableSchema().getFieldNames()) + explain;
@@ -142,10 +141,7 @@ public class IcebergTableSource
   public TableSource<RowData> applyPredicate(List<Expression> predicates) {
     List<org.apache.iceberg.expressions.Expression> expressions = Lists.newArrayList();
     for (Expression predicate : predicates) {
-      Optional<org.apache.iceberg.expressions.Expression> expression = FlinkFilters.convert(predicate);
-      if (expression.isPresent()) {
-        expressions.add(expression.get());
-      }
+      FlinkFilters.convert(predicate).ifPresent(expressions::add);
     }
 
     return new IcebergTableSource(loader, schema, properties, projectedFields, isLimitPushDown, limit, expressions);

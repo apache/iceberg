@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -42,8 +43,6 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.NaNUtil;
-
-import static org.apache.iceberg.expressions.Expressions.isNaN;
 
 public class FlinkFilters {
   private FlinkFilters() {
@@ -71,9 +70,9 @@ public class FlinkFilters {
   /**
    * convert flink expression to iceberg expression.
    * <p>
-   * the BETWEEN, NOT_BETWEEN,IN expression will be auto convert by flink. the BETWEEN will be convert to (GT_EQ AND
-   * LT_EQ), the NOT_BETWEEN will be convert to (LT_EQ OR GT_EQ), the IN will be convert to OR, so we do not add the
-   * convert here
+   * The BETWEEN, NOT_BETWEEN,IN expression will be converted by flink automatically. the BETWEEN will be converted to
+   * (GT_EQ AND LT_EQ), the NOT_BETWEEN will be converted to (LT_EQ OR GT_EQ), the IN will be converted to OR, so we do
+   * not add the conversion here
    *
    * @param flinkExpression the flink expression
    * @return the iceberg expression
@@ -108,10 +107,10 @@ public class FlinkFilters {
           return convertComparisonExpression(Expressions::greaterThanOrEqual, Expressions::lessThanOrEqual, call);
 
         case EQ:
-          return handleNaN(Expressions::equal, call);
+          return handleNaN(Expressions::equal, Expressions::isNaN, call);
 
         case NOT_EQ:
-          return handleNaN(Expressions::notEqual, call);
+          return handleNaN(Expressions::notEqual, Expressions::notNaN, call);
 
         case NOT:
           Optional<Expression> child = convert(singleton(call, CallExpression.class).orElse(null));
@@ -204,7 +203,9 @@ public class FlinkFilters {
         Optional.empty();
   }
 
-  private static Optional<Expression> handleNaN(BiFunction<String, Object, Expression> function, CallExpression call) {
+  private static Optional<Expression> handleNaN(BiFunction<String, Object, Expression> function,
+                                                Function<String, Expression> functionNaN,
+                                                CallExpression call) {
     Tuple2<String, Object> tuple2 = convertBinaryExpress(call);
     if (tuple2 == null) {
       return Optional.empty();
@@ -214,7 +215,7 @@ public class FlinkFilters {
     Object value = tuple2.f1;
 
     if (NaNUtil.isNaN(value)) {
-      return Optional.of(isNaN(name));
+      return Optional.of(functionNaN.apply(name));
     } else {
       return Optional.of(function.apply(name, value));
     }
