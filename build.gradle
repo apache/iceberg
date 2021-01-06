@@ -269,6 +269,7 @@ project(':iceberg-aws') {
     compileOnly 'software.amazon.awssdk:s3'
     compileOnly 'software.amazon.awssdk:kms'
     compileOnly 'software.amazon.awssdk:glue'
+    compileOnly 'software.amazon.awssdk:sts'
 
     compileOnly("org.apache.hadoop:hadoop-common") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -277,6 +278,7 @@ project(':iceberg-aws') {
       exclude group: 'com.google.code.gson', module: 'gson'
     }
 
+    testCompile 'software.amazon.awssdk:iam'
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile("com.adobe.testing:s3mock-junit4") {
       exclude module: "spring-boot-starter-logging"

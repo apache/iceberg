@@ -137,6 +137,37 @@ public class AwsProperties implements Serializable {
    */
   public static final String CLIENT_FACTORY = "client.factory";
 
+  /**
+   * Used by {@link AssumeRoleAwsClientFactory}.
+   * If set, all AWS clients will assume a role of the given ARN, instead of using the default credential chain.
+   */
+  public static final String CLIENT_ASSUME_ROLE_ARN = "client.assume-role.arn";
+
+  /**
+   * Used by {@link AssumeRoleAwsClientFactory}.
+   * The timeout of the assume role session in seconds, default to 1 hour.
+   * At the end of the timeout, a new set of role session credentials will be fetched through a STS client.
+   */
+  public static final String CLIENT_ASSUME_ROLE_TIMEOUT_SEC = "client.assume-role.timeout-sec";
+  public static final int CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT = 3600;
+
+  /**
+   * Used by {@link AssumeRoleAwsClientFactory}.
+   * Optional external ID used to assume an IAM role.
+   * <p>
+   * For more details, see https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html
+   */
+  public static final String CLIENT_ASSUME_ROLE_EXTERNAL_ID = "client.assume-role.external-id";
+
+  /**
+   * Used by {@link AssumeRoleAwsClientFactory}.
+   * If set, all AWS clients except STS client will use the given region instead of the default region chain.
+   * <p>
+   * The value must be one of {@link software.amazon.awssdk.regions.Region}, such as 'us-east-1'.
+   * For more details, see https://docs.aws.amazon.com/general/latest/gr/rande.html
+   */
+  public static final String CLIENT_ASSUME_ROLE_REGION = "client.assume-role.region";
+
   private String s3FileIoSseType;
   private String s3FileIoSseKey;
   private String s3FileIoSseMd5;
