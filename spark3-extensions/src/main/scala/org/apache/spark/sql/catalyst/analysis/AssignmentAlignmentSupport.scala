@@ -156,9 +156,11 @@ trait AssignmentAlignmentSupport extends CastSupport {
             s"Cannot write nullable values to non-null column '${tableAttr.name}'")
         }
 
+        // we use byName = true to catch cases when struct field names don't match
+        // e.g. a struct with fields (a, b) is assigned as a struct with fields (a, c) or (b, a)
         val errors = new mutable.ArrayBuffer[String]()
         val canWrite = DataType.canWrite(
-          expr.dataType, tableAttr.dataType, byName = false, resolver, tableAttr.name,
+          expr.dataType, tableAttr.dataType, byName = true, resolver, tableAttr.name,
           storeAssignmentPolicy, err => errors += err)
 
         if (!canWrite) {

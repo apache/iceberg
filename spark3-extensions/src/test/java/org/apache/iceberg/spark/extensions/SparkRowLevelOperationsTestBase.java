@@ -109,6 +109,11 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
     });
   }
 
+  protected void createAndInitTable(String schema) {
+    sql("CREATE TABLE %s (%s) USING iceberg", tableName, schema);
+    initTable();
+  }
+
   protected void createOrReplaceView(String name, String jsonData) {
     createOrReplaceView(name, null, jsonData);
   }

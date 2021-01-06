@@ -51,7 +51,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
   @Test
   public void testMergeWithNonExistingColumns() {
-    createAndInitNestedColumnsTable();
+    createAndInitTable("id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
     AssertHelpers.assertThrows("Should complain about the invalid top-level column",
@@ -86,7 +86,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
   @Test
   public void testMergeWithInvalidColumnsInInsert() {
-    createAndInitNestedColumnsTable();
+    createAndInitTable("id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
     AssertHelpers.assertThrows("Should complain about the nested column",
@@ -123,7 +123,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
   @Test
   public void testMergeWithInvalidUpdates() {
-    createAndInitAllColumnsTable();
+    createAndInitTable("id INT, a ARRAY<STRUCT<c1:INT,c2:INT>>, m MAP<STRING,STRING>");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
     AssertHelpers.assertThrows("Should complain about updating an array column",
@@ -147,7 +147,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
   @Test
   public void testMergeWithConflictingUpdates() {
-    createAndInitNestedColumnsTable();
+    createAndInitTable("id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
     AssertHelpers.assertThrows("Should complain about conflicting updates to a top-level column",
@@ -180,16 +180,16 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
   @Test
   public void testMergeWithInvalidAssignments() {
-    createAndInitAllColumnsTable();
+    createAndInitTable("id INT NOT NULL, s STRUCT<n1:INT NOT NULL,n2:STRUCT<dn1:INT,dn2:INT>> NOT NULL");
     createOrReplaceView(
         "source",
-        "c1 INT, c2 STRUCT<n1:INT NOT NULL> NOT NULL, c3 STRING NOT NULL",
-        "{ \"c1\": -100, \"c2\": { \"n1\" : 1 }, \"c3\" : 'str' }");
+        "c1 INT, c2 STRUCT<n1:INT NOT NULL> NOT NULL, c3 STRING NOT NULL, c4 STRUCT<dn2:INT,dn1:INT>",
+        "{ \"c1\": -100, \"c2\": { \"n1\" : 1 }, \"c3\" : 'str', \"c4\": { \"dn2\": 1, \"dn2\": 2 } }");
 
     for (String policy : new String[]{"ansi", "strict"}) {
       withSQLConf(ImmutableMap.of("spark.sql.storeAssignmentPolicy", policy), () -> {
 
-        AssertHelpers.assertThrows("Should complain about writing nulls a top-level column",
+        AssertHelpers.assertThrows("Should complain about writing nulls to a top-level column",
             AnalysisException.class, "Cannot write nullable values to non-null column",
             () -> {
               sql("MERGE INTO %s t USING source s " +
@@ -224,13 +224,22 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   "WHEN MATCHED THEN " +
                   "  UPDATE SET t.s.n1 = s.c3", tableName);
             });
+
+        AssertHelpers.assertThrows("Should complain about writing incompatible structs",
+            AnalysisException.class, "field name does not match",
+            () -> {
+              sql("MERGE INTO %s t USING source s " +
+                  "ON t.id == s.c1 " +
+                  "WHEN MATCHED THEN " +
+                  "  UPDATE SET t.s.n2 = s.c4", tableName);
+            });
       });
     }
   }
 
   @Test
   public void testMergeWithNonDeterministicConditions() {
-    createAndInitNestedColumnsTable();
+    createAndInitTable("id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
     AssertHelpers.assertThrows("Should complain about non-deterministic search conditions",
@@ -272,7 +281,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
   @Test
   public void testMergeWithAggregateExpressions() {
-    createAndInitNestedColumnsTable();
+    createAndInitTable("id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
     AssertHelpers.assertThrows("Should complain about agg expressions in search conditions",
@@ -310,20 +319,5 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               "WHEN NOT MATCHED AND sum(c1) < 1 THEN " +
               "  INSERT (id, c) VALUES (1, null)", tableName);
         });
-  }
-
-  protected void createAndInitNestedColumnsTable() {
-    sql("CREATE TABLE %s (id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>) USING iceberg", tableName);
-    initTable();
-  }
-
-  protected void createAndInitAllColumnsTable() {
-    sql("CREATE TABLE %s (" +
-        "id INT NOT NULL," +
-        "s STRUCT<n1:INT NOT NULL,n2:STRUCT<dn1:INT,dn2:INT>> NOT NULL," +
-        "a ARRAY<STRUCT<c1:INT,c2:INT>>," +
-        "m MAP<STRING,STRING>)" +
-        "USING iceberg", tableName);
-    initTable();
   }
 }
