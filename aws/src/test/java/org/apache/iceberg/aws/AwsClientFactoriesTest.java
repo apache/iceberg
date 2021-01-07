@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.Assert;
 import org.junit.Test;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -64,6 +65,11 @@ public class AwsClientFactoriesTest {
 
     @Override
     public KmsClient kms() {
+      return null;
+    }
+
+    @Override
+    public DynamoDbClient dynamo() {
       return null;
     }
 

@@ -21,6 +21,7 @@ package org.apache.iceberg.aws;
 
 import java.io.Serializable;
 import java.util.Map;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -48,6 +49,12 @@ public interface AwsClientFactory extends Serializable {
    * @return kms client
    */
   KmsClient kms();
+
+  /**
+   * Create a Amazon DynamoDB client
+   * @return dynamoDB client
+   */
+  DynamoDbClient dynamo();
 
   /**
    * Initialize AWS client factory from catalog properties.
