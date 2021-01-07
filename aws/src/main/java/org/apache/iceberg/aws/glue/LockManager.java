@@ -36,9 +36,12 @@ interface LockManager extends AutoCloseable {
 
   /**
    * Release a lock
+   *
+   * @apiNote exception must not be thrown for this method.
+   *
    * @param entityId ID of the entity to lock
    * @param ownerId ID of the owner if the lock
-   * @return if the lock for the entity of the owner is released
+   * @return if the owner held the lock and successfully released it.
    */
   boolean release(String entityId, String ownerId);
 
