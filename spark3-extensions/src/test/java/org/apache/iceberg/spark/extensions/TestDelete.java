@@ -52,10 +52,8 @@ import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.spark.sql.functions.lit;
 
@@ -70,8 +68,6 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   public static void setupSparkConf() {
     spark.conf().set("spark.sql.shuffle.partitions", "4");
   }
-
-  protected abstract Map<String, String> extraTableProperties();
 
   @After
   public void removeTables() {
@@ -683,28 +679,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     initTable();
   }
 
-  private void initTable() {
-    sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName, DEFAULT_FILE_FORMAT, fileFormat);
-
-    switch (fileFormat) {
-      case "parquet":
-        sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%b')", tableName, PARQUET_VECTORIZATION_ENABLED, vectorized);
-        break;
-      case "orc":
-        Assert.assertTrue(vectorized);
-        break;
-      case "avro":
-        Assert.assertFalse(vectorized);
-        break;
-    }
-
-    Map<String, String> props = extraTableProperties();
-    props.forEach((prop, value) -> {
-      sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName, prop, value);
-    });
-  }
-
-  protected  <T> void createOrReplaceView(String name, List<T> data, Encoder<T> encoder) {
+  protected <T> void createOrReplaceView(String name, List<T> data, Encoder<T> encoder) {
     spark.createDataset(data, encoder).createOrReplaceTempView(name);
   }
 
