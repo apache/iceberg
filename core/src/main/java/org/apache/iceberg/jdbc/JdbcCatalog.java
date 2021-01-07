@@ -35,7 +35,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -131,8 +130,8 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
   }
 
   private void initializeCatalogTables() throws InterruptedException, SQLException {
-    // need to check multiple times because some databases are using different naming standard. ex: H2db keeping
-    // table names as uppercase
+    // need to check multiple times because some databases are using different naming standard.
+    // ex: H2db keeping table names as uppercase, PostgreSQL is keeping lowercase
 
     boolean exists = connections.run(conn -> {
       boolean foundTable = false;
@@ -309,11 +308,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
         try (PreparedStatement sql = conn.prepareStatement(LIST_NAMESPACES_SQL)) {
           sql.setString(1, catalogName);
-          if (namespace.isEmpty()) {
-            sql.setString(2, JdbcUtil.namespaceToString(namespace) + "%");
-          } else {
-            sql.setString(2, JdbcUtil.namespaceToString(namespace) + ".%");
-          }
+          sql.setString(2, JdbcUtil.namespaceToString(namespace) + "%");
           ResultSet rs = sql.executeQuery();
           while (rs.next()) {
             result.add(JdbcUtil.stringToNamespace(rs.getString("table_namespace")));
@@ -328,6 +323,8 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       namespaces = namespaces.stream()
           // exclude itself
           .filter(n -> !n.equals(namespace))
+          // only get sub namespaces/children
+          .filter(n -> n.levels().length >= subNamespaceLevelLength)
           // only get sub namespaces/children
           .map(n -> Namespace.of(
               Arrays.stream(n.levels()).limit(subNamespaceLevelLength).toArray(String[]::new)
@@ -354,8 +351,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
-    Path nsPath = new Path(warehouseLocation, SLASH.join(namespace.levels()));
-    return ImmutableMap.of("location", nsPath.toString());
+    return ImmutableMap.of("location", SLASH.join(warehouseLocation, SLASH.join(namespace.levels())));
   }
 
   @Override
