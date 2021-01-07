@@ -170,7 +170,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   private boolean shouldSuppressIOException(IOException ioException) {
     if (suppressIOException) {
-       return ioException.getMessage() != null && ioException.contains("AuthorizationPermissionMismatch");
+      return ioException.getMessage() != null && ioException.getMessage().contains("AuthorizationPermissionMismatch");
     }
     return false;
   }
