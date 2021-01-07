@@ -59,29 +59,6 @@ import org.slf4j.LoggerFactory;
 
 public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, SupportsNamespaces, Closeable {
 
-  public static final String SQL_TABLE_NAME = "iceberg_tables";
-  public static final String SQL_CREATE_CATALOG_TABLE =
-      "CREATE TABLE " + SQL_TABLE_NAME +
-          "(catalog_name VARCHAR(1255) NOT NULL," +
-          "table_namespace VARCHAR(1255) NOT NULL," +
-          "table_name VARCHAR(1255) NOT NULL," +
-          "metadata_location VARCHAR(32768)," +
-          "previous_metadata_location VARCHAR(32768)," +
-          "PRIMARY KEY (catalog_name, table_namespace, table_name)" +
-          ")";
-  public static final String LOAD_TABLE_SQL = "SELECT * FROM " + SQL_TABLE_NAME +
-      " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? ";
-  public static final String LIST_TABLES_SQL = "SELECT * FROM " + SQL_TABLE_NAME +
-      " WHERE catalog_name = ? AND table_namespace = ?";
-  public static final String RENAME_TABLE_SQL = "UPDATE " + SQL_TABLE_NAME +
-      " SET table_namespace = ? , table_name = ? " +
-      " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? ";
-  public static final String DROP_TABLE_SQL = "DELETE FROM " + SQL_TABLE_NAME +
-      " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? ";
-  public static final String GET_NAMESPACE_SQL = "SELECT table_namespace FROM " + SQL_TABLE_NAME +
-      " WHERE catalog_name = ? AND table_namespace LIKE ? LIMIT 1";
-  public static final String LIST_NAMESPACES_SQL = "SELECT DISTINCT table_namespace FROM " + SQL_TABLE_NAME +
-      " WHERE catalog_name = ? AND table_namespace LIKE ?";
   public static final String JDBC_PARAM_PREFIX = "connection.parameter.";
   private static final Logger LOG = LoggerFactory.getLogger(JdbcCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
@@ -136,17 +113,17 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     boolean exists = connections.run(conn -> {
       boolean foundTable = false;
       DatabaseMetaData dbMeta = conn.getMetaData();
-      ResultSet tables = dbMeta.getTables(null, null, SQL_TABLE_NAME, null);
+      ResultSet tables = dbMeta.getTables(null, null, JdbcUtil.SQL_TABLE_NAME, null);
       if (tables.next()) {
         foundTable = true;
       }
       tables.close();
-      ResultSet tablesUpper = dbMeta.getTables(null, null, SQL_TABLE_NAME.toUpperCase(), null);
+      ResultSet tablesUpper = dbMeta.getTables(null, null, JdbcUtil.SQL_TABLE_NAME.toUpperCase(), null);
       if (tablesUpper.next()) {
         foundTable = true;
       }
       tablesUpper.close();
-      ResultSet tablesLower = dbMeta.getTables(null, null, SQL_TABLE_NAME.toLowerCase(), null);
+      ResultSet tablesLower = dbMeta.getTables(null, null, JdbcUtil.SQL_TABLE_NAME.toLowerCase(), null);
       if (tablesLower.next()) {
         foundTable = true;
       }
@@ -156,8 +133,8 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
     // create table if not exits
     if (!exists) {
-      connections.run(conn -> conn.prepareStatement(SQL_CREATE_CATALOG_TABLE).execute());
-      LOG.debug("Created table {} to store iceberg tables!", SQL_TABLE_NAME);
+      connections.run(conn -> conn.prepareStatement(JdbcUtil.SQL_CREATE_CATALOG_TABLE).execute());
+      LOG.debug("Created table {} to store iceberg tables!", JdbcUtil.SQL_TABLE_NAME);
     }
   }
 
@@ -180,7 +157,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     int deletedRecords;
     try {
       deletedRecords = connections.run(conn -> {
-        try (PreparedStatement sql = conn.prepareStatement(DROP_TABLE_SQL)) {
+        try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.DROP_TABLE_SQL)) {
           sql.setString(1, catalogName);
           sql.setString(2, JdbcUtil.namespaceToString(identifier.namespace()));
           sql.setString(3, identifier.name());
@@ -221,7 +198,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     try {
       return connections.run(conn -> {
         List<TableIdentifier> results = Lists.newArrayList();
-        try (PreparedStatement sql = conn.prepareStatement(LIST_TABLES_SQL)) {
+        try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.LIST_TABLES_SQL)) {
           sql.setString(1, catalogName);
           sql.setString(2, JdbcUtil.namespaceToString(namespace));
 
@@ -246,7 +223,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
   public void renameTable(TableIdentifier from, TableIdentifier to) {
     try {
       int updatedRecords = connections.run(conn -> {
-        try (PreparedStatement sql = conn.prepareStatement(RENAME_TABLE_SQL)) {
+        try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.RENAME_TABLE_SQL)) {
           // SET
           sql.setString(1, JdbcUtil.namespaceToString(to.namespace()));
           sql.setString(2, to.name());
@@ -306,7 +283,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       List<Namespace> namespaces = connections.run(conn -> {
         List<Namespace> result = Lists.newArrayList();
 
-        try (PreparedStatement sql = conn.prepareStatement(LIST_NAMESPACES_SQL)) {
+        try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.LIST_NAMESPACES_SQL)) {
           sql.setString(1, catalogName);
           sql.setString(2, JdbcUtil.namespaceToString(namespace) + "%");
           ResultSet rs = sql.executeQuery();
@@ -401,7 +378,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       return connections.run(conn -> {
         boolean exists = false;
 
-        try (PreparedStatement sql = conn.prepareStatement(GET_NAMESPACE_SQL)) {
+        try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.GET_NAMESPACE_SQL)) {
           sql.setString(1, catalogName);
           sql.setString(2, JdbcUtil.namespaceToString(namespace) + "%");
           ResultSet rs = sql.executeQuery();

@@ -26,6 +26,35 @@ import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 public final class JdbcUtil {
+  public static final String SQL_TABLE_NAME = "iceberg_tables";
+  public static final String SQL_CREATE_CATALOG_TABLE =
+      "CREATE TABLE " + SQL_TABLE_NAME +
+          "(catalog_name VARCHAR(1255) NOT NULL," +
+          "table_namespace VARCHAR(1255) NOT NULL," +
+          "table_name VARCHAR(1255) NOT NULL," +
+          "metadata_location VARCHAR(32768)," +
+          "previous_metadata_location VARCHAR(32768)," +
+          "PRIMARY KEY (catalog_name, table_namespace, table_name)" +
+          ")";
+  public static final String LOAD_TABLE_SQL = "SELECT * FROM " + SQL_TABLE_NAME +
+      " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? ";
+  public static final String LIST_TABLES_SQL = "SELECT * FROM " + SQL_TABLE_NAME +
+      " WHERE catalog_name = ? AND table_namespace = ?";
+  public static final String RENAME_TABLE_SQL = "UPDATE " + SQL_TABLE_NAME +
+      " SET table_namespace = ? , table_name = ? " +
+      " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? ";
+  public static final String DROP_TABLE_SQL = "DELETE FROM " + SQL_TABLE_NAME +
+      " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? ";
+  public static final String GET_NAMESPACE_SQL = "SELECT table_namespace FROM " + SQL_TABLE_NAME +
+      " WHERE catalog_name = ? AND table_namespace LIKE ? LIMIT 1";
+  public static final String LIST_NAMESPACES_SQL = "SELECT DISTINCT table_namespace FROM " + SQL_TABLE_NAME +
+      " WHERE catalog_name = ? AND table_namespace LIKE ?";
+  public static final String DO_COMMIT_SQL = "UPDATE " + SQL_TABLE_NAME +
+      " SET metadata_location = ? , previous_metadata_location = ? " +
+      " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? AND metadata_location = ?";
+  public static final String DO_COMMIT_CREATE_SQL = "INSERT INTO " + SQL_TABLE_NAME +
+      " (catalog_name, table_namespace, table_name, metadata_location, previous_metadata_location) " +
+      " VALUES (?,?,?,?,null)";
 
   private static final Joiner JOINER_DOT = Joiner.on('.');
   private static final Splitter SPLITTER_DOT = Splitter.on('.');

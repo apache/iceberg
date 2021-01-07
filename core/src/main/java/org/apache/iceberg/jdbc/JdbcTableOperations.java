@@ -44,12 +44,6 @@ import org.slf4j.LoggerFactory;
 
 class JdbcTableOperations extends BaseMetastoreTableOperations {
 
-  public static final String DO_COMMIT_SQL = "UPDATE " + JdbcCatalog.SQL_TABLE_NAME +
-      " SET metadata_location = ? , previous_metadata_location = ? " +
-      " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? AND metadata_location = ?";
-  public static final String DO_COMMIT_CREATE_SQL = "INSERT INTO " + JdbcCatalog.SQL_TABLE_NAME +
-      " (catalog_name, table_namespace, table_name, metadata_location, previous_metadata_location) " +
-      " VALUES (?,?,?,?,null)";
   private static final Logger LOG = LoggerFactory.getLogger(JdbcTableOperations.class);
   private final String catalogName;
   private final TableIdentifier tableIdentifier;
@@ -112,7 +106,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
 
         // Start atomic update
         int updatedRecords = connections.run(conn -> {
-          try (PreparedStatement sql = conn.prepareStatement(DO_COMMIT_SQL)) {
+          try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.DO_COMMIT_SQL)) {
             // UPDATE
             sql.setString(1, newMetadataLocation);
             sql.setString(2, oldMetadataLocation);
@@ -135,7 +129,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       } else {
         // table not exists create it!
         int insertRecord = connections.run(conn -> {
-          try (PreparedStatement sql = conn.prepareStatement(DO_COMMIT_CREATE_SQL)) {
+          try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.DO_COMMIT_CREATE_SQL)) {
             sql.setString(1, catalogName);
             sql.setString(2, JdbcUtil.namespaceToString(tableIdentifier.namespace()));
             sql.setString(3, tableIdentifier.name());
@@ -194,7 +188,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     return connections.run(conn -> {
       Map<String, String> table = Maps.newHashMap();
 
-      try (PreparedStatement sql = conn.prepareStatement(JdbcCatalog.LOAD_TABLE_SQL)) {
+      try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.LOAD_TABLE_SQL)) {
         sql.setString(1, catalogName);
         sql.setString(2, JdbcUtil.namespaceToString(tableIdentifier.namespace()));
         sql.setString(3, tableIdentifier.name());
