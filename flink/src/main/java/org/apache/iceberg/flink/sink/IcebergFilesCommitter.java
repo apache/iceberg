@@ -75,6 +75,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // iceberg transaction.
   private static final String MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed-checkpoint-id";
 
+  static final String FLINK_MAX_EMPTY_COMMIT_IDLE_TIME = "flink.max-empty-commit-idle-ms";
   // TableLoader to load iceberg table lazily.
   private final TableLoader tableLoader;
   private final boolean replacePartitions;
@@ -129,7 +130,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     this.manifestOutputFileFactory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, subTaskId, attemptId);
     this.maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
-    this.maxCommitIdleTimeMs = PropertyUtil.propertyAsLong(table.properties(), "flink.commit.max.idle.ms", -1);
+    this.maxCommitIdleTimeMs = PropertyUtil.propertyAsLong(table.properties(), FLINK_MAX_EMPTY_COMMIT_IDLE_TIME, -1);
     this.checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     this.jobIdState = context.getOperatorStateStore().getListState(JOB_ID_DESCRIPTOR);
     if (context.isRestored()) {
@@ -161,12 +162,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     long current = System.currentTimeMillis();
 
     if (checkNeedCommit(current)) {
+      // Update the checkpoint state.
       dataFilesPerCheckpoint.put(checkpointId, writeToManifest(checkpointId));
       lastCheckTime = current;
     }
-    // Update the checkpoint state.
-    dataFilesPerCheckpoint.put(checkpointId, writeToManifest(checkpointId));
-
     // Reset the snapshot state to the latest state.
     checkpointsState.clear();
     checkpointsState.add(dataFilesPerCheckpoint);

@@ -143,12 +143,12 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
   @Test
   public void testEmptyCommitWhenCheckpoints() throws Exception {
-    table.updateProperties().set("flink.write.emit.max.idle.ms", Long.MAX_VALUE + "").commit();
+    table.updateProperties().set(IcebergFilesCommitter.FLINK_MAX_EMPTY_COMMIT_IDLE_TIME, Long.MAX_VALUE + "").commit();
     int before = snapshotCount();
     doEmptyCommit();
     int after = snapshotCount();
     Assert.assertEquals(after, before);
-    table.updateProperties().set("flink.write.emit.max.idle.ms", "-1").commit();
+    table.updateProperties().set(IcebergFilesCommitter.FLINK_MAX_EMPTY_COMMIT_IDLE_TIME, "-1").commit();
     int before1 = snapshotCount();
     doEmptyCommit();
     int after1 = snapshotCount();
