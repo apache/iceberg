@@ -72,6 +72,11 @@ public class PartitionsTable extends BaseMetadataTable {
     return schema;
   }
 
+  @Override
+  Object writeReplace() {
+    return new TableStub(io(), table.name(), name, ops.current().metadataFileLocation(), MetadataTableType.PARTITIONS);
+  }
+
   private DataTask task(TableScan scan) {
     Iterable<Partition> partitions = partitions(table, scan.snapshot().snapshotId());
     if (table.spec().fields().size() < 1) {

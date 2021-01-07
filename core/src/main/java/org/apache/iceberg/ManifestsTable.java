@@ -79,6 +79,12 @@ public class ManifestsTable extends BaseMetadataTable {
     return SNAPSHOT_SCHEMA;
   }
 
+
+  @Override
+  Object writeReplace() {
+    return new TableStub(io(), table.name(), name, ops.current().metadataFileLocation(), MetadataTableType.MANIFESTS);
+  }
+
   protected DataTask task(TableScan scan) {
     String location = scan.snapshot().manifestListLocation();
     return StaticDataTask.of(

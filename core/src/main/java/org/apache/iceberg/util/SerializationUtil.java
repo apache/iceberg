@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.mr;
+package org.apache.iceberg.util;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

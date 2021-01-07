@@ -77,6 +77,11 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     }
   }
 
+  @Override
+  Object writeReplace() {
+    return new TableStub(io(), table.name(), name, ops.current().metadataFileLocation(), MetadataTableType.ENTRIES);
+  }
+
   private static class EntriesTableScan extends BaseTableScan {
 
     EntriesTableScan(TableOperations ops, Table table, Schema schema) {

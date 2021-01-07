@@ -89,6 +89,12 @@ public class AllManifestsTable extends BaseMetadataTable {
     return MANIFEST_FILE_SCHEMA;
   }
 
+  @Override
+  Object writeReplace() {
+    return new TableStub(io(), table.name(), name, ops.current().metadataFileLocation(),
+        MetadataTableType.ALL_MANIFESTS);
+  }
+
   public static class AllManifestsTableScan extends BaseAllMetadataTableScan {
 
     AllManifestsTableScan(TableOperations ops, Table table, Schema fileSchema) {

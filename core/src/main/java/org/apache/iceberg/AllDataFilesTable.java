@@ -80,6 +80,12 @@ public class AllDataFilesTable extends BaseMetadataTable {
     }
   }
 
+  @Override
+  Object writeReplace() {
+    return new TableStub(io(), table.name(), name, ops.current().metadataFileLocation(),
+        MetadataTableType.ALL_DATA_FILES);
+  }
+
   public static class AllDataFilesTableScan extends BaseAllMetadataTableScan {
     private final Schema fileSchema;
 

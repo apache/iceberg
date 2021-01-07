@@ -72,6 +72,11 @@ public class DataFilesTable extends BaseMetadataTable {
     }
   }
 
+  @Override
+  Object writeReplace() {
+    return new TableStub(io(), table.name(), name, ops.current().metadataFileLocation(), MetadataTableType.FILES);
+  }
+
   public static class FilesTableScan extends BaseTableScan {
     private final Schema fileSchema;
 

@@ -79,6 +79,11 @@ public class SnapshotsTable extends BaseMetadataTable {
         SnapshotsTable::snapshotToRow);
   }
 
+  @Override
+  Object writeReplace() {
+    return new TableStub(io(), table.name(), name, ops.current().metadataFileLocation(), MetadataTableType.SNAPSHOTS);
+  }
+
   private class SnapshotsTableScan extends StaticTableScan {
     SnapshotsTableScan() {
       super(ops, table, SNAPSHOT_SCHEMA, SnapshotsTable.this::task);
