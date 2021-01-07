@@ -41,15 +41,15 @@ public class ExceptionUtil {
     throw new RuntimeException(exception);
   }
 
-  interface Block<R, E1 extends Exception, E2 extends Exception, E3 extends Exception> {
+  public interface Block<R, E1 extends Exception, E2 extends Exception, E3 extends Exception> {
     R run() throws E1, E2, E3;
   }
 
-  interface CatchBlock {
+  public interface CatchBlock {
     void run(Throwable failure) throws Exception;
   }
 
-  interface FinallyBlock {
+  public interface FinallyBlock {
     void run() throws Exception;
   }
 
