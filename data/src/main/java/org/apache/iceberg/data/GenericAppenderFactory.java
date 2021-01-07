@@ -110,6 +110,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
               .schema(schema)
               .createWriterFunc(GenericOrcWriter::buildWriter)
               .setAll(config)
+              .metricsConfig(metricsConfig)
               .overwrite()
               .build();
 
