@@ -24,7 +24,6 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.io.FileSystems;
 import org.apache.beam.sdk.io.fs.MatchResult;
 import org.apache.beam.sdk.transforms.DoFn;
-import org.apache.beam.sdk.values.KV;
 
 public class FilenameToDataFile extends DoFn<String, WrittenDataFile> {
 
@@ -46,7 +45,6 @@ public class FilenameToDataFile extends DoFn<String, WrittenDataFile> {
                     reader.next();
                 }
             }
-
             filesize = vo.metadata().get(0).sizeBytes();
         } catch (IOException e) {
             e.printStackTrace();
@@ -54,8 +52,8 @@ public class FilenameToDataFile extends DoFn<String, WrittenDataFile> {
 
         out.output(new WrittenDataFile(
                 filename,
-                filesize,
-                records
+                records,
+                filesize
         ));
     }
 }

@@ -14,20 +14,10 @@
 
 package org.apache.iceberg.beam;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import org.apache.avro.file.DataFileStream;
-import org.apache.avro.generic.GenericDatumReader;
-import org.apache.avro.generic.GenericRecord;
-import org.apache.beam.sdk.io.FileSystems;
-import org.apache.beam.sdk.io.fs.MatchResult;
 import org.apache.beam.sdk.transforms.Combine;
-import org.apache.beam.sdk.values.KV;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFiles;
@@ -37,9 +27,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hive.HiveCatalog;
-import org.checkerframework.checker.initialization.qual.Initialized;
-import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.nullness.qual.UnknownKeyFor;
 
 class IcebergDataFileCommitter extends Combine.CombineFn<WrittenDataFile, List<WrittenDataFile>, Snapshot> {
     private final TableIdentifier tableIdentifier;
@@ -59,7 +46,8 @@ class IcebergDataFileCommitter extends Combine.CombineFn<WrittenDataFile, List<W
 
     @Override
     public List<WrittenDataFile> addInput(List<WrittenDataFile> mutableAccumulator, WrittenDataFile input) {
-        return null;
+        mutableAccumulator.add(input);
+        return mutableAccumulator;
     }
 
     @Override
@@ -100,9 +88,9 @@ class IcebergDataFileCommitter extends Combine.CombineFn<WrittenDataFile, List<W
             // We need to get the statistics, not easy to get them through Beam
             for (WrittenDataFile dataFile : accumulator) {
                 app.appendFile(DataFiles.builder(table.spec())
-                        .withPath(dataFile.getFilename())
-                        .withFileSizeInBytes(dataFile.getBytes())
-                        .withRecordCount(dataFile.getRecords())
+                        .withPath(dataFile.filename)
+                        .withFileSizeInBytes(dataFile.filesize)
+                        .withRecordCount(dataFile.records)
                         .build());
             }
             app.commit();

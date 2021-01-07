@@ -16,21 +16,24 @@ package org.apache.iceberg.beam;
 
 
 import java.io.Serializable;
+import java.util.Objects;
 import org.apache.beam.sdk.schemas.JavaBeanSchema;
 import org.apache.beam.sdk.schemas.annotations.DefaultSchema;
 
+@DefaultSchema(JavaBeanSchema.class)
 public class WrittenDataFile implements Serializable {
-    private String filename;
-    private long bytes;
-    private long records;
+    public String filename;
+    public long records;
+    public long filesize;
 
     public WrittenDataFile() {
+
     }
 
-    public WrittenDataFile(String filename, long bytes, long records) {
+    public WrittenDataFile(String filename, long records, long filesize) {
         this.filename = filename;
-        this.bytes = bytes;
         this.records = records;
+        this.filesize = filesize;
     }
 
     public String getFilename() {
@@ -41,19 +44,33 @@ public class WrittenDataFile implements Serializable {
         this.filename = filename;
     }
 
-    public long getBytes() {
-        return bytes;
-    }
-
-    public void setBytes(long bytes) {
-        this.bytes = bytes;
-    }
-
     public long getRecords() {
         return records;
     }
 
     public void setRecords(long records) {
         this.records = records;
+    }
+
+    public long getFilesize() {
+        return filesize;
+    }
+
+    public void setFilesize(long filesize) {
+        this.filesize = filesize;
+    }
+
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        WrittenDataFile that = (WrittenDataFile) o;
+        return records == that.records && filesize == that.filesize && filename.equals(that.filename);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(filename, records, filesize);
     }
 }
