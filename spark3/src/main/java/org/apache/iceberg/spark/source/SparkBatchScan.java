@@ -34,6 +34,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionsUtil;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
@@ -195,7 +196,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
   @Override
   public String description() {
-    String filters = filterExpressions.stream().map(Spark3Util::describe).collect(Collectors.joining(", "));
+    String filters = filterExpressions.stream().map(ExpressionsUtil::describe).collect(Collectors.joining(", "));
     return String.format("%s [filters=%s]", table, filters);
   }
 

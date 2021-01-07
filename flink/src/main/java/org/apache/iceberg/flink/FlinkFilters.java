@@ -58,7 +58,6 @@ public class FlinkFilters {
       .put(BuiltInFunctionDefinitions.GREATER_THAN_OR_EQUAL, Operation.GT_EQ)
       .put(BuiltInFunctionDefinitions.LESS_THAN, Operation.LT)
       .put(BuiltInFunctionDefinitions.LESS_THAN_OR_EQUAL, Operation.LT_EQ)
-      .put(BuiltInFunctionDefinitions.IN, Operation.IN)
       .put(BuiltInFunctionDefinitions.IS_NULL, Operation.IS_NULL)
       .put(BuiltInFunctionDefinitions.IS_NOT_NULL, Operation.NOT_NULL)
       .put(BuiltInFunctionDefinitions.AND, Operation.AND)
@@ -146,7 +145,7 @@ public class FlinkFilters {
   }
 
   private static Optional<Expression> convertLike(CallExpression call) {
-    Tuple2<String, Object> tuple2 = convertBinaryExpress(call);
+    Tuple2<String, Object> tuple2 = parseFieldAndLiteral(call);
     if (tuple2 == null) {
       return Optional.empty();
     }
@@ -178,7 +177,7 @@ public class FlinkFilters {
   private static Optional<Expression> convertComparisonExpression(
       BiFunction<String, Object, Expression> function, BiFunction<String, Object, Expression> reversedFunction,
       CallExpression call) {
-    Tuple2<String, Object> tuple2 = convertBinaryExpress(call);
+    Tuple2<String, Object> tuple2 = parseFieldAndLiteral(call);
     if (tuple2 != null) {
       if (literalOnRight(call.getResolvedChildren())) {
         return Optional.of(function.apply(tuple2.f0, tuple2.f1));
@@ -206,7 +205,7 @@ public class FlinkFilters {
   private static Optional<Expression> handleNaN(BiFunction<String, Object, Expression> function,
                                                 Function<String, Expression> functionNaN,
                                                 CallExpression call) {
-    Tuple2<String, Object> tuple2 = convertBinaryExpress(call);
+    Tuple2<String, Object> tuple2 = parseFieldAndLiteral(call);
     if (tuple2 == null) {
       return Optional.empty();
     }
@@ -242,7 +241,7 @@ public class FlinkFilters {
     return args.get(0) instanceof FieldReferenceExpression && args.get(1) instanceof ValueLiteralExpression;
   }
 
-  private static Tuple2<String, Object> convertBinaryExpress(CallExpression call) {
+  private static Tuple2<String, Object> parseFieldAndLiteral(CallExpression call) {
     List<ResolvedExpression> args = call.getResolvedChildren();
     if (args.size() != 2) {
       return null;

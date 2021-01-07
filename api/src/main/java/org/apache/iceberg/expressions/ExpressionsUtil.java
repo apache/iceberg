@@ -17,18 +17,14 @@
  * under the License.
  */
 
-package org.apache.iceberg.flink;
+package org.apache.iceberg.expressions;
 
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.apache.iceberg.expressions.BoundPredicate;
-import org.apache.iceberg.expressions.ExpressionVisitors;
-import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.expressions.UnboundPredicate;
 
-public class FlinkUtil {
-  private FlinkUtil() {
+public class ExpressionsUtil {
+  private ExpressionsUtil() {
   }
 
   public static String describe(org.apache.iceberg.expressions.Expression expr) {

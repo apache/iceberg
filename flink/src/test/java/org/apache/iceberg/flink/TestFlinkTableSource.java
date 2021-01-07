@@ -26,9 +26,9 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
+import org.apache.iceberg.expressions.ExpressionsUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -98,7 +98,7 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
     String querySql = String.format("SELECT * FROM %s LIMIT 1", TABLE_NAME);
     String explain = getTableEnv().explainSql(querySql);
     String expectedExplain = "LimitPushDown : 1";
-    Assert.assertTrue("explain should contains LimitPushDown", explain.contains(expectedExplain));
+    assertTrue("explain should contains LimitPushDown", explain.contains(expectedExplain));
     List<Object[]> result = sql(querySql);
     assertEquals("should have 1 record", 1, result.size());
     assertArrayEquals("Should produce the expected records", result.get(0), new Object[] {1, "a"});
@@ -134,14 +134,15 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
   public void testFilterPushDownEqual() {
     String sqlLiteralRight = String.format("SELECT * FROM %s WHERE id = 1 ", TABLE_NAME);
     String explain = getTableEnv().explainSql(sqlLiteralRight);
-    assertTrue("explain should contains FilterPushDown", explain.contains(expectedFilterPushDownExplain));
+    String explainExpected = "FilterPushDown,the filters :ref(name=\"id\") == 1]]], fields=[id, data])";
+    assertTrue("explain should contains FilterPushDown", explain.contains(explainExpected));
 
     List<Object[]> result = sql(sqlLiteralRight);
     assertEquals("should have 1 record", 1, result.size());
     assertArrayEquals("Should produce the expected record", result.get(0), new Object[] {1, "a"});
 
     assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter", "id = 1", FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "id = 1", ExpressionsUtil.describe(lastScanEvent.filter()));
 
     // filter not push down
     String sqlEqualNull = String.format("SELECT * FROM %s WHERE data = NULL ", TABLE_NAME);
@@ -153,30 +154,33 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
   public void testFilterPushDownEqualLiteralOnLeft() {
     String sqlLiteralLeft = String.format("SELECT * FROM %s WHERE 1 = id ", TABLE_NAME);
     String explainLeft = getTableEnv().explainSql(sqlLiteralLeft);
-    assertTrue("explain should contains FilterPushDown", explainLeft.contains(expectedFilterPushDownExplain));
+    String explainExpected = "FilterPushDown,the filters :ref(name=\"id\") == 1]]], fields=[id, data])";
+    assertTrue("explain should contains FilterPushDown", explainLeft.contains(explainExpected));
 
     List<Object[]> resultLeft = sql(sqlLiteralLeft);
     assertEquals("should have 1 record", 1, resultLeft.size());
     assertArrayEquals("Should produce the expected record", resultLeft.get(0), new Object[] {1, "a"});
 
     assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter", "id = 1", FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "id = 1", ExpressionsUtil.describe(lastScanEvent.filter()));
   }
 
   @Test
   public void testFilterPushDownNoEqual() {
     String sqlNE = String.format("SELECT * FROM %s WHERE id <> 1 ", TABLE_NAME);
     String explainNE = getTableEnv().explainSql(sqlNE);
-    assertTrue("explain should contains FilterPushDown", explainNE.contains(expectedFilterPushDownExplain));
+    String explainExpected = "FilterPushDown,the filters :ref(name=\"id\") != 1]]], fields=[id, data])";
+    assertTrue("explain should contains FilterPushDown", explainNE.contains(explainExpected));
 
     List<Object[]> resultNE = sql(sqlNE);
     assertEquals("should have 2 record", 2, resultNE.size());
+
     List<Object[]> expectedNE = Lists.newArrayList();
     expectedNE.add(new Object[] {2, "b"});
     expectedNE.add(new Object[] {3, null});
     assertArrayEquals("Should produce the expected record", resultNE.toArray(), expectedNE.toArray());
     assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter", "id != 1", FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "id != 1", ExpressionsUtil.describe(lastScanEvent.filter()));
 
     String sqlNotEqualNull = String.format("SELECT * FROM %s WHERE data <> NULL ", TABLE_NAME);
     String explainNotEqualNull = getTableEnv().explainSql(sqlNotEqualNull);
@@ -188,22 +192,27 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
   public void testFilterPushDownAnd() {
     String sqlAnd = String.format("SELECT * FROM %s WHERE id = 1 AND data = 'a' ", TABLE_NAME);
     String explainAnd = getTableEnv().explainSql(sqlAnd);
-    assertTrue("explain should contains FilterPushDown", explainAnd.contains(expectedFilterPushDownExplain));
+    String explainExpected =
+        "FilterPushDown,the filters :ref(name=\"id\") == 1,ref(name=\"data\") == \"a\"]]], fields=[id, data])";
+    assertTrue("explain should contains FilterPushDown", explainAnd.contains(explainExpected));
 
     List<Object[]> resultAnd = sql(sqlAnd);
     assertEquals("should have 1 record", 1, resultAnd.size());
     assertArrayEquals("Should produce the expected record", resultAnd.get(0), new Object[] {1, "a"});
 
     assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter", "(id = 1 AND data = 'a')",
-        FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "(id = 1 AND data = 'a')",
+        ExpressionsUtil.describe(lastScanEvent.filter()));
   }
 
   @Test
   public void testFilterPushDownOr() {
     String sqlOr = String.format("SELECT * FROM %s WHERE id = 1 OR data = 'b' ", TABLE_NAME);
     String explainOr = getTableEnv().explainSql(sqlOr);
-    assertTrue("explain should contains FilterPushDown", explainOr.contains(expectedFilterPushDownExplain));
+    String explainExpected =
+        "FilterPushDown,the filters :(ref(name=\"id\") == 1 or ref(name=\"data\") == \"b\")]]], fields=[id, data])";
+    assertTrue("explain should contains FilterPushDown", explainOr.contains(explainExpected));
+
     List<Object[]> resultOr = sql(sqlOr);
     assertEquals("should have 2 record", 2, resultOr.size());
 
@@ -213,49 +222,55 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
     assertArrayEquals("Should produce the expected record", resultOr.toArray(), expectedOR.toArray());
 
     assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter", "(id = 1 OR data = 'b')",
-        FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "(id = 1 OR data = 'b')",
+        ExpressionsUtil.describe(lastScanEvent.filter()));
   }
 
   @Test
   public void testFilterPushDownGreaterThan() {
     String sqlGT = String.format("SELECT * FROM %s WHERE id > 1 ", TABLE_NAME);
     String explainGT = getTableEnv().explainSql(sqlGT);
-    assertTrue("explain should contains FilterPushDown", explainGT.contains(expectedFilterPushDownExplain));
+    String explainExpected = "FilterPushDown,the filters :ref(name=\"id\") > 1]]], fields=[id, data])";
+    assertTrue("explain should contains FilterPushDown", explainGT.contains(explainExpected));
 
     List<Object[]> resultGT = sql(sqlGT);
     assertEquals("should have 2 record", 2, resultGT.size());
+
     List<Object[]> expectedGT = Lists.newArrayList();
     expectedGT.add(new Object[] {2, "b"});
     expectedGT.add(new Object[] {3, null});
     assertArrayEquals("Should produce the expected record", resultGT.toArray(), expectedGT.toArray());
 
     assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter", "id > 1", FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "id > 1", ExpressionsUtil.describe(lastScanEvent.filter()));
   }
 
   @Test
   public void testFilterPushDownGreaterThanLiteralOnLeft() {
     String sqlGT = String.format("SELECT * FROM %s WHERE 3 > id ", TABLE_NAME);
     String explainGT = getTableEnv().explainSql(sqlGT);
-    assertTrue("explain should contains FilterPushDown", explainGT.contains(expectedFilterPushDownExplain));
+    String explainExpected = "FilterPushDown,the filters :ref(name=\"id\") < 3]]], fields=[id, data])";
+    assertTrue("explain should contains FilterPushDown", explainGT.contains(explainExpected));
 
     List<Object[]> resultGT = sql(sqlGT);
     assertEquals("should have 2 record", 2, resultGT.size());
+
     List<Object[]> expectedGT = Lists.newArrayList();
     expectedGT.add(new Object[] {1, "a"});
     expectedGT.add(new Object[] {2, "b"});
     assertArrayEquals("Should produce the expected record", resultGT.toArray(), expectedGT.toArray());
 
     assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter", "id < 3", FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "id < 3", ExpressionsUtil.describe(lastScanEvent.filter()));
   }
 
   @Test
   public void testFilterPushDownGreaterThanEqual() {
     String sqlGTE = String.format("SELECT * FROM %s WHERE id >= 2 ", TABLE_NAME);
     String explainGTE = getTableEnv().explainSql(sqlGTE);
-    assertTrue("explain should contains FilterPushDown", explainGTE.contains(expectedFilterPushDownExplain));
+    String explainExpected = "FilterPushDown,the filters :ref(name=\"id\") >= 2]]], fields=[id, data])";
+    assertTrue("explain should contains FilterPushDown", explainGTE.contains(explainExpected));
+
     List<Object[]> resultGTE = sql(sqlGTE);
     assertEquals("should have 2 records", 2, resultGTE.size());
 
@@ -265,14 +280,16 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
     assertArrayEquals("Should produce the expected record", resultGTE.toArray(), expectedGTE.toArray());
 
     assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter", "id >= 2", FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "id >= 2", ExpressionsUtil.describe(lastScanEvent.filter()));
   }
 
   @Test
   public void testFilterPushDownGreaterThanEqualLiteralOnLeft() {
     String sqlGTE = String.format("SELECT * FROM %s WHERE 2 >= id ", TABLE_NAME);
     String explainGTE = getTableEnv().explainSql(sqlGTE);
-    assertTrue("explain should contains FilterPushDown", explainGTE.contains(expectedFilterPushDownExplain));
+    String explainExpected = "FilterPushDown,the filters :ref(name=\"id\") <= 2]]], fields=[id, data])";
+    assertTrue("explain should contains FilterPushDown", explainGTE.contains(explainExpected));
+
     List<Object[]> resultGTE = sql(sqlGTE);
     assertEquals("should have 2 records", 2, resultGTE.size());
 
@@ -282,59 +299,67 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
     assertArrayEquals("Should produce the expected record", resultGTE.toArray(), expectedGTE.toArray());
 
     assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter", "id <= 2", FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "id <= 2", ExpressionsUtil.describe(lastScanEvent.filter()));
   }
 
   @Test
   public void testFilterPushDownLessThan() {
     String sqlLT = String.format("SELECT * FROM %s WHERE id < 2 ", TABLE_NAME);
     String explainLT = getTableEnv().explainSql(sqlLT);
-    assertTrue("explain should contains FilterPushDown", explainLT.contains(expectedFilterPushDownExplain));
+    String explainExpected = "FilterPushDown,the filters :ref(name=\"id\") < 2]]], fields=[id, data])";
+    assertTrue("explain should contains FilterPushDown", explainLT.contains(explainExpected));
+
     List<Object[]> resultLT = sql(sqlLT);
     assertEquals("should have 1 record", 1, resultLT.size());
     assertArrayEquals("Should produce the expected record", resultLT.get(0), new Object[] {1, "a"});
 
     assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter", "id < 2", FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "id < 2", ExpressionsUtil.describe(lastScanEvent.filter()));
   }
 
   @Test
   public void testFilterPushDownLessThanLiteralOnLeft() {
     String sqlLT = String.format("SELECT * FROM %s WHERE 2 < id ", TABLE_NAME);
     String explainLT = getTableEnv().explainSql(sqlLT);
-    assertTrue("explain should contains FilterPushDown", explainLT.contains(expectedFilterPushDownExplain));
+    String explainExpected = "FilterPushDown,the filters :ref(name=\"id\") > 2]]], fields=[id, data])";
+    assertTrue("explain should contains FilterPushDown", explainLT.contains(explainExpected));
+
     List<Object[]> resultLT = sql(sqlLT);
     assertEquals("should have 1 record", 1, resultLT.size());
     assertArrayEquals("Should produce the expected record", resultLT.get(0), new Object[] {3, null});
 
     assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter", "id > 2", FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "id > 2", ExpressionsUtil.describe(lastScanEvent.filter()));
   }
 
   @Test
   public void testFilterPushDownLessThanEqual() {
     String sqlLTE = String.format("SELECT * FROM %s WHERE id <= 1 ", TABLE_NAME);
     String explainLTE = getTableEnv().explainSql(sqlLTE);
-    assertTrue("explain should contains FilterPushDown", explainLTE.contains(expectedFilterPushDownExplain));
+    String explainExpected = "FilterPushDown,the filters :ref(name=\"id\") <= 1]]], fields=[id, data])";
+    assertTrue("explain should contains FilterPushDown", explainLTE.contains(explainExpected));
+
     List<Object[]> resultLTE = sql(sqlLTE);
     assertEquals("should have 1 record", 1, resultLTE.size());
     assertArrayEquals("Should produce the expected record", resultLTE.get(0), new Object[] {1, "a"});
 
     assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter", "id <= 1", FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "id <= 1", ExpressionsUtil.describe(lastScanEvent.filter()));
   }
 
   @Test
   public void testFilterPushDownLessThanEqualLiteralOnLeft() {
     String sqlLTE = String.format("SELECT * FROM %s WHERE 3 <= id  ", TABLE_NAME);
     String explainLTE = getTableEnv().explainSql(sqlLTE);
-    assertTrue("explain should contains FilterPushDown", explainLTE.contains(expectedFilterPushDownExplain));
+    String explainExpected = "FilterPushDown,the filters :ref(name=\"id\") >= 3]]], fields=[id, data])";
+    assertTrue("explain should contains FilterPushDown", explainLTE.contains(explainExpected));
+
     List<Object[]> resultLTE = sql(sqlLTE);
     assertEquals("should have 1 record", 1, resultLTE.size());
     assertArrayEquals("Should produce the expected record", resultLTE.get(0), new Object[] {3, null});
 
     assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter", "id >= 3", FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "id >= 3", ExpressionsUtil.describe(lastScanEvent.filter()));
   }
 
   @Test
@@ -346,13 +371,14 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
     assertTrue("explain should contains FilterPushDown", explainIN.contains(explainExpected));
     List<Object[]> resultIN = sql(sqlIN);
     assertEquals("should have 2 records", 2, resultIN.size());
+
     List<Object[]> expectedIN = Lists.newArrayList();
     expectedIN.add(new Object[] {1, "a"});
     expectedIN.add(new Object[] {2, "b"});
     assertArrayEquals("Should produce the expected record", resultIN.toArray(), expectedIN.toArray());
     assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter", "(id = 1 OR id = 2)",
-        FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "(id = 1 OR id = 2)",
+        ExpressionsUtil.describe(lastScanEvent.filter()));
 
     // in with null will not push down
     String sqlInNull = String.format("SELECT * FROM %s WHERE id IN (1,2,NULL) ", TABLE_NAME);
@@ -367,12 +393,13 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
     String explainExpected =
         "FilterPushDown,the filters :ref(name=\"id\") != 3,ref(name=\"id\") != 2]]], fields=[id, data])";
     assertTrue("explain should contains FilterPushDown", explainNotIn.contains(explainExpected));
+
     List<Object[]> resultNotIn = sql(sqlNotIn);
     assertEquals("should have 1 record", 1, resultNotIn.size());
     assertArrayEquals("Should produce the expected record", resultNotIn.get(0), new Object[] {1, "a"});
     assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter", "(id != 3 AND id != 2)",
-        FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "(id != 3 AND id != 2)",
+        ExpressionsUtil.describe(lastScanEvent.filter()));
 
     String sqlNotInNull = String.format("SELECT * FROM %s WHERE id NOT IN (1,2,NULL) ", TABLE_NAME);
     String explainNotInNull = getTableEnv().explainSql(sqlNotInNull);
@@ -383,46 +410,54 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
   public void testFilterPushDownIsNotNull() {
     String sqlNotNull = String.format("SELECT * FROM %s WHERE data IS NOT NULL", TABLE_NAME);
     String explainNotNull = getTableEnv().explainSql(sqlNotNull);
-    assertTrue("explain should contains FilterPushDown", explainNotNull.contains(expectedFilterPushDownExplain));
+    String explainExpected = "FilterPushDown,the filters :not_null(ref(name=\"data\"))]]], fields=[id, data])";
+    assertTrue("explain should contains FilterPushDown", explainNotNull.contains(explainExpected));
+
     List<Object[]> resultNotNull = sql(sqlNotNull);
     assertEquals("should have 2 record", 2, resultNotNull.size());
+
     List<Object[]> expected = Lists.newArrayList();
     expected.add(new Object[] {1, "a"});
     expected.add(new Object[] {2, "b"});
     assertArrayEquals("Should produce the expected record", resultNotNull.toArray(), expected.toArray());
 
     assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter", "data IS NOT NULL",
-        FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "data IS NOT NULL",
+        ExpressionsUtil.describe(lastScanEvent.filter()));
   }
 
   @Test
   public void testFilterPushDownIsNull() {
     String sqlNull = String.format("SELECT * FROM %s WHERE data IS  NULL", TABLE_NAME);
     String explainNull = getTableEnv().explainSql(sqlNull);
-    assertTrue("explain should contains FilterPushDown", explainNull.contains(expectedFilterPushDownExplain));
+    String explainExpected = "FilterPushDown,the filters :is_null(ref(name=\"data\"))]]], fields=[id, data])";
+    assertTrue("explain should contains FilterPushDown", explainNull.contains(explainExpected));
+
     List<Object[]> resultNull = sql(sqlNull);
     assertEquals("should have 1 record", 1, resultNull.size());
     assertArrayEquals("Should produce the expected record", resultNull.get(0), new Object[] {3, null});
 
     assertEquals("Should create only one scan", 1, scanEventCount);
-    assertEquals("Should push down expected filter", "data IS NULL", FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "data IS NULL", ExpressionsUtil.describe(lastScanEvent.filter()));
   }
 
   @Test
   public void testFilterPushDownNot() {
     String sqlNot = String.format("SELECT * FROM %s WHERE NOT id = 1 ", TABLE_NAME);
     String explainNot = getTableEnv().explainSql(sqlNot);
-    assertTrue("explain should contains FilterPushDown", explainNot.contains(expectedFilterPushDownExplain));
+    String explainExpected = "FilterPushDown,the filters :ref(name=\"id\") != 1]]], fields=[id, data])";
+    assertTrue("explain should contains FilterPushDown", explainNot.contains(explainExpected));
+
     List<Object[]> resultNot = sql(sqlNot);
     assertEquals("should have 2 record", 2, resultNot.size());
+
     List<Object[]> expectedNot = Lists.newArrayList();
     expectedNot.add(new Object[] {2, "b"});
     expectedNot.add(new Object[] {3, null});
     assertArrayEquals("Should produce the expected record", resultNot.toArray(), expectedNot.toArray());
 
     assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter", "id != 1", FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "id != 1", ExpressionsUtil.describe(lastScanEvent.filter()));
   }
 
   @Test
@@ -432,16 +467,18 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
     String explainExpected =
         "FilterPushDown,the filters :ref(name=\"id\") >= 1,ref(name=\"id\") <= 2]]], fields=[id, data])";
     assertTrue("explain should contains FilterPushDown", explainBetween.contains(explainExpected));
+
     List<Object[]> resultBetween = sql(sqlBetween);
     assertEquals("should have 2 record", 2, resultBetween.size());
+
     List<Object[]> expectedBetween = Lists.newArrayList();
     expectedBetween.add(new Object[] {1, "a"});
     expectedBetween.add(new Object[] {2, "b"});
     assertArrayEquals("Should produce the expected record", resultBetween.toArray(), expectedBetween.toArray());
 
     assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter", "(id >= 1 AND id <= 2)",
-        FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "(id >= 1 AND id <= 2)",
+        ExpressionsUtil.describe(lastScanEvent.filter()));
   }
 
   @Test
@@ -451,28 +488,31 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
     String explainExpected =
         "FilterPushDown,the filters :(ref(name=\"id\") < 2 or ref(name=\"id\") > 3)]]], fields=[id, data])";
     assertTrue("explain should contains FilterPushDown", explainNotBetween.contains(explainExpected));
+
     List<Object[]> resultNotBetween = sql(sqlNotBetween);
     assertEquals("should have 1 record", 1, resultNotBetween.size());
     assertArrayEquals("the not between should produce the expected record", resultNotBetween.get(0),
         new Object[] {1, "a"});
 
     assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter", "(id < 2 OR id > 3)",
-        FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "(id < 2 OR id > 3)",
+        ExpressionsUtil.describe(lastScanEvent.filter()));
   }
 
   @Test
   public void testFilterPushDownLike() {
     String sqlLike = "SELECT * FROM " + TABLE_NAME + " WHERE data LIKE 'a%' ";
     String explainLike = getTableEnv().explainSql(sqlLike);
-    assertTrue("the like sql explain should contains FilterPushDown", explainLike.contains(
-        expectedFilterPushDownExplain));
+    String explainExpected =
+        "FilterPushDown,the filters :ref(name=\"data\") startsWith \"\"a\"\"]]], fields=[id, data])";
+    assertTrue("the like sql explain should contains FilterPushDown", explainLike.contains(explainExpected));
+
     List<Object[]> resultLike = sql(sqlLike);
     assertEquals("should have 1 record", 1, resultLike.size());
     assertArrayEquals("the like result should produce the expected record", resultLike.get(0), new Object[] {1, "a"});
     assertEquals("Should create only one scan", 1, scanEventCount);
-    Assert.assertEquals("Should push down expected filter", "data LIKE '\"a\"%'",
-        FlinkUtil.describe(lastScanEvent.filter()));
+    assertEquals("Should push down expected filter", "data LIKE '\"a\"%'",
+        ExpressionsUtil.describe(lastScanEvent.filter()));
 
     // not push down
     String sqlNoPushDown = "SELECT * FROM " + TABLE_NAME + " WHERE data LIKE '%a%' ";

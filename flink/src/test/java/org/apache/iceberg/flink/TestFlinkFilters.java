@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink;
 
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -27,6 +28,7 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Expressions;
 import org.apache.flink.table.api.TableColumn;
@@ -35,22 +37,25 @@ import org.apache.flink.table.expressions.ApiExpressionUtils;
 import org.apache.flink.table.expressions.CallExpression;
 import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.expressions.FieldReferenceExpression;
+import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.expressions.UnresolvedCallExpression;
 import org.apache.flink.table.expressions.UnresolvedReferenceExpression;
 import org.apache.flink.table.expressions.ValueLiteralExpression;
 import org.apache.flink.table.expressions.utils.ApiExpressionDefaultVisitor;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
 import org.apache.iceberg.expressions.And;
+import org.apache.iceberg.expressions.BoundLiteralPredicate;
 import org.apache.iceberg.expressions.Not;
 import org.apache.iceberg.expressions.Or;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.junit.Assert;
 import org.junit.Test;
 
 import static org.apache.flink.table.api.Expressions.$;
 import static org.apache.flink.table.api.Expressions.lit;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class TestFlinkFilters {
 
@@ -61,14 +66,28 @@ public class TestFlinkFilters {
       .field("field4", DataTypes.DOUBLE())
       .field("field5", DataTypes.STRING())
       .field("field6", DataTypes.BOOLEAN())
-      .field("field7", DataTypes.BINARY(10))
+      .field("field7", DataTypes.BINARY(2))
       .field("field8", DataTypes.DECIMAL(10, 2))
       .field("field9", DataTypes.DATE())
       .field("field10", DataTypes.TIME())
       .field("field11", DataTypes.TIMESTAMP())
-      .field("field12", DataTypes.TIMESTAMP_WITH_TIME_ZONE())
-      .field("field13", DataTypes.TIMESTAMP_WITH_LOCAL_TIME_ZONE())
+      .field("field12", DataTypes.TIMESTAMP_WITH_LOCAL_TIME_ZONE())
       .build();
+
+  private static final List<Tuple2<String, Object>> LIST = ImmutableList.of(
+      Tuple2.of("field1", 1),
+      Tuple2.of("field2", 2L),
+      Tuple2.of("field3", 3F),
+      Tuple2.of("field4", 4D),
+      Tuple2.of("field5", "iceberg"),
+      Tuple2.of("field6", true),
+      Tuple2.of("field7", new byte[] {'a', 'b'}),
+      Tuple2.of("field8", BigDecimal.valueOf(10)),
+      Tuple2.of("field9", DateTimeUtil.daysFromDate(LocalDate.now())),
+      Tuple2.of("field10", DateTimeUtil.microsFromTime(LocalTime.now())),
+      Tuple2.of("field11", DateTimeUtil.microsFromTimestamp(LocalDateTime.now())),
+      Tuple2.of("field12", DateTimeUtil.microsFromInstant(Instant.now()))
+  );
 
   @Test
   public void testFlinkDataTypeEqual() {
@@ -78,7 +97,7 @@ public class TestFlinkFilters {
     matchLiteral("field4", 3.4D, 3.4D);
     matchLiteral("field5", "abcd", "abcd");
     matchLiteral("field6", true, true);
-    matchLiteral("field7", new byte[] {'a', 'b'}, new byte[] {'a', 'b'});
+    matchLiteral("field7", new byte[] {'a', 'b'}, ByteBuffer.wrap(new byte[] {'a', 'b'}));
     matchLiteral("field8", BigDecimal.valueOf(10), BigDecimal.valueOf(10));
 
     LocalDate date = LocalDate.parse("2020-12-23");
@@ -92,182 +111,213 @@ public class TestFlinkFilters {
 
     Instant instant = Instant.parse("2020-12-23T12:13:14.00Z");
     matchLiteral("field12", instant, DateTimeUtil.microsFromInstant(instant));
-
-    matchLiteral("field13", instant, DateTimeUtil.microsFromInstant(instant));
   }
 
   @Test
   public void testEquals() {
-    UnboundPredicate<Integer> expected = org.apache.iceberg.expressions.Expressions.equal("field1", 1);
+    for (Tuple2<String, Object> tuple2 : LIST) {
+      UnboundPredicate<?> expected = org.apache.iceberg.expressions.Expressions.equal(tuple2.f0, tuple2.f1);
 
-    org.apache.iceberg.expressions.Expression actual =
-        FlinkFilters.convert(resolve(Expressions.$("field1").isEqual(Expressions.lit(1)))).orElse(null);
-    assertPredicatesMatch(expected, (UnboundPredicate) actual);
+      Optional<org.apache.iceberg.expressions.Expression> actual =
+          FlinkFilters.convert(resolve(Expressions.$(tuple2.f0).isEqual(Expressions.lit(tuple2.f1))));
+      assertTrue(actual.isPresent());
+      assertPredicatesMatch(expected, (UnboundPredicate<?>) actual.get());
 
-    org.apache.iceberg.expressions.Expression actual1 =
-        FlinkFilters.convert(resolve(Expressions.lit(1).isEqual(Expressions.$("field1")))).orElse(null);
-    assertPredicatesMatch(expected, (UnboundPredicate) actual1);
+      Optional<org.apache.iceberg.expressions.Expression> actual1 =
+          FlinkFilters.convert(resolve(Expressions.lit(tuple2.f1).isEqual(Expressions.$(tuple2.f0))));
+      assertTrue(actual1.isPresent());
+      assertPredicatesMatch(expected, (UnboundPredicate<?>) actual1.get());
+    }
   }
 
   @Test
   public void testEqualsNaN() {
     UnboundPredicate<Float> expected = org.apache.iceberg.expressions.Expressions.isNaN("field3");
 
-    org.apache.iceberg.expressions.Expression actual =
-        FlinkFilters.convert(resolve(Expressions.$("field3").isEqual(Expressions.lit(Float.NaN)))).orElse(null);
-    assertPredicatesMatch(expected, (UnboundPredicate) actual);
+    Optional<org.apache.iceberg.expressions.Expression> actual =
+        FlinkFilters.convert(resolve(Expressions.$("field3").isEqual(Expressions.lit(Float.NaN))));
+    assertTrue(actual.isPresent());
+    assertPredicatesMatch(expected, (UnboundPredicate<?>) actual.get());
 
-    org.apache.iceberg.expressions.Expression actual1 =
-        FlinkFilters.convert(resolve(Expressions.lit(Float.NaN).isEqual(Expressions.$("field3")))).orElse(null);
-    assertPredicatesMatch(expected, (UnboundPredicate) actual1);
+    Optional<org.apache.iceberg.expressions.Expression> actual1 =
+        FlinkFilters.convert(resolve(Expressions.lit(Float.NaN).isEqual(Expressions.$("field3"))));
+    assertTrue(actual1.isPresent());
+    assertPredicatesMatch(expected, (UnboundPredicate<?>) actual1.get());
   }
 
   @Test
   public void testNotEquals() {
-    UnboundPredicate<Integer> expected = org.apache.iceberg.expressions.Expressions.notEqual("field1", 1);
+    for (Tuple2<String, Object> tuple2 : LIST) {
+      UnboundPredicate<?> expected = org.apache.iceberg.expressions.Expressions.notEqual(tuple2.f0, tuple2.f1);
 
-    org.apache.iceberg.expressions.Expression actual =
-        FlinkFilters.convert(resolve(Expressions.$("field1").isNotEqual(Expressions.lit(1)))).orElse(null);
-    assertPredicatesMatch(expected, (UnboundPredicate) actual);
+      Optional<org.apache.iceberg.expressions.Expression> actual =
+          FlinkFilters.convert(resolve(Expressions.$(tuple2.f0).isNotEqual(Expressions.lit(tuple2.f1))));
+      assertTrue(actual.isPresent());
+      assertPredicatesMatch(expected, (UnboundPredicate<?>) actual.get());
 
-    org.apache.iceberg.expressions.Expression actual1 =
-        FlinkFilters.convert(resolve(Expressions.lit(1).isNotEqual(Expressions.$("field1")))).orElse(null);
-    assertPredicatesMatch(expected, (UnboundPredicate) actual1);
+      Optional<org.apache.iceberg.expressions.Expression> actual1 =
+          FlinkFilters.convert(resolve(Expressions.lit(tuple2.f1).isNotEqual(Expressions.$(tuple2.f0))));
+      assertTrue(actual1.isPresent());
+      assertPredicatesMatch(expected, (UnboundPredicate<?>) actual1.get());
+    }
   }
 
   @Test
   public void testNotEqualsNaN() {
     UnboundPredicate<Float> expected = org.apache.iceberg.expressions.Expressions.notNaN("field3");
 
-    org.apache.iceberg.expressions.Expression actual =
-        FlinkFilters.convert(resolve(Expressions.$("field3").isNotEqual(Expressions.lit(Float.NaN)))).orElse(null);
-    assertPredicatesMatch(expected, (UnboundPredicate) actual);
+    Optional<org.apache.iceberg.expressions.Expression> actual =
+        FlinkFilters.convert(resolve(Expressions.$("field3").isNotEqual(Expressions.lit(Float.NaN))));
+    assertTrue(actual.isPresent());
+    assertPredicatesMatch(expected, (UnboundPredicate<?>) actual.get());
 
-    org.apache.iceberg.expressions.Expression actual1 =
-        FlinkFilters.convert(resolve(Expressions.lit(Float.NaN).isNotEqual(Expressions.$("field3")))).orElse(null);
-    assertPredicatesMatch(expected, (UnboundPredicate) actual1);
+    Optional<org.apache.iceberg.expressions.Expression> actual1 =
+        FlinkFilters.convert(resolve(Expressions.lit(Float.NaN).isNotEqual(Expressions.$("field3"))));
+    assertTrue(actual1.isPresent());
+    assertPredicatesMatch(expected, (UnboundPredicate<?>) actual1.get());
   }
 
   @Test
   public void testGreaterThan() {
     UnboundPredicate<Integer> expected = org.apache.iceberg.expressions.Expressions.greaterThan("field1", 1);
 
-    org.apache.iceberg.expressions.Expression actual =
-        FlinkFilters.convert(resolve(Expressions.$("field1").isGreater(Expressions.lit(1)))).orElse(null);
-    assertPredicatesMatch(expected, (UnboundPredicate) actual);
+    Optional<org.apache.iceberg.expressions.Expression> actual =
+        FlinkFilters.convert(resolve(Expressions.$("field1").isGreater(Expressions.lit(1))));
+    assertTrue(actual.isPresent());
+    assertPredicatesMatch(expected, (UnboundPredicate<?>) actual.get());
 
-    org.apache.iceberg.expressions.Expression actual1 =
-        FlinkFilters.convert(resolve(Expressions.lit(1).isLess(Expressions.$("field1")))).orElse(null);
-    assertPredicatesMatch(expected, (UnboundPredicate) actual1);
+    Optional<org.apache.iceberg.expressions.Expression> actual1 =
+        FlinkFilters.convert(resolve(Expressions.lit(1).isLess(Expressions.$("field1"))));
+    assertTrue(actual1.isPresent());
+    assertPredicatesMatch(expected, (UnboundPredicate<?>) actual1.get());
   }
 
   @Test
   public void testGreaterThanEquals() {
     UnboundPredicate<Integer> expected = org.apache.iceberg.expressions.Expressions.greaterThanOrEqual("field1", 1);
 
-    org.apache.iceberg.expressions.Expression actual =
-        FlinkFilters.convert(resolve(Expressions.$("field1").isGreaterOrEqual(Expressions.lit(1)))).orElse(null);
-    assertPredicatesMatch(expected, (UnboundPredicate) actual);
+    Optional<org.apache.iceberg.expressions.Expression> actual =
+        FlinkFilters.convert(resolve(Expressions.$("field1").isGreaterOrEqual(Expressions.lit(1))));
+    assertTrue(actual.isPresent());
+    assertPredicatesMatch(expected, (UnboundPredicate<?>) actual.get());
 
-    org.apache.iceberg.expressions.Expression actual1 =
-        FlinkFilters.convert(resolve(Expressions.lit(1).isLessOrEqual(Expressions.$("field1")))).orElse(null);
-    assertPredicatesMatch(expected, (UnboundPredicate) actual1);
+    Optional<org.apache.iceberg.expressions.Expression> actual1 =
+        FlinkFilters.convert(resolve(Expressions.lit(1).isLessOrEqual(Expressions.$("field1"))));
+    assertTrue(actual1.isPresent());
+    assertPredicatesMatch(expected, (UnboundPredicate<?>) actual1.get());
   }
 
   @Test
   public void testLessThan() {
     UnboundPredicate<Integer> expected = org.apache.iceberg.expressions.Expressions.lessThan("field1", 1);
 
-    org.apache.iceberg.expressions.Expression actual =
-        FlinkFilters.convert(resolve(Expressions.$("field1").isLess(Expressions.lit(1)))).orElse(null);
-    assertPredicatesMatch(expected, (UnboundPredicate) actual);
+    Optional<org.apache.iceberg.expressions.Expression> actual =
+        FlinkFilters.convert(resolve(Expressions.$("field1").isLess(Expressions.lit(1))));
+    assertTrue(actual.isPresent());
+    assertPredicatesMatch(expected, (UnboundPredicate<?>) actual.get());
 
-    org.apache.iceberg.expressions.Expression actual1 =
-        FlinkFilters.convert(resolve(Expressions.lit(1).isGreater(Expressions.$("field1")))).orElse(null);
-    assertPredicatesMatch(expected, (UnboundPredicate) actual1);
+    Optional<org.apache.iceberg.expressions.Expression> actual1 =
+        FlinkFilters.convert(resolve(Expressions.lit(1).isGreater(Expressions.$("field1"))));
+    assertTrue(actual1.isPresent());
+    assertPredicatesMatch(expected, (UnboundPredicate<?>) actual1.get());
   }
 
   @Test
   public void testLessThanEquals() {
     UnboundPredicate<Integer> expected = org.apache.iceberg.expressions.Expressions.lessThanOrEqual("field1", 1);
 
-    org.apache.iceberg.expressions.Expression actual =
-        FlinkFilters.convert(resolve(Expressions.$("field1").isLessOrEqual(Expressions.lit(1)))).orElse(null);
-    assertPredicatesMatch(expected, (UnboundPredicate) actual);
+    Optional<org.apache.iceberg.expressions.Expression> actual =
+        FlinkFilters.convert(resolve(Expressions.$("field1").isLessOrEqual(Expressions.lit(1))));
+    assertTrue(actual.isPresent());
+    assertPredicatesMatch(expected, (UnboundPredicate<?>) actual.get());
 
-    org.apache.iceberg.expressions.Expression actual1 =
-        FlinkFilters.convert(resolve(Expressions.lit(1).isGreaterOrEqual(Expressions.$("field1")))).orElse(null);
-    assertPredicatesMatch(expected, (UnboundPredicate) actual1);
+    Optional<org.apache.iceberg.expressions.Expression> actual1 =
+        FlinkFilters.convert(resolve(Expressions.lit(1).isGreaterOrEqual(Expressions.$("field1"))));
+    assertTrue(actual1.isPresent());
+    assertPredicatesMatch(expected, (UnboundPredicate<?>) actual1.get());
   }
 
   @Test
   public void testIsNull() {
     Expression expr = resolve($("field1").isNull());
-    UnboundPredicate actual = (UnboundPredicate) FlinkFilters.convert(expr).orElse(null);
+    Optional<org.apache.iceberg.expressions.Expression> actual = FlinkFilters.convert(expr);
+    assertTrue(actual.isPresent());
     UnboundPredicate<Object> expected = org.apache.iceberg.expressions.Expressions.isNull("field1");
-    assertPredicatesMatch(expected, actual);
+    assertPredicatesMatch(expected, (UnboundPredicate<?>) actual.get());
   }
 
   @Test
   public void testIsNotNull() {
     Expression expr = resolve($("field1").isNotNull());
-    UnboundPredicate actual = (UnboundPredicate) FlinkFilters.convert(expr).orElse(null);
+    Optional<org.apache.iceberg.expressions.Expression> actual = FlinkFilters.convert(expr);
+    assertTrue(actual.isPresent());
     UnboundPredicate<Object> expected = org.apache.iceberg.expressions.Expressions.notNull("field1");
-    assertPredicatesMatch(expected, actual);
+    assertPredicatesMatch(expected, (UnboundPredicate<?>) actual.get());
   }
 
   @Test
   public void testAnd() {
     Expression expr = resolve(Expressions.$("field1").isEqual(lit(1)).and(Expressions.$("field2").isEqual(lit(2L))));
-    And actual = (And) FlinkFilters.convert(expr).orElse(null);
+    Optional<org.apache.iceberg.expressions.Expression> actual = FlinkFilters.convert(expr);
+    assertTrue(actual.isPresent());
+    And and = (And) actual.get();
     And expected = (And) org.apache.iceberg.expressions.Expressions.and(
         org.apache.iceberg.expressions.Expressions.equal("field1", 1),
         org.apache.iceberg.expressions.Expressions.equal("field2", 2L));
 
-    assertEquals(expected.op(), actual.op());
-    assertEquals(expected.left().op(), actual.left().op());
-    assertEquals(expected.right().op(), actual.right().op());
+    assertEquals(expected.op(), and.op());
+    assertEquals(expected.left().op(), and.left().op());
+    assertEquals(expected.right().op(), and.right().op());
   }
 
   @Test
   public void testOr() {
     Expression expr = resolve($("field1").isEqual(lit(1)).or($("field2").isEqual(lit(2L))));
-    Or actual = (Or) FlinkFilters.convert(expr).orElse(null);
+    Optional<org.apache.iceberg.expressions.Expression> actual = FlinkFilters.convert(expr);
+    assertTrue(actual.isPresent());
+    Or or = (Or) actual.get();
     Or expected = (Or) org.apache.iceberg.expressions.Expressions.or(
         org.apache.iceberg.expressions.Expressions.equal("field1", 1),
         org.apache.iceberg.expressions.Expressions.equal("field2", 2L));
 
-    assertEquals(expected.op(), actual.op());
-    assertEquals(expected.left().op(), actual.left().op());
-    assertEquals(expected.right().op(), actual.right().op());
+    assertEquals(expected.op(), or.op());
+    assertEquals(expected.left().op(), or.left().op());
+    assertEquals(expected.right().op(), or.right().op());
   }
 
   @Test
   public void testNot() {
     Expression expr = resolve(ApiExpressionUtils.unresolvedCall(
         BuiltInFunctionDefinitions.NOT, $("field1").isEqual(lit(1))));
-    Not actual = (Not) FlinkFilters.convert(expr).orElse(null);
+    Optional<org.apache.iceberg.expressions.Expression> actual = FlinkFilters.convert(expr);
+    assertTrue(actual.isPresent());
+    Not not = (Not) actual.get();
     Not expected = (Not) org.apache.iceberg.expressions.Expressions.not(
         org.apache.iceberg.expressions.Expressions.equal("field1", 1));
 
-    assertEquals(expected.op(), actual.op());
-    assertPredicatesMatch((UnboundPredicate) expected.child(), (UnboundPredicate) actual.child());
+    assertEquals(expected.op(), not.op());
+    assertPredicatesMatch((UnboundPredicate<?>) expected.child(), (UnboundPredicate<?>) not.child());
   }
 
   @Test
   public void testLike() {
-    UnboundPredicate expected = org.apache.iceberg.expressions.Expressions.startsWith("field5", "abc");
+    UnboundPredicate<?> expected = org.apache.iceberg.expressions.Expressions.startsWith("field5", "abc");
     Expression expr = resolve(ApiExpressionUtils.unresolvedCall(
         BuiltInFunctionDefinitions.LIKE, $("field5"), lit("abc%")));
-    assertPredicatesMatch(expected, (UnboundPredicate) FlinkFilters.convert(expr).orElse(null));
+    Optional<org.apache.iceberg.expressions.Expression> actual = FlinkFilters.convert(expr);
+    assertTrue(actual.isPresent());
+    assertPredicatesMatch(expected, (UnboundPredicate<?>) actual.get());
   }
 
   private void matchLiteral(String fieldName, Object flinkLiteral, Object icebergLiteral) {
     Expression expr = resolve(Expressions.$(fieldName).isEqual(Expressions.lit(flinkLiteral)));
     Optional<org.apache.iceberg.expressions.Expression> actual = FlinkFilters.convert(expr);
-    Assert.assertTrue(actual.isPresent());
-    assertPredicatesMatch(org.apache.iceberg.expressions.Expressions.equal(fieldName, icebergLiteral),
-        (UnboundPredicate) actual.get());
+    assertTrue(actual.isPresent());
+
+    BoundLiteralPredicate predicate =
+        (BoundLiteralPredicate<?>) ((UnboundPredicate<?>) actual.get())
+            .bind(FlinkSchemaUtil.convert(TABLE_SCHEMA).asStruct(), false);
+    assertTrue(predicate.test(icebergLiteral));
   }
 
   private static Expression resolve(Expression originalExpression) {
@@ -275,14 +325,20 @@ public class TestFlinkFilters {
       @Override
       public Expression visit(UnresolvedReferenceExpression unresolvedReference) {
         String name = unresolvedReference.getName();
-        TableColumn field = TABLE_SCHEMA.getTableColumn(name).orElse(null);
-        int index = TABLE_SCHEMA.getTableColumns().indexOf(field);
-        return new FieldReferenceExpression(name, field.getType(), 0, index);
+        Optional<TableColumn> field = TABLE_SCHEMA.getTableColumn(name);
+        if (field.isPresent()) {
+          int index = TABLE_SCHEMA.getTableColumns().indexOf(field.get());
+          return new FieldReferenceExpression(name, field.get().getType(), 0, index);
+        } else {
+          return null;
+        }
       }
 
       @Override
       public Expression visit(UnresolvedCallExpression unresolvedCall) {
-        List children = unresolvedCall.getChildren().stream().map(e -> e.accept(this)).collect(Collectors.toList());
+        List<ResolvedExpression> children =
+            unresolvedCall.getChildren().stream().map(e -> (ResolvedExpression) e.accept(this))
+                .collect(Collectors.toList());
         return new CallExpression(unresolvedCall.getFunctionDefinition(), children, DataTypes.STRING());
       }
 
@@ -298,7 +354,7 @@ public class TestFlinkFilters {
     });
   }
 
-  private void assertPredicatesMatch(UnboundPredicate expected, UnboundPredicate actual) {
+  private void assertPredicatesMatch(UnboundPredicate<?> expected, UnboundPredicate<?> actual) {
     assertEquals(expected.op(), actual.op());
     assertEquals(expected.literal(), actual.literal());
     assertEquals(expected.ref().name(), actual.ref().name());
