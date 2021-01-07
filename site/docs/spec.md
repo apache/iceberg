@@ -233,7 +233,7 @@ About compatibility between v1 and v2 tables:
 * For backward compatibility, if field ids are missing in a table metadata, the reference implementation will sequentially generate ids for each field starting at `1000` based on its position in the list of fields.
 * For forward compatibility, if field ids are not supported but present in the metadata, old versions of the reference implementation will ignore those field ids and then regenerate an auto-increment field id starting at 1000 for every partition field.
 
-While working with a v1 table, old versions of the reference implementation did not keep track of field IDs. 
+While working with a v1 table, the v1 partition spec does not require consistent field IDs and then they are assigned when creating each manifest file. 
 When creating a manifest, each field of the partition spec will be assigned an ID starting at `1000`, and there is no guarantees about ID reuse across files. 
 But as long as the partition spec will not be evolved, IDs will be consistent.
 
