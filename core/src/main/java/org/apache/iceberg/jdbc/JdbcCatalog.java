@@ -59,7 +59,7 @@ import org.slf4j.LoggerFactory;
 
 public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, SupportsNamespaces, Closeable {
 
-  public static final String JDBC_PARAM_PREFIX = "connection.parameter.";
+  protected static final String JDBC_PARAM_PREFIX = "connection.parameter.";
   private static final Logger LOG = LoggerFactory.getLogger(JdbcCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
 
