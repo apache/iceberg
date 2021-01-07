@@ -78,6 +78,7 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   private String warehousePath;
   private AwsProperties awsProperties;
   private FileIO fileIO;
+  private LockManager lockManager;
 
   /**
    * No-arg constructor to load the catalog dynamically.
@@ -94,6 +95,7 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
         properties.get(CatalogProperties.WAREHOUSE_LOCATION),
         new AwsProperties(properties),
         AwsClientFactories.from(properties).glue(),
+        LockManagers.from(properties),
         initializeFileIO(properties));
   }
 
@@ -109,11 +111,12 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   }
 
   @VisibleForTesting
-  void initialize(String name, String path, AwsProperties properties, GlueClient client, FileIO io) {
+  void initialize(String name, String path, AwsProperties properties, GlueClient client, LockManager lock, FileIO io) {
     this.catalogName = name;
     this.awsProperties = properties;
     this.warehousePath = cleanWarehousePath(path);
     this.glue = client;
+    this.lockManager = lock;
     this.fileIO = io;
   }
 
@@ -130,7 +133,7 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-    return new GlueTableOperations(glue, catalogName, awsProperties, fileIO, tableIdentifier);
+    return new GlueTableOperations(glue, lockManager, catalogName, awsProperties, fileIO, tableIdentifier);
   }
 
   /**

@@ -19,15 +19,24 @@
 
 package org.apache.iceberg.spark.extensions;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
+import org.junit.Assert;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
+
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
 
 @RunWith(Parameterized.class)
 public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTestBase {
@@ -75,5 +84,50 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
             false
         }
     };
+  }
+
+  protected abstract Map<String, String> extraTableProperties();
+
+  protected void initTable() {
+    sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName, DEFAULT_FILE_FORMAT, fileFormat);
+
+    switch (fileFormat) {
+      case "parquet":
+        sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%b')", tableName, PARQUET_VECTORIZATION_ENABLED, vectorized);
+        break;
+      case "orc":
+        Assert.assertTrue(vectorized);
+        break;
+      case "avro":
+        Assert.assertFalse(vectorized);
+        break;
+    }
+
+    Map<String, String> props = extraTableProperties();
+    props.forEach((prop, value) -> {
+      sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName, prop, value);
+    });
+  }
+
+  protected void createAndInitTable(String schema) {
+    sql("CREATE TABLE %s (%s) USING iceberg", tableName, schema);
+    initTable();
+  }
+
+  protected void createOrReplaceView(String name, String jsonData) {
+    createOrReplaceView(name, null, jsonData);
+  }
+
+  protected void createOrReplaceView(String name, String schema, String jsonData) {
+    List<String> jsonRows = Arrays.stream(jsonData.split("\n"))
+        .filter(str -> str.trim().length() > 0)
+        .collect(Collectors.toList());
+    Dataset<String> jsonDS = spark.createDataset(jsonRows, Encoders.STRING());
+
+    if (schema != null) {
+      spark.read().schema(schema).json(jsonDS).createOrReplaceTempView(name);
+    } else {
+      spark.read().json(jsonDS).createOrReplaceTempView(name);
+    }
   }
 }

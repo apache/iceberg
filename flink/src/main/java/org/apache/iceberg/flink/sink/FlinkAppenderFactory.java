@@ -109,6 +109,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
           return ORC.write(outputFile)
               .createWriterFunc((iSchema, typDesc) -> FlinkOrcWriter.buildWriter(flinkSchema, iSchema))
               .setAll(props)
+              .metricsConfig(metricsConfig)
               .schema(schema)
               .overwrite()
               .build();

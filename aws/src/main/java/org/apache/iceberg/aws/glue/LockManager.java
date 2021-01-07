@@ -17,49 +17,37 @@
  * under the License.
  */
 
-package org.apache.iceberg.aws;
+package org.apache.iceberg.aws.glue;
 
-import java.io.Serializable;
 import java.util.Map;
-import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
-import software.amazon.awssdk.services.glue.GlueClient;
-import software.amazon.awssdk.services.kms.KmsClient;
-import software.amazon.awssdk.services.s3.S3Client;
 
 /**
- * Interface to customize AWS clients used by Iceberg.
- * A custom factory must have a no-arg constructor, and use {@link #initialize(Map)} to initialize the factory.
+ * An interface for locking, used to ensure Glue catalog commit isolation.
  */
-public interface AwsClientFactory extends Serializable {
+interface LockManager extends AutoCloseable {
 
   /**
-   * create a Amazon S3 client
-   * @return s3 client
+   * Try to acquire a lock
+   * @param entityId ID of the entity to lock
+   * @param ownerId ID of the owner if the lock
+   * @return if the lock for the entity is acquired by the owner
    */
-  S3Client s3();
+  boolean acquire(String entityId, String ownerId);
 
   /**
-   * create a AWS Glue client
-   * @return glue client
+   * Release a lock
+   *
+   * @apiNote exception must not be thrown for this method.
+   *
+   * @param entityId ID of the entity to lock
+   * @param ownerId ID of the owner if the lock
+   * @return if the owner held the lock and successfully released it.
    */
-  GlueClient glue();
+  boolean release(String entityId, String ownerId);
 
   /**
-   * Create a AWS KMS client
-   * @return kms client
-   */
-  KmsClient kms();
-
-  /**
-   * Create a Amazon DynamoDB client
-   * @return dynamoDB client
-   */
-  DynamoDbClient dynamo();
-
-  /**
-   * Initialize AWS client factory from catalog properties.
+   * Initialize lock manager from catalog properties.
    * @param properties catalog properties
    */
   void initialize(Map<String, String> properties);
-
 }

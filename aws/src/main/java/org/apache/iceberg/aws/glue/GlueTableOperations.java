@@ -57,16 +57,20 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   private final String databaseName;
   private final String tableName;
   private final String fullTableName;
+  private final String commitLockEntityId;
   private final FileIO fileIO;
+  private final LockManager lockManager;
 
-  GlueTableOperations(GlueClient glue, String catalogName, AwsProperties awsProperties,
+  GlueTableOperations(GlueClient glue, LockManager lockManager, String catalogName, AwsProperties awsProperties,
                       FileIO fileIO, TableIdentifier tableIdentifier) {
     this.glue = glue;
     this.awsProperties = awsProperties;
     this.databaseName = IcebergToGlueConverter.getDatabaseName(tableIdentifier);
     this.tableName = IcebergToGlueConverter.getTableName(tableIdentifier);
     this.fullTableName = String.format("%s.%s.%s", catalogName, databaseName, tableName);
+    this.commitLockEntityId = String.format("%s.%s", databaseName, tableName);
     this.fileIO = fileIO;
+    this.lockManager = lockManager;
   }
 
   @Override
@@ -100,10 +104,11 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
     boolean exceptionThrown = true;
-    Table glueTable = getGlueTable();
-    checkMetadataLocation(glueTable, base);
-    Map<String, String> properties = prepareProperties(glueTable, newMetadataLocation);
     try {
+      lock(newMetadataLocation);
+      Table glueTable = getGlueTable();
+      checkMetadataLocation(glueTable, base);
+      Map<String, String> properties = prepareProperties(glueTable, newMetadataLocation);
       persistGlueTable(glueTable, properties);
       exceptionThrown = false;
     } catch (ConcurrentModificationException e) {
@@ -114,9 +119,14 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     } catch (SdkException e) {
       throw new CommitFailedException(e, "Cannot commit %s because unexpected exception contacting AWS", tableName());
     } finally {
-      if (exceptionThrown) {
-        io().deleteFile(newMetadataLocation);
-      }
+      cleanupMetadataAndUnlock(exceptionThrown, newMetadataLocation);
+    }
+  }
+
+  private void lock(String newMetadataLocation) {
+    if (!lockManager.acquire(commitLockEntityId, newMetadataLocation)) {
+      throw new IllegalStateException(String.format("Fail to acquire lock %s to commit new metadata at %s",
+          commitLockEntityId, newMetadataLocation));
     }
   }
 
@@ -178,6 +188,20 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
               .parameters(parameters)
               .build())
           .build());
+    }
+  }
+
+  private void cleanupMetadataAndUnlock(boolean exceptionThrown, String metadataLocation) {
+    try {
+      if (exceptionThrown) {
+        // if anything went wrong, clean up the uncommitted metadata file
+        io().deleteFile(metadataLocation);
+      }
+    } catch (RuntimeException e) {
+      LOG.error("Fail to cleanup metadata file at {}", metadataLocation, e);
+      throw e;
+    } finally {
+      lockManager.release(commitLockEntityId, metadataLocation);
     }
   }
 }

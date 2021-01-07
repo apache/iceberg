@@ -68,11 +68,13 @@ public class GlueTestBase {
     String testBucketPath = "s3://" + testBucketName + "/" + testPathPrefix;
     S3FileIO fileIO = new S3FileIO(clientFactory::s3);
     glueCatalog = new GlueCatalog();
-    glueCatalog.initialize(catalogName, testBucketPath, new AwsProperties(), glue, fileIO);
+    glueCatalog.initialize(catalogName, testBucketPath, new AwsProperties(), glue,
+            LockManagers.defaultLockManager(), fileIO);
     AwsProperties properties = new AwsProperties();
     properties.setGlueCatalogSkipArchive(true);
     glueCatalogWithSkip = new GlueCatalog();
-    glueCatalogWithSkip.initialize(catalogName, testBucketPath, properties, glue, fileIO);
+    glueCatalogWithSkip.initialize(catalogName, testBucketPath, properties, glue,
+            LockManagers.defaultLockManager(), fileIO);
   }
 
   @AfterClass

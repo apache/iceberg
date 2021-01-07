@@ -96,7 +96,7 @@ enum Timestamps implements Transform<Long, Integer> {
   @Override
   public UnboundPredicate<Integer> project(String fieldName, BoundPredicate<Long> pred) {
     if (pred.term() instanceof BoundTransform) {
-      return ProjectionUtil.projectTransformPredicate(this, name, pred);
+      return ProjectionUtil.projectTransformPredicate(this, fieldName, pred);
     }
 
     if (pred.isUnaryPredicate()) {
@@ -112,7 +112,7 @@ enum Timestamps implements Transform<Long, Integer> {
   @Override
   public UnboundPredicate<Integer> projectStrict(String fieldName, BoundPredicate<Long> pred) {
     if (pred.term() instanceof BoundTransform) {
-      return ProjectionUtil.projectTransformPredicate(this, name, pred);
+      return ProjectionUtil.projectTransformPredicate(this, fieldName, pred);
     }
 
     if (pred.isUnaryPredicate()) {
