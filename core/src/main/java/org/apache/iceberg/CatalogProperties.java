@@ -34,8 +34,6 @@ public class CatalogProperties {
   public static final String HIVE_CLIENT_POOL_SIZE = "clients";
   public static final int HIVE_CLIENT_POOL_SIZE_DEFAULT = 2;
 
-  public static final String HADOOP_SUPPRESS_IOEXCEPTION = "suppress-io-exception";
-
   public static final String LOCK_IMPL = "lock.impl";
 
   public static final String LOCK_HEARTBEAT_INTERVAL_MS = "lock.heartbeat-interval-ms";

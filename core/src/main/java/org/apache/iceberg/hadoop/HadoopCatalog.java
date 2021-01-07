@@ -81,6 +81,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   private static final String TABLE_METADATA_FILE_EXTENSION = ".metadata.json";
   private static final Joiner SLASH = Joiner.on("/");
   private static final PathFilter TABLE_FILTER = path -> path.getName().endsWith(TABLE_METADATA_FILE_EXTENSION);
+  private static final String HADOOP_SUPPRESS_IOEXCEPTION = "suppress-io-exception";
 
   private String catalogName;
   private Configuration conf;
@@ -136,9 +137,9 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     this.fs = Util.getFs(new Path(warehouseLocation), conf);
 
     String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
-    this.suppressIOException = Boolean.parseBoolean(properties.get(CatalogProperties.HADOOP_SUPPRESS_IOEXCEPTION));
-
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(conf) : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
+
+    this.suppressIOException = Boolean.parseBoolean(properties.get(HADOOP_SUPPRESS_IOEXCEPTION));
   }
 
   /**
@@ -168,8 +169,10 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   }
 
   private boolean shouldSuppressIOException(IOException ioException) {
-    String name = ioException.getClass().getName();
-    return suppressIOException && name.startsWith("org.apache.hadoop.fs.azurebfs");
+    if (suppressIOException) {
+       return ioException.getMessage() != null && ioException.contains("AuthorizationPermissionMismatch");
+    }
+    return false;
   }
 
   private boolean isTableDir(Path path) {
@@ -182,7 +185,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
       return false;
     } catch (IOException e) {
       if (shouldSuppressIOException(e)) {
-        LOG.warn("Unalbe to metadata directory {}: {}", metadataPath, e);
+        LOG.warn("Unable to metadata directory {}: {}", metadataPath, e);
         return false;
       } else {
         throw new UncheckedIOException(e);
@@ -197,7 +200,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
       return false;
     } catch (IOException e) {
       if (shouldSuppressIOException(e)) {
-        LOG.warn("Unalbe to list directory {}: {}", path, e);
+        LOG.warn("Unable to list directory {}: {}", path, e);
         return false;
       } else {
         throw new UncheckedIOException(e);
