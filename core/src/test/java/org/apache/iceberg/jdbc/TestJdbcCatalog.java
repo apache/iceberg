@@ -78,6 +78,7 @@ public class TestJdbcCatalog {
 
   static Configuration conf = new Configuration();
   private static JdbcCatalog catalog;
+  private static String warehouseLocation;
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
   File tableDir = null;
@@ -110,7 +111,8 @@ public class TestJdbcCatalog {
 
     properties.put(JdbcCatalog.JDBC_PARAM_PREFIX + "username", "user");
     properties.put(JdbcCatalog.JDBC_PARAM_PREFIX + "password", "password");
-    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.getAbsolutePath());
+    warehouseLocation = this.tableDir.getAbsolutePath();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
     catalog = new JdbcCatalog();
     catalog.setConf(conf);
     catalog.initialize("test_jdbc_catalog", properties);
@@ -255,6 +257,14 @@ public class TestJdbcCatalog {
     Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
 
     catalog.dropTable(testTable, true);
+  }
+
+  @Test
+  public void testDefaultWarehouseLocation() throws Exception {
+    TableIdentifier testTable = TableIdentifier.of("tbl");
+    TableIdentifier testTable2 = TableIdentifier.of(Namespace.of("ns"), "tbl");
+    Assert.assertEquals(catalog.defaultWarehouseLocation(testTable), warehouseLocation + "/tbl");
+    Assert.assertEquals(catalog.defaultWarehouseLocation(testTable2), warehouseLocation + "/ns/tbl");
   }
 
   @Test

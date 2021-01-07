@@ -169,9 +169,9 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
   @Override
   protected String defaultWarehouseLocation(TableIdentifier table) {
     if (table.hasNamespace()) {
-      return SLASH.join(warehouseLocation, SLASH.join(table.namespace().levels()), table.name());
+      return SLASH.join(defaultNamespaceLocation(table.namespace()), table.name());
     }
-    return SLASH.join(warehouseLocation, table.name());
+    return SLASH.join(defaultNamespaceLocation(table.namespace()), table.name());
   }
 
   @Override
@@ -351,7 +351,15 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
-    return ImmutableMap.of("location", SLASH.join(warehouseLocation, SLASH.join(namespace.levels())));
+    return ImmutableMap.of("location", defaultNamespaceLocation(namespace));
+  }
+
+  private String defaultNamespaceLocation(Namespace namespace) {
+    if (namespace.isEmpty()) {
+      return warehouseLocation;
+    } else {
+      return SLASH.join(warehouseLocation, SLASH.join(namespace.levels()));
+    }
   }
 
   @Override
