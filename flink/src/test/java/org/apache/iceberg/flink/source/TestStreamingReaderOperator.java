@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.source;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
@@ -58,9 +57,10 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 public class TestStreamingReaderOperator {
 
   @ClassRule
-  public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+  public static final TemporaryFolder TEMP = new TemporaryFolder();
 
   private static final Schema SCHEMA = new Schema(required(1, "data", Types.StringType.get()));
+  private static final Configuration CONF = new Configuration();
 
   private Table table;
   private String location;
@@ -68,13 +68,13 @@ public class TestStreamingReaderOperator {
 
   @Before
   public void before() throws IOException {
-    File warehouseFile = TEMPORARY_FOLDER.newFolder();
+    File warehouseFile = TEMP.newFolder();
     Assert.assertTrue(warehouseFile.delete());
     location = "file:" + warehouseFile;
-    table = new HadoopTables(new Configuration()).create(SCHEMA, location);
+    table = new HadoopTables(CONF).create(SCHEMA, location);
 
-    GenericAppenderHelper appender = new GenericAppenderHelper(table, FileFormat.AVRO, TEMPORARY_FOLDER);
-    expected = new ArrayList<>();
+    GenericAppenderHelper appender = new GenericAppenderHelper(table, FileFormat.AVRO, TEMP);
+    expected = Lists.newArrayList();
     for (int i = 0; i < 10; i++) {
       List<Record> records = RandomGenericData.generate(SCHEMA, 100, 0L);
       appender.appendToTable(records);
@@ -84,14 +84,9 @@ public class TestStreamingReaderOperator {
 
   @Test
   public void testCheckpointRestore() throws Exception {
-    TableScan scan = table.newScan();
-    List<FlinkInputSplit> splits = new ArrayList<>();
-    try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
-      List<CombinedScanTask> tasks = Lists.newArrayList(tasksIterable);
-      for (int i = 0; i < tasks.size(); i++) {
-        splits.add(new FlinkInputSplit(i, tasks.get(i)));
-      }
-    }
+    List<FlinkInputSplit> splits = generateSplits();
+    Assert.assertEquals("Should have 1 splits", 1, splits.size());
+
     OperatorSubtaskState state;
     try (OneInputStreamOperatorTestHarness<FlinkInputSplit, RowData> harness = createReader()) {
       harness.setup();
@@ -122,20 +117,37 @@ public class TestStreamingReaderOperator {
     TestFlinkScan.assertRecords(results, expected, SCHEMA);
   }
 
+  private List<FlinkInputSplit> generateSplits() throws IOException {
+    TableScan scan = table.newScan();
+    List<FlinkInputSplit> splits = Lists.newArrayList();
+    try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
+      List<CombinedScanTask> tasks = Lists.newArrayList(tasksIterable);
+      for (int i = 0; i < tasks.size(); i++) {
+        splits.add(new FlinkInputSplit(i, tasks.get(i)));
+      }
+    }
+    return splits;
+  }
+
   private OneInputStreamOperatorTestHarness<FlinkInputSplit, RowData> createReader() throws Exception {
-    OneInputStreamOperatorFactory<FlinkInputSplit, RowData> factory = StreamingReaderOperator.factory(
-        FlinkSource.forRowData().streaming(false).table(table).tableLoader(TableLoader.fromHadoopTable(location))
-            .buildFormat());
+    FlinkInputFormat inputFormat = FlinkSource.forRowData()
+        .streaming(false)
+        .tableLoader(TableLoader.fromHadoopTable(location))
+        .buildFormat();
+
+    OneInputStreamOperatorFactory<FlinkInputSplit, RowData> factory = StreamingReaderOperator.factory(inputFormat);
     OneInputStreamOperatorTestHarness<FlinkInputSplit, RowData> harness = new OneInputStreamOperatorTestHarness<>(
         factory, 1, 1, 0);
     harness.getStreamConfig().setTimeCharacteristic(TimeCharacteristic.ProcessingTime);
+
     return harness;
   }
 
   private SteppingMailboxProcessor createLocalMailbox(
       OneInputStreamOperatorTestHarness<FlinkInputSplit, RowData> harness) {
     return new SteppingMailboxProcessor(
-        MailboxDefaultAction.Controller::suspendDefaultAction, harness.getTaskMailbox(),
+        MailboxDefaultAction.Controller::suspendDefaultAction,
+        harness.getTaskMailbox(),
         StreamTaskActionExecutor.IMMEDIATE);
   }
 }
