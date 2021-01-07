@@ -28,6 +28,7 @@ import software.amazon.awssdk.awscore.client.builder.AwsSyncClientBuilder;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -57,6 +58,11 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   @Override
   public KmsClient kms() {
     return KmsClient.builder().applyMutation(this::configure).build();
+  }
+
+  @Override
+  public DynamoDbClient dynamo() {
+    return DynamoDbClient.builder().applyMutation(this::configure).build();
   }
 
   @Override
