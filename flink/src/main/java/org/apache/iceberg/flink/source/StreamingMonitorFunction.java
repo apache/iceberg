@@ -65,10 +65,9 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
   private transient long startSnapshotId;
 
   public StreamingMonitorFunction(TableLoader tableLoader, ScanContext ctxt) {
-    Preconditions.checkArgument(ctxt.snapshotId() == null && ctxt.asOfTimestamp() == null,
-        "The streaming reader does not support using snapshot-id or as-of-timestamp to select the table snapshot.");
-    Preconditions.checkArgument(ctxt.endSnapshotId() == null,
-        "The streaming reader does not support using end snapshot id.");
+    Preconditions.checkArgument(ctxt.snapshotId() == null, "Cannot set snapshot-id option for streaming reader");
+    Preconditions.checkArgument(ctxt.asOfTimestamp() == null, "Cannot set as-of-timestamp option for streaming reader");
+    Preconditions.checkArgument(ctxt.endSnapshotId() == null, "Cannot set end-snapshot-id option for streaming reader");
     this.tableLoader = tableLoader;
     this.ctxt = ctxt;
   }

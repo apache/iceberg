@@ -175,9 +175,7 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
     super.snapshotState(context);
 
     checkpointState.clear();
-    for (FlinkInputSplit split : splits) {
-      checkpointState.add(split);
-    }
+    checkpointState.addAll(Lists.newArrayList(splits));
   }
 
   public static OneInputStreamOperatorFactory<FlinkInputSplit, RowData> factory(FlinkInputFormat format) {
