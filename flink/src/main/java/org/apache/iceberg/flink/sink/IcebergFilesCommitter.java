@@ -207,7 +207,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
                                     String newFlinkJobId,
                                     long checkpointId) throws IOException {
     NavigableMap<Long, byte[]> pendingMap = deltaManifestsMap.headMap(checkpointId, true);
-    if (pendingMap.isEmpty()) {
+    if (pendingMap.isEmpty() && maxCommitIdleTimeMs > 0) {
       LOG.info("No data to commit before the checkpoint {}", checkpointId);
       return;
     }
