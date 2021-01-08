@@ -60,7 +60,7 @@ public class InputFormatConfig {
   public static final int COMMIT_THREAD_POOL_SIZE_DEFAULT = 10;
 
   public static final String CASE_SENSITIVE = "iceberg.mr.case.sensitive";
-  public static final boolean CASE_SENSITIVE_DEFAULT = false;
+  public static final boolean CASE_SENSITIVE_DEFAULT = true;
 
   public static final String CATALOG_NAME = "iceberg.catalog";
   public static final String HADOOP_CATALOG = "hadoop.catalog";

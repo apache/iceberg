@@ -80,19 +80,14 @@ public class HiveIcebergSerDe extends AbstractSerDe {
         tableSchema = hiveSchemaOrThrow(serDeProperties, e);
       }
     }
+    configuration.set(InputFormatConfig.CASE_SENSITIVE, "false");
 
     String[] selectedColumns = ColumnProjectionUtils.getReadColumnNames(configuration);
-    Schema projectedSchema = tableSchema;
-
-    boolean caseSensitive = configuration.getBoolean(InputFormatConfig.CASE_SENSITIVE,
-            InputFormatConfig.CASE_SENSITIVE_DEFAULT);
-    if (selectedColumns.length > 0) {
-      projectedSchema = caseSensitive ? tableSchema.select(selectedColumns)
-              : tableSchema.caseInsensitiveSelect(selectedColumns);
-    }
+    Schema projectedSchema = selectedColumns.length > 0 ? tableSchema.caseInsensitiveSelect(selectedColumns) :
+            tableSchema;
 
     try {
-      this.inspector = IcebergObjectInspector.create(projectedSchema, caseSensitive);
+      this.inspector = IcebergObjectInspector.create(projectedSchema, false);
     } catch (Exception e) {
       throw new SerDeException(e);
     }
