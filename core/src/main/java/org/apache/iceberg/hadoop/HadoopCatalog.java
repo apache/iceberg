@@ -185,7 +185,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
       return false;
     } catch (IOException e) {
       if (shouldSuppressPermissionError(e)) {
-        LOG.warn("Unable to metadata directory {}: {}", metadataPath, e);
+        LOG.warn("Unable to list metadata directory {}: {}", metadataPath, e);
         return false;
       } else {
         throw new UncheckedIOException(e);
