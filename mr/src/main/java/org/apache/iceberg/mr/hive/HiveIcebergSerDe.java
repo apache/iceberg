@@ -20,6 +20,7 @@
 package org.apache.iceberg.mr.hive;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
@@ -66,9 +67,7 @@ public class HiveIcebergSerDe extends AbstractSerDe {
     assertNotVectorizedTez(configuration);
 
     Schema tableSchema;
-    if (configuration.get(InputFormatConfig.TABLE_SCHEMA) != null) {
-      tableSchema = SchemaParser.fromJson(configuration.get(InputFormatConfig.TABLE_SCHEMA));
-    } else if (serDeProperties.get(InputFormatConfig.TABLE_SCHEMA) != null) {
+    if (serDeProperties.get(InputFormatConfig.TABLE_SCHEMA) != null) {
       tableSchema = SchemaParser.fromJson((String) serDeProperties.get(InputFormatConfig.TABLE_SCHEMA));
     } else {
       try {
@@ -82,7 +81,17 @@ public class HiveIcebergSerDe extends AbstractSerDe {
     }
 
     String[] selectedColumns = ColumnProjectionUtils.getReadColumnNames(configuration);
-    Schema projectedSchema = selectedColumns.length > 0 ? tableSchema.select(selectedColumns) : tableSchema;
+    // When same table is joined multiple times, it is possible some selected columns are duplicated,
+    // in this case wrong recordStructField position leads wrong value or ArrayIndexOutOfBoundException
+    String[] distinctSelectedColumns = Arrays.stream(selectedColumns).distinct().toArray(String[]::new);
+    Schema projectedSchema = distinctSelectedColumns.length > 0 ?
+            tableSchema.select(distinctSelectedColumns) : tableSchema;
+    // the input split mapper handles does not belong to this table
+    // it is necessary to ensure projectedSchema equals to tableSchema,
+    // or we cannot find selectOperator's column from inspector
+    if (projectedSchema.columns().size() != distinctSelectedColumns.length) {
+      projectedSchema = tableSchema;
+    }
 
     try {
       this.inspector = IcebergObjectInspector.create(projectedSchema);

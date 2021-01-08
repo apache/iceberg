@@ -42,6 +42,7 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.junit.runners.Parameterized.Parameter;
 import static org.junit.runners.Parameterized.Parameters;
@@ -49,17 +50,33 @@ import static org.junit.runners.Parameterized.Parameters;
 @RunWith(Parameterized.class)
 public class TestHiveIcebergStorageHandlerWithEngine {
 
-  private static final String[] EXECUTION_ENGINES = new String[] {"tez", "mr"};
+  private static final String[] EXECUTION_ENGINES = new String[]{"tez", "mr"};
+
+  private static final String[] CBO_ENABLES = new String[]{"true", "false"};
 
   private static final Schema ORDER_SCHEMA = new Schema(
           required(1, "order_id", Types.LongType.get()),
           required(2, "customer_id", Types.LongType.get()),
-          required(3, "total", Types.DoubleType.get()));
+          required(3, "total", Types.DoubleType.get()),
+          required(4, "product_id", Types.LongType.get())
+  );
 
   private static final List<Record> ORDER_RECORDS = TestHelper.RecordsBuilder.newInstance(ORDER_SCHEMA)
-          .add(100L, 0L, 11.11d)
-          .add(101L, 0L, 22.22d)
-          .add(102L, 1L, 33.33d)
+          .add(100L, 0L, 11.11d, 1L)
+          .add(101L, 0L, 22.22d, 2L)
+          .add(102L, 1L, 33.33d, 3L)
+          .build();
+
+  private static final Schema PRODUCT_SCHEMA = new Schema(
+          optional(1, "id", Types.LongType.get()),
+          optional(2, "name", Types.StringType.get()),
+          optional(3, "price", Types.DoubleType.get())
+  );
+
+  private static final List<Record> PRODUCT_RECORDS = TestHelper.RecordsBuilder.newInstance(PRODUCT_SCHEMA)
+          .add(1L, "skirt", 11.11d)
+          .add(2L, "tee", 22.22d)
+          .add(3L, "watch", 33.33d)
           .build();
 
   private static final List<Type> SUPPORTED_TYPES =
@@ -68,7 +85,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
                   Types.TimestampType.withoutZone(), Types.StringType.get(), Types.BinaryType.get(),
                   Types.DecimalType.of(3, 1));
 
-  @Parameters(name = "fileFormat={0}, engine={1}, catalog={2}")
+  @Parameters(name = "fileFormat={0}, engine={1}, catalog={2}, cboEnable={3}")
   public static Collection<Object[]> parameters() {
     Collection<Object[]> testParams = new ArrayList<>();
     String javaVersion = System.getProperty("java.specification.version");
@@ -78,7 +95,9 @@ public class TestHiveIcebergStorageHandlerWithEngine {
       for (String engine : EXECUTION_ENGINES) {
         // include Tez tests only for Java 8
         if (javaVersion.equals("1.8") || "mr".equals(engine)) {
-          testParams.add(new Object[] {fileFormat, engine, TestTables.TestTableType.HIVE_CATALOG});
+          for (String cboEnable : CBO_ENABLES) {
+            testParams.add(new Object[]{fileFormat, engine, TestTables.TestTableType.HIVE_CATALOG, cboEnable});
+          }
         }
       }
     }
@@ -87,7 +106,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     // skip HiveCatalog tests as they are added before
     for (TestTables.TestTableType testTableType : TestTables.ALL_TABLE_TYPES) {
       if (!TestTables.TestTableType.HIVE_CATALOG.equals(testTableType)) {
-        testParams.add(new Object[]{FileFormat.PARQUET, "mr", testTableType});
+        testParams.add(new Object[]{FileFormat.PARQUET, "mr", testTableType, "false"});
       }
     }
 
@@ -107,6 +126,9 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   @Parameter(2)
   public TestTables.TestTableType testTableType;
 
+  @Parameter(3)
+  public String cboEnable;
+
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
@@ -123,7 +145,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   @Before
   public void before() throws IOException {
     testTables = HiveIcebergStorageHandlerTestUtils.testTables(shell, testTableType, temp);
-    HiveIcebergStorageHandlerTestUtils.init(shell, testTables, temp, executionEngine);
+    HiveIcebergStorageHandlerTestUtils.init(shell, testTables, temp, executionEngine, cboEnable);
   }
 
   @After
@@ -142,29 +164,61 @@ public class TestHiveIcebergStorageHandlerWithEngine {
 
     // Adding the ORDER BY clause will cause Hive to spawn a local MR job this time.
     List<Object[]> descRows =
-        shell.executeStatement("SELECT first_name, customer_id FROM default.customers ORDER BY customer_id DESC");
+            shell.executeStatement("SELECT first_name, customer_id FROM default.customers ORDER BY customer_id DESC");
 
     Assert.assertEquals(3, descRows.size());
-    Assert.assertArrayEquals(new Object[] {"Trudy", 2L}, descRows.get(0));
-    Assert.assertArrayEquals(new Object[] {"Bob", 1L}, descRows.get(1));
-    Assert.assertArrayEquals(new Object[] {"Alice", 0L}, descRows.get(2));
+    Assert.assertArrayEquals(new Object[]{"Trudy", 2L}, descRows.get(0));
+    Assert.assertArrayEquals(new Object[]{"Bob", 1L}, descRows.get(1));
+    Assert.assertArrayEquals(new Object[]{"Alice", 0L}, descRows.get(2));
   }
 
   @Test
-  public void testJoinTables() throws IOException {
-    testTables.createTable(shell, "customers", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, fileFormat,
-        HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
+  public void testSelectedColumnsNoOverlapJoin() throws IOException {
+    testTables.createTable(shell, "products", PRODUCT_SCHEMA, fileFormat, PRODUCT_RECORDS);
     testTables.createTable(shell, "orders", ORDER_SCHEMA, fileFormat, ORDER_RECORDS);
 
     List<Object[]> rows = shell.executeStatement(
-            "SELECT c.customer_id, c.first_name, o.order_id, o.total " +
-                    "FROM default.customers c JOIN default.orders o ON c.customer_id = o.customer_id " +
-                    "ORDER BY c.customer_id, o.order_id"
+            "SELECT o.order_id, o.customer_id, o.total, p.name " +
+                    "FROM default.orders o JOIN default.products p ON o.product_id = p.id ORDER BY o.order_id"
     );
 
-    Assert.assertArrayEquals(new Object[] {0L, "Alice", 100L, 11.11d}, rows.get(0));
-    Assert.assertArrayEquals(new Object[] {0L, "Alice", 101L, 22.22d}, rows.get(1));
-    Assert.assertArrayEquals(new Object[] {1L, "Bob", 102L, 33.33d}, rows.get(2));
+    Assert.assertEquals(3, rows.size());
+    Assert.assertArrayEquals(new Object[]{100L, 0L, 11.11d, "skirt"}, rows.get(0));
+    Assert.assertArrayEquals(new Object[]{101L, 0L, 22.22d, "tee"}, rows.get(1));
+    Assert.assertArrayEquals(new Object[]{102L, 1L, 33.33d, "watch"}, rows.get(2));
+  }
+
+  @Test
+  public void testSelectedColumnsOverlapJoin() throws IOException {
+    testTables.createTable(shell, "customers", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, fileFormat,
+            HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
+    testTables.createTable(shell, "orders", ORDER_SCHEMA, fileFormat, ORDER_RECORDS);
+
+    List<Object[]> rows = shell.executeStatement(
+            "SELECT c.first_name, o.order_id " +
+                    "FROM default.orders o JOIN default.customers c ON o.customer_id = c.customer_id " +
+                    "ORDER BY o.order_id DESC"
+    );
+
+    Assert.assertEquals(3, rows.size());
+    Assert.assertArrayEquals(new Object[]{"Bob", 102L}, rows.get(0));
+    Assert.assertArrayEquals(new Object[]{"Alice", 101L}, rows.get(1));
+    Assert.assertArrayEquals(new Object[]{"Alice", 100L}, rows.get(2));
+  }
+
+  @Test
+  public void testSelfJoin() throws IOException {
+    testTables.createTable(shell, "orders", ORDER_SCHEMA, fileFormat, ORDER_RECORDS);
+
+    List<Object[]> rows = shell.executeStatement(
+            "SELECT o1.order_id, o1.customer_id, o1.total " +
+                    "FROM default.orders o1 JOIN default.orders o2 ON o1.order_id = o2.order_id ORDER BY o1.order_id"
+    );
+
+    Assert.assertEquals(3, rows.size());
+    Assert.assertArrayEquals(new Object[]{100L, 0L, 11.11d}, rows.get(0));
+    Assert.assertArrayEquals(new Object[]{101L, 0L, 22.22d}, rows.get(1));
+    Assert.assertArrayEquals(new Object[]{102L, 1L, 33.33d}, rows.get(2));
   }
 
   @Test
