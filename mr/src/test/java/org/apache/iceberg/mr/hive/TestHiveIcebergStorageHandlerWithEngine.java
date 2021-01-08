@@ -151,27 +151,6 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   }
 
   @Test
-  public void testScanTableForCaseSensitive() throws IOException {
-    testTables.createTable(shell, "customers",
-            HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA_WITH_UPPERCASE, fileFormat,
-            HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
-
-    List<Object[]> rows = shell.executeStatement("SELECT * FROM default.customers");
-
-    Assert.assertEquals(3, rows.size());
-    Assert.assertArrayEquals(new Object[] {0L, "Alice", "Brown"}, rows.get(0));
-    Assert.assertArrayEquals(new Object[] {1L, "Bob", "Green"}, rows.get(1));
-    Assert.assertArrayEquals(new Object[] {2L, "Trudy", "Pink"}, rows.get(2));
-
-    rows = shell.executeStatement("SELECT * FROM default.customers where CustomER_Id < 2 " +
-            "and first_name in ('Alice', 'Bob')");
-
-    Assert.assertEquals(2, rows.size());
-    Assert.assertArrayEquals(new Object[] {0L, "Alice", "Brown"}, rows.get(0));
-    Assert.assertArrayEquals(new Object[] {1L, "Bob", "Green"}, rows.get(1));
-  }
-
-  @Test
   public void testJoinTables() throws IOException {
     testTables.createTable(shell, "customers", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, fileFormat,
         HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
