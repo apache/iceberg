@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.util.Objects;
 import java.util.Set;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.MappedFields;
 import org.apache.iceberg.mapping.MappingUtil;
@@ -156,7 +157,7 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
   }
 
   @Test
-  public void testDeleteColumnWithMetrics() {
+  public void testModificationWithMetricsMetrics() {
     NameMapping mapping = MappingUtil.create(table.schema());
     String mappingJson = NameMappingParser.toJson(mapping);
 
@@ -165,9 +166,24 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
         .set("write.metadata.metrics.column.id", "full")
         .commit();
 
-    table.updateSchema()
-        .deleteColumn("id")
-        .commit();
+    AssertHelpers.assertThrows(
+        "Creating metrics for non-existent column fails",
+        ValidationException.class,
+        null,
+        () ->
+          table.updateProperties()
+            .set(TableProperties.DEFAULT_NAME_MAPPING, mappingJson)
+            .set("write.metadata.metrics.column.ids", "full")
+          .commit());
+
+    AssertHelpers.assertThrows(
+        "Deleting a column with metrics fails",
+        ValidationException.class,
+        null,
+        () ->
+          table.updateSchema()
+              .deleteColumn("id")
+          .commit());
 
     String updatedJson = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     NameMapping updated = NameMappingParser.fromJson(updatedJson);

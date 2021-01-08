@@ -89,6 +89,11 @@ class PropertiesUpdate implements UpdateProperties {
 
     newProperties.putAll(updates);
 
+    // Validate the metrics
+    if (base.schema() != null) {
+      MetricsConfig.fromProperties(newProperties).validateProperties(base.schema());
+    }
+
     return newProperties;
   }
 
