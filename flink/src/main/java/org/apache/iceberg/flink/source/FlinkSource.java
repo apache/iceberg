@@ -71,7 +71,7 @@ public class FlinkSource {
     private Table table;
     private TableLoader tableLoader;
     private TableSchema projectedSchema;
-    private final ScanContext.Builder ctxtBuilder = ScanContext.builder();
+    private final ScanContext.Builder contextBuilder = ScanContext.builder();
 
     public Builder tableLoader(TableLoader newLoader) {
       this.tableLoader = newLoader;
@@ -89,7 +89,7 @@ public class FlinkSource {
     }
 
     public Builder filters(List<Expression> filters) {
-      ctxtBuilder.filters(filters);
+      contextBuilder.filters(filters);
       return this;
     }
 
@@ -99,62 +99,62 @@ public class FlinkSource {
     }
 
     public Builder limit(long newLimit) {
-      ctxtBuilder.limit(newLimit);
+      contextBuilder.limit(newLimit);
       return this;
     }
 
     public Builder properties(Map<String, String> properties) {
-      ctxtBuilder.fromProperties(properties);
+      contextBuilder.fromProperties(properties);
       return this;
     }
 
     public Builder caseSensitive(boolean caseSensitive) {
-      ctxtBuilder.caseSensitive(caseSensitive);
+      contextBuilder.caseSensitive(caseSensitive);
       return this;
     }
 
     public Builder snapshotId(Long snapshotId) {
-      ctxtBuilder.useSnapshotId(snapshotId);
+      contextBuilder.useSnapshotId(snapshotId);
       return this;
     }
 
     public Builder startSnapshotId(Long startSnapshotId) {
-      ctxtBuilder.startSnapshotId(startSnapshotId);
+      contextBuilder.startSnapshotId(startSnapshotId);
       return this;
     }
 
     public Builder endSnapshotId(Long endSnapshotId) {
-      ctxtBuilder.endSnapshotId(endSnapshotId);
+      contextBuilder.endSnapshotId(endSnapshotId);
       return this;
     }
 
     public Builder asOfTimestamp(Long asOfTimestamp) {
-      ctxtBuilder.asOfTimestamp(asOfTimestamp);
+      contextBuilder.asOfTimestamp(asOfTimestamp);
       return this;
     }
 
     public Builder splitSize(Long splitSize) {
-      ctxtBuilder.splitSize(splitSize);
+      contextBuilder.splitSize(splitSize);
       return this;
     }
 
     public Builder splitLookback(Integer splitLookback) {
-      ctxtBuilder.splitLookback(splitLookback);
+      contextBuilder.splitLookback(splitLookback);
       return this;
     }
 
     public Builder splitOpenFileCost(Long splitOpenFileCost) {
-      ctxtBuilder.splitOpenFileCost(splitOpenFileCost);
+      contextBuilder.splitOpenFileCost(splitOpenFileCost);
       return this;
     }
 
     public Builder streaming(boolean streaming) {
-      ctxtBuilder.streaming(streaming);
+      contextBuilder.streaming(streaming);
       return this;
     }
 
     public Builder nameMapping(String nameMapping) {
-      ctxtBuilder.nameMapping(nameMapping);
+      contextBuilder.nameMapping(nameMapping);
       return this;
     }
 
@@ -182,26 +182,26 @@ public class FlinkSource {
       }
 
       if (projectedSchema == null) {
-        ctxtBuilder.project(icebergSchema);
+        contextBuilder.project(icebergSchema);
       } else {
-        ctxtBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
+        contextBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
       }
 
-      return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, ctxtBuilder.build());
+      return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, contextBuilder.build());
     }
 
     public DataStream<RowData> build() {
       Preconditions.checkNotNull(env, "StreamExecutionEnvironment should not be null");
       FlinkInputFormat format = buildFormat();
 
-      ScanContext ctxt = ctxtBuilder.build();
-      TypeInformation<RowData> typeInfo = RowDataTypeInfo.of(FlinkSchemaUtil.convert(ctxt.project()));
+      ScanContext context = contextBuilder.build();
+      TypeInformation<RowData> typeInfo = RowDataTypeInfo.of(FlinkSchemaUtil.convert(context.project()));
 
-      if (!ctxt.isStreaming()) {
+      if (!context.isStreaming()) {
         return env.createInput(format, typeInfo);
       } else {
         OneInputStreamOperatorFactory<FlinkInputSplit, RowData> factory = StreamingReaderOperator.factory(format);
-        StreamingMonitorFunction function = new StreamingMonitorFunction(tableLoader, ctxt);
+        StreamingMonitorFunction function = new StreamingMonitorFunction(tableLoader, context);
 
         String monitorFunctionName = String.format("Iceberg table (%s) monitor", table);
         String readerOperatorName = String.format("Iceberg table (%s) reader", table);

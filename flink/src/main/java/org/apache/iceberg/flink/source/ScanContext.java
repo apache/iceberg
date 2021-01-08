@@ -82,12 +82,12 @@ class ScanContext implements Serializable {
   private final String nameMapping;
   private final Schema schema;
   private final List<Expression> filters;
-  private final Long limit;
+  private final long limit;
 
   private ScanContext(boolean caseSensitive, Long snapshotId, Long startSnapshotId, Long endSnapshotId,
                       Long asOfTimestamp, Long splitSize, Integer splitLookback, Long splitOpenFileCost,
                       boolean isStreaming, Duration monitorInterval, String nameMapping,
-                      Schema schema, List<Expression> filters, Long limit) {
+                      Schema schema, List<Expression> filters, long limit) {
     this.caseSensitive = caseSensitive;
     this.snapshotId = snapshotId;
     this.startSnapshotId = startSnapshotId;
@@ -217,7 +217,7 @@ class ScanContext implements Serializable {
     private String nameMapping;
     private Schema projectedSchema;
     private List<Expression> filters;
-    private Long limit = -1L;
+    private long limit = -1L;
 
     private Builder() {
     }

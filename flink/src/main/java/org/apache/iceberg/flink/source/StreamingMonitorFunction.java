@@ -56,7 +56,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
   private static final long DUMMY_START_SNAPSHOT_ID = -1;
 
   private final TableLoader tableLoader;
-  private final ScanContext ctxt;
+  private final ScanContext scanContext;
 
   private volatile boolean isRunning = true;
   private transient Object checkpointLock;
@@ -64,12 +64,15 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
   private transient ListState<Long> snapshotIdState;
   private transient long startSnapshotId;
 
-  public StreamingMonitorFunction(TableLoader tableLoader, ScanContext ctxt) {
-    Preconditions.checkArgument(ctxt.snapshotId() == null, "Cannot set snapshot-id option for streaming reader");
-    Preconditions.checkArgument(ctxt.asOfTimestamp() == null, "Cannot set as-of-timestamp option for streaming reader");
-    Preconditions.checkArgument(ctxt.endSnapshotId() == null, "Cannot set end-snapshot-id option for streaming reader");
+  public StreamingMonitorFunction(TableLoader tableLoader, ScanContext scanContext) {
+    Preconditions.checkArgument(scanContext.snapshotId() == null,
+        "Cannot set snapshot-id option for streaming reader");
+    Preconditions.checkArgument(scanContext.asOfTimestamp() == null,
+        "Cannot set as-of-timestamp option for streaming reader");
+    Preconditions.checkArgument(scanContext.endSnapshotId() == null,
+        "Cannot set end-snapshot-id option for streaming reader");
     this.tableLoader = tableLoader;
-    this.ctxt = ctxt;
+    this.scanContext = scanContext;
   }
 
   @Override
@@ -84,7 +87,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
       LOG.info("Restoring state for the {}.", getClass().getSimpleName());
       startSnapshotId = snapshotIdState.get().iterator().next();
     } else {
-      Long optionStartSnapshot = ctxt.startSnapshotId();
+      Long optionStartSnapshot = scanContext.startSnapshotId();
       if (optionStartSnapshot != null) {
         if (!SnapshotUtil.ancestorOf(table, table.currentSnapshot().snapshotId(), optionStartSnapshot)) {
           throw new IllegalStateException("The option start-snapshot-id " + optionStartSnapshot +
@@ -113,7 +116,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
           monitorAndForwardSplits(ctx);
         }
       }
-      Thread.sleep(ctxt.monitorInterval().toMillis());
+      Thread.sleep(scanContext.monitorInterval().toMillis());
     }
   }
 
@@ -124,8 +127,8 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
       long snapshotId = snapshot.snapshotId();
       // Read current static table if startSnapshotId not set.
       ScanContext newScanContext = startSnapshotId == DUMMY_START_SNAPSHOT_ID ?
-          ctxt.copyWithSnapshotId(snapshotId) :
-          ctxt.copyWithAppendsBetween(startSnapshotId, snapshotId);
+          scanContext.copyWithSnapshotId(snapshotId) :
+          scanContext.copyWithAppendsBetween(startSnapshotId, snapshotId);
 
       FlinkInputSplit[] splits = FlinkSplitGenerator.createInputSplits(table, newScanContext);
       for (FlinkInputSplit split : splits) {
