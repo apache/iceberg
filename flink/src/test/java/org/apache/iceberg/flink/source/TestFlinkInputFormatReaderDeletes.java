@@ -23,87 +23,27 @@ import java.io.IOException;
 import java.util.Map;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.data.DeleteReadTests;
 import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestHelpers;
-import org.apache.iceberg.hive.HiveCatalog;
-import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.StructLikeSet;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
-@RunWith(Parameterized.class)
-public class TestFlinkInputFormatReaderDeletes extends DeleteReadTests {
-  private static HiveConf hiveConf = null;
-  private static HiveCatalog catalog = null;
-  private static TestHiveMetastore metastore = null;
-
-  private final FileFormat format;
-
-  @Parameterized.Parameters(name = "fileFormat={0}")
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { FileFormat.PARQUET },
-        new Object[] { FileFormat.AVRO },
-        new Object[] { FileFormat.ORC }
-    };
-  }
+public class TestFlinkInputFormatReaderDeletes extends TestFlinkReaderDeletesBase {
 
   public TestFlinkInputFormatReaderDeletes(FileFormat inputFormat) {
-    this.format = inputFormat;
-  }
-
-  @BeforeClass
-  public static void startMetastore() {
-    TestFlinkInputFormatReaderDeletes.metastore = new TestHiveMetastore();
-    metastore.start();
-    TestFlinkInputFormatReaderDeletes.hiveConf = metastore.hiveConf();
-    TestFlinkInputFormatReaderDeletes.catalog = new HiveCatalog(hiveConf);
-  }
-
-  @AfterClass
-  public static void stopMetastore() {
-    metastore.stop();
-    catalog.close();
-    TestFlinkInputFormatReaderDeletes.catalog = null;
+    super(inputFormat);
   }
 
   @Override
-  protected Table createTable(String name, Schema schema, PartitionSpec spec) {
-    Map<String, String> props = Maps.newHashMap();
-    props.put(TableProperties.DEFAULT_FILE_FORMAT, format.name());
-
-    Table table = catalog.createTable(TableIdentifier.of("default", name), schema, spec, props);
-    TableOperations ops = ((BaseTable) table).operations();
-    TableMetadata meta = ops.current();
-    ops.commit(meta, meta.upgradeToFormatVersion(2));
-
-    return table;
-  }
-
-  @Override
-  protected void dropTable(String name) {
-    catalog.dropTable(TableIdentifier.of("default", name));
-  }
-
-  @Override
-  protected StructLikeSet rowSet(String name, Table testTable, String... columns) throws IOException {
+  protected StructLikeSet rowSet(String tableName, Table testTable, String... columns) throws IOException {
     Schema projected = testTable.schema().select(columns);
     RowType rowType = FlinkSchemaUtil.convert(projected);
     Map<String, String> properties = Maps.newHashMap();
@@ -113,7 +53,7 @@ public class TestFlinkInputFormatReaderDeletes extends DeleteReadTests {
         Integer.toString(hiveConf.getInt("iceberg.hive.client-pool-size", 5)));
     CatalogLoader hiveCatalogLoader = CatalogLoader.hive(catalog.name(), hiveConf, properties);
     FlinkInputFormat inputFormat = FlinkSource.forRowData()
-        .tableLoader(TableLoader.fromCatalog(hiveCatalogLoader, TableIdentifier.of("default", name)))
+        .tableLoader(TableLoader.fromCatalog(hiveCatalogLoader, TableIdentifier.of("default", tableName)))
         .project(FlinkSchemaUtil.toSchema(rowType)).buildFormat();
 
     StructLikeSet set = StructLikeSet.create(projected.asStruct());
@@ -125,8 +65,4 @@ public class TestFlinkInputFormatReaderDeletes extends DeleteReadTests {
     return set;
   }
 
-  @Override
-  protected boolean expectPruned() {
-    return false;
-  }
 }

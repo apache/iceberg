@@ -39,6 +39,7 @@ import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.TestTableLoader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -117,7 +118,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       function.close();
 
       Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
-      TestFlinkScan.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
+      TestHelpers.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
     }
   }
 
@@ -151,7 +152,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       function.close();
 
       Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
-      TestFlinkScan.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
+      TestHelpers.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
     }
   }
 
@@ -181,7 +182,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       func.close();
 
       Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
-      TestFlinkScan.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
+      TestHelpers.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
     }
 
     List<List<Record>> newRecordsList = generateRecordsAndCommitTxn(10);
@@ -203,7 +204,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       newFunc.close();
 
       Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
-      TestFlinkScan.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(newRecordsList)), SCHEMA);
+      TestHelpers.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(newRecordsList)), SCHEMA);
     }
   }
 

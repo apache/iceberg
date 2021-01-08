@@ -27,6 +27,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -34,7 +35,6 @@ import java.util.stream.Collectors;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
-import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.MapData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.TimestampData;
@@ -47,7 +47,9 @@ import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.flink.data.RowDataUtil;
 import org.apache.iceberg.flink.source.FlinkInputFormat;
 import org.apache.iceberg.flink.source.FlinkInputSplit;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -64,20 +66,7 @@ public class TestHelpers {
     TypeSerializer[] fieldSerializers = rowType.getChildren().stream()
         .map((LogicalType type) -> InternalSerializers.create(type))
         .toArray(TypeSerializer[]::new);
-
-    // Use rowType field count to avoid copy metadata column in case of merging position deletes
-    GenericRowData ret = new GenericRowData(rowType.getFieldCount());
-    ret.setRowKind(from.getRowKind());
-    for (int i = 0; i < rowType.getFieldCount(); i++) {
-      if (!from.isNullAt(i)) {
-        RowData.FieldGetter getter = RowData.createFieldGetter(rowType.getTypeAt(i), i);
-        ret.setField(i, fieldSerializers[i].copy(getter.getFieldOrNull(from)));
-      } else {
-        ret.setField(i, null);
-      }
-    }
-
-    return ret;
+    return RowDataUtil.clone(from, null, rowType, fieldSerializers);
   }
 
   public static List<RowData> readRowData(FlinkInputFormat inputFormat, RowType rowType) throws IOException {
@@ -97,13 +86,31 @@ public class TestHelpers {
   }
 
   public static List<Row> readRows(FlinkInputFormat inputFormat, RowType rowType) throws IOException {
+    return convertRowDataToRow(readRowData(inputFormat, rowType), rowType);
+  }
+
+  public static List<Row> convertRowDataToRow(List<RowData> rowDataList, RowType rowType) {
     DataStructureConverter<Object, Object> converter = DataStructureConverters.getConverter(
         TypeConversions.fromLogicalToDataType(rowType));
-
-    return readRowData(inputFormat, rowType).stream()
+    return rowDataList.stream()
         .map(converter::toExternal)
         .map(Row.class::cast)
         .collect(Collectors.toList());
+  }
+
+  public static void assertRecords(List<Row> results, List<Record> expectedRecords, Schema schema) {
+    List<Row> expected = Lists.newArrayList();
+    @SuppressWarnings("unchecked")
+    DataStructureConverter<RowData, Row> converter = (DataStructureConverter) DataStructureConverters.getConverter(
+        TypeConversions.fromLogicalToDataType(FlinkSchemaUtil.convert(schema)));
+    expectedRecords.forEach(r -> expected.add(converter.toExternal(RowDataConverter.convert(schema, r))));
+    assertRows(results, expected);
+  }
+
+  public static void assertRows(List<Row> results, List<Row> expected) {
+    expected.sort(Comparator.comparing(Row::toString));
+    results.sort(Comparator.comparing(Row::toString));
+    Assert.assertEquals(expected, results);
   }
 
   public static void assertRowData(Types.StructType structType, LogicalType rowType, Record expectedRecord,
