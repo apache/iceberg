@@ -37,18 +37,20 @@ import org.apache.iceberg.types.Types;
  */
 class HiveSchemaConverter {
   private int id;
+  private boolean autoConvert;
 
-  private HiveSchemaConverter() {
-    id = 0;
+  private HiveSchemaConverter(boolean autoConvert) {
+    this.autoConvert = autoConvert;
+    this.id = 0;
   }
 
-  static Schema convert(List<String> names, List<TypeInfo> typeInfos) {
-    HiveSchemaConverter converter = new HiveSchemaConverter();
+  static Schema convert(List<String> names, List<TypeInfo> typeInfos, boolean autoConvert) {
+    HiveSchemaConverter converter = new HiveSchemaConverter(autoConvert);
     return new Schema(converter.convertInternal(names, typeInfos));
   }
 
-  static Type convert(TypeInfo typeInfo) {
-    HiveSchemaConverter converter = new HiveSchemaConverter();
+  static Type convert(TypeInfo typeInfo, boolean autoConvert) {
+    HiveSchemaConverter converter = new HiveSchemaConverter(autoConvert);
     return converter.convertType(typeInfo);
   }
 
@@ -73,9 +75,13 @@ class HiveSchemaConverter {
             return Types.BooleanType.get();
           case BYTE:
           case SHORT:
-            throw new IllegalArgumentException("Unsupported Hive type (" +
-                ((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory() +
-                ") for Iceberg tables. Consider using INT/INTEGER type instead.");
+            if (autoConvert) {
+              return Types.IntegerType.get();
+            } else {
+              throw new IllegalArgumentException("Unsupported Hive type (" +
+                  ((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory() +
+                  ") for Iceberg tables. Consider using INT/INTEGER type instead.");
+            }
           case INT:
             return Types.IntegerType.get();
           case LONG:
@@ -84,9 +90,13 @@ class HiveSchemaConverter {
             return Types.BinaryType.get();
           case CHAR:
           case VARCHAR:
-            throw new IllegalArgumentException("Unsupported Hive type (" +
-                ((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory() +
-                ") for Iceberg tables. Consider using STRING type instead.");
+            if (autoConvert) {
+              return Types.StringType.get();
+            } else {
+              throw new IllegalArgumentException("Unsupported Hive type (" +
+                  ((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory() +
+                  ") for Iceberg tables. Consider using STRING type instead.");
+            }
           case STRING:
             return Types.StringType.get();
           case TIMESTAMP:

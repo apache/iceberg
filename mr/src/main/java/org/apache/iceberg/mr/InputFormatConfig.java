@@ -41,6 +41,7 @@ public class InputFormatConfig {
   public static final String READ_SCHEMA = "iceberg.mr.read.schema";
   public static final String SNAPSHOT_ID = "iceberg.mr.snapshot.id";
   public static final String SPLIT_SIZE = "iceberg.mr.split.size";
+  public static final String SCHEMA_AUTO_CONVERSION = "iceberg.mr.schema.auto.conversion";
   public static final String TABLE_IDENTIFIER = "iceberg.mr.table.identifier";
   public static final String TABLE_LOCATION = "iceberg.mr.table.location";
   public static final String TABLE_SCHEMA = "iceberg.mr.table.schema";
