@@ -81,14 +81,14 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   private static final String TABLE_METADATA_FILE_EXTENSION = ".metadata.json";
   private static final Joiner SLASH = Joiner.on("/");
   private static final PathFilter TABLE_FILTER = path -> path.getName().endsWith(TABLE_METADATA_FILE_EXTENSION);
-  private static final String HADOOP_SUPPRESS_IOEXCEPTION = "suppress-io-exception";
+  private static final String HADOOP_SUPPRESS_PERMISSION_ERROR = "suppress-permission-error";
 
   private String catalogName;
   private Configuration conf;
   private String warehouseLocation;
   private FileSystem fs;
   private FileIO fileIO;
-  private boolean suppressIOException = false;
+  private boolean suppressPermissionError = false;
 
   public HadoopCatalog(){
   }
@@ -139,7 +139,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(conf) : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
-    this.suppressIOException = Boolean.parseBoolean(properties.get(HADOOP_SUPPRESS_IOEXCEPTION));
+    this.suppressPermissionError = Boolean.parseBoolean(properties.get(HADOOP_SUPPRESS_PERMISSION_ERROR));
   }
 
   /**
@@ -168,8 +168,8 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     return catalogName;
   }
 
-  private boolean shouldSuppressIOException(IOException ioException) {
-    if (suppressIOException) {
+  private boolean shouldSuppressPermissionError(IOException ioException) {
+    if (suppressPermissionError) {
       return ioException.getMessage() != null && ioException.getMessage().contains("AuthorizationPermissionMismatch");
     }
     return false;
@@ -184,7 +184,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     } catch (FileNotFoundException e) {
       return false;
     } catch (IOException e) {
-      if (shouldSuppressIOException(e)) {
+      if (shouldSuppressPermissionError(e)) {
         LOG.warn("Unable to metadata directory {}: {}", metadataPath, e);
         return false;
       } else {
@@ -199,7 +199,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     } catch (FileNotFoundException e) {
       return false;
     } catch (IOException e) {
-      if (shouldSuppressIOException(e)) {
+      if (shouldSuppressPermissionError(e)) {
         LOG.warn("Unable to list directory {}: {}", path, e);
         return false;
       } else {

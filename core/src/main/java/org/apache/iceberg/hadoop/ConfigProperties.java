@@ -25,5 +25,4 @@ public class ConfigProperties {
   }
 
   public static final String ENGINE_HIVE_ENABLED = "iceberg.engine.hive.enabled";
-
 }
