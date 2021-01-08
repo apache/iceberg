@@ -71,14 +71,15 @@ public class MetricsConfig implements Serializable {
           }
           spec.columnModes.put(columnAlias, mode);
         });
+
     return spec;
   }
 
   public void validateProperties(Schema schema) {
     for (String column : columnModes.keySet()) {
-      if (schema.findField(column) == null) {
-        throw new ValidationException("Could not find column %s from metrics in schema %s", column, schema);
-      }
+      ValidationException.check(
+          schema.findField(column) != null,
+          "Could not find column %s from metrics in schema %s", column, schema);
     }
   }
 

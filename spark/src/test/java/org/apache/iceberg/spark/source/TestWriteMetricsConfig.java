@@ -31,6 +31,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -38,7 +39,6 @@ import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
-import org.apache.spark.SparkException;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
@@ -239,22 +239,11 @@ public abstract class TestWriteMetricsConfig {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts");
     properties.put("write.metadata.metrics.column.ids", "full");
-    Table table = tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation);
 
-    List<SimpleRecord> expectedRecords = Lists.newArrayList(
-        new SimpleRecord(1, "a"));
-
-    Dataset<Row> df = spark.createDataFrame(expectedRecords, SimpleRecord.class);
-    AssertHelpers.assertThrows("Saving a dataframe with invalid metrics should fail",
-        SparkException.class,
+    AssertHelpers.assertThrows("Creating a table with invalid metrics should fail",
+        ValidationException.class,
         null,
-        () -> df.select("id", "data")
-                .coalesce(1)
-                .write()
-                .format("iceberg")
-                .option("write-format", "parquet")
-                .mode("append")
-                .save(tableLocation));
+        () -> tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation));
   }
 
 

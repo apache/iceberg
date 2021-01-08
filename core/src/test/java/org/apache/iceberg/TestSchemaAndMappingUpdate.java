@@ -156,6 +156,27 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
   }
 
   @Test
+  public void testDeleteColumnWithMetrics() {
+    NameMapping mapping = MappingUtil.create(table.schema());
+    String mappingJson = NameMappingParser.toJson(mapping);
+
+    table.updateProperties()
+        .set(TableProperties.DEFAULT_NAME_MAPPING, mappingJson)
+        .set("write.metadata.metrics.column.id", "full")
+        .commit();
+
+    table.updateSchema()
+        .deleteColumn("id")
+        .commit();
+
+    String updatedJson = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
+    NameMapping updated = NameMappingParser.fromJson(updatedJson);
+
+    // should not change the mapping
+    validateUnchanged(mapping, updated);
+  }
+
+  @Test
   public void testDeleteAndAddColumnReassign() {
     NameMapping mapping = MappingUtil.create(table.schema());
     String mappingJson = NameMappingParser.toJson(mapping);
