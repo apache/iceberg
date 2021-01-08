@@ -26,6 +26,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -56,6 +57,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   private final int[] equalityFieldIds;
   private final Schema eqDeleteRowSchema;
   private final Schema posDeleteRowSchema;
+  private final SortOrder sortOrder;
 
   private StructType eqDeleteSparkType = null;
   private StructType posDeleteSparkType = null;
@@ -70,6 +72,12 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
 
   SparkAppenderFactory(Map<String, String> properties, Schema writeSchema, StructType dsSchema, PartitionSpec spec,
                        int[] equalityFieldIds, Schema eqDeleteRowSchema, Schema posDeleteRowSchema) {
+    this(properties, writeSchema, dsSchema, spec, null, equalityFieldIds, eqDeleteRowSchema, posDeleteRowSchema);
+  }
+
+  SparkAppenderFactory(Map<String, String> properties, Schema writeSchema, StructType dsSchema, PartitionSpec spec,
+                       SortOrder sortOrder, int[] equalityFieldIds,
+                       Schema eqDeleteRowSchema, Schema posDeleteRowSchema) {
     this.properties = properties;
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
@@ -77,6 +85,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
     this.equalityFieldIds = equalityFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
     this.posDeleteRowSchema = posDeleteRowSchema;
+    this.sortOrder = sortOrder;
   }
 
   private StructType lazyEqDeleteSparkType() {
@@ -137,7 +146,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   @Override
   public DataWriter<InternalRow> newDataWriter(EncryptedOutputFile file, FileFormat format, StructLike partition) {
     return new DataWriter<>(newAppender(file.encryptingOutputFile(), format), format,
-        file.encryptingOutputFile().location(), spec, partition, file.keyMetadata());
+        file.encryptingOutputFile().location(), spec, partition, file.keyMetadata(), sortOrder);
   }
 
   @Override
@@ -159,6 +168,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
               .withPartition(partition)
               .equalityFieldIds(equalityFieldIds)
               .withKeyMetadata(file.keyMetadata())
+              .withSortOrder(sortOrder)
               .buildEqualityWriter();
 
         case AVRO:
@@ -170,6 +180,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
               .withPartition(partition)
               .equalityFieldIds(equalityFieldIds)
               .withKeyMetadata(file.keyMetadata())
+              .withSortOrder(sortOrder)
               .buildEqualityWriter();
 
         default:

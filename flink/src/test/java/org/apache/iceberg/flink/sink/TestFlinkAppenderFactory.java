@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -43,8 +44,9 @@ public class TestFlinkAppenderFactory extends TestAppenderFactory<RowData> {
   @Override
   protected FileAppenderFactory<RowData> createAppenderFactory(List<Integer> equalityFieldIds,
                                                                Schema eqDeleteSchema,
-                                                               Schema posDeleteRowSchema) {
-    return new FlinkAppenderFactory(table.schema(), rowType, table.properties(), table.spec(),
+                                                               Schema posDeleteRowSchema,
+                                                               SortOrder sortOrder) {
+    return new FlinkAppenderFactory(table.schema(), rowType, table.properties(), table.spec(), sortOrder,
         ArrayUtil.toIntArray(equalityFieldIds), eqDeleteSchema, posDeleteRowSchema);
   }
 
