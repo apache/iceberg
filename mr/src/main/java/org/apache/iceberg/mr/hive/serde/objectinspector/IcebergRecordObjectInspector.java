@@ -58,6 +58,7 @@ public final class IcebergRecordObjectInspector extends StructObjectInspector {
                 field.name().toLowerCase(), field.type(), field.doc());
         structField = new IcebergRecordStructField(fieldInLowercase, oi, position);
       }
+
       structFields.add(structField);
       position++;
     }

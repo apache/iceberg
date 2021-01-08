@@ -80,8 +80,8 @@ public class HiveIcebergSerDe extends AbstractSerDe {
         tableSchema = hiveSchemaOrThrow(serDeProperties, e);
       }
     }
-    configuration.set(InputFormatConfig.CASE_SENSITIVE, "false");
 
+    configuration.setBoolean(InputFormatConfig.CASE_SENSITIVE, false);
     String[] selectedColumns = ColumnProjectionUtils.getReadColumnNames(configuration);
     Schema projectedSchema = selectedColumns.length > 0 ? tableSchema.caseInsensitiveSelect(selectedColumns) :
             tableSchema;

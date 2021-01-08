@@ -189,8 +189,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       this.encryptionManager = ((IcebergSplit) split).encryptionManager();
       this.tasks = task.files().iterator();
       this.tableSchema = InputFormatConfig.tableSchema(conf);
-      this.caseSensitive = conf.getBoolean(InputFormatConfig.CASE_SENSITIVE,
-              InputFormatConfig.CASE_SENSITIVE_DEFAULT);
+      this.caseSensitive = conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, InputFormatConfig.CASE_SENSITIVE_DEFAULT);
       this.expectedSchema = readSchema(conf, tableSchema, caseSensitive);
       this.reuseContainers = conf.getBoolean(InputFormatConfig.REUSE_CONTAINERS, false);
       this.inMemoryDataModel = conf.getEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL,
@@ -386,6 +385,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       if (selectedColumns == null) {
         return tableSchema;
       }
+
       return caseSensitive ? tableSchema.select(selectedColumns) : tableSchema.caseInsensitiveSelect(selectedColumns);
     }
   }
