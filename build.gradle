@@ -397,6 +397,9 @@ project(':iceberg-flink-runtime') {
   dependencies {
     compile project(':iceberg-flink')
     compile project(':iceberg-aws')
+    compile(project(':iceberg-nessie')) {
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
   }
 
   shadowJar {
