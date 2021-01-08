@@ -35,14 +35,19 @@ import org.apache.iceberg.types.Types;
 public final class IcebergRecordObjectInspector extends StructObjectInspector {
 
   private static final IcebergRecordObjectInspector EMPTY =
-          new IcebergRecordObjectInspector(Types.StructType.of(), Collections.emptyList());
+          new IcebergRecordObjectInspector(Types.StructType.of(), Collections.emptyList(), true);
 
   private final List<IcebergRecordStructField> structFields;
+  private final List<IcebergRecordStructField> structFieldsInLowercase;
+  private boolean caseSensitive;
 
-  public IcebergRecordObjectInspector(Types.StructType structType, List<ObjectInspector> objectInspectors) {
+  public IcebergRecordObjectInspector(Types.StructType structType, List<ObjectInspector> objectInspectors,
+                                      boolean caseSensitive) {
     Preconditions.checkArgument(structType.fields().size() == objectInspectors.size());
 
+    this.caseSensitive = caseSensitive;
     this.structFields = Lists.newArrayListWithExpectedSize(structType.fields().size());
+    this.structFieldsInLowercase = Lists.newArrayListWithExpectedSize(structType.fields().size());
 
     int position = 0;
 
@@ -50,6 +55,10 @@ public final class IcebergRecordObjectInspector extends StructObjectInspector {
       ObjectInspector oi = objectInspectors.get(position);
       IcebergRecordStructField structField = new IcebergRecordStructField(field, oi, position);
       structFields.add(structField);
+
+      Types.NestedField fieldInLowercase = Types.NestedField.of(field.fieldId(), field.isOptional(),
+              field.name().toLowerCase(), field.type());
+      structFieldsInLowercase.add(new IcebergRecordStructField(fieldInLowercase, oi, position));
       position++;
     }
   }
@@ -60,12 +69,12 @@ public final class IcebergRecordObjectInspector extends StructObjectInspector {
 
   @Override
   public List<? extends StructField> getAllStructFieldRefs() {
-    return structFields;
+    return structFields();
   }
 
   @Override
   public StructField getStructFieldRef(String name) {
-    return ObjectInspectorUtils.getStandardStructFieldRef(name, structFields);
+    return ObjectInspectorUtils.getStandardStructFieldRef(name, structFields());
   }
 
   @Override
@@ -76,7 +85,7 @@ public final class IcebergRecordObjectInspector extends StructObjectInspector {
   @Override
   public List<Object> getStructFieldsDataAsList(Object o) {
     Record record = (Record) o;
-    return structFields
+    return structFields()
             .stream()
             .map(f -> record.get(f.position()))
             .collect(Collectors.toList());
@@ -109,6 +118,10 @@ public final class IcebergRecordObjectInspector extends StructObjectInspector {
   @Override
   public int hashCode() {
     return structFields.hashCode();
+  }
+
+  private List<IcebergRecordStructField> structFields() {
+    return caseSensitive ? structFields : structFieldsInLowercase;
   }
 
   private static class IcebergRecordStructField implements StructField {

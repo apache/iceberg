@@ -65,15 +65,24 @@ public final class IcebergObjectInspector extends TypeUtil.SchemaVisitor<ObjectI
           .invoke();
 
   public static ObjectInspector create(@Nullable Schema schema) {
+    return create(schema, true);
+  }
+
+  public static ObjectInspector create(@Nullable Schema schema, boolean caseSensitive) {
     if (schema == null) {
       return IcebergRecordObjectInspector.empty();
     }
-
-    return TypeUtil.visit(schema, new IcebergObjectInspector());
+    return TypeUtil.visit(schema, new IcebergObjectInspector(caseSensitive));
   }
 
   public static ObjectInspector create(Types.NestedField... fields) {
     return create(new Schema(fields));
+  }
+
+  private boolean caseSensitive;
+
+  public IcebergObjectInspector(boolean caseSensitive) {
+    this.caseSensitive = caseSensitive;
   }
 
   @Override
@@ -144,7 +153,7 @@ public final class IcebergObjectInspector extends TypeUtil.SchemaVisitor<ObjectI
 
   @Override
   public ObjectInspector struct(Types.StructType structType, List<ObjectInspector> fieldObjectInspectors) {
-    return new IcebergRecordObjectInspector(structType, fieldObjectInspectors);
+    return new IcebergRecordObjectInspector(structType, fieldObjectInspectors, caseSensitive);
   }
 
 }

@@ -200,7 +200,7 @@ public class TestIcebergObjectInspector {
     Assert.assertEquals("struct comment", structField.getFieldComment());
 
     ObjectInspector expectedObjectInspector = new IcebergRecordObjectInspector(
-            (Types.StructType) schema.findType(19), ImmutableList.of(getPrimitiveObjectInspector(String.class)));
+            (Types.StructType) schema.findType(19), ImmutableList.of(getPrimitiveObjectInspector(String.class)), true);
     Assert.assertEquals(expectedObjectInspector, structField.getFieldObjectInspector());
   }
 

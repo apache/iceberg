@@ -41,6 +41,12 @@ public class HiveIcebergStorageHandlerTestUtils {
           optional(3, "last_name", Types.StringType.get())
   );
 
+  static final Schema CUSTOMER_SCHEMA_WITH_UPPERCASE = new Schema(
+          optional(1, "CustomER_Id", Types.LongType.get()),
+          optional(2, "First_name", Types.StringType.get()),
+          optional(3, "Last_name", Types.StringType.get())
+  );
+
   static final List<Record> CUSTOMER_RECORDS = TestHelper.RecordsBuilder.newInstance(CUSTOMER_SCHEMA)
           .add(0L, "Alice", "Brown")
           .add(1L, "Bob", "Green")
