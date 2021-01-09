@@ -66,7 +66,7 @@ However, if you are streaming data to Iceberg, this will easily create a lot of 
 Therefore, it is recommended to turn off the archive feature in Glue by setting `glue.skip-archive` to `true`.
 For more details, please read [Glue Quotas](https://docs.aws.amazon.com/general/latest/gr/glue.html) and the [UpdateTable API](https://docs.aws.amazon.com/glue/latest/webapi/API_UpdateTable.html).
 
-### DynamoDB for commit locking
+### DynamoDB for Commit Locking
 
 Glue does not have a strong guarantee over concurrent updates to a table. 
 Although it throws `ConcurrentModificationException` when detecting two processes updating a table at the same time,
@@ -112,6 +112,18 @@ OPTIONS ('location'='s3://my-special-table-bucket')
 PARTITIONED BY (category);
 ```
 
+For engines like Spark that supports the `LOCATION` keyword, the above SQL statement is equivalent to:
+
+```sql
+CREATE TABLE my_catalog.my_ns.my_table (
+    id bigint,
+    data string,
+    category string)
+USING iceberg
+LOCATION 's3://my-special-table-bucket'
+PARTITIONED BY (category);
+```
+
 ## S3 FileIO
 
 Iceberg allows users to write data to S3 through `S3FileIO`.
@@ -154,7 +166,7 @@ To enable server side encryption, use the following configuration properties:
 User can choose the ACL level by setting the `s3.acl` property.
 For more details, please read [S3 ACL Documentation](https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html).
 
-### ObjectStoreLocationProvider
+### Object Store File Layout
 
 S3 and many other cloud storage services [throttle requests based on object prefix](https://aws.amazon.com/premiumsupport/knowledge-center/s3-request-limit-avoid-throttling/). 
 This means data stored in a traditional Hive storage layout has bad read and write throughput since data files of the same partition are placed under the same prefix.
@@ -199,14 +211,14 @@ If for any reason you have to use S3A, here are the instructions:
 3. Add [hadoop-aws](https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-aws) as a runtime dependency of your compute engine.
 4. Configure AWS settings based on [hadoop-aws documentation](https://hadoop.apache.org/docs/current/hadoop-aws/tools/hadoop-aws/index.html) (make sure you check the version, S3A configuration varies a lot based on the version you use).   
 
-## AWS client customization
+## AWS Client Customization
 
 Many organizations have customized their way of configuring AWS clients with their own credential provider, access proxy, retry strategy, etc.
 Iceberg allows users to plug in their own implementation of `org.apache.iceberg.aws.AwsClientFactory` by setting the `client.factory` catalog property.
 
-### AssumeRoleAwsClientFactory
+### Cross-Account and Cross-Region Access
 
-It is a common use case for organizations to have a centralized AWS account for Glue metastore and S3 buckets, and use different accounts for different teams to access those resources.
+It is a common use case for organizations to have a centralized AWS account for Glue metastore and S3 buckets, and use different AWS accounts and regions for different teams to access those resources.
 In this case, a [cross-account IAM role](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use.html) is needed to access those centralized resources.
 Iceberg provides an AWS client factory `AssumeRoleAwsClientFactory` to support this common use case.
 This also serves as an example for users who would like to implement their own AWS client factory.
