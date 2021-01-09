@@ -66,10 +66,10 @@ public class HiveIcebergStorageHandlerTestUtils {
   }
 
   static void init(TestHiveShell shell, TestTables testTables, TemporaryFolder temp, String engine) {
-    init(shell, testTables, temp, engine, "false");
+    init(shell, testTables, temp, engine, false);
   }
 
-  static void init(TestHiveShell shell, TestTables testTables, TemporaryFolder temp, String engine, String cboEnable) {
+  static void init(TestHiveShell shell, TestTables testTables, TemporaryFolder temp, String engine, boolean cboEnable) {
     shell.openSession();
 
     for (Map.Entry<String, String> property : testTables.properties().entrySet()) {

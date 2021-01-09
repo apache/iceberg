@@ -50,9 +50,7 @@ import static org.junit.runners.Parameterized.Parameters;
 @RunWith(Parameterized.class)
 public class TestHiveIcebergStorageHandlerWithEngine {
 
-  private static final String[] EXECUTION_ENGINES = new String[]{"tez", "mr"};
-
-  private static final String[] CBO_ENABLES = new String[]{"true", "false"};
+  private static final String[] EXECUTION_ENGINES = new String[] {"tez", "mr"};
 
   private static final Schema ORDER_SCHEMA = new Schema(
           required(1, "order_id", Types.LongType.get()),
@@ -89,14 +87,15 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   public static Collection<Object[]> parameters() {
     Collection<Object[]> testParams = new ArrayList<>();
     String javaVersion = System.getProperty("java.specification.version");
+    List<Boolean> cboEnables = ImmutableList.of(true, false);
 
     // Run tests with every FileFormat for a single Catalog (HiveCatalog)
     for (FileFormat fileFormat : HiveIcebergStorageHandlerTestUtils.FILE_FORMATS) {
       for (String engine : EXECUTION_ENGINES) {
         // include Tez tests only for Java 8
         if (javaVersion.equals("1.8") || "mr".equals(engine)) {
-          for (String cboEnable : CBO_ENABLES) {
-            testParams.add(new Object[]{fileFormat, engine, TestTables.TestTableType.HIVE_CATALOG, cboEnable});
+          for (boolean cboEnable : cboEnables) {
+            testParams.add(new Object[] {fileFormat, engine, TestTables.TestTableType.HIVE_CATALOG, cboEnable});
           }
         }
       }
@@ -106,7 +105,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     // skip HiveCatalog tests as they are added before
     for (TestTables.TestTableType testTableType : TestTables.ALL_TABLE_TYPES) {
       if (!TestTables.TestTableType.HIVE_CATALOG.equals(testTableType)) {
-        testParams.add(new Object[]{FileFormat.PARQUET, "mr", testTableType, "false"});
+        testParams.add(new Object[]{FileFormat.PARQUET, "mr", testTableType, false});
       }
     }
 
@@ -127,7 +126,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   public TestTables.TestTableType testTableType;
 
   @Parameter(3)
-  public String cboEnable;
+  public boolean cboEnable;
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -164,12 +163,12 @@ public class TestHiveIcebergStorageHandlerWithEngine {
 
     // Adding the ORDER BY clause will cause Hive to spawn a local MR job this time.
     List<Object[]> descRows =
-            shell.executeStatement("SELECT first_name, customer_id FROM default.customers ORDER BY customer_id DESC");
+        shell.executeStatement("SELECT first_name, customer_id FROM default.customers ORDER BY customer_id DESC");
 
     Assert.assertEquals(3, descRows.size());
-    Assert.assertArrayEquals(new Object[]{"Trudy", 2L}, descRows.get(0));
-    Assert.assertArrayEquals(new Object[]{"Bob", 1L}, descRows.get(1));
-    Assert.assertArrayEquals(new Object[]{"Alice", 0L}, descRows.get(2));
+    Assert.assertArrayEquals(new Object[] {"Trudy", 2L}, descRows.get(0));
+    Assert.assertArrayEquals(new Object[] {"Bob", 1L}, descRows.get(1));
+    Assert.assertArrayEquals(new Object[] {"Alice", 0L}, descRows.get(2));
   }
 
   @Test
@@ -183,9 +182,9 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     );
 
     Assert.assertEquals(3, rows.size());
-    Assert.assertArrayEquals(new Object[]{100L, 0L, 11.11d, "skirt"}, rows.get(0));
-    Assert.assertArrayEquals(new Object[]{101L, 0L, 22.22d, "tee"}, rows.get(1));
-    Assert.assertArrayEquals(new Object[]{102L, 1L, 33.33d, "watch"}, rows.get(2));
+    Assert.assertArrayEquals(new Object[] {100L, 0L, 11.11d, "skirt"}, rows.get(0));
+    Assert.assertArrayEquals(new Object[] {101L, 0L, 22.22d, "tee"}, rows.get(1));
+    Assert.assertArrayEquals(new Object[] {102L, 1L, 33.33d, "watch"}, rows.get(2));
   }
 
   @Test
@@ -201,9 +200,9 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     );
 
     Assert.assertEquals(3, rows.size());
-    Assert.assertArrayEquals(new Object[]{"Bob", 102L}, rows.get(0));
-    Assert.assertArrayEquals(new Object[]{"Alice", 101L}, rows.get(1));
-    Assert.assertArrayEquals(new Object[]{"Alice", 100L}, rows.get(2));
+    Assert.assertArrayEquals(new Object[] {"Bob", 102L}, rows.get(0));
+    Assert.assertArrayEquals(new Object[] {"Alice", 101L}, rows.get(1));
+    Assert.assertArrayEquals(new Object[] {"Alice", 100L}, rows.get(2));
   }
 
   @Test
@@ -216,9 +215,9 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     );
 
     Assert.assertEquals(3, rows.size());
-    Assert.assertArrayEquals(new Object[]{100L, 0L, 11.11d}, rows.get(0));
-    Assert.assertArrayEquals(new Object[]{101L, 0L, 22.22d}, rows.get(1));
-    Assert.assertArrayEquals(new Object[]{102L, 1L, 33.33d}, rows.get(2));
+    Assert.assertArrayEquals(new Object[] {100L, 0L, 11.11d}, rows.get(0));
+    Assert.assertArrayEquals(new Object[] {101L, 0L, 22.22d}, rows.get(1));
+    Assert.assertArrayEquals(new Object[] {102L, 1L, 33.33d}, rows.get(2));
   }
 
   @Test
