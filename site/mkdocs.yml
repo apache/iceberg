@@ -58,6 +58,7 @@ nav:
     - Getting Started: getting-started.md
     - Spark SQL: spark.md
     - Spark Streaming: spark-structured-streaming.md
+    - Time Travel: spark#time-travel
   - Trino: https://trino.io/docs/current/connector/iceberg.html
   - Flink: flink.md
   - Hive: hive.md
