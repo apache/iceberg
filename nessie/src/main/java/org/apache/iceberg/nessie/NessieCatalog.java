@@ -341,7 +341,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
       throw new IllegalArgumentException(String.format("Nessie does not have an existing default branch." +
               "Either configure an alternative ref via %s or create the default branch on the server.",
-          NessieClient.CONF_NESSIE_REF), ex);
+          NessieConfigConstants.CONF_NESSIE_REF), ex);
     }
   }
 
