@@ -30,16 +30,35 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.catalog.TableIdentifier;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Map;
+
 
 public class IcebergIO {
 
     private IcebergIO() {
+        // TODO: Some builder
     }
 
     public static PCollection<Snapshot> write(TableIdentifier table,
-                                       Schema schema,
-                                       String hiveMetastoreUrl,
-                                       WriteFilesResult<Void> resultFiles) {
+                                              Schema schema,
+                                              String hiveMetastoreUrl,
+                                              WriteFilesResult<Void> resultFiles) {
+        return IcebergIO.writeWithConfig(
+                table,
+                schema,
+                hiveMetastoreUrl,
+                resultFiles,
+                Collections.emptyMap()
+        );
+    }
+
+    public static PCollection<Snapshot> writeWithConfig(TableIdentifier table,
+                                              Schema schema,
+                                              String hiveMetastoreUrl,
+                                              WriteFilesResult<Void> resultFiles,
+                                              Map<String, String> config) {
         // We take the filenames that are emitted by the FileIO
         final PCollection<String> filenames = resultFiles
                 .getPerDestinationOutputFilenames()
@@ -56,7 +75,7 @@ public class IcebergIO {
 
         // We use a combiner, to combine all the files to a single commit in
         // the Iceberg log
-        final IcebergDataFileCommitter combiner = new IcebergDataFileCommitter(table, schema, hiveMetastoreUrl);
+        final IcebergDataFileCommitter combiner = new IcebergDataFileCommitter(table, schema, hiveMetastoreUrl, config);
         final Combine.Globally<WrittenDataFile, Snapshot> combined = Combine.globally(combiner).withoutDefaults();
 
         // We return the latest snapshot, which can be used to notify downstream consumers.

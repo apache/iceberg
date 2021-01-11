@@ -17,6 +17,8 @@ package org.apache.iceberg.beam;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+
 import org.apache.beam.sdk.transforms.Combine;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
@@ -32,11 +34,13 @@ class IcebergDataFileCommitter extends Combine.CombineFn<WrittenDataFile, List<W
     private final TableIdentifier tableIdentifier;
     private final Schema schema;
     private final String hiveMetastoreUrl;
+    private final Map<String, String> config;
 
-    IcebergDataFileCommitter(TableIdentifier table, Schema schema, String hiveMetastoreUrl) {
+    IcebergDataFileCommitter(TableIdentifier table, Schema schema, String hiveMetastoreUrl, Map<String, String> config) {
         this.tableIdentifier = table;
         this.schema = schema;
         this.hiveMetastoreUrl = hiveMetastoreUrl;
+        this.config = config;
     }
 
     @Override
@@ -69,11 +73,17 @@ class IcebergDataFileCommitter extends Combine.CombineFn<WrittenDataFile, List<W
 
     @Override
     public Snapshot extractOutput(List<WrittenDataFile> accumulator) {
+        Configuration conf = new Configuration();
+
+        for(String key : this.config.keySet()) {
+           conf.set(key, this.config.get(key));
+        }
+
         try (HiveCatalog catalog = new HiveCatalog(
                 HiveCatalog.DEFAULT_NAME,
                 this.hiveMetastoreUrl,
                 1,
-                new Configuration()
+                conf
         )) {
             Table table;
             try {
