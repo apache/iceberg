@@ -29,6 +29,7 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 | [SQL select](#querying-with-sql)                 | ✔️        |            |                                                |
 | [SQL insert into](#insert-into)                  | ✔️        |            |                                                |
 | [SQL insert overwrite](#insert-overwrite)        | ✔️        |            |                                                |
+| [SQL procedures](#procedures)                    | ✔️        |            | ⚠ Requires extensions enabled                  |
 | [DataFrame reads](#querying-with-dataframes)     | ✔️        | ✔️          |                                                |
 | [DataFrame append](#appending-data)              | ✔️        | ✔️          |                                                |
 | [DataFrame overwrite](#overwriting-data)         | ✔️        | ✔️          | ⚠ Behavior changed in Spark 3.0                |
@@ -814,3 +815,309 @@ This type conversion table describes how Iceberg types are converted to the Spar
 | struct                     | struct                  |               |
 | list                       | array                   |               |
 | map                        | map                     |               |
+
+## Procedures
+
+In Spark 3 Iceberg provides an SQL API for accomplishing the [maintenance actions](maintenance.md). Support for
+stored procedures is tied to the DataSourceV2 catalog and requires that the Iceberg Extensions are enabled for the
+Spark Session.
+
+### General Usage
+
+To call an Iceberg stored procedure, execute a `CALL` command against the iceberg catalog. All procedures are added to
+the `system` keyspace. Procedures can take positional or named arguments.
+
+#### Generic Call with Positional Arguments
+```sql
+    CALL catalog_name.system.procedure_name(arg_1, arg_2, ... arg_n)
+```
+
+#### Generic Call with Named Arguments
+```sql
+    CALL catalog_name.system.procedure_name(arg_name_2 => arg_2, arg_name_1 => arg_1)
+```
+
+### Cherrypick Snapshot Procedure
+
+A procedure that applies changes in a given snapshot and creates a new snapshot which will
+be set as the current snapshot in a table.
+
+**Note** this procedure invalidates all cached Spark plans that reference the affected table
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| table         | ✔️  | String | Name of table to perform cherrypick on |
+| snapshot_id   | ✔️   | Long | The snapshot ID to cherrypick |
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| source_snapshot_id | Long | The snapshot before applying the cherrypick |
+| current_snapshot_id | Long | The current snapshot now that the cherrypick has been applied|
+
+#### Examples
+
+Cherrypick Snapshot 1
+```sql
+    CALL catalog_name hive_prod.system.cherrypick_snapshot('my_table', 1)
+```
+
+Cherrypick Snapshot 1 with named args
+```sql
+    CALL catalog_name hive_prod.system.cherrypick_snapshot(snapshot_id => 1, table => 'my_table' )
+```
+
+### Expire Snapshot Procedure
+
+Each write/update/delete/upsert/compaction in Iceberg produces a new snapshot while keeping the old data and metadata
+around for snapshot isolation and time travel. The `expire_snapshots` procedure can be used to remove older snapshots
+and their files which are no longer needed.
+
+This procedure will remove old snapshots and data files which are uniquely required by those old snapshots. This means
+the ``expire_snapshots`` procedure will never remove files which are still required by a non-expired snapshot.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| table         | ✔️  | String | Name of table to expire snapshots from |
+| older_than    | ️   | Timestamp   | Remove snapshots older than this date (Defaults to 5 days ago) |
+| retain_last   |     | Int    | Length of history to preserve regardless of older_than target (Defaults to 1)|
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| deleted_data_files_count | Long | Data files deleted by this operation |
+| deleted_manifest_files_count | Long | Manifest files deleted by this operation |
+| deleted_manifest_lists_count | Long | Manifest List files deleted by this operation |
+
+#### Examples
+
+Remove snapshots older than 10 days ago, but retain the last 100 Snapshots.
+```sql
+    CALL hive_prod.system.expire_snapshots('db.sample', date_sub(current_date(), 10), 100)
+```
+
+Erase all snapshots older than the current timestamp but retains the last 5 snapshots made.
+```sql
+    CALL hive_prod.system.expire_snapshots(table => 'db.sample', retain_last => 5)
+```
+
+### Migrate Table Procedure
+
+Converts a table known to Spark in this catalog into a Iceberg table. This is manily for taking
+hive tables and fully converting them into Iceberg tables. The [snapshot](#snapshot-table-procedure) procedure 
+can be used for making  Iceberg tables without effecting the underlying table. The migrated table will preserve all
+properties set on the original table.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| table         | ✔️  | String | Table to be migrated to Iceberg |
+| properties    | ️   | Map<String, String> | Table properties to add to the table |
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| migrated_files_count | Long | Number of files migrated to Iceberg|
+
+#### Examples
+
+Migrate the table db.sample into an Iceberg table and add a property 'foo' set to 'bar'
+```sql
+    CALL catalog_name hive_prod.system.migrate('db.sample', map('foo', 'bar'))
+```
+
+Migrate the table db.sample
+```sql
+    CALL catalog_name hive_prod.system.migrate('db.sample')
+```
+
+### Remove Orphan Files Procedure
+
+Remove files in a directory which a given Iceberg table does not own. Used for removing files which are no longer
+required by an Iceberg table and Iceberg has no references to.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| table         | ✔️  | String    | Name of table to remove files from |
+| older_than    | ️   | Timestamp | Remove orphan files older than this time (Defaults to 3 days ago) |
+| location      |     | String    | Directory to look for files in (Defaults to the table's location) |
+| dry_run       |     | Boolean   | When true, don't actually remove files (Defaults to false) |
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| orphan_file_location | String | A file determined to be an orphan by this command |
+
+#### Examples
+
+Remove any files in the `tablelocation/data` folder which are not known to the table `db.sample` and have a timestamp
+older than the current timestamp.
+```sql
+   CALL hive_prod.system.remove_orphan_files(table => 'db.sample', older_than => now(), location => 'tablelocation/data')
+```
+
+List all files that would be removed by the default `remove_orphan_files` command on this table without removing them.
+```sql
+   CALL hive_prod.system.remove_orphan_files(table => 'db.sample', dry_run => true)
+```
+
+### Rewrite Manifests Procedure
+
+A procedure that rewrites manifests in a table and co-locates metadata for partitions.
+
+**Note** this procedure invalidates all cached Spark plans that reference the affected table.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| table         | ✔️  | String  | Name of table to rewrite manifests for |
+| use_caching   | ️   | Boolean | Use Spark caching during operation (Defaults to true) |
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| rewritten_manifests_count | Int | Number of manifests which were re-written by this command |
+| added_mainfests_count     | Int | Number of new manifest files which were written by this command |
+
+#### Examples
+
+Rewrite the manifests in table `db.sample` and align manifest files with table partitioning.
+```sql
+   CALL hive_prod.system.rewrite_manifests('db.sample')
+```
+
+Rewrite the manifests in table `db.sample` and disable the use Spark caching. This could be done to
+avoid memory issues on executors.
+```sql
+   CALL hive_prod.system.rewrite_manifests('db.sample', false)
+```
+
+### Rollback to Snapshot Procedure
+
+A procedure that rollbacks a table to a specific snapshot id. For rollbacks based on time see
+[rollback_to_timestamp](#rollback-to-snapshot-procedure).
+
+**Note** this procedure invalidates all cached Spark plans that reference the affected table.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| table         | ✔️  | String  | Name of table to rollback |
+| snapshot_id   | ✔️  | Long     | The snapshot to roll back to |
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| previous_snapshot_id | Long | The current snapshot before rollback |
+| current_snapshot_id  | Long | The new current snapshot id |
+
+#### Example
+
+Rollback `db.sample` to snapshot `1`
+```sql
+   CALL hive_prod.system.rollback_to_snapshot('db.sample', 1)
+```
+
+### Rollback to Timestamp Procedure
+
+A procedure that rollbacks a table to a certain point in time.
+
+**Note** this procedure invalidates all cached Spark plans that reference the affected table.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| table         | ✔️  | String    | Name of table to rollback |
+| timestamp     | ✔️  | Timestamp | The time to rollback to |
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| previous_snapshot_id | Long | The current snapshot before rollback |
+| current_snapshot_id  | Long | The new current snapshot id |
+
+#### Example
+
+Rollback `db.sample` to a day ago
+```sql
+    CALL hive_prod.system.rollback_to_timestamp('db.sample', date_sub(current_date(), 1))
+```
+
+### Set Current Snapshot Procedure
+
+Sets the current snapshot for a table to a different snapshot.
+
+**Note** this procedure invalidates all cached Spark plans that reference the affected table.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| table         | ✔️  | String   | Name of table to change |
+| snapshot_id   | ✔️  | Long     | The snapshot to use as current |
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| previous_snapshot_id | Long | The current snapshot before this procedure |
+| current_snapshot_id  | Long | The new current snapshot id |
+
+#### Example
+
+Set the current snapshot for `db.sample` to 1
+```sql
+    CALL hive_prod.system.set_current_snapshot('db.sample', 1)
+```
+
+### Snapshot Table Procedure
+
+Creates an Iceberg version of a given table without adjusting the underlying table. The new created table can
+be adjusted or written to without adjusting the underlying table. This is basically a test version of
+[migrate](#migrate-table-procedure) which can be used without disrupting users of the original table.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| source_table  | ✔️  | String | Source table for making the Iceberg table |
+| table         | ✔️  | String | Name of the new Iceberg table to create |
+| location      |     | String | Table location for new table (Defaults to catalog's default location) |
+| properties    | ️   | Map<String, String> | Properties to add to the newly created table |
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| imported_files_count | Long | Number of files referenced by the new table |
+
+#### Examples
+
+Make an isolated Iceberg table which references table `db.sample` named `db.snap` at the
+catalog's default location for `db.snap`.
+```sql
+    CALL catalog_name hive_prod.system.snapshot('db.sample', 'db.snap')
+```
+
+Migrate an isolated Iceberg table which references table `db.sample` named `db.snap` at
+a manually specified location `/tmp/temptable/`.
+```sql
+    CALL catalog_name hive_prod.system.snapshot('db.sample', 'db.snap', '/tmp/temptable/')
+```
