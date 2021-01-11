@@ -60,31 +60,22 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
 
   @Parameterized.Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}, isStreaming={3}")
   public static Iterable<Object[]> parameters() {
-    return ImmutableList.of(
-        new Object[] {"testhive", Namespace.empty(), "avro", true},
-        new Object[] {"testhive", Namespace.empty(), "avro", false},
-        new Object[] {"testhive", Namespace.empty(), "orc", true},
-        new Object[] {"testhive", Namespace.empty(), "orc", false},
-        new Object[] {"testhive", Namespace.empty(), "parquet", true},
-        new Object[] {"testhive", Namespace.empty(), "parquet", false},
-        new Object[] {"testhadoop", Namespace.empty(), "avro", true},
-        new Object[] {"testhadoop", Namespace.empty(), "avro", false},
-        new Object[] {"testhadoop", Namespace.empty(), "orc", true},
-        new Object[] {"testhadoop", Namespace.empty(), "orc", false},
-        new Object[] {"testhadoop", Namespace.empty(), "parquet", true},
-        new Object[] {"testhadoop", Namespace.empty(), "parquet", false},
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), "avro", true},
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), "avro", false},
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), "orc", true},
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), "orc", false},
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), "parquet", true},
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), "parquet", false}
-    );
+    List<Object[]> parameters = Lists.newArrayList();
+    for (FileFormat format : new FileFormat[] {FileFormat.ORC, FileFormat.AVRO, FileFormat.PARQUET}) {
+      for (Boolean isStreaming : new Boolean[] {true, false}) {
+        for (Object[] catalogParams : FlinkCatalogTestBase.parameters()) {
+          String catalogName = (String) catalogParams[0];
+          Namespace baseNamespace = (Namespace) catalogParams[1];
+          parameters.add(new Object[] {catalogName, baseNamespace, format, isStreaming});
+        }
+      }
+    }
+    return parameters;
   }
 
-  public TestFlinkTableSink(String catalogName, Namespace baseNamespace, String format, Boolean isStreamingJob) {
+  public TestFlinkTableSink(String catalogName, Namespace baseNamespace, FileFormat format, Boolean isStreamingJob) {
     super(catalogName, baseNamespace);
-    this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
+    this.format = format;
     this.isStreamingJob = isStreamingJob;
   }
 

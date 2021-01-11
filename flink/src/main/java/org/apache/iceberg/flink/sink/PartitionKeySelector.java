@@ -28,8 +28,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.RowDataWrapper;
 
 /**
- * Provide {@link KeySelector} to shuffle by partition key, so that each partition/bucket will be wrote by only one
- * task. That will reduce lots of small files in partitioned fanout write policy for flink sink.
+ * Create a {@link KeySelector} to shuffle by partition key, then each partition/bucket will be wrote by only one
+ * task. That will reduce lots of small files in partitioned fanout write policy for {@link FlinkSink}.
  */
 class PartitionKeySelector implements KeySelector<RowData, String> {
 
