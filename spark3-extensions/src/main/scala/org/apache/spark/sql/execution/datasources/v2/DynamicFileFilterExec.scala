@@ -24,6 +24,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeSet, SortOrder}
 import org.apache.spark.sql.catalyst.plans.physical
+import org.apache.spark.sql.catalyst.util.truncatedString
 import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter
 import org.apache.spark.sql.execution.{BinaryExecNode, SparkPlan}
 import org.apache.spark.sql.vectorized.ColumnarBatch
@@ -50,5 +51,9 @@ case class DynamicFileFilterExec(
     val rows = fileFilterExec.executeCollect()
     val matchedFileLocations = rows.map(_.getString(0))
     filterable.filterFiles(matchedFileLocations.toSet.asJava)
+  }
+
+  override def simpleString(maxFields: Int): String = {
+    s"DynamicFileFilterExec${truncatedString(output, "[", ", ", "]", maxFields)}"
   }
 }
