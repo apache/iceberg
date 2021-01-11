@@ -28,6 +28,10 @@
   float: left;
 }
 
+.navbar-right {
+  display: none;
+}
+
 .navbar-brand {
   margin-right: 1em;
 }

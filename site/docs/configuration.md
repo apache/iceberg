@@ -35,6 +35,20 @@ The properties can be manually constructed or passed in from a compute engine li
 Spark uses its session properties as catalog properties, see more details in the [Spark configuration](#spark-configuration) section.
 Flink passes in catalog properties through `CREATE CATALOG` statement, see more details in the [Flink](../flink/#creating-catalogs-and-using-catalogs) section.
 
+### Lock catalog properties
+
+Here are the catalog properties related to locking. They are used by some catalog implementations to control the locking behavior during commits.
+
+| Property                          | Default            | Description                                            |
+| --------------------------------- | ------------------ | ------------------------------------------------------ |
+| lock-impl                         | null               | a custom implementation of the lock manager, the actual interface depends on the catalog used  |
+| lock.table                        | null               | an auxiliary table for locking, such as in [AWS DynamoDB lock manager](../aws/#dynamodb-for-commit-locking)  |
+| lock.acquire-interval-ms          | 5 seconds          | the interval to wait between each attempt to acquire a lock  |
+| lock.acquire-timeout-ms           | 3 minutes          | the maximum time to try acquiring a lock               |
+| lock.heartbeat-interval-ms        | 3 seconds          | the interval to wait between each heartbeat after acquiring a lock  |
+| lock.heartbeat-timeout-ms         | 15 seconds         | the maximum time without a heartbeat to consider a lock expired  |
+
+
 ## Table properties
 
 Iceberg tables support table properties to configure table behavior, like the default split size for readers.

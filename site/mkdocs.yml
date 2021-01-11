@@ -40,8 +40,8 @@ markdown_extensions:
   - admonition
   - pymdownx.tilde
 nav:
-  - About: index.md
   - Project:
+    - About: index.md
     - Community: community.md
     - Releases: releases.md
     - Trademarks: trademarks.md
@@ -63,6 +63,8 @@ nav:
   - Flink: flink.md
   - Hive: hive.md
   - Beam: beam.md
+  - Integrations:
+    - AWS: aws.md
   - API:
     - Javadoc: /javadoc/
     - Java API intro: api.md
