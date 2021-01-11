@@ -114,6 +114,7 @@ public class FlinkSink {
     private Table table;
     private TableSchema tableSchema;
     private boolean overwrite = false;
+    private boolean keyByPartition = false;
     private Integer writeParallelism = null;
     private List<String> equalityFieldColumns = null;
 
@@ -158,6 +159,18 @@ public class FlinkSink {
 
     public Builder overwrite(boolean newOverwrite) {
       this.overwrite = newOverwrite;
+      return this;
+    }
+
+    /**
+     * Provides a switch to shuffle by partition key, so that each partition/bucket will be wrote by only one task. That
+     * will reduce lots of small files in partitioned fanout write policy for flink sink.
+     *
+     * @param enable to shuffle by partition key in partitioned table.
+     * @return {@link Builder} to connect the iceberg table.
+     */
+    public Builder keyByPartition(boolean enable) {
+      this.keyByPartition = enable;
       return this;
     }
 
@@ -209,7 +222,16 @@ public class FlinkSink {
         }
       }
 
-      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, tableSchema, equalityFieldIds);
+      // Convert the flink requested table schema to flink row type.
+      RowType flinkSchema = toFlinkRowType(table.schema(), tableSchema);
+
+      // Shuffle by partition key if needed.
+      if (keyByPartition && !table.spec().isUnpartitioned()) {
+        rowDataInput = rowDataInput.keyBy(new PartitionKeySelector(table.spec(), table.schema(), flinkSchema));
+      }
+
+      // Concat the iceberg stream writer and committer operators.
+      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkSchema, equalityFieldIds);
       IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
 
       this.writeParallelism = writeParallelism == null ? rowDataInput.getParallelism() : writeParallelism;
@@ -227,15 +249,12 @@ public class FlinkSink {
     }
   }
 
-  static IcebergStreamWriter<RowData> createStreamWriter(Table table, TableSchema requestedSchema,
-                                                         List<Integer> equalityFieldIds) {
-    Preconditions.checkArgument(table != null, "Iceberg table should't be null");
-
+  static RowType toFlinkRowType(Schema schema, TableSchema requestedSchema) {
     RowType flinkSchema;
     if (requestedSchema != null) {
       // Convert the flink schema to iceberg schema firstly, then reassign ids to match the existing iceberg schema.
-      Schema writeSchema = TypeUtil.reassignIds(FlinkSchemaUtil.convert(requestedSchema), table.schema());
-      TypeUtil.validateWriteSchema(table.schema(), writeSchema, true, true);
+      Schema writeSchema = TypeUtil.reassignIds(FlinkSchemaUtil.convert(requestedSchema), schema);
+      TypeUtil.validateWriteSchema(schema, writeSchema, true, true);
 
       // We use this flink schema to read values from RowData. The flink's TINYINT and SMALLINT will be promoted to
       // iceberg INTEGER, that means if we use iceberg's table schema to read TINYINT (backend by 1 'byte'), we will
@@ -243,9 +262,15 @@ public class FlinkSink {
       // schema.
       flinkSchema = (RowType) requestedSchema.toRowDataType().getLogicalType();
     } else {
-      flinkSchema = FlinkSchemaUtil.convert(table.schema());
+      flinkSchema = FlinkSchemaUtil.convert(schema);
     }
 
+    return flinkSchema;
+  }
+
+  static IcebergStreamWriter<RowData> createStreamWriter(Table table,
+                                                         RowType flinkSchema,
+                                                         List<Integer> equalityFieldIds) {
     Map<String, String> props = table.properties();
     long targetFileSize = getTargetFileSizeBytes(props);
     FileFormat fileFormat = getFileFormat(props);
