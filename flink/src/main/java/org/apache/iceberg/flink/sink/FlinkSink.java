@@ -51,6 +51,8 @@ import org.apache.iceberg.util.PropertyUtil;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_SHUFFLE_BY_PARTITION;
+import static org.apache.iceberg.TableProperties.WRITE_SHUFFLE_BY_PARTITION_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
@@ -114,7 +116,7 @@ public class FlinkSink {
     private Table table;
     private TableSchema tableSchema;
     private boolean overwrite = false;
-    private boolean keyByPartition = false;
+    private Boolean shuffleByPartition = null;
     private Integer writeParallelism = null;
     private List<String> equalityFieldColumns = null;
 
@@ -169,8 +171,8 @@ public class FlinkSink {
      * @param enable to shuffle by partition key in partitioned table.
      * @return {@link Builder} to connect the iceberg table.
      */
-    public Builder keyByPartition(boolean enable) {
-      this.keyByPartition = enable;
+    public Builder shuffleByPartition(boolean enable) {
+      this.shuffleByPartition = enable;
       return this;
     }
 
@@ -225,8 +227,8 @@ public class FlinkSink {
       // Convert the flink requested table schema to flink row type.
       RowType flinkSchema = toFlinkRowType(table.schema(), tableSchema);
 
-      // Shuffle by partition key if needed.
-      if (keyByPartition && !table.spec().isUnpartitioned()) {
+      // Shuffle by partition key if possible.
+      if (shouldShuffleByPartition(table.properties()) && !table.spec().isUnpartitioned()) {
         rowDataInput = rowDataInput.keyBy(new PartitionKeySelector(table.spec(), table.schema(), flinkSchema));
       }
 
@@ -246,6 +248,17 @@ public class FlinkSink {
       return returnStream.addSink(new DiscardingSink())
           .name(String.format("IcebergSink %s", table.name()))
           .setParallelism(1);
+    }
+
+    private boolean shouldShuffleByPartition(Map<String, String> properties) {
+      if (shuffleByPartition == null) {
+        // Use the configured table option if does not specify explicitly.
+        return PropertyUtil.propertyAsBoolean(properties,
+            WRITE_SHUFFLE_BY_PARTITION,
+            WRITE_SHUFFLE_BY_PARTITION_DEFAULT);
+      } else {
+        return shuffleByPartition;
+      }
     }
   }
 

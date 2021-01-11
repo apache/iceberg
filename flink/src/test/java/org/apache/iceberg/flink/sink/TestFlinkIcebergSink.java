@@ -147,7 +147,7 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
     SimpleDataUtil.assertTableRows(tablePath, convertToRowData(rows));
   }
 
-  private void testWriteRow(TableSchema tableSchema, boolean keyByPartition) throws Exception {
+  private void testWriteRow(TableSchema tableSchema, boolean shuffleByPartition) throws Exception {
     List<Row> rows = Lists.newArrayList(
         Row.of(1, "aaa"),
         Row.of(1, "bbb"),
@@ -166,7 +166,7 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
         .tableLoader(tableLoader)
         .tableSchema(tableSchema)
         .writeParallelism(parallelism)
-        .keyByPartition(keyByPartition)
+        .shuffleByPartition(shuffleByPartition)
         .build();
 
     // Execute the program.

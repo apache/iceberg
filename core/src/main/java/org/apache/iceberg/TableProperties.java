@@ -138,6 +138,9 @@ public class TableProperties {
   public static final String ENGINE_HIVE_ENABLED = "engine.hive.enabled";
   public static final boolean ENGINE_HIVE_ENABLED_DEFAULT = false;
 
+  public static final String WRITE_SHUFFLE_BY_PARTITION = "write.shuffle-by.partition";
+  public static final boolean WRITE_SHUFFLE_BY_PARTITION_DEFAULT = false;
+
   public static final String GC_ENABLED = "gc.enabled";
   public static final boolean GC_ENABLED_DEFAULT = true;
 
