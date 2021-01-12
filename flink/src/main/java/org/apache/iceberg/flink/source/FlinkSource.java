@@ -26,7 +26,6 @@ import java.util.Map;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.operators.OneInputStreamOperatorFactory;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo;
@@ -200,14 +199,13 @@ public class FlinkSource {
       if (!context.isStreaming()) {
         return env.createInput(format, typeInfo);
       } else {
-        OneInputStreamOperatorFactory<FlinkInputSplit, RowData> factory = StreamingReaderOperator.factory(format);
         StreamingMonitorFunction function = new StreamingMonitorFunction(tableLoader, context);
 
         String monitorFunctionName = String.format("Iceberg table (%s) monitor", table);
         String readerOperatorName = String.format("Iceberg table (%s) reader", table);
 
         return env.addSource(function, monitorFunctionName)
-            .transform(readerOperatorName, typeInfo, factory);
+            .transform(readerOperatorName, typeInfo, StreamingReaderOperator.factory(format));
       }
     }
   }

@@ -59,10 +59,11 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
     implements OneInputStreamOperator<FlinkInputSplit, RowData> {
 
   private static final Logger LOG = LoggerFactory.getLogger(StreamingReaderOperator.class);
+
   private final MailboxExecutorImpl executor;
   private FlinkInputFormat format;
 
-  private transient SourceFunction.SourceContext<RowData> readerContext;
+  private transient SourceFunction.SourceContext<RowData> sourceContext;
 
   private transient ListState<FlinkInputSplit> checkpointState;
   private transient Queue<FlinkInputSplit> splits;
@@ -79,20 +80,22 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
   public void initializeState(StateInitializationContext context) throws Exception {
     super.initializeState(context);
 
+    // TODO Replace Java serialization with Avro approach to keep state compatibility.
+    // See issue: https://github.com/apache/iceberg/issues/1698
     checkpointState = context.getOperatorStateStore().getListState(
         new ListStateDescriptor<>("splits", new JavaSerializer<>()));
 
-    int subtaskIdx = getRuntimeContext().getIndexOfThisSubtask();
     splits = Lists.newLinkedList();
     if (context.isRestored()) {
-      LOG.info("Restoring state for the {} (taskIdx={}).", getClass().getSimpleName(), subtaskIdx);
+      int subtaskIdx = getRuntimeContext().getIndexOfThisSubtask();
+      LOG.info("Restoring state for the {} (taskIdx: {}).", getClass().getSimpleName(), subtaskIdx);
 
       for (FlinkInputSplit split : checkpointState.get()) {
         splits.add(split);
       }
     }
 
-    this.readerContext = StreamSourceContexts.getSourceContext(
+    this.sourceContext = StreamSourceContexts.getSourceContext(
         getOperatorConfig().getTimeCharacteristic(),
         getProcessingTimeService(),
         new Object(), // no actual locking needed
@@ -108,7 +111,7 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
 
   @Override
   public void processElement(StreamRecord<FlinkInputSplit> element) {
-    splits.offer(element.getValue());
+    splits.add(element.getValue());
     enqueueProcessSplits();
   }
 
@@ -123,21 +126,21 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
         return;
       }
 
-      LOG.debug("load split: {}", split);
+      LOG.debug("Start to process the split: {}", split);
       format.open(split);
 
-      RowData nextElement = null;
-      while (!format.reachedEnd()) {
-        nextElement = format.nextRecord(nextElement);
-        if (nextElement != null) {
-          readerContext.collect(nextElement);
-        } else {
-          break;
+      try {
+        RowData nextElement = null;
+        while (!format.reachedEnd()) {
+          nextElement = format.nextRecord(nextElement);
+          sourceContext.collect(nextElement);
         }
+      } finally {
+        format.close();
       }
-
-      format.close();
     } while (executor.isIdle());
+
+    // Re-enqueue the mail box for avoiding holding the checkpoint lock too long.
     enqueueProcessSplits();
   }
 
@@ -156,17 +159,17 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
       format = null;
     }
 
-    readerContext = null;
+    sourceContext = null;
   }
 
   @Override
   public void close() throws Exception {
     super.close();
     output.close();
-    if (readerContext != null) {
-      readerContext.emitWatermark(Watermark.MAX_WATERMARK);
-      readerContext.close();
-      readerContext = null;
+    if (sourceContext != null) {
+      sourceContext.emitWatermark(Watermark.MAX_WATERMARK);
+      sourceContext.close();
+      sourceContext = null;
     }
   }
 

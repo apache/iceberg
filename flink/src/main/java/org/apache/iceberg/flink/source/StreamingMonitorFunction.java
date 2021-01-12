@@ -53,16 +53,17 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
 
   private static final Logger LOG = LoggerFactory.getLogger(StreamingMonitorFunction.class);
 
-  private static final long DUMMY_START_SNAPSHOT_ID = -1;
+  private static final long INIT_LAST_SNAPSHOT_ID = -1L;
 
   private final TableLoader tableLoader;
   private final ScanContext scanContext;
 
   private volatile boolean isRunning = true;
-  private transient Object checkpointLock;
+  private long lastSnapshotId = INIT_LAST_SNAPSHOT_ID;
+
+  private transient SourceContext<FlinkInputSplit> sourceContext;
   private transient Table table;
-  private transient ListState<Long> snapshotIdState;
-  private transient long startSnapshotId;
+  private transient ListState<Long> lastSnapshotIdState;
 
   public StreamingMonitorFunction(TableLoader tableLoader, ScanContext scanContext) {
     Preconditions.checkArgument(scanContext.snapshotId() == null,
@@ -77,78 +78,83 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
 
   @Override
   public void initializeState(FunctionInitializationContext context) throws Exception {
-    snapshotIdState = context.getOperatorStateStore().getListState(
+    // Load iceberg table from table loader.
+    tableLoader.open();
+    table = tableLoader.loadTable();
+
+    // Initialize the flink state for last snapshot id.
+    lastSnapshotIdState = context.getOperatorStateStore().getListState(
         new ListStateDescriptor<>(
             "snapshot-id-state",
             LongSerializer.INSTANCE));
-    tableLoader.open();
-    table = tableLoader.loadTable();
+
+    // Restore the last-snapshot-id from flink's state if possible.
     if (context.isRestored()) {
       LOG.info("Restoring state for the {}.", getClass().getSimpleName());
-      startSnapshotId = snapshotIdState.get().iterator().next();
-    } else {
-      Long optionStartSnapshot = scanContext.startSnapshotId();
-      if (optionStartSnapshot != null) {
-        if (!SnapshotUtil.ancestorOf(table, table.currentSnapshot().snapshotId(), optionStartSnapshot)) {
-          throw new IllegalStateException("The option start-snapshot-id " + optionStartSnapshot +
-              " is not an ancestor of the current snapshot");
-        }
+      lastSnapshotId = lastSnapshotIdState.get().iterator().next();
+    } else if (scanContext.startSnapshotId() != null) {
+      Preconditions.checkState(!SnapshotUtil.currentAncestors(table).contains(scanContext.startSnapshotId()),
+          "The option start-snapshot-id %s is not an ancestor of the current snapshot.", scanContext.startSnapshotId());
 
-        startSnapshotId = optionStartSnapshot;
-      } else {
-        startSnapshotId = DUMMY_START_SNAPSHOT_ID;
-      }
+      lastSnapshotId = scanContext.startSnapshotId();
     }
   }
 
   @Override
   public void snapshotState(FunctionSnapshotContext context) throws Exception {
-    snapshotIdState.clear();
-    snapshotIdState.add(startSnapshotId);
+    lastSnapshotIdState.clear();
+    lastSnapshotIdState.add(lastSnapshotId);
   }
 
   @Override
   public void run(SourceContext<FlinkInputSplit> ctx) throws Exception {
-    checkpointLock = ctx.getCheckpointLock();
+    this.sourceContext = ctx;
     while (isRunning) {
-      synchronized (checkpointLock) {
+      synchronized (sourceContext.getCheckpointLock()) {
         if (isRunning) {
-          monitorAndForwardSplits(ctx);
+          monitorAndForwardSplits();
         }
       }
       Thread.sleep(scanContext.monitorInterval().toMillis());
     }
   }
 
-  private void monitorAndForwardSplits(SourceContext<FlinkInputSplit> ctx) {
+  private void monitorAndForwardSplits() {
+    // Refresh the table to get the latest committed snapshot.
     table.refresh();
+
     Snapshot snapshot = table.currentSnapshot();
-    if (snapshot != null && snapshot.snapshotId() != startSnapshotId) {
+    if (snapshot != null && snapshot.snapshotId() != lastSnapshotId) {
       long snapshotId = snapshot.snapshotId();
-      // Read current static table if startSnapshotId not set.
-      ScanContext newScanContext = startSnapshotId == DUMMY_START_SNAPSHOT_ID ?
-          scanContext.copyWithSnapshotId(snapshotId) :
-          scanContext.copyWithAppendsBetween(startSnapshotId, snapshotId);
+
+      ScanContext newScanContext;
+      if (lastSnapshotId == INIT_LAST_SNAPSHOT_ID) {
+        newScanContext = scanContext.copyWithSnapshotId(snapshotId);
+      } else {
+        newScanContext = scanContext.copyWithAppendsBetween(lastSnapshotId, snapshotId);
+      }
 
       FlinkInputSplit[] splits = FlinkSplitGenerator.createInputSplits(table, newScanContext);
       for (FlinkInputSplit split : splits) {
-        ctx.collect(split);
+        sourceContext.collect(split);
       }
-      startSnapshotId = snapshotId;
+
+      lastSnapshotId = snapshotId;
     }
   }
 
   @Override
   public void cancel() {
     // this is to cover the case where cancel() is called before the run()
-    if (checkpointLock != null) {
-      synchronized (checkpointLock) {
+    if (sourceContext != null) {
+      synchronized (sourceContext.getCheckpointLock()) {
         isRunning = false;
       }
     } else {
       isRunning = false;
     }
 
+    // Release all the resources here.
     if (tableLoader != null) {
       try {
         tableLoader.close();
