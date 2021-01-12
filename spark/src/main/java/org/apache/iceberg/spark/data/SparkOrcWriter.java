@@ -106,9 +106,9 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
         case LONG:
           return SparkOrcValueWriters.longs();
         case FLOAT:
-          return SparkOrcValueWriters.floats(getFieldId(primitive));
+          return SparkOrcValueWriters.floats(ORCSchemaUtil.fieldId(primitive));
         case DOUBLE:
-          return SparkOrcValueWriters.doubles(getFieldId(primitive));
+          return SparkOrcValueWriters.doubles(ORCSchemaUtil.fieldId(primitive));
         case BINARY:
           return SparkOrcValueWriters.byteArrays();
         case STRING:
@@ -122,10 +122,6 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
         default:
           throw new IllegalArgumentException("Unhandled type " + primitive);
       }
-    }
-
-    private int getFieldId(TypeDescription typeDescription) {
-      return ORCSchemaUtil.fieldId(typeDescription);
     }
   }
 
