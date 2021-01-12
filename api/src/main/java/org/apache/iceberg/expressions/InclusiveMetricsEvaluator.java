@@ -33,6 +33,7 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
+import org.apache.iceberg.util.NaNUtil;
 
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
@@ -184,7 +185,7 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
 
-      if (containsNullsOnly(id)) {
+      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -192,7 +193,12 @@ public class InclusiveMetricsEvaluator {
         T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
 
         int cmp = lit.comparator().compare(lower, lit.value());
-        if (cmp >= 0) {
+
+        // Due to the comparison implementation of ORC stats, for float/double columns in ORC files,
+        // if the first value in a file is NaN, metrics of this file will report NaN for both upper and
+        // lower bound despite that the column could contain non-NaN data.
+        // Without this NaN check below, we may skip including a file that contains matching data.
+        if (cmp >= 0 && !NaNUtil.isNaN(lower)) {
           return ROWS_CANNOT_MATCH;
         }
       }
@@ -204,7 +210,7 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
 
-      if (containsNullsOnly(id)) {
+      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -212,7 +218,12 @@ public class InclusiveMetricsEvaluator {
         T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
 
         int cmp = lit.comparator().compare(lower, lit.value());
-        if (cmp > 0) {
+
+        // Due to the comparison implementation of ORC stats, for float/double columns in ORC files,
+        // if the first value in a file is NaN, metrics of this file will report NaN for both upper and
+        // lower bound despite that the column could contain non-NaN data.
+        // Without this NaN check below, we may skip including a file that contains matching data.
+        if (cmp > 0 && !NaNUtil.isNaN(lower)) {
           return ROWS_CANNOT_MATCH;
         }
       }
@@ -224,7 +235,7 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
 
-      if (containsNullsOnly(id)) {
+      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -244,7 +255,7 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
 
-      if (containsNullsOnly(id)) {
+      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -264,12 +275,20 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
 
-      if (containsNullsOnly(id)) {
+      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
         return ROWS_CANNOT_MATCH;
       }
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+
+        // Due to the comparison implementation of ORC stats, for float/double columns in ORC files,
+        // if the first value in a file is NaN, metrics of this file will report NaN for both upper and
+        // lower bound despite that the column could contain non-NaN data.
+        // Without this NaN check below, we may skip including a file that contains matching data.
+        if (NaNUtil.isNaN(lower)) {
+          return ROWS_MIGHT_MATCH;
+        }
 
         int cmp = lit.comparator().compare(lower, lit.value());
         if (cmp > 0) {
@@ -300,7 +319,7 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
       Integer id = ref.fieldId();
 
-      if (containsNullsOnly(id)) {
+      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -313,6 +332,15 @@ public class InclusiveMetricsEvaluator {
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+
+        // Due to the comparison implementation of ORC stats, for float/double columns in ORC files,
+        // if the first value in a file is NaN, metrics of this file will report NaN for both upper and
+        // lower bound despite that the column could contain non-NaN data.
+        // Without this NaN check below, we may skip including a file that contains matching data.
+        if (NaNUtil.isNaN(lower)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
         literals = literals.stream().filter(v -> ref.comparator().compare(lower, v) <= 0).collect(Collectors.toList());
         if (literals.isEmpty()) { // if all values are less than lower bound, rows cannot match.
           return ROWS_CANNOT_MATCH;

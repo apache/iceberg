@@ -32,6 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.NaNUtil;
 
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
@@ -179,7 +180,7 @@ public class StrictMetricsEvaluator {
       Types.NestedField field = struct.field(id);
       Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
-      if (canContainNulls(id)) {
+      if (canContainNulls(id) || canContainNaNs(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
@@ -202,7 +203,7 @@ public class StrictMetricsEvaluator {
       Types.NestedField field = struct.field(id);
       Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
-      if (canContainNulls(id)) {
+      if (canContainNulls(id) || canContainNaNs(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
@@ -225,7 +226,7 @@ public class StrictMetricsEvaluator {
       Types.NestedField field = struct.field(id);
       Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
-      if (canContainNulls(id)) {
+      if (canContainNulls(id) || canContainNaNs(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
@@ -233,7 +234,12 @@ public class StrictMetricsEvaluator {
         T lower = Conversions.fromByteBuffer(field.type(), lowerBounds.get(id));
 
         int cmp = lit.comparator().compare(lower, lit.value());
-        if (cmp > 0) {
+
+        // Due to the comparison implementation of ORC stats, for float/double columns in ORC files,
+        // if the first value in a file is NaN, metrics of this file will report NaN for both upper and
+        // lower bound despite that the column could contain non-NaN data.
+        // Without this NaN check below, we may include a file that contains rows that don't match.
+        if (cmp > 0 && !NaNUtil.isNaN(lower)) {
           return ROWS_MUST_MATCH;
         }
       }
@@ -248,7 +254,7 @@ public class StrictMetricsEvaluator {
       Types.NestedField field = struct.field(id);
       Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
-      if (canContainNulls(id)) {
+      if (canContainNulls(id) || canContainNaNs(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
@@ -256,7 +262,12 @@ public class StrictMetricsEvaluator {
         T lower = Conversions.fromByteBuffer(field.type(), lowerBounds.get(id));
 
         int cmp = lit.comparator().compare(lower, lit.value());
-        if (cmp >= 0) {
+
+        // Due to the comparison implementation of ORC stats, for float/double columns in ORC files,
+        // if the first value in a file is NaN, metrics of this file will report NaN for both upper and
+        // lower bound despite that the column could contain non-NaN data.
+        // Without this NaN check below, we may include a file that contains rows that don't match.
+        if (cmp >= 0 && !NaNUtil.isNaN(lower)) {
           return ROWS_MUST_MATCH;
         }
       }
@@ -271,7 +282,7 @@ public class StrictMetricsEvaluator {
       Types.NestedField field = struct.field(id);
       Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
-      if (canContainNulls(id)) {
+      if (canContainNulls(id) || canContainNaNs(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
@@ -304,12 +315,20 @@ public class StrictMetricsEvaluator {
       Types.NestedField field = struct.field(id);
       Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
-      if (containsNullsOnly(id)) {
+      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
         return ROWS_MUST_MATCH;
       }
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
+
+        // Due to the comparison implementation of ORC stats, for float/double columns in ORC files,
+        // if the first value in a file is NaN, metrics of this file will report NaN for both upper and
+        // lower bound despite that the column could contain non-NaN data.
+        // Thus we don't have visibility into the stats when lower bound is NaN.
+        if (NaNUtil.isNaN(lower)) {
+          return ROWS_MIGHT_NOT_MATCH;
+        }
 
         int cmp = lit.comparator().compare(lower, lit.value());
         if (cmp > 0) {
@@ -335,7 +354,7 @@ public class StrictMetricsEvaluator {
       Types.NestedField field = struct.field(id);
       Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
-      if (canContainNulls(id)) {
+      if (canContainNulls(id) || canContainNaNs(id)) {
         return ROWS_MIGHT_NOT_MATCH;
       }
 
@@ -371,7 +390,7 @@ public class StrictMetricsEvaluator {
       Types.NestedField field = struct.field(id);
       Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
 
-      if (containsNullsOnly(id)) {
+      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
         return ROWS_MUST_MATCH;
       }
 
@@ -379,6 +398,14 @@ public class StrictMetricsEvaluator {
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(struct.field(id).type(), lowerBounds.get(id));
+
+        // Due to the comparison implementation of ORC stats, for float/double columns in ORC files,
+        // if the first value in a file is NaN, metrics of this file will report NaN for both upper and
+        // lower bound despite that the column could contain non-NaN data.
+        // Thus we don't have visibility into the stats when lower bound is NaN.
+        if (NaNUtil.isNaN(lower)) {
+          return ROWS_MIGHT_NOT_MATCH;
+        }
 
         literals = literals.stream().filter(v -> ref.comparator().compare(lower, v) <= 0).collect(Collectors.toList());
         if (literals.isEmpty()) {  // if all values are less than lower bound, rows must match (notIn).
@@ -404,6 +431,11 @@ public class StrictMetricsEvaluator {
 
     private boolean canContainNulls(Integer id) {
       return nullCounts == null || (nullCounts.containsKey(id) && nullCounts.get(id) > 0);
+    }
+
+    private boolean canContainNaNs(Integer id) {
+      // nan counts might be null for early version writers when nan counters are not populated.
+      return nanCounts != null && nanCounts.containsKey(id) && nanCounts.get(id) > 0;
     }
 
     private boolean containsNullsOnly(Integer id) {
