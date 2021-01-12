@@ -345,9 +345,11 @@ public class ManifestEvaluator {
       int pos = Accessors.toPosition(ref.accessor());
       PartitionFieldSummary fieldStats = stats.get(pos);
 
-      // values are all null (and stats exist) and literal cannot contain null
-      if (fieldStats.lowerBound() == null) {
-        return ROWS_CANNOT_MATCH;
+      // Iceberg does not implement SQL 3-boolean logic. Therefore, for all null values, we have decided to
+      // return ROWS_MIGHT_MATCH in order to allow the query engine to further evaluate this partition, as
+      // null does not start with any non-null value.
+      if (fieldStats.containsNull() || fieldStats.lowerBound() == null) {
+        return ROWS_MIGHT_MATCH;
       }
 
       ByteBuffer prefixAsBytes = lit.toByteBuffer();
@@ -355,16 +357,33 @@ public class ManifestEvaluator {
       Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
 
       ByteBuffer lower = fieldStats.lowerBound();
-      // truncate lower bound so that its length in bytes is not greater than the length of prefix
-      int lowerLength = Math.min(prefixAsBytes.remaining(), lower.remaining());
-      int lowerCmp = comparator.compare(BinaryUtil.truncateBinary(lower, lowerLength), prefixAsBytes);
-      if (lowerCmp == 0) {
-        ByteBuffer upper = fieldStats.upperBound();
-        // truncate upper bound so that its length in bytes is not greater than the length of prefix
-        int upperLength = Math.min(prefixAsBytes.remaining(), upper.remaining());
-        int upperCmp = comparator.compare(BinaryUtil.truncateBinary(upper, upperLength), prefixAsBytes);
-        if (upperCmp == 0) {
-          return ROWS_CANNOT_MATCH;
+
+      // notStartsWith will match unless all values must start with the prefix. this happens when the lower and upper
+      // bounds both start with the prefix.
+      if (lower != null) {
+        // if lower is shorter than the prefix, it can't start with the prefix
+        if (lower.remaining() < prefixAsBytes.remaining()) {
+          return ROWS_MIGHT_MATCH;
+        }
+
+        // truncate lower bound to the prefix and check for equality
+        int cmp = comparator.compare(BinaryUtil.truncateBinary(lower, prefixAsBytes.remaining()), prefixAsBytes);
+        if (cmp == 0) {
+          // the lower bound starts with the prefix; check the upper bound
+          ByteBuffer upper = fieldStats.upperBound();
+          if (upper != null) {
+            // if upper is shorter than the prefix, it can't start with the prefix
+            if (upper.remaining() < prefixAsBytes.remaining()) {
+              return ROWS_MIGHT_MATCH;
+            }
+
+            // truncate upper bound so that its length in bytes is not greater than the length of prefix
+            cmp = comparator.compare(BinaryUtil.truncateBinary(upper, prefixAsBytes.remaining()), prefixAsBytes);
+            if (cmp == 0) {
+              // both bounds match the prefix, so all rows must match the prefix and none do not match
+              return ROWS_CANNOT_MATCH;
+            }
+          }
         }
       }
 

@@ -477,39 +477,55 @@ public class ParquetMetricsRowGroupFilter {
     @SuppressWarnings("unchecked")
     public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
-
       Long valueCount = valueCounts.get(id);
+
+      // Iceberg does not implement SQL 3-boolean logic. Therefore, for all null values, we have decided to
+      // return ROWS_MIGHT_MATCH in order to allow the query engine to further evaluate this partition, as
+      // null does not start with any non-null value.
       if (valueCount == null) {
         // the column is not present and is all nulls
-        return ROWS_CANNOT_MATCH;
+        return ROWS_MIGHT_MATCH;
       }
 
       Statistics<Binary> colStats = (Statistics<Binary>) stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
+        if (mayContainNull(colStats)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
         if (hasNonNullButNoMinMax(colStats, valueCount)) {
           return ROWS_MIGHT_MATCH;
         }
 
-        if (!colStats.hasNonNullValue()) {
-          return ROWS_CANNOT_MATCH;
-        }
-
-        ByteBuffer prefixAsBytes = lit.toByteBuffer();
+        ByteBuffer prefix = lit.toByteBuffer();
 
         Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
 
         Binary lower = colStats.genericGetMin();
-        // truncate lower bound so that its length in bytes is not greater than the length of prefix
-        int lowerLength = Math.min(prefixAsBytes.remaining(), lower.length());
-        int lowerCmp = comparator.compare(BinaryUtil.truncateBinary(lower.toByteBuffer(), lowerLength), prefixAsBytes);
-        if (lowerCmp == 0) {
-          Binary upper = colStats.genericGetMax();
-          // truncate upper bound so that its length in bytes is not greater than the length of prefix
-          int upperLength = Math.min(prefixAsBytes.remaining(), upper.length());
-          ByteBuffer upperByteBuffer = upper.toByteBuffer();
-          int upperCmp = comparator.compare(BinaryUtil.truncateBinary(upperByteBuffer, upperLength), prefixAsBytes);
-          if (upperCmp == 0) {
-            return ROWS_CANNOT_MATCH;
+        // notStartsWith will match unless all values must start with the prefix. this happens when the lower and upper
+        // bounds both start with the prefix.
+        if (lower != null) {
+          // if lower is shorter than the prefix, it can't start with the prefix
+          if (lower.length() < prefix.remaining()) {
+            return ROWS_MIGHT_MATCH;
+          }
+
+          // truncate lower bound to the prefix and check for equality
+          int cmp = comparator.compare(BinaryUtil.truncateBinary(lower.toByteBuffer(), prefix.remaining()), prefix);
+          if (cmp == 0) {
+            // the lower bound starts with the prefix; check the upper bound
+            Binary upper = colStats.genericGetMax();
+            // if upper is shorter than the prefix, it can't start with the prefix
+            if (upper.length() < prefix.remaining()) {
+              return ROWS_MIGHT_MATCH;
+            }
+
+            // truncate upper bound so that its length in bytes is not greater than the length of prefix
+            cmp = comparator.compare(BinaryUtil.truncateBinary(upper.toByteBuffer(), prefix.remaining()), prefix);
+            if (cmp == 0) {
+              // both bounds match the prefix, so all rows must match the prefix and none do not match
+              return ROWS_CANNOT_MATCH;
+            }
           }
         }
       }
@@ -546,6 +562,10 @@ public class ParquetMetricsRowGroupFilter {
   static boolean hasNonNullButNoMinMax(Statistics statistics, long valueCount) {
     return statistics.getNumNulls() < valueCount &&
         (statistics.getMaxBytes() == null || statistics.getMinBytes() == null);
+  }
+
+  private static boolean mayContainNull(Statistics statistics) {
+    return !statistics.isNumNullsSet() || statistics.getNumNulls() > 0;
   }
 
   private static Function<Object, Object> converterFor(PrimitiveType parquetType, Type icebergType) {

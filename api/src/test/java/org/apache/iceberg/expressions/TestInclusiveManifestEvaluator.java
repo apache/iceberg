@@ -134,7 +134,7 @@ public class TestInclusiveManifestEvaluator {
     Assert.assertFalse("Should skip: startsWith on all null column", shouldRead);
 
     shouldRead = ManifestEvaluator.forRowFilter(notStartsWith("all_nulls_missing_nan", "asad"), SPEC, true).eval(FILE);
-    Assert.assertFalse("Should skip: notStartsWith on all null column", shouldRead);
+    Assert.assertTrue("Should read: notStartsWith on all null column", shouldRead);
   }
 
   @Test
@@ -470,12 +470,17 @@ public class TestInclusiveManifestEvaluator {
     Assert.assertTrue("Should read: range matches", shouldRead);
 
     shouldRead = ManifestEvaluator.forRowFilter(notStartsWith("all_same_value_or_null", "a"), SPEC, false).eval(FILE);
-    Assert.assertFalse("Should skip: range doesn't match", shouldRead);
+    Assert.assertTrue("Should read: range matches on null", shouldRead);
 
     shouldRead = ManifestEvaluator.forRowFilter(notStartsWith("all_same_value_or_null", "aa"), SPEC, false).eval(FILE);
     Assert.assertTrue("Should read: range matches", shouldRead);
 
     shouldRead = ManifestEvaluator.forRowFilter(notStartsWith("all_same_value_or_null", "A"), SPEC, false).eval(FILE);
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    // Iceberg does not implement SQL's 3-way boolean logic, so the choice of an all null column matching is
+    // by definition in order to surface more values to the query engine to allow it to make its own decision.
+    shouldRead = ManifestEvaluator.forRowFilter(notStartsWith("all_nulls_missing_nan", "A"), SPEC, false).eval(FILE);
     Assert.assertTrue("Should read: range matches", shouldRead);
   }
 

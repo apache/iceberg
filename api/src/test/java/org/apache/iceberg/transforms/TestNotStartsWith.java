@@ -29,15 +29,14 @@ import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.False;
 import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
+import org.apache.iceberg.expressions.True;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StringType;
 import org.junit.Assert;
 import org.junit.Test;
@@ -50,45 +49,49 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 public class TestNotStartsWith {
 
   private static final String COLUMN = "someStringCol";
-  private static final NestedField FIELD = optional(1, COLUMN, Types.StringType.get());
-  private static final Schema SCHEMA = new Schema(FIELD);
+  private static final Schema SCHEMA = new Schema(optional(1, COLUMN, Types.StringType.get()));
 
   // All 50 rows have someStringCol = 'bbb', none are null (despite being optional).
   private static final DataFile FILE_1 = new TestDataFile("file_1.avro", Row.of(), 50,
-          // any value counts, including nulls
-          ImmutableMap.of(1, 50L),
-          // null value counts
-          ImmutableMap.of(1, 0L),
-          // nan value counts
-          null,
-          // lower bounds
-          ImmutableMap.of(1, toByteBuffer(StringType.get(), "bbb")),
-          // upper bounds
-          ImmutableMap.of(1, toByteBuffer(StringType.get(), "bbb")));
+      // any value counts, including nulls
+      ImmutableMap.of(1, 50L),
+      // null value counts
+      ImmutableMap.of(1, 0L),
+      // nan value counts
+      null,
+      // lower bounds
+      ImmutableMap.of(1, toByteBuffer(StringType.get(), "bbb")),
+      // upper bounds
+      ImmutableMap.of(1, toByteBuffer(StringType.get(), "bbb")));
 
   @Test
   public void testTruncateProjections() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).truncate(COLUMN, 4).build();
 
     assertProjectionInclusive(spec, notStartsWith(COLUMN, "ab"), "ab", Expression.Operation.NOT_STARTS_WITH);
-    assertProjectionInclusive(spec, notStartsWith(COLUMN, "abab"), "abab", Expression.Operation.NOT_STARTS_WITH);
-    assertProjectionInclusive(spec, notStartsWith(COLUMN, "ababab"), "abab", Expression.Operation.NOT_STARTS_WITH);
+    assertProjectionInclusive(spec, notStartsWith(COLUMN, "abab"), "abab", Expression.Operation.NOT_EQ);
+    // When literal is longer than partition spec's truncation width, we always read for an inclusive projection
+    // when using notStartsWith.
+    Expression projection = Projections.inclusive(spec).project(notStartsWith(COLUMN, "ababab"));
+    Assert.assertTrue(projection instanceof True);
 
     assertProjectionStrict(spec, notStartsWith(COLUMN, "ab"), "ab", Expression.Operation.NOT_STARTS_WITH);
     assertProjectionStrict(spec, notStartsWith(COLUMN, "abab"), "abab", Expression.Operation.NOT_EQ);
-
-    Expression projection = Projections.strict(spec).project(notStartsWith(COLUMN, "abcde"));
-    Assert.assertTrue(projection instanceof False);
+    assertProjectionStrict(spec, notStartsWith(COLUMN, "ababab"), "abab", Expression.Operation.NOT_STARTS_WITH);
+    assertProjectionStrict(spec, notStartsWith(COLUMN, "abcde"), "abcd", Expression.Operation.NOT_STARTS_WITH);
   }
 
   @Test
   public void testTruncateStringWhenProjectedPredicateTermIsLongerThanWidth() {
     Truncate<String> trunc = Truncate.get(Types.StringType.get(), 2);
-    Expression expr = notStartsWith(COLUMN, "abcde");
+    UnboundPredicate<String> expr = notStartsWith(COLUMN, "abcde");
     BoundPredicate<String> boundExpr = (BoundPredicate<String>) Binder.bind(SCHEMA.asStruct(),  expr, false);
 
-    UnboundPredicate<String> projected = trunc.project(COLUMN, boundExpr);
+    UnboundPredicate<String> projected = trunc.projectStrict(COLUMN, boundExpr);
     Evaluator evaluator = new Evaluator(SCHEMA.asStruct(), projected);
+
+    Assert.assertEquals("The projected literal should be truncated to the truncation width",
+        projected.literal().value(), "ab");
 
     Assert.assertFalse("notStartsWith(abcde, truncate(abcde,2)) => false",
         evaluator.eval(TestHelpers.Row.of("abcde")));
@@ -102,17 +105,21 @@ public class TestNotStartsWith {
     Assert.assertTrue("notStartsWith(abcde, truncate(a, 2)) => true",
         evaluator.eval(TestHelpers.Row.of("a")));
 
-    Assert.assertTrue("notStartsWith(abcde, truncate(abzcde, 2)) => true",
-        evaluator.eval(TestHelpers.Row.of("azcde")));
+    Assert.assertTrue("notStartsWith(abcde, truncate(aczcde, 2)) => true",
+        evaluator.eval(TestHelpers.Row.of("aczcde")));
   }
 
   @Test
   public void testTruncateStringWhenProjectedPredicateTermIsShorterThanWidth() {
     Truncate<String> trunc = Truncate.get(Types.StringType.get(), 16);
-    Expression expr = notStartsWith(COLUMN, "ab");
+    UnboundPredicate<String> expr = notStartsWith(COLUMN, "ab");
     BoundPredicate<String> boundExpr = (BoundPredicate<String>) Binder.bind(SCHEMA.asStruct(),  expr, false);
-    UnboundPredicate<String> projected = trunc.project(COLUMN, boundExpr);
+
+    UnboundPredicate<String> projected = trunc.projectStrict(COLUMN, boundExpr);
     Evaluator evaluator = new Evaluator(SCHEMA.asStruct(), projected);
+
+    Assert.assertEquals("The projected literal should not be truncated as its size is shorter than truncation width",
+        projected.literal().value(), "ab");
 
     Assert.assertFalse("notStartsWith(ab, truncate(abcde, 16)) => false",
         evaluator.eval(TestHelpers.Row.of("abcde")));
@@ -127,10 +134,14 @@ public class TestNotStartsWith {
   @Test
   public void testTruncateStringWhenProjectedPredicateTermIsEqualToWidth() {
     Truncate<String> trunc = Truncate.get(Types.StringType.get(), 7);
-    Expression expr = notStartsWith(COLUMN, "abcdefg");
+    UnboundPredicate<String> expr = notStartsWith(COLUMN, "abcdefg");
     BoundPredicate<String> boundExpr = (BoundPredicate<String>) Binder.bind(SCHEMA.asStruct(),  expr, false);
-    UnboundPredicate<String> projected = trunc.project(COLUMN, boundExpr);
+
+    UnboundPredicate<String> projected = trunc.projectStrict(COLUMN, boundExpr);
     Evaluator evaluator = new Evaluator(SCHEMA.asStruct(), projected);
+
+    Assert.assertEquals("The projected literal should not be truncated as its size is equal to truncation width",
+        projected.literal().value(), "abcdefg");
 
     Assert.assertFalse("notStartsWith(abcdefg, truncate(abcdefg, 7)) => false",
         evaluator.eval(TestHelpers.Row.of("abcdefg")));
