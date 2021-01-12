@@ -267,9 +267,7 @@ A sort order is defined by an sort order id and a list of sort fields. The order
 
 Order id `0` is reserved for the unsorted order. 
 
-A data or delete file is associated with a sort order by the sort order's id within [a manifest](#manifests). Therefore, the table must declare all the sort orders for lookup. A table could also be configured with a default sort order id, indicating how the new data should be sorted by default. This default could be overridden per file basis if the file is sorted differently, such as if the engine is incapable of ensure ordering of the data on write, the generated files should be annotated with sort order id 0 (unsorted). 
-
-Note that only data files and equality delete files could have sort order. [Position deletes](#position-delete-files) should not have sort order, since they have their own sorting requirements. 
+A data or delete file is associated with a sort order by the sort order's id within [a manifest](#manifests). Therefore, the table must declare all the sort orders for lookup. A table could also be configured with a default sort order id, indicating how the new data should be sorted by default. Writers should use this default sort order to sort the data on write, but are not required to if the default order is prohibitively expensive, as it would be for streaming writes.
 
 
 ### Manifests
@@ -323,11 +321,13 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 | _optional_ | _optional_ | **`131  key_metadata`**           | `binary`                     | Implementation-specific key metadata for encryption |
 | _optional_ | _optional_ | **`132  split_offsets`**          | `list<133: long>`            | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending |
 |            | _optional_ | **`135  equality_ids`**           | `list<136: int>`             | Field ids used to determine row equality in equality delete files. Required when `content=2` and should be null otherwise. Fields with ids listed in this column must be present in the delete file |
-| _optional_ | _optional_ | **`140  sort_order_id`**          | `int`                        | ID representing sort order for this file.  |
+| _optional_ | _optional_ | **`140  sort_order_id`**          | `int`                        | ID representing sort order for this file [2]. |
 
 Notes:
 
 1. Single-value serialization for lower and upper bounds is detailed in Appendix D.
+
+2. If sort order ID is missing or unknown, then the order is assumed to be unsorted. Only data files and equality delete files could have valid sort orders, and [position deletes](#position-delete-files) are required to be sorted by file and position. The manifest should not be written with an order ID for position delete files, and readers must ignore this field for those files. 
 
 The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
 
