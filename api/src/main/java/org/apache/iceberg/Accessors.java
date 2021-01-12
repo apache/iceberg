@@ -76,6 +76,20 @@ public class Accessors {
     }
   }
 
+  /**
+   * Position2Accessor and Position3Accessor here is an optimization. For a nested schema like:
+   *
+   * root
+   *  |-- a: struct (nullable = false)
+   *  |    |-- b: struct (nullable = false)
+   *  |        | -- c: string (containsNull = false)
+   *
+   *  Then we will use Position3Accessor to access nested field 'c'. It can be accessed by call
+   *  row.get(p0, StructLike.class).get(p1, StructLike.class).get(p2, javaClass) directly.
+   *  Commonly, Nested fields with depth=1 or 2 or 3 are the fields that will be accessed frequently, so this
+   *  optimization will help to access this kind of schema. For schema whose depth is deeper than 3, then we will
+   *  use the {@link WrappedPositionAccessor} to access recursively.
+   */
   private static class Position2Accessor implements Accessor<StructLike> {
     private final int p0;
     private final int p1;
