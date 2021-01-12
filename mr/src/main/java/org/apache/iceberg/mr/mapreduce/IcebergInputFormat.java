@@ -100,8 +100,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     TableScan scan = table.newScan()
-            .caseSensitive(conf.getBoolean(InputFormatConfig.CASE_SENSITIVE,
-                    InputFormatConfig.CASE_SENSITIVE_DEFAULT));
+            .caseSensitive(conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, InputFormatConfig.CASE_SENSITIVE_DEFAULT));
     long snapshotId = conf.getLong(InputFormatConfig.SNAPSHOT_ID, -1);
     if (snapshotId != -1) {
       scan = scan.useSnapshot(snapshotId);
