@@ -1,15 +1,20 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package org.apache.iceberg.beam;
@@ -25,7 +30,6 @@ import org.apache.beam.sdk.io.AvroIO;
 import org.apache.beam.sdk.io.FileIO;
 import org.apache.beam.sdk.io.WriteFilesResult;
 import org.apache.beam.sdk.options.PipelineOptions;
-import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.testing.TestStream;
 import org.apache.beam.sdk.transforms.Create;
@@ -37,7 +41,6 @@ import org.apache.beam.sdk.values.TimestampedValue;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.hive.HiveCatalog;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
 import org.junit.AfterClass;
@@ -56,6 +59,7 @@ public class IcebergIOTest {
           "Beam window 2 2");
   private static final Instant START_TIME = new Instant(0);
   private static final Duration WINDOW_DURATION = Duration.standardMinutes(1);
+  final String hiveMetastoreUrl = "thrift://localhost:9083/default";
 
   private static TestHiveMetastore metastore;
 
@@ -72,7 +76,6 @@ public class IcebergIOTest {
 
   @Rule
   public final transient TestPipeline pipeline = TestPipeline.create();
-  final String hiveMetastoreUrl = "thrift://localhost:9083/default";
 
   private static final PipelineOptions options = TestPipeline.testingPipelineOptions();
 
@@ -90,7 +93,6 @@ public class IcebergIOTest {
 
   @Test
   public void testWriteFilesBatch() {
-    final PipelineOptions options = PipelineOptionsFactory.create();
     final Pipeline p = Pipeline.create(options);
 
     p.getCoderRegistry().registerCoderForClass(GenericRecord.class, AvroCoder.of(avroSchema));
@@ -99,7 +101,6 @@ public class IcebergIOTest {
 
     PCollection<GenericRecord> records = lines.apply(ParDo.of(new StringToGenericRecord(stringSchema)));
 
-    final String hiveMetastoreUrl = "thrift://localhost:9083/default";
     FileIO.Write<Void, GenericRecord> avroFileIO = FileIO.<GenericRecord>write()
         .via(AvroIO.sink(avroSchema))
         .to("/tmp/fokko/")
@@ -121,7 +122,7 @@ public class IcebergIOTest {
 
   @Test
   public void testWriteFilesStreaming() {
-    final String table_name = "test_streaming_crc_naming";
+    final String tableName = "test_streaming";
 
     pipeline.getCoderRegistry().registerCoderForClass(GenericRecord.class, AvroCoder.of(avroSchema));
 
@@ -147,7 +148,7 @@ public class IcebergIOTest {
 
     FileIO.Write<Void, GenericRecord> avroFileIO = FileIO.<GenericRecord>write()
         .via(AvroIO.sink(avroSchema))
-        .to("/tmp/" + table_name + "/")
+        .to("/tmp/" + tableName + "/")
         .withNumShards(1)
         .withNaming(naming);
 
@@ -157,7 +158,7 @@ public class IcebergIOTest {
         .apply(avroFileIO);
 
     org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
-    TableIdentifier name = TableIdentifier.of("default", table_name);
+    TableIdentifier name = TableIdentifier.of("default", tableName);
 
     PCollection<Snapshot> snapshots = new IcebergIO.Builder()
             .withSchema(icebergSchema)
