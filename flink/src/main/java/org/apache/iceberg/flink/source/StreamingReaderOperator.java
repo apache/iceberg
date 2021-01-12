@@ -122,14 +122,14 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
   @Override
   public void processElement(StreamRecord<FlinkInputSplit> element) {
     splits.add(element.getValue());
-
-    if (currentSplitState == SplitState.IDLE) {
-      enqueueProcessSplits();
-    }
+    enqueueProcessSplits();
   }
 
   private void enqueueProcessSplits() {
-    executor.execute(this::processSplits, this.getClass().getSimpleName());
+    if (currentSplitState == SplitState.IDLE) {
+      executor.execute(this::processSplits, this.getClass().getSimpleName());
+      currentSplitState = SplitState.RUNNING;
+    }
   }
 
   private void processSplits() throws IOException {
@@ -139,7 +139,6 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
     }
 
     LOG.debug("Start to process the split: {}", split);
-    currentSplitState = SplitState.RUNNING;
     format.open(split);
 
     try {
@@ -153,7 +152,7 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
       format.close();
     }
 
-    // Now the currentSplitState MUST be IDLE, re-schedule to process the next split.
+    // Re-schedule to process the next split.
     enqueueProcessSplits();
   }
 
