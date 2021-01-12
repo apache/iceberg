@@ -271,7 +271,7 @@ public class Comparators {
         }
       }
 
-      // if there are no differences, then the shorter seq is first
+      // if there are no differences, then the shorter seq is smaller
       return Integer.compare(buf1.remaining(), buf2.remaining());
     }
   }
@@ -295,7 +295,7 @@ public class Comparators {
         }
       }
 
-      // if there are no differences, then the shorter seq is first
+      // if there are no differences, then the shorter seq is smaller
       return Integer.compare(array1.length, array2.length);
     }
   }
