@@ -39,7 +39,6 @@ import org.apache.flink.streaming.api.operators.YieldingOperatorFactory;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
-import org.apache.flink.streaming.runtime.tasks.mailbox.MailboxExecutorImpl;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -60,20 +59,27 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
 
   private static final Logger LOG = LoggerFactory.getLogger(StreamingReaderOperator.class);
 
-  private final MailboxExecutorImpl executor;
+  private final MailboxExecutor executor;
   private FlinkInputFormat format;
 
   private transient SourceFunction.SourceContext<RowData> sourceContext;
 
-  private transient ListState<FlinkInputSplit> checkpointState;
+  private transient ListState<FlinkInputSplit> inputSplitsState;
   private transient Queue<FlinkInputSplit> splits;
+
+  // This state is used to control that only one split is occupying the executor for record reading. If there're more
+  // splits coming, we will buffer them in flink's state. Once the executor is idle (the currentSplitState will be
+  // marked as IDLE), it will schedule one new split from buffered splits in flink's state to executor (the
+  // currentSplitState will be marked as RUNNING). After finished all records processing, the currentSplitState will
+  // be marked as IDLE again.
+  // NOTICE: all the reader and writer of this variable are the same thread, so we don't need extra synchronization.
+  private transient SplitState currentSplitState;
 
   private StreamingReaderOperator(FlinkInputFormat format, ProcessingTimeService timeService,
                                   MailboxExecutor mailboxExecutor) {
     this.format = Preconditions.checkNotNull(format, "The InputFormat should not be null.");
     this.processingTimeService = timeService;
-    this.executor = (MailboxExecutorImpl) Preconditions.checkNotNull(mailboxExecutor,
-        "The mailboxExecutor should not be null.");
+    this.executor = Preconditions.checkNotNull(mailboxExecutor, "The mailboxExecutor should not be null.");
   }
 
   @Override
@@ -82,15 +88,19 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
 
     // TODO Replace Java serialization with Avro approach to keep state compatibility.
     // See issue: https://github.com/apache/iceberg/issues/1698
-    checkpointState = context.getOperatorStateStore().getListState(
+    inputSplitsState = context.getOperatorStateStore().getListState(
         new ListStateDescriptor<>("splits", new JavaSerializer<>()));
 
+    // Initialize the current split state to IDLE.
+    currentSplitState = SplitState.IDLE;
+
+    // Recover splits state from flink state backend if possible.
     splits = Lists.newLinkedList();
     if (context.isRestored()) {
       int subtaskIdx = getRuntimeContext().getIndexOfThisSubtask();
       LOG.info("Restoring state for the {} (taskIdx: {}).", getClass().getSimpleName(), subtaskIdx);
 
-      for (FlinkInputSplit split : checkpointState.get()) {
+      for (FlinkInputSplit split : inputSplitsState.get()) {
         splits.add(split);
       }
     }
@@ -112,7 +122,10 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
   @Override
   public void processElement(StreamRecord<FlinkInputSplit> element) {
     splits.add(element.getValue());
-    enqueueProcessSplits();
+
+    if (currentSplitState == SplitState.IDLE) {
+      enqueueProcessSplits();
+    }
   }
 
   private void enqueueProcessSplits() {
@@ -120,27 +133,27 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
   }
 
   private void processSplits() throws IOException {
-    do {
-      FlinkInputSplit split = splits.poll();
-      if (split == null) {
-        return;
+    FlinkInputSplit split = splits.poll();
+    if (split == null) {
+      return;
+    }
+
+    LOG.debug("Start to process the split: {}", split);
+    currentSplitState = SplitState.RUNNING;
+    format.open(split);
+
+    try {
+      RowData nextElement = null;
+      while (!format.reachedEnd()) {
+        nextElement = format.nextRecord(nextElement);
+        sourceContext.collect(nextElement);
       }
+    } finally {
+      currentSplitState = SplitState.IDLE;
+      format.close();
+    }
 
-      LOG.debug("Start to process the split: {}", split);
-      format.open(split);
-
-      try {
-        RowData nextElement = null;
-        while (!format.reachedEnd()) {
-          nextElement = format.nextRecord(nextElement);
-          sourceContext.collect(nextElement);
-        }
-      } finally {
-        format.close();
-      }
-    } while (executor.isIdle());
-
-    // Re-enqueue the mail box for avoiding holding the checkpoint lock too long.
+    // Now the currentSplitState MUST be IDLE, re-schedule to process the next split.
     enqueueProcessSplits();
   }
 
@@ -177,12 +190,16 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
   public void snapshotState(StateSnapshotContext context) throws Exception {
     super.snapshotState(context);
 
-    checkpointState.clear();
-    checkpointState.addAll(Lists.newArrayList(splits));
+    inputSplitsState.clear();
+    inputSplitsState.addAll(Lists.newArrayList(splits));
   }
 
   public static OneInputStreamOperatorFactory<FlinkInputSplit, RowData> factory(FlinkInputFormat format) {
     return new OperatorFactory(format);
+  }
+
+  private enum SplitState {
+    IDLE, RUNNING
   }
 
   private static class OperatorFactory extends AbstractStreamOperatorFactory<RowData>
