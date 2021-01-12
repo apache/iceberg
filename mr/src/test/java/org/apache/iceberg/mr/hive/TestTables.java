@@ -222,6 +222,11 @@ abstract class TestTables {
     public Table load(String tableIdentifier) {
       return catalog.loadTable(TableIdentifier.parse(tableIdentifier));
     }
+
+    @Override
+    public boolean exists(String tableIdentifier) {
+      return catalog.tableExists(TableIdentifier.parse(tableIdentifier));
+    }
   }
 
   static class CustomCatalogTestTables extends TestTables {
