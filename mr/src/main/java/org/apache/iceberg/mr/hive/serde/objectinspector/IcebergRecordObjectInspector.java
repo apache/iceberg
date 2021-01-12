@@ -35,12 +35,11 @@ import org.apache.iceberg.types.Types;
 public final class IcebergRecordObjectInspector extends StructObjectInspector {
 
   private static final IcebergRecordObjectInspector EMPTY =
-          new IcebergRecordObjectInspector(Types.StructType.of(), Collections.emptyList(), true);
+          new IcebergRecordObjectInspector(Types.StructType.of(), Collections.emptyList());
 
   private final List<IcebergRecordStructField> structFields;
 
-  public IcebergRecordObjectInspector(Types.StructType structType, List<ObjectInspector> objectInspectors,
-                                      boolean caseSensitive) {
+  public IcebergRecordObjectInspector(Types.StructType structType, List<ObjectInspector> objectInspectors) {
     Preconditions.checkArgument(structType.fields().size() == objectInspectors.size());
 
     this.structFields = Lists.newArrayListWithExpectedSize(structType.fields().size());
@@ -49,16 +48,9 @@ public final class IcebergRecordObjectInspector extends StructObjectInspector {
 
     for (Types.NestedField field : structType.fields()) {
       ObjectInspector oi = objectInspectors.get(position);
-
-      IcebergRecordStructField structField;
-      if (caseSensitive) {
-        structField = new IcebergRecordStructField(field, oi, position);
-      } else {
-        Types.NestedField fieldInLowercase = Types.NestedField.of(field.fieldId(), field.isOptional(),
-                field.name().toLowerCase(), field.type(), field.doc());
-        structField = new IcebergRecordStructField(fieldInLowercase, oi, position);
-      }
-
+      Types.NestedField fieldInLowercase = Types.NestedField.of(field.fieldId(), field.isOptional(),
+              field.name().toLowerCase(), field.type(), field.doc());
+      IcebergRecordStructField structField = new IcebergRecordStructField(fieldInLowercase, oi, position);
       structFields.add(structField);
       position++;
     }

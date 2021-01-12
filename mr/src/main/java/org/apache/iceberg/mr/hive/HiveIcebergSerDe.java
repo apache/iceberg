@@ -87,7 +87,7 @@ public class HiveIcebergSerDe extends AbstractSerDe {
             tableSchema;
 
     try {
-      this.inspector = IcebergObjectInspector.create(projectedSchema, false);
+      this.inspector = IcebergObjectInspector.create(projectedSchema);
     } catch (Exception e) {
       throw new SerDeException(e);
     }

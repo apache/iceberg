@@ -139,7 +139,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
   }
 
   @Test
-  public void testScanTableForCaseSensitive() throws IOException {
+  public void testScanTableCaseInsensitive() throws IOException {
     testTables.createTable(shell, "customers",
             HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA_WITH_UPPERCASE, fileFormat,
             HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
