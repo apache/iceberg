@@ -29,36 +29,65 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Map;
 
 
 public class IcebergIO {
 
-    private IcebergIO() {
-        // TODO: Some builder
+    public static final class Builder {
+        private TableIdentifier tableIdentifier;
+        private WriteFilesResult<Void> resultFiles;
+        private Schema schema;
+        private String hiveMetaStoreUrl;
+
+        private final Map<String, String> hadoopConfig = Maps.newHashMap();
+
+        public Builder withTableIdentifier(TableIdentifier tableIdentifier) {
+            this.tableIdentifier = tableIdentifier;
+            return this;
+        }
+
+        public Builder withResultFiles(WriteFilesResult<Void> resultFiles) {
+            this.resultFiles = resultFiles;
+            return this;
+        }
+
+        public Builder withSchema(Schema schema) {
+            this.schema = schema;
+            return this;
+        }
+
+        public Builder withHiveMetastoreUrl(String hiveMetaStoreUrl) {
+            assert hiveMetaStoreUrl.startsWith("thrift://");
+            this.hiveMetaStoreUrl = hiveMetaStoreUrl;
+            return this;
+        }
+
+        public Builder conf(String key, String value) {
+            this.hadoopConfig.put(key, value);
+            return this;
+        }
+
+        public PCollection<Snapshot> build() {
+            return IcebergIO.write(
+                    this.tableIdentifier,
+                    this.resultFiles,
+                    this.schema,
+                    this.hiveMetaStoreUrl,
+                    this.hadoopConfig
+            );
+        }
     }
 
-    public static PCollection<Snapshot> write(TableIdentifier table,
-                                              Schema schema,
-                                              String hiveMetastoreUrl,
-                                              WriteFilesResult<Void> resultFiles) {
-        return IcebergIO.writeWithConfig(
-                table,
-                schema,
-                hiveMetastoreUrl,
-                resultFiles,
-                Collections.emptyMap()
-        );
-    }
-
-    public static PCollection<Snapshot> writeWithConfig(TableIdentifier table,
-                                              Schema schema,
-                                              String hiveMetastoreUrl,
-                                              WriteFilesResult<Void> resultFiles,
-                                              Map<String, String> config) {
+    public static PCollection<Snapshot> write(
+            TableIdentifier tableIdentifier,
+            WriteFilesResult<Void> resultFiles,
+            Schema schema,
+            String hiveMetaStoreUrl,
+            Map<String, String> hadoopConfig
+    ) {
         // We take the filenames that are emitted by the FileIO
         final PCollection<String> filenames = resultFiles
                 .getPerDestinationOutputFilenames()
@@ -75,7 +104,7 @@ public class IcebergIO {
 
         // We use a combiner, to combine all the files to a single commit in
         // the Iceberg log
-        final IcebergDataFileCommitter combiner = new IcebergDataFileCommitter(table, schema, hiveMetastoreUrl, config);
+        final IcebergDataFileCommitter combiner = new IcebergDataFileCommitter(tableIdentifier, schema, hiveMetaStoreUrl, hadoopConfig);
         final Combine.Globally<WrittenDataFile, Snapshot> combined = Combine.globally(combiner).withoutDefaults();
 
         // We return the latest snapshot, which can be used to notify downstream consumers.

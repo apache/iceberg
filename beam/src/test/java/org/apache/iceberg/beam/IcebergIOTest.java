@@ -93,7 +93,12 @@ public class IcebergIOTest {
     org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
     TableIdentifier name = TableIdentifier.of("default", "test_batch");
 
-    IcebergIO.write(name, icebergSchema, hiveMetastoreUrl, filesWritten);
+    PCollection<Snapshot> snapshots = new IcebergIO.Builder()
+            .withSchema(icebergSchema)
+            .withResultFiles(filesWritten)
+            .withHiveMetastoreUrl(hiveMetastoreUrl)
+            .withTableIdentifier(name)
+            .build();
 
     p.run();
   }
@@ -138,7 +143,12 @@ public class IcebergIOTest {
     org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
     TableIdentifier name = TableIdentifier.of("default", table_name);
 
-    PCollection<Snapshot> snapshots = IcebergIO.write(name, icebergSchema, hiveMetastoreUrl, filesWritten);
+    PCollection<Snapshot> snapshots = new IcebergIO.Builder()
+            .withSchema(icebergSchema)
+            .withResultFiles(filesWritten)
+            .withHiveMetastoreUrl(hiveMetastoreUrl)
+            .withTableIdentifier(name)
+            .build();
 
     pipeline.run(options).waitUntilFinish();
   }
