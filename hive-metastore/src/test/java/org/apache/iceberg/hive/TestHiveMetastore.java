@@ -37,6 +37,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStore;
 import org.apache.hadoop.hive.metastore.IHMSHandler;
 import org.apache.hadoop.hive.metastore.RetryingHMSHandler;
+import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.TSetIpAddressProcessor;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
@@ -153,7 +154,7 @@ public class TestHiveMetastore {
   }
 
   public void reset() throws Exception {
-    for (String dbName : clientPool.run(client -> client.getAllDatabases())) {
+    for (String dbName : clientPool.run(HiveMetaStoreClient::getAllDatabases)) {
       for (String tblName : clientPool.run(client -> client.getAllTables(dbName))) {
         clientPool.run(client -> {
           client.dropTable(dbName, tblName, true, true, true);
@@ -211,8 +212,9 @@ public class TestHiveMetastore {
     ScriptRunner scriptRunner = new ScriptRunner(connection, true, true);
 
     ClassLoader classLoader = ClassLoader.getSystemClassLoader();
-    InputStream inputStream = classLoader.getResourceAsStream("hive-schema-3.1.0.derby.sql");
-    try (Reader reader = new InputStreamReader(inputStream)) {
+
+    try (InputStream inputStream = classLoader.getResourceAsStream("hive-schema-3.1.0.derby.sql");
+         Reader reader = new InputStreamReader(inputStream)) {
       scriptRunner.runScript(reader);
     }
   }

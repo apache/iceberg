@@ -37,8 +37,11 @@ import org.apache.beam.sdk.values.TimestampedValue;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.hive.HiveCatalog;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -53,6 +56,19 @@ public class IcebergIOTest {
           "Beam window 2 2");
   private static final Instant START_TIME = new Instant(0);
   private static final Duration WINDOW_DURATION = Duration.standardMinutes(1);
+
+  private static TestHiveMetastore metastore;
+
+  @BeforeClass
+  public static void startMetastore() {
+    metastore = new TestHiveMetastore();
+    metastore.start();
+  }
+
+  @AfterClass
+  public static void stopMetastore() {
+    metastore.stop();
+  }
 
   @Rule
   public final transient TestPipeline pipeline = TestPipeline.create();
