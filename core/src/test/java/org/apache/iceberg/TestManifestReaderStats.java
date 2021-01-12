@@ -158,9 +158,9 @@ public class TestManifestReaderStats extends TableTestBase {
       Assert.assertNull(dataFile.columnSizes());
       Assert.assertNull(dataFile.valueCounts());
       Assert.assertNull(dataFile.nullValueCounts());
-      Assert.assertNull(dataFile.nanValueCounts());
       Assert.assertNull(dataFile.lowerBounds());
       Assert.assertNull(dataFile.upperBounds());
+      Assert.assertNull(dataFile.nanValueCounts());
       assertNullRecordCount(dataFile);
     }
   }
@@ -203,9 +203,9 @@ public class TestManifestReaderStats extends TableTestBase {
     Assert.assertNull(dataFile.columnSizes());
     Assert.assertNull(dataFile.valueCounts());
     Assert.assertNull(dataFile.nullValueCounts());
-    Assert.assertNull(dataFile.nanValueCounts());
     Assert.assertNull(dataFile.lowerBounds());
     Assert.assertNull(dataFile.upperBounds());
+    Assert.assertNull(dataFile.nanValueCounts());
 
     Assert.assertEquals(FILE_PATH, dataFile.path()); // always select file path in all test cases
   }

@@ -38,6 +38,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -53,7 +54,7 @@ public class ManifestReader<F extends ContentFile<F>>
     extends CloseableGroup implements CloseableIterable<F> {
   static final ImmutableList<String> ALL_COLUMNS = ImmutableList.of("*");
 
-  private static final Set<String> STATS_COLUMNS = Sets.newHashSet(
+  private static final Set<String> STATS_COLUMNS = ImmutableSet.of(
       "value_counts", "null_value_counts", "nan_value_counts", "lower_bounds", "upper_bounds", "record_count");
 
   protected enum FileType {
