@@ -45,6 +45,7 @@ public class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> 
   public HiveClientPool(int poolSize, Configuration conf) {
     super(poolSize, TTransportException.class);
     this.hiveConf = new HiveConf(conf, HiveClientPool.class);
+    this.hiveConf.addResource(conf);
   }
 
   @Override
