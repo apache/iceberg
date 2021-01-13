@@ -23,20 +23,26 @@ import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import org.apache.flink.core.testutils.OneShotLatch;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
-import org.apache.flink.streaming.api.functions.StatefulSequenceSourceTest;
+import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.operators.StreamSource;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.util.AbstractStreamOperatorTestHarness;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.types.Row;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.TestTableLoader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Before;
@@ -52,6 +58,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       Types.NestedField.required(2, "data", Types.StringType.get())
   );
   private static final FileFormat DEFAULT_FORMAT = FileFormat.PARQUET;
+  private static final long WAIT_TIME_MILLIS = 10 * 1000L;
 
   @Parameterized.Parameters(name = "FormatVersion={0}")
   public static Iterable<Object[]> parameters() {
@@ -76,84 +83,214 @@ public class TestStreamingMonitorFunction extends TableTestBase {
     table = create(SCHEMA, PartitionSpec.unpartitioned());
   }
 
-  @Test
-  public void testCheckpointRestore() throws Exception {
-    GenericAppenderHelper appender = new GenericAppenderHelper(table, DEFAULT_FORMAT, temp);
-    final ConcurrentHashMap<String, List<FlinkInputSplit>> outputCollector = new ConcurrentHashMap<>();
-
-    final OneShotLatch latchToTrigger1 = new OneShotLatch();
-    final OneShotLatch latchToWait1 = new OneShotLatch();
-    StreamingMonitorFunction source1 = createStreamingMonitorFunction();
-    StreamSource<FlinkInputSplit, StreamingMonitorFunction> src1 = new StreamSource<>(source1);
-    AbstractStreamOperatorTestHarness<FlinkInputSplit> testHarness1 =
-        new AbstractStreamOperatorTestHarness<>(src1, 1, 1, 0);
-    testHarness1.setup();
-    testHarness1.open();
-
-    // run the source asynchronously
-    Thread runner1 = new Thread(() -> {
+  private void runSourceFunctionInTask(TestSourceContext sourceContext, StreamingMonitorFunction function) {
+    Thread task = new Thread(() -> {
       try {
-        source1.run(new StatefulSequenceSourceTest.BlockingSourceContext<>(
-            "1", latchToTrigger1, latchToWait1, outputCollector, 1));
-      } catch (Throwable t) {
-        throw new RuntimeException(t);
+        function.run(sourceContext);
+      } catch (Exception e) {
+        throw new RuntimeException(e);
       }
     });
-
-    runner1.start();
-
-    appender.appendToTable(RandomGenericData.generate(SCHEMA, 1, 0L));
-    if (!latchToTrigger1.isTriggered()) {
-      latchToTrigger1.await();
-    }
-
-    OperatorSubtaskState snapshot = AbstractStreamOperatorTestHarness.repackageState(testHarness1.snapshot(0L, 0L));
-
-    final OneShotLatch latchToTrigger2 = new OneShotLatch();
-    final OneShotLatch latchToWait2 = new OneShotLatch();
-    StreamingMonitorFunction source2 = createStreamingMonitorFunction();
-    StreamSource<FlinkInputSplit, StreamingMonitorFunction> src2 = new StreamSource<>(source2);
-    AbstractStreamOperatorTestHarness<FlinkInputSplit> testHarness2 =
-        new AbstractStreamOperatorTestHarness<>(src2, 1, 1, 0);
-    testHarness2.setup();
-    testHarness2.initializeState(snapshot);
-    testHarness2.open();
-    latchToWait2.trigger();
-
-    // run the source asynchronously
-    Thread runner2 = new Thread(() -> {
-      try {
-        source2.run(new StatefulSequenceSourceTest.BlockingSourceContext<>(
-            "2", latchToTrigger2, latchToWait2, outputCollector, 1));
-      } catch (Throwable t) {
-        throw new RuntimeException(t);
-      }
-    });
-    runner2.start();
-
-    appender.appendToTable(RandomGenericData.generate(SCHEMA, 1, 0L));
-    if (!latchToTrigger2.isTriggered()) {
-      latchToTrigger2.await();
-    }
-
-    Assert.assertEquals(2, outputCollector.size()); // we have 2 tasks.
-    Assert.assertEquals(1, outputCollector.get("1").size());
-    Assert.assertEquals(1, outputCollector.get("2").size());
-
-    // wait for everybody ot finish.
-    latchToWait1.trigger();
-    latchToWait2.trigger();
-    source1.cancel();
-    source2.cancel();
-    runner1.join();
-    runner2.join();
+    task.start();
   }
 
-  private StreamingMonitorFunction createStreamingMonitorFunction() {
-    ScanContext ctxt = ScanContext.builder()
+  @Test
+  public void testConsumeWithoutStartSnapshotId() throws Exception {
+    List<List<Record>> recordsList = generateRecordsAndCommitTxn(10);
+    ScanContext scanContext = ScanContext.builder()
         .monitorInterval(Duration.ofMillis(100))
         .build();
 
-    return new StreamingMonitorFunction(TestTableLoader.of(tableDir.getAbsolutePath()), ctxt);
+    StreamingMonitorFunction function = createFunction(scanContext);
+    try (AbstractStreamOperatorTestHarness<FlinkInputSplit> harness = createHarness(function)) {
+      harness.setup();
+      harness.open();
+
+      CountDownLatch latch = new CountDownLatch(1);
+      TestSourceContext sourceContext = new TestSourceContext(latch);
+      runSourceFunctionInTask(sourceContext, function);
+
+      Assert.assertTrue("Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
+
+      // Stop the stream task.
+      function.close();
+
+      Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
+      TestFlinkScan.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
+    }
+  }
+
+  @Test
+  public void testConsumeFromStartSnapshotId() throws Exception {
+    // Commit the first five transactions.
+    generateRecordsAndCommitTxn(5);
+    long startSnapshotId = table.currentSnapshot().snapshotId();
+
+    // Commit the next five transactions.
+    List<List<Record>> recordsList = generateRecordsAndCommitTxn(5);
+
+    ScanContext scanContext = ScanContext.builder()
+        .monitorInterval(Duration.ofMillis(100))
+        .startSnapshotId(startSnapshotId)
+        .build();
+
+    StreamingMonitorFunction function = createFunction(scanContext);
+    try (AbstractStreamOperatorTestHarness<FlinkInputSplit> harness = createHarness(function)) {
+      harness.setup();
+      harness.open();
+
+      CountDownLatch latch = new CountDownLatch(1);
+      TestSourceContext sourceContext = new TestSourceContext(latch);
+      runSourceFunctionInTask(sourceContext, function);
+
+      Assert.assertTrue("Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
+
+      // Stop the stream task.
+      function.close();
+
+      Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
+      TestFlinkScan.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
+    }
+  }
+
+  @Test
+  public void testCheckpointRestore() throws Exception {
+    List<List<Record>> recordsList = generateRecordsAndCommitTxn(10);
+    ScanContext scanContext = ScanContext.builder()
+        .monitorInterval(Duration.ofMillis(100))
+        .build();
+
+    StreamingMonitorFunction func = createFunction(scanContext);
+    OperatorSubtaskState state;
+    try (AbstractStreamOperatorTestHarness<FlinkInputSplit> harness = createHarness(func)) {
+      harness.setup();
+      harness.open();
+
+      CountDownLatch latch = new CountDownLatch(1);
+      TestSourceContext sourceContext = new TestSourceContext(latch);
+      runSourceFunctionInTask(sourceContext, func);
+
+      Assert.assertTrue("Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
+
+      state = harness.snapshot(1, 1);
+
+      // Stop the stream task.
+      func.close();
+
+      Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
+      TestFlinkScan.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(recordsList)), SCHEMA);
+    }
+
+    List<List<Record>> newRecordsList = generateRecordsAndCommitTxn(10);
+    StreamingMonitorFunction newFunc = createFunction(scanContext);
+    try (AbstractStreamOperatorTestHarness<FlinkInputSplit> harness = createHarness(newFunc)) {
+      harness.setup();
+      // Recover to process the remaining snapshots.
+      harness.initializeState(state);
+      harness.open();
+
+      CountDownLatch latch = new CountDownLatch(1);
+      TestSourceContext sourceContext = new TestSourceContext(latch);
+      runSourceFunctionInTask(sourceContext, newFunc);
+
+      Assert.assertTrue("Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
+
+      // Stop the stream task.
+      newFunc.close();
+
+      Assert.assertEquals("Should produce the expected splits", 1, sourceContext.splits.size());
+      TestFlinkScan.assertRecords(sourceContext.toRows(), Lists.newArrayList(Iterables.concat(newRecordsList)), SCHEMA);
+    }
+  }
+
+  private List<List<Record>> generateRecordsAndCommitTxn(int commitTimes) throws IOException {
+    List<List<Record>> expectedRecords = Lists.newArrayList();
+    for (int i = 0; i < commitTimes; i++) {
+      List<Record> records = RandomGenericData.generate(SCHEMA, 100, 0L);
+      expectedRecords.add(records);
+
+      // Commit those records to iceberg table.
+      writeRecords(records);
+    }
+    return expectedRecords;
+  }
+
+  private void writeRecords(List<Record> records) throws IOException {
+    GenericAppenderHelper appender = new GenericAppenderHelper(table, DEFAULT_FORMAT, temp);
+    appender.appendToTable(records);
+  }
+
+  private StreamingMonitorFunction createFunction(ScanContext scanContext) {
+    return new StreamingMonitorFunction(TestTableLoader.of(tableDir.getAbsolutePath()), scanContext);
+  }
+
+  private AbstractStreamOperatorTestHarness<FlinkInputSplit> createHarness(StreamingMonitorFunction function)
+      throws Exception {
+    StreamSource<FlinkInputSplit, StreamingMonitorFunction> streamSource = new StreamSource<>(function);
+    return new AbstractStreamOperatorTestHarness<>(streamSource, 1, 1, 0);
+  }
+
+  private class TestSourceContext implements SourceFunction.SourceContext<FlinkInputSplit> {
+    private final List<FlinkInputSplit> splits = Lists.newArrayList();
+    private final Object checkpointLock = new Object();
+    private final CountDownLatch latch;
+
+    TestSourceContext(CountDownLatch latch) {
+      this.latch = latch;
+    }
+
+    @Override
+    public void collect(FlinkInputSplit element) {
+      splits.add(element);
+      latch.countDown();
+    }
+
+    @Override
+    public void collectWithTimestamp(FlinkInputSplit element, long timestamp) {
+      collect(element);
+    }
+
+    @Override
+    public void emitWatermark(Watermark mark) {
+
+    }
+
+    @Override
+    public void markAsTemporarilyIdle() {
+
+    }
+
+    @Override
+    public Object getCheckpointLock() {
+      return checkpointLock;
+    }
+
+    @Override
+    public void close() {
+
+    }
+
+    private List<Row> toRows() throws IOException {
+      FlinkInputFormat format = FlinkSource.forRowData()
+          .tableLoader(TestTableLoader.of(tableDir.getAbsolutePath()))
+          .buildFormat();
+
+      List<Row> rows = Lists.newArrayList();
+      for (FlinkInputSplit split : splits) {
+        format.open(split);
+
+        RowData element = null;
+        try {
+          while (!format.reachedEnd()) {
+            element = format.nextRecord(element);
+            rows.add(Row.of(element.getInt(0), element.getString(1).toString()));
+          }
+        } finally {
+          format.close();
+        }
+      }
+
+      return rows;
+    }
   }
 }
