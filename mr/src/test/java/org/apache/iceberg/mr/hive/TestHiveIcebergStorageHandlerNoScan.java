@@ -498,7 +498,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
       );
     }
 
-    shell.executeStatement("SET " + InputFormatConfig.SCHEMA_AUTO_CONVERSION + "=true");
+    shell.setHiveSessionValue(InputFormatConfig.SCHEMA_AUTO_CONVERSION, "true");
 
     for (String notSupportedType : notSupportedTypes.keySet()) {
       shell.executeStatement("CREATE EXTERNAL TABLE not_supported_types (not_supported " + notSupportedType + ") " +

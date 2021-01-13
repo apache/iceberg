@@ -30,12 +30,16 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Package private class for converting Hive schema to Iceberg schema. Should be used only by the HiveSchemaUtil.
  * Use {@link HiveSchemaUtil} for conversion purposes.
  */
 class HiveSchemaConverter {
+  private static final Logger LOG = LoggerFactory.getLogger(HiveSchemaConverter.class);
+
   private int id;
   private boolean autoConvert;
 
@@ -76,6 +80,7 @@ class HiveSchemaConverter {
           case BYTE:
           case SHORT:
             if (autoConvert) {
+              LOG.debug("Using auto conversion from SHORT to INTEGER");
               return Types.IntegerType.get();
             } else {
               throw new IllegalArgumentException("Unsupported Hive type (" +
@@ -91,6 +96,7 @@ class HiveSchemaConverter {
           case CHAR:
           case VARCHAR:
             if (autoConvert) {
+              LOG.debug("Using auto conversion from {} to STRING", typeInfo.getCategory());
               return Types.StringType.get();
             } else {
               throw new IllegalArgumentException("Unsupported Hive type (" +
