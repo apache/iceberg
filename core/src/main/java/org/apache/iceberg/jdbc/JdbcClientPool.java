@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Properties;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ClientPool;
-import org.apache.iceberg.exceptions.UncheckedSQLException;
 
 class JdbcClientPool extends ClientPool<Connection, SQLException> {
 

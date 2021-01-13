@@ -36,7 +36,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.exceptions.UncheckedSQLException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
@@ -69,14 +68,14 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       throw new RuntimeException("Interrupted during refresh", e);
     } catch (SQLException e) {
       // unknown exception happened when getting table from catalog
-      throw new UncheckedSQLException(String.format("Failed to get table from catalog %s.%s", catalogName,
-          tableIdentifier), e);
+      throw new UncheckedSQLException(
+          String.format("Failed to get table %s from catalog %s", tableIdentifier, catalogName), e);
     }
 
     // Table not exists AND currentMetadataLocation is not NULL!
     if (table.isEmpty() && currentMetadataLocation() != null) {
-      throw new NoSuchTableException("Failed to get table from catalog %s.%s!" +
-          " maybe another process deleted it!", catalogName, tableIdentifier);
+      throw new NoSuchTableException("Failed to get table %s from catalog %s!" +
+          " maybe another process deleted it!", tableIdentifier, catalogName);
     }
 
     // Table not exists in the catalog! metadataLocation is null here!
@@ -87,8 +86,8 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
 
     // Table exists but metadataLocation is null
     if (table.getOrDefault("metadata_location", null) == null) {
-      throw new RuntimeException(String.format("Failed to get metadata location if the table %s.%s", catalogName,
-          tableIdentifier));
+      throw new RuntimeException(String.format("Failed to get metadata location of the table %s from catalog %s",
+          tableIdentifier, catalogName));
     }
 
     refreshFromMetadataLocation(table.get("metadata_location"));
@@ -147,8 +146,8 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     if (updatedRecords == 1) {
       LOG.debug("Successfully committed to existing table: {}", tableIdentifier);
     } else {
-      throw new CommitFailedException("Failed to commit table: %s.%s! maybe another process changed it!",
-          catalogName, tableIdentifier);
+      throw new CommitFailedException("Failed to commit the table %s from catalog %s! " +
+          "Maybe another process changed it!", tableIdentifier, catalogName);
     }
 
   }
@@ -167,7 +166,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     if (insertRecord == 1) {
       LOG.debug("Successfully committed to new table: {}", tableIdentifier);
     } else {
-      throw new CommitFailedException("Failed to commit table: %s.%s", catalogName, tableIdentifier);
+      throw new CommitFailedException("Failed to commit the table %s from catalog %s", tableIdentifier, catalogName);
     }
   }
 
