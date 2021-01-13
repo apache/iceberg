@@ -94,9 +94,9 @@ subprojects {
       exclude group: 'org.pentaho', module: 'pentaho-aggdesigner-algorithm'
 
       resolutionStrategy {
-        force 'com.fasterxml.jackson.module:jackson-module-scala_2.11:2.10.2'
-        force 'com.fasterxml.jackson.module:jackson-module-scala_2.12:2.10.2'
-        force 'com.fasterxml.jackson.module:jackson-module-paranamer:2.10.2'
+        force 'com.fasterxml.jackson.module:jackson-module-scala_2.11:2.11.4'
+        force 'com.fasterxml.jackson.module:jackson-module-scala_2.12:2.11.4'
+        force 'com.fasterxml.jackson.module:jackson-module-paranamer:2.11.4'
       }
     }
 
