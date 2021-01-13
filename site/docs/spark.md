@@ -1100,7 +1100,7 @@ rather than the original table location.
 actions like `expire_snapshots` which would physically delete data files. Iceberg deletes, which only effect metadata,
 are still allowed. In addition, any operations which effect the original data files will disrupt the Snapshot's 
 integrity. Delete statements executed against the original Hive table will remove original data files and the
-`snapshot` table will not longer be able to access them.
+`snapshot` table will no longer be able to access them.
 
 [migrate](#migrate-table-procedure) which can be used without disrupting users of the original table.
 
@@ -1124,11 +1124,11 @@ integrity. Delete statements executed against the original Hive table will remov
 Make an isolated Iceberg table which references table `db.sample` named `db.snap` at the
 catalog's default location for `db.snap`.
 ```sql
-    CALL catalog_name hive_prod.system.snapshot('db.sample', 'db.snap')
+    CALL hive_prod.system.snapshot('db.sample', 'db.snap')
 ```
 
 Migrate an isolated Iceberg table which references table `db.sample` named `db.snap` at
 a manually specified location `/tmp/temptable/`.
 ```sql
-    CALL catalog_name hive_prod.system.snapshot('db.sample', 'db.snap', '/tmp/temptable/')
+    CALL hive_prod.system.snapshot('db.sample', 'db.snap', '/tmp/temptable/')
 ```
