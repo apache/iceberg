@@ -30,12 +30,12 @@ public class IcebergFixedObjectInspector extends AbstractPrimitiveJavaObjectInsp
 
   private static final IcebergFixedObjectInspector INSTANCE = new IcebergFixedObjectInspector();
 
-  private IcebergFixedObjectInspector() {
-    super(TypeInfoFactory.binaryTypeInfo);
-  }
-
   public static IcebergFixedObjectInspector get() {
     return INSTANCE;
+  }
+
+  private IcebergFixedObjectInspector() {
+    super(TypeInfoFactory.binaryTypeInfo);
   }
 
   @Override

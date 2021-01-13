@@ -225,6 +225,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   public void testJoinTablesSupportedTypes() throws IOException {
     for (int i = 0; i < SUPPORTED_TYPES.size(); i++) {
       Type type = SUPPORTED_TYPES.get(i);
+      // TODO: remove this filter when issue #1881 is resolved
       if (type == Types.UUIDType.get() && fileFormat == FileFormat.PARQUET) {
         continue;
       }
@@ -247,6 +248,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   public void testSelectDistinctFromTable() throws IOException {
     for (int i = 0; i < SUPPORTED_TYPES.size(); i++) {
       Type type = SUPPORTED_TYPES.get(i);
+      // TODO: remove this filter when issue #1881 is resolved
       if (type == Types.UUIDType.get() && fileFormat == FileFormat.PARQUET) {
         continue;
       }
