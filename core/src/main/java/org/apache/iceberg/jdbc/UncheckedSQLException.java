@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.exceptions;
+package org.apache.iceberg.jdbc;
 
 import java.sql.SQLException;
 
