@@ -49,8 +49,8 @@ public class TestMetricsTruncation {
     ByteBuffer truncated = truncateBinary(original, 2);
     Assert.assertTrue("Truncating with a length less than the input's remaining size should truncate properly",
         truncated.remaining() == 2 && truncated.position() == 0);
-    Assert.assertEquals("Truncating with a length less than the input's remaining size should return a byte buffer",
-        4, original.remaining());
+    Assert.assertTrue("Truncating should not modify the input buffer",
+        original.remaining() == 4 && original.position() == 0);
     AssertHelpers.assertThrows("Should not allow a negative truncation length",
         IllegalArgumentException.class, "length should be non-negative",
         () -> truncateBinary(original, -1));
