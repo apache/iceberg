@@ -21,8 +21,8 @@ package org.apache.iceberg.flink.source;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperatorFactory;
@@ -32,107 +32,237 @@ import org.apache.flink.streaming.runtime.tasks.mailbox.SteppingMailboxProcessor
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.Row;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.TableScan;
+import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.flink.TestTableLoader;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
+@RunWith(Parameterized.class)
+public class TestStreamingReaderOperator extends TableTestBase {
 
-public class TestStreamingReaderOperator {
+  private static final Schema SCHEMA = new Schema(
+      Types.NestedField.required(1, "id", Types.IntegerType.get()),
+      Types.NestedField.required(2, "data", Types.StringType.get())
+  );
+  private static final FileFormat DEFAULT_FORMAT = FileFormat.PARQUET;
 
-  @ClassRule
-  public static final TemporaryFolder TEMP = new TemporaryFolder();
+  @Parameterized.Parameters(name = "FormatVersion={0}")
+  public static Iterable<Object[]> parameters() {
+    return ImmutableList.of(
+        new Object[] {1},
+        new Object[] {2}
+    );
+  }
 
-  private static final Schema SCHEMA = new Schema(required(1, "data", Types.StringType.get()));
-  private static final Configuration CONF = new Configuration();
-
-  private Table table;
-  private String location;
-  private List<Record> expected;
+  public TestStreamingReaderOperator(int formatVersion) {
+    super(formatVersion);
+  }
 
   @Before
-  public void before() throws IOException {
-    File warehouseFile = TEMP.newFolder();
-    Assert.assertTrue(warehouseFile.delete());
-    location = "file:" + warehouseFile;
-    table = new HadoopTables(CONF).create(SCHEMA, location);
+  @Override
+  public void setupTable() throws IOException {
+    this.tableDir = temp.newFolder();
+    this.metadataDir = new File(tableDir, "metadata");
+    Assert.assertTrue(tableDir.delete());
 
-    GenericAppenderHelper appender = new GenericAppenderHelper(table, FileFormat.AVRO, TEMP);
-    expected = Lists.newArrayList();
-    for (int i = 0; i < 10; i++) {
-      List<Record> records = RandomGenericData.generate(SCHEMA, 100, 0L);
-      appender.appendToTable(records);
-      expected.addAll(records);
+    // Construct the iceberg table.
+    table = create(SCHEMA, PartitionSpec.unpartitioned());
+  }
+
+  @Test
+  public void testProcessAllRecords() throws Exception {
+    List<List<Record>> expectedRecords = generateRecordsAndCommitTxn(10);
+
+    List<FlinkInputSplit> splits = generateSplits();
+    Assert.assertEquals("Should have 10 splits", 10, splits.size());
+
+    try (OneInputStreamOperatorTestHarness<FlinkInputSplit, RowData> harness = createReader()) {
+      harness.setup();
+      harness.open();
+
+      SteppingMailboxProcessor processor = createLocalMailbox(harness);
+
+      List<Record> expected = Lists.newArrayList();
+      for (int i = 0; i < splits.size(); i++) {
+        // Process this element to enqueue to mail-box.
+        harness.processElement(splits.get(i), -1);
+
+        // Run the mail-box once to read all records from the given split.
+        Assert.assertTrue("Should processed 1 split", processor.runMailboxStep());
+
+        // Assert the output has expected elements.
+        expected.addAll(expectedRecords.get(i));
+        TestFlinkScan.assertRecords(readOutputValues(harness), expected, SCHEMA);
+      }
+    }
+  }
+
+  @Test
+  public void testTriggerCheckpoint() throws Exception {
+    // Received emitted splits: split1, split2, split3, checkpoint request is triggered when reading records from
+    // split1.
+    List<List<Record>> expectedRecords = generateRecordsAndCommitTxn(3);
+
+    List<FlinkInputSplit> splits = generateSplits();
+    Assert.assertEquals("Should have 3 splits", 3, splits.size());
+
+    long timestamp = 0;
+    try (OneInputStreamOperatorTestHarness<FlinkInputSplit, RowData> harness = createReader()) {
+      harness.setup();
+      harness.open();
+
+      SteppingMailboxProcessor processor = createLocalMailbox(harness);
+
+      harness.processElement(splits.get(0), ++timestamp);
+      harness.processElement(splits.get(1), ++timestamp);
+      harness.processElement(splits.get(2), ++timestamp);
+
+      // Trigger snapshot state, it will start to work once all records from split0 are read.
+      processor.getMainMailboxExecutor()
+          .execute(() -> harness.snapshot(1, 3), "Trigger snapshot");
+
+      Assert.assertTrue("Should have processed the split0", processor.runMailboxStep());
+      Assert.assertTrue("Should have processed the snapshot state action", processor.runMailboxStep());
+
+      TestFlinkScan.assertRecords(readOutputValues(harness), expectedRecords.get(0), SCHEMA);
+
+      // Read records from split1.
+      Assert.assertTrue("Should have processed the split1", processor.runMailboxStep());
+
+      // Read records from split2.
+      Assert.assertTrue("Should have processed the split2", processor.runMailboxStep());
+
+      TestFlinkScan.assertRecords(readOutputValues(harness),
+          Lists.newArrayList(Iterables.concat(expectedRecords)), SCHEMA);
     }
   }
 
   @Test
   public void testCheckpointRestore() throws Exception {
+    List<List<Record>> expectedRecords = generateRecordsAndCommitTxn(15);
+
     List<FlinkInputSplit> splits = generateSplits();
-    Assert.assertEquals("Should have 1 splits", 1, splits.size());
+    Assert.assertEquals("Should have 10 splits", 15, splits.size());
 
     OperatorSubtaskState state;
+    List<Record> expected = Lists.newArrayList();
     try (OneInputStreamOperatorTestHarness<FlinkInputSplit, RowData> harness = createReader()) {
       harness.setup();
       harness.open();
+
+      // Enqueue all the splits.
       for (FlinkInputSplit split : splits) {
         harness.processElement(split, -1);
       }
 
+      // Read all records from the first five splits.
+      SteppingMailboxProcessor localMailbox = createLocalMailbox(harness);
+      for (int i = 0; i < 5; i++) {
+        expected.addAll(expectedRecords.get(i));
+        Assert.assertTrue("Should have processed the split#" + i, localMailbox.runMailboxStep());
+
+        TestFlinkScan.assertRecords(readOutputValues(harness), expected, SCHEMA);
+      }
+
+      // Snapshot state now,  there're 10 splits left in the state.
       state = harness.snapshot(1, 1);
     }
 
-    List<Row> results;
+    expected.clear();
     try (OneInputStreamOperatorTestHarness<FlinkInputSplit, RowData> harness = createReader()) {
       harness.setup();
+      // Recover to process the remaining splits.
       harness.initializeState(state);
       harness.open();
 
       SteppingMailboxProcessor localMailbox = createLocalMailbox(harness);
-      while (true) {
-        if (!localMailbox.runMailboxStep()) {
-          break;
-        }
-      }
-      results = harness.extractOutputValues().stream().map(r -> Row.of(r.getString(0).toString()))
-          .collect(Collectors.toList());
-    }
 
-    TestFlinkScan.assertRecords(results, expected, SCHEMA);
+      for (int i = 5; i < 10; i++) {
+        expected.addAll(expectedRecords.get(i));
+        Assert.assertTrue("Should have processed one split#" + i, localMailbox.runMailboxStep());
+
+        TestFlinkScan.assertRecords(readOutputValues(harness), expected, SCHEMA);
+      }
+
+      // Let's process the final 5 splits now.
+      for (int i = 10; i < 15; i++) {
+        expected.addAll(expectedRecords.get(i));
+        harness.processElement(splits.get(i), 1);
+
+        Assert.assertTrue("Should have processed the split#" + i, localMailbox.runMailboxStep());
+        TestFlinkScan.assertRecords(readOutputValues(harness), expected, SCHEMA);
+      }
+    }
   }
 
-  private List<FlinkInputSplit> generateSplits() throws IOException {
-    TableScan scan = table.newScan();
-    List<FlinkInputSplit> splits = Lists.newArrayList();
-    try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
-      List<CombinedScanTask> tasks = Lists.newArrayList(tasksIterable);
-      for (int i = 0; i < tasks.size(); i++) {
-        splits.add(new FlinkInputSplit(i, tasks.get(i)));
-      }
+  private List<Row> readOutputValues(OneInputStreamOperatorTestHarness<FlinkInputSplit, RowData> harness) {
+    List<Row> results = Lists.newArrayList();
+    for (RowData rowData : harness.extractOutputValues()) {
+      results.add(Row.of(rowData.getInt(0), rowData.getString(1).toString()));
     }
-    return splits;
+    return results;
+  }
+
+  private List<List<Record>> generateRecordsAndCommitTxn(int commitTimes) throws IOException {
+    List<List<Record>> expectedRecords = Lists.newArrayList();
+    for (int i = 0; i < commitTimes; i++) {
+      List<Record> records = RandomGenericData.generate(SCHEMA, 100, 0L);
+      expectedRecords.add(records);
+
+      // Commit those records to iceberg table.
+      writeRecords(records);
+    }
+    return expectedRecords;
+  }
+
+  private void writeRecords(List<Record> records) throws IOException {
+    GenericAppenderHelper appender = new GenericAppenderHelper(table, DEFAULT_FORMAT, temp);
+    appender.appendToTable(records);
+  }
+
+  private List<FlinkInputSplit> generateSplits() {
+    List<FlinkInputSplit> inputSplits = Lists.newArrayList();
+
+    List<Long> snapshotIds = SnapshotUtil.currentAncestors(table);
+    for (int i = snapshotIds.size() - 1; i >= 0; i--) {
+      ScanContext scanContext;
+      if (i == snapshotIds.size() - 1) {
+        // Generate the splits from the first snapshot.
+        scanContext = ScanContext.builder()
+            .useSnapshotId(snapshotIds.get(i))
+            .build();
+      } else {
+        // Generate the splits between the previous snapshot and current snapshot.
+        scanContext = ScanContext.builder()
+            .startSnapshotId(snapshotIds.get(i + 1))
+            .endSnapshotId(snapshotIds.get(i))
+            .build();
+      }
+
+      Collections.addAll(inputSplits, FlinkSplitGenerator.createInputSplits(table, scanContext));
+    }
+
+    return inputSplits;
   }
 
   private OneInputStreamOperatorTestHarness<FlinkInputSplit, RowData> createReader() throws Exception {
+    // This input format is used to opening the emitted split.
     FlinkInputFormat inputFormat = FlinkSource.forRowData()
-        .streaming(false)
-        .tableLoader(TableLoader.fromHadoopTable(location))
+        .tableLoader(TestTableLoader.of(tableDir.getAbsolutePath()))
         .buildFormat();
 
     OneInputStreamOperatorFactory<FlinkInputSplit, RowData> factory = StreamingReaderOperator.factory(inputFormat);

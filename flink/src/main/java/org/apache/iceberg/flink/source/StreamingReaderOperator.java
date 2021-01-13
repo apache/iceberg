@@ -120,6 +120,14 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
   }
 
   @Override
+  public void snapshotState(StateSnapshotContext context) throws Exception {
+    super.snapshotState(context);
+
+    inputSplitsState.clear();
+    inputSplitsState.addAll(Lists.newArrayList(splits));
+  }
+
+  @Override
   public void processElement(StreamRecord<FlinkInputSplit> element) {
     splits.add(element.getValue());
     enqueueProcessSplits();
@@ -127,20 +135,19 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
 
   private void enqueueProcessSplits() {
     if (currentSplitState == SplitState.IDLE) {
-      executor.execute(this::processSplits, this.getClass().getSimpleName());
       currentSplitState = SplitState.RUNNING;
+      executor.execute(this::processSplits, this.getClass().getSimpleName());
     }
   }
 
   private void processSplits() throws IOException {
     FlinkInputSplit split = splits.poll();
     if (split == null) {
+      currentSplitState = SplitState.IDLE;
       return;
     }
 
-    LOG.debug("Start to process the split: {}", split);
     format.open(split);
-
     try {
       RowData nextElement = null;
       while (!format.reachedEnd()) {
@@ -185,15 +192,7 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
     }
   }
 
-  @Override
-  public void snapshotState(StateSnapshotContext context) throws Exception {
-    super.snapshotState(context);
-
-    inputSplitsState.clear();
-    inputSplitsState.addAll(Lists.newArrayList(splits));
-  }
-
-  public static OneInputStreamOperatorFactory<FlinkInputSplit, RowData> factory(FlinkInputFormat format) {
+  static OneInputStreamOperatorFactory<FlinkInputSplit, RowData> factory(FlinkInputFormat format) {
     return new OperatorFactory(format);
   }
 

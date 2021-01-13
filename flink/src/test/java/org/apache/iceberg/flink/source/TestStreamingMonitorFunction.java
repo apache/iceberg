@@ -29,52 +29,56 @@ import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.streaming.api.functions.StatefulSequenceSourceTest;
 import org.apache.flink.streaming.api.operators.StreamSource;
 import org.apache.flink.streaming.util.AbstractStreamOperatorTestHarness;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
+import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
-import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.flink.TestTableLoader;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
+@RunWith(Parameterized.class)
+public class TestStreamingMonitorFunction extends TableTestBase {
 
-public class TestStreamingMonitorFunction {
+  private static final Schema SCHEMA = new Schema(
+      Types.NestedField.required(1, "id", Types.IntegerType.get()),
+      Types.NestedField.required(2, "data", Types.StringType.get())
+  );
+  private static final FileFormat DEFAULT_FORMAT = FileFormat.PARQUET;
 
-  @ClassRule
-  public static final TemporaryFolder TEMP = new TemporaryFolder();
-
-  private static final Schema SCHEMA = new Schema(required(1, "data", Types.StringType.get()));
-
-  private Table table;
-  private String location;
-
-  @Before
-  public void before() throws IOException {
-    File warehouseFile = TEMP.newFolder();
-    Assert.assertTrue(warehouseFile.delete());
-    location = "file:" + warehouseFile;
-    table = new HadoopTables(new Configuration()).create(SCHEMA, location);
+  @Parameterized.Parameters(name = "FormatVersion={0}")
+  public static Iterable<Object[]> parameters() {
+    return ImmutableList.of(
+        new Object[] {1},
+        new Object[] {2}
+    );
   }
 
-  private StreamingMonitorFunction createStreamingMonitorFunction() {
-    ScanContext ctxt = ScanContext.builder()
-        .monitorInterval(Duration.ofMillis(100))
-        .build();
+  public TestStreamingMonitorFunction(int formatVersion) {
+    super(formatVersion);
+  }
 
-    return new StreamingMonitorFunction(TableLoader.fromHadoopTable(location), ctxt);
+  @Before
+  @Override
+  public void setupTable() throws IOException {
+    this.tableDir = temp.newFolder();
+    this.metadataDir = new File(tableDir, "metadata");
+    Assert.assertTrue(tableDir.delete());
+
+    // Construct the iceberg table.
+    table = create(SCHEMA, PartitionSpec.unpartitioned());
   }
 
   @Test
   public void testCheckpointRestore() throws Exception {
-    GenericAppenderHelper appender = new GenericAppenderHelper(table, FileFormat.AVRO, TEMP);
+    GenericAppenderHelper appender = new GenericAppenderHelper(table, DEFAULT_FORMAT, temp);
     final ConcurrentHashMap<String, List<FlinkInputSplit>> outputCollector = new ConcurrentHashMap<>();
 
     final OneShotLatch latchToTrigger1 = new OneShotLatch();
@@ -143,5 +147,13 @@ public class TestStreamingMonitorFunction {
     source2.cancel();
     runner1.join();
     runner2.join();
+  }
+
+  private StreamingMonitorFunction createStreamingMonitorFunction() {
+    ScanContext ctxt = ScanContext.builder()
+        .monitorInterval(Duration.ofMillis(100))
+        .build();
+
+    return new StreamingMonitorFunction(TestTableLoader.of(tableDir.getAbsolutePath()), ctxt);
   }
 }
