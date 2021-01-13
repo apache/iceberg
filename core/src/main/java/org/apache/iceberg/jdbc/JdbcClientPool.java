@@ -29,7 +29,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.exceptions.UncheckedSQLException;
 
-public class JdbcClientPool extends ClientPool<Connection, SQLException> {
+class JdbcClientPool extends ClientPool<Connection, SQLException> {
 
   private final String dbUrl;
   private final Map<String, String> properties;
@@ -39,7 +39,7 @@ public class JdbcClientPool extends ClientPool<Connection, SQLException> {
         String.valueOf(CatalogProperties.HIVE_CLIENT_POOL_SIZE_DEFAULT))), dbUrl, props);
   }
 
-  public JdbcClientPool(int poolSize, String dbUrl, Map<String, String> props) {
+  JdbcClientPool(int poolSize, String dbUrl, Map<String, String> props) {
     super(poolSize, SQLNonTransientConnectionException.class);
     properties = props;
     this.dbUrl = dbUrl;
@@ -49,7 +49,7 @@ public class JdbcClientPool extends ClientPool<Connection, SQLException> {
   protected Connection newClient() {
     try {
       Properties dbProps = new Properties();
-      properties.forEach((key, value) -> dbProps.put(key.replace(JdbcCatalog.JDBC_PARAM_PREFIX, ""), value));
+      properties.forEach((key, value) -> dbProps.put(key.replace(JdbcCatalog.PROPERTY_PREFIX, ""), value));
       return DriverManager.getConnection(dbUrl, dbProps);
     } catch (SQLException e) {
       throw new UncheckedSQLException("Failed to connect: " + dbUrl, e);
@@ -67,7 +67,7 @@ public class JdbcClientPool extends ClientPool<Connection, SQLException> {
     try {
       client.close();
     } catch (SQLException e) {
-      throw new RuntimeException("Failed to connect to database!", e);
+      throw new UncheckedSQLException("Failed to connect to database!", e);
     }
   }
 }

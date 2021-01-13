@@ -109,8 +109,8 @@ public class TestJdbcCatalog {
     properties.put(CatalogProperties.HIVE_URI,
         "jdbc:h2:mem:ic" + UUID.randomUUID().toString().replace("-", "") + ";");
 
-    properties.put(JdbcCatalog.JDBC_PARAM_PREFIX + "username", "user");
-    properties.put(JdbcCatalog.JDBC_PARAM_PREFIX + "password", "password");
+    properties.put(JdbcCatalog.PROPERTY_PREFIX + "username", "user");
+    properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
     warehouseLocation = this.tableDir.getAbsolutePath();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
     catalog = new JdbcCatalog();

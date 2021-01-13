@@ -103,46 +103,11 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       if (!table.isEmpty()) {
         validateMetadataLocation(table, base);
         String oldMetadataLocation = base.metadataFileLocation();
-
         // Start atomic update
-        int updatedRecords = connections.run(conn -> {
-          try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.DO_COMMIT_SQL)) {
-            // UPDATE
-            sql.setString(1, newMetadataLocation);
-            sql.setString(2, oldMetadataLocation);
-            // WHERE
-            sql.setString(3, catalogName);
-            sql.setString(4, JdbcUtil.namespaceToString(tableIdentifier.namespace()));
-            sql.setString(5, tableIdentifier.name());
-            sql.setString(6, oldMetadataLocation);
-            return sql.executeUpdate();
-          }
-        });
-
-        if (updatedRecords == 1) {
-          LOG.debug("Successfully committed to existing table: {}", tableIdentifier);
-        } else {
-          throw new CommitFailedException("Failed to commit table: %s.%s! maybe another process changed it!",
-              catalogName, tableIdentifier);
-        }
-
+        updateTable(newMetadataLocation, oldMetadataLocation);
       } else {
         // table not exists create it!
-        int insertRecord = connections.run(conn -> {
-          try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.DO_COMMIT_CREATE_SQL)) {
-            sql.setString(1, catalogName);
-            sql.setString(2, JdbcUtil.namespaceToString(tableIdentifier.namespace()));
-            sql.setString(3, tableIdentifier.name());
-            sql.setString(4, newMetadataLocation);
-            return sql.executeUpdate();
-          }
-        });
-
-        if (insertRecord == 1) {
-          LOG.debug("Successfully committed to new table: {}", tableIdentifier);
-        } else {
-          throw new CommitFailedException("Failed to commit table: %s.%s", catalogName, tableIdentifier);
-        }
+        createTable(newMetadataLocation);
       }
 
     } catch (SQLIntegrityConstraintViolationException e) {
@@ -160,6 +125,49 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new RuntimeException("Interrupted during commit", e);
+    }
+  }
+
+  private void updateTable(String newMetadataLocation, String oldMetadataLocation)
+      throws SQLException, InterruptedException {
+    int updatedRecords = connections.run(conn -> {
+      try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.DO_COMMIT_SQL)) {
+        // UPDATE
+        sql.setString(1, newMetadataLocation);
+        sql.setString(2, oldMetadataLocation);
+        // WHERE
+        sql.setString(3, catalogName);
+        sql.setString(4, JdbcUtil.namespaceToString(tableIdentifier.namespace()));
+        sql.setString(5, tableIdentifier.name());
+        sql.setString(6, oldMetadataLocation);
+        return sql.executeUpdate();
+      }
+    });
+
+    if (updatedRecords == 1) {
+      LOG.debug("Successfully committed to existing table: {}", tableIdentifier);
+    } else {
+      throw new CommitFailedException("Failed to commit table: %s.%s! maybe another process changed it!",
+          catalogName, tableIdentifier);
+    }
+
+  }
+
+  private void createTable(String newMetadataLocation) throws SQLException, InterruptedException {
+    int insertRecord = connections.run(conn -> {
+      try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.DO_COMMIT_CREATE_SQL)) {
+        sql.setString(1, catalogName);
+        sql.setString(2, JdbcUtil.namespaceToString(tableIdentifier.namespace()));
+        sql.setString(3, tableIdentifier.name());
+        sql.setString(4, newMetadataLocation);
+        return sql.executeUpdate();
+      }
+    });
+
+    if (insertRecord == 1) {
+      LOG.debug("Successfully committed to new table: {}", tableIdentifier);
+    } else {
+      throw new CommitFailedException("Failed to commit table: %s.%s", catalogName, tableIdentifier);
     }
   }
 
