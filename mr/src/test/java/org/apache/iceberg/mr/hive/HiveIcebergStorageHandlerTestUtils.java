@@ -60,23 +60,18 @@ public class HiveIcebergStorageHandlerTestUtils {
   }
 
   static TestTables testTables(TestHiveShell shell, TestTables.TestTableType testTableType, TemporaryFolder temp)
-          throws IOException {
+      throws IOException {
 
     return testTableType.instance(shell.metastore().hiveConf(), temp);
   }
 
   static void init(TestHiveShell shell, TestTables testTables, TemporaryFolder temp, String engine) {
-    init(shell, testTables, temp, engine, false);
-  }
-
-  static void init(TestHiveShell shell, TestTables testTables, TemporaryFolder temp, String engine, boolean cboEnable) {
     shell.openSession();
 
     for (Map.Entry<String, String> property : testTables.properties().entrySet()) {
       shell.setHiveSessionValue(property.getKey(), property.getValue());
     }
 
-    shell.setHiveSessionValue("hive.cbo.enable", cboEnable);
     shell.setHiveSessionValue("hive.execution.engine", engine);
     shell.setHiveSessionValue("hive.jar.directory", temp.getRoot().getAbsolutePath());
     shell.setHiveSessionValue("tez.staging-dir", temp.getRoot().getAbsolutePath());

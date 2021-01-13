@@ -83,20 +83,17 @@ public class TestHiveIcebergStorageHandlerWithEngine {
                   Types.TimestampType.withoutZone(), Types.StringType.get(), Types.BinaryType.get(),
                   Types.DecimalType.of(3, 1));
 
-  @Parameters(name = "fileFormat={0}, engine={1}, catalog={2}, cboEnable={3}")
+  @Parameters(name = "fileFormat={0}, engine={1}, catalog={2}")
   public static Collection<Object[]> parameters() {
     Collection<Object[]> testParams = new ArrayList<>();
     String javaVersion = System.getProperty("java.specification.version");
-    List<Boolean> cboEnables = ImmutableList.of(true, false);
 
     // Run tests with every FileFormat for a single Catalog (HiveCatalog)
     for (FileFormat fileFormat : HiveIcebergStorageHandlerTestUtils.FILE_FORMATS) {
       for (String engine : EXECUTION_ENGINES) {
         // include Tez tests only for Java 8
         if (javaVersion.equals("1.8") || "mr".equals(engine)) {
-          for (boolean cboEnable : cboEnables) {
-            testParams.add(new Object[] {fileFormat, engine, TestTables.TestTableType.HIVE_CATALOG, cboEnable});
-          }
+          testParams.add(new Object[] {fileFormat, engine, TestTables.TestTableType.HIVE_CATALOG});
         }
       }
     }
@@ -105,7 +102,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     // skip HiveCatalog tests as they are added before
     for (TestTables.TestTableType testTableType : TestTables.ALL_TABLE_TYPES) {
       if (!TestTables.TestTableType.HIVE_CATALOG.equals(testTableType)) {
-        testParams.add(new Object[]{FileFormat.PARQUET, "mr", testTableType, false});
+        testParams.add(new Object[]{FileFormat.PARQUET, "mr", testTableType});
       }
     }
 
@@ -125,9 +122,6 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   @Parameter(2)
   public TestTables.TestTableType testTableType;
 
-  @Parameter(3)
-  public boolean cboEnable;
-
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
@@ -144,7 +138,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   @Before
   public void before() throws IOException {
     testTables = HiveIcebergStorageHandlerTestUtils.testTables(shell, testTableType, temp);
-    HiveIcebergStorageHandlerTestUtils.init(shell, testTables, temp, executionEngine, cboEnable);
+    HiveIcebergStorageHandlerTestUtils.init(shell, testTables, temp, executionEngine);
   }
 
   @After
@@ -172,7 +166,9 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   }
 
   @Test
-  public void testSelectedColumnsNoOverlapJoin() throws IOException {
+  public void testCBOWithSelectedColumnsNonOverlapJoin() throws IOException {
+    shell.setHiveSessionValue("hive.cbo.enable", true);
+
     testTables.createTable(shell, "products", PRODUCT_SCHEMA, fileFormat, PRODUCT_RECORDS);
     testTables.createTable(shell, "orders", ORDER_SCHEMA, fileFormat, ORDER_RECORDS);
 
@@ -188,7 +184,9 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   }
 
   @Test
-  public void testSelectedColumnsOverlapJoin() throws IOException {
+  public void testCBOWithSelectedColumnsOverlapJoin() throws IOException {
+    shell.setHiveSessionValue("hive.cbo.enable", true);
+
     testTables.createTable(shell, "customers", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, fileFormat,
             HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     testTables.createTable(shell, "orders", ORDER_SCHEMA, fileFormat, ORDER_RECORDS);
@@ -206,7 +204,9 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   }
 
   @Test
-  public void testSelfJoin() throws IOException {
+  public void testCBOWithSelfJoin() throws IOException {
+    shell.setHiveSessionValue("hive.cbo.enable", true);
+
     testTables.createTable(shell, "orders", ORDER_SCHEMA, fileFormat, ORDER_RECORDS);
 
     List<Object[]> rows = shell.executeStatement(
