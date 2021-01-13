@@ -999,7 +999,7 @@ Rewrite the manifests in table `db.sample` and align manifest files with table p
    CALL hive_prod.system.rewrite_manifests('db.sample')
 ```
 
-Rewrite the manifests in table `db.sample` and disable the use Spark caching. This could be done to
+Rewrite the manifests in table `db.sample` and disable the use of Spark caching. This could be done to
 avoid memory issues on executors.
 ```sql
    CALL hive_prod.system.rewrite_manifests('db.sample', false)
@@ -1017,7 +1017,7 @@ A procedure that rollbacks a table to a specific snapshot id. For rollbacks base
 | Argument Name | Required? | Type | Description |
 |---------------|-----------|------|-------------|
 | table         | ✔️  | String  | Name of table to rollback |
-| snapshot_id   | ✔️  | Long     | The snapshot to roll back to |
+| snapshot_id   | ✔️  | Long     | The snapshot to rollback to |
 
 #### Output
 
@@ -1090,7 +1090,18 @@ Set the current snapshot for `db.sample` to 1
 ### Snapshot Table Procedure
 
 Creates an Iceberg version of a given table without adjusting the underlying table. The new created table can
-be adjusted or written to without adjusting the underlying table. This is basically a test version of
+be adjusted or written to without adjusting the underlying table. This procedure could be used to Snapshot a Hive
+production table and produce an Iceberg table referencing the same files. This new table can be used for testing before 
+a full migration to Iceberg, or just to see if certain queries would benefit from Iceberg's optimizations. When 
+INSERTS/DELETES and other statements are run on the snapshot, they will create new files in the Snapshot's location
+rather than the original table location.
+
+**Note** Because tables created by `snapshot` are not the sole owners of their data files, they are prohibited from
+actions like `expire_snapshots` which would physically delete data files. Iceberg deletes, which only effect metadata,
+are still allowed. In addition, any operations which effect the original data files will disrupt the Snapshot's 
+integrity. Delete statements executed against the original Hive table will remove original data files and the
+`snapshot` table will not longer be able to access them.
+
 [migrate](#migrate-table-procedure) which can be used without disrupting users of the original table.
 
 #### Usage
