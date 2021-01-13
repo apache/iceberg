@@ -107,7 +107,7 @@ public class TestJdbcCatalog {
     tableDir.delete(); // created by table create
     Map<String, String> properties = new HashMap<>();
     properties.put(CatalogProperties.HIVE_URI,
-        "jdbc:h2:mem:ic" + UUID.randomUUID().toString().replace("-", "") + ";");
+        "jdbc:sqlite::memory:ic" + UUID.randomUUID().toString().replace("-", "") + ";");
 
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "username", "user");
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
@@ -122,7 +122,7 @@ public class TestJdbcCatalog {
   public void testInitialize() {
     Map<String, String> properties = new HashMap<>();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.getAbsolutePath());
-    properties.put(CatalogProperties.HIVE_URI, "jdbc:h2:mem:icebergDB;create=true");
+    properties.put(CatalogProperties.HIVE_URI, "jdbc:sqlite::memory:icebergDB;create=true");
     JdbcCatalog jdbcCatalog = new JdbcCatalog();
     jdbcCatalog.setConf(conf);
     jdbcCatalog.initialize("test_jdbc_catalog", properties);
@@ -366,8 +366,8 @@ public class TestJdbcCatalog {
     // rename table to existing table name!
     TableIdentifier from2 = TableIdentifier.of("db", "tbl2");
     catalog.createTable(from2, SCHEMA, PartitionSpec.unpartitioned());
-    AssertHelpers.assertThrows("should throw exception", AlreadyExistsException.class,
-        "already exists in the catalog", () -> catalog.renameTable(from2, to)
+    AssertHelpers.assertThrows("should throw exception", UncheckedSQLException.class,
+        "Failed to rename table", () -> catalog.renameTable(from2, to)
     );
   }
 
