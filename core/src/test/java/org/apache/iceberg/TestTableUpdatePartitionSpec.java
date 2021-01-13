@@ -196,4 +196,26 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
         .build(), table.spec());
     Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
   }
+
+  @Test
+  public void testAddAfterLastFieldRemoved() {
+    table.updateSpec()
+        .removeField("data_bucket")
+        .commit();
+
+    table.updateSpec()
+        .addField(bucket("id", 8))
+        .commit();
+
+    V1Assert.assertEquals("Should add a new id bucket", PartitionSpec.builderFor(table.schema())
+        .withSpecId(2)
+        .alwaysNull("data", "data_bucket")
+        .bucket("id", 8, "id_bucket_8")
+        .build(), table.spec());
+    V2Assert.assertEquals("Should add a new id bucket", PartitionSpec.builderFor(table.schema())
+        .withSpecId(2)
+        .add(1, 1001, "id_bucket_8", "bucket[8]")
+        .build(), table.spec());
+    Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
+  }
 }
