@@ -225,6 +225,7 @@ public class TableMetadata implements Serializable {
   private final List<Snapshot> snapshots;
   private final Map<Long, Snapshot> snapshotsById;
   private final Map<Integer, PartitionSpec> specsById;
+  private final int lastAssignedFieldId;
   private final Map<Integer, SortOrder> sortOrdersById;
   private final List<HistoryEntry> snapshotLog;
   private final List<MetadataLogEntry> previousFiles;
@@ -277,6 +278,7 @@ public class TableMetadata implements Serializable {
 
     this.snapshotsById = indexAndValidateSnapshots(snapshots, lastSequenceNumber);
     this.specsById = indexSpecs(specs);
+    this.lastAssignedFieldId = specs().stream().mapToInt(PartitionSpec::lastAssignedFieldId).max().orElse(999);
     this.sortOrdersById = indexSortOrders(sortOrders);
 
     HistoryEntry last = null;
@@ -369,6 +371,10 @@ public class TableMetadata implements Serializable {
 
   public Map<Integer, PartitionSpec> specsById() {
     return specsById;
+  }
+
+  int lastAssignedFieldId() {
+    return lastAssignedFieldId;
   }
 
   public int defaultSpecId() {
