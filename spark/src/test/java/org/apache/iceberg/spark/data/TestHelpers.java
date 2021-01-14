@@ -267,11 +267,23 @@ public class TestHelpers {
     }
 
     switch (type.typeId()) {
-      case BOOLEAN:
       case INTEGER:
+        Assert.assertEquals("Values didn't match", ((Number) expected).intValue(),
+                ((Number) actual).intValue());
+        break;
       case LONG:
+        Assert.assertEquals("Values didn't match", ((Number) expected).longValue(),
+                ((Number) actual).longValue());
+        break;
       case FLOAT:
+        Assert.assertEquals("Values didn't match", ((Number) expected).floatValue(),
+                ((Number) actual).floatValue(), 0.01F);
+        break;
       case DOUBLE:
+        Assert.assertEquals("Values didn't match", ((Number) expected).doubleValue(),
+                ((Number) actual).doubleValue(), 0.01D);
+        break;
+      case BOOLEAN:
       case DATE:
       case TIMESTAMP:
         Assert.assertEquals("Primitive value should be equal to expected", expected, actual);
