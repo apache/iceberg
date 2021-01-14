@@ -95,7 +95,7 @@ public final class HiveSchemaUtil {
    * convertible then exception is thrown.
    * @param names The list of the Hive column names
    * @param types The list of the Hive column types
-   * @param comments The list of the Hive column comments, can be null
+   * @param comments The list of the Hive column comments
    * @return The Iceberg schema
    */
   public static Schema convert(List<String> names, List<TypeInfo> types, List<String> comments) {

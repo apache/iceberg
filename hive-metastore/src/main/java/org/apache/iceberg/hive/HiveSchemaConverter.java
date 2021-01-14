@@ -20,6 +20,7 @@
 package org.apache.iceberg.hive;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import org.apache.hadoop.hive.serde2.typeinfo.DecimalTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.ListTypeInfo;
@@ -63,7 +64,7 @@ class HiveSchemaConverter {
     List<Types.NestedField> result = new ArrayList<>(names.size());
     for (int i = 0; i < names.size(); ++i) {
       result.add(Types.NestedField.optional(id++, names.get(i), convertType(typeInfos.get(i)),
-          comments != null ? comments.get(i) : null));
+          comments.isEmpty() ? null : comments.get(i)));
     }
 
     return result;
@@ -122,7 +123,8 @@ class HiveSchemaConverter {
       case STRUCT:
         StructTypeInfo structTypeInfo = (StructTypeInfo) typeInfo;
         List<Types.NestedField> fields =
-            convertInternal(structTypeInfo.getAllStructFieldNames(), structTypeInfo.getAllStructFieldTypeInfos(), null);
+            convertInternal(structTypeInfo.getAllStructFieldNames(), structTypeInfo.getAllStructFieldTypeInfos(),
+                    Collections.emptyList());
         return Types.StructType.of(fields);
       case MAP:
         MapTypeInfo mapTypeInfo = (MapTypeInfo) typeInfo;
