@@ -51,6 +51,7 @@ import org.slf4j.LoggerFactory;
 
 public class HiveIcebergSerDe extends AbstractSerDe {
   private static final Logger LOG = LoggerFactory.getLogger(HiveIcebergSerDe.class);
+  private static final String LIST_COLUMN_COMMENT = "columns.comments";
 
   private ObjectInspector inspector;
   private Schema tableSchema;
@@ -169,7 +170,7 @@ public class HiveIcebergSerDe extends AbstractSerDe {
     String columnNames = serDeProperties.getProperty(serdeConstants.LIST_COLUMNS);
     String columnTypes = serDeProperties.getProperty(serdeConstants.LIST_COLUMN_TYPES);
     // No constant for column comments and column comments delimiter.
-    String columnComments = serDeProperties.getProperty("columns.comments");
+    String columnComments = serDeProperties.getProperty(LIST_COLUMN_COMMENT);
     String columnNameDelimiter = serDeProperties.containsKey(serdeConstants.COLUMN_NAME_DELIMITER) ?
         serDeProperties.getProperty(serdeConstants.COLUMN_NAME_DELIMITER) : String.valueOf(SerDeUtils.COMMA);
     if (columnNames != null && columnTypes != null && columnNameDelimiter != null &&
