@@ -37,7 +37,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class TableReference {
-  private static final Logger LOGGER = LoggerFactory.getLogger(TableReference.class);
+  private static final Logger LOG = LoggerFactory.getLogger(TableReference.class);
   private static final ZoneId UTC = ZoneId.of("UTC");
   private static final Splitter REF = Splitter.on("@");
   private static final Splitter TIMESTAMP = Splitter.on("#");
@@ -46,7 +46,8 @@ public class TableReference {
   private static DynMethods.UnboundMethod sparkContextMethod;
   private static DynMethods.UnboundMethod sparkConfMethod;
   private static DynMethods.UnboundMethod sparkConfGetMethod;
-  private static Boolean sparkAvailable = null;
+  private static boolean sparkAvailable = false;
+  private static boolean sparkAvailableChecked = false;
   private final TableIdentifier tableIdentifier;
   private final Instant timestamp;
   private final String reference;
@@ -122,7 +123,7 @@ public class TableReference {
     return new TableReference(identifier, null, null);
   }
 
-  private enum FormatOptions {
+  private enum DateTimeFormatOptions {
     DATE_TIME(DateTimeFormatter.ISO_DATE_TIME, ZonedDateTime::from),
     LOCAL_DATE_TIME(DateTimeFormatter.ISO_LOCAL_DATE_TIME, t -> LocalDateTime.from(t).atZone(sparkTimezoneOrUTC())),
     LOCAL_DATE(DateTimeFormatter.ISO_LOCAL_DATE, t -> LocalDate.from(t).atStartOfDay(sparkTimezoneOrUTC()));
@@ -130,7 +131,7 @@ public class TableReference {
     private final DateTimeFormatter formatter;
     private final TemporalQuery<ZonedDateTime> converter;
 
-    FormatOptions(DateTimeFormatter formatter, TemporalQuery<ZonedDateTime> converter) {
+    DateTimeFormatOptions(DateTimeFormatter formatter, TemporalQuery<ZonedDateTime> converter) {
       this.formatter = formatter;
       this.converter = converter;
     }
@@ -146,7 +147,7 @@ public class TableReference {
 
   private static Instant parseTimestamp(String timestamp) {
     ZonedDateTime parsed;
-    for (FormatOptions options : FormatOptions.values()) {
+    for (DateTimeFormatOptions options : DateTimeFormatOptions.values()) {
       parsed = options.convert(modifyTimestamp(timestamp));
       if (parsed != null) {
         return endOfPeriod(parsed, timestamp).toInstant();
@@ -193,7 +194,8 @@ public class TableReference {
   }
 
   private static Optional<String> sparkTimezone() {
-    if (sparkAvailable != null) {
+    if (!sparkAvailableChecked) {
+      sparkAvailableChecked = true;
       try {
         sparkSessionMethod = DynMethods.builder("active")
             .impl("org.apache.spark.sql.SparkSession").buildStatic();
@@ -208,14 +210,14 @@ public class TableReference {
         sparkAvailable = false; // spark not on classpath
       }
     }
-    if (sparkAvailable != null && sparkAvailable) {
+    if (sparkAvailable) {
       try {
         Object sparkContext = sparkContextMethod.bind(sparkSessionMethod.invoke()).invoke();
         Object sparkConf = sparkConfMethod.bind(sparkContext).invoke();
         return Optional.ofNullable(sparkConfGetMethod.bind(sparkConf).invoke("spark.sql.session.timeZone"));
       } catch (RuntimeException e) {
         // we may fail to get Spark timezone, we don't want to crash over that so just log and continue.
-        LOGGER.warn("Cannot find Spark timezone. Using UTC instead.", e);
+        LOG.warn("Cannot find Spark timezone. Using UTC instead.", e);
       }
     }
     return Optional.empty();

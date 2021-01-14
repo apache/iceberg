@@ -74,7 +74,7 @@ import org.slf4j.LoggerFactory;
  * </p>
  */
 public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces, Configurable {
-  private static final Logger LOGGER = LoggerFactory.getLogger(NessieCatalog.class);
+  private static final Logger LOG = LoggerFactory.getLogger(NessieCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
   private NessieClient client;
   private String warehouseLocation;
@@ -158,11 +158,11 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
            .run(this::dropTableInner, BaseNessieClientServerException.class);
       return true;
     } catch (NessieConflictException e) {
-      LOGGER.error("Cannot drop table: failed after retry (update ref and retry)", e);
+      LOG.error("Cannot drop table: failed after retry (update ref and retry)", e);
     } catch (NessieNotFoundException e) {
-      LOGGER.error("Cannot drop table: ref is no longer valid.", e);
+      LOG.error("Cannot drop table: ref is no longer valid.", e);
     } catch (BaseNessieClientServerException e) {
-      LOGGER.error("Cannot drop table: unknown error", e);
+      LOG.error("Cannot drop table: unknown error", e);
     }
     return false;
   }
@@ -322,6 +322,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
         throw new IllegalArgumentException(String.format("Cannot specify a hash %s and timestamp %s together. " +
             "The timestamp is redundant and has been ignored", requestedRef, timestamp));
       }
+
       List<CommitMeta> ops = client.getTreeApi().getCommitLog(ref.getName()).getOperations();
 
       for (CommitMeta info : ops) {
@@ -329,6 +330,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
           return new RefreshableReference(ImmutableHash.builder().name(info.getHash()).build(), client.getTreeApi());
         }
       }
+
       throw new IllegalArgumentException(String.format("Nessie ref '%s' does not exist at timestamp '%s'. " +
           "The timestamp is before the first commit on this branch, resulting in an empty repo.",
           requestedRef,
