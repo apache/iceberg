@@ -34,6 +34,7 @@ import org.apache.flink.table.api.internal.TableEnvironmentImpl;
 import org.apache.flink.table.api.internal.TableImpl;
 import org.apache.flink.table.planner.delegation.PlannerBase;
 import org.apache.flink.table.planner.plan.nodes.exec.ExecNode;
+import org.apache.flink.table.planner.utils.JavaScalaConversionUtil;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
@@ -748,7 +749,8 @@ public class TestFlinkTableSource extends FlinkTestBase {
   private void testParallelismSettingTranslateAndAssert(int expected, Table table, TableEnvironment tEnv) {
     PlannerBase planner = (PlannerBase) ((TableEnvironmentImpl) tEnv).getPlanner();
     RelNode relNode = planner.optimize(toRelNode(table));
-    ExecNode execNode = planner.translateToExecNodePlan(toScala(Collections.singletonList(relNode))).get(0);
+    ExecNode execNode =
+        planner.translateToExecNodePlan(JavaScalaConversionUtil.toScala(Collections.singletonList(relNode))).get(0);
     Transformation transformation = execNode.translateToPlan(planner);
     Assert.assertEquals(expected, transformation.getParallelism());
   }

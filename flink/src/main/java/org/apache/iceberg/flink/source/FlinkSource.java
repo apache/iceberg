@@ -28,6 +28,7 @@ import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.api.config.ExecutionConfigOptions;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo;
 import org.apache.iceberg.Schema;
@@ -36,6 +37,7 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.FlinkTableOptions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -71,6 +73,7 @@ public class FlinkSource {
     private Table table;
     private TableLoader tableLoader;
     private TableSchema projectedSchema;
+    private ReadableConfig flinkConf;
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
 
     public Builder tableLoader(TableLoader newLoader) {
@@ -158,6 +161,11 @@ public class FlinkSource {
       return this;
     }
 
+    public Builder flinkConf(ReadableConfig config) {
+      this.flinkConf = config;
+      return this;
+    }
+
     public FlinkInputFormat buildFormat() {
       Preconditions.checkNotNull(tableLoader, "TableLoader should not be null");
 
@@ -193,11 +201,12 @@ public class FlinkSource {
     public DataStream<RowData> build() {
       Preconditions.checkNotNull(env, "StreamExecutionEnvironment should not be null");
       FlinkInputFormat format = buildFormat();
+
       ScanContext context = contextBuilder.build();
       TypeInformation<RowData> typeInfo = RowDataTypeInfo.of(FlinkSchemaUtil.convert(context.project()));
 
       if (!context.isStreaming()) {
-        return env.createInput(format, typeInfo);
+        return createInputDataStream(format, context, typeInfo);
       } else {
         StreamingMonitorFunction function = new StreamingMonitorFunction(tableLoader, context);
 
@@ -209,29 +218,29 @@ public class FlinkSource {
       }
     }
 
-//    private DataStream<RowData> createInputDataStream(FlinkInputFormat format) {
-//      int parallelism = flinkConf.get(ExecutionConfigOptions.TABLE_EXEC_RESOURCE_DEFAULT_PARALLELISM);
-//      if (flinkConf.get(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM)) {
-//        int max = flinkConf.get(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX);
-//        Preconditions.checkState(max >= 1,
-//            FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX.key() + " cannot be less than 1");
-//        int splitNum = 0;
-//        try {
-//          FlinkInputSplit[] splits = format.createInputSplits(0);
-//          splitNum = splits.length;
-//        } catch (IOException e) {
-//          throw new UncheckedIOException("Failed to create iceberg input splits for table: " + table, e);
-//        }
-//
-//        parallelism = Math.min(splitNum, max);
-//      }
-//
-//      int limitInt = limit > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) limit;
-//      parallelism = limitInt > 0 ? Math.min(parallelism, limitInt) : parallelism;
-//      parallelism = Math.max(1, parallelism); // make sure that parallelism is at least 1
-//
-//      return env.createInput(format, rowTypeInfo).setParallelism(parallelism);
-//    }
+    private DataStream<RowData> createInputDataStream(FlinkInputFormat format, ScanContext context,
+                                                      TypeInformation<RowData> typeInfo) {
+      int parallelism = flinkConf.get(ExecutionConfigOptions.TABLE_EXEC_RESOURCE_DEFAULT_PARALLELISM);
+      if (flinkConf.get(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM)) {
+        int max = flinkConf.get(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX);
+        Preconditions.checkState(max >= 1,
+            FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX.key() + " cannot be less than 1");
+        int splitNum = 0;
+        try {
+          FlinkInputSplit[] splits = format.createInputSplits(0);
+          splitNum = splits.length;
+        } catch (IOException e) {
+          throw new UncheckedIOException("Failed to create iceberg input splits for table: " + table, e);
+        }
+
+        parallelism = Math.min(splitNum, max);
+      }
+
+      int limitInt = context.limit() > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) context.limit();
+      parallelism = limitInt > 0 ? Math.min(parallelism, limitInt) : parallelism;
+      parallelism = Math.max(1, parallelism); // make sure that parallelism is at least 1
+      return env.createInput(format, typeInfo).setParallelism(parallelism);
+    }
   }
 
   public static boolean isBounded(Map<String, String> properties) {
