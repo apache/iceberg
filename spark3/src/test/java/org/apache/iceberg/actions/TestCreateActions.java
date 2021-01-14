@@ -241,7 +241,8 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String source = sourceName("test_remove_column_migrated_table");
     String dest = source;
     File location = temp.newFolder();
-    String colName1 = "newCol1", colName2 = "newCol2";
+    String colName1 = "newCol1";
+    String colName2 = "newCol2";
     String createStmt = "CREATE TABLE %s (id INT, data STRING, %s INT, %s INT) using parquet LOCATION '%s'";
     spark.sql(String.format(createStmt, source, colName1, colName2, location));
 
@@ -419,7 +420,8 @@ public class TestCreateActions extends SparkCatalogTestBase {
     }
     long expectedMigratedFiles = uris.stream()
             .flatMap(uri ->
-                    FileUtils.listFiles(Paths.get(uri).toFile(), TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE).stream())
+                    FileUtils.listFiles(Paths.get(uri).toFile(),
+                            TrueFileFilter.INSTANCE, TrueFileFilter.INSTANCE).stream())
             .filter(file -> !file.toString().endsWith("crc") && !file.toString().contains("_SUCCESS")).count();
 
     List<Row> expected = spark.table(source).collectAsList();
