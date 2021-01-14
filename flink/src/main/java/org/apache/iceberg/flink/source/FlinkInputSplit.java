@@ -22,6 +22,7 @@ package org.apache.iceberg.flink.source;
 import org.apache.flink.core.io.InputSplit;
 import org.apache.flink.core.io.LocatableInputSplit;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /**
  * TODO Implement {@link LocatableInputSplit}.
@@ -43,5 +44,13 @@ public class FlinkInputSplit implements InputSplit {
 
   CombinedScanTask getTask() {
     return task;
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("splitNumber", splitNumber)
+        .add("task", task)
+        .toString();
   }
 }
