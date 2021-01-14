@@ -27,21 +27,49 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.junit.Assert;
 import org.junit.Test;
 
-/**
- * For https://github.com/apache/iceberg/issues/2070
- */
-public class TestHiveConf {
+public class TestHiveClientPool {
+
   private static final String HIVE_SITE_CONTENT = "<?xml version=\"1.0\"?>\n" +
-      "<?xml-stylesheet type=\"text/xsl\" href=\"configuration.xsl\"?>\n" +
-      "<configuration>\n" +
-      "  <property>\n" +
-      "    <name>hive.metastore.sasl.enabled</name>\n" +
-      "    <value>true</value>\n" +
-      "  </property>\n" +
-      "</configuration>\n";
+          "<?xml-stylesheet type=\"text/xsl\" href=\"configuration.xsl\"?>\n" +
+          "<configuration>\n" +
+          "  <property>\n" +
+          "    <name>hive.metastore.sasl.enabled</name>\n" +
+          "    <value>true</value>\n" +
+          "  </property>\n" +
+          "</configuration>\n";
 
   @Test
-  public void test() {
+  public void testConf() {
+    HiveConf conf = createHiveConf();
+    conf.set(HiveConf.ConfVars.METASTOREURIS.varname, "thrift://locahost:12345");
+    conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file:/mywarehouse/");
+    conf.setInt("iceberg.hive.client-pool-size", 10);
+
+    HiveClientPool clientPool = new HiveClientPool(conf);
+    HiveConf clientConf = clientPool.hiveConf();
+
+    // hive will pick up system property whenever a new HiveConf is created
+    // See org.apache.iceberg.hive.TestHiveMetastore.start(int)
+    if (System.getProperty(HiveConf.ConfVars.METASTOREURIS.varname) != null) {
+      Assert.assertEquals(System.getProperty(HiveConf.ConfVars.METASTOREURIS.varname),
+              clientConf.get(HiveConf.ConfVars.METASTOREURIS.varname));
+    } else {
+      Assert.assertEquals(conf.get(HiveConf.ConfVars.METASTOREURIS.varname),
+              clientConf.get(HiveConf.ConfVars.METASTOREURIS.varname));
+    }
+
+    Assert.assertEquals(conf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname),
+            clientConf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname));
+    Assert.assertEquals(conf.get("iceberg.hive.client-pool-size"), clientConf.get("iceberg.hive.client-pool-size"));
+    Assert.assertEquals(10, clientPool.poolSize());
+
+    Assert.assertEquals(conf.get(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL.varname),
+            clientConf.get(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL.varname));
+    Assert.assertTrue(clientConf.getBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL));
+  }
+
+  @Test
+  public void testHiveConf() {
     HiveConf hiveConf = createHiveConf();
     Assert.assertTrue(hiveConf.getBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL));
 
