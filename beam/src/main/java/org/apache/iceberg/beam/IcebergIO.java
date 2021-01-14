@@ -102,7 +102,7 @@ public class IcebergIO {
     // Probably we want to improve on this later, since it would be nicer
     // to compute this as we write the files
     final PCollection<WrittenDataFile> writtenDataFiles = filenames
-        .apply(ParDo.of(new FilenameToDataFile()))
+        .apply("Iceberg: Statistics", ParDo.of(new FilenameToDataFile()))
         .setCoder(SerializableCoder.of(WrittenDataFile.class));
 
     // We use a combiner, to combine all the files to a single commit in
@@ -112,6 +112,6 @@ public class IcebergIO {
     final Combine.Globally<WrittenDataFile, Snapshot> combined = Combine.globally(combiner).withoutDefaults();
 
     // We return the latest snapshot, which can be used to notify downstream consumers.
-    return writtenDataFiles.apply(combined);
+    return writtenDataFiles.apply("Iceberg: Append", combined);
   }
 }
