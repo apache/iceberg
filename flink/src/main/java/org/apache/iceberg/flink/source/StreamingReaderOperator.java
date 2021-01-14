@@ -59,6 +59,9 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
 
   private static final Logger LOG = LoggerFactory.getLogger(StreamingReaderOperator.class);
 
+  // It's the same thread that is running this operator and checkpoint actions. we use this executor to schedule only
+  // one split for future reading, so that a new checkpoint could be triggered without blocking long time for exhausting
+  // all scheduled splits.
   private final MailboxExecutor executor;
   private FlinkInputFormat format;
 
@@ -67,12 +70,10 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
   private transient ListState<FlinkInputSplit> inputSplitsState;
   private transient Queue<FlinkInputSplit> splits;
 
-  // This state is used to control that only one split is occupying the executor for record reading. If there're more
-  // splits coming, we will buffer them in flink's state. Once the executor is idle (the currentSplitState will be
-  // marked as IDLE), it will schedule one new split from buffered splits in flink's state to executor (the
-  // currentSplitState will be marked as RUNNING). After finished all records processing, the currentSplitState will
-  // be marked as IDLE again.
-  // NOTICE: all the reader and writer of this variable are the same thread, so we don't need extra synchronization.
+  // Splits are read by the same thread that calls processElement. Each read task is submitted to that thread by adding
+  // them to the executor. This state is used to ensure that only one read task is in that queue at a time, so that read
+  // tasks do not accumulate ahead of checkpoint tasks. When there is a read task in the queue, this is set to RUNNING.
+  // When there are no more files to read, this will be set to IDLE.
   private transient SplitState currentSplitState;
 
   private StreamingReaderOperator(FlinkInputFormat format, ProcessingTimeService timeService,
@@ -114,9 +115,8 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
         getRuntimeContext().getExecutionConfig().getAutoWatermarkInterval(),
         -1);
 
-    if (!splits.isEmpty()) {
-      enqueueProcessSplits();
-    }
+    // Enqueue to process the recovered input splits.
+    enqueueProcessSplits();
   }
 
   @Override
@@ -134,7 +134,7 @@ public class StreamingReaderOperator extends AbstractStreamOperator<RowData>
   }
 
   private void enqueueProcessSplits() {
-    if (currentSplitState == SplitState.IDLE) {
+    if (currentSplitState == SplitState.IDLE && !splits.isEmpty()) {
       currentSplitState = SplitState.RUNNING;
       executor.execute(this::processSplits, this.getClass().getSimpleName());
     }

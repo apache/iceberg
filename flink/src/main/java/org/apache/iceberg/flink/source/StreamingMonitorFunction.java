@@ -59,7 +59,10 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
   private final ScanContext scanContext;
 
   private volatile boolean isRunning = true;
-  private long lastSnapshotId = INIT_LAST_SNAPSHOT_ID;
+
+  // The checkpoint thread is not the same thread that running the function for SourceStreamTask now. It's necessary to
+  // mark this as volatile.
+  private volatile long lastSnapshotId = INIT_LAST_SNAPSHOT_ID;
 
   private transient SourceContext<FlinkInputSplit> sourceContext;
   private transient Table table;

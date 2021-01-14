@@ -111,6 +111,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       runSourceFunctionInTask(sourceContext, function);
 
       Assert.assertTrue("Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
+      Thread.sleep(1000L);
 
       // Stop the stream task.
       function.close();
@@ -144,6 +145,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       runSourceFunctionInTask(sourceContext, function);
 
       Assert.assertTrue("Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
+      Thread.sleep(1000L);
 
       // Stop the stream task.
       function.close();
@@ -171,6 +173,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       runSourceFunctionInTask(sourceContext, func);
 
       Assert.assertTrue("Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
+      Thread.sleep(1000L);
 
       state = harness.snapshot(1, 1);
 
@@ -194,6 +197,7 @@ public class TestStreamingMonitorFunction extends TableTestBase {
       runSourceFunctionInTask(sourceContext, newFunc);
 
       Assert.assertTrue("Should have expected elements.", latch.await(WAIT_TIME_MILLIS, TimeUnit.MILLISECONDS));
+      Thread.sleep(1000L);
 
       // Stop the stream task.
       newFunc.close();
