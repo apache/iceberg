@@ -198,7 +198,8 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
           ResultSet rs = sql.executeQuery();
           while (rs.next()) {
-            results.add(JdbcUtil.stringToTableIdentifier(rs.getString("table_namespace"), rs.getString("table_name")));
+            results.add(JdbcUtil.stringToTableIdentifier(rs.getString(JdbcUtil.TABLE_NAMESPACE), rs.getString(
+                JdbcUtil.TABLE_NAME)));
           }
 
           return results;
@@ -284,7 +285,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
           sql.setString(2, JdbcUtil.namespaceToString(namespace) + "%");
           ResultSet rs = sql.executeQuery();
           while (rs.next()) {
-            result.add(JdbcUtil.stringToNamespace(rs.getString("table_namespace")));
+            result.add(JdbcUtil.stringToNamespace(rs.getString(JdbcUtil.TABLE_NAMESPACE)));
           }
           rs.close();
         }

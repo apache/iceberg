@@ -85,12 +85,12 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     }
 
     // Table exists but metadataLocation is null
-    if (table.getOrDefault("metadata_location", null) == null) {
+    if (table.getOrDefault(JdbcUtil.METADATA_LOCATION, null) == null) {
       throw new RuntimeException(String.format("Failed to get metadata location of the table %s from catalog %s",
           tableIdentifier, catalogName));
     }
 
-    refreshFromMetadataLocation(table.get("metadata_location"));
+    refreshFromMetadataLocation(table.get(JdbcUtil.METADATA_LOCATION));
   }
 
   @Override
@@ -171,7 +171,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   }
 
   private void validateMetadataLocation(Map<String, String> table, TableMetadata base) {
-    String catalogMetadataLocation = !table.isEmpty() ? table.get("metadata_location") : null;
+    String catalogMetadataLocation = !table.isEmpty() ? table.get(JdbcUtil.METADATA_LOCATION) : null;
     String baseMetadataLocation = base != null ? base.metadataFileLocation() : null;
 
     if (!Objects.equals(baseMetadataLocation, catalogMetadataLocation)) {
@@ -202,11 +202,11 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
         ResultSet rs = sql.executeQuery();
 
         if (rs.next()) {
-          table.put("catalog_name", rs.getString("catalog_name"));
-          table.put("table_namespace", rs.getString("table_namespace"));
-          table.put("table_name", rs.getString("table_name"));
-          table.put("metadata_location", rs.getString("metadata_location"));
-          table.put("previous_metadata_location", rs.getString("previous_metadata_location"));
+          table.put(JdbcUtil.CATALOG_NAME, rs.getString(JdbcUtil.CATALOG_NAME));
+          table.put(JdbcUtil.TABLE_NAMESPACE, rs.getString(JdbcUtil.TABLE_NAMESPACE));
+          table.put(JdbcUtil.TABLE_NAME, rs.getString(JdbcUtil.TABLE_NAME));
+          table.put(JdbcUtil.METADATA_LOCATION, rs.getString(JdbcUtil.METADATA_LOCATION));
+          table.put(JdbcUtil.PREVIOUS_METADATA_LOCATION, rs.getString(JdbcUtil.PREVIOUS_METADATA_LOCATION));
         }
 
         rs.close();

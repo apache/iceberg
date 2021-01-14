@@ -27,35 +27,45 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 public final class JdbcUtil {
   protected static final String CATALOG_TABLE_NAME = "ICEBERG_TABLES";
+  protected static final String CATALOG_NAME = "catalog_name";
+  protected static final String TABLE_NAMESPACE = "table_namespace";
+  protected static final String TABLE_NAME = "table_name";
+  protected static final String METADATA_LOCATION = "metadata_location";
+  protected static final String PREVIOUS_METADATA_LOCATION = "previous_metadata_location";
+  public static final String DO_COMMIT_SQL = "UPDATE " + CATALOG_TABLE_NAME +
+      " SET " + METADATA_LOCATION + " = ? , " + PREVIOUS_METADATA_LOCATION + " = ? " +
+      " WHERE " + CATALOG_NAME + " = ? AND " +
+      TABLE_NAMESPACE + " = ? AND " +
+      TABLE_NAME + " = ? AND " +
+      METADATA_LOCATION + " = ?";
   protected static final String CREATE_CATALOG_TABLE =
       "CREATE TABLE " + CATALOG_TABLE_NAME +
-          "(catalog_name VARCHAR(1255) NOT NULL," +
-          "table_namespace VARCHAR(1255) NOT NULL," +
-          "table_name VARCHAR(1255) NOT NULL," +
-          "metadata_location VARCHAR(32768)," +
-          "previous_metadata_location VARCHAR(32768)," +
-          "PRIMARY KEY (catalog_name, table_namespace, table_name)" +
+          "(" +
+          CATALOG_NAME + " VARCHAR(1255) NOT NULL," +
+          TABLE_NAMESPACE + " VARCHAR(1255) NOT NULL," +
+          TABLE_NAME + " VARCHAR(1255) NOT NULL," +
+          METADATA_LOCATION + " VARCHAR(32768)," +
+          PREVIOUS_METADATA_LOCATION + " VARCHAR(32768)," +
+          "PRIMARY KEY (" + CATALOG_NAME + ", " + TABLE_NAMESPACE + ", " + TABLE_NAME + ")" +
           ")";
   protected static final String LOAD_TABLE_SQL = "SELECT * FROM " + CATALOG_TABLE_NAME +
-      " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? ";
+      " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " = ? AND " + TABLE_NAME + " = ? ";
   protected static final String LIST_TABLES_SQL = "SELECT * FROM " + CATALOG_TABLE_NAME +
-      " WHERE catalog_name = ? AND table_namespace = ?";
+      " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " = ?";
   protected static final String RENAME_TABLE_SQL = "UPDATE " + CATALOG_TABLE_NAME +
-      " SET table_namespace = ? , table_name = ? " +
-      " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? ";
+      " SET " + TABLE_NAMESPACE + " = ? , " + TABLE_NAME + " = ? " +
+      " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " = ? AND " + TABLE_NAME + " = ? ";
   protected static final String DROP_TABLE_SQL = "DELETE FROM " + CATALOG_TABLE_NAME +
-      " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? ";
-  protected static final String GET_NAMESPACE_SQL = "SELECT table_namespace FROM " + CATALOG_TABLE_NAME +
-      " WHERE catalog_name = ? AND table_namespace LIKE ? LIMIT 1";
-  protected static final String LIST_NAMESPACES_SQL = "SELECT DISTINCT table_namespace FROM " + CATALOG_TABLE_NAME +
-      " WHERE catalog_name = ? AND table_namespace LIKE ?";
-  public static final String DO_COMMIT_SQL = "UPDATE " + CATALOG_TABLE_NAME +
-      " SET metadata_location = ? , previous_metadata_location = ? " +
-      " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? AND metadata_location = ?";
+      " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " = ? AND " + TABLE_NAME + " = ? ";
+  protected static final String GET_NAMESPACE_SQL = "SELECT " + TABLE_NAMESPACE + " FROM " + CATALOG_TABLE_NAME +
+      " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " LIKE ? LIMIT 1";
+  protected static final String LIST_NAMESPACES_SQL = "SELECT DISTINCT " + TABLE_NAMESPACE +
+      " FROM " + CATALOG_TABLE_NAME +
+      " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " LIKE ?";
   protected static final String DO_COMMIT_CREATE_SQL = "INSERT INTO " + CATALOG_TABLE_NAME +
-      " (catalog_name, table_namespace, table_name, metadata_location, previous_metadata_location) " +
+      " (" + CATALOG_NAME + ", " + TABLE_NAMESPACE + ", " + TABLE_NAME +
+      ", " + METADATA_LOCATION + ", " + PREVIOUS_METADATA_LOCATION + ") " +
       " VALUES (?,?,?,?,null)";
-
   private static final Joiner JOINER_DOT = Joiner.on('.');
   private static final Splitter SPLITTER_DOT = Splitter.on('.');
 
