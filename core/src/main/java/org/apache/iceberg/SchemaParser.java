@@ -39,6 +39,7 @@ public class SchemaParser {
   private SchemaParser() {
   }
 
+  private static final String SCHEMA_ID = "schema-id";
   private static final String TYPE = "type";
   private static final String STRUCT = "struct";
   private static final String LIST = "list";
@@ -58,9 +59,16 @@ public class SchemaParser {
   private static final String VALUE_REQUIRED = "value-required";
 
   static void toJson(Types.StructType struct, JsonGenerator generator) throws IOException {
+    toJson(struct, null, generator);
+  }
+  static void toJson(Types.StructType struct, Integer schemaId, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
     generator.writeStringField(TYPE, STRUCT);
+    if (schemaId != null) {
+      generator.writeNumberField(SCHEMA_ID, schemaId);
+    }
+
     generator.writeArrayFieldStart(FIELDS);
     for (Types.NestedField field : struct.fields()) {
       generator.writeStartObject();
@@ -132,6 +140,10 @@ public class SchemaParser {
           throw new IllegalArgumentException("Cannot write unknown type: " + type);
       }
     }
+  }
+
+  public static void toJson(VersionedSchema schema, JsonGenerator generator) throws IOException {
+    toJson(schema.schema().asStruct(), schema.schemaId(), generator);
   }
 
   public static void toJson(Schema schema, JsonGenerator generator) throws IOException {
@@ -252,5 +264,9 @@ public class SchemaParser {
         throw new RuntimeIOException(e);
       }
     });
+  }
+
+  public static VersionedSchema versionedSchemaFromJson(JsonNode json) {
+    return new VersionedSchema(JsonUtil.getInt(SCHEMA_ID, json), fromJson(json));
   }
 }

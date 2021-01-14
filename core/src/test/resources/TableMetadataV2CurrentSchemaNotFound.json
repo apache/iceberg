@@ -5,7 +5,7 @@
   "last-sequence-number": 34,
   "last-updated-ms": 1602638573590,
   "last-column-id": 3,
-  "current-schema-id": 1,
+  "current-schema-id": 2,
   "schemas": [
     {
       "type": "struct",
@@ -59,7 +59,6 @@
       ]
     }
   ],
-  "last-partition-id": 1000,
   "default-sort-order-id": 3,
   "sort-orders": [
     {

@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -326,6 +327,24 @@ public class Schema implements Serializable {
     }
 
     return TypeUtil.select(this, selected);
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    if (this == other) {
+      return true;
+    } else if (!(other instanceof Schema)) {
+      return false;
+    }
+
+    Schema that = (Schema) other;
+    return struct.equals(that.struct) &&
+        Objects.equals(aliasToId, that.aliasToId);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(struct, aliasToId);
   }
 
   @Override
