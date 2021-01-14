@@ -23,12 +23,12 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo;
-import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
@@ -70,10 +70,7 @@ public class FlinkSource {
     private Table table;
     private TableLoader tableLoader;
     private TableSchema projectedSchema;
-    private long limit;
-    private ScanContext context = new ScanContext();
-
-    private RowDataTypeInfo rowTypeInfo;
+    private final ScanContext.Builder contextBuilder = ScanContext.builder();
 
     public Builder tableLoader(TableLoader newLoader) {
       this.tableLoader = newLoader;
@@ -91,7 +88,7 @@ public class FlinkSource {
     }
 
     public Builder filters(List<Expression> filters) {
-      this.context = context.filterRows(filters);
+      contextBuilder.filters(filters);
       return this;
     }
 
@@ -101,57 +98,62 @@ public class FlinkSource {
     }
 
     public Builder limit(long newLimit) {
-      this.limit = newLimit;
+      contextBuilder.limit(newLimit);
       return this;
     }
 
     public Builder properties(Map<String, String> properties) {
-      this.context = context.fromProperties(properties);
+      contextBuilder.fromProperties(properties);
       return this;
     }
 
     public Builder caseSensitive(boolean caseSensitive) {
-      this.context = context.setCaseSensitive(caseSensitive);
+      contextBuilder.caseSensitive(caseSensitive);
       return this;
     }
 
     public Builder snapshotId(Long snapshotId) {
-      this.context = context.useSnapshotId(snapshotId);
+      contextBuilder.useSnapshotId(snapshotId);
       return this;
     }
 
     public Builder startSnapshotId(Long startSnapshotId) {
-      this.context = context.startSnapshotId(startSnapshotId);
+      contextBuilder.startSnapshotId(startSnapshotId);
       return this;
     }
 
     public Builder endSnapshotId(Long endSnapshotId) {
-      this.context = context.endSnapshotId(endSnapshotId);
+      contextBuilder.endSnapshotId(endSnapshotId);
       return this;
     }
 
     public Builder asOfTimestamp(Long asOfTimestamp) {
-      this.context = context.asOfTimestamp(asOfTimestamp);
+      contextBuilder.asOfTimestamp(asOfTimestamp);
       return this;
     }
 
     public Builder splitSize(Long splitSize) {
-      this.context = context.splitSize(splitSize);
+      contextBuilder.splitSize(splitSize);
       return this;
     }
 
     public Builder splitLookback(Integer splitLookback) {
-      this.context = context.splitLookback(splitLookback);
+      contextBuilder.splitLookback(splitLookback);
       return this;
     }
 
     public Builder splitOpenFileCost(Long splitOpenFileCost) {
-      this.context = context.splitOpenFileCost(splitOpenFileCost);
+      contextBuilder.splitOpenFileCost(splitOpenFileCost);
+      return this;
+    }
+
+    public Builder streaming(boolean streaming) {
+      contextBuilder.streaming(streaming);
       return this;
     }
 
     public Builder nameMapping(String nameMapping) {
-      this.context = context.nameMapping(nameMapping);
+      contextBuilder.nameMapping(nameMapping);
       return this;
     }
 
@@ -178,35 +180,37 @@ public class FlinkSource {
         encryption = table.encryption();
       }
 
-      rowTypeInfo = RowDataTypeInfo.of((RowType) (
-          projectedSchema == null ?
-              FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(icebergSchema)) :
-              projectedSchema).toRowDataType().getLogicalType());
+      if (projectedSchema == null) {
+        contextBuilder.project(icebergSchema);
+      } else {
+        contextBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
+      }
 
-      context = context.project(projectedSchema == null ? icebergSchema :
-          FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
-
-      context = context.limit(limit);
-
-      return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, context);
+      return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, contextBuilder.build());
     }
 
     public DataStream<RowData> build() {
       Preconditions.checkNotNull(env, "StreamExecutionEnvironment should not be null");
       FlinkInputFormat format = buildFormat();
-      if (isBounded(context)) {
-        return env.createInput(format, rowTypeInfo);
+
+      ScanContext context = contextBuilder.build();
+      TypeInformation<RowData> typeInfo = RowDataTypeInfo.of(FlinkSchemaUtil.convert(context.project()));
+
+      if (!context.isStreaming()) {
+        return env.createInput(format, typeInfo);
       } else {
-        throw new UnsupportedOperationException("The Unbounded mode is not supported yet");
+        StreamingMonitorFunction function = new StreamingMonitorFunction(tableLoader, context);
+
+        String monitorFunctionName = String.format("Iceberg table (%s) monitor", table);
+        String readerOperatorName = String.format("Iceberg table (%s) reader", table);
+
+        return env.addSource(function, monitorFunctionName)
+            .transform(readerOperatorName, typeInfo, StreamingReaderOperator.factory(format));
       }
     }
   }
 
-  private static boolean isBounded(ScanContext context) {
-    return context.startSnapshotId() == null || context.endSnapshotId() != null;
-  }
-
   public static boolean isBounded(Map<String, String> properties) {
-    return isBounded(new ScanContext().fromProperties(properties));
+    return !ScanContext.builder().fromProperties(properties).build().isStreaming();
   }
 }
