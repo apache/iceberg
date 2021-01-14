@@ -24,8 +24,8 @@ import java.util.Map;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.expressions.ExpressionsUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.junit.After;
 import org.junit.Assert;
@@ -79,7 +79,7 @@ public class TestSelect extends SparkCatalogTestBase {
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should push down expected filter",
         "(float IS NOT NULL AND is_nan(float))",
-        ExpressionsUtil.describe(lastScanEvent.filter()));
+        Spark3Util.describe(lastScanEvent.filter()));
   }
 
   @Test
@@ -104,7 +104,7 @@ public class TestSelect extends SparkCatalogTestBase {
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should push down expected filter",
         "(id IS NOT NULL AND id = 2)",
-        ExpressionsUtil.describe(lastScanEvent.filter()));
+        Spark3Util.describe(lastScanEvent.filter()));
     Assert.assertEquals("Should project only id and data columns",
         validationCatalog.loadTable(tableIdent).schema().select("id", "data").asStruct(),
         lastScanEvent.projection().asStruct());

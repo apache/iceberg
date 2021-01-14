@@ -27,10 +27,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.expressions.CallExpression;
 import org.apache.flink.table.expressions.FieldReferenceExpression;
 import org.apache.flink.table.expressions.ResolvedExpression;
@@ -67,9 +65,9 @@ public class FlinkFilters {
       .build();
 
   /**
-   * convert flink expression to iceberg expression.
+   * Convert flink expression to iceberg expression.
    * <p>
-   * The BETWEEN, NOT_BETWEEN,IN expression will be converted by flink automatically. the BETWEEN will be converted to
+   * the BETWEEN, NOT_BETWEEN, IN expression will be converted by flink automatically. the BETWEEN will be converted to
    * (GT_EQ AND LT_EQ), the NOT_BETWEEN will be converted to (LT_EQ OR GT_EQ), the IN will be converted to OR, so we do
    * not add the conversion here
    *
@@ -86,34 +84,47 @@ public class FlinkFilters {
     if (op != null) {
       switch (op) {
         case IS_NULL:
-          Optional<String> name = toReference(singleton(call, FieldReferenceExpression.class).orElse(null));
-          return name.map(Expressions::isNull);
+          return onlyChildAs(call, FieldReferenceExpression.class)
+              .map(FieldReferenceExpression::getName)
+              .map(Expressions::isNull);
 
         case NOT_NULL:
-          Optional<String> nameNotNull = toReference(singleton(call, FieldReferenceExpression.class).orElse(null));
-          return nameNotNull.map(Expressions::notNull);
+          return onlyChildAs(call, FieldReferenceExpression.class)
+              .map(FieldReferenceExpression::getName)
+              .map(Expressions::notNull);
 
         case LT:
-          return convertComparisonExpression(Expressions::lessThan, Expressions::greaterThan, call);
+          return convertFieldAndLiteral(Expressions::lessThan, Expressions::greaterThan, call);
 
         case LT_EQ:
-          return convertComparisonExpression(Expressions::lessThanOrEqual, Expressions::greaterThanOrEqual, call);
+          return convertFieldAndLiteral(Expressions::lessThanOrEqual, Expressions::greaterThanOrEqual, call);
 
         case GT:
-          return convertComparisonExpression(Expressions::greaterThan, Expressions::lessThan, call);
+          return convertFieldAndLiteral(Expressions::greaterThan, Expressions::lessThan, call);
 
         case GT_EQ:
-          return convertComparisonExpression(Expressions::greaterThanOrEqual, Expressions::lessThanOrEqual, call);
+          return convertFieldAndLiteral(Expressions::greaterThanOrEqual, Expressions::lessThanOrEqual, call);
 
         case EQ:
-          return handleNaN(Expressions::equal, Expressions::isNaN, call);
+          return convertFieldAndLiteral((ref, lit) -> {
+            if (NaNUtil.isNaN(lit)) {
+              return Expressions.isNaN(ref);
+            } else {
+              return Expressions.equal(ref, lit);
+            }
+          }, call);
 
         case NOT_EQ:
-          return handleNaN(Expressions::notEqual, Expressions::notNaN, call);
+          return convertFieldAndLiteral((ref, lit) -> {
+            if (NaNUtil.isNaN(lit)) {
+              return Expressions.notNaN(ref);
+            } else {
+              return Expressions.notEqual(ref, lit);
+            }
+          }, call);
 
         case NOT:
-          Optional<Expression> child = convert(singleton(call, CallExpression.class).orElse(null));
-          return child.map(Expressions::not);
+          return onlyChildAs(call, CallExpression.class).flatMap(FlinkFilters::convert).map(Expressions::not);
 
         case AND:
           return convertLogicExpression(Expressions::and, call);
@@ -129,8 +140,8 @@ public class FlinkFilters {
     return Optional.empty();
   }
 
-  private static <T extends ResolvedExpression> Optional<T> singleton(CallExpression call,
-                                                                      Class<T> expectedChildClass) {
+  private static <T extends ResolvedExpression> Optional<T> onlyChildAs(CallExpression call,
+                                                                        Class<T> expectedChildClass) {
     List<ResolvedExpression> children = call.getResolvedChildren();
     if (children.size() != 1) {
       return Optional.empty();
@@ -145,18 +156,29 @@ public class FlinkFilters {
   }
 
   private static Optional<Expression> convertLike(CallExpression call) {
-    Tuple2<String, Object> tuple2 = parseFieldAndLiteral(call);
-    if (tuple2 == null) {
+    List<ResolvedExpression> args = call.getResolvedChildren();
+    if (args.size() != 2) {
       return Optional.empty();
     }
 
-    String pattern = tuple2.f1.toString();
-    Matcher matcher = STARTS_WITH_PATTERN.matcher(pattern);
+    org.apache.flink.table.expressions.Expression left = args.get(0);
+    org.apache.flink.table.expressions.Expression right = args.get(1);
 
-    // exclude special char of LIKE
-    // '_' is the wildcard of the SQL LIKE
-    if (!pattern.contains("_") && matcher.matches()) {
-      return Optional.of(Expressions.startsWith(tuple2.f0, matcher.group(1)));
+    if (left instanceof FieldReferenceExpression && right instanceof ValueLiteralExpression) {
+      String name = ((FieldReferenceExpression) left).getName();
+      return convertLiteral((ValueLiteralExpression) right).flatMap(lit -> {
+        if (lit instanceof String) {
+          String pattern = (String) lit;
+          Matcher matcher = STARTS_WITH_PATTERN.matcher(pattern);
+          // exclude special char of LIKE
+          // '_' is the wildcard of the SQL LIKE
+          if (!pattern.contains("_") && matcher.matches()) {
+            return Optional.of(Expressions.startsWith(name, matcher.group(1)));
+          }
+        }
+
+        return Optional.empty();
+      });
     }
 
     return Optional.empty();
@@ -165,6 +187,10 @@ public class FlinkFilters {
   private static Optional<Expression> convertLogicExpression(BiFunction<Expression, Expression, Expression> function,
                                                              CallExpression call) {
     List<ResolvedExpression> args = call.getResolvedChildren();
+    if (args == null || args.size() != 2) {
+      return Optional.empty();
+    }
+
     Optional<Expression> left = convert(args.get(0));
     Optional<Expression> right = convert(args.get(1));
     if (left.isPresent() && right.isPresent()) {
@@ -172,52 +198,6 @@ public class FlinkFilters {
     }
 
     return Optional.empty();
-  }
-
-  private static Optional<Expression> convertComparisonExpression(
-      BiFunction<String, Object, Expression> function, BiFunction<String, Object, Expression> reversedFunction,
-      CallExpression call) {
-    Tuple2<String, Object> tuple2 = parseFieldAndLiteral(call);
-    if (tuple2 != null) {
-      if (literalOnRight(call.getResolvedChildren())) {
-        return Optional.of(function.apply(tuple2.f0, tuple2.f1));
-      } else {
-        return Optional.of(reversedFunction.apply(tuple2.f0, tuple2.f1));
-      }
-    } else {
-      return Optional.empty();
-    }
-  }
-
-  private static Optional<String> toReference(org.apache.flink.table.expressions.Expression expression) {
-    return expression instanceof FieldReferenceExpression ?
-        Optional.of(((FieldReferenceExpression) expression).getName()) :
-        Optional.empty();
-  }
-
-  private static Optional<Object> toLiteral(org.apache.flink.table.expressions.Expression expression) {
-    // Not support null literal
-    return expression instanceof ValueLiteralExpression ?
-        convertLiteral((ValueLiteralExpression) expression) :
-        Optional.empty();
-  }
-
-  private static Optional<Expression> handleNaN(BiFunction<String, Object, Expression> function,
-                                                Function<String, Expression> functionNaN,
-                                                CallExpression call) {
-    Tuple2<String, Object> tuple2 = parseFieldAndLiteral(call);
-    if (tuple2 == null) {
-      return Optional.empty();
-    }
-
-    String name = tuple2.f0;
-    Object value = tuple2.f1;
-
-    if (NaNUtil.isNaN(value)) {
-      return Optional.of(functionNaN.apply(name));
-    } else {
-      return Optional.of(function.apply(name, value));
-    }
   }
 
   private static Optional<Object> convertLiteral(ValueLiteralExpression expression) {
@@ -237,30 +217,36 @@ public class FlinkFilters {
     });
   }
 
-  private static boolean literalOnRight(List<ResolvedExpression> args) {
-    return args.get(0) instanceof FieldReferenceExpression && args.get(1) instanceof ValueLiteralExpression;
+  private static Optional<Expression> convertFieldAndLiteral(BiFunction<String, Object, Expression> expr,
+                                                             CallExpression call) {
+    return convertFieldAndLiteral(expr, expr, call);
   }
 
-  private static Tuple2<String, Object> parseFieldAndLiteral(CallExpression call) {
+  private static Optional<Expression> convertFieldAndLiteral(
+      BiFunction<String, Object, Expression> convertLR, BiFunction<String, Object, Expression> convertRL,
+      CallExpression call) {
     List<ResolvedExpression> args = call.getResolvedChildren();
     if (args.size() != 2) {
-      return null;
+      return Optional.empty();
     }
 
-    Optional<String> name;
-    Optional<Object> value;
-    if (literalOnRight(args)) {
-      name = toReference(args.get(0));
-      value = toLiteral(args.get(1));
-    } else {
-      name = toReference(args.get(1));
-      value = toLiteral(args.get(0));
+    org.apache.flink.table.expressions.Expression left = args.get(0);
+    org.apache.flink.table.expressions.Expression right = args.get(1);
+
+    if (left instanceof FieldReferenceExpression && right instanceof ValueLiteralExpression) {
+      String name = ((FieldReferenceExpression) left).getName();
+      Optional<Object> lit = convertLiteral((ValueLiteralExpression) right);
+      if (lit.isPresent()) {
+        return Optional.of(convertLR.apply(name, lit.get()));
+      }
+    } else if (left instanceof ValueLiteralExpression && right instanceof FieldReferenceExpression) {
+      Optional<Object> lit = convertLiteral((ValueLiteralExpression) left);
+      String name = ((FieldReferenceExpression) right).getName();
+      if (lit.isPresent()) {
+        return Optional.of(convertRL.apply(name, lit.get()));
+      }
     }
 
-    if (name.isPresent() && value.isPresent()) {
-      return Tuple2.of(name.get(), value.get());
-    } else {
-      return null;
-    }
+    return Optional.empty();
   }
 }

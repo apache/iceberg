@@ -19,10 +19,12 @@
 
 package org.apache.iceberg.spark;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.PartitionSpec;
@@ -32,7 +34,10 @@ import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Term;
+import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -385,6 +390,10 @@ public class Spark3Util {
     return null;
   }
 
+  public static String describe(org.apache.iceberg.expressions.Expression expr) {
+    return ExpressionVisitors.visit(expr, DescribeExpressionVisitor.INSTANCE);
+  }
+
   public static String describe(Schema schema) {
     return TypeUtil.visit(schema, DescribeSchemaVisitor.INSTANCE);
   }
@@ -507,6 +516,91 @@ public class Spark3Util {
           return "decimal(" + decimal.precision() + "," + decimal.scale() + ")";
       }
       throw new UnsupportedOperationException("Cannot convert type to SQL: " + primitive);
+    }
+  }
+
+  private static class DescribeExpressionVisitor extends ExpressionVisitors.ExpressionVisitor<String> {
+    private static final DescribeExpressionVisitor INSTANCE = new DescribeExpressionVisitor();
+
+    private DescribeExpressionVisitor() {
+    }
+
+    @Override
+    public String alwaysTrue() {
+      return "true";
+    }
+
+    @Override
+    public String alwaysFalse() {
+      return "false";
+    }
+
+    @Override
+    public String not(String result) {
+      return "NOT (" + result + ")";
+    }
+
+    @Override
+    public String and(String leftResult, String rightResult) {
+      return "(" + leftResult + " AND " + rightResult + ")";
+    }
+
+    @Override
+    public String or(String leftResult, String rightResult) {
+      return "(" + leftResult + " OR " + rightResult + ")";
+    }
+
+    @Override
+    public <T> String predicate(BoundPredicate<T> pred) {
+      throw new UnsupportedOperationException("Cannot convert bound predicates to SQL");
+    }
+
+    @Override
+    public <T> String predicate(UnboundPredicate<T> pred) {
+      switch (pred.op()) {
+        case IS_NULL:
+          return pred.ref().name() + " IS NULL";
+        case NOT_NULL:
+          return pred.ref().name() + " IS NOT NULL";
+        case IS_NAN:
+          return "is_nan(" + pred.ref().name() + ")";
+        case NOT_NAN:
+          return "not_nan(" + pred.ref().name() + ")";
+        case LT:
+          return pred.ref().name() + " < " + sqlString(pred.literal());
+        case LT_EQ:
+          return pred.ref().name() + " <= " + sqlString(pred.literal());
+        case GT:
+          return pred.ref().name() + " > " + sqlString(pred.literal());
+        case GT_EQ:
+          return pred.ref().name() + " >= " + sqlString(pred.literal());
+        case EQ:
+          return pred.ref().name() + " = " + sqlString(pred.literal());
+        case NOT_EQ:
+          return pred.ref().name() + " != " + sqlString(pred.literal());
+        case STARTS_WITH:
+          return pred.ref().name() + " LIKE '" + pred.literal() + "%'";
+        case IN:
+          return pred.ref().name() + " IN (" + sqlString(pred.literals()) + ")";
+        case NOT_IN:
+          return pred.ref().name() + " NOT IN (" + sqlString(pred.literals()) + ")";
+        default:
+          throw new UnsupportedOperationException("Cannot convert predicate to SQL: " + pred);
+      }
+    }
+
+    private static <T> String sqlString(List<org.apache.iceberg.expressions.Literal<T>> literals) {
+      return literals.stream().map(DescribeExpressionVisitor::sqlString).collect(Collectors.joining(", "));
+    }
+
+    private static String sqlString(org.apache.iceberg.expressions.Literal<?> lit) {
+      if (lit.value() instanceof String) {
+        return "'" + lit.value() + "'";
+      } else if (lit.value() instanceof ByteBuffer) {
+        throw new IllegalArgumentException("Cannot convert bytes to SQL literal: " + lit);
+      } else {
+        return lit.value().toString();
+      }
     }
   }
 

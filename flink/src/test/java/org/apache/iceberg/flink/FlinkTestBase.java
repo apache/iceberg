@@ -73,7 +73,7 @@ public abstract class FlinkTestBase extends AbstractTestBase {
   }
 
   protected static TableResult exec(TableEnvironment env, String query, Object... args) {
-    return env.executeSql(String.format(query, args));
+    return env.executeSql(args.length > 0 ? String.format(query, args) : query);
   }
 
   protected TableResult exec(String query, Object... args) {
@@ -81,8 +81,7 @@ public abstract class FlinkTestBase extends AbstractTestBase {
   }
 
   protected List<Object[]> sql(String query, Object... args) {
-    String sql = args.length > 0 ? String.format(query, args) : query;
-    TableResult tableResult = exec(sql);
+    TableResult tableResult = exec(query, args);
 
     tableResult.getJobClient().ifPresent(c -> {
       try {
