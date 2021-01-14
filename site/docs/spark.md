@@ -848,7 +848,7 @@ be set as the current snapshot in a table.
 
 | Argument Name | Required? | Type | Description |
 |---------------|-----------|------|-------------|
-| table         | ✔️  | String | Name of table to perform cherrypick on |
+| table         | ✔️  | String | Name of table to perform the cherrypick on |
 | snapshot_id   | ✔️   | Long | The snapshot ID to cherrypick |
 
 #### Output
@@ -856,7 +856,7 @@ be set as the current snapshot in a table.
 | Output Name | Type | Description |
 | ------------|------|-------------|
 | source_snapshot_id | Long | The snapshot before applying the cherrypick |
-| current_snapshot_id | Long | The current snapshot now that the cherrypick has been applied|
+| current_snapshot_id | Long | The current snapshot ID now that the cherrypick has been applied|
 
 #### Examples
 
@@ -884,7 +884,7 @@ the `expire_snapshots` procedure will never remove files which are still require
 | Argument Name | Required? | Type | Description |
 |---------------|-----------|------|-------------|
 | table         | ✔️  | String | Name of table to expire snapshots from |
-| older_than    | ️   | Timestamp   | Remove snapshots older than this date (Defaults to 5 days ago) |
+| older_than    | ️   | Timestamp   | Remove snapshots which were created before this timestamp (Defaults to 5 days ago) |
 | retain_last   |     | Int    | Length of history to preserve regardless of older_than target (defaults to 1) |
 
 #### Output
@@ -910,9 +910,12 @@ Erase all snapshots older than the current timestamp but retain the last 5 snaps
 ### Migrate Table Procedure
 
 Converts a table known to Spark in this catalog into an Iceberg table. This is mainly for taking
-Hive tables and fully converting them into Iceberg tables. The [snapshot](#snapshot-table-procedure) procedure 
-can be used for making  Iceberg tables without effecting the underlying table. The migrated table will preserve all
-properties set on the original table.
+Hive tables and fully converting them into Iceberg tables but can be used with most Spark Session V1
+tables as well. The migrated table will preserve all properties set on the original table. Once migrated, all 
+Iceberg operations are valid.
+
+If you would like to leave the original table intact and untouched and create new table which shares source
+data files and schema, use the [snapshot procedure](#snapshot-table-procedure).
 
 #### Usage
 
@@ -934,7 +937,7 @@ Migrate the table `db.sample` to an Iceberg table and add a property 'foo' set t
     CALL catalog_name hive_prod.system.migrate('db.sample', map('foo', 'bar'))
 ```
 
-Migrate the table db.sample
+Migrate the table `db.sample` to an Iceberg table without adding any additional properties.
 ```sql
     CALL catalog_name hive_prod.system.migrate('db.sample')
 ```
@@ -949,7 +952,7 @@ required by an Iceberg table as they are no longer referenced in any metadata fi
 | Argument Name | Required? | Type | Description |
 |---------------|-----------|------|-------------|
 | table         | ✔️  | String    | Name of table to remove files from |
-| older_than    | ️   | Timestamp | Remove orphan files older than this time (Defaults to 3 days ago) |
+| older_than    | ️   | Timestamp | Remove orphan files created before this timestamp (Defaults to 3 days ago) |
 | location      |     | String    | Directory to look for files in (defaults to the table's location) |
 | dry_run       |     | Boolean   | When true, don't actually remove files (defaults to false) |
 
@@ -974,7 +977,13 @@ List all the files that are candidates for removal by performing a dry run of th
 
 ### Rewrite Manifests Procedure
 
-A procedure that rewrites manifests in a table and co-locates metadata for partitions.
+A procedure that rewrites manifests in a table and co-locates metadata for partitions. This procedure 
+is an optimization which can be used if the number of Manifest files is causing a performance degradation on read. 
+Smaller manifest files will be combined into larger ones reducing cost of opening new file handles when performing 
+reads.
+
+See the [`RewriteManifestsAction` Javadoc](./javadoc/master/org/apache/iceberg/actions/RewriteManifestsAction.html)
+to see more configuration options.
 
 **Note** this procedure invalidates all cached Spark plans that reference the affected table.
 
@@ -1007,8 +1016,8 @@ avoid memory issues on executors.
 
 ### Rollback to Snapshot Procedure
 
-A procedure that rollbacks a table to a specific snapshot id. For rollbacks based on time see
-[rollback_to_timestamp](#rollback-to-snapshot-procedure).
+A procedure that rolls a table back to a specific snapshot id. For rolling the table back based on time see
+[rollback_to_timestamp](#rollback-to-timestamp-procedure).
 
 **Note** this procedure invalidates all cached Spark plans that reference the affected table.
 
@@ -1017,13 +1026,13 @@ A procedure that rollbacks a table to a specific snapshot id. For rollbacks base
 | Argument Name | Required? | Type | Description |
 |---------------|-----------|------|-------------|
 | table         | ✔️  | String  | Name of table to rollback |
-| snapshot_id   | ✔️  | Long     | The snapshot ID to rollback to |
+| snapshot_id   | ✔️  | Long    | The snapshot ID to rollback to |
 
 #### Output
 
 | Output Name | Type | Description |
 | ------------|------|-------------|
-| previous_snapshot_id | Long | The snapshot ID before the rollback |
+| previous_snapshot_id | Long | The current snapshot ID before the rollback |
 | current_snapshot_id  | Long | The new current snapshot ID |
 
 #### Example
@@ -1035,7 +1044,7 @@ Rollback `db.sample` to snapshot `1`
 
 ### Rollback to Timestamp Procedure
 
-A procedure that rollbacks a table to a certain point in time.
+A procedure that rolls a table back to a certain point in time.
 
 **Note** this procedure invalidates all cached Spark plans that reference the affected table.
 
