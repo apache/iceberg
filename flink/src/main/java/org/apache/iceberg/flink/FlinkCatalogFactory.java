@@ -25,7 +25,6 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.runtime.util.HadoopUtils;
 import org.apache.flink.table.catalog.Catalog;
@@ -37,7 +36,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
@@ -68,7 +67,6 @@ public class FlinkCatalogFactory implements CatalogFactory {
   public static final String DEFAULT_DATABASE = "default-database";
   public static final String BASE_NAMESPACE = "base-namespace";
   public static final String CACHE_ENABLED = "cache-enabled";
-  public static final String CUSTOM_CATALOG_PREFIX = "custom-catalog.*";
 
   /**
    * Create an Iceberg {@link org.apache.iceberg.catalog.Catalog} loader to be used by this Flink catalog adapter.
@@ -81,10 +79,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
   protected CatalogLoader createCatalogLoader(String name, Map<String, String> properties, Configuration hadoopConf) {
     String catalogImpl = properties.get(CatalogProperties.CATALOG_IMPL);
     if (catalogImpl != null) {
-      Map<String, String> customProps = properties.entrySet()
-          .stream().filter(x -> x.getKey().startsWith(CUSTOM_CATALOG_PREFIX))
-          .collect(Collectors.toMap(x -> x.getKey().replace(CUSTOM_CATALOG_PREFIX, ""), Map.Entry::getValue));
-      return CatalogLoader.custom(name, customProps, hadoopConf, catalogImpl);
+      return CatalogLoader.custom(name, properties, hadoopConf, catalogImpl);
     }
 
     String catalogType = properties.getOrDefault(ICEBERG_CATALOG_TYPE, ICEBERG_CATALOG_TYPE_HIVE);
@@ -114,19 +109,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
 
   @Override
   public List<String> supportedProperties() {
-    List<String> properties = Lists.newArrayList();
-    properties.add(ICEBERG_CATALOG_TYPE);
-    properties.add(HIVE_CONF_DIR);
-    properties.add(DEFAULT_DATABASE);
-    properties.add(BASE_NAMESPACE);
-    properties.add(CatalogProperties.FILE_IO_IMPL);
-    properties.add(CatalogProperties.WAREHOUSE_LOCATION);
-    properties.add(CatalogProperties.HIVE_URI);
-    properties.add(CatalogProperties.HIVE_CLIENT_POOL_SIZE);
-    properties.add(CatalogProperties.CATALOG_IMPL);
-    properties.add(CACHE_ENABLED);
-    properties.add(CUSTOM_CATALOG_PREFIX);
-    return properties;
+    return ImmutableList.of("*");
   }
 
   @Override
