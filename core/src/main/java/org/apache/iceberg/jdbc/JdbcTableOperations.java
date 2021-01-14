@@ -166,7 +166,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     if (insertRecord == 1) {
       LOG.debug("Successfully committed to new table: {}", tableIdentifier);
     } else {
-      throw new CommitFailedException("Failed to commit the table %s from catalog %s", tableIdentifier, catalogName);
+      throw new CommitFailedException("Failed to create the table %s from catalog %s", tableIdentifier, catalogName);
     }
   }
 
@@ -208,6 +208,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
           table.put("metadata_location", rs.getString("metadata_location"));
           table.put("previous_metadata_location", rs.getString("previous_metadata_location"));
         }
+
         rs.close();
       }
 

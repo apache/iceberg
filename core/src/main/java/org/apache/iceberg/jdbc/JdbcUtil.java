@@ -26,9 +26,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 public final class JdbcUtil {
-  protected static final String SQL_TABLE_NAME = "iceberg_tables";
-  protected static final String SQL_CREATE_CATALOG_TABLE =
-      "CREATE TABLE " + SQL_TABLE_NAME +
+  protected static final String CATALOG_TABLE_NAME = "ICEBERG_TABLES";
+  protected static final String CREATE_CATALOG_TABLE =
+      "CREATE TABLE " + CATALOG_TABLE_NAME +
           "(catalog_name VARCHAR(1255) NOT NULL," +
           "table_namespace VARCHAR(1255) NOT NULL," +
           "table_name VARCHAR(1255) NOT NULL," +
@@ -36,23 +36,23 @@ public final class JdbcUtil {
           "previous_metadata_location VARCHAR(32768)," +
           "PRIMARY KEY (catalog_name, table_namespace, table_name)" +
           ")";
-  protected static final String LOAD_TABLE_SQL = "SELECT * FROM " + SQL_TABLE_NAME +
+  protected static final String LOAD_TABLE_SQL = "SELECT * FROM " + CATALOG_TABLE_NAME +
       " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? ";
-  protected static final String LIST_TABLES_SQL = "SELECT * FROM " + SQL_TABLE_NAME +
+  protected static final String LIST_TABLES_SQL = "SELECT * FROM " + CATALOG_TABLE_NAME +
       " WHERE catalog_name = ? AND table_namespace = ?";
-  protected static final String RENAME_TABLE_SQL = "UPDATE " + SQL_TABLE_NAME +
+  protected static final String RENAME_TABLE_SQL = "UPDATE " + CATALOG_TABLE_NAME +
       " SET table_namespace = ? , table_name = ? " +
       " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? ";
-  protected static final String DROP_TABLE_SQL = "DELETE FROM " + SQL_TABLE_NAME +
+  protected static final String DROP_TABLE_SQL = "DELETE FROM " + CATALOG_TABLE_NAME +
       " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? ";
-  protected static final String GET_NAMESPACE_SQL = "SELECT table_namespace FROM " + SQL_TABLE_NAME +
+  protected static final String GET_NAMESPACE_SQL = "SELECT table_namespace FROM " + CATALOG_TABLE_NAME +
       " WHERE catalog_name = ? AND table_namespace LIKE ? LIMIT 1";
-  protected static final String LIST_NAMESPACES_SQL = "SELECT DISTINCT table_namespace FROM " + SQL_TABLE_NAME +
+  protected static final String LIST_NAMESPACES_SQL = "SELECT DISTINCT table_namespace FROM " + CATALOG_TABLE_NAME +
       " WHERE catalog_name = ? AND table_namespace LIKE ?";
-  public static final String DO_COMMIT_SQL = "UPDATE " + SQL_TABLE_NAME +
+  public static final String DO_COMMIT_SQL = "UPDATE " + CATALOG_TABLE_NAME +
       " SET metadata_location = ? , previous_metadata_location = ? " +
       " WHERE catalog_name = ? AND table_namespace = ? AND table_name = ? AND metadata_location = ?";
-  protected static final String DO_COMMIT_CREATE_SQL = "INSERT INTO " + SQL_TABLE_NAME +
+  protected static final String DO_COMMIT_CREATE_SQL = "INSERT INTO " + CATALOG_TABLE_NAME +
       " (catalog_name, table_namespace, table_name, metadata_location, previous_metadata_location) " +
       " VALUES (?,?,?,?,null)";
 
@@ -66,6 +66,7 @@ public final class JdbcUtil {
     if (string == null) {
       return null;
     }
+
     return Namespace.of(Iterables.toArray(SPLITTER_DOT.split(string), String.class));
   }
 
