@@ -77,28 +77,27 @@ class IcebergDataFileCommitter extends Combine.CombineFn<WrittenDataFile, List<W
 
   @Override
   public Snapshot extractOutput(List<WrittenDataFile> accumulator) {
-    // The window will fire, even if the window is empty
-    if(!accumulator.isEmpty()) {
-      Configuration conf = new Configuration();
+    Configuration conf = new Configuration();
 
-      for (String key : this.config.keySet()) {
-        conf.set(key, this.config.get(key));
+    for (String key : this.config.keySet()) {
+      conf.set(key, this.config.get(key));
+    }
+
+    try (HiveCatalog catalog = new HiveCatalog(
+        HiveCatalog.DEFAULT_NAME,
+        this.hiveMetastoreUrl,
+        1,
+        conf
+    )) {
+      Table table;
+      try {
+        table = catalog.loadTable(this.tableIdentifier);
+      } catch (NoSuchTableException e) {
+        // If it doesn't exist, we just create the table
+        table = catalog.createTable(this.tableIdentifier, schema);
       }
 
-      try (HiveCatalog catalog = new HiveCatalog(
-          HiveCatalog.DEFAULT_NAME,
-          this.hiveMetastoreUrl,
-          1,
-          conf
-      )) {
-        Table table;
-        try {
-          table = catalog.loadTable(this.tableIdentifier);
-        } catch (NoSuchTableException e) {
-          // If it doesn't exist, we just create the table
-          table = catalog.createTable(this.tableIdentifier, schema);
-        }
-
+      if (!accumulator.isEmpty()) {
         // Append the new files
         final AppendFiles app = table.newAppend();
         // We need to get the statistics, not easy to get them through Beam
@@ -110,9 +109,9 @@ class IcebergDataFileCommitter extends Combine.CombineFn<WrittenDataFile, List<W
               .build());
         }
         app.commit();
-
-        return table.currentSnapshot();
       }
+
+      return table.currentSnapshot();
     }
   }
 }
