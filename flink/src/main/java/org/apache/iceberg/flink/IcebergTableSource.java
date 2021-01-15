@@ -46,6 +46,8 @@ public class IcebergTableSource
     implements StreamTableSource<RowData>, ProjectableTableSource<RowData>, FilterableTableSource<RowData>,
     LimitableTableSource<RowData> {
 
+  private static final Joiner COMMA = Joiner.on(',');
+
   private final TableLoader loader;
   private final TableSchema schema;
   private final Map<String, String> properties;
@@ -121,7 +123,7 @@ public class IcebergTableSource
     }
 
     if (isFilterPushedDown()) {
-      explain += String.format(", FilterPushDown,the filters :%s", Joiner.on(",").join(filters));
+      explain += String.format(", FilterPushDown: %s", COMMA.join(filters));
     }
 
     return TableConnectorUtils.generateRuntimeName(getClass(), getTableSchema().getFieldNames()) + explain;

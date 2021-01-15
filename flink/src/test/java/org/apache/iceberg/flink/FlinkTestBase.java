@@ -73,7 +73,7 @@ public abstract class FlinkTestBase extends AbstractTestBase {
   }
 
   protected static TableResult exec(TableEnvironment env, String query, Object... args) {
-    return env.executeSql(args.length > 0 ? String.format(query, args) : query);
+    return env.executeSql(String.format(query, args));
   }
 
   protected TableResult exec(String query, Object... args) {
