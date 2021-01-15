@@ -49,7 +49,7 @@ public class TestHiveClientPool {
     HiveConf clientConf = clientPool.hiveConf();
 
     // hive will pick up system property whenever a new HiveConf is created
-    // See org.apache.iceberg.hive.TestHiveMetastore.start(int)
+    // see org.apache.iceberg.hive.TestHiveMetastore.start(int)
     if (System.getProperty(HiveConf.ConfVars.METASTOREURIS.varname) != null) {
       Assert.assertEquals(System.getProperty(HiveConf.ConfVars.METASTOREURIS.varname),
               clientConf.get(HiveConf.ConfVars.METASTOREURIS.varname));
@@ -66,19 +66,6 @@ public class TestHiveClientPool {
     Assert.assertEquals(conf.get(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL.varname),
             clientConf.get(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL.varname));
     Assert.assertTrue(clientConf.getBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL));
-  }
-
-  @Test
-  public void testHiveConf() {
-    HiveConf hiveConf = createHiveConf();
-    Assert.assertTrue(hiveConf.getBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL));
-
-    // will override configurations from `hiveConf` with hive default values which default value is null or empty string
-    HiveConf hiveConfNew = new HiveConf(hiveConf, HiveConf.class);
-    Assert.assertFalse(hiveConfNew.getBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL));
-
-    hiveConfNew.addResource(hiveConf);
-    Assert.assertTrue(hiveConfNew.getBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL));
   }
 
   private HiveConf createHiveConf() {
