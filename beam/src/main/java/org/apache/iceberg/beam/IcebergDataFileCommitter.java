@@ -77,39 +77,42 @@ class IcebergDataFileCommitter extends Combine.CombineFn<WrittenDataFile, List<W
 
   @Override
   public Snapshot extractOutput(List<WrittenDataFile> accumulator) {
-    Configuration conf = new Configuration();
+    // The window will fire, even if the window is empty
+    if(!accumulator.isEmpty()) {
+      Configuration conf = new Configuration();
 
-    for (String key : this.config.keySet()) {
-      conf.set(key, this.config.get(key));
-    }
-
-    try (HiveCatalog catalog = new HiveCatalog(
-        HiveCatalog.DEFAULT_NAME,
-        this.hiveMetastoreUrl,
-        1,
-        conf
-    )) {
-      Table table;
-      try {
-        table = catalog.loadTable(this.tableIdentifier);
-      } catch (NoSuchTableException e) {
-        // If it doesn't exist, we just create the table
-        table = catalog.createTable(this.tableIdentifier, schema);
+      for (String key : this.config.keySet()) {
+        conf.set(key, this.config.get(key));
       }
 
-      // Append the new files
-      final AppendFiles app = table.newAppend();
-      // We need to get the statistics, not easy to get them through Beam
-      for (WrittenDataFile dataFile : accumulator) {
-        app.appendFile(DataFiles.builder(table.spec())
-            .withPath(dataFile.getFilename())
-            .withFileSizeInBytes(dataFile.getFilesize())
-            .withRecordCount(dataFile.getRecords())
-            .build());
-      }
-      app.commit();
+      try (HiveCatalog catalog = new HiveCatalog(
+          HiveCatalog.DEFAULT_NAME,
+          this.hiveMetastoreUrl,
+          1,
+          conf
+      )) {
+        Table table;
+        try {
+          table = catalog.loadTable(this.tableIdentifier);
+        } catch (NoSuchTableException e) {
+          // If it doesn't exist, we just create the table
+          table = catalog.createTable(this.tableIdentifier, schema);
+        }
 
-      return table.currentSnapshot();
+        // Append the new files
+        final AppendFiles app = table.newAppend();
+        // We need to get the statistics, not easy to get them through Beam
+        for (WrittenDataFile dataFile : accumulator) {
+          app.appendFile(DataFiles.builder(table.spec())
+              .withPath(dataFile.getFilename())
+              .withFileSizeInBytes(dataFile.getFilesize())
+              .withRecordCount(dataFile.getRecords())
+              .build());
+        }
+        app.commit();
+
+        return table.currentSnapshot();
+      }
     }
   }
 }
