@@ -37,7 +37,7 @@ public class HiveIcebergStorageHandlerTestUtils {
       new FileFormat[] {FileFormat.AVRO, FileFormat.ORC, FileFormat.PARQUET};
 
   static final Schema CUSTOMER_SCHEMA = new Schema(
-          optional(1, "customer_id", Types.LongType.get(), "This is an ID"),
+          optional(1, "customer_id", Types.LongType.get()),
           optional(2, "first_name", Types.StringType.get(), "This is first name"),
           optional(3, "last_name", Types.StringType.get(), "This is last name")
   );

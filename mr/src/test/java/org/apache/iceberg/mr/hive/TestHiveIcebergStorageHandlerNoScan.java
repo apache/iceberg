@@ -525,7 +525,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
   }
 
   @Test
-  public void testCreateTableWithColumnComments() throws IOException {
+  public void testCreateTableWithColumnComments() {
     TableIdentifier identifier = TableIdentifier.of("default", "comment_table");
     shell.executeStatement("CREATE EXTERNAL TABLE comment_table (" +
         "t_int INT COMMENT 'int column',  " +
@@ -540,6 +540,26 @@ public class TestHiveIcebergStorageHandlerNoScan {
       Types.NestedField field = icebergTable.schema().columns().get(i);
       Assert.assertArrayEquals(new Object[] {field.name(), HiveSchemaUtil.convert(field.type()).getTypeName(),
           field.doc()}, rows.get(i));
+    }
+  }
+
+  @Test
+  public void testCreateTableWithoutColumnComments() {
+    TableIdentifier identifier = TableIdentifier.of("default", "without_comment_table");
+    shell.executeStatement("CREATE EXTERNAL TABLE without_comment_table (" +
+            "t_int INT,  " +
+            "t_string STRING) " +
+            "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+            testTables.locationForCreateTableSQL(identifier));
+    org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
+
+    List<Object[]> rows = shell.executeStatement("DESCRIBE default.without_comment_table");
+    Assert.assertEquals(icebergTable.schema().columns().size(), rows.size());
+    for (int i = 0; i < icebergTable.schema().columns().size(); i++) {
+      Types.NestedField field = icebergTable.schema().columns().get(i);
+      Assert.assertNull(field.doc());
+      Assert.assertArrayEquals(new Object[] {field.name(), HiveSchemaUtil.convert(field.type()).getTypeName(),
+          "from deserializer"}, rows.get(i));
     }
   }
 }

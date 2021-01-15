@@ -183,7 +183,7 @@ public class HiveIcebergSerDe extends AbstractSerDe {
         Collections.addAll(comments, columnComments.split(Character.toString(Character.MIN_VALUE)));
       }
       Schema hiveSchema = HiveSchemaUtil.convert(names, TypeInfoUtils.getTypeInfosFromTypeString(columnTypes),
-              comments.isEmpty() ? null : comments, autoConversion);
+              comments, autoConversion);
       LOG.info("Using hive schema {}", SchemaParser.toJson(hiveSchema));
       return hiveSchema;
     } else {

@@ -247,7 +247,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
     Map<StructLike, List<Record>> data = new HashMap<>(1);
     data.put(null, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     String createSql = "CREATE EXTERNAL TABLE " + identifier +
-        " (customer_id BIGINT COMMENT 'This is an ID', first_name STRING COMMENT 'This is first name', " +
+        " (customer_id BIGINT, first_name STRING COMMENT 'This is first name', " +
         "last_name STRING COMMENT 'This is last name')" +
         " STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
         testTables.locationForCreateTableSQL(identifier);
@@ -265,7 +265,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
         Row.of("Green"), Collections.singletonList(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS.get(1)),
         Row.of("Pink"), Collections.singletonList(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS.get(2)));
     String createSql = "CREATE EXTERNAL TABLE " + identifier +
-        " (customer_id BIGINT COMMENT 'This is an ID', first_name STRING COMMENT 'This is first name') " +
+        " (customer_id BIGINT, first_name STRING COMMENT 'This is first name') " +
         "PARTITIONED BY (last_name STRING COMMENT 'This is last name') STORED BY " +
          "'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
         testTables.locationForCreateTableSQL(identifier);
@@ -299,7 +299,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
         Row.of("Alice", "Brown"), Collections.singletonList(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS.get(0)),
         Row.of("Bob", "Green"), Collections.singletonList(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS.get(1)),
         Row.of("Trudy", "Pink"), Collections.singletonList(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS.get(2)));
-    String createSql = "CREATE EXTERNAL TABLE " + identifier + " (customer_id BIGINT COMMENT 'This is an ID') " +
+    String createSql = "CREATE EXTERNAL TABLE " + identifier + " (customer_id BIGINT) " +
         "PARTITIONED BY (first_name STRING COMMENT 'This is first name', " +
         "last_name STRING COMMENT 'This is last name') " +
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +

@@ -202,8 +202,9 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     Assert.assertEquals(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA.columns().size(), rows.size());
     for (int i = 0; i < HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA.columns().size(); i++) {
       Types.NestedField field = HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA.columns().get(i);
+      String comment = field.doc() == null ? "from deserializer" : field.doc();
       Assert.assertArrayEquals(new Object[] {field.name(), HiveSchemaUtil.convert(field.type()).getTypeName(),
-              field.doc()}, rows.get(i));
+          comment}, rows.get(i));
     }
   }
 
