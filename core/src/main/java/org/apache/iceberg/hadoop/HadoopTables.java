@@ -29,7 +29,6 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
-import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -304,10 +303,8 @@ public class HadoopTables implements Tables, Configurable {
       }
 
       Map<String, String> properties = propertiesBuilder.build();
-      // Validate the metrics
-      MetricsConfig.fromProperties(properties).validateProperties(schema);
 
-      TableMetadata metadata = tableMetadata(schema, spec, sortOrder, properties, location);
+      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, location, properties);
       ops.commit(null, metadata);
       return new BaseTable(ops, location);
     }
@@ -320,7 +317,7 @@ public class HadoopTables implements Tables, Configurable {
       }
 
       Map<String, String> properties = propertiesBuilder.build();
-      TableMetadata metadata = tableMetadata(schema, spec, null, properties, location);
+      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, null, location, properties);
       return Transactions.createTableTransaction(location, ops, metadata);
     }
 

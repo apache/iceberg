@@ -361,7 +361,7 @@ class SchemaUpdate implements UpdateSchema {
 
     // Validate the metrics if we have existing properties.
     if (base != null && base.properties() != null) {
-      MetricsConfig.fromProperties(base.properties()).validateProperties(newSchema);
+      MetricsConfig.fromProperties(base.properties()).validateReferencedColumns(newSchema);
     }
 
     return newSchema;

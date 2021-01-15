@@ -75,7 +75,7 @@ public class MetricsConfig implements Serializable {
     return spec;
   }
 
-  public void validateProperties(Schema schema) {
+  public void validateReferencedColumns(Schema schema) {
     for (String column : columnModes.keySet()) {
       ValidationException.check(
           schema.findField(column) != null,
