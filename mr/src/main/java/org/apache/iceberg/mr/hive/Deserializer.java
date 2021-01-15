@@ -247,8 +247,11 @@ class Deserializer {
   }
 
   /**
-   * To get the data for Iceberg {@link Record}s we have to use the Hive ObjectInspectors (sourceInspector) to get
-   * the Hive primitive types and the Iceberg ObjectInspectors (writerInspector) also if conversion is needed for
+   * To get the data for Iceberg {@link Record}s we have to use both ObjectInspectors.
+   * <p>
+   * We use the Hive ObjectInspectors (sourceInspector) to get the Hive primitive types.
+   * <p>
+   * We use the Iceberg ObjectInspectors (writerInspector) only if conversion is needed for
    * generating the correct type for Iceberg Records. See: {@link WriteObjectInspector} interface on the provided
    * writerInspector.
    */
