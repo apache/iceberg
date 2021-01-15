@@ -68,19 +68,6 @@ public class TestHiveClientPool {
     Assert.assertTrue(clientConf.getBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL));
   }
 
-  @Test
-  public void testHiveConf() {
-    HiveConf hiveConf = createHiveConf();
-    Assert.assertTrue(hiveConf.getBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL));
-
-    // will override configurations from `hiveConf` with hive default values which default value is null or empty string
-    HiveConf hiveConfNew = new HiveConf(hiveConf, HiveConf.class);
-    Assert.assertFalse(hiveConfNew.getBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL));
-
-    hiveConfNew.addResource(hiveConf);
-    Assert.assertTrue(hiveConfNew.getBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL));
-  }
-
   private HiveConf createHiveConf() {
     HiveConf hiveConf = new HiveConf();
     try (InputStream inputStream = new ByteArrayInputStream(HIVE_SITE_CONTENT.getBytes(StandardCharsets.UTF_8))) {
