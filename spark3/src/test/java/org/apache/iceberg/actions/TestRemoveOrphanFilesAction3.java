@@ -170,7 +170,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     spark.conf().set("spark.sql.catalog.jdbc", "org.apache.iceberg.spark.SparkCatalog");
     spark.conf().set("spark.sql.catalog.jdbc.type", "jdbc");
     spark.conf().set("spark.sql.catalog.jdbc.warehouse", tableLocation);
-    spark.conf().set("spark.sql.catalog.jdbc.uri", "jdbc:sqlite::memory:icsparkjdbctestcat;");
+    spark.conf().set("spark.sql.catalog.jdbc.uri", "jdbc:sqlite:file::memory:?icsparkjdbctestcat;");
     spark.conf().set("spark.sql.catalog.jdbc.connection.parameter.user", "testuser");
     spark.conf().set("spark.sql.catalog.jdbc.connection.parameter.password", "testpassword");
     SparkCatalog cat = (SparkCatalog) spark.sessionState().catalogManager().catalog("jdbc");
@@ -198,7 +198,7 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     spark.conf().set("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog");
     spark.conf().set("spark.sql.catalog.spark_catalog.type", "jdbc");
     spark.conf().set("spark.sql.catalog.spark_catalog.warehouse", tableLocation);
-    spark.conf().set("spark.sql.catalog.spark_catalog.uri", "jdbc:sqlite::memory:icsparktestcat;");
+    spark.conf().set("spark.sql.catalog.spark_catalog.uri", "jdbc:sqlite:file::memory:?icsparktestcat;");
     spark.conf().set("spark.sql.catalog.spark_catalog.connection.parameter.user", "testuser");
     spark.conf().set("spark.sql.catalog.spark_catalog.connection.parameter.password", "testpassword");
     SparkSessionCatalog cat = (SparkSessionCatalog) spark.sessionState().catalogManager().v2SessionCatalog();

@@ -67,7 +67,8 @@ public class TestJdbcTableConcurrency {
     Map<String, String> properties = new HashMap<>();
     this.tableDir = temp.newFolder();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, tableDir.getAbsolutePath());
-    properties.put(CatalogProperties.HIVE_URI, "jdbc:sqlite::memory:concurentFastAppend;create=true");
+    String sqliteDb = "jdbc:sqlite:" + tableDir.getAbsolutePath() + "concurentFastAppend.db";
+    properties.put(CatalogProperties.HIVE_URI, sqliteDb);
     JdbcCatalog catalog = new JdbcCatalog();
     catalog.setConf(new Configuration());
     catalog.initialize("jdbc", properties);
@@ -113,7 +114,8 @@ public class TestJdbcTableConcurrency {
     Map<String, String> properties = new HashMap<>();
     this.tableDir = temp.newFolder();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, tableDir.getAbsolutePath());
-    properties.put(CatalogProperties.HIVE_URI, "jdbc:sqlite::memory:concurentConnections;create=true");
+    String sqliteDb = "jdbc:sqlite:" + tableDir.getAbsolutePath() + "concurentConnections.db";
+    properties.put(CatalogProperties.HIVE_URI, sqliteDb);
     JdbcCatalog catalog = new JdbcCatalog();
     catalog.setConf(new Configuration());
     catalog.initialize("jdbc", properties);
