@@ -71,9 +71,7 @@ class StreamingOffset extends Offset {
       JsonNode node = JsonUtil.mapper().readValue(json, JsonNode.class);
       int version = JsonUtil.getInt(VERSION, node);
       if (version > CURR_VERSION) {
-        throw new IOException(String.format("Cannot deserialize a JSON offset from version %d. %d is not compatible " +
-            "with the version of Iceberg %d and cannot be used. Please use a compatible version of Iceberg " +
-            "to read this offset", version, version, CURR_VERSION));
+        throw new IOException(String.format("This version of iceberg only supports version %s", CURR_VERSION));
       }
 
       long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
