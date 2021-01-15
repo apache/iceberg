@@ -29,19 +29,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.spark.sql.sources.v2.reader.streaming.Offset;
 
-/**
- * An implementation of Spark Structured Streaming Offset, to track the current processed
- * files of Iceberg table. This StreamingOffset consists of:
- *
- * version: The version of StreamingOffset. The offset was created with a version number used to validate
- * when deserializing from json string.
- * snapshot_id: The current processed snapshot id.
- * index: The index of last scanned file in snapshot.
- * scan_all_files: Denote whether to scan all files in a snapshot, currently we only scan all files in the starting
- * snapshot.
- * snapshot_fully_processed: Denote whether the current snapshot is fully processed, to avoid revisiting the processed
- * snapshot.
- */
 class StreamingOffset extends Offset {
   static final StreamingOffset START_OFFSET = new StreamingOffset(-1L, -1, false, true);
 
@@ -57,7 +44,19 @@ class StreamingOffset extends Offset {
   private final boolean scanAllFiles;
   private final boolean snapshotFullyProcessed;
 
-  StreamingOffset(long snapshotId, int index, boolean scanAllFiles, boolean snapshotFullyProcessed) {
+  /**
+   * An implementation of Spark Structured Streaming Offset, to track the current processed files of
+   * Iceberg table.
+   *
+   * @param snapshotId             The current processed snapshot id.
+   * @param index                  The index of last scanned file in snapshot.
+   * @param scanAllFiles           Denote whether to scan all files in a snapshot, currently we only
+   *                               scan all files in the starting snapshot.
+   * @param snapshotFullyProcessed Denote whether the current snapshot is fully processed, to avoid
+   *                               revisiting the processed snapshot.
+   */
+  StreamingOffset(long snapshotId, int index, boolean scanAllFiles,
+      boolean snapshotFullyProcessed) {
     this.snapshotId = snapshotId;
     this.index = index;
     this.scanAllFiles = scanAllFiles;
@@ -69,6 +68,8 @@ class StreamingOffset extends Offset {
 
     try {
       JsonNode node = JsonUtil.mapper().readValue(json, JsonNode.class);
+      // The version of StreamingOffset. The offset was created with a version number
+      // used to validate when deserializing from json string.
       int version = JsonUtil.getInt(VERSION, node);
       if (version > CURR_VERSION) {
         throw new IOException(String.format("This version of iceberg only supports version %s", CURR_VERSION));
