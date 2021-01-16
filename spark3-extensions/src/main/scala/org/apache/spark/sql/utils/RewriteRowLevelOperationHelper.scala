@@ -20,16 +20,26 @@ package org.apache.spark.sql.catalyst.utils
 
 import java.util.UUID
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.{sources, AnalysisException}
-import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeReference, Expression, PredicateHelper}
-import org.apache.spark.sql.catalyst.plans.logical.{Aggregate, DynamicFileFilter, Filter, LogicalPlan, Project}
+import org.apache.spark.sql.AnalysisException
+import org.apache.spark.sql.catalyst.analysis.Resolver
+import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.catalyst.expressions.AttributeReference
+import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.expressions.PredicateHelper
+import org.apache.spark.sql.catalyst.plans.logical.Aggregate
+import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
+import org.apache.spark.sql.catalyst.plans.logical.Filter
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter
 import org.apache.spark.sql.connector.iceberg.write.MergeBuilder
-import org.apache.spark.sql.connector.write.{LogicalWriteInfo, LogicalWriteInfoImpl}
+import org.apache.spark.sql.connector.write.LogicalWriteInfo
+import org.apache.spark.sql.connector.write.LogicalWriteInfoImpl
 import org.apache.spark.sql.execution.datasources.DataSourceStrategy
-import org.apache.spark.sql.execution.datasources.v2.{DataSourceV2Relation, DataSourceV2ScanRelation, PushDownUtils}
-import org.apache.spark.sql.internal.SQLConf
+import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
+import org.apache.spark.sql.execution.datasources.v2.PushDownUtils
+import org.apache.spark.sql.sources
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
@@ -37,10 +47,13 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
   protected val FILE_NAME_COL = "_file"
   protected val ROW_POS_COL = "_pos"
 
-  protected def buildScanPlan(table: Table,
-                    output: Seq[AttributeReference],
-                    mergeBuilder: MergeBuilder,
-                    cond: Expression): LogicalPlan = {
+  def resolver: Resolver
+
+  protected def buildScanPlan(
+      table: Table,
+      output: Seq[AttributeReference],
+      mergeBuilder: MergeBuilder,
+      cond: Expression): LogicalPlan = {
 
     val scanBuilder = mergeBuilder.asScanBuilder
 
@@ -54,8 +67,7 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
     scan match {
       case filterable: SupportsFileFilter =>
         val matchingFilePlan = buildFileFilterPlan(cond, scanRelation)
-        val dynamicFileFilter = DynamicFileFilter(scanRelation, matchingFilePlan, filterable)
-        dynamicFileFilter
+        DynamicFileFilter(scanRelation, matchingFilePlan, filterable)
       case _ =>
         scanRelation
     }
@@ -84,7 +96,6 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
   }
 
   protected def findOutputAttr(plan: LogicalPlan, attrName: String): Attribute = {
-    val resolver = SQLConf.get.resolver
     plan.output.find(attr => resolver(attr.name, attrName)).getOrElse {
       throw new AnalysisException(s"Cannot find $attrName in ${plan.output}")
     }
@@ -93,15 +104,14 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
   protected def toOutputAttrs(schema: StructType, output: Seq[AttributeReference]): Seq[AttributeReference] = {
     val nameToAttr = output.map(_.name).zip(output).toMap
     schema.toAttributes.map {
-      a =>
-        nameToAttr.get(a.name) match {
-          case Some(ref) =>
-            // keep the attribute id if it was present in the relation
-            a.withExprId(ref.exprId)
-          case _ =>
-            // if the field is new, create a new attribute
-            AttributeReference(a.name, a.dataType, a.nullable, a.metadata)()
-        }
+      a => nameToAttr.get(a.name) match {
+        case Some(ref) =>
+          // keep the attribute id if it was present in the relation
+          a.withExprId(ref.exprId)
+        case _ =>
+          // if the field is new, create a new attribute
+          AttributeReference(a.name, a.dataType, a.nullable, a.metadata)()
+      }
     }
   }
 }

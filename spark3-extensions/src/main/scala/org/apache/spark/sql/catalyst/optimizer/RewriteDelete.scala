@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.catalyst.optimizer
 
+import org.apache.spark.sql.catalyst.analysis.Resolver
 import org.apache.spark.sql.catalyst.expressions.Ascending
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.EqualNullSafe
@@ -43,9 +44,11 @@ import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.BooleanType
 
 // TODO: should be part of early scan push down after the delete condition is optimized
-object RewriteDelete extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper {
+case class RewriteDelete(conf: SQLConf) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper {
 
   import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implicits._
+
+  override def resolver: Resolver = conf.resolver
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     // don't rewrite deletes that can be answered by passing filters to deleteWhere in SupportsDelete
@@ -68,8 +71,10 @@ object RewriteDelete extends Rule[LogicalPlan] with RewriteRowLevelOperationHelp
       ReplaceData(r, mergeWrite, writePlan)
   }
 
-  private def buildWritePlan(remainingRowsPlan: LogicalPlan,
-                             output: Seq[AttributeReference]): LogicalPlan = {
+  private def buildWritePlan(
+      remainingRowsPlan: LogicalPlan,
+      output: Seq[AttributeReference]): LogicalPlan = {
+
     val fileNameCol = findOutputAttr(remainingRowsPlan, FILE_NAME_COL)
     val rowPosCol = findOutputAttr(remainingRowsPlan, ROW_POS_COL)
     val order = Seq(SortOrder(fileNameCol, Ascending), SortOrder(rowPosCol, Ascending))
