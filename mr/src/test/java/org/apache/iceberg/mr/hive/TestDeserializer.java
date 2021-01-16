@@ -28,7 +28,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectIn
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.MapWritable;
 import org.apache.hadoop.io.Text;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -195,27 +194,5 @@ public class TestDeserializer {
 
     // Check null record as well
     Assert.assertNull(deserializer.deserialize(null));
-  }
-
-  @Test
-  public void testUnsupportedType() {
-    Schema unsupported = new Schema(
-        optional(1, "time_type", Types.TimeType.get())
-    );
-    StandardStructObjectInspector objectInspector = ObjectInspectorFactory.getStandardStructObjectInspector(
-        Arrays.asList("time_type"),
-        Arrays.asList(
-            PrimitiveObjectInspectorFactory.writableStringObjectInspector
-        ));
-
-    AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
-        "type is not supported", () -> {
-          new Deserializer.Builder()
-              .schema(unsupported)
-              .writerInspector((StructObjectInspector) IcebergObjectInspector.create(unsupported))
-              .sourceInspector(objectInspector)
-              .build();
-        }
-    );
   }
 }

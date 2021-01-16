@@ -51,7 +51,7 @@ public class TestIcebergFixedObjectInspector {
 
     Assert.assertArrayEquals(bytes, oi.getPrimitiveJavaObject(bytes));
     Assert.assertEquals(bytesWritable, oi.getPrimitiveWritableObject(bytes));
-    Assert.assertEquals(bytes, oi.convert(bytesWritable));
+    Assert.assertEquals(bytes, oi.convert(bytes));
 
     byte[] copy = (byte[]) oi.copyObject(bytes);
 

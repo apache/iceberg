@@ -29,15 +29,15 @@ import org.apache.iceberg.util.ByteBuffers;
 
 public class IcebergBinaryObjectInspector extends AbstractPrimitiveJavaObjectInspector
     implements BinaryObjectInspector, WriteObjectInspector {
-  
-  private static final IcebergBinaryObjectInspector INSTANCE = new IcebergBinaryObjectInspector();
 
-  private IcebergBinaryObjectInspector() {
-    super(TypeInfoFactory.binaryTypeInfo);
-  }
+  private static final IcebergBinaryObjectInspector INSTANCE = new IcebergBinaryObjectInspector();
 
   public static IcebergBinaryObjectInspector get() {
     return INSTANCE;
+  }
+
+  private IcebergBinaryObjectInspector() {
+    super(TypeInfoFactory.binaryTypeInfo);
   }
 
   @Override
@@ -69,7 +69,7 @@ public class IcebergBinaryObjectInspector extends AbstractPrimitiveJavaObjectIns
 
   @Override
   public ByteBuffer convert(Object o) {
-    return o == null ? null : ByteBuffer.wrap(((BytesWritable) o).getBytes());
+    return o == null ? null : ByteBuffer.wrap((byte[]) o);
   }
 
 }

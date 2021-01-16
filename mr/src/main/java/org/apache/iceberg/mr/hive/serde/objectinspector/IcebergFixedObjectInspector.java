@@ -50,7 +50,7 @@ public class IcebergFixedObjectInspector extends AbstractPrimitiveJavaObjectInsp
 
   @Override
   public byte[] convert(Object o) {
-    return o == null ? null : ((BytesWritable) o).getBytes();
+    return o == null ? null : (byte[]) o;
   }
 
   @Override

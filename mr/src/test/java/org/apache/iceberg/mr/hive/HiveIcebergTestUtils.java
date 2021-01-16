@@ -29,7 +29,6 @@ import java.nio.file.Paths;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -129,7 +128,7 @@ public class HiveIcebergTestUtils {
     record.set(9, new byte[]{0, 1, 2});
     record.set(10, ByteBuffer.wrap(new byte[]{0, 1, 2, 3}));
     record.set(11, new BigDecimal("0.0000000013"));
-    record.set(12, LocalTime.of(11, 33));
+    record.set(12, "11:33");
     record.set(13, "73689599-d7fc-4dfb-b94e-106ff20284a5");
 
     return record;
