@@ -66,6 +66,16 @@ public class TestHadoopTables {
   }
 
   @Test
+  public void testTableExists() {
+    Assert.assertFalse(TABLES.exists(tableDir.toURI().toString()));
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
+            .bucket("data", 16)
+            .build();
+    TABLES.create(SCHEMA, spec, tableDir.toURI().toString());
+    Assert.assertTrue(TABLES.exists(tableDir.toURI().toString()));
+  }
+
+  @Test
   public void testDropTable() {
     TABLES.create(SCHEMA, tableDir.toURI().toString());
     TABLES.dropTable(tableDir.toURI().toString());

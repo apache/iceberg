@@ -41,7 +41,7 @@ public class IcebergTimestampObjectInspector extends AbstractPrimitiveJavaObject
 
   @Override
   public LocalDateTime convert(Object o) {
-    return o == null ? null : ((TimestampWritable) o).getTimestamp().toLocalDateTime();
+    return o == null ? null : ((Timestamp) o).toLocalDateTime();
   }
 
   @Override

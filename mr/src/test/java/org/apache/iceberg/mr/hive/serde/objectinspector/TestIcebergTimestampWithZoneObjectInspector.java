@@ -65,10 +65,10 @@ public class TestIcebergTimestampWithZoneObjectInspector {
     Assert.assertFalse(oi.preferWritable());
 
     Assert.assertEquals(OffsetDateTime.ofInstant(local.toInstant(ZoneOffset.ofHours(-5)), ZoneOffset.UTC),
-            oi.convert(new TimestampWritable(ts)));
+            oi.convert(ts));
 
     Assert.assertEquals(offsetDateTime.withOffsetSameInstant(ZoneOffset.UTC),
-            oi.convert(new TimestampWritable(Timestamp.from(offsetDateTime.toInstant()))));
+            oi.convert(Timestamp.from(offsetDateTime.toInstant())));
   }
 
 }

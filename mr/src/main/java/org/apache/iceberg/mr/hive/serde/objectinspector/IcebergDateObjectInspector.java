@@ -67,6 +67,6 @@ public final class IcebergDateObjectInspector extends AbstractPrimitiveJavaObjec
 
   @Override
   public LocalDate convert(Object o) {
-    return o == null ? null : ((DateWritable) o).get().toLocalDate();
+    return o == null ? null : ((Date) o).toLocalDate();
   }
 }

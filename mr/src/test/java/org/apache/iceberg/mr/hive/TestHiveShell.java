@@ -73,6 +73,10 @@ public class TestHiveShell {
     }
   }
 
+  public void setHiveSessionValue(String key, boolean value) {
+    setHiveSessionValue(key, Boolean.toString(value));
+  }
+
   public void start() {
     metastore.start();
     hs2Conf.setVar(HiveConf.ConfVars.METASTOREURIS, metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREURIS));
