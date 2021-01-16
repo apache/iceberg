@@ -74,19 +74,20 @@ public class HiveIcebergTestUtils {
       optional(4, "float_type", Types.FloatType.get()),
       optional(5, "double_type", Types.DoubleType.get()),
       optional(6, "date_type", Types.DateType.get()),
-      // TimeType is not supported
-      // required(7, "time_type", Types.TimeType.get()),
       optional(7, "tstz", Types.TimestampType.withZone()),
       optional(8, "ts", Types.TimestampType.withoutZone()),
       optional(9, "string_type", Types.StringType.get()),
       optional(10, "fixed_type", Types.FixedType.ofLength(3)),
       optional(11, "binary_type", Types.BinaryType.get()),
-      optional(12, "decimal_type", Types.DecimalType.of(38, 10)));
+      optional(12, "decimal_type", Types.DecimalType.of(38, 10)),
+      optional(13, "time_type", Types.TimeType.get()),
+      optional(14, "uuid_type", Types.UUIDType.get()));
 
   public static final StandardStructObjectInspector FULL_SCHEMA_OBJECT_INSPECTOR =
       ObjectInspectorFactory.getStandardStructObjectInspector(
           Arrays.asList("boolean_type", "integer_type", "long_type", "float_type", "double_type",
-              "date_type", "tstz", "ts", "string_type", "fixed_type", "binary_type", "decimal_type"),
+              "date_type", "tstz", "ts", "string_type", "fixed_type", "binary_type", "decimal_type",
+              "time_type", "uuid_type"),
           Arrays.asList(
               PrimitiveObjectInspectorFactory.writableBooleanObjectInspector,
               PrimitiveObjectInspectorFactory.writableIntObjectInspector,
@@ -99,7 +100,9 @@ public class HiveIcebergTestUtils {
               PrimitiveObjectInspectorFactory.writableStringObjectInspector,
               PrimitiveObjectInspectorFactory.writableBinaryObjectInspector,
               PrimitiveObjectInspectorFactory.writableBinaryObjectInspector,
-              PrimitiveObjectInspectorFactory.writableHiveDecimalObjectInspector
+              PrimitiveObjectInspectorFactory.writableHiveDecimalObjectInspector,
+              PrimitiveObjectInspectorFactory.writableStringObjectInspector,
+              PrimitiveObjectInspectorFactory.writableStringObjectInspector
           ));
 
   private HiveIcebergTestUtils() {
@@ -118,8 +121,6 @@ public class HiveIcebergTestUtils {
     record.set(3, 3.1f);
     record.set(4, 4.2d);
     record.set(5, LocalDate.of(2020, 1, 21));
-    // TimeType is not supported
-    // record.set(6, LocalTime.of(11, 33));
     // Nano is not supported ?
     record.set(6, OffsetDateTime.of(2017, 11, 22, 11, 30, 7, 0, ZoneOffset.ofHours(2)));
     record.set(7, LocalDateTime.of(2019, 2, 22, 9, 44, 54));
@@ -127,6 +128,8 @@ public class HiveIcebergTestUtils {
     record.set(9, new byte[]{0, 1, 2});
     record.set(10, ByteBuffer.wrap(new byte[]{0, 1, 2, 3}));
     record.set(11, new BigDecimal("0.0000000013"));
+    record.set(12, "11:33");
+    record.set(13, "73689599-d7fc-4dfb-b94e-106ff20284a5");
 
     return record;
   }
@@ -158,14 +161,14 @@ public class HiveIcebergTestUtils {
         new FloatWritable(record.get(3, Float.class)),
         new DoubleWritable(record.get(4, Double.class)),
         new DateWritable((int) record.get(5, LocalDate.class).toEpochDay()),
-        // TimeType is not supported
-        // new Timestamp()
         new TimestampWritable(Timestamp.from(record.get(6, OffsetDateTime.class).toInstant())),
         new TimestampWritable(Timestamp.valueOf(record.get(7, LocalDateTime.class))),
         new Text(record.get(8, String.class)),
         new BytesWritable(record.get(9, byte[].class)),
         new BytesWritable(ByteBuffers.toByteArray(record.get(10, ByteBuffer.class))),
-        new HiveDecimalWritable(HiveDecimal.create(record.get(11, BigDecimal.class)))
+        new HiveDecimalWritable(HiveDecimal.create(record.get(11, BigDecimal.class))),
+        new Text(record.get(12, String.class)),
+        new Text(record.get(13, String.class))
     );
   }
 

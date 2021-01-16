@@ -19,20 +19,18 @@
 
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
-import java.nio.ByteBuffer;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.BinaryObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.io.BytesWritable;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class TestIcebergBinaryObjectInspector {
+public class TestIcebergFixedObjectInspector {
 
   @Test
-  public void testIcebergByteBufferObjectInspector() {
-    BinaryObjectInspector oi = IcebergBinaryObjectInspector.get();
+  public void testIcebergFixedObjectInspector() {
+    IcebergFixedObjectInspector oi = IcebergFixedObjectInspector.get();
 
     Assert.assertEquals(ObjectInspector.Category.PRIMITIVE, oi.getCategory());
     Assert.assertEquals(PrimitiveObjectInspector.PrimitiveCategory.BINARY, oi.getPrimitiveCategory());
@@ -46,20 +44,14 @@ public class TestIcebergBinaryObjectInspector {
     Assert.assertNull(oi.copyObject(null));
     Assert.assertNull(oi.getPrimitiveJavaObject(null));
     Assert.assertNull(oi.getPrimitiveWritableObject(null));
+    Assert.assertNull(oi.convert(null));
 
-    byte[] bytes = new byte[] {0, 1, 2, 3};
+    byte[] bytes = new byte[] { 0, 1 };
+    BytesWritable bytesWritable = new BytesWritable(bytes);
 
-    ByteBuffer buffer = ByteBuffer.wrap(bytes);
-    Assert.assertArrayEquals(bytes, oi.getPrimitiveJavaObject(buffer));
-    Assert.assertEquals(new BytesWritable(bytes), oi.getPrimitiveWritableObject(buffer));
-
-    ByteBuffer slice = ByteBuffer.wrap(bytes, 1, 2).slice();
-    Assert.assertArrayEquals(new byte[] {1, 2}, oi.getPrimitiveJavaObject(slice));
-    Assert.assertEquals(new BytesWritable(new byte[] {1, 2}), oi.getPrimitiveWritableObject(slice));
-
-    slice.position(1);
-    Assert.assertArrayEquals(new byte[] {2}, oi.getPrimitiveJavaObject(slice));
-    Assert.assertEquals(new BytesWritable(new byte[] {2}), oi.getPrimitiveWritableObject(slice));
+    Assert.assertArrayEquals(bytes, oi.getPrimitiveJavaObject(bytes));
+    Assert.assertEquals(bytesWritable, oi.getPrimitiveWritableObject(bytes));
+    Assert.assertEquals(bytes, oi.convert(bytes));
 
     byte[] copy = (byte[]) oi.copyObject(bytes);
 

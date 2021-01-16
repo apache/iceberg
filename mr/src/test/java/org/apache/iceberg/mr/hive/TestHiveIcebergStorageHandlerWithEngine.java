@@ -81,7 +81,8 @@ public class TestHiveIcebergStorageHandlerWithEngine {
           ImmutableList.of(Types.BooleanType.get(), Types.IntegerType.get(), Types.LongType.get(),
                   Types.FloatType.get(), Types.DoubleType.get(), Types.DateType.get(), Types.TimestampType.withZone(),
                   Types.TimestampType.withoutZone(), Types.StringType.get(), Types.BinaryType.get(),
-                  Types.DecimalType.of(3, 1));
+                  Types.DecimalType.of(3, 1), Types.UUIDType.get(), Types.FixedType.ofLength(5),
+                  Types.TimeType.get());
 
   @Parameters(name = "fileFormat={0}, engine={1}, catalog={2}")
   public static Collection<Object[]> parameters() {
@@ -224,6 +225,10 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   public void testJoinTablesSupportedTypes() throws IOException {
     for (int i = 0; i < SUPPORTED_TYPES.size(); i++) {
       Type type = SUPPORTED_TYPES.get(i);
+      // TODO: remove this filter when issue #1881 is resolved
+      if (type == Types.UUIDType.get() && fileFormat == FileFormat.PARQUET) {
+        continue;
+      }
       String tableName = type.typeId().toString().toLowerCase() + "_table_" + i;
       String columnName = type.typeId().toString().toLowerCase() + "_column";
 
@@ -243,6 +248,10 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   public void testSelectDistinctFromTable() throws IOException {
     for (int i = 0; i < SUPPORTED_TYPES.size(); i++) {
       Type type = SUPPORTED_TYPES.get(i);
+      // TODO: remove this filter when issue #1881 is resolved
+      if (type == Types.UUIDType.get() && fileFormat == FileFormat.PARQUET) {
+        continue;
+      }
       String tableName = type.typeId().toString().toLowerCase() + "_table_" + i;
       String columnName = type.typeId().toString().toLowerCase() + "_column";
 

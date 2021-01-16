@@ -19,35 +19,38 @@
 
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BinaryObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.io.BytesWritable;
-import org.apache.iceberg.util.ByteBuffers;
 
-public class IcebergBinaryObjectInspector extends AbstractPrimitiveJavaObjectInspector
+public class IcebergFixedObjectInspector extends AbstractPrimitiveJavaObjectInspector
     implements BinaryObjectInspector, WriteObjectInspector {
 
-  private static final IcebergBinaryObjectInspector INSTANCE = new IcebergBinaryObjectInspector();
+  private static final IcebergFixedObjectInspector INSTANCE = new IcebergFixedObjectInspector();
 
-  public static IcebergBinaryObjectInspector get() {
+  public static IcebergFixedObjectInspector get() {
     return INSTANCE;
   }
 
-  private IcebergBinaryObjectInspector() {
+  private IcebergFixedObjectInspector() {
     super(TypeInfoFactory.binaryTypeInfo);
   }
 
   @Override
   public byte[] getPrimitiveJavaObject(Object o) {
-    return ByteBuffers.toByteArray((ByteBuffer) o);
+    return (byte[]) o;
   }
 
   @Override
   public BytesWritable getPrimitiveWritableObject(Object o) {
     return o == null ? null : new BytesWritable(getPrimitiveJavaObject(o));
+  }
+
+  @Override
+  public byte[] convert(Object o) {
+    return o == null ? null : (byte[]) o;
   }
 
   @Override
@@ -58,18 +61,8 @@ public class IcebergBinaryObjectInspector extends AbstractPrimitiveJavaObjectIns
     if (o instanceof byte[]) {
       byte[] bytes = (byte[]) o;
       return Arrays.copyOf(bytes, bytes.length);
-    } else if (o instanceof ByteBuffer) {
-      ByteBuffer copy =
-          ByteBuffer.wrap(((ByteBuffer) o).array(), ((ByteBuffer) o).arrayOffset(), ((ByteBuffer) o).limit());
-      return copy;
     } else {
       return o;
     }
   }
-
-  @Override
-  public ByteBuffer convert(Object o) {
-    return o == null ? null : ByteBuffer.wrap((byte[]) o);
-  }
-
 }
