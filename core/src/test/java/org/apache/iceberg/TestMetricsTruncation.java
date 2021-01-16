@@ -25,6 +25,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static org.apache.iceberg.util.BinaryUtil.truncateBinary;
 import static org.apache.iceberg.util.BinaryUtil.truncateBinaryMax;
 import static org.apache.iceberg.util.BinaryUtil.truncateBinaryMin;
 import static org.apache.iceberg.util.UnicodeUtil.truncateStringMax;
@@ -32,6 +33,29 @@ import static org.apache.iceberg.util.UnicodeUtil.truncateStringMin;
 
 @SuppressWarnings("checkstyle:LocalVariableName")
 public class TestMetricsTruncation {
+
+  @Test
+  public void testTruncateBinary() {
+    ByteBuffer original = ByteBuffer.wrap(new byte[]{1, 1, (byte) 0xFF, 2});
+    ByteBuffer emptyByteBuffer =  ByteBuffer.allocate(0);
+    Comparator<ByteBuffer> cmp = Literal.of(original).comparator();
+
+    Assert.assertEquals("Truncating to a length of zero should return an empty ByteBuffer",
+        0, cmp.compare(truncateBinary(original, 0), emptyByteBuffer));
+    Assert.assertEquals("Truncating to the original buffer's remaining size should return the original buffer",
+        original, truncateBinary(original, original.remaining()));
+    Assert.assertEquals("Truncating with a length greater than the input's remaining size should return the input",
+        original, truncateBinary(original, 16));
+    ByteBuffer truncated = truncateBinary(original, 2);
+    Assert.assertTrue("Truncating with a length less than the input's remaining size should truncate properly",
+        truncated.remaining() == 2 && truncated.position() == 0);
+    Assert.assertTrue("Truncating should not modify the input buffer",
+        original.remaining() == 4 && original.position() == 0);
+    AssertHelpers.assertThrows("Should not allow a negative truncation length",
+        IllegalArgumentException.class, "length should be non-negative",
+        () -> truncateBinary(original, -1));
+  }
+
   @Test
   public void testTruncateBinaryMin() {
     ByteBuffer test1 = ByteBuffer.wrap(new byte[] {1, 1, (byte) 0xFF, 2});
