@@ -24,16 +24,17 @@ import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.analysis.Resolver
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
+import org.apache.spark.sql.catalyst.expressions.AttributeSet
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.plans.logical.Aggregate
 import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
-import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter
 import org.apache.spark.sql.connector.iceberg.write.MergeBuilder
+import org.apache.spark.sql.connector.read.ScanBuilder
 import org.apache.spark.sql.connector.write.LogicalWriteInfo
 import org.apache.spark.sql.connector.write.LogicalWriteInfoImpl
 import org.apache.spark.sql.execution.datasources.DataSourceStrategy
@@ -51,25 +52,38 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
 
   protected def buildScanPlan(
       table: Table,
-      output: Seq[AttributeReference],
+      tableAttrs: Seq[AttributeReference],
       mergeBuilder: MergeBuilder,
-      cond: Expression): LogicalPlan = {
+      cond: Expression,
+      matchingRowsPlanBuilder: DataSourceV2ScanRelation => LogicalPlan): LogicalPlan = {
 
     val scanBuilder = mergeBuilder.asScanBuilder
 
-    val predicates = splitConjunctivePredicates(cond)
-    val normalizedPredicates = DataSourceStrategy.normalizeExprs(predicates, output)
-    PushDownUtils.pushFilters(scanBuilder, normalizedPredicates)
+    pushFilters(scanBuilder, cond, tableAttrs)
 
     val scan = scanBuilder.build()
-    val scanRelation = DataSourceV2ScanRelation(table, scan, toOutputAttrs(scan.readSchema(), output))
+    val outputAttrs = toOutputAttrs(scan.readSchema(), tableAttrs)
+    val scanRelation = DataSourceV2ScanRelation(table, scan, outputAttrs)
 
     scan match {
       case filterable: SupportsFileFilter =>
-        val matchingFilePlan = buildFileFilterPlan(cond, scanRelation)
+        val matchingFilePlan = buildFileFilterPlan(matchingRowsPlanBuilder(scanRelation))
         DynamicFileFilter(scanRelation, matchingFilePlan, filterable)
       case _ =>
         scanRelation
+    }
+  }
+
+  private def pushFilters(
+      scanBuilder: ScanBuilder,
+      cond: Expression,
+      tableAttrs: Seq[AttributeReference]): Unit = {
+
+    val tableAttrSet = AttributeSet(tableAttrs)
+    val predicates = splitConjunctivePredicates(cond).filter(_.references.subsetOf(tableAttrSet))
+    if (predicates.nonEmpty) {
+      val normalizedPredicates = DataSourceStrategy.normalizeExprs(predicates, tableAttrs)
+      PushDownUtils.pushFilters(scanBuilder, normalizedPredicates)
     }
   }
 
@@ -88,10 +102,9 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
     LogicalWriteInfoImpl(queryId = uuid.toString, schema, CaseInsensitiveStringMap.empty)
   }
 
-  private def buildFileFilterPlan(cond: Expression, scanRelation: DataSourceV2ScanRelation): LogicalPlan = {
-    val matchingFilter = Filter(cond, scanRelation)
-    val fileAttr = findOutputAttr(matchingFilter, FILE_NAME_COL)
-    val agg = Aggregate(Seq(fileAttr), Seq(fileAttr), matchingFilter)
+  private def buildFileFilterPlan(matchingRowsPlan: LogicalPlan): LogicalPlan = {
+    val fileAttr = findOutputAttr(matchingRowsPlan, FILE_NAME_COL)
+    val agg = Aggregate(Seq(fileAttr), Seq(fileAttr), matchingRowsPlan)
     Project(Seq(findOutputAttr(agg, FILE_NAME_COL)), agg)
   }
 
@@ -101,8 +114,8 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
     }
   }
 
-  protected def toOutputAttrs(schema: StructType, output: Seq[AttributeReference]): Seq[AttributeReference] = {
-    val nameToAttr = output.map(_.name).zip(output).toMap
+  protected def toOutputAttrs(schema: StructType, attrs: Seq[AttributeReference]): Seq[AttributeReference] = {
+    val nameToAttr = attrs.map(_.name).zip(attrs).toMap
     schema.toAttributes.map {
       a => nameToAttr.get(a.name) match {
         case Some(ref) =>
