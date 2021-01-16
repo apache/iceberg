@@ -21,9 +21,9 @@ package org.apache.iceberg.mr.hive;
 
 import java.util.Arrays;
 import java.util.Collections;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.StandardStructObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.MapWritable;
@@ -33,6 +33,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hive.MetastoreUtil;
+import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -66,7 +67,8 @@ public class TestDeserializer {
 
     Deserializer deserializer = new Deserializer.Builder()
         .schema(CUSTOMER_SCHEMA)
-        .inspector(schemaObjectInspector)
+        .writerInspector((StructObjectInspector) IcebergObjectInspector.create(CUSTOMER_SCHEMA))
+        .sourceInspector(schemaObjectInspector)
         .build();
 
     Record expected = GenericRecord.create(CUSTOMER_SCHEMA);
@@ -82,7 +84,8 @@ public class TestDeserializer {
   public void testStructDeserialize() {
     Deserializer deserializer = new Deserializer.Builder()
         .schema(CUSTOMER_SCHEMA)
-        .inspector(CUSTOMER_OBJECT_INSPECTOR)
+        .writerInspector((StructObjectInspector) IcebergObjectInspector.create(CUSTOMER_SCHEMA))
+        .sourceInspector(CUSTOMER_OBJECT_INSPECTOR)
         .build();
 
     Record expected = GenericRecord.create(CUSTOMER_SCHEMA);
@@ -103,7 +106,7 @@ public class TestDeserializer {
         ))
     );
 
-    ObjectInspector inspector = ObjectInspectorFactory.getStandardStructObjectInspector(
+    StructObjectInspector inspector = ObjectInspectorFactory.getStandardStructObjectInspector(
         Arrays.asList("map_type"),
         Arrays.asList(
             ObjectInspectorFactory.getStandardMapObjectInspector(
@@ -114,7 +117,8 @@ public class TestDeserializer {
 
     Deserializer deserializer = new Deserializer.Builder()
         .schema(schema)
-        .inspector(inspector)
+        .writerInspector((StructObjectInspector) IcebergObjectInspector.create(schema))
+        .sourceInspector(inspector)
         .build();
 
     Record expected = GenericRecord.create(schema);
@@ -134,7 +138,7 @@ public class TestDeserializer {
         optional(1, "list_type", Types.ListType.ofOptional(2, Types.LongType.get()))
     );
 
-    ObjectInspector inspector = ObjectInspectorFactory.getStandardStructObjectInspector(
+    StructObjectInspector inspector = ObjectInspectorFactory.getStandardStructObjectInspector(
         Arrays.asList("list_type"),
         Arrays.asList(
             ObjectInspectorFactory.getStandardListObjectInspector(
@@ -143,7 +147,8 @@ public class TestDeserializer {
 
     Deserializer deserializer = new Deserializer.Builder()
         .schema(schema)
-        .inspector(inspector)
+        .writerInspector((StructObjectInspector) IcebergObjectInspector.create(schema))
+        .sourceInspector(inspector)
         .build();
 
     Record expected = GenericRecord.create(schema);
@@ -161,10 +166,11 @@ public class TestDeserializer {
 
     Deserializer deserializer = new Deserializer.Builder()
         .schema(HiveIcebergTestUtils.FULL_SCHEMA)
-        .inspector(HiveIcebergTestUtils.FULL_SCHEMA_OBJECT_INSPECTOR)
+        .writerInspector((StructObjectInspector) IcebergObjectInspector.create(HiveIcebergTestUtils.FULL_SCHEMA))
+        .sourceInspector(HiveIcebergTestUtils.FULL_SCHEMA_OBJECT_INSPECTOR)
         .build();
 
-    Record expected = HiveIcebergTestUtils.getTestRecord(false);
+    Record expected = HiveIcebergTestUtils.getTestRecord();
     Record actual = deserializer.deserialize(HiveIcebergTestUtils.valuesForTestRecord(expected));
 
     HiveIcebergTestUtils.assertEquals(expected, actual);
@@ -174,7 +180,8 @@ public class TestDeserializer {
   public void testNullDeserialize() {
     Deserializer deserializer = new Deserializer.Builder()
         .schema(HiveIcebergTestUtils.FULL_SCHEMA)
-        .inspector(HiveIcebergTestUtils.FULL_SCHEMA_OBJECT_INSPECTOR)
+        .writerInspector((StructObjectInspector) IcebergObjectInspector.create(HiveIcebergTestUtils.FULL_SCHEMA))
+        .sourceInspector(HiveIcebergTestUtils.FULL_SCHEMA_OBJECT_INSPECTOR)
         .build();
 
     Record expected = HiveIcebergTestUtils.getNullTestRecord();
@@ -202,10 +209,11 @@ public class TestDeserializer {
         ));
 
     AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
-        "Unsupported column type", () -> {
+        "type is not supported", () -> {
           new Deserializer.Builder()
               .schema(unsupported)
-              .inspector(objectInspector)
+              .writerInspector((StructObjectInspector) IcebergObjectInspector.create(unsupported))
+              .sourceInspector(objectInspector)
               .build();
         }
     );

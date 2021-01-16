@@ -38,7 +38,7 @@ public abstract class IcebergBinaryObjectInspector extends AbstractPrimitiveJava
 
     @Override
     public byte[] convert(Object o) {
-      return o == null ? null : ((BytesWritable) o).getBytes();
+      return (byte[]) o;
     }
   };
 
@@ -50,7 +50,7 @@ public abstract class IcebergBinaryObjectInspector extends AbstractPrimitiveJava
 
     @Override
     public ByteBuffer convert(Object o) {
-      return o == null ? null : ByteBuffer.wrap(((BytesWritable) o).getBytes());
+      return o == null ? null : ByteBuffer.wrap((byte[]) o);
     }
   };
 
