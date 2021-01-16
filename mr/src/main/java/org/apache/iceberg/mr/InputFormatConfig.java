@@ -34,7 +34,6 @@ public class InputFormatConfig {
 
   // configuration values for Iceberg input formats
   public static final String REUSE_CONTAINERS = "iceberg.mr.reuse.containers";
-  public static final String CASE_SENSITIVE = "iceberg.mr.case.sensitive";
   public static final String SKIP_RESIDUAL_FILTERING = "skip.residual.filtering";
   public static final String AS_OF_TIMESTAMP = "iceberg.mr.as.of.time";
   public static final String FILTER_EXPRESSION = "iceberg.mr.filter.expression";
@@ -60,6 +59,9 @@ public class InputFormatConfig {
   public static final String COMMIT_THREAD_POOL_SIZE = "iceberg.mr.commit.thread.pool.size";
   public static final int COMMIT_THREAD_POOL_SIZE_DEFAULT = 10;
 
+  public static final String CASE_SENSITIVE = "iceberg.mr.case.sensitive";
+  public static final boolean CASE_SENSITIVE_DEFAULT = true;
+
   public static final String CATALOG_NAME = "iceberg.catalog";
   public static final String HADOOP_CATALOG = "hadoop.catalog";
   public static final String HADOOP_TABLES = "hadoop.tables";
@@ -81,7 +83,7 @@ public class InputFormatConfig {
       this.conf = conf;
       // defaults
       conf.setBoolean(SKIP_RESIDUAL_FILTERING, false);
-      conf.setBoolean(CASE_SENSITIVE, true);
+      conf.setBoolean(CASE_SENSITIVE, CASE_SENSITIVE_DEFAULT);
       conf.setBoolean(REUSE_CONTAINERS, false);
       conf.setBoolean(LOCALITY, false);
     }

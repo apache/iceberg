@@ -100,7 +100,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
 
     TableScan scan = table.newScan()
-            .caseSensitive(conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, true));
+            .caseSensitive(conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, InputFormatConfig.CASE_SENSITIVE_DEFAULT));
     long snapshotId = conf.getLong(InputFormatConfig.SNAPSHOT_ID, -1);
     if (snapshotId != -1) {
       scan = scan.useSnapshot(snapshotId);
@@ -188,9 +188,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       this.encryptionManager = ((IcebergSplit) split).encryptionManager();
       this.tasks = task.files().iterator();
       this.tableSchema = InputFormatConfig.tableSchema(conf);
-      this.expectedSchema = readSchema(conf, tableSchema);
+      this.caseSensitive = conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, InputFormatConfig.CASE_SENSITIVE_DEFAULT);
+      this.expectedSchema = readSchema(conf, tableSchema, caseSensitive);
       this.reuseContainers = conf.getBoolean(InputFormatConfig.REUSE_CONTAINERS, false);
-      this.caseSensitive = conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, true);
       this.inMemoryDataModel = conf.getEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL,
               InputFormatConfig.InMemoryDataModel.GENERIC);
       this.currentIterator = open(tasks.next(), expectedSchema).iterator();
@@ -373,7 +373,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       }
     }
 
-    private static Schema readSchema(Configuration conf, Schema tableSchema) {
+    private static Schema readSchema(Configuration conf, Schema tableSchema, boolean caseSensitive) {
       Schema readSchema = InputFormatConfig.readSchema(conf);
 
       if (readSchema != null) {
@@ -381,7 +381,11 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       }
 
       String[] selectedColumns = InputFormatConfig.selectedColumns(conf);
-      return selectedColumns != null ? tableSchema.select(selectedColumns) : tableSchema;
+      if (selectedColumns == null) {
+        return tableSchema;
+      }
+
+      return caseSensitive ? tableSchema.select(selectedColumns) : tableSchema.caseInsensitiveSelect(selectedColumns);
     }
   }
 
