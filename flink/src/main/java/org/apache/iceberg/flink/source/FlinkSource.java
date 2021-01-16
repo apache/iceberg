@@ -47,11 +47,11 @@ public class FlinkSource {
   }
 
   /**
-   * Initialize a {@link Builder} to read the data from iceberg table. Equivalent to {@link TableScan}. See more options
-   * in {@link ScanContext}.
+   * Initialize a {@link Builder} to read the data from iceberg table. Equivalent to {@link TableScan}.
+   * See more options in {@link ScanContext}.
    * <p>
-   * The Source can be read static data in bounded mode. It can also continuously check the arrival of new data and read
-   * records incrementally.
+   * The Source can be read static data in bounded mode. It can also continuously check the arrival of new data and
+   * read records incrementally.
    * <ul>
    *   <li>Without startSnapshotId: Bounded</li>
    *   <li>With startSnapshotId and with endSnapshotId: Bounded</li>

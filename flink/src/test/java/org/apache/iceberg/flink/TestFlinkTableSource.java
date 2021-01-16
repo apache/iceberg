@@ -729,7 +729,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     org.apache.iceberg.Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME));
     Stream<FileScanTask> stream = StreamSupport.stream(table.newScan().planFiles().spliterator(), false);
     Optional<FileScanTask> fileScanTaskOptional = stream.max(Comparator.comparing(FileScanTask::length));
-    Assert.assertTrue(fileScanTaskOptional.isPresent());
+    Assert.assertTrue("Conversion should succeed", fileScanTaskOptional.isPresent());
     long maxFileLen = fileScanTaskOptional.get().length();
     sql("ALTER TABLE %s SET ('read.split.open-file-cost'='1', 'read.split.target-size'='%s')", TABLE_NAME, maxFileLen);
 
@@ -752,7 +752,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     ExecNode execNode =
         planner.translateToExecNodePlan(JavaScalaConversionUtil.toScala(Collections.singletonList(relNode))).get(0);
     Transformation transformation = execNode.translateToPlan(planner);
-    Assert.assertEquals(expected, transformation.getParallelism());
+    Assert.assertEquals("Should get the expected parallelism", expected, transformation.getParallelism());
   }
 
   private RelNode toRelNode(Table table) {
