@@ -212,8 +212,8 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
   @Test
   public void testAddColumnOnMigratedTable() throws Exception {
-      testAddColumnOnMigratedTableAtEnd();
-      testAddColumnOnMigratedTableAtMiddle();
+    testAddColumnOnMigratedTableAtEnd();
+    testAddColumnOnMigratedTableAtMiddle();
   }
 
   private void testAddColumnOnMigratedTableAtEnd() throws Exception {
@@ -298,9 +298,9 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String colName1 = "newCol1";
     String colName2 = "newCol2";
     File location = temp.newFolder();
-    spark.range(10).selectExpr("cast(id as INT)", "CAST(id as INT) " + colName1
-        , "CAST(id as INT) " + colName2)
-        .write().mode(SaveMode.Overwrite).saveAsTable(dest);
+    spark.range(10).selectExpr("cast(id as INT)", "CAST(id as INT) " + colName1, "CAST(id as INT) " + colName2)
+        .write()
+        .mode(SaveMode.Overwrite).saveAsTable(dest);
     List<Object[]> expected1 = sql("select id, %s from %s order by id", colName1, dest);
     List<Object[]> expected2 = sql("select id from %s order by id", dest);
 
