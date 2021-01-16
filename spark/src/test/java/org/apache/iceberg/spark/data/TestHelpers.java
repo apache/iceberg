@@ -276,8 +276,8 @@ public class TestHelpers {
                 ((Number) actual).longValue());
         break;
       case FLOAT:
-        Assert.assertEquals("Values didn't match", ((Number) expected).floatValue(),
-                ((Number) actual).floatValue(), 0.01F);
+        Assert.assertEquals("Values didn't match", Float.floatToIntBits(((Number) expected).floatValue()),
+                Float.floatToIntBits(((Number) actual).floatValue()));
         break;
       case DOUBLE:
         Assert.assertEquals("Values didn't match", ((Number) expected).doubleValue(),
