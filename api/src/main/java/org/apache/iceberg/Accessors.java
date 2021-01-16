@@ -26,6 +26,20 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
+/**
+ * Position2Accessor and Position3Accessor here is an optimization. For a nested schema like:
+ * <pre>
+ * root
+ *  |-- a: struct (nullable = false)
+ *  |    |-- b: struct (nullable = false)
+ *  |        | -- c: string (containsNull = false)
+ * </pre>
+ *  Then we will use Position3Accessor to access nested field 'c'. It can be accessed like this:
+ *  {@code row.get(p0, StructLike.class).get(p1, StructLike.class).get(p2, javaClass)}.
+ *  Commonly, Nested fields with depth=1 or 2 or 3 are the fields that will be accessed frequently,
+ *  so this optimization will help to access this kind of schema. For schema whose depth is deeper than 3,
+ *  then we will use the {@link WrappedPositionAccessor} to access recursively.
+ */
 public class Accessors {
   private Accessors() {
   }
