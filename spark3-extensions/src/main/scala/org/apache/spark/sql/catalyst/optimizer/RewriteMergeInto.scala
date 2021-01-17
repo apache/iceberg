@@ -19,42 +19,64 @@
 
 package org.apache.spark.sql.catalyst.optimizer
 
-import org.apache.spark.internal.Logging
-import org.apache.spark.sql.catalyst.expressions._
-import org.apache.spark.sql.catalyst.plans.{FullOuter, Inner}
-import org.apache.spark.sql.catalyst.plans.logical._
+import org.apache.spark.sql.catalyst.analysis.Resolver
+import org.apache.spark.sql.catalyst.expressions.Alias
+import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.expressions.InputFileName
+import org.apache.spark.sql.catalyst.expressions.IsNull
+import org.apache.spark.sql.catalyst.expressions.Literal
+import org.apache.spark.sql.catalyst.plans.FullOuter
+import org.apache.spark.sql.catalyst.plans.Inner
+import org.apache.spark.sql.catalyst.plans.logical.DeleteAction
+import org.apache.spark.sql.catalyst.plans.logical.InsertAction
+import org.apache.spark.sql.catalyst.plans.logical.Join
+import org.apache.spark.sql.catalyst.plans.logical.JoinHint
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.MergeAction
+import org.apache.spark.sql.catalyst.plans.logical.MergeInto
+import org.apache.spark.sql.catalyst.plans.logical.MergeIntoParams
+import org.apache.spark.sql.catalyst.plans.logical.MergeIntoTable
+import org.apache.spark.sql.catalyst.plans.logical.Project
+import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
+import org.apache.spark.sql.catalyst.plans.logical.UpdateAction
 import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.catalyst.utils.PlanHelper
+import org.apache.spark.sql.catalyst.utils.RewriteRowLevelOperationHelper
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
-import org.apache.spark.sql.functions._
+import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
 import org.apache.spark.sql.internal.SQLConf
+import org.apache.spark.sql.types.BooleanType
 
-object RewriteMergeInto extends Rule[LogicalPlan] with PlanHelper with Logging  {
+case class RewriteMergeInto(conf: SQLConf) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper  {
   val ROW_FROM_SOURCE = "_row_from_source_"
   val ROW_FROM_TARGET = "_row_from_target_"
+  private val TRUE_LITERAL = Literal(true, BooleanType)
+  private val FALSE_LITERAL = Literal(false, BooleanType)
 
   import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implicits._
 
+  override def resolver: Resolver = conf.resolver
+
   override def apply(plan: LogicalPlan): LogicalPlan = {
     plan resolveOperators {
-      // rewrite all operations that require reading the table to delete records
-      case MergeIntoTable(target: DataSourceV2Relation,
-                          source: LogicalPlan, cond, actions, notActions) =>
+      case MergeIntoTable(target: DataSourceV2Relation, source: LogicalPlan, cond, matchedActions, notMatchedActions) =>
         val targetOutputCols = target.output
         val newProjectCols = target.output ++ Seq(Alias(InputFileName(), FILE_NAME_COL)())
         val newTargetTable = Project(newProjectCols, target)
 
         // Construct the plan to prune target based on join condition between source and
         // target.
-        val prunedTargetPlan = Join(source, newTargetTable, Inner, Some(cond), JoinHint.NONE)
         val writeInfo = newWriteInfo(target.schema)
-        val mergeBuilder = target.table.asMergeable.newMergeBuilder("delete", writeInfo)
-        val targetTableScan =  buildScanPlan(target.table, target.output, mergeBuilder, prunedTargetPlan)
+        val mergeBuilder = target.table.asMergeable.newMergeBuilder("merge", writeInfo)
+        val matchingRowsPlanBuilder = (_: DataSourceV2ScanRelation) =>
+          Join(source, newTargetTable, Inner, Some(cond), JoinHint.NONE)
+        // TODO - extract the local predicates that references the target from the join condition and
+        // pass to buildScanPlan to ensure push-down.
+        val targetTableScan = buildScanPlan(target.table, target.output, mergeBuilder, None, matchingRowsPlanBuilder)
 
         // Construct an outer join to help track changes in source and target.
         // TODO : Optimize this to use LEFT ANTI or RIGHT OUTER when applicable.
-        val sourceTableProj = source.output ++ Seq(Alias(lit(true).expr, ROW_FROM_SOURCE)())
-        val targetTableProj = target.output ++ Seq(Alias(lit(true).expr, ROW_FROM_TARGET)())
+        val sourceTableProj = source.output ++ Seq(Alias(TRUE_LITERAL, ROW_FROM_SOURCE)())
+        val targetTableProj = target.output ++ Seq(Alias(TRUE_LITERAL, ROW_FROM_TARGET)())
         val newTargetTableScan = Project(targetTableProj, targetTableScan)
         val newSourceTableScan = Project(sourceTableProj, source)
         val joinPlan = Join(newSourceTableScan, newTargetTableScan, FullOuter, Some(cond), JoinHint.NONE)
@@ -63,12 +85,12 @@ object RewriteMergeInto extends Rule[LogicalPlan] with PlanHelper with Logging  
         val mergeParams = MergeIntoParams(
           isSourceRowNotPresent = IsNull(findOutputAttr(joinPlan, ROW_FROM_SOURCE)),
           isTargetRowNotPresent = IsNull(findOutputAttr(joinPlan, ROW_FROM_TARGET)),
-          matchedConditions = actions.map(getClauseCondition),
-          matchedOutputs = actions.map(actionOutput(_, targetOutputCols)),
-          notMatchedConditions = notActions.map(getClauseCondition),
-          notMatchedOutputs = notActions.map(actionOutput(_, targetOutputCols)),
-          targetOutput = targetOutputCols :+ Literal(false),
-          deleteOutput = targetOutputCols :+ Literal(true),
+          matchedConditions = matchedActions.map(getClauseCondition),
+          matchedOutputs = matchedActions.map(actionOutput(_, targetOutputCols)),
+          notMatchedConditions = notMatchedActions.map(getClauseCondition),
+          notMatchedOutputs = notMatchedActions.map(actionOutput(_, targetOutputCols)),
+          targetOutput = targetOutputCols :+ FALSE_LITERAL,
+          deleteOutput = targetOutputCols :+ TRUE_LITERAL,
           joinedAttributes = joinPlan.output
         )
         val mergePlan = MergeInto(mergeParams, target, joinPlan)
@@ -77,26 +99,18 @@ object RewriteMergeInto extends Rule[LogicalPlan] with PlanHelper with Logging  
     }
   }
 
-  def getTargetOutputCols(target: DataSourceV2Relation): Seq[NamedExpression] = {
-    target.schema.map { col =>
-      target.output.find(attr => SQLConf.get.resolver(attr.name, col.name)).getOrElse {
-        Alias(Literal(null, col.dataType), col.name)()
-      }
-    }
-  }
-
-  def actionOutput(clause: MergeAction, targetOutputCols: Seq[Expression]): Seq[Expression] = {
+  private def actionOutput(clause: MergeAction, targetOutputCols: Seq[Expression]): Seq[Expression] = {
     clause match {
       case u: UpdateAction =>
-        u.assignments.map(_.value) :+ Literal(false)
+        u.assignments.map(_.value) :+ FALSE_LITERAL
       case _: DeleteAction =>
-        targetOutputCols :+ Literal(true)
+        targetOutputCols :+ TRUE_LITERAL
       case i: InsertAction =>
-        i.assignments.map(_.value) :+ Literal(false)
+        i.assignments.map(_.value) :+ FALSE_LITERAL
     }
   }
 
-  def getClauseCondition(clause: MergeAction): Expression = {
+  private def getClauseCondition(clause: MergeAction): Expression = {
     clause.condition.getOrElse(Literal(true))
   }
 }

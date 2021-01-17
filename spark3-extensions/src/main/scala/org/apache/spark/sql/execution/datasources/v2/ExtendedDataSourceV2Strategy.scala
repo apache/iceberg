@@ -78,6 +78,7 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
 
     case MergeInto(mergeIntoProcessor, targetRelation, child) =>
       MergeIntoExec(mergeIntoProcessor, targetRelation, planLater(child)) :: Nil
+
     case _ => Nil
   }
 

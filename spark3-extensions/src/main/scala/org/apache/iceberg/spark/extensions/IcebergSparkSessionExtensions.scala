@@ -43,7 +43,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     // TODO: PullupCorrelatedPredicates should handle row-level operations
     extensions.injectOptimizerRule { _ => PullupCorrelatedPredicatesInRowLevelOperations }
     extensions.injectOptimizerRule { spark => RewriteDelete(spark.sessionState.conf) }
-    extensions.injectOptimizerRule { _ => RewriteMergeInto }
+    extensions.injectOptimizerRule { spark => RewriteMergeInto(spark.sessionState.conf) }
 
     // planner extensions
     extensions.injectPlannerStrategy { spark => ExtendedDataSourceV2Strategy(spark) }

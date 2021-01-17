@@ -68,12 +68,12 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
     createAndInitUnPartitionedTargetTable(targetName);
     createAndInitSourceTable(sourceName);
     append(sourceName, new Employee(1, "emp-id-1"), new Employee(2, "emp-id-2"), new Employee(3, "emp-id-3"));
-    String sqlText = "MERGE INTO " + targetName + " AS target \n" +
-                     "USING " + sourceName + " AS source \n" +
-                     "ON target.id = source.id \n" +
+    String sqlText = "MERGE INTO " + targetName + " AS target " +
+                     "USING " + sourceName + " AS source " +
+                     "ON target.id = source.id " +
                      "WHEN NOT MATCHED THEN INSERT * ";
 
-    sql(sqlText, "");
+    sql(sqlText);
     sql("SELECT * FROM %s ORDER BY id, dep", targetName);
     assertEquals("Should have expected rows",
             ImmutableList.of(row(1, "emp-id-1"), row(2, "emp-id-2"), row(3, "emp-id-3")),
@@ -85,12 +85,12 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
     createAndInitUnPartitionedTargetTable(targetName);
     createAndInitSourceTable(sourceName);
     append(sourceName, new Employee(1, "emp-id-1"), new Employee(2, "emp-id-2"), new Employee(3, "emp-id-3"));
-    String sqlText = "MERGE INTO " + targetName + " AS target \n" +
-                     "USING " + sourceName + " AS source \n" +
-                     "ON target.id = source.id \n" +
+    String sqlText = "MERGE INTO " + targetName + " AS target " +
+                     "USING " + sourceName + " AS source " +
+                     "ON target.id = source.id " +
                      "WHEN NOT MATCHED AND (source.id >= 2) THEN INSERT * ";
 
-    sql(sqlText, "");
+    sql(sqlText);
     List<Object[]> res = sql("SELECT * FROM %s ORDER BY id, dep", targetName);
     assertEquals("Should have expected rows",
             ImmutableList.of(row(2, "emp-id-2"), row(3, "emp-id-3")),
@@ -103,12 +103,12 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
     createAndInitSourceTable(sourceName);
     append(targetName, new Employee(1, "emp-id-one"), new Employee(6, "emp-id-6"));
     append(sourceName, new Employee(2, "emp-id-2"), new Employee(1, "emp-id-1"), new Employee(6, "emp-id-6"));
-    String sqlText = "MERGE INTO " + targetName + " AS target \n" +
-            "USING " + sourceName + " AS source \n" +
-            "ON target.id = source.id \n" +
+    String sqlText = "MERGE INTO " + targetName + " AS target " +
+            "USING " + sourceName + " AS source " +
+            "ON target.id = source.id " +
             "WHEN MATCHED AND target.id = 1 THEN UPDATE SET * ";
 
-    sql(sqlText, "");
+    sql(sqlText);
     List<Object[]> res = sql("SELECT * FROM %s ORDER BY id, dep", targetName);
     assertEquals("Should have expected rows",
             ImmutableList.of(row(1, "emp-id-1"), row(6, "emp-id-6")),
@@ -121,12 +121,12 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
     createAndInitSourceTable(sourceName);
     append(targetName, new Employee(1, "emp-id-one"), new Employee(6, "emp-id-6"));
     append(sourceName, new Employee(2, "emp-id-2"), new Employee(1, "emp-id-1"), new Employee(6, "emp-id-6"));
-    String sqlText = "MERGE INTO " + targetName + " AS target \n" +
-            "USING " + sourceName + " AS source \n" +
-            "ON target.id = source.id \n" +
+    String sqlText = "MERGE INTO " + targetName + " AS target " +
+            "USING " + sourceName + " AS source " +
+            "ON target.id = source.id " +
             "WHEN MATCHED AND target.id = 6 THEN DELETE";
 
-    sql(sqlText, "");
+    sql(sqlText);
     List<Object[]> res = sql("SELECT * FROM %s ORDER BY id, dep", targetName);
     assertEquals("Should have expected rows",
             ImmutableList.of(row(1, "emp-id-one")),
@@ -139,14 +139,14 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
     createAndInitSourceTable(sourceName);
     append(targetName, new Employee(1, "emp-id-one"), new Employee(6, "emp-id-6"));
     append(sourceName, new Employee(2, "emp-id-2"), new Employee(1, "emp-id-1"), new Employee(6, "emp-id-6"));
-    String sqlText = "MERGE INTO " + targetName + " AS target \n" +
-                     "USING " + sourceName + " AS source \n" +
-                     "ON target.id = source.id \n" +
-                     "WHEN MATCHED AND target.id = 1 THEN UPDATE SET * \n" +
-                     "WHEN MATCHED AND target.id = 6 THEN DELETE \n" +
+    String sqlText = "MERGE INTO " + targetName + " AS target " +
+                     "USING " + sourceName + " AS source " +
+                     "ON target.id = source.id " +
+                     "WHEN MATCHED AND target.id = 1 THEN UPDATE SET * " +
+                     "WHEN MATCHED AND target.id = 6 THEN DELETE " +
                      "WHEN NOT MATCHED AND source.id = 2 THEN INSERT * ";
 
-    sql(sqlText, "");
+    sql(sqlText);
     sql("SELECT * FROM %s ORDER BY id, dep", targetName);
     assertEquals("Should have expected rows",
             ImmutableList.of(row(1, "emp-id-1"), row(2, "emp-id-2")),
@@ -159,14 +159,14 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
     createAndInitSourceTable(sourceName);
     append(targetName, new Employee(1, "emp-id-one"), new Employee(6, "emp-id-6"));
     append(sourceName, new Employee(2, "emp-id-2"), new Employee(1, "emp-id-1"), new Employee(6, "emp-id-6"));
-    String sqlText = "MERGE INTO " + targetName + " AS target \n" +
-            "USING " + sourceName + " AS source \n" +
-            "ON target.id = source.id \n" +
-            "WHEN MATCHED AND target.id = 1 THEN UPDATE SET target.id = source.id, target.dep = source.dep \n" +
-            "WHEN MATCHED AND target.id = 6 THEN DELETE \n" +
+    String sqlText = "MERGE INTO " + targetName + " AS target " +
+            "USING " + sourceName + " AS source " +
+            "ON target.id = source.id " +
+            "WHEN MATCHED AND target.id = 1 THEN UPDATE SET target.id = source.id, target.dep = source.dep " +
+            "WHEN MATCHED AND target.id = 6 THEN DELETE " +
             "WHEN NOT MATCHED AND source.id = 2 THEN INSERT (target.id, target.dep) VALUES (source.id, source.dep) ";
 
-    sql(sqlText, "");
+    sql(sqlText);
     sql("SELECT * FROM %s ORDER BY id, dep", targetName);
     assertEquals("Should have expected rows",
             ImmutableList.of(row(1, "emp-id-1"), row(2, "emp-id-2")),
@@ -183,14 +183,14 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
     append(targetName, new Employee(2, "emp-id-two"), new Employee(6, "emp-id-6"));
     append(sourceName, new Employee(2, "emp-id-3"), new Employee(1, "emp-id-2"), new Employee(5, "emp-id-6"));
     String sourceCTE = "WITH cte1 AS (SELECT id + 1 AS id, dep FROM source)";
-    String sqlText = sourceCTE + " " + "MERGE INTO " + targetName + " AS target \n" +
-            "USING cte1"  + " AS source \n" +
-            "ON target.id = source.id \n" +
-            "WHEN MATCHED AND target.id = 2 THEN UPDATE SET * \n" +
-            "WHEN MATCHED AND target.id = 6 THEN DELETE \n" +
+    String sqlText = sourceCTE + " " + "MERGE INTO " + targetName + " AS target " +
+            "USING cte1"  + " AS source " +
+            "ON target.id = source.id " +
+            "WHEN MATCHED AND target.id = 2 THEN UPDATE SET * " +
+            "WHEN MATCHED AND target.id = 6 THEN DELETE " +
             "WHEN NOT MATCHED AND source.id = 3 THEN INSERT * ";
 
-    sql(sqlText, "");
+    sql(sqlText);
     sql("SELECT * FROM %s ORDER BY id, dep", targetName);
     assertEquals("Should have expected rows",
             ImmutableList.of(row(2, "emp-id-2"), row(3, "emp-id-3")),
@@ -206,17 +206,17 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
     createAndInitSourceTable(sourceName);
     append(targetName, new Employee(1, "emp-id-one"), new Employee(6, "emp-id-6"));
     append(sourceName, new Employee(2, "emp-id-2"), new Employee(1, "emp-id-1"), new Employee(6, "emp-id-6"));
-    String derivedSource = " ( SELECT * FROM source WHERE id = 2 \n" +
-                           "   UNION ALL \n" +
+    String derivedSource = " ( SELECT * FROM source WHERE id = 2 " +
+                           "   UNION ALL " +
                            "   SELECT * FROM source WHERE id = 1 OR id = 6)";
-    String sqlText = "MERGE INTO " + targetName + " AS target \n" +
-            "USING " + derivedSource + " AS source \n" +
-            "ON target.id = source.id \n" +
-            "WHEN MATCHED AND target.id = 1 THEN UPDATE SET * \n" +
-            "WHEN MATCHED AND target.id = 6 THEN DELETE \n" +
+    String sqlText = "MERGE INTO " + targetName + " AS target " +
+            "USING " + derivedSource + " AS source " +
+            "ON target.id = source.id " +
+            "WHEN MATCHED AND target.id = 1 THEN UPDATE SET * " +
+            "WHEN MATCHED AND target.id = 6 THEN DELETE " +
             "WHEN NOT MATCHED AND source.id = 2 THEN INSERT * ";
 
-    sql(sqlText, "");
+    sql(sqlText);
     sql("SELECT * FROM %s ORDER BY id, dep", targetName);
     assertEquals("Should have expected rows",
             ImmutableList.of(row(1, "emp-id-1"), row(2, "emp-id-2")),

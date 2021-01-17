@@ -54,12 +54,12 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
       table: Table,
       tableAttrs: Seq[AttributeReference],
       mergeBuilder: MergeBuilder,
-      cond: Expression,
+      cond: Option[Expression] = None,
       matchingRowsPlanBuilder: DataSourceV2ScanRelation => LogicalPlan): LogicalPlan = {
 
     val scanBuilder = mergeBuilder.asScanBuilder
 
-    pushFilters(scanBuilder, cond, tableAttrs)
+    cond.map(pushFilters(scanBuilder, _, tableAttrs))
 
     val scan = scanBuilder.build()
     val outputAttrs = toOutputAttrs(scan.readSchema(), tableAttrs)
@@ -103,6 +103,7 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
   }
 
   private def buildFileFilterPlan(matchingRowsPlan: LogicalPlan): LogicalPlan = {
+    // TODO: For merge-into make sure _file is resolved only from target table.
     val fileAttr = findOutputAttr(matchingRowsPlan, FILE_NAME_COL)
     val agg = Aggregate(Seq(fileAttr), Seq(fileAttr), matchingRowsPlan)
     Project(Seq(findOutputAttr(agg, FILE_NAME_COL)), agg)
