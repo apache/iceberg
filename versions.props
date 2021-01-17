@@ -10,7 +10,6 @@ org.apache.spark:spark-hive_2.11 = 2.4.7
 org.apache.spark:spark-avro_2.11 = 2.4.7
 org.apache.spark:spark-hive_2.12 = 3.0.1
 org.apache.pig:pig = 0.14.0
-org.apache.commons:commons-lang3 = 3.9
 com.fasterxml.jackson.*:* = 2.10.0
 com.google.guava:guava = 28.0-jre
 com.github.ben-manes.caffeine:caffeine = 2.7.0

@@ -473,3 +473,12 @@ file:
 | This product includes software developed at
 | The Apache Software Foundation (http://www.apache.org/).
 
+--------------------------------------------------------------------------------
+
+This binary includes code from Apache Commons.
+
+* Core ArrayUtil.
+
+Copyright: 2020 The Apache Software Foundation
+Home page: https://commons.apache.org/
+License: https://www.apache.org/licenses/LICENSE-2.0
