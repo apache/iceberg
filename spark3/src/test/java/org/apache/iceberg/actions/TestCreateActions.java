@@ -79,10 +79,6 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
   private static final String NAMESPACE = "default";
 
-  // Error message
-  private static final String OUTPUT_DIFFERENT_ERROR_MSG =
-      "Output data different between iceberg and non-iceberg table";
-
   @Parameterized.Parameters(name = "Catalog Name {0} - Options {2}")
   public static Object[][] parameters() {
     return new Object[][] {
@@ -205,25 +201,19 @@ public class TestCreateActions extends SparkCatalogTestBase {
         .selectExpr("cast(id as STRING) as data")
         .write()
         .mode(SaveMode.Overwrite).parquet(partitionDataLoc.toURI().toString());
-    spark.sql(String.format("ALTER TABLE %s ADD PARTITION(id=0) LOCATION '%s'", source,
-        partitionDataLoc.toURI().toString()));
+    sql("ALTER TABLE %s ADD PARTITION(id=0) LOCATION '%s'", source, partitionDataLoc.toURI().toString());
     assertMigratedFileCount(Actions.migrate(source), source, dest);
   }
 
   @Test
-  public void testAddColumnOnMigratedTable() throws Exception {
-    testAddColumnOnMigratedTableAtEnd();
-    testAddColumnOnMigratedTableAtMiddle();
-  }
-
-  private void testAddColumnOnMigratedTableAtEnd() throws Exception {
+  public void testAddColumnOnMigratedTableAtEnd() throws Exception {
     Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
     Assume.assumeTrue("Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
     String source = sourceName("test_add_column_migrated_table");
     String dest = source;
     createSourceTable(CREATE_PARQUET, source);
-    List<Object[]> expected1 = sql("select *, null from %s order by id", dest);
-    List<Object[]> expected2 = sql("select *, null, null from %s order by id", dest);
+    List<Object[]> expected1 = sql("select *, null from %s order by id", source);
+    List<Object[]> expected2 = sql("select *, null, null from %s order by id", source);
 
     // migrate table
     Actions.migrate(source).execute();
@@ -241,7 +231,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     // reads should succeed without any exceptions
     List<Object[]> results1 = sql("select * from %s order by id", dest);
     Assert.assertTrue(results1.size() > 0);
-    assertEquals(OUTPUT_DIFFERENT_ERROR_MSG, results1, expected1);
+    assertEquals("Output must match", results1, expected1);
 
     String newCol2 = "newCol2";
     sql("ALTER TABLE %s ADD COLUMN %s INT", dest, newCol2);
@@ -251,10 +241,11 @@ public class TestCreateActions extends SparkCatalogTestBase {
     // reads should succeed without any exceptions
     List<Object[]> results2 = sql("select * from %s order by id", dest);
     Assert.assertTrue(results2.size() > 0);
-    assertEquals(OUTPUT_DIFFERENT_ERROR_MSG, results2, expected2);
+    assertEquals("Output must match", results2, expected2);
   }
 
-  private void testAddColumnOnMigratedTableAtMiddle() throws Exception {
+  @Test
+  public void testAddColumnOnMigratedTableAtMiddle() throws Exception {
     Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
     Assume.assumeTrue("Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
     String source = sourceName("test_add_column_migrated_table_middle");
@@ -265,7 +256,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     Actions.migrate(source).execute();
     SparkTable sparkTable = loadTable(dest);
     Table table = sparkTable.table();
-    List<Object[]> expected = sql("select id, null, data from %s order by id", dest);
+    List<Object[]> expected = sql("select id, null, data from %s order by id", source);
 
     // test column addition on migrated table
     Schema beforeSchema = table.schema();
@@ -280,16 +271,11 @@ public class TestCreateActions extends SparkCatalogTestBase {
     // reads should succeed
     List<Object[]> results = sql("select * from %s order by id", dest);
     Assert.assertTrue(results.size() > 0);
-    assertEquals(OUTPUT_DIFFERENT_ERROR_MSG, results, expected);
+    assertEquals("Output must match", results, expected);
   }
 
   @Test
-  public void testRemoveColumnOnMigratedTable() throws Exception {
-    removeColumnsAtEnd();
-    removeColumnFromMiddle();
-  }
-
-  private void removeColumnsAtEnd() throws Exception {
+  public void removeColumnsAtEnd() throws Exception {
     Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
     Assume.assumeTrue("Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
     String source = sourceName("test_remove_column_migrated_table");
@@ -301,8 +287,8 @@ public class TestCreateActions extends SparkCatalogTestBase {
     spark.range(10).selectExpr("cast(id as INT)", "CAST(id as INT) " + colName1, "CAST(id as INT) " + colName2)
         .write()
         .mode(SaveMode.Overwrite).saveAsTable(dest);
-    List<Object[]> expected1 = sql("select id, %s from %s order by id", colName1, dest);
-    List<Object[]> expected2 = sql("select id from %s order by id", dest);
+    List<Object[]> expected1 = sql("select id, %s from %s order by id", colName1, source);
+    List<Object[]> expected2 = sql("select id from %s order by id", source);
 
     // migrate table
     Actions.migrate(source).execute();
@@ -319,7 +305,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     // reads should succeed without any exceptions
     List<Object[]> results1 = sql("select * from %s order by id", dest);
     Assert.assertTrue(results1.size() > 0);
-    assertEquals(OUTPUT_DIFFERENT_ERROR_MSG, expected1, results1);
+    assertEquals("Output must match", expected1, results1);
 
     sql("ALTER TABLE %s DROP COLUMN %s", dest, colName2);
     StructType schema = spark.table(dest).schema();
@@ -328,10 +314,11 @@ public class TestCreateActions extends SparkCatalogTestBase {
     // reads should succeed without any exceptions
     List<Object[]> results2 = sql("select * from %s order by id", dest);
     Assert.assertTrue(results2.size() > 0);
-    assertEquals(OUTPUT_DIFFERENT_ERROR_MSG, expected2, results2);
+    assertEquals("Output must match", expected2, results2);
   }
 
-  private void removeColumnFromMiddle() throws Exception {
+  @Test
+  public void removeColumnFromMiddle() throws Exception {
     Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
     Assume.assumeTrue("Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
     String source = sourceName("test_remove_column_migrated_table_from_middle");
@@ -340,7 +327,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
     spark.range(10).selectExpr("cast(id as INT)", "CAST(id as INT) as " +
         dropColumnName, "CAST(id as INT) as col2").write().mode(SaveMode.Overwrite).saveAsTable(dest);
-    List<Object[]> expected = sql("select id, col2 from %s order by id", dest);
+    List<Object[]> expected = sql("select id, col2 from %s order by id", source);
 
     // migrate table
     Actions.migrate(source).execute();
@@ -353,7 +340,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
     // reads should return same output as that of non-iceberg table
     List<Object[]> results = sql("select * from %s order by id", dest);
     Assert.assertTrue(results.size() > 0);
-    assertEquals(OUTPUT_DIFFERENT_ERROR_MSG, expected, results);
+    assertEquals("Output must match", expected, results);
   }
 
   @Test
@@ -468,6 +455,88 @@ public class TestCreateActions extends SparkCatalogTestBase {
     assertMigratedFileCount(Actions.snapshot(source, dest), source, dest);
     assertIsolatedSnapshot(source, dest);
   }
+
+  @Test
+  public void schemaEvolutionTestWithSparkAPI() throws Exception {
+    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
+    Assume.assumeTrue("Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
+
+    File location = temp.newFolder();
+    String tblName = sourceName("schema_evolution_test");
+
+    // Data generation and partition addition
+    spark.range(0, 5)
+        .selectExpr("CAST(id as INT) as col0", "CAST(id AS FLOAT) col2", "CAST(id AS LONG) col3")
+        .write()
+        .mode(SaveMode.Append)
+        .parquet(location.toURI().toString());
+    Dataset<Row> rowDataset = spark.range(6, 10)
+        .selectExpr("CAST(id as INT) as col0", "CAST(id AS STRING) col1",
+            "CAST(id AS FLOAT) col2", "CAST(id AS LONG) col3");
+    rowDataset
+        .write()
+        .mode(SaveMode.Append)
+        .parquet(location.toURI().toString());
+    spark.read()
+        .schema(rowDataset.schema())
+        .parquet(location.toURI().toString()).write().saveAsTable(tblName);
+    List<Object[]> expectedBeforeAddColumn = sql("SELECT * FROM %s ORDER BY col0", tblName);
+    List<Object[]> expectedAfterAddColumn = sql("SELECT col0, null, col1, col2, col3 FROM %s ORDER BY col0",
+        tblName);
+
+    // Migrate table
+    Actions.migrate(tblName).execute();
+
+    // check if iceberg and non-iceberg output
+    List<Object[]> afterMigarteBeforeAddResults = sql("SELECT * FROM %s ORDER BY col0", tblName);
+    assertEquals("Output must match", expectedBeforeAddColumn, afterMigarteBeforeAddResults);
+
+    // Update schema and check output correctness
+    SparkTable sparkTable = loadTable(tblName);
+    sparkTable.table().updateSchema().addColumn("newCol", Types.IntegerType.get())
+        .moveAfter("newCol", "col0")
+        .commit();
+    List<Object[]> afterMigarteAfterAddResults = sql("SELECT * FROM %s ORDER BY col0", tblName);
+    assertEquals("Output must match", expectedAfterAddColumn, afterMigarteAfterAddResults);
+  }
+
+  @Test
+  public void schemaEvolutionTestWithSparkSQL() throws Exception {
+    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
+    Assume.assumeTrue("Can only migrate from Spark Session Catalog", catalog.name().equals("spark_catalog"));
+    String tblName = sourceName("schema_evolution_test_sql");
+
+    // Data generation and partition addition
+    spark.range(0, 5)
+        .selectExpr("CAST(id as INT) col0", "CAST(id AS FLOAT) col1", "CAST(id AS STRING) col2")
+        .write()
+        .mode(SaveMode.Append)
+        .saveAsTable(tblName);
+    sql("ALTER TABLE %s ADD COLUMN col3 INT", tblName);
+    spark.range(6, 10)
+        .selectExpr("CAST(id AS INT) col0", "CAST(id AS FLOAT) col1", "CAST(id AS STRING) col2", "CAST(id AS INT) col3")
+        .registerTempTable("tempdata");
+    sql("INSERT INTO TABLE %s SELECT * FROM tempdata", tblName);
+    List<Object[]> expectedBeforeAddColumn = sql("SELECT * FROM %s ORDER BY col0", tblName);
+    List<Object[]> expectedAfterAddColumn = sql("SELECT col0, null, col1, col2, col3 FROM %s ORDER BY col0",
+        tblName);
+
+    // Migrate table
+    Actions.migrate(tblName).execute();
+
+    // check if iceberg and non-iceberg output
+    List<Object[]> afterMigarteBeforeAddResults = sql("SELECT * FROM %s ORDER BY col0", tblName);
+    assertEquals("Output must match", expectedBeforeAddColumn, afterMigarteBeforeAddResults);
+
+    // Update schema and check output correctness
+    SparkTable sparkTable = loadTable(tblName);
+    sparkTable.table().updateSchema().addColumn("newCol", Types.IntegerType.get())
+        .moveAfter("newCol", "col0")
+        .commit();
+    List<Object[]> afterMigarteAfterAddResults = sql("SELECT * FROM %s ORDER BY col0", tblName);
+    assertEquals("Output must match", expectedAfterAddColumn, afterMigarteAfterAddResults);
+  }
+
 
   private SparkTable loadTable(String name) throws NoSuchTableException, ParseException {
     return (SparkTable) catalog.loadTable(Spark3Util.catalogAndIdentifier(spark, name).identifier());
