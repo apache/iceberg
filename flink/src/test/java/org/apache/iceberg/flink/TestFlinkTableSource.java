@@ -19,11 +19,12 @@
 
 package org.apache.iceberg.flink;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import org.apache.flink.table.api.SqlParserException;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.Expressions;
@@ -31,37 +32,23 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
-@RunWith(Parameterized.class)
-public class TestFlinkTableSource extends FlinkCatalogTestBase {
+public class TestFlinkTableSource extends FlinkTestBase {
+
+  private static final String CATALOG_NAME = "test_catalog";
+  private static final String DATABASE_NAME = "test_db";
   private static final String TABLE_NAME = "test_table";
-
   private final String expectedFilterPushDownExplain = "FilterPushDown";
-  private final FileFormat format;
+  private final FileFormat format = FileFormat.AVRO;
+  private static String warehouse;
 
   private int scanEventCount = 0;
   private ScanEvent lastScanEvent = null;
 
-  @Parameterized.Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}")
-  public static Iterable<Object[]> parameters() {
-    List<Object[]> parameters = Lists.newArrayList();
-    for (FileFormat format : new FileFormat[] {FileFormat.ORC, FileFormat.AVRO, FileFormat.PARQUET}) {
-      for (Object[] catalogParams : FlinkCatalogTestBase.parameters()) {
-        String catalogName = (String) catalogParams[0];
-        Namespace baseNamespace = (Namespace) catalogParams[1];
-        parameters.add(new Object[] {catalogName, baseNamespace, format});
-      }
-    }
-    return parameters;
-  }
 
-  public TestFlinkTableSource(String catalogName, Namespace baseNamespace, FileFormat format) {
-    super(catalogName, baseNamespace);
-    this.format = format;
-
+  public TestFlinkTableSource() {
     // register a scan event listener to validate pushdown
     Listeners.register(event -> {
       scanEventCount += 1;
@@ -69,15 +56,24 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
     }, ScanEvent.class);
   }
 
+  @BeforeClass
+  public static void createWarehouse() throws IOException {
+    File warehouseFile = TEMPORARY_FOLDER.newFolder();
+    Assert.assertTrue("The warehouse should be deleted", warehouseFile.delete());
+    // before variables
+    warehouse = "file:" + warehouseFile;
+  }
+
   @Before
   public void before() {
-    super.before();
-    sql("CREATE DATABASE %s", flinkDatabase);
-    sql("USE CATALOG %s", catalogName);
-    sql("USE %s", DATABASE);
+    sql("CREATE CATALOG %s WITH ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')", CATALOG_NAME,
+        warehouse);
+    sql("USE CATALOG %s", CATALOG_NAME);
+    sql("CREATE DATABASE %s", DATABASE_NAME);
+    sql("USE %s", DATABASE_NAME);
     sql("CREATE TABLE %s (id INT, data VARCHAR,d DOUBLE) WITH ('write.format.default'='%s')", TABLE_NAME,
         format.name());
-    sql("INSERT INTO %s  VALUES (1,'iceberg',10),(2,'b',20),(3,CAST(NULL AS VARCHAR),30)", TABLE_NAME);
+    sql("INSERT INTO %s VALUES (1,'iceberg',10),(2,'b',20),(3,CAST(NULL AS VARCHAR),30)", TABLE_NAME);
 
     this.scanEventCount = 0;
     this.lastScanEvent = null;
@@ -85,9 +81,9 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
 
   @After
   public void clean() {
-    sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME);
-    sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
-    super.clean();
+    sql("DROP TABLE IF EXISTS %s.%s", DATABASE_NAME, TABLE_NAME);
+    sql("DROP DATABASE IF EXISTS %s", DATABASE_NAME);
+    sql("DROP CATALOG IF EXISTS %s", CATALOG_NAME);
   }
 
   @Test
@@ -95,10 +91,11 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
     String querySql = String.format("SELECT * FROM %s LIMIT 1", TABLE_NAME);
     String explain = getTableEnv().explainSql(querySql);
     String expectedExplain = "LimitPushDown : 1";
+    Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
     Assert.assertTrue("Explain should contain LimitPushDown", explain.contains(expectedExplain));
     List<Object[]> result = sql(querySql);
     Assert.assertEquals("Should have 1 record", 1, result.size());
-    Assert.assertArrayEquals("Should produce the expected records", new Object[] {1, "iceberg", 10.0}, result.get(0));
+    Assert.assertArrayEquals("Should produce the expected records", expectRecord, result.get(0));
 
     AssertHelpers.assertThrows("Invalid limit number: -1 ", SqlParserException.class,
         () -> sql("SELECT * FROM %s LIMIT -1", TABLE_NAME));
@@ -107,7 +104,7 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
 
     String sqlLimitExceed = String.format("SELECT * FROM %s LIMIT 4", TABLE_NAME);
     List<Object[]> resultExceed = sql(sqlLimitExceed);
-    Assert.assertEquals("Should have 3 record", 3, resultExceed.size());
+    Assert.assertEquals("Should have 3 records", 3, resultExceed.size());
     List<Object[]> expectedList = Lists.newArrayList();
     expectedList.add(new Object[] {1, "iceberg", 10.0});
     expectedList.add(new Object[] {2, "b", 20.0});
@@ -117,8 +114,7 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
     String sqlMixed = String.format("SELECT * FROM %s WHERE id = 1 LIMIT 2", TABLE_NAME);
     List<Object[]> mixedResult = sql(sqlMixed);
     Assert.assertEquals("Should have 1 record", 1, mixedResult.size());
-    Assert.assertArrayEquals("Should produce the expected records",
-        new Object[] {1, "iceberg", 10.0}, mixedResult.get(0));
+    Assert.assertArrayEquals("Should produce the expected records", expectRecord, mixedResult.get(0));
   }
 
   @Test
@@ -134,11 +130,12 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
     String sqlLiteralRight = String.format("SELECT * FROM %s WHERE id = 1 ", TABLE_NAME);
     String explain = getTableEnv().explainSql(sqlLiteralRight);
     String expectedFilter = "ref(name=\"id\") == 1";
+    Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
     Assert.assertTrue("Explain should contain the push down filter", explain.contains(expectedFilter));
 
     List<Object[]> result = sql(sqlLiteralRight);
     Assert.assertEquals("Should have 1 record", 1, result.size());
-    Assert.assertArrayEquals("Should produce the expected record", new Object[] {1, "iceberg", 10.0}, result.get(0));
+    Assert.assertArrayEquals("Should produce the expected record", expectRecord, result.get(0));
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
@@ -161,12 +158,12 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
     String sqlLiteralLeft = String.format("SELECT * FROM %s WHERE 1 = id ", TABLE_NAME);
     String explainLeft = getTableEnv().explainSql(sqlLiteralLeft);
     String expectedFilter = "ref(name=\"id\") == 1";
+    Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
     Assert.assertTrue("Explain should contain the push down filter", explainLeft.contains(expectedFilter));
 
     List<Object[]> resultLeft = sql(sqlLiteralLeft);
     Assert.assertEquals("Should have 1 record", 1, resultLeft.size());
-    Assert
-        .assertArrayEquals("Should produce the expected record", new Object[] {1, "iceberg", 10.0}, resultLeft.get(0));
+    Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultLeft.get(0));
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
@@ -206,12 +203,13 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
   public void testFilterPushDownAnd() {
     String sqlAnd = String.format("SELECT * FROM %s WHERE id = 1 AND data = 'iceberg' ", TABLE_NAME);
     String explainAnd = getTableEnv().explainSql(sqlAnd);
+    Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
     String expectedFilter = "ref(name=\"id\") == 1,ref(name=\"data\") == \"iceberg\"";
     Assert.assertTrue("Explain should contain the push down filter", explainAnd.contains(expectedFilter));
 
     List<Object[]> resultAnd = sql(sqlAnd);
     Assert.assertEquals("Should have 1 record", 1, resultAnd.size());
-    Assert.assertArrayEquals("Should produce the expected record", new Object[] {1, "iceberg", 10.0}, resultAnd.get(0));
+    Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultAnd.get(0));
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     String expected = "(ref(name=\"id\") == 1 and ref(name=\"data\") == \"iceberg\")";
@@ -340,11 +338,12 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
     String sqlLT = String.format("SELECT * FROM %s WHERE id < 2 ", TABLE_NAME);
     String explainLT = getTableEnv().explainSql(sqlLT);
     String expectedFilter = "ref(name=\"id\") < 2";
+    Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
     Assert.assertTrue("Explain should contain the push down filter", explainLT.contains(expectedFilter));
 
     List<Object[]> resultLT = sql(sqlLT);
     Assert.assertEquals("Should have 1 record", 1, resultLT.size());
-    Assert.assertArrayEquals("Should produce the expected record", new Object[] {1, "iceberg", 10.0}, resultLT.get(0));
+    Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultLT.get(0));
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
@@ -365,12 +364,13 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
   public void testFilterPushDownLessThanLiteralOnLeft() {
     String sqlLT = String.format("SELECT * FROM %s WHERE 2 < id ", TABLE_NAME);
     String explainLT = getTableEnv().explainSql(sqlLT);
+    Object[] expectRecord = new Object[] {3, null, 30.0};
     String expectedFilter = "ref(name=\"id\") > 2";
     Assert.assertTrue("Explain should contain the push down filter", explainLT.contains(expectedFilter));
 
     List<Object[]> resultLT = sql(sqlLT);
     Assert.assertEquals("Should have 1 record", 1, resultLT.size());
-    Assert.assertArrayEquals("Should produce the expected record", new Object[] {3, null, 30.0}, resultLT.get(0));
+    Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultLT.get(0));
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
@@ -380,12 +380,13 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
   public void testFilterPushDownLessThanEqual() {
     String sqlLTE = String.format("SELECT * FROM %s WHERE id <= 1 ", TABLE_NAME);
     String explainLTE = getTableEnv().explainSql(sqlLTE);
+    Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
     String expectedFilter = "ref(name=\"id\") <= 1";
     Assert.assertTrue("Explain should contain the push down filter", explainLTE.contains(expectedFilter));
 
     List<Object[]> resultLTE = sql(sqlLTE);
     Assert.assertEquals("Should have 1 record", 1, resultLTE.size());
-    Assert.assertArrayEquals("Should produce the expected record", new Object[] {1, "iceberg", 10.0}, resultLTE.get(0));
+    Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultLTE.get(0));
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
@@ -406,12 +407,13 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
   public void testFilterPushDownLessThanEqualLiteralOnLeft() {
     String sqlLTE = String.format("SELECT * FROM %s WHERE 3 <= id  ", TABLE_NAME);
     String explainLTE = getTableEnv().explainSql(sqlLTE);
+    Object[] expectRecord = new Object[] {3, null, 30.0};
     String expectedFilter = "ref(name=\"id\") >= 3";
     Assert.assertTrue("Explain should contain the push down filter", explainLTE.contains(expectedFilter));
 
     List<Object[]> resultLTE = sql(sqlLTE);
     Assert.assertEquals("Should have 1 record", 1, resultLTE.size());
-    Assert.assertArrayEquals("Should produce the expected record", new Object[] {3, null, 30.0}, resultLTE.get(0));
+    Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultLTE.get(0));
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
@@ -438,12 +440,13 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
   public void testFilterPushDownInNull() {
     String sqlInNull = String.format("SELECT * FROM %s WHERE data IN ('iceberg',NULL) ", TABLE_NAME);
     String explainInNull = getTableEnv().explainSql(sqlInNull);
+    Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
     Assert.assertFalse("Explain should not contain FilterPushDown",
         explainInNull.contains(expectedFilterPushDownExplain));
 
     List<Object[]> result = sql(sqlInNull);
     Assert.assertEquals("Should have 1 record", 1, result.size());
-    Assert.assertArrayEquals("Should produce the expected record", new Object[] {1, "iceberg", 10.0}, result.get(0));
+    Assert.assertArrayEquals("Should produce the expected record", expectRecord, result.get(0));
     Assert.assertEquals("Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
   }
 
@@ -451,13 +454,13 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
   public void testFilterPushDownNotIn() {
     String sqlNotIn = String.format("SELECT * FROM %s WHERE id NOT IN (3,2) ", TABLE_NAME);
     String explainNotIn = getTableEnv().explainSql(sqlNotIn);
+    Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
     String expectedFilter = "ref(name=\"id\") != 3,ref(name=\"id\") != 2";
     Assert.assertTrue("Explain should contain the push down filter", explainNotIn.contains(expectedFilter));
 
     List<Object[]> resultNotIn = sql(sqlNotIn);
     Assert.assertEquals("Should have 1 record", 1, resultNotIn.size());
-    Assert
-        .assertArrayEquals("Should produce the expected record", new Object[] {1, "iceberg", 10.0}, resultNotIn.get(0));
+    Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultNotIn.get(0));
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     String expectedScan = "(ref(name=\"id\") != 3 and ref(name=\"id\") != 2)";
     Assert.assertEquals("Should contain the push down filter", expectedScan, lastScanEvent.filter().toString());
@@ -497,12 +500,13 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
   public void testFilterPushDownIsNull() {
     String sqlNull = String.format("SELECT * FROM %s WHERE data IS  NULL", TABLE_NAME);
     String explainNull = getTableEnv().explainSql(sqlNull);
+    Object[] expectRecord = new Object[] {3, null, 30.0};
     String expectedFilter = "is_null(ref(name=\"data\"))";
     Assert.assertTrue("Explain should contain the push down filter", explainNull.contains(expectedFilter));
 
     List<Object[]> resultNull = sql(sqlNull);
     Assert.assertEquals("Should have 1 record", 1, resultNull.size());
-    Assert.assertArrayEquals("Should produce the expected record", new Object[] {3, null, 30.0}, resultNull.get(0));
+    Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultNull.get(0));
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
@@ -511,13 +515,14 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
   @Test
   public void testFilterPushDownNot() {
     String sqlNot = String.format("SELECT * FROM %s WHERE NOT (id = 1 OR id = 2 ) ", TABLE_NAME);
+    Object[] expectRecord = new Object[] {3, null, 30.0};
     String explainNot = getTableEnv().explainSql(sqlNot);
     String expectedFilter = "ref(name=\"id\") != 1,ref(name=\"id\") != 2";
     Assert.assertTrue("Explain should contain the push down filter", explainNot.contains(expectedFilter));
 
     List<Object[]> resultNot = sql(sqlNot);
     Assert.assertEquals("Should have 1 record", 1, resultNot.size());
-    Assert.assertArrayEquals("Should produce the expected record", new Object[] {3, null, 30.0}, resultNot.get(0));
+    Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultNot.get(0));
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     expectedFilter = "(ref(name=\"id\") != 1 and ref(name=\"id\") != 2)";
@@ -548,13 +553,13 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
   public void testFilterPushDownNotBetween() {
     String sqlNotBetween = String.format("SELECT * FROM %s WHERE id  NOT BETWEEN 2 AND 3 ", TABLE_NAME);
     String explainNotBetween = getTableEnv().explainSql(sqlNotBetween);
+    Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
     String expectedFilter = "(ref(name=\"id\") < 2 or ref(name=\"id\") > 3)";
     Assert.assertTrue("Explain should contain the push down filter", explainNotBetween.contains(expectedFilter));
 
     List<Object[]> resultNotBetween = sql(sqlNotBetween);
     Assert.assertEquals("Should have 1 record", 1, resultNotBetween.size());
-    Assert.assertArrayEquals("the not between Should produce the expected record", resultNotBetween.get(0),
-        new Object[] {1, "iceberg", 10.0});
+    Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultNotBetween.get(0));
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
@@ -563,6 +568,7 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
   @Test
   public void testFilterPushDownLike() {
     String sqlLike = "SELECT * FROM " + TABLE_NAME + " WHERE data LIKE 'ice%' ";
+    Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
     String explainLike = getTableEnv().explainSql(sqlLike);
     String expectedFilter = "ref(name=\"data\") startsWith \"\"ice\"\"";
     Assert.assertTrue("the like sql Explain should contain the push down filter", explainLike.contains(expectedFilter));
@@ -570,8 +576,7 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
     sqlLike = "SELECT * FROM " + TABLE_NAME + " WHERE data LIKE 'ice%%' ";
     List<Object[]> resultLike = sql(sqlLike);
     Assert.assertEquals("Should have 1 record", 1, resultLike.size());
-    Assert.assertArrayEquals("The like result should produce the expected record",
-        new Object[] {1, "iceberg", 10.0}, resultLike.get(0));
+    Assert.assertArrayEquals("The like result should produce the expected record", expectRecord, resultLike.get(0));
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
@@ -580,6 +585,7 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
   public void testFilterNotPushDownLike() {
     String sqlNoPushDown = "SELECT * FROM " + TABLE_NAME + " WHERE data LIKE '%i' ";
     String explainNoPushDown = getTableEnv().explainSql(sqlNoPushDown);
+    Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
     Assert.assertFalse("Explain should not contain FilterPushDown",
         explainNoPushDown.contains(expectedFilterPushDownExplain));
     sqlNoPushDown = "SELECT * FROM " + TABLE_NAME + " WHERE data LIKE '%%i' ";
@@ -594,8 +600,7 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
     sqlNoPushDown = "SELECT * FROM " + TABLE_NAME + " WHERE data LIKE '%%i%%' ";
     resultLike = sql(sqlNoPushDown);
     Assert.assertEquals("Should have 1 record", 1, resultLike.size());
-    Assert
-        .assertArrayEquals("Should produce the expected record", new Object[] {1, "iceberg", 10.0}, resultLike.get(0));
+    Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultLike.get(0));
     Assert.assertEquals("Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
 
     sqlNoPushDown = "SELECT * FROM  " + TABLE_NAME + "  WHERE data LIKE '%ice%g' ";
@@ -605,8 +610,7 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
     sqlNoPushDown = "SELECT * FROM  " + TABLE_NAME + "  WHERE data LIKE '%%ice%%g' ";
     resultLike = sql(sqlNoPushDown);
     Assert.assertEquals("Should have 1 record", 1, resultLike.size());
-    Assert
-        .assertArrayEquals("Should produce the expected record", new Object[] {1, "iceberg", 10.0}, resultLike.get(0));
+    Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultLike.get(0));
     Assert.assertEquals("Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
 
     sqlNoPushDown = "SELECT * FROM  " + TABLE_NAME + "  WHERE data LIKE '%' ";
@@ -628,8 +632,17 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
         explainNoPushDown.contains(expectedFilterPushDownExplain));
     resultLike = sql(sqlNoPushDown);
     Assert.assertEquals("Should have 1 record", 1, resultLike.size());
-    Assert
-        .assertArrayEquals("Should produce the expected record", new Object[] {1, "iceberg", 10.0}, resultLike.get(0));
+    Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultLike.get(0));
+    Assert.assertEquals("Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
+
+    sqlNoPushDown = "SELECT * FROM  " + TABLE_NAME + "  WHERE data LIKE 'i%g' ";
+    explainNoPushDown = getTableEnv().explainSql(sqlNoPushDown);
+    Assert.assertFalse("Explain should not contain FilterPushDown",
+        explainNoPushDown.contains(expectedFilterPushDownExplain));
+    sqlNoPushDown = "SELECT * FROM  " + TABLE_NAME + "  WHERE data LIKE 'i%%g' ";
+    resultLike = sql(sqlNoPushDown);
+    Assert.assertEquals("Should have 1 record", 1, resultLike.size());
+    Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultLike.get(0));
     Assert.assertEquals("Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
   }
 
@@ -648,28 +661,28 @@ public class TestFlinkTableSource extends FlinkCatalogTestBase {
    */
   @Test
   public void testSqlParseError() {
-    String sqlParseErrorEqual = String.format("SELECT * FROM %s WHERE d = DOUBLE('NaN') ", TABLE_NAME);
-    AssertHelpers.assertThrows("The function DOUBLE('NaN') is not supported by flink now. ",
-        SqlParserException.class, () -> sql(sqlParseErrorEqual));
+    String sqlParseErrorEqual = String.format("SELECT * FROM %s WHERE d = CAST('NaN' AS DOUBLE) ", TABLE_NAME);
+    AssertHelpers.assertThrows("The NaN is not supported by flink now. ",
+        NumberFormatException.class, () -> sql(sqlParseErrorEqual));
 
-    String sqlParseErrorNotEqual = String.format("SELECT * FROM %s WHERE d <> DOUBLE('NaN') ", TABLE_NAME);
-    AssertHelpers.assertThrows("The function DOUBLE('NaN') is not supported by flink now. ",
-        SqlParserException.class, () -> sql(sqlParseErrorNotEqual));
+    String sqlParseErrorNotEqual = String.format("SELECT * FROM %s WHERE d <> CAST('NaN' AS DOUBLE) ", TABLE_NAME);
+    AssertHelpers.assertThrows("The NaN is not supported by flink now. ",
+        NumberFormatException.class, () -> sql(sqlParseErrorNotEqual));
 
-    String sqlParseErrorGT = String.format("SELECT * FROM %s WHERE d > DOUBLE('NaN') ", TABLE_NAME);
-    AssertHelpers.assertThrows("The function DOUBLE('NaN') is not supported by flink now. ",
-        SqlParserException.class, () -> sql(sqlParseErrorGT));
+    String sqlParseErrorGT = String.format("SELECT * FROM %s WHERE d > CAST('NaN' AS DOUBLE) ", TABLE_NAME);
+    AssertHelpers.assertThrows("The NaN is not supported by flink now. ",
+        NumberFormatException.class, () -> sql(sqlParseErrorGT));
 
-    String sqlParseErrorLT = String.format("SELECT * FROM %s WHERE d < DOUBLE('NaN') ", TABLE_NAME);
-    AssertHelpers.assertThrows("The function DOUBLE('NaN') is not supported by flink now. ",
-        SqlParserException.class, () -> sql(sqlParseErrorLT));
+    String sqlParseErrorLT = String.format("SELECT * FROM %s WHERE d < CAST('NaN' AS DOUBLE) ", TABLE_NAME);
+    AssertHelpers.assertThrows("The NaN is not supported by flink now. ",
+        NumberFormatException.class, () -> sql(sqlParseErrorLT));
 
-    String sqlParseErrorGTE = String.format("SELECT * FROM %s WHERE d >= DOUBLE('NaN') ", TABLE_NAME);
-    AssertHelpers.assertThrows("The function DOUBLE('NaN') is not supported by flink now. ",
-        SqlParserException.class, () -> sql(sqlParseErrorGTE));
+    String sqlParseErrorGTE = String.format("SELECT * FROM %s WHERE d >= CAST('NaN' AS DOUBLE) ", TABLE_NAME);
+    AssertHelpers.assertThrows("The NaN is not supported by flink now. ",
+        NumberFormatException.class, () -> sql(sqlParseErrorGTE));
 
-    String sqlParseErrorLTE = String.format("SELECT * FROM %s WHERE d <= DOUBLE('NaN') ", TABLE_NAME);
-    AssertHelpers.assertThrows("The function DOUBLE('NaN') is not supported by flink now. ",
-        SqlParserException.class, () -> sql(sqlParseErrorLTE));
+    String sqlParseErrorLTE = String.format("SELECT * FROM %s WHERE d <= CAST('NaN' AS DOUBLE) ", TABLE_NAME);
+    AssertHelpers.assertThrows("The NaN is not supported by flink now. ",
+        NumberFormatException.class, () -> sql(sqlParseErrorLTE));
   }
 }

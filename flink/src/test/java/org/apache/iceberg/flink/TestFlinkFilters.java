@@ -293,7 +293,7 @@ public class TestFlinkFilters {
         org.apache.iceberg.expressions.Expressions.equal("field1", 1));
 
     Assert.assertEquals("Predicate operation should match", expected.op(), not.op());
-    assertPredicatesMatch((UnboundPredicate<?>) expected.child(), (UnboundPredicate<?>) not.child());
+    assertPredicatesMatch(expected.child(), not.child());
   }
 
   @Test
@@ -329,17 +329,28 @@ public class TestFlinkFilters {
         BuiltInFunctionDefinitions.LIKE, Expressions.$("field5"), Expressions.lit("a_")));
     actual = FlinkFilters.convert(expr);
     Assert.assertFalse("Conversion should failed", actual.isPresent());
+
+    expr = resolve(ApiExpressionUtils.unresolvedCall(
+        BuiltInFunctionDefinitions.LIKE, Expressions.$("field5"), Expressions.lit("a%b")));
+    actual = FlinkFilters.convert(expr);
+    Assert.assertFalse("Conversion should failed", actual.isPresent());
   }
 
-  private void matchLiteral(String fieldName, Object flinkLiteral, Object icebergLiteral) {
+  @SuppressWarnings("unchecked")
+  private <T> void matchLiteral(String fieldName, Object flinkLiteral, T icebergLiteral) {
     Expression expr = resolve(Expressions.$(fieldName).isEqual(Expressions.lit(flinkLiteral)));
     Optional<org.apache.iceberg.expressions.Expression> actual = FlinkFilters.convert(expr);
     Assert.assertTrue("Conversion should succeed", actual.isPresent());
+    org.apache.iceberg.expressions.Expression expression = actual.get();
+    Assert.assertTrue("The expression should be a UnboundPredicate", expression instanceof UnboundPredicate);
+    UnboundPredicate<T> unboundPredicate = (UnboundPredicate<T>) expression;
 
-    BoundLiteralPredicate predicate =
-        (BoundLiteralPredicate<?>) ((UnboundPredicate<?>) actual.get())
-            .bind(FlinkSchemaUtil.convert(TABLE_SCHEMA).asStruct(), false);
-    Assert.assertTrue(predicate.test(icebergLiteral));
+    org.apache.iceberg.expressions.Expression expression1 =
+        unboundPredicate.bind(FlinkSchemaUtil.convert(TABLE_SCHEMA).asStruct(), false);
+    Assert.assertTrue("The expression should be a BoundLiteralPredicate", expression1 instanceof BoundLiteralPredicate);
+
+    BoundLiteralPredicate<T> predicate = (BoundLiteralPredicate<T>) expression1;
+    Assert.assertTrue("Should match the  literal", predicate.test(icebergLiteral));
   }
 
   private static Expression resolve(Expression originalExpression) {
