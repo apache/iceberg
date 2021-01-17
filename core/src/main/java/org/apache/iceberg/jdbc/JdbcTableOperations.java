@@ -146,7 +146,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     if (updatedRecords == 1) {
       LOG.debug("Successfully committed to existing table: {}", tableIdentifier);
     } else {
-      throw new CommitFailedException("Failed to commit the table %s from catalog %s! " +
+      throw new CommitFailedException("Failed to update the table %s from catalog %s! " +
           "Maybe another process changed it!", tableIdentifier, catalogName);
     }
 

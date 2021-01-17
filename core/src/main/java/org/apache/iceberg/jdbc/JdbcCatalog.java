@@ -84,6 +84,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     if (name != null) {
       this.catalogName = name;
     }
+
     String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
     this.io = fileIOImpl == null ?
         new HadoopFileIO(conf) :
@@ -113,7 +114,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     connections.run(conn -> {
       boolean catalogTableExists = false;
       DatabaseMetaData dbMeta = conn.getMetaData();
-      ResultSet tablesUpper = dbMeta.getTables(null, null, JdbcUtil.CATALOG_TABLE_NAME.toUpperCase(), null);
+      ResultSet tablesUpper = dbMeta.getTables(null, null, JdbcUtil.CATALOG_TABLE_NAME, null);
 
       if (tablesUpper.next()) {
         catalogTableExists = true;

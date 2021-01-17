@@ -25,7 +25,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
-public final class JdbcUtil {
+final class JdbcUtil {
   protected static final String CATALOG_TABLE_NAME = "ICEBERG_TABLES";
   protected static final String CATALOG_NAME = "catalog_name";
   protected static final String TABLE_NAMESPACE = "table_namespace";
