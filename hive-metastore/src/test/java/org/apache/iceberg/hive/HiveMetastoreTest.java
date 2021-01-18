@@ -38,7 +38,7 @@ public abstract class HiveMetastoreTest {
   @BeforeClass
   public static void startMetastore() throws Exception {
     HiveMetastoreTest.metastore = new TestHiveMetastore();
-    metastore.start(new HiveConf(HiveMetastoreTest.class));
+    metastore.start();
     HiveMetastoreTest.hiveConf = metastore.hiveConf();
     HiveMetastoreTest.metastoreClient = new HiveMetaStoreClient(hiveConf);
     String dbPath = metastore.getDatabasePath(DB_NAME);
