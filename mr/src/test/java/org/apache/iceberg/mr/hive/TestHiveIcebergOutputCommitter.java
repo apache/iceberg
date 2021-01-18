@@ -22,7 +22,6 @@ package org.apache.iceberg.mr.hive;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -49,6 +48,7 @@ import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.mr.mapred.Container;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -193,7 +193,7 @@ public class TestHiveIcebergOutputCommitter {
     conf.setNumReduceTasks(0);
     conf.set(HiveConf.ConfVars.HIVEQUERYID.varname, QUERY_ID);
 
-    Map<String, String> propMap = new HashMap<>();
+    Map<String, String> propMap = Maps.newHashMap();
     TableDesc tableDesc = new TableDesc();
     tableDesc.setProperties(new Properties());
     tableDesc.getProperties().setProperty(Catalogs.NAME, table.name());

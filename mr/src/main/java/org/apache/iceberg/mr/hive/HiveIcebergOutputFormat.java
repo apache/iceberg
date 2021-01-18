@@ -34,6 +34,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -41,16 +42,29 @@ import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.mapred.Container;
 
-public class HiveIcebergOutputFormat<T> implements OutputFormat<NullWritable, Container>,
-    HiveOutputFormat<NullWritable, Container> {
+public class HiveIcebergOutputFormat<T> implements OutputFormat<NullWritable, Container<Record>>,
+    HiveOutputFormat<NullWritable, Container<Record>> {
 
   private static final String TASK_ATTEMPT_ID_KEY = "mapred.task.id";
 
   @Override
-  @SuppressWarnings("rawtypes")
   public FileSinkOperator.RecordWriter getHiveRecordWriter(JobConf jc, Path finalOutPath, Class valueClass,
       boolean isCompressed, Properties tableAndSerDeProperties, Progressable progress) {
+    return writer(jc);
+  }
 
+  @Override
+  public org.apache.hadoop.mapred.RecordWriter<NullWritable, Container<Record>> getRecordWriter(FileSystem ignored,
+      JobConf job, String name, Progressable progress) {
+    return writer(job);
+  }
+
+  @Override
+  public void checkOutputSpecs(FileSystem ignored, JobConf job) {
+    // Not doing any check.
+  }
+
+  private static HiveIcebergRecordWriter writer(JobConf jc) {
     TaskAttemptID taskAttemptID = TaskAttemptID.forName(jc.get(TASK_ATTEMPT_ID_KEY));
     Schema schema = HiveIcebergStorageHandler.schema(jc);
     PartitionSpec spec = HiveIcebergStorageHandler.spec(jc);
@@ -66,16 +80,5 @@ public class HiveIcebergOutputFormat<T> implements OutputFormat<NullWritable, Co
         new GenericAppenderFactory(schema), outputFileFactory, io, targetFileSize, taskAttemptID);
 
     return writer;
-  }
-
-  @Override
-  public org.apache.hadoop.mapred.RecordWriter<NullWritable, Container> getRecordWriter(FileSystem ignored,
-      JobConf job, String name, Progressable progress) {
-    throw new UnsupportedOperationException("Please implement if needed");
-  }
-
-  @Override
-  public void checkOutputSpecs(FileSystem ignored, JobConf job) {
-    // Not doing any check.
   }
 }

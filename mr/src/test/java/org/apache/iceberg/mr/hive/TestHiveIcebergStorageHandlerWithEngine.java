@@ -287,6 +287,10 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     HiveIcebergTestUtils.validateData(table, new ArrayList<>(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS), 0);
   }
 
+  /**
+   * Testing map only inserts.
+   * @throws IOException If there is an underlying IOException
+   */
   @Test
   public void testInsertFromSelect() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
@@ -302,14 +306,18 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     HiveIcebergTestUtils.validateData(table, records, 0);
   }
 
+  /**
+   * Testing map-reduce inserts.
+   * @throws IOException If there is an underlying IOException
+   */
   @Test
   public void testInsertFromSelectWithOrderBy() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
 
-    // We expect that there will be Mappers and Reducers here
     Table table = testTables.createTable(shell, "customers", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
         fileFormat, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
 
+    // We expect that there will be Mappers and Reducers here
     shell.executeStatement("INSERT INTO customers SELECT * FROM customers ORDER BY customer_id");
 
     // Check that everything is duplicated as expected
@@ -336,8 +344,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
             required(1, "id", Types.LongType.get()),
             required(2, "arrayofarrays",
                 Types.ListType.ofRequired(3, Types.ListType.ofRequired(4, Types.StringType.get()))));
-    List<Record> records = TestHelper.generateRandomRecords(schema, 5, 0L).stream()
-        .filter(r -> !((List<String>) r.get(1)).isEmpty()).collect(Collectors.toList());
+    List<Record> records = TestHelper.generateRandomRecords(schema, 3, 1L);
     testComplexTypeWrite(schema, records);
   }
 
@@ -349,8 +356,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
             required(2, "arrayofmaps", Types.ListType
                 .ofRequired(3, Types.MapType.ofRequired(4, 5, Types.StringType.get(),
                     Types.StringType.get()))));
-    List<Record> records = TestHelper.generateRandomRecords(schema, 5, 0L).stream()
-        .filter(r -> !((List<Map<String, String>>) r.get(1)).isEmpty()).collect(Collectors.toList());
+    List<Record> records = TestHelper.generateRandomRecords(schema, 5, 1L);
     testComplexTypeWrite(schema, records);
   }
 
@@ -362,8 +368,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
             required(2, "arrayofstructs", Types.ListType.ofRequired(3, Types.StructType
                 .of(required(4, "something", Types.StringType.get()), required(5, "someone",
                     Types.StringType.get()), required(6, "somewhere", Types.StringType.get())))));
-    List<Record> records = TestHelper.generateRandomRecords(schema, 5, 0L).stream()
-        .filter(r -> !((List<?>) r.get(1)).isEmpty()).collect(Collectors.toList());
+    List<Record> records = TestHelper.generateRandomRecords(schema, 5, 0L);
     testComplexTypeWrite(schema, records);
   }
 
@@ -373,8 +378,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     Schema schema = new Schema(required(1, "id", Types.LongType.get()),
         required(2, "mapofprimitives", Types.MapType.ofRequired(3, 4, Types.StringType.get(),
             Types.StringType.get())));
-    List<Record> records = TestHelper.generateRandomRecords(schema, 5, 0L).stream()
-        .filter(r -> !((Map<String, String>) r.get(1)).isEmpty()).collect(Collectors.toList());
+    List<Record> records = TestHelper.generateRandomRecords(schema, 5, 0L);
     testComplexTypeWrite(schema, records);
   }
 
@@ -385,8 +389,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
         required(2, "mapofarrays",
             Types.MapType.ofRequired(3, 4, Types.StringType.get(), Types.ListType.ofRequired(5,
                 Types.StringType.get()))));
-    List<Record> records = TestHelper.generateRandomRecords(schema, 5, 0L).stream()
-        .filter(r -> !((Map<String, List<String>>) r.get(1)).isEmpty()).collect(Collectors.toList());
+    List<Record> records = TestHelper.generateRandomRecords(schema, 5, 0L);
     testComplexTypeWrite(schema, records);
   }
 
@@ -396,8 +399,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     Schema schema = new Schema(required(1, "id", Types.LongType.get()),
         required(2, "mapofmaps", Types.MapType.ofRequired(3, 4, Types.StringType.get(),
             Types.MapType.ofRequired(5, 6, Types.StringType.get(), Types.StringType.get()))));
-    List<Record> records = TestHelper.generateRandomRecords(schema, 5, 0L).stream()
-        .filter(r -> !((Map<String, Map<String, String>>) r.get(1)).isEmpty()).collect(Collectors.toList());
+    List<Record> records = TestHelper.generateRandomRecords(schema, 5, 0L);
     testComplexTypeWrite(schema, records);
   }
 
@@ -409,8 +411,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
             Types.StructType.of(required(5, "something", Types.StringType.get()),
                 required(6, "someone", Types.StringType.get()),
                 required(7, "somewhere", Types.StringType.get())))));
-    List<Record> records = TestHelper.generateRandomRecords(schema, 5, 0L).stream()
-        .filter(r -> !((Map<String, GenericRecord>) r.get(1)).isEmpty()).collect(Collectors.toList());
+    List<Record> records = TestHelper.generateRandomRecords(schema, 5, 0L);
     testComplexTypeWrite(schema, records);
   }
 
@@ -433,7 +434,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
             .of(required(3, "names", Types.ListType.ofRequired(4, Types.StringType.get())),
                 required(5, "birthdays", Types.ListType.ofRequired(6,
                     Types.StringType.get())))));
-    List<Record> records = TestHelper.generateRandomRecords(schema, 5, 0L);
+    List<Record> records = TestHelper.generateRandomRecords(schema, 5, 1L);
     testComplexTypeWrite(schema, records);
   }
 
@@ -465,8 +466,9 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   public void testPartitionedWrite() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
 
-    PartitionSpec spec =
-        PartitionSpec.builderFor(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA).bucket("customer_id", 3).build();
+    PartitionSpec spec = PartitionSpec.builderFor(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA)
+        .bucket("customer_id", 3)
+        .build();
 
     TableIdentifier identifier = TableIdentifier.of("default", "partitioned_customers");
 
@@ -496,8 +498,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
 
   private void testComplexTypeWrite(Schema schema, List<Record> records) throws IOException {
     String tableName = "complex_table";
-    Table table = testTables.createTable(shell, "complex_table", schema,
-        fileFormat, ImmutableList.of());
+    Table table = testTables.createTable(shell, "complex_table", schema, fileFormat, ImmutableList.of());
 
     String dummyTableName = "dummy";
     shell.executeStatement("CREATE TABLE default." + dummyTableName + "(a int)");
@@ -521,6 +522,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     if (type instanceof Types.ListType) {
       query.append("array(");
       List<Object> elements = (List<Object>) field;
+      Assert.assertFalse("Hive can not handle empty array() inserts", elements.isEmpty());
       Type innerType = ((Types.ListType) type).fields().get(0).type();
       if (!elements.isEmpty()) {
         elements.forEach(e -> query.append(buildComplexTypeInnerQuery(e, innerType)));

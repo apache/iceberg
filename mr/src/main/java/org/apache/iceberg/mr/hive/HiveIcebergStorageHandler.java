@@ -20,7 +20,6 @@
 package org.apache.iceberg.mr.hive;
 
 import java.io.Serializable;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
@@ -204,21 +203,19 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
    *   <li>- Location provider used for file generation</li>
    *   <li>- Encryption manager for encryption handling</li>
    * </ul>
-   * @param config The target configuration to store to
-   * @param table The table which we want to store to the configuration
+   * @param configuration The configuration storing the catalog information
+   * @param tableDesc The table which we want to store to the configuration
+   * @param map The map of the configuration properties which we append with the serialized data
    */
-
   @VisibleForTesting
   static void overlayTableProperties(Configuration configuration, TableDesc tableDesc, Map<String, String> map) {
     Properties props = tableDesc.getProperties();
     Table table = Catalogs.loadTable(configuration, props);
     String schemaJson = SchemaParser.toJson(table.schema());
 
-    Map<String, String> original = new HashMap<>(map);
-    map.clear();
-
-    map.putAll(Maps.fromProperties(props));
-    map.putAll(original);
+    Maps.fromProperties(props).entrySet().stream()
+        .filter(entry -> !map.containsKey(entry.getKey())) // map overrides tableDesc properties
+        .forEach(entry -> map.put(entry.getKey(), entry.getValue()));
 
     map.put(InputFormatConfig.TABLE_IDENTIFIER, props.getProperty(Catalogs.NAME));
     map.put(InputFormatConfig.TABLE_LOCATION, table.location());
@@ -238,7 +235,8 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     map.put(InputFormatConfig.FILE_IO, SerializationUtil.serializeToBase64(table.io()));
     map.put(InputFormatConfig.LOCATION_PROVIDER, SerializationUtil.serializeToBase64(table.locationProvider()));
     map.put(InputFormatConfig.ENCRYPTION_MANAGER, SerializationUtil.serializeToBase64(table.encryption()));
-    // We need to remove this otherwise the job.xml will be invalid
+    // We need to remove this otherwise the job.xml will be invalid as column comments are separated with '\0' and
+    // the serialization utils fail to serialize this character
     map.remove("columns.comments");
 
     // save schema into table props as well to avoid repeatedly hitting the HMS during serde initializations
