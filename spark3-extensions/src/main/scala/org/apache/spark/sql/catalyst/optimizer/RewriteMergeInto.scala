@@ -111,7 +111,7 @@ case class RewriteMergeInto(conf: SQLConf) extends Rule[LogicalPlan] with Rewrit
   }
 
   private def getClauseCondition(clause: MergeAction): Expression = {
-    clause.condition.getOrElse(Literal(true))
+    clause.condition.getOrElse(TRUE_LITERAL)
   }
 }
 
