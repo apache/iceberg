@@ -19,21 +19,24 @@
 
 package org.apache.spark.sql.catalyst.plans.logical
 
-import org.apache.spark.sql.catalyst.expressions._
+import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 
-case class MergeInto(mergeIntoProcessor: MergeIntoParams,
-                     targetRelation: DataSourceV2Relation,
-                     child: LogicalPlan) extends UnaryNode {
+case class MergeInto(
+    mergeIntoProcessor: MergeIntoParams,
+    targetRelation: DataSourceV2Relation,
+    child: LogicalPlan) extends UnaryNode {
   override def output: Seq[Attribute] = targetRelation.output
 }
 
-case class MergeIntoParams(isSourceRowNotPresent: Expression,
-                           isTargetRowNotPresent: Expression,
-                           matchedConditions: Seq[Expression],
-                           matchedOutputs: Seq[Seq[Expression]],
-                           notMatchedConditions: Seq[Expression],
-                           notMatchedOutputs: Seq[Seq[Expression]],
-                           targetOutput: Seq[Expression],
-                           deleteOutput: Seq[Expression],
-                           joinedAttributes: Seq[Attribute]) extends Serializable
+case class MergeIntoParams(
+    isSourceRowNotPresent: Expression,
+    isTargetRowNotPresent: Expression,
+    matchedConditions: Seq[Expression],
+    matchedOutputs: Seq[Seq[Expression]],
+    notMatchedConditions: Seq[Expression],
+    notMatchedOutputs: Seq[Seq[Expression]],
+    targetOutput: Seq[Expression],
+    deleteOutput: Seq[Expression],
+    joinedAttributes: Seq[Attribute]) extends Serializable
