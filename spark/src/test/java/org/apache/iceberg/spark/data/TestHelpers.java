@@ -268,17 +268,18 @@ public class TestHelpers {
 
     switch (type.typeId()) {
       case LONG:
+        Assert.assertTrue("Should be a long", actual instanceof Long);
         if (expected instanceof Integer) {
-          Assert.assertEquals("Values didn't match", ((Number) expected).longValue(),
-              ((Number) actual).longValue());
+          Assert.assertEquals("Values didn't match", ((Number) expected).longValue(), actual);
         } else {
           Assert.assertEquals("Primitive value should be equal to expected", expected, actual);
         }
         break;
       case DOUBLE:
+        Assert.assertTrue("Should be a double", actual instanceof Double);
         if (expected instanceof Float) {
           Assert.assertEquals("Values didn't match", Float.floatToIntBits(((Number) expected).floatValue()),
-              Float.floatToIntBits(((Number) actual).floatValue()));
+                    Float.floatToIntBits(((Number) actual).floatValue()));
         } else {
           Assert.assertEquals("Primitive value should be equal to expected", expected, actual);
         }
