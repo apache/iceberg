@@ -149,4 +149,9 @@ enum Timestamps implements Transform<Long, Integer> {
   public String toString() {
     return name;
   }
+
+  @Override
+  public String dedupName() {
+    return "time";
+  }
 }
