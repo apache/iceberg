@@ -20,11 +20,13 @@
 package org.apache.iceberg.flink;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.expressions.Expression;
 import org.apache.flink.table.sources.FilterableTableSource;
 import org.apache.flink.table.sources.LimitableTableSource;
 import org.apache.flink.table.sources.ProjectableTableSource;
@@ -33,13 +35,18 @@ import org.apache.flink.table.sources.TableSource;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.utils.TableConnectorUtils;
 import org.apache.iceberg.flink.source.FlinkSource;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * Flink Iceberg table source.
- * TODO: Implement {@link FilterableTableSource}
  */
 public class IcebergTableSource
-    implements StreamTableSource<RowData>, ProjectableTableSource<RowData>, LimitableTableSource<RowData> {
+    implements StreamTableSource<RowData>, ProjectableTableSource<RowData>, FilterableTableSource<RowData>,
+    LimitableTableSource<RowData> {
+
+  private static final Joiner COMMA = Joiner.on(',');
 
   private final TableLoader loader;
   private final TableSchema schema;
@@ -47,19 +54,22 @@ public class IcebergTableSource
   private final int[] projectedFields;
   private final boolean isLimitPushDown;
   private final long limit;
+  private final List<org.apache.iceberg.expressions.Expression> filters;
 
   public IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> properties) {
-    this(loader, schema, properties, null, false, -1);
+    this(loader, schema, properties, null, false, -1, ImmutableList.of());
   }
 
   private IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> properties,
-                             int[] projectedFields, boolean isLimitPushDown, long limit) {
+                             int[] projectedFields, boolean isLimitPushDown, long limit,
+                             List<org.apache.iceberg.expressions.Expression> filters) {
     this.loader = loader;
     this.schema = schema;
     this.properties = properties;
     this.projectedFields = projectedFields;
     this.isLimitPushDown = isLimitPushDown;
     this.limit = limit;
+    this.filters = filters;
   }
 
   @Override
@@ -69,13 +79,13 @@ public class IcebergTableSource
 
   @Override
   public TableSource<RowData> projectFields(int[] fields) {
-    return new IcebergTableSource(loader, schema, properties, fields, isLimitPushDown, limit);
+    return new IcebergTableSource(loader, schema, properties, fields, isLimitPushDown, limit, filters);
   }
 
   @Override
   public DataStream<RowData> getDataStream(StreamExecutionEnvironment execEnv) {
     return FlinkSource.forRowData().env(execEnv).tableLoader(loader).project(getProjectedSchema()).limit(limit)
-        .properties(properties).build();
+        .filters(filters).properties(properties).build();
   }
 
   @Override
@@ -112,6 +122,10 @@ public class IcebergTableSource
       explain += String.format(", LimitPushDown : %d", limit);
     }
 
+    if (isFilterPushedDown()) {
+      explain += String.format(", FilterPushDown: %s", COMMA.join(filters));
+    }
+
     return TableConnectorUtils.generateRuntimeName(getClass(), getTableSchema().getFieldNames()) + explain;
   }
 
@@ -122,6 +136,21 @@ public class IcebergTableSource
 
   @Override
   public TableSource<RowData> applyLimit(long newLimit) {
-    return new IcebergTableSource(loader, schema, properties, projectedFields, true, newLimit);
+    return new IcebergTableSource(loader, schema, properties, projectedFields, true, newLimit, filters);
+  }
+
+  @Override
+  public TableSource<RowData> applyPredicate(List<Expression> predicates) {
+    List<org.apache.iceberg.expressions.Expression> expressions = Lists.newArrayList();
+    for (Expression predicate : predicates) {
+      FlinkFilters.convert(predicate).ifPresent(expressions::add);
+    }
+
+    return new IcebergTableSource(loader, schema, properties, projectedFields, isLimitPushDown, limit, expressions);
+  }
+
+  @Override
+  public boolean isFilterPushedDown() {
+    return this.filters != null && this.filters.size() > 0;
   }
 }
