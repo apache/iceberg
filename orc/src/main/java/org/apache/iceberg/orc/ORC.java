@@ -148,6 +148,9 @@ public class ORC {
       } else {
         this.conf = new Configuration();
       }
+
+      // We need to turn positional schema evolution off since we use column name based schema evolution for projection
+      this.conf.setBoolean(OrcConf.FORCE_POSITIONAL_EVOLUTION.getHiveConfName(), false);
     }
 
     /**

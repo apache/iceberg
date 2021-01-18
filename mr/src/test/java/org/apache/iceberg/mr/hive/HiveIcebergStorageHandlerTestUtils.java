@@ -27,6 +27,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.types.Types;
+import org.apache.orc.OrcConf;
 import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -61,6 +62,9 @@ public class HiveIcebergStorageHandlerTestUtils {
     TestHiveShell shell = new TestHiveShell();
     shell.setHiveConfValue("hive.notification.event.poll.interval", "-1");
     shell.setHiveConfValue("hive.tez.exec.print.summary", "true");
+    // We would like to make sure that ORC reading overrides this config, so reading Iceberg tables could work in
+    // systems (like Hive 3.2 and higher) where this value is set to true explicitly.
+    shell.setHiveConfValue(OrcConf.FORCE_POSITIONAL_EVOLUTION.getHiveConfName(), "true");
     shell.start();
     return shell;
   }
