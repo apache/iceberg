@@ -111,7 +111,7 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
     CatalogPartitionSpec partitionSpec2 = new CatalogPartitionSpec(ImmutableMap.of("data", "b"));
     expected.add(partitionSpec1);
     expected.add(partitionSpec2);
-    Assert.assertEquals("Should produce the expected catalog partition specs.", list, expected);
+    Assert.assertEquals("Should produce the expected catalog partition specs.", expected, list);
   }
 
   @Test
@@ -141,7 +141,7 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
         new CatalogPartitionSpec(ImmutableMap.of("data", "a", "t", "2021-01-02T15:16:17"));
     expected.add(partitionSpec);
     expected.add(partitionSpec1);
-    Assert.assertEquals("Should produce the expected catalog partition specs.", list, expected);
+    Assert.assertEquals("Should produce the expected catalog partition specs.", expected, list);
   }
 
   @Test
@@ -164,7 +164,7 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
     CatalogPartitionSpec partitionSpec1 = new CatalogPartitionSpec(ImmutableMap.of("d", "20210101", "h", "11"));
     expected.add(partitionSpec);
     expected.add(partitionSpec1);
-    Assert.assertEquals("Should produce the expected catalog partition specs.", list, expected);
+    Assert.assertEquals("Should produce the expected catalog partition specs.", expected, list);
   }
 
   @Test
@@ -192,7 +192,7 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
     CatalogPartitionSpec partitionSpec1 = new CatalogPartitionSpec(ImmutableMap.of("d", "2021-01-02", "h", "10.0"));
     expected.add(partitionSpec);
     expected.add(partitionSpec1);
-    Assert.assertEquals("Should produce the expected catalog partition specs.", list, expected);
+    Assert.assertEquals("Should produce the expected catalog partition specs.", expected, list);
   }
 
   @Test
@@ -220,7 +220,7 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
     CatalogPartitionSpec partitionSpec1 = new CatalogPartitionSpec(ImmutableMap.of("d", "2021-01-02", "h", "10.0"));
     expected.add(partitionSpec);
     expected.add(partitionSpec1);
-    Assert.assertEquals("Should produce the expected catalog partition specs.", list, expected);
+    Assert.assertEquals("Should produce the expected catalog partition specs.", expected, list);
   }
 
   @Test
@@ -248,7 +248,7 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
     CatalogPartitionSpec partitionSpec1 = new CatalogPartitionSpec(ImmutableMap.of("d", "2021-01-01", "h", "11"));
     expected.add(partitionSpec);
     expected.add(partitionSpec1);
-    Assert.assertEquals("Should produce the expected catalog partition specs.", list, expected);
+    Assert.assertEquals("Should produce the expected catalog partition specs.", expected, list);
   }
 
   @Test
@@ -276,8 +276,7 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
     CatalogPartitionSpec partitionSpec1 = new CatalogPartitionSpec(ImmutableMap.of("d", "2021-01-02", "t", "12:13:14"));
     expected.add(partitionSpec);
     expected.add(partitionSpec1);
-    Assert
-        .assertEquals("Should produce the expected catalog partition specs.", list, expected);
+    Assert.assertEquals("Should produce the expected catalog partition specs.", expected, list);
   }
 
   @Test
@@ -307,7 +306,7 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
         new CatalogPartitionSpec(ImmutableMap.of("data", "b", "t", "2021-01-01T12:13:14"));
     expected.add(partitionSpec);
     expected.add(partitionSpec1);
-    Assert.assertEquals("Should produce the expected catalog partition specs.", list, expected);
+    Assert.assertEquals("Should produce the expected catalog partition specs.", expected, list);
   }
 
   @Test
@@ -330,7 +329,7 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
     CatalogPartitionSpec partitionSpec1 = new CatalogPartitionSpec(ImmutableMap.of("data", "b", "t", "true"));
     expected.add(partitionSpec);
     expected.add(partitionSpec1);
-    Assert.assertEquals("Should produce the expected catalog partition specs.", list, expected);
+    Assert.assertEquals("Should produce the expected catalog partition specs.", expected, list);
   }
 
   @Test
@@ -353,7 +352,7 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
     CatalogPartitionSpec partitionSpec1 = new CatalogPartitionSpec(ImmutableMap.of("data", "b", "t", "10"));
     expected.add(partitionSpec);
     expected.add(partitionSpec1);
-    Assert.assertEquals("Should produce the expected catalog partition specs.", list, expected);
+    Assert.assertEquals("Should produce the expected catalog partition specs.", expected, list);
   }
 
   @Test
@@ -381,6 +380,6 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
     CatalogPartitionSpec partitionSpec1 = new CatalogPartitionSpec(ImmutableMap.of("data", "b", "t", "hello"));
     expected.add(partitionSpec);
     expected.add(partitionSpec1);
-    Assert.assertEquals("Should produce the expected catalog partition specs.", list, expected);
+    Assert.assertEquals("Should produce the expected catalog partition specs.", expected, list);
   }
 }
