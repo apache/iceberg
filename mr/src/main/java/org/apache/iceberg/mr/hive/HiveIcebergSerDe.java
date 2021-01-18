@@ -157,7 +157,8 @@ public class HiveIcebergSerDe extends AbstractSerDe {
    * it adds the previousException as a root cause.
    * @param serDeProperties The source of the hive schema
    * @param previousException If we had an exception previously
-   * @param autoConversion If <code>true</code> then autoConversion of the schema is enabled
+   * @param autoConversion When <code>true</code>, convert unsupported types to more permissive ones, like tinyint to
+   *                       int
    * @return The hive schema parsed from the serDeProperties
    * @throws SerDeException If there is no schema information in the serDeProperties
    */
