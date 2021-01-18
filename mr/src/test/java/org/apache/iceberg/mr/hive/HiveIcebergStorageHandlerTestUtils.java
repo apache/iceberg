@@ -27,6 +27,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.types.Types;
+import org.apache.orc.OrcConf;
 import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -61,6 +62,7 @@ public class HiveIcebergStorageHandlerTestUtils {
     TestHiveShell shell = new TestHiveShell();
     shell.setHiveConfValue("hive.notification.event.poll.interval", "-1");
     shell.setHiveConfValue("hive.tez.exec.print.summary", "true");
+    shell.setHiveConfValue(OrcConf.FORCE_POSITIONAL_EVOLUTION.getHiveConfName(), "true");
     shell.start();
     return shell;
   }
