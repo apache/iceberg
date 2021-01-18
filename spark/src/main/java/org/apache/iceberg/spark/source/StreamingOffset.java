@@ -64,7 +64,7 @@ class StreamingOffset extends Offset {
   }
 
   static StreamingOffset fromJson(String json) {
-    Preconditions.checkNotNull(json, "The input JSON string is null");
+    Preconditions.checkNotNull(json, "The input JSON string representation of a StreamingOffset cannot be null");
 
     try {
       JsonNode node = JsonUtil.mapper().readValue(json, JsonNode.class);
