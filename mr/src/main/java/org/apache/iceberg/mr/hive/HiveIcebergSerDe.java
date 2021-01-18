@@ -22,7 +22,9 @@ package org.apache.iceberg.mr.hive;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
@@ -33,10 +35,12 @@ import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.SerDeStats;
 import org.apache.hadoop.hive.serde2.SerDeUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.hadoop.io.Writable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hive.HiveSchemaUtil;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
@@ -49,6 +53,9 @@ public class HiveIcebergSerDe extends AbstractSerDe {
   private static final Logger LOG = LoggerFactory.getLogger(HiveIcebergSerDe.class);
 
   private ObjectInspector inspector;
+  private Schema tableSchema;
+  private Map<ObjectInspector, Deserializer> deserializers = new HashMap<>(1);
+  private Container<Record> row = new Container<>();
 
   @Override
   public void initialize(@Nullable Configuration configuration, Properties serDeProperties) throws SerDeException {
@@ -66,17 +73,16 @@ public class HiveIcebergSerDe extends AbstractSerDe {
     // TODO: remove this once TEZ-4248 has been released and the Tez dependencies updated here
     assertNotVectorizedTez(configuration);
 
-    Schema tableSchema;
     if (serDeProperties.get(InputFormatConfig.TABLE_SCHEMA) != null) {
-      tableSchema = SchemaParser.fromJson((String) serDeProperties.get(InputFormatConfig.TABLE_SCHEMA));
+      this.tableSchema = SchemaParser.fromJson((String) serDeProperties.get(InputFormatConfig.TABLE_SCHEMA));
     } else {
       try {
         // always prefer the original table schema if there is one
-        tableSchema = Catalogs.loadTable(configuration, serDeProperties).schema();
+        this.tableSchema = Catalogs.loadTable(configuration, serDeProperties).schema();
         LOG.info("Using schema from existing table {}", SchemaParser.toJson(tableSchema));
       } catch (Exception e) {
         // If we can not load the table try the provided hive schema
-        tableSchema = hiveSchemaOrThrow(serDeProperties, e);
+        this.tableSchema = hiveSchemaOrThrow(serDeProperties, e);
       }
     }
 
@@ -116,7 +122,18 @@ public class HiveIcebergSerDe extends AbstractSerDe {
 
   @Override
   public Writable serialize(Object o, ObjectInspector objectInspector) {
-    throw new UnsupportedOperationException("Serialization is not supported.");
+    Deserializer deserializer = deserializers.get(objectInspector);
+    if (deserializer == null) {
+      deserializer = new Deserializer.Builder()
+          .schema(tableSchema)
+          .sourceInspector((StructObjectInspector) objectInspector)
+          .writerInspector((StructObjectInspector) inspector)
+          .build();
+      deserializers.put(objectInspector, deserializer);
+    }
+
+    row.set(deserializer.deserialize(o));
+    return row;
   }
 
   @Override
