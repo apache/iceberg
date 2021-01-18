@@ -54,7 +54,7 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
   }
 
   protected Map<String, String> extraTableProperties() {
-    return ImmutableMap.of(TableProperties.DELETE_MODE, "copy-on-write");
+    return ImmutableMap.of(TableProperties.MERGE_MODE, TableProperties.MERGE_MODE_DEFAULT);
   }
 
   @After

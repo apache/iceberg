@@ -54,12 +54,12 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
       table: Table,
       tableAttrs: Seq[AttributeReference],
       mergeBuilder: MergeBuilder,
-      cond: Option[Expression] = None,
+      cond: Expression,
       matchingRowsPlanBuilder: DataSourceV2ScanRelation => LogicalPlan): LogicalPlan = {
 
     val scanBuilder = mergeBuilder.asScanBuilder
 
-    cond.map(pushFilters(scanBuilder, _, tableAttrs))
+    pushFilters(scanBuilder, cond, tableAttrs)
 
     val scan = scanBuilder.build()
     val outputAttrs = toOutputAttrs(scan.readSchema(), tableAttrs)

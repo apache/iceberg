@@ -59,19 +59,12 @@ case class RewriteMergeInto(conf: SQLConf) extends Rule[LogicalPlan] with Rewrit
   override def apply(plan: LogicalPlan): LogicalPlan = {
     plan resolveOperators {
       case MergeIntoTable(target: DataSourceV2Relation, source: LogicalPlan, cond, matchedActions, notMatchedActions) =>
-        val targetOutputCols = target.output
-        val newProjectCols = target.output ++ Seq(Alias(InputFileName(), FILE_NAME_COL)())
-        val newTargetTable = Project(newProjectCols, target)
-
-        // Construct the plan to prune target based on join condition between source and
-        // target.
+        // Construct the plan to prune target based on join condition between source and target.
         val writeInfo = newWriteInfo(target.schema)
         val mergeBuilder = target.table.asMergeable.newMergeBuilder("merge", writeInfo)
-        val matchingRowsPlanBuilder = (_: DataSourceV2ScanRelation) =>
-          Join(source, newTargetTable, Inner, Some(cond), JoinHint.NONE)
-        // TODO - extract the local predicates that references the target from the join condition and
-        // pass to buildScanPlan to ensure push-down.
-        val targetTableScan = buildScanPlan(target.table, target.output, mergeBuilder, None, matchingRowsPlanBuilder)
+        val matchingRowsPlanBuilder = (rel: DataSourceV2ScanRelation) =>
+          Join(source, rel, Inner, Some(cond), JoinHint.NONE)
+        val targetTableScan = buildScanPlan(target.table, target.output, mergeBuilder, cond, matchingRowsPlanBuilder)
 
         // Construct an outer join to help track changes in source and target.
         // TODO : Optimize this to use LEFT ANTI or RIGHT OUTER when applicable.
@@ -86,11 +79,11 @@ case class RewriteMergeInto(conf: SQLConf) extends Rule[LogicalPlan] with Rewrit
           isSourceRowNotPresent = IsNull(findOutputAttr(joinPlan, ROW_FROM_SOURCE)),
           isTargetRowNotPresent = IsNull(findOutputAttr(joinPlan, ROW_FROM_TARGET)),
           matchedConditions = matchedActions.map(getClauseCondition),
-          matchedOutputs = matchedActions.map(actionOutput(_, targetOutputCols)),
+          matchedOutputs = matchedActions.map(actionOutput(_, target.output)),
           notMatchedConditions = notMatchedActions.map(getClauseCondition),
-          notMatchedOutputs = notMatchedActions.map(actionOutput(_, targetOutputCols)),
-          targetOutput = targetOutputCols :+ FALSE_LITERAL,
-          deleteOutput = targetOutputCols :+ TRUE_LITERAL,
+          notMatchedOutputs = notMatchedActions.map(actionOutput(_, target.output)),
+          targetOutput = target.output :+ FALSE_LITERAL,
+          deleteOutput = target.output :+ TRUE_LITERAL,
           joinedAttributes = joinPlan.output
         )
         val mergePlan = MergeInto(mergeParams, target, joinPlan)
