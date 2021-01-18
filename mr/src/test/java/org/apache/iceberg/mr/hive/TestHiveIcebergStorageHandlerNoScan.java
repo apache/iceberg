@@ -180,7 +180,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
     }
 
     // General metadata checks
-    Assert.assertEquals(6, hmsParams.size());
+    Assert.assertEquals(7, hmsParams.size());
     Assert.assertEquals("test", hmsParams.get("dummy"));
     Assert.assertEquals("TRUE", hmsParams.get(InputFormatConfig.EXTERNAL_TABLE_PURGE));
     Assert.assertEquals("TRUE", hmsParams.get("EXTERNAL"));
@@ -196,7 +196,11 @@ public class TestHiveIcebergStorageHandlerNoScan {
     Assert.assertEquals(HiveIcebergSerDe.class.getName(), hmsTable.getSd().getSerdeInfo().getSerializationLib());
 
     if (!Catalogs.hiveCatalog(shell.getHiveConf())) {
-      Assert.assertEquals(Collections.singletonMap("dummy", "test"), icebergTable.properties());
+      Map<String, String> expectedIcebergProperties = new HashMap<>(3);
+      expectedIcebergProperties.put("dummy", "test");
+      expectedIcebergProperties.put("EXTERNAL", "TRUE");
+      expectedIcebergProperties.put("storage_handler", HiveIcebergStorageHandler.class.getName());
+      Assert.assertEquals(expectedIcebergProperties, icebergTable.properties());
 
       shell.executeStatement("DROP TABLE customers");
 
@@ -207,9 +211,11 @@ public class TestHiveIcebergStorageHandlerNoScan {
           }
       );
     } else {
-      Map<String, String> expectedIcebergProperties = new HashMap<>(2);
+      Map<String, String> expectedIcebergProperties = new HashMap<>(4);
       expectedIcebergProperties.put("dummy", "test");
       expectedIcebergProperties.put(TableProperties.ENGINE_HIVE_ENABLED, "true");
+      expectedIcebergProperties.put("EXTERNAL", "TRUE");
+      expectedIcebergProperties.put("storage_handler", HiveIcebergStorageHandler.class.getName());
       Assert.assertEquals(expectedIcebergProperties, icebergTable.properties());
 
       // Check the HMS table parameters
@@ -292,12 +298,10 @@ public class TestHiveIcebergStorageHandlerNoScan {
     Map<String, String> hmsParams = hmsTable.getParameters();
     IGNORED_PARAMS.forEach(hmsParams::remove);
 
-    // Just check that the PartitionSpec is not set in the metadata
-    Assert.assertNull(hmsParams.get(InputFormatConfig.PARTITION_SPEC));
     if (Catalogs.hiveCatalog(shell.getHiveConf())) {
-      Assert.assertEquals(6, hmsParams.size());
+      Assert.assertEquals(7, hmsParams.size());
     } else {
-      Assert.assertEquals(5, hmsParams.size());
+      Assert.assertEquals(6, hmsParams.size());
     }
   }
 

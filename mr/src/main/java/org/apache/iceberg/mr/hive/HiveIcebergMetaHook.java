@@ -25,7 +25,6 @@ import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.HiveMetaHook;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
-import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.PartitionSpec;
@@ -51,10 +50,7 @@ import org.slf4j.LoggerFactory;
 public class HiveIcebergMetaHook implements HiveMetaHook {
   private static final Logger LOG = LoggerFactory.getLogger(HiveIcebergMetaHook.class);
   private static final Set<String> PARAMETERS_TO_REMOVE = ImmutableSet
-      .of(InputFormatConfig.TABLE_SCHEMA, InputFormatConfig.PARTITION_SPEC, Catalogs.LOCATION, Catalogs.NAME);
-  private static final Set<String> PROPERTIES_TO_REMOVE = ImmutableSet
-      .of(InputFormatConfig.EXTERNAL_TABLE_PURGE, hive_metastoreConstants.META_TABLE_STORAGE, "EXTERNAL",
-          "bucketing_version");
+      .of(InputFormatConfig.TABLE_SCHEMA, Catalogs.LOCATION, Catalogs.NAME);
 
   private final Configuration conf;
   private Table icebergTable = null;
@@ -199,9 +195,6 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     if (properties.get(Catalogs.NAME) == null) {
       properties.put(Catalogs.NAME, TableIdentifier.of(hmsTable.getDbName(), hmsTable.getTableName()).toString());
     }
-
-    // Remove creation related properties
-    PROPERTIES_TO_REMOVE.forEach(properties::remove);
 
     return properties;
   }
