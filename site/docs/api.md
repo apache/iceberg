@@ -207,7 +207,7 @@ Iceberg table support is organized in library modules:
 
 * `iceberg-common` contains utility classes used in other modules
 * `iceberg-api` contains the public Iceberg API, including expressions, types, tables, and operations
-* `iceberg-arrow` is an optional module for reading and writing data stored in Iceberg tables using Apache Arrow as the in-memory data format
+* `iceberg-arrow` is an implementation of the Iceberg type system for reading and writing data stored in Iceberg tables using Apache Arrow as the in-memory data format
 * `iceberg-aws` contains implementations of the Iceberg API to be used with tables stored on AWS S3 and/or for tables defined using the AWS Glue data catalog
 * `iceberg-core` contains implementations of the Iceberg API and support for Avro data files, **this is what processing engines should depend on**
 * `iceberg-parquet` is an optional module for working with tables backed by Parquet files
