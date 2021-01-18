@@ -221,7 +221,7 @@ This project Iceberg also has modules for adding Iceberg support to processing e
 * `iceberg-flink` is an implementation of Flink's Table and DataStream API for Iceberg (use iceberg-flink-runtime for a shaded version)
 * `iceberg-hive3` is an implementation of Hive 3 specific SerDe's for Timestamp, TimestampWithZone, and Date object inspectors (use iceberg-hive-runtime for a shaded version).
 * `iceberg-mr` is an implementation of MapReduce and Hive InputFormats and SerDes for Iceberg (use iceberg-hive-runtime for a shaded version for use with Hive)
-* `iceberg-nessie` is an optional module used to integrate Iceberg table metadata history and operations with [Project Nessie](https://projectnessie.org/) (*experimental*)
+* `iceberg-nessie` is an module used to integrate Iceberg table metadata history and operations with [Project Nessie](https://projectnessie.org/)
 * `iceberg-data` is a client library used to read Iceberg tables from JVM applications
 * `iceberg-pig` is an implementation of Pig's LoadFunc API for Iceberg
 * `iceberg-runtime` generates a shaded runtime jar for Spark to integrate with iceberg tables
