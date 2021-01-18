@@ -267,22 +267,24 @@ public class TestHelpers {
     }
 
     switch (type.typeId()) {
-      case INTEGER:
-        Assert.assertEquals("Values didn't match", ((Number) expected).intValue(),
-                ((Number) actual).intValue());
-        break;
       case LONG:
-        Assert.assertEquals("Values didn't match", ((Number) expected).longValue(),
-                ((Number) actual).longValue());
-        break;
-      case FLOAT:
-        Assert.assertEquals("Values didn't match", Float.floatToIntBits(((Number) expected).floatValue()),
-                Float.floatToIntBits(((Number) actual).floatValue()));
+        if (expected instanceof Integer) {
+          Assert.assertEquals("Values didn't match", ((Number) expected).longValue(),
+              ((Number) actual).longValue());
+        } else {
+          Assert.assertEquals("Primitive value should be equal to expected", expected, actual);
+        }
         break;
       case DOUBLE:
-        Assert.assertEquals("Values didn't match", ((Number) expected).doubleValue(),
-                ((Number) actual).doubleValue(), 0.01D);
+        if (expected instanceof Float) {
+          Assert.assertEquals("Values didn't match", Float.floatToIntBits(((Number) expected).floatValue()),
+              Float.floatToIntBits(((Number) actual).floatValue()));
+        } else {
+          Assert.assertEquals("Primitive value should be equal to expected", expected, actual);
+        }
         break;
+      case INTEGER:
+      case FLOAT:
       case BOOLEAN:
       case DATE:
       case TIMESTAMP:
