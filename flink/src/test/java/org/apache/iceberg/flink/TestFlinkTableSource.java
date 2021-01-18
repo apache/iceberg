@@ -19,46 +19,38 @@
 
 package org.apache.iceberg.flink;
 
-import java.util.Collections;
+import java.io.File;
+import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-import org.apache.calcite.rel.RelNode;
-import org.apache.flink.api.dag.Transformation;
+import org.apache.flink.streaming.api.TimeCharacteristic;
+import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.SqlParserException;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableEnvironment;
-import org.apache.flink.table.api.internal.TableEnvironmentImpl;
-import org.apache.flink.table.api.internal.TableImpl;
-import org.apache.flink.table.planner.delegation.PlannerBase;
-import org.apache.flink.table.planner.plan.nodes.exec.ExecNode;
-import org.apache.flink.table.planner.utils.JavaScalaConversionUtil;
+import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
+import org.apache.flink.table.catalog.Catalog;
+import org.apache.flink.table.catalog.ObjectPath;
+import org.apache.flink.table.catalog.exceptions.TableNotExistException;
+import org.apache.flink.types.Row;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Files;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.Transaction;
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.data.GenericAppenderFactory;
-import org.apache.iceberg.data.Record;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 public class TestFlinkTableSource extends FlinkTestBase {
 
@@ -68,6 +60,8 @@ public class TestFlinkTableSource extends FlinkTestBase {
   private final String expectedFilterPushDownExplain = "FilterPushDown";
   private final FileFormat format = FileFormat.AVRO;
   private static String warehouse;
+  private TableEnvironment tEnv;
+  private boolean isStreamingJob;
 
   private int scanEventCount = 0;
   private ScanEvent lastScanEvent = null;
@@ -89,8 +83,28 @@ public class TestFlinkTableSource extends FlinkTestBase {
     warehouse = "file:" + warehouseFile;
   }
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @Override
+  protected TableEnvironment getTableEnv() {
+    if (tEnv == null) {
+      synchronized (this) {
+        EnvironmentSettings.Builder settingsBuilder = EnvironmentSettings
+            .newInstance()
+            .useBlinkPlanner();
+        if (isStreamingJob) {
+          settingsBuilder.inStreamingMode();
+          StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+          env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
+          env.enableCheckpointing(400);
+          tEnv = StreamTableEnvironment.create(env, settingsBuilder.build());
+        } else {
+          settingsBuilder.inBatchMode();
+          tEnv = TableEnvironment.create(settingsBuilder.build());
+        }
+      }
+    }
+    return tEnv;
+  }
+
 
   @Before
   public void before() {
@@ -116,6 +130,9 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testLimitPushDown() {
+    Assume.assumeFalse("Limit pushDown is supported on batch mode", isStreamingJob);
+
+    sql("INSERT INTO %s VALUES (1,'iceberg',10),(2,'b',20),(3,CAST(NULL AS VARCHAR),30)", TABLE_NAME);
     String querySql = String.format("SELECT * FROM %s LIMIT 1", TABLE_NAME);
     String explain = getTableEnv().explainSql(querySql);
     String expectedExplain = "LimitPushDown : 1";
@@ -286,7 +303,8 @@ public class TestFlinkTableSource extends FlinkTestBase {
   public void testFilterPushDownGreaterThanNull() {
     String sqlGT = String.format("SELECT * FROM %s WHERE data > null ", TABLE_NAME);
     String explainGT = getTableEnv().explainSql(sqlGT);
-    Assert.assertFalse("Explain should not contain FilterPushDown", explainGT.contains(expectedFilterPushDownExplain));
+    Assert
+        .assertFalse("Explain should not contain FilterPushDown", explainGT.contains(expectedFilterPushDownExplain));
 
     List<Object[]> resultGT = sql(sqlGT);
     Assert.assertEquals("Should have 0 record", 0, resultGT.size());
@@ -335,7 +353,8 @@ public class TestFlinkTableSource extends FlinkTestBase {
   public void testFilterPushDownGreaterThanEqualNull() {
     String sqlGTE = String.format("SELECT * FROM %s WHERE data >= null ", TABLE_NAME);
     String explainGTE = getTableEnv().explainSql(sqlGTE);
-    Assert.assertFalse("Explain should not contain FilterPushDown", explainGTE.contains(expectedFilterPushDownExplain));
+    Assert
+        .assertFalse("Explain should not contain FilterPushDown", explainGTE.contains(expectedFilterPushDownExplain));
 
     List<Object[]> resultGT = sql(sqlGTE);
     Assert.assertEquals("Should have 0 record", 0, resultGT.size());
@@ -381,7 +400,8 @@ public class TestFlinkTableSource extends FlinkTestBase {
   public void testFilterPushDownLessThanNull() {
     String sqlLT = String.format("SELECT * FROM %s WHERE data < null ", TABLE_NAME);
     String explainLT = getTableEnv().explainSql(sqlLT);
-    Assert.assertFalse("Explain should not contain FilterPushDown", explainLT.contains(expectedFilterPushDownExplain));
+    Assert
+        .assertFalse("Explain should not contain FilterPushDown", explainLT.contains(expectedFilterPushDownExplain));
 
     List<Object[]> resultGT = sql(sqlLT);
     Assert.assertEquals("Should have 0 record", 0, resultGT.size());
@@ -424,7 +444,8 @@ public class TestFlinkTableSource extends FlinkTestBase {
   public void testFilterPushDownLessThanEqualNull() {
     String sqlLTE = String.format("SELECT * FROM %s WHERE data <= null ", TABLE_NAME);
     String explainLTE = getTableEnv().explainSql(sqlLTE);
-    Assert.assertFalse("Explain should not contain FilterPushDown", explainLTE.contains(expectedFilterPushDownExplain));
+    Assert
+        .assertFalse("Explain should not contain FilterPushDown", explainLTE.contains(expectedFilterPushDownExplain));
 
     List<Object[]> resultGT = sql(sqlLTE);
     Assert.assertEquals("Should have 0 record", 0, resultGT.size());
@@ -570,7 +591,8 @@ public class TestFlinkTableSource extends FlinkTestBase {
     List<Object[]> expectedBetween = Lists.newArrayList();
     expectedBetween.add(new Object[] {1, "iceberg", 10.0});
     expectedBetween.add(new Object[] {2, "b", 20.0});
-    Assert.assertArrayEquals("Should produce the expected record", expectedBetween.toArray(), resultBetween.toArray());
+    Assert
+        .assertArrayEquals("Should produce the expected record", expectedBetween.toArray(), resultBetween.toArray());
 
     Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     String expected = "(ref(name=\"id\") >= 1 and ref(name=\"id\") <= 2)";
@@ -599,7 +621,8 @@ public class TestFlinkTableSource extends FlinkTestBase {
     Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
     String explainLike = getTableEnv().explainSql(sqlLike);
     String expectedFilter = "ref(name=\"data\") startsWith \"\"ice\"\"";
-    Assert.assertTrue("the like sql Explain should contain the push down filter", explainLike.contains(expectedFilter));
+    Assert
+        .assertTrue("the like sql Explain should contain the push down filter", explainLike.contains(expectedFilter));
 
     sqlLike = "SELECT * FROM " + TABLE_NAME + " WHERE data LIKE 'ice%%' ";
     List<Object[]> resultLike = sql(sqlLike);
@@ -714,49 +737,54 @@ public class TestFlinkTableSource extends FlinkTestBase {
         NumberFormatException.class, () -> sql(sqlParseErrorLTE));
   }
 
+  /**
+   * The sql can be executed in both streaming and batch mode, in order to get the parallelism, we convert the flink
+   * Table to flink DataStream, so we only use streaming mode here.
+   *
+   * @throws TableNotExistException table not exist exception
+   */
   @Test
-  public void testInferedParallelism() {
-    sql("INSERT INTO %s  VALUES (1,'hello')", TABLE_NAME);
-    sql("INSERT INTO %s  VALUES (2,'iceberg')", TABLE_NAME);
+  public void testInferedParallelism() throws TableNotExistException {
+    Assume.assumeTrue("The execute mode should  be streaming mode", isStreamingJob);
 
-    TableEnvironment tenv = getTableEnv();
-
-    // empty table ,parallelism at least 1
+    // Empty table ,parallelism at least 1
     Table tableEmpty = sqlQuery("SELECT * FROM %s", TABLE_NAME);
-    testParallelismSettingTranslateAndAssert(1, tableEmpty, tenv);
+    assertParallelismEquals(tableEmpty, 1);
 
-    // make sure to generate 2 CombinedScanTasks
-    org.apache.iceberg.Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, TABLE_NAME));
+    sql("INSERT INTO %s  VALUES (1,'hello',10.0)", TABLE_NAME);
+    sql("INSERT INTO %s  VALUES (2,'iceberg',20.0)", TABLE_NAME);
+
+    // Make sure to generate 2 CombinedScanTasks
+    Optional<Catalog> catalog = tEnv.getCatalog(CATALOG_NAME);
+    Assert.assertTrue("Conversion should succeed", catalog.isPresent());
+    FlinkCatalog flinkCatalog = (FlinkCatalog) catalog.get();
+    org.apache.iceberg.Table table = flinkCatalog.loadIcebergTable(new ObjectPath(DATABASE_NAME, TABLE_NAME));
     Stream<FileScanTask> stream = StreamSupport.stream(table.newScan().planFiles().spliterator(), false);
     Optional<FileScanTask> fileScanTaskOptional = stream.max(Comparator.comparing(FileScanTask::length));
     Assert.assertTrue("Conversion should succeed", fileScanTaskOptional.isPresent());
     long maxFileLen = fileScanTaskOptional.get().length();
-    sql("ALTER TABLE %s SET ('read.split.open-file-cost'='1', 'read.split.target-size'='%s')", TABLE_NAME, maxFileLen);
+    sql("ALTER TABLE %s SET ('read.split.open-file-cost'='1', 'read.split.target-size'='%s')", TABLE_NAME,
+        maxFileLen);
 
     // 2 splits ,the parallelism is  2
     Table tableSelect = sqlQuery("SELECT * FROM %s", TABLE_NAME);
-    testParallelismSettingTranslateAndAssert(2, tableSelect, tenv);
+    assertParallelismEquals(tableSelect, 2);
 
     // 2 splits  and limit is 1 ,the parallelism is  1
     Table tableLimit = sqlQuery("SELECT * FROM %s LIMIT 1", TABLE_NAME);
-    testParallelismSettingTranslateAndAssert(1, tableLimit, tenv);
+    assertParallelismEquals(tableLimit, 1);
   }
 
   private Table sqlQuery(String sql, Object... args) {
     return getTableEnv().sqlQuery(String.format(sql, args));
   }
 
-  private void testParallelismSettingTranslateAndAssert(int expected, Table table, TableEnvironment tEnv) {
-    PlannerBase planner = (PlannerBase) ((TableEnvironmentImpl) tEnv).getPlanner();
-    RelNode relNode = planner.optimize(toRelNode(table));
-    ExecNode execNode =
-        planner.translateToExecNodePlan(JavaScalaConversionUtil.toScala(Collections.singletonList(relNode))).get(0);
-    Transformation transformation = execNode.translateToPlan(planner);
-    Assert.assertEquals("Should get the expected parallelism", expected, transformation.getParallelism());
-  }
-
-  private RelNode toRelNode(Table table) {
-    return ((PlannerBase) ((TableEnvironmentImpl) ((TableImpl) table).getTableEnvironment()).getPlanner())
-        .getRelBuilder().queryOperation(table.getQueryOperation()).build();
+  private void assertParallelismEquals(Table table, int expected) {
+    Assert.assertTrue("The table environment should be StreamTableEnvironment",
+        getTableEnv() instanceof StreamTableEnvironment);
+    StreamTableEnvironment stenv = (StreamTableEnvironment) getTableEnv();
+    DataStream<Row> ds = stenv.toAppendStream(table, Row.class);
+    int parallelism = ds.getTransformation().getParallelism();
+    Assert.assertEquals("Should produce the expected parallelism ", expected, parallelism);
   }
 }
