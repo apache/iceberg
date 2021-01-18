@@ -278,8 +278,8 @@ public class TestHelpers {
       case DOUBLE:
         Assert.assertTrue("Should be a double", actual instanceof Double);
         if (expected instanceof Float) {
-          Assert.assertEquals("Values didn't match", Float.floatToIntBits(((Number) expected).floatValue()),
-                    Float.floatToIntBits(((Number) actual).floatValue()));
+          Assert.assertEquals("Values didn't match", Double.doubleToLongBits(((Double) expected).doubleValue()),
+                  Double.doubleToLongBits((double) actual));
         } else {
           Assert.assertEquals("Primitive value should be equal to expected", expected, actual);
         }
