@@ -64,16 +64,13 @@ Iceberg uses [hidden partitioning](./partitioning.md), so you don't *need* to wr
 Partition evolution is a metadata operation and does not eagerly rewrite files.
 
 Iceberg's Java table API provides `updateSpec` API to update partition spec. 
-For example, the following code could be used to update the partition spec to 
-add a new partition field that places `id` column values into 8 buckets,
-remove an existing partition field `category`, and rename a partition field `id_bucket_8` to `shard`:
+For example, the following code could be used to update the partition spec to add a new partition field that places `id` column values into 8 buckets and remove an existing partition field `category`:
 
 ```java
 Table sampleTable = ...;
 sampleTable.updateSpec()
     .addField(bucket("id", 8))
     .removeField("category")
-    .renameField("id_bucket_8", "shard")
     .commit();
 ```
 
@@ -98,4 +95,4 @@ sampleTable.replaceSortOrder()
    .commit();
 ```
 
-Spark supports updating partition spec through its `ALTER TABLE` SQL statement, see more details in [Spark SQL](../spark/#alter-table-write-ordered-by).
+Spark supports updating sort order through its `ALTER TABLE` SQL statement, see more details in [Spark SQL](../spark/#alter-table-write-ordered-by).

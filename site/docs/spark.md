@@ -24,7 +24,7 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 | [SQL create table](#create-table)                | ✔️        |            |                                                |
 | [SQL create table as](#create-table-as-select)   | ✔️        |            |                                                |
 | [SQL replace table as](#replace-table-as-select) | ✔️        |            |                                                |
-| [SQL alter table](#alter-table)                  | ✔️        |            |                                                |
+| [SQL alter table](#alter-table)                  | ✔️        |            |  ⚠ Updating partition field or sort order requires extensions enabled  |
 | [SQL drop table](#drop-table)                    | ✔️        |            |                                                |
 | [SQL select](#querying-with-sql)                 | ✔️        |            |                                                |
 | [SQL insert into](#insert-into)                  | ✔️        |            |                                                |
@@ -269,6 +269,11 @@ ALTER TABLE prod.db.sample ADD PARTITION FIELD years(ts)
 ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id) AS shard
 ```
 
+!!! Warning
+    Changing partitioning will change the behavior of dynamic writes, which overwrite any partition that is written to. 
+    For example, if you partition by days and move to partitioning by hours, overwrites will overwrite hourly partitions but not days anymore.
+
+
 ### `ALTER TABLE ... DROP PARTITION FIELD`
 
 ```sql
@@ -278,6 +283,10 @@ ALTER TABLE prod.db.sample DROP PARTITION FIELD truncate(data, 4)
 ALTER TABLE prod.db.sample DROP PARTITION FIELD years(ts)
 ALTER TABLE prod.db.sample DROP PARTITION FIELD shard
 ```
+
+!!! Warning
+    Changing partitioning will change the behavior of dynamic writes, which overwrite any partition that is written to. 
+    For example, if you partition by days and move to partitioning by hours, overwrites will overwrite hourly partitions but not days anymore.
 
 
 ### `ALTER TABLE ... WRITE ORDERED BY`
