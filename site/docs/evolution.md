@@ -64,8 +64,9 @@ Iceberg uses [hidden partitioning](./partitioning.md), so you don't *need* to wr
 Partition evolution is a metadata operation and does not eagerly rewrite files.
 
 Iceberg's Java table API provides `updateSpec` API to update partition spec. 
-For example, the code below shows how to add a partition with bucket transform,
-remove an existing partition field, and rename a partition field:
+For example, the following code could be used to update the partition spec to 
+add a new partition field that places `id` column values into 8 buckets,
+remove an existing partition field `category`, and rename a partition field `id_bucket_8` to `shard`:
 
 ```java
 Table sampleTable = ...;
@@ -85,10 +86,12 @@ When you evolve a sort order, the old data written with an earlier order remains
 Engines can always choose to write data in the latest sort order or unsorted when sorting is prohibitively expensive.
 
 Iceberg's Java table API provides `replaceSortOrder` API to update partition spec. 
-For example, the code below show how to use a new sort order with `id` column sorted in ascending order with nulls last,
+For example, the following code could be used to create a new sort order 
+with `id` column sorted in ascending order with nulls last,
 and `category` column sorted in descending order with nulls first:
 
 ```java
+Table sampleTable = ...;
 sampleTable.replaceSortOrder()
    .asc("id", NullOrder.NULLS_LAST)
    .dec("category", NullOrder.NULL_FIRST)
