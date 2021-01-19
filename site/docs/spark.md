@@ -276,6 +276,7 @@ ALTER TABLE prod.db.sample DROP PARTITION FIELD catalog
 ALTER TABLE prod.db.sample DROP PARTITION FIELD bucket(16, id)
 ALTER TABLE prod.db.sample DROP PARTITION FIELD truncate(data, 4)
 ALTER TABLE prod.db.sample DROP PARTITION FIELD years(ts)
+ALTER TABLE prod.db.sample DROP PARTITION FIELD shard
 ```
 
 
