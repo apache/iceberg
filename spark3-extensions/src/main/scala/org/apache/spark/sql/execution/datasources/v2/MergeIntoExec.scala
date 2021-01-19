@@ -110,7 +110,6 @@ case class MergeIntoExec(
     def shouldDeleteRow(row: InternalRow): Boolean =
       row.getBoolean(params.targetOutput.size - 1)
 
-
     /**
      * This method is responsible for processing a input row to emit the resultant row with an
      * additional column that indicates whether the row is going to be included in the final

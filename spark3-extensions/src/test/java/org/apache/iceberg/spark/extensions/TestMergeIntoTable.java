@@ -25,14 +25,18 @@ import java.util.Map;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.SparkCatalog;
+import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
@@ -40,6 +44,32 @@ import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
 public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
   private final String sourceName;
   private final String targetName;
+
+  @Parameterized.Parameters(
+      name = "catalogName = {0}, implementation = {1}, config = {2}, format = {3}, vectorized = {4}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+        { "testhive", SparkCatalog.class.getName(),
+            ImmutableMap.of(
+                "type", "hive",
+                "default-namespace", "default"
+            ),
+            "parquet",
+            true
+        },
+        { "spark_catalog", SparkSessionCatalog.class.getName(),
+            ImmutableMap.of(
+                "type", "hive",
+                "default-namespace", "default",
+                "clients", "1",
+                "parquet-enabled", "false",
+                "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
+            ),
+            "parquet",
+            false
+        }
+    };
+  }
 
   public TestMergeIntoTable(String catalogName, String implementation, Map<String, String> config,
                             String fileFormat, Boolean vectorized) {
@@ -57,6 +87,12 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
     return ImmutableMap.of(TableProperties.MERGE_MODE, TableProperties.MERGE_MODE_DEFAULT);
   }
 
+  @Before
+  public void createTables() {
+    createAndInitUnPartitionedTargetTable(targetName);
+    createAndInitSourceTable(sourceName);
+  }
+
   @After
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", targetName);
@@ -65,16 +101,13 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
 
   @Test
   public void testEmptyTargetInsertAllNonMatchingRows() throws NoSuchTableException {
-    createAndInitUnPartitionedTargetTable(targetName);
-    createAndInitSourceTable(sourceName);
     append(sourceName, new Employee(1, "emp-id-1"), new Employee(2, "emp-id-2"), new Employee(3, "emp-id-3"));
-    String sqlText = "MERGE INTO " + targetName + " AS target " +
-                     "USING " + sourceName + " AS source " +
+    String sqlText = "MERGE INTO %s AS target " +
+                     "USING %s AS source " +
                      "ON target.id = source.id " +
                      "WHEN NOT MATCHED THEN INSERT * ";
 
-    sql(sqlText);
-    sql("SELECT * FROM %s ORDER BY id, dep", targetName);
+    sql(sqlText, targetName, sourceName);
     assertEquals("Should have expected rows",
             ImmutableList.of(row(1, "emp-id-1"), row(2, "emp-id-2"), row(3, "emp-id-3")),
             sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", targetName));
@@ -82,16 +115,13 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
 
   @Test
   public void testEmptyTargetInsertOnlyMatchingRows() throws NoSuchTableException {
-    createAndInitUnPartitionedTargetTable(targetName);
-    createAndInitSourceTable(sourceName);
     append(sourceName, new Employee(1, "emp-id-1"), new Employee(2, "emp-id-2"), new Employee(3, "emp-id-3"));
-    String sqlText = "MERGE INTO " + targetName + " AS target " +
-                     "USING " + sourceName + " AS source " +
+    String sqlText = "MERGE INTO %s AS target " +
+                     "USING %s AS source " +
                      "ON target.id = source.id " +
                      "WHEN NOT MATCHED AND (source.id >= 2) THEN INSERT * ";
 
-    sql(sqlText);
-    List<Object[]> res = sql("SELECT * FROM %s ORDER BY id, dep", targetName);
+    sql(sqlText, targetName, sourceName);
     assertEquals("Should have expected rows",
             ImmutableList.of(row(2, "emp-id-2"), row(3, "emp-id-3")),
             sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", targetName));
@@ -99,35 +129,29 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
 
   @Test
   public void testOnlyUpdate() throws NoSuchTableException {
-    createAndInitUnPartitionedTargetTable(targetName);
-    createAndInitSourceTable(sourceName);
-    append(targetName, new Employee(1, "emp-id-one"), new Employee(6, "emp-id-6"));
+    append(targetName, new Employee(1, "emp-id-one"), new Employee(6, "emp-id-six"));
     append(sourceName, new Employee(2, "emp-id-2"), new Employee(1, "emp-id-1"), new Employee(6, "emp-id-6"));
-    String sqlText = "MERGE INTO " + targetName + " AS target " +
-            "USING " + sourceName + " AS source " +
+    String sqlText = "MERGE INTO %s AS target " +
+            "USING %s AS source " +
             "ON target.id = source.id " +
             "WHEN MATCHED AND target.id = 1 THEN UPDATE SET * ";
 
-    sql(sqlText);
-    List<Object[]> res = sql("SELECT * FROM %s ORDER BY id, dep", targetName);
+    sql(sqlText, targetName, sourceName);
     assertEquals("Should have expected rows",
-            ImmutableList.of(row(1, "emp-id-1"), row(6, "emp-id-6")),
+            ImmutableList.of(row(1, "emp-id-1"), row(6, "emp-id-six")),
             sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", targetName));
   }
 
   @Test
   public void testOnlyDelete() throws NoSuchTableException {
-    createAndInitUnPartitionedTargetTable(targetName);
-    createAndInitSourceTable(sourceName);
     append(targetName, new Employee(1, "emp-id-one"), new Employee(6, "emp-id-6"));
     append(sourceName, new Employee(2, "emp-id-2"), new Employee(1, "emp-id-1"), new Employee(6, "emp-id-6"));
-    String sqlText = "MERGE INTO " + targetName + " AS target " +
-            "USING " + sourceName + " AS source " +
+    String sqlText = "MERGE INTO %s AS target " +
+            "USING %s AS source " +
             "ON target.id = source.id " +
             "WHEN MATCHED AND target.id = 6 THEN DELETE";
 
-    sql(sqlText);
-    List<Object[]> res = sql("SELECT * FROM %s ORDER BY id, dep", targetName);
+    sql(sqlText, targetName, sourceName);
     assertEquals("Should have expected rows",
             ImmutableList.of(row(1, "emp-id-one")),
             sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", targetName));
@@ -135,19 +159,16 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
 
   @Test
   public void testAllCauses() throws NoSuchTableException {
-    createAndInitUnPartitionedTargetTable(targetName);
-    createAndInitSourceTable(sourceName);
     append(targetName, new Employee(1, "emp-id-one"), new Employee(6, "emp-id-6"));
     append(sourceName, new Employee(2, "emp-id-2"), new Employee(1, "emp-id-1"), new Employee(6, "emp-id-6"));
-    String sqlText = "MERGE INTO " + targetName + " AS target " +
-                     "USING " + sourceName + " AS source " +
+    String sqlText = "MERGE INTO %s AS target " +
+                     "USING %s AS source " +
                      "ON target.id = source.id " +
                      "WHEN MATCHED AND target.id = 1 THEN UPDATE SET * " +
                      "WHEN MATCHED AND target.id = 6 THEN DELETE " +
                      "WHEN NOT MATCHED AND source.id = 2 THEN INSERT * ";
 
-    sql(sqlText);
-    sql("SELECT * FROM %s ORDER BY id, dep", targetName);
+    sql(sqlText, targetName, sourceName);
     assertEquals("Should have expected rows",
             ImmutableList.of(row(1, "emp-id-1"), row(2, "emp-id-2")),
             sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", targetName));
@@ -155,19 +176,16 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
 
   @Test
   public void testAllCausesWithExplicitColumnSpecification() throws NoSuchTableException {
-    createAndInitUnPartitionedTargetTable(targetName);
-    createAndInitSourceTable(sourceName);
     append(targetName, new Employee(1, "emp-id-one"), new Employee(6, "emp-id-6"));
     append(sourceName, new Employee(2, "emp-id-2"), new Employee(1, "emp-id-1"), new Employee(6, "emp-id-6"));
-    String sqlText = "MERGE INTO " + targetName + " AS target " +
-            "USING " + sourceName + " AS source " +
+    String sqlText = "MERGE INTO %s AS target " +
+            "USING %s AS source " +
             "ON target.id = source.id " +
             "WHEN MATCHED AND target.id = 1 THEN UPDATE SET target.id = source.id, target.dep = source.dep " +
             "WHEN MATCHED AND target.id = 6 THEN DELETE " +
             "WHEN NOT MATCHED AND source.id = 2 THEN INSERT (target.id, target.dep) VALUES (source.id, source.dep) ";
 
-    sql(sqlText);
-    sql("SELECT * FROM %s ORDER BY id, dep", targetName);
+    sql(sqlText, targetName, sourceName);
     assertEquals("Should have expected rows",
             ImmutableList.of(row(1, "emp-id-1"), row(2, "emp-id-2")),
             sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", targetName));
@@ -178,20 +196,17 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhive"));
 
-    createAndInitUnPartitionedTargetTable(targetName);
-    createAndInitSourceTable(sourceName);
     append(targetName, new Employee(2, "emp-id-two"), new Employee(6, "emp-id-6"));
     append(sourceName, new Employee(2, "emp-id-3"), new Employee(1, "emp-id-2"), new Employee(5, "emp-id-6"));
     String sourceCTE = "WITH cte1 AS (SELECT id + 1 AS id, dep FROM source)";
-    String sqlText = sourceCTE + " " + "MERGE INTO " + targetName + " AS target " +
+    String sqlText = sourceCTE + " " + "MERGE INTO %s AS target " +
             "USING cte1"  + " AS source " +
             "ON target.id = source.id " +
             "WHEN MATCHED AND target.id = 2 THEN UPDATE SET * " +
             "WHEN MATCHED AND target.id = 6 THEN DELETE " +
             "WHEN NOT MATCHED AND source.id = 3 THEN INSERT * ";
 
-    sql(sqlText);
-    sql("SELECT * FROM %s ORDER BY id, dep", targetName);
+    sql(sqlText, targetName);
     assertEquals("Should have expected rows",
             ImmutableList.of(row(2, "emp-id-2"), row(3, "emp-id-3")),
             sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", targetName));
@@ -202,30 +217,23 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
     Assume.assumeFalse(catalogName.equalsIgnoreCase("testhive"));
 
-    createAndInitUnPartitionedTargetTable(targetName);
-    createAndInitSourceTable(sourceName);
     append(targetName, new Employee(1, "emp-id-one"), new Employee(6, "emp-id-6"));
     append(sourceName, new Employee(2, "emp-id-2"), new Employee(1, "emp-id-1"), new Employee(6, "emp-id-6"));
     String derivedSource = " ( SELECT * FROM source WHERE id = 2 " +
                            "   UNION ALL " +
                            "   SELECT * FROM source WHERE id = 1 OR id = 6)";
-    String sqlText = "MERGE INTO " + targetName + " AS target " +
+    String sqlText = "MERGE INTO %s AS target " +
             "USING " + derivedSource + " AS source " +
             "ON target.id = source.id " +
             "WHEN MATCHED AND target.id = 1 THEN UPDATE SET * " +
             "WHEN MATCHED AND target.id = 6 THEN DELETE " +
             "WHEN NOT MATCHED AND source.id = 2 THEN INSERT * ";
 
-    sql(sqlText);
+    sql(sqlText, targetName);
     sql("SELECT * FROM %s ORDER BY id, dep", targetName);
     assertEquals("Should have expected rows",
             ImmutableList.of(row(1, "emp-id-1"), row(2, "emp-id-2")),
             sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", targetName));
-  }
-
-  protected void createAndInitPartitionedTargetTable(String tabName) {
-    sql("CREATE TABLE %s (id INT, dep STRING) USING iceberg PARTITIONED BY (dep)", tabName);
-    initTable(tabName);
   }
 
   protected void createAndInitUnPartitionedTargetTable(String tabName) {

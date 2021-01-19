@@ -76,8 +76,8 @@ case class RewriteMergeInto(conf: SQLConf) extends Rule[LogicalPlan] with Rewrit
 
         // Construct the plan to replace the data based on the output of `MergeInto`
         val mergeParams = MergeIntoParams(
-          isSourceRowNotPresent = IsNull(findOutputAttr(joinPlan, ROW_FROM_SOURCE)),
-          isTargetRowNotPresent = IsNull(findOutputAttr(joinPlan, ROW_FROM_TARGET)),
+          isSourceRowNotPresent = IsNull(findOutputAttr(joinPlan.output, ROW_FROM_SOURCE)),
+          isTargetRowNotPresent = IsNull(findOutputAttr(joinPlan.output, ROW_FROM_TARGET)),
           matchedConditions = matchedActions.map(getClauseCondition),
           matchedOutputs = matchedActions.map(actionOutput(_, target.output)),
           notMatchedConditions = notMatchedActions.map(getClauseCondition),
