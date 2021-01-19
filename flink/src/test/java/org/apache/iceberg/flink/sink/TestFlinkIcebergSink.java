@@ -38,6 +38,7 @@ import org.apache.flink.table.data.util.DataFormatConverters;
 import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo;
 import org.apache.flink.test.util.AbstractTestBase;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -147,7 +148,7 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
     SimpleDataUtil.assertTableRows(tablePath, convertToRowData(rows));
   }
 
-  private void testWriteRow(TableSchema tableSchema, boolean shuffleByPartition) throws Exception {
+  private void testWriteRow(TableSchema tableSchema, DistributionMode distributionMode) throws Exception {
     List<Row> rows = Lists.newArrayList(
         Row.of(1, "aaa"),
         Row.of(1, "bbb"),
@@ -166,7 +167,7 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
         .tableLoader(tableLoader)
         .tableSchema(tableSchema)
         .writeParallelism(parallelism)
-        .shuffleByPartition(shuffleByPartition)
+        .distributionMode(distributionMode)
         .build();
 
     // Execute the program.
@@ -183,17 +184,17 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
 
   @Test
   public void testWriteRow() throws Exception {
-    testWriteRow(null, false);
+    testWriteRow(null, DistributionMode.NONE);
   }
 
   @Test
   public void testWriteRowWithTableSchema() throws Exception {
-    testWriteRow(SimpleDataUtil.FLINK_SCHEMA, false);
+    testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.NONE);
   }
 
   @Test
-  public void testShuffleByPartition() throws Exception {
-    testWriteRow(null, true);
+  public void testPartitionWriteMode() throws Exception {
+    testWriteRow(null, DistributionMode.PARTITION);
     if (partitioned) {
       Assert.assertEquals("Should have 1 data file in partition 'aaa'", 1, partitionFiles("aaa").size());
       Assert.assertEquals("Should have 1 data file in partition 'bbb'", 1, partitionFiles("bbb").size());
@@ -203,7 +204,7 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
 
   @Test
   public void testShuffleByPartitionWithSchema() throws Exception {
-    testWriteRow(SimpleDataUtil.FLINK_SCHEMA, true);
+    testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.PARTITION);
     if (partitioned) {
       Assert.assertEquals("Should have 1 data file in partition 'aaa'", 1, partitionFiles("aaa").size());
       Assert.assertEquals("Should have 1 data file in partition 'bbb'", 1, partitionFiles("bbb").size());

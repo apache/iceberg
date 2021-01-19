@@ -38,7 +38,9 @@ import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -51,8 +53,8 @@ import org.apache.iceberg.util.PropertyUtil;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
-import static org.apache.iceberg.TableProperties.WRITE_SHUFFLE_BY_PARTITION;
-import static org.apache.iceberg.TableProperties.WRITE_SHUFFLE_BY_PARTITION_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
@@ -116,7 +118,7 @@ public class FlinkSink {
     private Table table;
     private TableSchema tableSchema;
     private boolean overwrite = false;
-    private Boolean shuffleByPartition = null;
+    private DistributionMode distributionMode = null;
     private Integer writeParallelism = null;
     private List<String> equalityFieldColumns = null;
 
@@ -165,14 +167,14 @@ public class FlinkSink {
     }
 
     /**
-     * Provides a switch to shuffle by partition key, so that each partition/bucket will be wrote by only one task. That
-     * will reduce lots of small files in partitioned fanout write policy for flink sink.
+     * Configure the write distribution mode that the flink sink will use. Currently, flink support
+     * {@link DistributionMode#NONE} and {@link DistributionMode#PARTITION}.
      *
-     * @param enable to shuffle by partition key in partitioned table.
+     * @param mode to specify the write distribution mode.
      * @return {@link Builder} to connect the iceberg table.
      */
-    public Builder shuffleByPartition(boolean enable) {
-      this.shuffleByPartition = enable;
+    public Builder distributionMode(DistributionMode mode) {
+      this.distributionMode = mode;
       return this;
     }
 
@@ -227,10 +229,8 @@ public class FlinkSink {
       // Convert the flink requested table schema to flink row type.
       RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
 
-      // Shuffle by partition key if possible.
-      if (shouldShuffleByPartition(table.properties()) && !table.spec().isUnpartitioned()) {
-        rowDataInput = rowDataInput.keyBy(new PartitionKeySelector(table.spec(), table.schema(), flinkRowType));
-      }
+      // Distribute the records from input data stream based on the write.distribution-mode.
+      rowDataInput = distributeDataStream(rowDataInput, table.properties(), table.spec(), table.schema(), flinkRowType);
 
       // Concat the iceberg stream writer and committer operators.
       IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds);
@@ -250,14 +250,39 @@ public class FlinkSink {
           .setParallelism(1);
     }
 
-    private boolean shouldShuffleByPartition(Map<String, String> properties) {
-      if (shuffleByPartition == null) {
-        // Use the configured table option if does not specify in FlinkSink explicitly.
-        return PropertyUtil.propertyAsBoolean(properties,
-            WRITE_SHUFFLE_BY_PARTITION,
-            WRITE_SHUFFLE_BY_PARTITION_DEFAULT);
+    private DataStream<RowData> distributeDataStream(DataStream<RowData> input,
+                                                     Map<String, String> properties,
+                                                     PartitionSpec partitionSpec,
+                                                     Schema iSchema,
+                                                     RowType flinkRowType) {
+      DistributionMode writeMode;
+      if (distributionMode == null) {
+        // Fallback to use distribution mode parsed from table properties if don't specify in job level.
+        String modeName = PropertyUtil.propertyAsString(properties,
+            WRITE_DISTRIBUTION_MODE,
+            WRITE_DISTRIBUTION_MODE_DEFAULT);
+
+        writeMode = DistributionMode.fromName(modeName);
       } else {
-        return shuffleByPartition;
+        writeMode = distributionMode;
+      }
+
+      switch (writeMode) {
+        case NONE:
+          return input;
+
+        case PARTITION:
+          if (partitionSpec.isUnpartitioned()) {
+            return input;
+          } else {
+            return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+          }
+
+        case SORT:
+          throw new UnsupportedOperationException("The write.distribution-mode=sort is not supported in flink now");
+
+        default:
+          throw new RuntimeException("Unrecognized write.distribution-mode: " + writeMode);
       }
     }
   }

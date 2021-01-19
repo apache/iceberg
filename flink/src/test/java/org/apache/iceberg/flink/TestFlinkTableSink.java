@@ -32,8 +32,10 @@ import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.Expressions;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
+import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -234,12 +236,12 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
   }
 
   @Test
-  public void testWithShuffleByPartition() throws Exception {
+  public void testPartitionWriteMode() throws Exception {
     String tableName = "test_shuffle_by_partition";
 
     Map<String, String> tableProps = ImmutableMap.of(
         "write.format.default", format.name(),
-        "write.shuffle-by.partition", "true"
+        TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.PARTITION.modeName()
     );
     sql("CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) WITH %s",
         tableName, toWithClause(tableProps));
