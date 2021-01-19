@@ -76,8 +76,8 @@ case class RewriteDelete(conf: SQLConf) extends Rule[LogicalPlan] with RewriteRo
       remainingRowsPlan: LogicalPlan,
       output: Seq[AttributeReference]): LogicalPlan = {
 
-    val fileNameCol = findOutputAttr(remainingRowsPlan, FILE_NAME_COL)
-    val rowPosCol = findOutputAttr(remainingRowsPlan, ROW_POS_COL)
+    val fileNameCol = findOutputAttr(remainingRowsPlan.output, FILE_NAME_COL)
+    val rowPosCol = findOutputAttr(remainingRowsPlan.output, ROW_POS_COL)
     val order = Seq(SortOrder(fileNameCol, Ascending), SortOrder(rowPosCol, Ascending))
     val numShufflePartitions = SQLConf.get.numShufflePartitions
     val repartition = RepartitionByExpression(Seq(fileNameCol), remainingRowsPlan, numShufflePartitions)

@@ -67,7 +67,7 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
 
     scan match {
       case filterable: SupportsFileFilter =>
-        val matchingFilePlan = buildFileFilterPlan(matchingRowsPlanBuilder(scanRelation))
+        val matchingFilePlan = buildFileFilterPlan(scanRelation.output, matchingRowsPlanBuilder(scanRelation))
         DynamicFileFilter(scanRelation, matchingFilePlan, filterable)
       case _ =>
         scanRelation
@@ -102,15 +102,15 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
     LogicalWriteInfoImpl(queryId = uuid.toString, schema, CaseInsensitiveStringMap.empty)
   }
 
-  private def buildFileFilterPlan(matchingRowsPlan: LogicalPlan): LogicalPlan = {
-    val fileAttr = findOutputAttr(matchingRowsPlan, FILE_NAME_COL)
+  private def buildFileFilterPlan(tableAttrs: Seq[AttributeReference], matchingRowsPlan: LogicalPlan): LogicalPlan = {
+    val fileAttr = findOutputAttr(tableAttrs, FILE_NAME_COL)
     val agg = Aggregate(Seq(fileAttr), Seq(fileAttr), matchingRowsPlan)
-    Project(Seq(findOutputAttr(agg, FILE_NAME_COL)), agg)
+    Project(Seq(findOutputAttr(agg.output, FILE_NAME_COL)), agg)
   }
 
-  protected def findOutputAttr(plan: LogicalPlan, attrName: String): Attribute = {
-    plan.output.find(attr => resolver(attr.name, attrName)).getOrElse {
-      throw new AnalysisException(s"Cannot find $attrName in ${plan.output}")
+  protected def findOutputAttr(attrs: Seq[Attribute], attrName: String): Attribute = {
+    attrs.find(attr => resolver(attr.name, attrName)).getOrElse {
+      throw new AnalysisException(s"Cannot find $attrName in $attrs")
     }
   }
 
