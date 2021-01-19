@@ -258,6 +258,37 @@ ALTER TABLE prod.db.sample DROP COLUMN id
 ALTER TABLE prod.db.sample DROP COLUMN point.z
 ```
 
+### `ALTER TABLE ... ADD PARTITION FIELD`
+
+```sql
+ALTER TABLE prod.db.sample ADD PARTITION FIELD catalog
+ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id)
+ALTER TABLE prod.db.sample ADD PARTITION FIELD truncate(data, 4)
+ALTER TABLE prod.db.sample ADD PARTITION FIELD years(ts)
+-- use optional AS keyword to specify a custom name for the partition field 
+ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id) AS shard
+```
+
+### `ALTER TABLE ... DROP PARTITION FIELD`
+
+```sql
+ALTER TABLE prod.db.sample DROP PARTITION FIELD catalog
+ALTER TABLE prod.db.sample DROP PARTITION FIELD bucket(16, id)
+ALTER TABLE prod.db.sample DROP PARTITION FIELD truncate(data, 4)
+ALTER TABLE prod.db.sample DROP PARTITION FIELD years(ts)
+```
+
+
+### `ALTER TABLE ... WRITE ORDERED BY`
+
+```sql
+ALTER TABLE prod.db.sample WRITE ORDERED BY category, id
+-- use optional ASC/DEC keyword to specify sort order of each field (default ASC)
+ALTER TABLE prod.db.sample WRITE ORDERED BY category ASC, id DESC
+-- use optional NULLS FIRST/NULLS LAST keyword to specify null order of each field (default FIRST)
+ALTER TABLE prod.db.sample WRITE ORDERED BY category ASC NULLS LAST, id DESC NULLS FIRST
+```
+
 ### `DROP TABLE`
 
 To delete a table, run:
