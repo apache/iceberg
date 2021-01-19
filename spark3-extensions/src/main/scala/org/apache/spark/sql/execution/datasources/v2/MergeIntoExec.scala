@@ -63,13 +63,10 @@ case class MergeIntoExec(
     // In case when there are overlapping condition in the MATCHED
     // clauses, for the first one that satisfies the predicate, the
     // corresponding action is applied. For example:
-    //
-    // WHEN MATCHED AND id > 1 AND id < 10 UPDATE *
-    // WHEN MATCHED AND id = 5 OR id = 21 DELETE
-    //
+    //   WHEN MATCHED AND id > 1 AND id < 10 UPDATE *
+    //   WHEN MATCHED AND id = 5 OR id = 21 DELETE
     // In above case, when id = 5, it applies both that matched predicates. In this
     // case the first one we see is applied.
-    //
 
     val pair = actions.find {
       case (predicate, _) => predicate.eval(inputRow)

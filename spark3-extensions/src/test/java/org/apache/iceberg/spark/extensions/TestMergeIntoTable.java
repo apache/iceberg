@@ -199,7 +199,7 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
     append(targetName, new Employee(2, "emp-id-two"), new Employee(6, "emp-id-6"));
     append(sourceName, new Employee(2, "emp-id-3"), new Employee(1, "emp-id-2"), new Employee(5, "emp-id-6"));
     String sourceCTE = "WITH cte1 AS (SELECT id + 1 AS id, dep FROM source)";
-    String sqlText = sourceCTE + " " + "MERGE INTO %s AS target " +
+    String sqlText = sourceCTE + " MERGE INTO %s AS target " +
             "USING cte1"  + " AS source " +
             "ON target.id = source.id " +
             "WHEN MATCHED AND target.id = 2 THEN UPDATE SET * " +
