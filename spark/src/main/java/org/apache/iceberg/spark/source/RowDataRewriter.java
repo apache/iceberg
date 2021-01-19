@@ -103,8 +103,8 @@ public class RowDataRewriter implements Serializable {
     OutputFileFactory fileFactory = new OutputFileFactory(
         spec, format, locations, io.value(), encryptionManager.value(), partitionId, taskId);
 
-    TaskWriter<InternalRow> writer;
-    if (spec.fields().isEmpty()) {
+    final TaskWriter<InternalRow> writer;
+    if (spec.isUnpartitioned()) {
       writer = new UnpartitionedWriter<>(spec, format, appenderFactory, fileFactory, io.value(),
           Long.MAX_VALUE);
     } else if (PropertyUtil.propertyAsBoolean(properties,
