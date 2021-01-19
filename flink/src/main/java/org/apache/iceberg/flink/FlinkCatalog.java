@@ -761,10 +761,8 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public List<CatalogPartitionSpec> listPartitionsByFilter(ObjectPath tablePath,
-                                                           List<org.apache.flink.table.expressions.Expression> filters)
-      throws CatalogException {
-    // When https://github.com/apache/iceberg/pull/1893 merged ,we will call the util to convert the flink expression to iceberg expression,
-    // and then call the  getPartitions(ObjectPath tablePath, Expression filter)  method to get the iceberg partitions .
+      List<org.apache.flink.table.expressions.Expression> filters) throws CatalogException {
+    // TODO: call getPartitions method to get the partitions
     throw new UnsupportedOperationException();
   }
 

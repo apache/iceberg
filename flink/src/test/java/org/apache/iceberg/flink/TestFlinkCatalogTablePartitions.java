@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.flink;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import org.apache.flink.table.catalog.Catalog;
@@ -28,66 +30,71 @@ import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
+@RunWith(Parameterized.class)
+public class TestFlinkCatalogTablePartitions extends FlinkTestBase {
 
-  private String tableName = "test_table";
+  private static final String CATALOG_NAME = "test_catalog";
+  private static final String DATABASE_NAME = "test_db";
+  private static final String TABLE_NAME = "test_table";
+  private final FileFormat format = FileFormat.AVRO;
+  private static String warehouse;
+  private boolean cacheEnabled;
 
-  private final FileFormat format;
+  public TestFlinkCatalogTablePartitions(boolean cacheEnabled) {
+    this.cacheEnabled = cacheEnabled;
+  }
 
-  @Parameterized.Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}, cacheEnabled={3}")
+  @Parameterized.Parameters(name = "cacheEnabled={0}")
   public static Iterable<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
-    for (FileFormat format : new FileFormat[] {FileFormat.ORC, FileFormat.AVRO, FileFormat.PARQUET}) {
-      for (Boolean cacheEnabled : new Boolean[] {true, false}) {
-        for (Object[] catalogParams : FlinkCatalogTestBase.parameters()) {
-          String catalogName = (String) catalogParams[0];
-          Namespace baseNamespace = (Namespace) catalogParams[1];
-          parameters.add(new Object[] {catalogName, baseNamespace, format, cacheEnabled});
-        }
-      }
+    for (Boolean cacheEnabled : new Boolean[] {true, false}) {
+      parameters.add(new Object[] {cacheEnabled});
     }
     return parameters;
   }
 
-  public TestFlinkCatalogTablePartitions(String catalogName, Namespace baseNamespace, FileFormat format,
-                                         boolean cacheEnabled) {
-    super(catalogName, baseNamespace);
-    this.format = format;
-    config.put(FlinkCatalogFactory.CACHE_ENABLED, String.valueOf(cacheEnabled));
+  @BeforeClass
+  public static void createWarehouse() throws IOException {
+    File warehouseFile = TEMPORARY_FOLDER.newFolder();
+    Assert.assertTrue("The warehouse should be deleted", warehouseFile.delete());
+    // before variables
+    warehouse = "file:" + warehouseFile;
   }
 
   @Before
   public void before() {
-    super.before();
-    sql("CREATE DATABASE %s", flinkDatabase);
-    sql("USE CATALOG %s", catalogName);
-    sql("USE %s", DATABASE);
+    sql("CREATE CATALOG %s WITH ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s', 'cache-enabled' = '%s')",
+        CATALOG_NAME, warehouse, cacheEnabled);
+    sql("USE CATALOG %s", CATALOG_NAME);
+    sql("CREATE DATABASE %s", DATABASE_NAME);
+    sql("USE %s", DATABASE_NAME);
   }
 
   @After
-  public void cleanNamespaces() {
-    sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
-    sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
-    super.clean();
+  public void clean() {
+    sql("DROP TABLE IF EXISTS %s.%s", DATABASE_NAME, TABLE_NAME);
+    sql("DROP DATABASE IF EXISTS %s", DATABASE_NAME);
+    sql("DROP CATALOG IF EXISTS %s", CATALOG_NAME);
   }
 
   @Test
   public void testListPartitionsWithUnpartitionedTable() {
     sql("CREATE TABLE %s (id INT, data VARCHAR) with ('write.format.default'='%s')",
-        tableName, format.name());
-    sql("INSERT INTO %s SELECT 1,'a'", tableName);
+        TABLE_NAME, format.name());
+    sql("INSERT INTO %s SELECT 1,'a'", TABLE_NAME);
 
-    ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
-    FlinkCatalog flinkCatalog = (FlinkCatalog) getTableEnv().getCatalog(catalogName).get();
+    ObjectPath objectPath = new ObjectPath(DATABASE_NAME, TABLE_NAME);
+    FlinkCatalog flinkCatalog = (FlinkCatalog) getTableEnv().getCatalog(CATALOG_NAME).get();
     AssertHelpers.assertThrows("Should not list partitions for unpartitioned table.",
         TableNotPartitionedException.class, () -> flinkCatalog.listPartitions(objectPath));
   }
@@ -95,12 +102,12 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
   @Test
   public void testListPartitionsWithPartitionedTable() throws TableNotExistException, TableNotPartitionedException {
     sql("CREATE TABLE %s (id INT, data VARCHAR) PARTITIONED BY (data) " +
-        "with ('write.format.default'='%s')", tableName, format.name());
-    sql("INSERT INTO %s SELECT 1,'a'", tableName);
-    sql("INSERT INTO %s SELECT 2,'b'", tableName);
+        "with ('write.format.default'='%s')", TABLE_NAME, format.name());
+    sql("INSERT INTO %s SELECT 1,'a'", TABLE_NAME);
+    sql("INSERT INTO %s SELECT 2,'b'", TABLE_NAME);
 
-    ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
-    Optional<Catalog> catalog = getTableEnv().getCatalog(catalogName);
+    ObjectPath objectPath = new ObjectPath(DATABASE_NAME, TABLE_NAME);
+    Optional<Catalog> catalog = getTableEnv().getCatalog(CATALOG_NAME);
     Assert.assertTrue("Conversion should succeed", catalog.isPresent());
     FlinkCatalog flinkCatalog = (FlinkCatalog) catalog.get();
     List<CatalogPartitionSpec> list = flinkCatalog.listPartitions(objectPath);
@@ -117,16 +124,16 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
   @Test
   public void testListPartitionsWithStringPartitions() throws TableNotExistException, TableNotPartitionedException {
     sql("CREATE TABLE %s (id INT, data VARCHAR,t TIMESTAMP) PARTITIONED BY (data,t) " +
-        "with ('write.format.default'='%s')", tableName, format.name());
+        "with ('write.format.default'='%s')", TABLE_NAME, format.name());
     sql("INSERT INTO %s VALUES " +
             "(1, 'a',TO_TIMESTAMP('2021-01-01 12:13:14'))," +
             "(2, 'b',TO_TIMESTAMP('2021-01-01 12:13:14'))," +
             "(3, 'a',TO_TIMESTAMP('2021-01-02 15:16:17'))," +
             "(4, 'b',TO_TIMESTAMP('2021-01-02 15:16:17'))",
-        tableName);
+        TABLE_NAME);
 
-    ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
-    Optional<Catalog> catalog = getTableEnv().getCatalog(catalogName);
+    ObjectPath objectPath = new ObjectPath(DATABASE_NAME, TABLE_NAME);
+    Optional<Catalog> catalog = getTableEnv().getCatalog(CATALOG_NAME);
     Assert.assertTrue("Conversion should succeed", catalog.isPresent());
     FlinkCatalog flinkCatalog = (FlinkCatalog) catalog.get();
 
@@ -147,11 +154,11 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
   @Test
   public void testListPartitionsWithIntegerPartitions() throws TableNotExistException, TableNotPartitionedException {
     sql("CREATE TABLE %s (id INT, d INT, h INT) PARTITIONED BY (d,h) " +
-        "with ('write.format.default'='%s')", tableName, format.name());
-    sql("INSERT INTO %s VALUES (1,20210101,10),(2,20210101,11),(3,20210102,12),(4,20210102,13)", tableName);
+        "with ('write.format.default'='%s')", TABLE_NAME, format.name());
+    sql("INSERT INTO %s VALUES (1,20210101,10),(2,20210101,11),(3,20210102,12),(4,20210102,13)", TABLE_NAME);
 
-    ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
-    Optional<Catalog> catalog = getTableEnv().getCatalog(catalogName);
+    ObjectPath objectPath = new ObjectPath(DATABASE_NAME, TABLE_NAME);
+    Optional<Catalog> catalog = getTableEnv().getCatalog(CATALOG_NAME);
     Assert.assertTrue("Conversion should succeed", catalog.isPresent());
     FlinkCatalog flinkCatalog = (FlinkCatalog) catalog.get();
 
@@ -170,16 +177,16 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
   @Test
   public void testListPartitionsWithDoublePartitions() throws TableNotExistException, TableNotPartitionedException {
     sql("CREATE TABLE %s (id INT, d DATE, h DOUBLE) PARTITIONED BY (d,h) " +
-        "with ('write.format.default'='%s')", tableName, format.name());
+        "with ('write.format.default'='%s')", TABLE_NAME, format.name());
     sql("INSERT INTO %s VALUES " +
             "(1,DATE '2021-01-01',10)," +
             "(2,DATE '2021-01-01',11)," +
             "(3,DATE '2021-01-02',10)," +
             "(4,DATE '2021-01-02',11)",
-        tableName);
+        TABLE_NAME);
 
-    ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
-    Optional<Catalog> catalog = getTableEnv().getCatalog(catalogName);
+    ObjectPath objectPath = new ObjectPath(DATABASE_NAME, TABLE_NAME);
+    Optional<Catalog> catalog = getTableEnv().getCatalog(CATALOG_NAME);
     Assert.assertTrue("Conversion should succeed", catalog.isPresent());
     FlinkCatalog flinkCatalog = (FlinkCatalog) catalog.get();
 
@@ -198,16 +205,16 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
   @Test
   public void testListPartitionsWithFloatPartitions() throws TableNotExistException, TableNotPartitionedException {
     sql("CREATE TABLE %s (id INT, d DATE, h FLOAT) PARTITIONED BY (d,h) " +
-        "with ('write.format.default'='%s')", tableName, format.name());
+        "with ('write.format.default'='%s')", TABLE_NAME, format.name());
     sql("INSERT INTO %s VALUES " +
             "(1,DATE '2021-01-01',10)," +
             "(2,DATE '2021-01-01',11)," +
             "(3,DATE '2021-01-02',10)," +
             "(4,DATE '2021-01-02',11)",
-        tableName);
+        TABLE_NAME);
 
-    ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
-    Optional<Catalog> catalog = getTableEnv().getCatalog(catalogName);
+    ObjectPath objectPath = new ObjectPath(DATABASE_NAME, TABLE_NAME);
+    Optional<Catalog> catalog = getTableEnv().getCatalog(CATALOG_NAME);
     Assert.assertTrue("Conversion should succeed", catalog.isPresent());
     FlinkCatalog flinkCatalog = (FlinkCatalog) catalog.get();
 
@@ -226,16 +233,16 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
   @Test
   public void testListPartitionsWithDatePartitions() throws TableNotExistException, TableNotPartitionedException {
     sql("CREATE TABLE %s (id INT, d DATE,h INT) PARTITIONED BY (d,h) " +
-        "with ('write.format.default'='%s')", tableName, format.name());
+        "with ('write.format.default'='%s')", TABLE_NAME, format.name());
     sql("INSERT INTO %s VALUES " +
             "(1, DATE '2021-01-01',10)," +
             "(2, DATE '2021-01-02',10)," +
             "(2, DATE '2021-01-01',11)," +
             "(2, DATE '2021-01-02',11)",
-        tableName);
+        TABLE_NAME);
 
-    ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
-    Optional<Catalog> catalog = getTableEnv().getCatalog(catalogName);
+    ObjectPath objectPath = new ObjectPath(DATABASE_NAME, TABLE_NAME);
+    Optional<Catalog> catalog = getTableEnv().getCatalog(CATALOG_NAME);
     Assert.assertTrue("Conversion should succeed", catalog.isPresent());
     FlinkCatalog flinkCatalog = (FlinkCatalog) catalog.get();
 
@@ -254,16 +261,16 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
   @Test
   public void testListPartitionsWithTimePartitions() throws TableNotExistException, TableNotPartitionedException {
     sql("CREATE TABLE %s (id INT, d DATE, t TIME) PARTITIONED BY (d,t) " +
-        "with ('write.format.default'='%s')", tableName, format.name());
+        "with ('write.format.default'='%s')", TABLE_NAME, format.name());
     sql("INSERT INTO %s VALUES " +
             "(1, DATE '2021-01-01',TIME '12:13:14')," +
             "(2, DATE '2021-01-02',TIME '12:13:14')," +
             "(2, DATE '2021-01-01',TIME '15:16:17')," +
             "(2, DATE '2021-01-02',TIME '15:16:17')",
-        tableName);
+        TABLE_NAME);
 
-    ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
-    Optional<Catalog> catalog = getTableEnv().getCatalog(catalogName);
+    ObjectPath objectPath = new ObjectPath(DATABASE_NAME, TABLE_NAME);
+    Optional<Catalog> catalog = getTableEnv().getCatalog(CATALOG_NAME);
     Assert.assertTrue("Conversion should succeed", catalog.isPresent());
     FlinkCatalog flinkCatalog = (FlinkCatalog) catalog.get();
 
@@ -282,16 +289,16 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
   @Test
   public void testListPartitionsWithTimestampPartitions() throws TableNotExistException, TableNotPartitionedException {
     sql("CREATE TABLE %s (id INT, data STRING, t TIMESTAMP) PARTITIONED BY (data,t) " +
-        "with ('write.format.default'='%s')", tableName, format.name());
+        "with ('write.format.default'='%s')", TABLE_NAME, format.name());
     sql("INSERT INTO %s VALUES " +
             "(1, 'a',TO_TIMESTAMP('2021-01-01 12:13:14'))," +
             "(2, 'b',TO_TIMESTAMP('2021-01-01 12:13:14'))," +
             "(3, 'a',TO_TIMESTAMP('2021-01-02 15:16:17'))," +
             "(4, 'b',TO_TIMESTAMP('2021-01-02 15:16:17'))",
-        tableName);
+        TABLE_NAME);
 
-    ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
-    Optional<Catalog> catalog = getTableEnv().getCatalog(catalogName);
+    ObjectPath objectPath = new ObjectPath(DATABASE_NAME, TABLE_NAME);
+    Optional<Catalog> catalog = getTableEnv().getCatalog(CATALOG_NAME);
     Assert.assertTrue("Conversion should succeed", catalog.isPresent());
     FlinkCatalog flinkCatalog = (FlinkCatalog) catalog.get();
 
@@ -312,11 +319,11 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
   @Test
   public void testListPartitionsWithbBooleanPartitions() throws TableNotExistException, TableNotPartitionedException {
     sql("CREATE TABLE %s (id INT, data String, t BOOLEAN) PARTITIONED BY (data,t) " +
-        "with ('write.format.default'='%s')", tableName, format.name());
-    sql("INSERT INTO %s VALUES (1,'a',true), (2,'b',true), (3,'a',false),(4,'b',false)", tableName);
+        "with ('write.format.default'='%s')", TABLE_NAME, format.name());
+    sql("INSERT INTO %s VALUES (1,'a',true), (2,'b',true), (3,'a',false),(4,'b',false)", TABLE_NAME);
 
-    ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
-    Optional<Catalog> catalog = getTableEnv().getCatalog(catalogName);
+    ObjectPath objectPath = new ObjectPath(DATABASE_NAME, TABLE_NAME);
+    Optional<Catalog> catalog = getTableEnv().getCatalog(CATALOG_NAME);
     Assert.assertTrue("Conversion should succeed", catalog.isPresent());
     FlinkCatalog flinkCatalog = (FlinkCatalog) catalog.get();
 
@@ -335,11 +342,11 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
   @Test
   public void testListPartitionsWithbDecimalPartitions() throws TableNotExistException, TableNotPartitionedException {
     sql("CREATE TABLE %s (id INT, data String, t DECIMAL) PARTITIONED BY (data,t) " +
-        "with ('write.format.default'='%s')", tableName, format.name());
-    sql("INSERT INTO %s VALUES (1,'a',10), (2,'b',10), (3,'a',11),(4,'b',11)", tableName);
+        "with ('write.format.default'='%s')", TABLE_NAME, format.name());
+    sql("INSERT INTO %s VALUES (1,'a',10), (2,'b',10), (3,'a',11),(4,'b',11)", TABLE_NAME);
 
-    ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
-    Optional<Catalog> catalog = getTableEnv().getCatalog(catalogName);
+    ObjectPath objectPath = new ObjectPath(DATABASE_NAME, TABLE_NAME);
+    Optional<Catalog> catalog = getTableEnv().getCatalog(CATALOG_NAME);
     Assert.assertTrue("Conversion should succeed", catalog.isPresent());
     FlinkCatalog flinkCatalog = (FlinkCatalog) catalog.get();
 
@@ -358,16 +365,16 @@ public class TestFlinkCatalogTablePartitions extends FlinkCatalogTestBase {
   @Test
   public void testListPartitionsWithbVarBinaryPartitions() throws TableNotExistException, TableNotPartitionedException {
     sql("CREATE TABLE %s (id INT, data String, t VARBINARY(100)) PARTITIONED BY (data,t) " +
-        "with ('write.format.default'='%s')", tableName, format.name());
+        "with ('write.format.default'='%s')", TABLE_NAME, format.name());
     sql("INSERT INTO %s VALUES " +
             "(1,'a',ENCODE('hello','UTF-8')), " +
             "(2,'b',ENCODE('hello','UTF-8')), " +
             "(3,'a',ENCODE('world','UTF-8'))," +
             "(4,'b',ENCODE('world','UTF-8'))",
-        tableName);
+        TABLE_NAME);
 
-    ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
-    Optional<Catalog> catalog = getTableEnv().getCatalog(catalogName);
+    ObjectPath objectPath = new ObjectPath(DATABASE_NAME, TABLE_NAME);
+    Optional<Catalog> catalog = getTableEnv().getCatalog(CATALOG_NAME);
     Assert.assertTrue("Conversion should succeed", catalog.isPresent());
     FlinkCatalog flinkCatalog = (FlinkCatalog) catalog.get();
 
