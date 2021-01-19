@@ -22,6 +22,7 @@ import java.util.UUID
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.analysis.Resolver
+import org.apache.spark.sql.catalyst.expressions.And
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.AttributeSet
@@ -29,6 +30,7 @@ import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.plans.logical.Aggregate
 import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
+import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.connector.catalog.Table
@@ -38,6 +40,7 @@ import org.apache.spark.sql.connector.read.ScanBuilder
 import org.apache.spark.sql.connector.write.LogicalWriteInfo
 import org.apache.spark.sql.connector.write.LogicalWriteInfoImpl
 import org.apache.spark.sql.execution.datasources.DataSourceStrategy
+import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
 import org.apache.spark.sql.execution.datasources.v2.PushDownUtils
 import org.apache.spark.sql.sources
@@ -45,25 +48,28 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
+
+  import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Implicits._
+
   protected val FILE_NAME_COL = "_file"
   protected val ROW_POS_COL = "_pos"
 
   def resolver: Resolver
 
   protected def buildSimpleScanPlan(
-      table: Table,
-      tableAttrs: Seq[AttributeReference],
-      mergeBuilder: MergeBuilder,
+      relation: DataSourceV2Relation,
       cond: Expression): LogicalPlan = {
 
-    val scanBuilder = mergeBuilder.asScanBuilder
+    val scanBuilder = relation.table.asReadable.newScanBuilder(relation.options)
 
-    pushFilters(scanBuilder, cond, tableAttrs)
+    pushFilters(scanBuilder, cond, relation.output)
 
     val scan = scanBuilder.build()
-    val outputAttrs = toOutputAttrs(scan.readSchema(), tableAttrs)
+    val outputAttrs = toOutputAttrs(scan.readSchema(), relation.output)
+    val predicates = extractFilters(cond, relation.output).reduceLeftOption(And)
+    val scanRelation = DataSourceV2ScanRelation(relation.table, scan, outputAttrs)
 
-    DataSourceV2ScanRelation(table, scan, outputAttrs)
+    predicates.map(Filter(_, scanRelation)).getOrElse(scanRelation)
   }
 
   protected def buildDynamicFilterScanPlan(
@@ -90,13 +96,16 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
     }
   }
 
+  private def extractFilters(cond: Expression, tableAttrs: Seq[AttributeReference]): Seq[Expression] = {
+    val tableAttrSet = AttributeSet(tableAttrs)
+    splitConjunctivePredicates(cond).filter(_.references.subsetOf(tableAttrSet))
+  }
+
   private def pushFilters(
       scanBuilder: ScanBuilder,
       cond: Expression,
       tableAttrs: Seq[AttributeReference]): Unit = {
-
-    val tableAttrSet = AttributeSet(tableAttrs)
-    val predicates = splitConjunctivePredicates(cond).filter(_.references.subsetOf(tableAttrSet))
+    val predicates = extractFilters(cond, tableAttrs)
     if (predicates.nonEmpty) {
       val normalizedPredicates = DataSourceStrategy.normalizeExprs(predicates, tableAttrs)
       PushDownUtils.pushFilters(scanBuilder, normalizedPredicates)

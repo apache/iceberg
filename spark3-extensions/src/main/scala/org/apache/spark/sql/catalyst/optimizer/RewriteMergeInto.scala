@@ -64,8 +64,7 @@ case class RewriteMergeInto(conf: SQLConf) extends Rule[LogicalPlan] with Rewrit
       case MergeIntoTable(target: DataSourceV2Relation, source: LogicalPlan, cond, matchedActions, notMatchedActions)
           if matchedActions.isEmpty =>
 
-        val mergeBuilder = target.table.asMergeable.newMergeBuilder("merge", newWriteInfo(target.schema))
-        val targetTableScan = buildSimpleScanPlan(target.table, target.output, mergeBuilder, cond)
+        val targetTableScan = buildSimpleScanPlan(target, cond)
 
         // when there are no matched actions, use a left anti join to remove any matching rows and rewrite to use
         // append instead of replace. only unmatched source rows are passed to the merge and actions are all inserts.
@@ -81,6 +80,7 @@ case class RewriteMergeInto(conf: SQLConf) extends Rule[LogicalPlan] with Rewrit
           targetOutput = Nil,
           joinedAttributes = joinPlan.output
         )
+
         val mergePlan = MergeInto(mergeParams, target, joinPlan)
 
         AppendData.byPosition(target, mergePlan, Map.empty)
