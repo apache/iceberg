@@ -48,6 +48,7 @@ import org.junit.Assume;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestParquetVectorizedReads extends AvroDataTest {
@@ -230,5 +231,33 @@ public class TestParquetVectorizedReads extends AvroDataTest {
           }
           return record;
         });
+  }
+
+  @Test
+  public void testReadsForTypePromotedColumns() throws Exception {
+    Schema writeSchema = new Schema(
+        required(100, "id", Types.LongType.get()),
+        optional(101, "int_data", Types.IntegerType.get()),
+        optional(102, "float_data", Types.FloatType.get()),
+        optional(103, "decimal_data", Types.DecimalType.of(10, 5))
+    );
+
+    File dataFile = temp.newFile();
+    Assert.assertTrue("Delete should succeed", dataFile.delete());
+    Iterable<GenericData.Record> data = generateData(writeSchema, 30000, 0L,
+        RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
+    try (FileAppender<GenericData.Record> writer = getParquetWriter(writeSchema, dataFile)) {
+      writer.addAll(data);
+    }
+
+    Schema readSchema = new Schema(
+        required(100, "id", Types.LongType.get()),
+        optional(101, "int_data", Types.LongType.get()),
+        optional(102, "float_data", Types.DoubleType.get()),
+        optional(103, "decimal_data", Types.DecimalType.of(25, 5))
+    );
+
+    assertRecordsMatch(readSchema, 30000, data, dataFile, false,
+        true, BATCH_SIZE);
   }
 }
