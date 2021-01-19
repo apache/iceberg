@@ -101,7 +101,7 @@ public class TestTableMetadata {
         .build();
 
     TableMetadata expected = new TableMetadata(null, 2, UUID.randomUUID().toString(), TEST_LOCATION,
-        SEQ_NO, System.currentTimeMillis(), 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
+        SEQ_NO, System.currentTimeMillis(), 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
         3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog, ImmutableList.of());
 
@@ -161,7 +161,7 @@ public class TestTableMetadata {
         new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
     TableMetadata expected = new TableMetadata(null, 1, null, TEST_LOCATION,
-        0, System.currentTimeMillis(), 3, TEST_SCHEMA, 6, ImmutableList.of(spec),
+        0, System.currentTimeMillis(), 3, TEST_SCHEMA, 6, ImmutableList.of(spec), spec.lastAssignedFieldId(),
         TableMetadata.INITIAL_SORT_ORDER_ID, ImmutableList.of(sortOrder), ImmutableMap.of("property", "value"),
         currentSnapshotId, Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of(), ImmutableList.of());
 
@@ -273,7 +273,7 @@ public class TestTableMetadata {
         "/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
 
     TableMetadata base = new TableMetadata(null, 1, UUID.randomUUID().toString(), TEST_LOCATION,
-        0, System.currentTimeMillis(), 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
+        0, System.currentTimeMillis(), 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
         3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
@@ -309,6 +309,7 @@ public class TestTableMetadata {
 
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
         TEST_LOCATION, 0, currentTimestamp - 80, 3, TEST_SCHEMA, 5, ImmutableList.of(SPEC_5),
+        SPEC_5.lastAssignedFieldId(),
         3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
@@ -354,7 +355,7 @@ public class TestTableMetadata {
 
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
         TEST_LOCATION, 0, currentTimestamp - 50, 3, TEST_SCHEMA, 5,
-        ImmutableList.of(SPEC_5), 3, ImmutableList.of(SORT_ORDER_3),
+        ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(), 3, ImmutableList.of(SORT_ORDER_3),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
@@ -405,8 +406,8 @@ public class TestTableMetadata {
 
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
         TEST_LOCATION, 0, currentTimestamp - 50, 3, TEST_SCHEMA, 2,
-        ImmutableList.of(SPEC_5), TableMetadata.INITIAL_SORT_ORDER_ID, ImmutableList.of(SortOrder.unsorted()),
-        ImmutableMap.of("property", "value"), currentSnapshotId,
+        ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(), TableMetadata.INITIAL_SORT_ORDER_ID,
+        ImmutableList.of(SortOrder.unsorted()), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
 
@@ -432,7 +433,7 @@ public class TestTableMetadata {
         IllegalArgumentException.class, "UUID is required in format v2",
         () -> new TableMetadata(null, 2, null, TEST_LOCATION, SEQ_NO, System.currentTimeMillis(),
             LAST_ASSIGNED_COLUMN_ID, TEST_SCHEMA, SPEC_5.specId(), ImmutableList.of(SPEC_5),
-            3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of(), -1L,
+            SPEC_5.lastAssignedFieldId(), 3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of(), -1L,
             ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
     );
   }
@@ -444,7 +445,7 @@ public class TestTableMetadata {
         IllegalArgumentException.class, "Unsupported format version: v" + unsupportedVersion,
         () -> new TableMetadata(null, unsupportedVersion, null, TEST_LOCATION, SEQ_NO,
             System.currentTimeMillis(), LAST_ASSIGNED_COLUMN_ID, TEST_SCHEMA, SPEC_5.specId(), ImmutableList.of(SPEC_5),
-            3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of(), -1L,
+            SPEC_5.lastAssignedFieldId(), 3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of(), -1L,
             ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
     );
   }
