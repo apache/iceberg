@@ -58,8 +58,9 @@ public class IcebergTableSource
   private final long limit;
   private final List<org.apache.iceberg.expressions.Expression> filters;
 
-  public IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> properties) {
-    this(loader, schema, properties, null, false, -1, ImmutableList.of(), null);
+  public IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> properties,
+                            ReadableConfig readableConfig) {
+    this(loader, schema, properties, null, false, -1, ImmutableList.of(), readableConfig);
   }
 
   private IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> properties,
@@ -140,7 +141,7 @@ public class IcebergTableSource
 
   @Override
   public TableSource<RowData> applyLimit(long newLimit) {
-    return new IcebergTableSource(loader, schema, properties, projectedFields, true, newLimit, filters);
+    return new IcebergTableSource(loader, schema, properties, projectedFields, true, newLimit, filters, readableConfig);
   }
 
   @Override
