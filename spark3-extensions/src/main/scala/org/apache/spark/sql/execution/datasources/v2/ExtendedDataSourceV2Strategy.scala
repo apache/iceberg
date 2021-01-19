@@ -34,6 +34,7 @@ import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.Call
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
+import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilterWithCountCheck
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.MergeInto
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
@@ -65,6 +66,10 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
 
     case DynamicFileFilter(scanPlan, fileFilterPlan, filterable) =>
       DynamicFileFilterExec(planLater(scanPlan), planLater(fileFilterPlan), filterable) :: Nil
+
+    case DynamicFileFilterWithCountCheck(scanPlan, fileFilterPlan, filterable, filesAccumulator, name) =>
+      DynamicFileFilterWithCountCheckExec(planLater(scanPlan),
+        planLater(fileFilterPlan), filterable, filesAccumulator, name) :: Nil
 
     case PhysicalOperation(project, filters, DataSourceV2ScanRelation(_, scan: SupportsFileFilter, output)) =>
       // projection and filters were already pushed down in the optimizer.

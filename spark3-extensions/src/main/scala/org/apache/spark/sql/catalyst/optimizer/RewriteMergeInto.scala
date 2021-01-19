@@ -19,6 +19,10 @@
 
 package org.apache.spark.sql.catalyst.optimizer
 
+import org.apache.iceberg.TableProperties.MERGE_WRITE_CARDINALITY_CHECK
+import org.apache.iceberg.TableProperties.MERGE_WRITE_CARDINALITY_CHECK_DEFAULT
+import org.apache.iceberg.util.PropertyUtil
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.analysis.Resolver
 import org.apache.spark.sql.catalyst.expressions.Alias
 import org.apache.spark.sql.catalyst.expressions.Expression
@@ -43,13 +47,13 @@ import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.UpdateAction
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.utils.RewriteRowLevelOperationHelper
+import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.iceberg.write.MergeBuilder
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
-import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.BooleanType
 
-case class RewriteMergeInto(conf: SQLConf) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper  {
+case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper  {
   private val ROW_FROM_SOURCE = "_row_from_source_"
   private val ROW_FROM_TARGET = "_row_from_target_"
   private val TRUE_LITERAL = Literal(true, BooleanType)
@@ -57,7 +61,7 @@ case class RewriteMergeInto(conf: SQLConf) extends Rule[LogicalPlan] with Rewrit
 
   import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implicits._
 
-  override def resolver: Resolver = conf.resolver
+  override def resolver: Resolver = spark.sessionState.conf.resolver
 
   override def apply(plan: LogicalPlan): LogicalPlan = {
     plan resolveOperators {
@@ -88,7 +92,7 @@ case class RewriteMergeInto(conf: SQLConf) extends Rule[LogicalPlan] with Rewrit
       case MergeIntoTable(target: DataSourceV2Relation, source: LogicalPlan, cond, matchedActions, notMatchedActions)
           if notMatchedActions.isEmpty =>
 
-        val (mergeBuilder, targetTableScan) = buildDynamicFilterTargetScan(target, source, cond)
+        val (mergeBuilder, targetTableScan) = buildDynamicFilterTargetScan(target, source, cond, matchedActions)
 
         // rewrite the matched actions to ensure there is always an action to produce the output row
         val (matchedConditions, matchedOutputs) = rewriteMatchedActions(matchedActions, target.output)
@@ -116,7 +120,7 @@ case class RewriteMergeInto(conf: SQLConf) extends Rule[LogicalPlan] with Rewrit
 
       case MergeIntoTable(target: DataSourceV2Relation, source: LogicalPlan, cond, matchedActions, notMatchedActions) =>
 
-        val (mergeBuilder, targetTableScan) = buildDynamicFilterTargetScan(target, source, cond)
+        val (mergeBuilder, targetTableScan) = buildDynamicFilterTargetScan(target, source, cond, matchedActions)
 
         // rewrite the matched actions to ensure there is always an action to produce the output row
         val (matchedConditions, matchedOutputs) = rewriteMatchedActions(matchedActions, target.output)
@@ -163,13 +167,15 @@ case class RewriteMergeInto(conf: SQLConf) extends Rule[LogicalPlan] with Rewrit
   private def buildDynamicFilterTargetScan(
       target: DataSourceV2Relation,
       source: LogicalPlan,
-      cond: Expression): (MergeBuilder, LogicalPlan) = {
+      cond: Expression,
+      matchedActions: Seq[MergeAction]): (MergeBuilder, LogicalPlan) = {
     // Construct the plan to prune target based on join condition between source and target.
     val mergeBuilder = target.table.asMergeable.newMergeBuilder("merge", newWriteInfo(target.schema))
     val matchingRowsPlanBuilder = (rel: DataSourceV2ScanRelation) =>
       Join(source, rel, Inner, Some(cond), JoinHint.NONE)
+    val runCountCheck = isCardinalityCheckEnabled(target.table) && isCardinalityCheckNeeded(matchedActions)
     val targetTableScan = buildDynamicFilterScanPlan(
-      target.table, target.output, mergeBuilder, cond, matchingRowsPlanBuilder)
+      spark, target.table, target.output, mergeBuilder, cond, matchingRowsPlanBuilder, runCountCheck)
 
     (mergeBuilder, targetTableScan)
   }
@@ -193,6 +199,21 @@ case class RewriteMergeInto(conf: SQLConf) extends Rule[LogicalPlan] with Rewrit
       // one "catch all" action will always match, prune the actions after it
       (startMatchedConditions.take(catchAllIndex + 1), outputs.take(catchAllIndex + 1))
     }
+  }
+
+  private def isCardinalityCheckEnabled(table: Table): Boolean = {
+    PropertyUtil.propertyAsBoolean(table.properties(),
+      MERGE_WRITE_CARDINALITY_CHECK, MERGE_WRITE_CARDINALITY_CHECK_DEFAULT)
+  }
+
+  private def isCardinalityCheckNeeded(actions: Seq[MergeAction]): Boolean = {
+    def hasUnconditionalDelete(action: Option[MergeAction]): Boolean = {
+      action match {
+        case Some(DeleteAction(None)) => true
+        case _ => false
+      }
+    }
+    !(actions.size == 1 && hasUnconditionalDelete(actions.headOption))
   }
 }
 

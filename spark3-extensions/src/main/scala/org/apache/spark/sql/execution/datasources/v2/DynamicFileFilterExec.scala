@@ -20,16 +20,18 @@
 package org.apache.spark.sql.execution.datasources.v2
 
 import collection.JavaConverters._
+import org.apache.spark.SparkException
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeSet, SortOrder}
 import org.apache.spark.sql.catalyst.plans.physical
 import org.apache.spark.sql.catalyst.util.truncatedString
+import org.apache.spark.sql.catalyst.utils.SetAccumulator
 import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter
 import org.apache.spark.sql.execution.{BinaryExecNode, SparkPlan}
 import org.apache.spark.sql.vectorized.ColumnarBatch
 
-case class DynamicFileFilterExec(
+abstract class DynamicFileFilterExecBase(
     scanExec: SparkPlan,
     fileFilterExec: SparkPlan,
     @transient filterable: SupportsFileFilter) extends BinaryExecNode {
@@ -47,13 +49,41 @@ case class DynamicFileFilterExec(
   override protected def doExecute(): RDD[InternalRow] = scanExec.execute()
   override protected def doExecuteColumnar(): RDD[ColumnarBatch] = scanExec.executeColumnar()
 
+  override def simpleString(maxFields: Int): String = {
+    s"DynamicFileFilterExec${truncatedString(output, "[", ", ", "]", maxFields)}"
+  }
+}
+
+case class DynamicFileFilterExec(
+    scanExec: SparkPlan,
+    fileFilterExec: SparkPlan,
+    @transient filterable: SupportsFileFilter)
+  extends DynamicFileFilterExecBase(scanExec, fileFilterExec, filterable) {
+
   override protected def doPrepare(): Unit = {
     val rows = fileFilterExec.executeCollect()
     val matchedFileLocations = rows.map(_.getString(0))
     filterable.filterFiles(matchedFileLocations.toSet.asJava)
   }
+}
 
-  override def simpleString(maxFields: Int): String = {
-    s"DynamicFileFilterExec${truncatedString(output, "[", ", ", "]", maxFields)}"
+case class DynamicFileFilterWithCountCheckExec(
+    scanExec: SparkPlan,
+    fileFilterExec: SparkPlan,
+    @transient filterable: SupportsFileFilter,
+    filesAccumulator: SetAccumulator[String],
+    @transient targetTableName: String)
+  extends DynamicFileFilterExecBase(scanExec, fileFilterExec, filterable)  {
+
+  override protected def doPrepare(): Unit = {
+    val rows = fileFilterExec.executeCollect()
+    if (rows.size > 0) {
+      val msg =
+        s"""The same row of target table `$targetTableName` was identified more than
+           | once for an update, delete or insert operation of the MERGE statement.""".stripMargin
+      throw new SparkException(msg)
+    }
+    val matchedFileLocations = filesAccumulator.value
+    filterable.filterFiles(matchedFileLocations)
   }
 }

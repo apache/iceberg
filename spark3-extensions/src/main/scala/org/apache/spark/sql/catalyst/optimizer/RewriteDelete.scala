@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.catalyst.optimizer
 
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.analysis.Resolver
 import org.apache.spark.sql.catalyst.expressions.Ascending
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
@@ -44,11 +45,11 @@ import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.BooleanType
 
 // TODO: should be part of early scan push down after the delete condition is optimized
-case class RewriteDelete(conf: SQLConf) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper {
+case class RewriteDelete(spark: SparkSession) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper {
 
   import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implicits._
 
-  override def resolver: Resolver = conf.resolver
+  override def resolver: Resolver = spark.sessionState.conf.resolver
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     // don't rewrite deletes that can be answered by passing filters to deleteWhere in SupportsDelete
@@ -62,7 +63,7 @@ case class RewriteDelete(conf: SQLConf) extends Rule[LogicalPlan] with RewriteRo
       val mergeBuilder = r.table.asMergeable.newMergeBuilder("delete", writeInfo)
 
       val matchingRowsPlanBuilder = scanRelation => Filter(cond, scanRelation)
-      val scanPlan = buildDynamicFilterScanPlan(r.table, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
+      val scanPlan = buildDynamicFilterScanPlan(spark, r.table, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
 
       val remainingRowFilter = Not(EqualNullSafe(cond, Literal(true, BooleanType)))
       val remainingRowsPlan = Filter(remainingRowFilter, scanPlan)
