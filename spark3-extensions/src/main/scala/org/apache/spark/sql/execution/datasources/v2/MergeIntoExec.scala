@@ -51,13 +51,9 @@ case class MergeIntoExec(
     GeneratePredicate.generate(expr, attrs)
   }
 
-  def applyProjection(
-     actions: Seq[(BasePredicate, UnsafeProjection)],
-     projectTargetCols: UnsafeProjection,
-     projectDeleteRow: UnsafeProjection,
-     inputRow: InternalRow,
-     targetRowNotPresent: Boolean): InternalRow = {
-
+  private def applyProjection(
+      actions: Seq[(BasePredicate, Option[UnsafeProjection])],
+      inputRow: InternalRow): InternalRow = {
 
     // Find the first combination where the predicate evaluates to true.
     // In case when there are overlapping condition in the MATCHED
@@ -72,23 +68,16 @@ case class MergeIntoExec(
       case (predicate, _) => predicate.eval(inputRow)
     }
 
-    // Now apply the appropriate projection to either :
-    // - Insert a row into target
-    // - Update a row of target
-    // - Delete a row in target. The projected row will have the deleted bit set.
+    // Now apply the appropriate projection to produce an output row, or return null to suppress this row
     pair match {
-      case Some((_, projection)) =>
+      case Some((_, Some(projection))) =>
         projection.apply(inputRow)
-      case None =>
-        if (targetRowNotPresent) {
-          projectDeleteRow.apply(inputRow)
-        } else {
-          projectTargetCols.apply(inputRow)
-        }
+      case _ =>
+        null
     }
   }
 
-  def processPartition(
+  private def processPartition(
      params: MergeIntoParams,
      rowIterator: Iterator[InternalRow]): Iterator[InternalRow] = {
 
@@ -96,16 +85,12 @@ case class MergeIntoExec(
     val isSourceRowNotPresentPred = generatePredicate(params.isSourceRowNotPresent, joinedAttrs)
     val isTargetRowNotPresentPred = generatePredicate(params.isTargetRowNotPresent, joinedAttrs)
     val matchedPreds = params.matchedConditions.map(generatePredicate(_, joinedAttrs))
-    val matchedProjs = params.matchedOutputs.map(generateProjection(_, joinedAttrs))
+    val matchedProjs = params.matchedOutputs.map(_.map(generateProjection(_, joinedAttrs)))
     val notMatchedPreds = params.notMatchedConditions.map(generatePredicate(_, joinedAttrs))
-    val notMatchedProjs = params.notMatchedOutputs.map(generateProjection(_, joinedAttrs))
+    val notMatchedProjs = params.notMatchedOutputs.map(_.map(generateProjection(_, joinedAttrs)))
     val projectTargetCols = generateProjection(params.targetOutput, joinedAttrs)
-    val projectDeletedRow = generateProjection(params.deleteOutput, joinedAttrs)
     val nonMatchedPairs =   notMatchedPreds zip notMatchedProjs
     val matchedPairs = matchedPreds zip matchedProjs
-
-    def shouldDeleteRow(row: InternalRow): Boolean =
-      row.getBoolean(params.targetOutput.size - 1)
 
     /**
      * This method is responsible for processing a input row to emit the resultant row with an
@@ -122,14 +107,14 @@ case class MergeIntoExec(
       if (isSourceRowNotPresentPred.eval(inputRow)) {
         projectTargetCols.apply(inputRow)
       } else if (isTargetRowNotPresentPred.eval(inputRow)) {
-        applyProjection(nonMatchedPairs, projectTargetCols, projectDeletedRow, inputRow, true)
+        applyProjection(nonMatchedPairs, inputRow)
       } else {
-        applyProjection(matchedPairs, projectTargetCols, projectDeletedRow, inputRow, false)
+        applyProjection(matchedPairs, inputRow)
       }
     }
 
     rowIterator
       .map(processRow)
-      .filterNot(shouldDeleteRow)
+      .filter(row => row != null)
   }
 }
