@@ -43,7 +43,9 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.After;
@@ -479,9 +481,13 @@ public class TestHiveIcebergStorageHandlerNoScan {
   public void testCreateTableWithNotSupportedTypes() {
     TableIdentifier identifier = TableIdentifier.of("default", "not_supported_types");
     // Can not create INTERVAL types from normal create table, so leave them out from this test
-    String[] notSupportedTypes = new String[] { "TINYINT", "SMALLINT", "VARCHAR(1)", "CHAR(1)" };
+    Map<String, Type> notSupportedTypes = ImmutableMap.of(
+        "TINYINT", Types.IntegerType.get(),
+        "SMALLINT", Types.IntegerType.get(),
+        "VARCHAR(1)", Types.StringType.get(),
+        "CHAR(1)", Types.StringType.get());
 
-    for (String notSupportedType : notSupportedTypes) {
+    for (String notSupportedType : notSupportedTypes.keySet()) {
       AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
           "Unsupported Hive type", () -> {
             shell.executeStatement("CREATE EXTERNAL TABLE not_supported_types " +
@@ -490,6 +496,29 @@ public class TestHiveIcebergStorageHandlerNoScan {
                 testTables.locationForCreateTableSQL(identifier));
           }
       );
+    }
+  }
+
+  @Test
+  public void testCreateTableWithNotSupportedTypesWithAutoConversion() {
+    TableIdentifier identifier = TableIdentifier.of("default", "not_supported_types");
+    // Can not create INTERVAL types from normal create table, so leave them out from this test
+    Map<String, Type> notSupportedTypes = ImmutableMap.of(
+        "TINYINT", Types.IntegerType.get(),
+        "SMALLINT", Types.IntegerType.get(),
+        "VARCHAR(1)", Types.StringType.get(),
+        "CHAR(1)", Types.StringType.get());
+
+    shell.setHiveSessionValue(InputFormatConfig.SCHEMA_AUTO_CONVERSION, "true");
+
+    for (String notSupportedType : notSupportedTypes.keySet()) {
+      shell.executeStatement("CREATE EXTERNAL TABLE not_supported_types (not_supported " + notSupportedType + ") " +
+          "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+          testTables.locationForCreateTableSQL(identifier));
+
+      org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
+      Assert.assertEquals(notSupportedTypes.get(notSupportedType), icebergTable.schema().columns().get(0).type());
+      shell.executeStatement("DROP TABLE not_supported_types");
     }
   }
 }

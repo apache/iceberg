@@ -81,8 +81,9 @@ public class HiveIcebergSerDe extends AbstractSerDe {
         this.tableSchema = Catalogs.loadTable(configuration, serDeProperties).schema();
         LOG.info("Using schema from existing table {}", SchemaParser.toJson(tableSchema));
       } catch (Exception e) {
+        boolean autoConversion = configuration.getBoolean(InputFormatConfig.SCHEMA_AUTO_CONVERSION, false);
         // If we can not load the table try the provided hive schema
-        this.tableSchema = hiveSchemaOrThrow(serDeProperties, e);
+        this.tableSchema = hiveSchemaOrThrow(serDeProperties, e, autoConversion);
       }
     }
 
@@ -156,10 +157,13 @@ public class HiveIcebergSerDe extends AbstractSerDe {
    * it adds the previousException as a root cause.
    * @param serDeProperties The source of the hive schema
    * @param previousException If we had an exception previously
+   * @param autoConversion When <code>true</code>, convert unsupported types to more permissive ones, like tinyint to
+   *                       int
    * @return The hive schema parsed from the serDeProperties
    * @throws SerDeException If there is no schema information in the serDeProperties
    */
-  private static Schema hiveSchemaOrThrow(Properties serDeProperties, Exception previousException)
+  private static Schema hiveSchemaOrThrow(Properties serDeProperties, Exception previousException,
+                                          boolean autoConversion)
       throws SerDeException {
     // Read the configuration parameters
     String columnNames = serDeProperties.getProperty(serdeConstants.LIST_COLUMNS);
@@ -172,7 +176,8 @@ public class HiveIcebergSerDe extends AbstractSerDe {
       List<String> names = new ArrayList<>();
       Collections.addAll(names, columnNames.split(columnNameDelimiter));
 
-      Schema hiveSchema = HiveSchemaUtil.convert(names, TypeInfoUtils.getTypeInfosFromTypeString(columnTypes));
+      Schema hiveSchema = HiveSchemaUtil.convert(names, TypeInfoUtils.getTypeInfosFromTypeString(columnTypes),
+          autoConversion);
       LOG.info("Using hive schema {}", SchemaParser.toJson(hiveSchema));
       return hiveSchema;
     } else {

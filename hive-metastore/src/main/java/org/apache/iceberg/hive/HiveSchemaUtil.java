@@ -48,11 +48,24 @@ public final class HiveSchemaUtil {
   }
 
   /**
-   * Converts a Hive schema (list of FieldSchema objects) to an Iceberg schema.
+   * Converts a Hive schema (list of FieldSchema objects) to an Iceberg schema. If some of the types are not convertible
+   * then exception is thrown.
    * @param fieldSchemas The list of the columns
    * @return An equivalent Iceberg Schema
    */
   public static Schema convert(List<FieldSchema> fieldSchemas) {
+    return convert(fieldSchemas, false);
+  }
+
+  /**
+   * Converts a Hive schema (list of FieldSchema objects) to an Iceberg schema.
+   * @param fieldSchemas The list of the columns
+   * @param autoConvert If <code>true</code> then TINYINT and SMALLINT is converted to INTEGER and VARCHAR and CHAR is
+   *                    converted to STRING. Otherwise if these types are used in the Hive schema then exception is
+   *                    thrown.
+   * @return An equivalent Iceberg Schema
+   */
+  public static Schema convert(List<FieldSchema> fieldSchemas, boolean autoConvert) {
     List<String> names = new ArrayList<>(fieldSchemas.size());
     List<TypeInfo> typeInfos = new ArrayList<>(fieldSchemas.size());
 
@@ -61,7 +74,7 @@ public final class HiveSchemaUtil {
       typeInfos.add(TypeInfoUtils.getTypeInfoFromTypeString(col.getType()));
     }
 
-    return HiveSchemaConverter.convert(names, typeInfos);
+    return HiveSchemaConverter.convert(names, typeInfos, autoConvert);
   }
 
   /**
@@ -77,13 +90,27 @@ public final class HiveSchemaUtil {
   }
 
   /**
-   * Converts the Hive list of column names and column types to an Iceberg schema.
+   * Converts the Hive list of column names and column types to an Iceberg schema. If some of the types are not
+   * convertible then exception is thrown.
    * @param names The list of the Hive column names
    * @param types The list of the Hive column types
    * @return The Iceberg schema
    */
   public static Schema convert(List<String> names, List<TypeInfo> types) {
-    return HiveSchemaConverter.convert(names, types);
+    return HiveSchemaConverter.convert(names, types, false);
+  }
+
+  /**
+   * Converts the Hive list of column names and column types to an Iceberg schema.
+   * @param names The list of the Hive column names
+   * @param types The list of the Hive column types
+   * @param autoConvert If <code>true</code> then TINYINT and SMALLINT is converted to INTEGER and VARCHAR and CHAR is
+   *                    converted to STRING. Otherwise if these types are used in the Hive schema then exception is
+   *                    thrown.
+   * @return The Iceberg schema
+   */
+  public static Schema convert(List<String> names, List<TypeInfo> types, boolean autoConvert) {
+    return HiveSchemaConverter.convert(names, types, autoConvert);
   }
 
   /**
@@ -101,7 +128,7 @@ public final class HiveSchemaUtil {
    * @return The Iceberg type
    */
   public static Type convert(TypeInfo typeInfo) {
-    return HiveSchemaConverter.convert(typeInfo);
+    return HiveSchemaConverter.convert(typeInfo, false);
   }
 
   private static String convertToTypeString(Type type) {
