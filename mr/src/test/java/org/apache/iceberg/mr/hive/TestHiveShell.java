@@ -186,6 +186,9 @@ public class TestHiveShell {
     // Tez configuration
     hiveConf.setBoolean("tez.local.mode", true);
 
+    // Disable vectorization for HiveIcebergInputFormat
+    hiveConf.setBoolVar(HiveConf.ConfVars.HIVE_VECTORIZATION_ENABLED, false);
+
     return hiveConf;
   }
 }
