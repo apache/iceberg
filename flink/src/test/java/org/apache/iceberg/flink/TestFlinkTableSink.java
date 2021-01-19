@@ -241,7 +241,7 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
 
     Map<String, String> tableProps = ImmutableMap.of(
         "write.format.default", format.name(),
-        TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.PARTITION.modeName()
+        TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName()
     );
     sql("CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) WITH %s",
         tableName, toWithClause(tableProps));

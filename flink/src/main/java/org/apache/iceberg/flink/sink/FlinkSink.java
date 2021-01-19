@@ -168,7 +168,7 @@ public class FlinkSink {
 
     /**
      * Configure the write distribution mode that the flink sink will use. Currently, flink support
-     * {@link DistributionMode#NONE} and {@link DistributionMode#PARTITION}.
+     * {@link DistributionMode#NONE} and {@link DistributionMode#HASH}.
      *
      * @param mode to specify the write distribution mode.
      * @return {@link Builder} to connect the iceberg table.
@@ -271,15 +271,15 @@ public class FlinkSink {
         case NONE:
           return input;
 
-        case PARTITION:
+        case HASH:
           if (partitionSpec.isUnpartitioned()) {
             return input;
           } else {
             return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
           }
 
-        case SORT:
-          throw new UnsupportedOperationException("The write.distribution-mode=sort is not supported in flink now");
+        case RANGE:
+          throw new UnsupportedOperationException("The write.distribution-mode=range is not supported in flink now");
 
         default:
           throw new RuntimeException("Unrecognized write.distribution-mode: " + writeMode);

@@ -20,10 +20,20 @@
 package org.apache.iceberg;
 
 /**
- * Enum of supported write distribution mode.
+ * Enum of supported write distribution mode, it defines the write behavior of batch or streaming job:
+ * <p>
+ * 1. none: don't shuffle rows. It is suitable for scenarios where the rows are located in only few
+ * partitions, otherwise that may produce too many small files because each task is writing rows into different
+ * partitions randomly.
+ * <p>
+ * 2. hash-partition: hash distribute by partition keys, which is suitable for the scenarios where the rows are located
+ * into different partitions evenly.
+ * <p>
+ * 3. range-partition: range distribute by partition key (or sort key if table has an {@link SortOrder}), which is
+ * suitable for the scenarios where rows are located into different partitions with skew distribution.
  */
 public enum DistributionMode {
-  NONE("none"), PARTITION("partition"), SORT("sort");
+  NONE("none"), HASH("hash-partition"), RANGE("range-partition");
 
   private final String name;
 

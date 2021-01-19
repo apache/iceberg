@@ -38,6 +38,7 @@ import org.apache.flink.table.data.util.DataFormatConverters;
 import org.apache.flink.table.runtime.typeutils.RowDataTypeInfo;
 import org.apache.flink.test.util.AbstractTestBase;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
@@ -193,8 +194,53 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
   }
 
   @Test
+  public void testJobNoneDistributeMode() throws Exception {
+    table.updateProperties()
+        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
+        .commit();
+
+    testWriteRow(null, DistributionMode.NONE);
+
+    if (parallelism > 1) {
+      if (partitioned) {
+        int files = partitionFiles("aaa").size() + partitionFiles("bbb").size() + partitionFiles("ccc").size();
+        Assert.assertTrue("Should have more than 3 files in iceberg table.", files > 3);
+      }
+    }
+  }
+
+  @Test
+  public void testJobHashDistributionMode() {
+    table.updateProperties()
+        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
+        .commit();
+
+    AssertHelpers.assertThrows("Does not support range distribution-mode now.",
+        UnsupportedOperationException.class, "The write.distribution-mode=range is not supported in flink now",
+        () -> {
+          testWriteRow(null, DistributionMode.RANGE);
+          return null;
+        });
+  }
+
+  @Test
+  public void testJobNullDistributionMode() throws Exception {
+    table.updateProperties()
+        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
+        .commit();
+
+    testWriteRow(null, null);
+
+    if (partitioned) {
+      Assert.assertEquals("Should have 1 data file in partition 'aaa'", 1, partitionFiles("aaa").size());
+      Assert.assertEquals("Should have 1 data file in partition 'bbb'", 1, partitionFiles("bbb").size());
+      Assert.assertEquals("Should have 1 data file in partition 'ccc'", 1, partitionFiles("ccc").size());
+    }
+  }
+
+  @Test
   public void testPartitionWriteMode() throws Exception {
-    testWriteRow(null, DistributionMode.PARTITION);
+    testWriteRow(null, DistributionMode.HASH);
     if (partitioned) {
       Assert.assertEquals("Should have 1 data file in partition 'aaa'", 1, partitionFiles("aaa").size());
       Assert.assertEquals("Should have 1 data file in partition 'bbb'", 1, partitionFiles("bbb").size());
@@ -204,7 +250,7 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
 
   @Test
   public void testShuffleByPartitionWithSchema() throws Exception {
-    testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.PARTITION);
+    testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.HASH);
     if (partitioned) {
       Assert.assertEquals("Should have 1 data file in partition 'aaa'", 1, partitionFiles("aaa").size());
       Assert.assertEquals("Should have 1 data file in partition 'bbb'", 1, partitionFiles("bbb").size());
