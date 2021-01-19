@@ -246,7 +246,6 @@ public abstract class TestWriteMetricsConfig {
         () -> tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation));
   }
 
-
   @Test
   public void testCustomMetricCollectionForNestedParquet() throws IOException {
     String tableLocation = temp.newFolder("iceberg-table").toString();

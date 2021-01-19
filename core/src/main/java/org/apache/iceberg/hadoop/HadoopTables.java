@@ -303,8 +303,7 @@ public class HadoopTables implements Tables, Configurable {
       }
 
       Map<String, String> properties = propertiesBuilder.build();
-
-      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, location, properties);
+      TableMetadata metadata = tableMetadata(schema, spec, sortOrder, properties, location);
       ops.commit(null, metadata);
       return new BaseTable(ops, location);
     }
@@ -317,7 +316,7 @@ public class HadoopTables implements Tables, Configurable {
       }
 
       Map<String, String> properties = propertiesBuilder.build();
-      TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, null, location, properties);
+      TableMetadata metadata = tableMetadata(schema, spec, null, properties, location);
       return Transactions.createTableTransaction(location, ops, metadata);
     }
 

@@ -172,9 +172,9 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
         null,
         () ->
           table.updateProperties()
-            .set(TableProperties.DEFAULT_NAME_MAPPING, mappingJson)
-            .set("write.metadata.metrics.column.ids", "full")
-          .commit());
+              .set(TableProperties.DEFAULT_NAME_MAPPING, mappingJson)
+              .set("write.metadata.metrics.column.ids", "full")
+              .commit());
 
     AssertHelpers.assertThrows(
         "Deleting a column with metrics fails",
@@ -183,7 +183,7 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
         () ->
           table.updateSchema()
               .deleteColumn("id")
-          .commit());
+              .commit());
 
     String updatedJson = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     NameMapping updated = NameMappingParser.fromJson(updatedJson);

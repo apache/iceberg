@@ -79,7 +79,8 @@ public class MetricsConfig implements Serializable {
     for (String column : columnModes.keySet()) {
       ValidationException.check(
           schema.findField(column) != null,
-          "Could not find column %s from metrics in schema %s", column, schema);
+          "Invalid metrics config, could not find column %s from table prop %s in schema %s",
+          column, TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + column, schema);
     }
   }
 
