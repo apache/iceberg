@@ -64,7 +64,8 @@ case class RewriteMergeInto(conf: SQLConf) extends Rule[LogicalPlan] with Rewrit
       case MergeIntoTable(target: DataSourceV2Relation, source: LogicalPlan, cond, matchedActions, notMatchedActions)
           if matchedActions.isEmpty =>
 
-        val (_, targetTableScan) = buildTargetScan(target, source, cond)
+        val mergeBuilder = target.table.asMergeable.newMergeBuilder("merge", newWriteInfo(target.schema))
+        val targetTableScan = buildSimpleScanPlan(target.table, target.output, mergeBuilder, cond)
 
         // when there are no matched actions, use a left anti join to remove any matching rows and rewrite to use
         // append instead of replace. only unmatched source rows are passed to the merge and actions are all inserts.
@@ -87,7 +88,7 @@ case class RewriteMergeInto(conf: SQLConf) extends Rule[LogicalPlan] with Rewrit
       case MergeIntoTable(target: DataSourceV2Relation, source: LogicalPlan, cond, matchedActions, notMatchedActions)
           if notMatchedActions.isEmpty =>
 
-        val (mergeBuilder, targetTableScan) = buildTargetScan(target, source, cond)
+        val (mergeBuilder, targetTableScan) = buildDynamicFilterTargetScan(target, source, cond)
 
         // rewrite the matched actions to ensure there is always an action to produce the output row
         val (matchedConditions, matchedOutputs) = rewriteMatchedActions(matchedActions, target.output)
@@ -115,7 +116,7 @@ case class RewriteMergeInto(conf: SQLConf) extends Rule[LogicalPlan] with Rewrit
 
       case MergeIntoTable(target: DataSourceV2Relation, source: LogicalPlan, cond, matchedActions, notMatchedActions) =>
 
-        val (mergeBuilder, targetTableScan) = buildTargetScan(target, source, cond)
+        val (mergeBuilder, targetTableScan) = buildDynamicFilterTargetScan(target, source, cond)
 
         // rewrite the matched actions to ensure there is always an action to produce the output row
         val (matchedConditions, matchedOutputs) = rewriteMatchedActions(matchedActions, target.output)
@@ -159,7 +160,7 @@ case class RewriteMergeInto(conf: SQLConf) extends Rule[LogicalPlan] with Rewrit
     clause.condition.getOrElse(TRUE_LITERAL)
   }
 
-  private def buildTargetScan(
+  private def buildDynamicFilterTargetScan(
       target: DataSourceV2Relation,
       source: LogicalPlan,
       cond: Expression): (MergeBuilder, LogicalPlan) = {
@@ -167,7 +168,8 @@ case class RewriteMergeInto(conf: SQLConf) extends Rule[LogicalPlan] with Rewrit
     val mergeBuilder = target.table.asMergeable.newMergeBuilder("merge", newWriteInfo(target.schema))
     val matchingRowsPlanBuilder = (rel: DataSourceV2ScanRelation) =>
       Join(source, rel, Inner, Some(cond), JoinHint.NONE)
-    val targetTableScan = buildScanPlan(target.table, target.output, mergeBuilder, cond, matchingRowsPlanBuilder)
+    val targetTableScan = buildDynamicFilterScanPlan(
+      target.table, target.output, mergeBuilder, cond, matchingRowsPlanBuilder)
 
     (mergeBuilder, targetTableScan)
   }

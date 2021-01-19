@@ -50,7 +50,23 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
 
   def resolver: Resolver
 
-  protected def buildScanPlan(
+  protected def buildSimpleScanPlan(
+      table: Table,
+      tableAttrs: Seq[AttributeReference],
+      mergeBuilder: MergeBuilder,
+      cond: Expression): LogicalPlan = {
+
+    val scanBuilder = mergeBuilder.asScanBuilder
+
+    pushFilters(scanBuilder, cond, tableAttrs)
+
+    val scan = scanBuilder.build()
+    val outputAttrs = toOutputAttrs(scan.readSchema(), tableAttrs)
+
+    DataSourceV2ScanRelation(table, scan, outputAttrs)
+  }
+
+  protected def buildDynamicFilterScanPlan(
       table: Table,
       tableAttrs: Seq[AttributeReference],
       mergeBuilder: MergeBuilder,
