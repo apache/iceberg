@@ -63,13 +63,16 @@ Iceberg uses [hidden partitioning](./partitioning.md), so you don't *need* to wr
 
 Partition evolution is a metadata operation and does not eagerly rewrite files.
 
-Iceberg's Java table API provides `updateSpec` API to update partition spec. For example:
+Iceberg's Java table API provides `updateSpec` API to update partition spec. 
+For example, the code below shows how to add a partition with bucket transform,
+remove an existing partition field, and rename a partition field:
 
 ```java
+Table sampleTable = ...;
 sampleTable.updateSpec()
     .addField(bucket("id", 8))
-    .renameField("category", "category")
-    .removeField("id_bucket_8", "shard")
+    .removeField("category")
+    .renameField("id_bucket_8", "shard")
     .commit();
 ```
 
@@ -81,7 +84,9 @@ Similar to partition spec, Iceberg sort order can also be updated in an existing
 When you evolve a sort order, the old data written with an earlier order remains unchanged.
 Engines can always choose to write data in the latest sort order or unsorted when sorting is prohibitively expensive.
 
-Iceberg's Java table API provides `replaceSortOrder` API to update partition spec. For example:
+Iceberg's Java table API provides `replaceSortOrder` API to update partition spec. 
+For example, the code below show how to use a new sort order with `id` column sorted in ascending order with nulls last,
+and `category` column sorted in descending order with nulls first:
 
 ```java
 sampleTable.replaceSortOrder()
@@ -89,4 +94,5 @@ sampleTable.replaceSortOrder()
    .dec("category", NullOrder.NULL_FIRST)
    .commit();
 ```
+
 Spark supports updating partition spec through its `ALTER TABLE` SQL statement, see more details in [Spark SQL](../spark/#alter-table-write-ordered-by).

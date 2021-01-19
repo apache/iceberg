@@ -261,7 +261,7 @@ ALTER TABLE prod.db.sample DROP COLUMN point.z
 ### `ALTER TABLE ... ADD PARTITION FIELD`
 
 ```sql
-ALTER TABLE prod.db.sample ADD PARTITION FIELD catalog
+ALTER TABLE prod.db.sample ADD PARTITION FIELD catalog -- identity transform
 ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id)
 ALTER TABLE prod.db.sample ADD PARTITION FIELD truncate(data, 4)
 ALTER TABLE prod.db.sample ADD PARTITION FIELD years(ts)
