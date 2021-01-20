@@ -19,6 +19,9 @@
 
 package org.apache.iceberg;
 
+import java.util.Locale;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+
 /**
  * Enum of supported write distribution mode, it defines the write behavior of batch or streaming job:
  * <p>
@@ -26,32 +29,27 @@ package org.apache.iceberg;
  * partitions, otherwise that may produce too many small files because each task is writing rows into different
  * partitions randomly.
  * <p>
- * 2. hash-partition: hash distribute by partition keys, which is suitable for the scenarios where the rows are located
+ * 2. hash: hash distribute by partition keys, which is suitable for the scenarios where the rows are located
  * into different partitions evenly.
  * <p>
- * 3. range-partition: range distribute by partition key (or sort key if table has an {@link SortOrder}), which is
- * suitable for the scenarios where rows are located into different partitions with skew distribution.
+ * 3. range: range distribute by partition key (or sort key if table has an {@link SortOrder}), which is suitable
+ * for the scenarios where rows are located into different partitions with skew distribution.
  */
 public enum DistributionMode {
-  NONE("none"), HASH("hash-partition"), RANGE("range-partition");
+  NONE("none"), HASH("hash"), RANGE("range");
 
-  private final String name;
+  private final String modeName;
 
-  DistributionMode(String mode) {
-    this.name = mode;
+  DistributionMode(String modeName) {
+    this.modeName = modeName;
   }
 
   public String modeName() {
-    return name;
+    return modeName;
   }
 
   public static DistributionMode fromName(String name) {
-    for (DistributionMode mode : DistributionMode.values()) {
-      if (mode.name.equals(name)) {
-        return mode;
-      }
-    }
-
-    throw new IllegalArgumentException("Invalid write.distribution-mode name: " + name);
+    Preconditions.checkNotNull(name, "Name should not be null");
+    return DistributionMode.valueOf(name.toUpperCase(Locale.ENGLISH));
   }
 }

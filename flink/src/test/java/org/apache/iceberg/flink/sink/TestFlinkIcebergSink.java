@@ -216,7 +216,7 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
         .commit();
 
     AssertHelpers.assertThrows("Does not support range distribution-mode now.",
-        UnsupportedOperationException.class, "The write.distribution-mode=range is not supported in flink now",
+        IllegalArgumentException.class, "Flink does not support 'range' write distribution mode now.",
         () -> {
           testWriteRow(null, DistributionMode.RANGE);
           return null;

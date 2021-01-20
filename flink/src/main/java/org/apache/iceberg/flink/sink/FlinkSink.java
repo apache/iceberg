@@ -50,6 +50,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
@@ -59,6 +61,7 @@ import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
 public class FlinkSink {
+  private static final Logger LOG = LoggerFactory.getLogger(FlinkSink.class);
 
   private static final String ICEBERG_STREAM_WRITER_NAME = IcebergStreamWriter.class.getSimpleName();
   private static final String ICEBERG_FILES_COMMITTER_NAME = IcebergFilesCommitter.class.getSimpleName();
@@ -167,13 +170,15 @@ public class FlinkSink {
     }
 
     /**
-     * Configure the write distribution mode that the flink sink will use. Currently, flink support
+     * Configure the write {@link DistributionMode} that the flink sink will use. Currently, flink support
      * {@link DistributionMode#NONE} and {@link DistributionMode#HASH}.
      *
      * @param mode to specify the write distribution mode.
      * @return {@link Builder} to connect the iceberg table.
      */
     public Builder distributionMode(DistributionMode mode) {
+      Preconditions.checkArgument(!DistributionMode.RANGE.equals(mode),
+          "Flink does not support 'range' write distribution mode now.");
       this.distributionMode = mode;
       return this;
     }
@@ -279,7 +284,9 @@ public class FlinkSink {
           }
 
         case RANGE:
-          throw new UnsupportedOperationException("The write.distribution-mode=range is not supported in flink now");
+          LOG.warn("Fallback to use 'none' distribution mode, because {}={} is not supported in flink now",
+              WRITE_DISTRIBUTION_MODE, DistributionMode.RANGE.modeName());
+          return input;
 
         default:
           throw new RuntimeException("Unrecognized write.distribution-mode: " + writeMode);
