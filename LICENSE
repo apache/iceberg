@@ -285,6 +285,7 @@ This product includes code from Apache Spark.
 * vectorized reading of definition levels in BaseVectorizedParquetValuesReader.java
 * portions of the extensions parser
 * casting logic in AssignmentAlignmentSupport
+* implementation of SetAccumulator.
 
 Copyright: 2011-2018 The Apache Software Foundation
 Home page: https://spark.apache.org/
