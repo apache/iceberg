@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.hive;
 
+import java.util.Objects;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
@@ -81,6 +82,15 @@ public class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> 
       throw new RuntimeMetaException(e, "Failed to reconnect to Hive Metastore");
     }
     return client;
+  }
+
+  @Override
+  protected boolean failureDetection(Exception e) {
+    if (Objects.nonNull(e) && e instanceof MetaException &&
+            e.getMessage().contains("Got exception: org.apache.thrift.transport.TTransportException")) {
+      return true;
+    }
+    return false;
   }
 
   @Override
