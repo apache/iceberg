@@ -286,6 +286,7 @@ This product includes code from Apache Spark.
 * portions of the extensions parser
 * casting logic in AssignmentAlignmentSupport
 * implementation of SetAccumulator.
+* Connector expressions.
 
 Copyright: 2011-2018 The Apache Software Foundation
 Home page: https://spark.apache.org/

@@ -32,10 +32,10 @@ import org.apache.spark.sql.execution.UnaryExecNode
 
 case class MergeIntoExec(
     mergeIntoParams: MergeIntoParams,
-    @transient targetRelation: DataSourceV2Relation,
+    targetOutput: Seq[Attribute],
     override val child: SparkPlan) extends UnaryExecNode {
 
-  override def output: Seq[Attribute] = targetRelation.output
+  override def output: Seq[Attribute] = targetOutput
 
   protected override def doExecute(): RDD[InternalRow] = {
     child.execute().mapPartitions {

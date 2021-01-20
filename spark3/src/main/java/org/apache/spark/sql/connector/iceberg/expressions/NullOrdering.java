@@ -17,24 +17,28 @@
  * under the License.
  */
 
-package org.apache.spark.sql.catalyst.plans.logical
+package org.apache.spark.sql.connector.iceberg.expressions;
 
-import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.annotation.Experimental;
 
-case class MergeInto(
-    mergeIntoProcessor: MergeIntoParams,
-    targetOutput: Seq[Attribute],
-    child: LogicalPlan) extends UnaryNode {
-  override def output: Seq[Attribute] = targetOutput
+/**
+ * A null order used in sorting expressions.
+ *
+ * @since 3.2.0
+ */
+@Experimental
+public enum NullOrdering {
+  NULLS_FIRST, NULLS_LAST;
+
+  @Override
+  public String toString() {
+    switch (this) {
+      case NULLS_FIRST:
+        return "NULLS FIRST";
+      case NULLS_LAST:
+        return "NULLS LAST";
+      default:
+        throw new IllegalArgumentException("Unexpected null order: " + this);
+    }
+  }
 }
-
-case class MergeIntoParams(
-    isSourceRowNotPresent: Expression,
-    isTargetRowNotPresent: Expression,
-    matchedConditions: Seq[Expression],
-    matchedOutputs: Seq[Option[Seq[Expression]]],
-    notMatchedConditions: Seq[Expression],
-    notMatchedOutputs: Seq[Option[Seq[Expression]]],
-    targetOutput: Seq[Expression],
-    joinedAttributes: Seq[Attribute]) extends Serializable
