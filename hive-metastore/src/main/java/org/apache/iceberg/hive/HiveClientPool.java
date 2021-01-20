@@ -84,6 +84,20 @@ public class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> 
   }
 
   @Override
+  protected boolean failureDetection(HiveMetaStoreClient client, Exception ex) {
+    if (null != ex && ex instanceof MetaException) {
+      try {
+        client.getDatabase("default");
+      } catch (TException e) {
+        if (e instanceof TTransportException) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  @Override
   protected void close(HiveMetaStoreClient client) {
     client.close();
   }
