@@ -232,9 +232,9 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
     testWriteRow(null, null);
 
     if (partitioned) {
-      Assert.assertEquals("Should have 1 data file in partition 'aaa'", 1, partitionFiles("aaa").size());
-      Assert.assertEquals("Should have 1 data file in partition 'bbb'", 1, partitionFiles("bbb").size());
-      Assert.assertEquals("Should have 1 data file in partition 'ccc'", 1, partitionFiles("ccc").size());
+      Assert.assertEquals("There should be only 1 data file in partition 'aaa'", 1, partitionFiles("aaa").size());
+      Assert.assertEquals("There should be only 1 data file in partition 'bbb'", 1, partitionFiles("bbb").size());
+      Assert.assertEquals("There should be only 1 data file in partition 'ccc'", 1, partitionFiles("ccc").size());
     }
   }
 
@@ -242,9 +242,9 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
   public void testPartitionWriteMode() throws Exception {
     testWriteRow(null, DistributionMode.HASH);
     if (partitioned) {
-      Assert.assertEquals("Should have 1 data file in partition 'aaa'", 1, partitionFiles("aaa").size());
-      Assert.assertEquals("Should have 1 data file in partition 'bbb'", 1, partitionFiles("bbb").size());
-      Assert.assertEquals("Should have 1 data file in partition 'ccc'", 1, partitionFiles("ccc").size());
+      Assert.assertEquals("There should be only 1 data file in partition 'aaa'", 1, partitionFiles("aaa").size());
+      Assert.assertEquals("There should be only 1 data file in partition 'bbb'", 1, partitionFiles("bbb").size());
+      Assert.assertEquals("There should be only 1 data file in partition 'ccc'", 1, partitionFiles("ccc").size());
     }
   }
 
@@ -252,9 +252,9 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
   public void testShuffleByPartitionWithSchema() throws Exception {
     testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.HASH);
     if (partitioned) {
-      Assert.assertEquals("Should have 1 data file in partition 'aaa'", 1, partitionFiles("aaa").size());
-      Assert.assertEquals("Should have 1 data file in partition 'bbb'", 1, partitionFiles("bbb").size());
-      Assert.assertEquals("Should have 1 data file in partition 'ccc'", 1, partitionFiles("ccc").size());
+      Assert.assertEquals("There should be only 1 data file in partition 'aaa'", 1, partitionFiles("aaa").size());
+      Assert.assertEquals("There should be only 1 data file in partition 'bbb'", 1, partitionFiles("bbb").size());
+      Assert.assertEquals("There should be only 1 data file in partition 'ccc'", 1, partitionFiles("ccc").size());
     }
   }
 }

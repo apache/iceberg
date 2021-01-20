@@ -236,8 +236,8 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
   }
 
   @Test
-  public void testPartitionWriteMode() throws Exception {
-    String tableName = "test_shuffle_by_partition";
+  public void testHashDistributeMode() throws Exception {
+    String tableName = "test_hash_distribution_mode";
 
     Map<String, String> tableProps = ImmutableMap.of(
         "write.format.default", format.name(),
@@ -265,9 +265,12 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
         SimpleDataUtil.createRecord(3, "ccc")
     ));
 
-    Assert.assertEquals("Should 1 data file in partition 'aaa'", 1, partitionFiles(tableName, "aaa").size());
-    Assert.assertEquals("Should 1 data file in partition 'bbb'", 1, partitionFiles(tableName, "bbb").size());
-    Assert.assertEquals("Should 1 data file in partition 'ccc'", 1, partitionFiles(tableName, "ccc").size());
+    Assert.assertEquals("There should be only 1 data file in partition 'aaa'", 1,
+        partitionFiles(tableName, "aaa").size());
+    Assert.assertEquals("There should be only 1 data file in partition 'bbb'", 1,
+        partitionFiles(tableName, "bbb").size());
+    Assert.assertEquals("There should be only 1 data file in partition 'ccc'", 1,
+        partitionFiles(tableName, "ccc").size());
 
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
   }
