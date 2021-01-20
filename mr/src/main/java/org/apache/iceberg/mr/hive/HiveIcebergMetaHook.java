@@ -51,6 +51,14 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
   private static final Logger LOG = LoggerFactory.getLogger(HiveIcebergMetaHook.class);
   private static final Set<String> PARAMETERS_TO_REMOVE = ImmutableSet
       .of(InputFormatConfig.TABLE_SCHEMA, Catalogs.LOCATION, Catalogs.NAME);
+  private static final Set<String> PROPERTIES_TO_REMOVE = ImmutableSet
+      // We don't want to push down the metadata location props to Iceberg from HMS,
+      // since the snapshot pointer in HMS would always be one step ahead
+      .of(BaseMetastoreTableOperations.METADATA_LOCATION_PROP,
+      BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP,
+      // Initially we'd like to cache the partition spec in HMS, but not push it down later to Iceberg during alter
+      // table commands since by then the HMS info can be stale + Iceberg does not store its partition spec in the props
+      InputFormatConfig.PARTITION_SPEC);
 
   private final Configuration conf;
   private Table icebergTable = null;
@@ -175,10 +183,10 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
   /**
    * Calculates the properties we would like to send to the catalog.
    * <ul>
-   * <li>The base of the properties is the properties store at the Hive Metastore for the given table
+   * <li>The base of the properties is the properties stored at the Hive Metastore for the given table
    * <li>We add the {@link Catalogs#LOCATION} as the table location
    * <li>We add the {@link Catalogs#NAME} as TableIdentifier defined by the database name and table name
-   * <li>We remove the Hive Metastore specific parameters
+   * <li>We remove some parameters that we don't want to push down to the Iceberg table props
    * </ul>
    * @param hmsTable Table for which we are calculating the properties
    * @return The properties we can provide for Iceberg functions, like {@link Catalogs}
@@ -195,6 +203,9 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     if (properties.get(Catalogs.NAME) == null) {
       properties.put(Catalogs.NAME, TableIdentifier.of(hmsTable.getDbName(), hmsTable.getTableName()).toString());
     }
+
+    // Remove HMS table parameters we don't want to propagate to Iceberg
+    PROPERTIES_TO_REMOVE.forEach(properties::remove);
 
     return properties;
   }
