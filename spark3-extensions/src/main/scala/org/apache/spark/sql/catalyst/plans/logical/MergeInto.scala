@@ -34,9 +34,8 @@ case class MergeIntoParams(
     isSourceRowNotPresent: Expression,
     isTargetRowNotPresent: Expression,
     matchedConditions: Seq[Expression],
-    matchedOutputs: Seq[Seq[Expression]],
+    matchedOutputs: Seq[Option[Seq[Expression]]],
     notMatchedConditions: Seq[Expression],
-    notMatchedOutputs: Seq[Seq[Expression]],
+    notMatchedOutputs: Seq[Option[Seq[Expression]]],
     targetOutput: Seq[Expression],
-    deleteOutput: Seq[Expression],
     joinedAttributes: Seq[Attribute]) extends Serializable

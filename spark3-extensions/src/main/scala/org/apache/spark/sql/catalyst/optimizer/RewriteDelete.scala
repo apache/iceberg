@@ -62,7 +62,7 @@ case class RewriteDelete(conf: SQLConf) extends Rule[LogicalPlan] with RewriteRo
       val mergeBuilder = r.table.asMergeable.newMergeBuilder("delete", writeInfo)
 
       val matchingRowsPlanBuilder = scanRelation => Filter(cond, scanRelation)
-      val scanPlan = buildScanPlan(r.table, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
+      val scanPlan = buildDynamicFilterScanPlan(r.table, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
 
       val remainingRowFilter = Not(EqualNullSafe(cond, Literal(true, BooleanType)))
       val remainingRowsPlan = Filter(remainingRowFilter, scanPlan)
