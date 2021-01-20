@@ -256,7 +256,7 @@ Notes:
 
 ### Sorting
 
-Users could sort their data within partitions by columns to gain performance. The information on how the data is sorted could be declared per data or delete file, by a **sort order**.
+Users can sort their data within partitions by columns to gain performance. The information on how the data is sorted can be declared per data or delete file, by a **sort order**.
 
 A sort order is defined by an sort order id and a list of sort fields. The order of the sort fields within the list defines the order in which the sort is applied to the data. Each sort field consists of:
 
@@ -266,6 +266,8 @@ A sort order is defined by an sort order id and a list of sort fields. The order
 *   A **null order** that describes the order of null values when sorted. Can only be either `nulls-first` or `nulls-last`
 
 Order id `0` is reserved for the unsorted order. 
+
+Sorting floating-point numbers should produce the following behavior: `-NaN` < `-Infinity` < `-value` < `-0` < `0` < `value` < `Infinity` < `NaN`. This aligns with the implementation of Java floating-point types comparisons. 
 
 A data or delete file is associated with a sort order by the sort order's id within [a manifest](#manifests). Therefore, the table must declare all the sort orders for lookup. A table could also be configured with a default sort order id, indicating how the new data should be sorted by default. Writers should use this default sort order to sort the data on write, but are not required to if the default order is prohibitively expensive, as it would be for streaming writes.
 
@@ -327,7 +329,7 @@ Notes:
 
 1. Single-value serialization for lower and upper bounds is detailed in Appendix D.
 
-2. If sort order ID is missing or unknown, then the order is assumed to be unsorted. Only data files and equality delete files could have valid sort orders, and [position deletes](#position-delete-files) are required to be sorted by file and position. The manifest should not be written with an order ID for position delete files, and readers must ignore this field for those files. 
+2. If sort order ID is missing or unknown, then the order is assumed to be unsorted. Only data files and equality delete files should be written with a non-null order id. [Position deletes](#position-delete-files) are required to be sorted by file and position, not a table order, and should set sort order id to null. Readers must ignore sort order id for position delete files.
 
 The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
 
@@ -499,8 +501,8 @@ Table metadata consists of the following fields:
 | _optional_ | _optional_ | **`current-snapshot-id`**| `long` ID of the current table snapshot. |
 | _optional_ | _optional_ | **`snapshots`**| A list of valid snapshots. Valid snapshots are snapshots for which all data files exist in the file system. A data file must not be deleted from the file system until the last snapshot in which it was listed is garbage collected. |
 | _optional_ | _optional_ | **`snapshot-log`**| A list (optional) of timestamp and snapshot ID pairs that encodes changes to the current snapshot for the table. Each time the current-snapshot-id is changed, a new entry should be added with the last-updated-ms and the new current-snapshot-id. When snapshots are expired from the list of valid snapshots, all entries before a snapshot that has expired should be removed. |
-| _optional_ | _optional_ | **`sort-orders`**| A list of sort orders, stored as full sort order objects. |
-| _optional_ | _optional_ | **`default-sort-order-id`**| Default sort order id of the table. Note that this could be used by writers, but is not used when reading because reads use the specs stored in manifest files. |
+| _optional_ | _required_ | **`sort-orders`**| A list of sort orders, stored as full sort order objects. |
+| _optional_ | _required_ | **`default-sort-order-id`**| Default sort order id of the table. Note that this could be used by writers, but is not used when reading because reads use the specs stored in manifest files. |
 
 For serialization details, see Appendix C.
 
@@ -947,5 +949,7 @@ Writing v2 metadata:
 * Snapshot added required field field `sequence-number`.
 * Snapshot now requires field `manifest-list`.
 * Snapshot field `manifests` is no longer allowed.
+* Table metadata now requires field `sort-orders`.
+* Table metadata now requires field `default-sort-order-id`.
 
 Note that these requirements apply when writing data to a v2 table. Tables that are upgraded from v1 may contain metadata that does not follow these requirements. Implementations should remain backward-compatible with v1 metadata requirements.
