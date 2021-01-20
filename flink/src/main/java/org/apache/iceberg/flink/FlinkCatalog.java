@@ -666,10 +666,10 @@ public class FlinkCatalog extends AbstractCatalog {
     }
 
     TableScan scan = table.newScan().filter(filter);
-    Set<CatalogPartitionSpec> set = Sets.newHashSet();
+    Set<Map<String, Object>> setMap = Sets.newHashSet();
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       for (DataFile dataFile : CloseableIterable.transform(tasks, FileScanTask::file)) {
-        Map<String, String> map = Maps.newHashMap();
+        Map<String, Object> map = Maps.newHashMap();
         StructLike structLike = dataFile.partition();
         PartitionSpec spec = table.specs().get(dataFile.specId());
         for (int i = 0; i < structLike.size(); i++) {
@@ -677,27 +677,40 @@ public class FlinkCatalog extends AbstractCatalog {
           map.put(name, getValue(table.schema(), name, i, structLike));
         }
 
-        set.add(new CatalogPartitionSpec(map));
+        setMap.add(map);
       }
     } catch (IOException e) {
       throw new CatalogException(String.format("Failed to list partitions of table %s", tablePath), e);
     }
 
-    List<CatalogPartitionSpec> list = Lists.newArrayList(set);
+    List<Map<String, Object>> list = Lists.newArrayList(setMap);
     sortPartitions(list);
-    return list;
+    List<CatalogPartitionSpec> partitionSpecs = Lists.newArrayListWithCapacity(list.size());
+    for (Map<String, Object> partitionMap : list) {
+      Map<String, String> partitions = partitionMap.entrySet().stream().collect(Collectors.toMap(
+          Map.Entry::getKey,
+          e -> String.valueOf(e.getValue())
+      ));
+      partitionSpecs.add(new CatalogPartitionSpec(partitions));
+    }
+
+    return partitionSpecs;
   }
 
-  private void sortPartitions(List<CatalogPartitionSpec> list) {
-    list.sort((o1, o2) -> {
-      Map<String, String> map1 = o1.getPartitionSpec();
-      Map<String, String> map2 = o2.getPartitionSpec();
-      for (Map.Entry<String, String> entry : map1.entrySet()) {
+  /**
+   * Sort the partition map by the value
+   *
+   * @param list the partition list
+   */
+  @SuppressWarnings("unchecked")
+  private void sortPartitions(List<Map<String, Object>> list) {
+    list.sort((map1, map2) -> {
+      for (Map.Entry<String, Object> entry : map1.entrySet()) {
         String key = entry.getKey();
-        String value = entry.getValue();
-        String value1 = map2.get(key);
-        if (!value.equals(value1)) {
-          return value.compareToIgnoreCase(value1);
+        Object value = entry.getValue();
+        Object value1 = map2.get(key);
+        if (value instanceof Comparable && value1 instanceof Comparable && !value.equals(value1)) {
+          return ((Comparable<Object>) value).compareTo(value1);
         }
       }
 
@@ -705,18 +718,18 @@ public class FlinkCatalog extends AbstractCatalog {
     });
   }
 
-  private String getValue(Schema schema, String name, int index, StructLike structLike) {
+  private Object getValue(Schema schema, String name, int index, StructLike structLike) {
     Type type = schema.findType(name);
     if (type instanceof Types.DateType) {
-      return DateTimeUtil.dateFromDays(structLike.get(index, Integer.class)).toString();
+      return DateTimeUtil.dateFromDays(structLike.get(index, Integer.class));
     } else if (type instanceof Types.TimeType) {
-      return DateTimeUtil.timeFromMicros(structLike.get(index, Long.class)).toString();
+      return DateTimeUtil.timeFromMicros(structLike.get(index, Long.class));
     } else if (type instanceof Types.TimestampType) {
-      return DateTimeUtil.timestampFromMicros(structLike.get(index, Long.class)).toString();
+      return DateTimeUtil.timestampFromMicros(structLike.get(index, Long.class));
     } else if (type instanceof Types.BinaryType) {
       return new String(structLike.get(index, ByteBuffer.class).array());
     } else {
-      return String.valueOf(structLike.get(index, Object.class));
+      return structLike.get(index, Object.class);
     }
   }
 

@@ -155,7 +155,7 @@ public class TestFlinkCatalogTablePartitions extends FlinkTestBase {
   public void testListPartitionsWithIntegerPartitions() throws TableNotExistException, TableNotPartitionedException {
     sql("CREATE TABLE %s (id INT, d INT, h INT) PARTITIONED BY (d,h) " +
         "with ('write.format.default'='%s')", TABLE_NAME, format.name());
-    sql("INSERT INTO %s VALUES (1,20210101,10),(2,20210101,11),(3,20210102,12),(4,20210102,13)", TABLE_NAME);
+    sql("INSERT INTO %s VALUES (1,20210101,10),(2,20210101,2),(3,20210102,12),(4,20210102,3)", TABLE_NAME);
 
     ObjectPath objectPath = new ObjectPath(DATABASE_NAME, TABLE_NAME);
     Optional<Catalog> catalog = getTableEnv().getCatalog(CATALOG_NAME);
@@ -167,8 +167,8 @@ public class TestFlinkCatalogTablePartitions extends FlinkTestBase {
     Assert.assertEquals("Should have 2 partition", 2, list.size());
 
     List<CatalogPartitionSpec> expected = Lists.newArrayList();
-    CatalogPartitionSpec partitionSpec = new CatalogPartitionSpec(ImmutableMap.of("d", "20210101", "h", "10"));
-    CatalogPartitionSpec partitionSpec1 = new CatalogPartitionSpec(ImmutableMap.of("d", "20210101", "h", "11"));
+    CatalogPartitionSpec partitionSpec = new CatalogPartitionSpec(ImmutableMap.of("d", "20210101", "h", "2"));
+    CatalogPartitionSpec partitionSpec1 = new CatalogPartitionSpec(ImmutableMap.of("d", "20210101", "h", "10"));
     expected.add(partitionSpec);
     expected.add(partitionSpec1);
     Assert.assertEquals("Should produce the expected catalog partition specs.", expected, list);
