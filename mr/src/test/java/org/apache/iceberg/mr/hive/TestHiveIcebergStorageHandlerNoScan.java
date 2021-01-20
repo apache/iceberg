@@ -34,6 +34,7 @@ import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
@@ -525,8 +526,8 @@ public class TestHiveIcebergStorageHandlerNoScan {
           hmsParams.get(hive_metastoreConstants.META_TABLE_STORAGE));
       Assert.assertEquals(BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(),
           hmsParams.get(BaseMetastoreTableOperations.TABLE_TYPE_PROP));
-      Assert.assertTrue(hmsParams.get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP)
-          .startsWith(icebergTable.location()));
+      Assert.assertEquals(hmsParams.get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP),
+              getCurrentSnapshotForHiveCatalogTable(icebergTable));
       Assert.assertNull(hmsParams.get(BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP));
       Assert.assertNotNull(hmsParams.get(hive_metastoreConstants.DDL_TIME));
     } else {
@@ -557,10 +558,18 @@ public class TestHiveIcebergStorageHandlerNoScan {
       Assert.assertEquals("true", hmsParams.get("new_prop_1"));
       Assert.assertEquals("false", hmsParams.get("new_prop_2"));
       Assert.assertEquals("new_val", hmsParams.get("custom_property"));
-      Assert.assertNotNull(hmsParams.get(BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP));
+      String prevSnapshot = getCurrentSnapshotForHiveCatalogTable(icebergTable);
+      icebergTable.refresh();
+      String newSnapshot = getCurrentSnapshotForHiveCatalogTable(icebergTable);
+      Assert.assertEquals(hmsParams.get(BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP), prevSnapshot);
+      Assert.assertEquals(hmsParams.get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP), newSnapshot);
     } else {
       Assert.assertEquals(7, hmsParams.size());
     }
+  }
+
+  private String getCurrentSnapshotForHiveCatalogTable(org.apache.iceberg.Table icebergTable) {
+    return ((BaseMetastoreTableOperations) ((BaseTable) icebergTable).operations()).currentMetadataLocation();
   }
 
   private org.apache.hadoop.hive.metastore.api.Table getHmsTable(String dbName, String tableName)
