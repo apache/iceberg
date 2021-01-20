@@ -45,6 +45,11 @@ import static org.apache.iceberg.expressions.Expressions.rewriteNot;
  * Files are passed to {@link #eval(ContentFile)}, which returns true if the file may contain matching
  * rows and false if the file cannot contain matching rows. Files may be skipped if and only if the
  * return value of {@code eval} is false.
+ * <p>
+ * Due to the comparison implementation of ORC stats, for float/double columns in ORC files, if the first
+ * value in a file is NaN, metrics of this file will report NaN for both upper and lower bound despite
+ * that the column could contain non-NaN data. Thus in some scenarios explicitly checks for NaN is necessary
+ * in order to not skip files that may contain matching data.
  */
 public class InclusiveMetricsEvaluator {
   private static final int IN_PREDICATE_LIMIT = 200;
@@ -192,13 +197,13 @@ public class InclusiveMetricsEvaluator {
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
 
-        int cmp = lit.comparator().compare(lower, lit.value());
+        if (NaNUtil.isNaN(lower)) {
+          // NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
+          return ROWS_MIGHT_MATCH;
+        }
 
-        // Due to the comparison implementation of ORC stats, for float/double columns in ORC files,
-        // if the first value in a file is NaN, metrics of this file will report NaN for both upper and
-        // lower bound despite that the column could contain non-NaN data.
-        // Without this NaN check below, we may skip including a file that contains matching data.
-        if (cmp >= 0 && !NaNUtil.isNaN(lower)) {
+        int cmp = lit.comparator().compare(lower, lit.value());
+        if (cmp >= 0) {
           return ROWS_CANNOT_MATCH;
         }
       }
@@ -217,13 +222,13 @@ public class InclusiveMetricsEvaluator {
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
 
-        int cmp = lit.comparator().compare(lower, lit.value());
+        if (NaNUtil.isNaN(lower)) {
+          // NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
+          return ROWS_MIGHT_MATCH;
+        }
 
-        // Due to the comparison implementation of ORC stats, for float/double columns in ORC files,
-        // if the first value in a file is NaN, metrics of this file will report NaN for both upper and
-        // lower bound despite that the column could contain non-NaN data.
-        // Without this NaN check below, we may skip including a file that contains matching data.
-        if (cmp > 0 && !NaNUtil.isNaN(lower)) {
+        int cmp = lit.comparator().compare(lower, lit.value());
+        if (cmp > 0) {
           return ROWS_CANNOT_MATCH;
         }
       }
@@ -282,11 +287,8 @@ public class InclusiveMetricsEvaluator {
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
 
-        // Due to the comparison implementation of ORC stats, for float/double columns in ORC files,
-        // if the first value in a file is NaN, metrics of this file will report NaN for both upper and
-        // lower bound despite that the column could contain non-NaN data.
-        // Without this NaN check below, we may skip including a file that contains matching data.
         if (NaNUtil.isNaN(lower)) {
+          // NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
           return ROWS_MIGHT_MATCH;
         }
 
@@ -333,11 +335,8 @@ public class InclusiveMetricsEvaluator {
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
 
-        // Due to the comparison implementation of ORC stats, for float/double columns in ORC files,
-        // if the first value in a file is NaN, metrics of this file will report NaN for both upper and
-        // lower bound despite that the column could contain non-NaN data.
-        // Without this NaN check below, we may skip including a file that contains matching data.
         if (NaNUtil.isNaN(lower)) {
+          // NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
           return ROWS_MIGHT_MATCH;
         }
 

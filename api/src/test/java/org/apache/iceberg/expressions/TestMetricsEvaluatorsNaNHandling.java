@@ -222,12 +222,8 @@ public class TestMetricsEvaluatorsNaNHandling {
     Assert.assertTrue("Should match: 10 within bounds", shouldRead);
 
     shouldRead = new InclusiveMetricsEvaluator(
-        SCHEMA, Expressions.in("some_nan_correct_bounds", 1F)).eval(FILE);
+        SCHEMA, Expressions.in("some_nan_correct_bounds", 1F, 30F)).eval(FILE);
     Assert.assertFalse("Should not match: 1 not within bounds", shouldRead);
-
-    shouldRead = new InclusiveMetricsEvaluator(
-        SCHEMA, Expressions.in("some_nan_correct_bounds", 30F)).eval(FILE);
-    Assert.assertFalse("Should not match: 30 not within bounds", shouldRead);
   }
 
   @Test
@@ -266,7 +262,7 @@ public class TestMetricsEvaluatorsNaNHandling {
       shouldRead = new StrictMetricsEvaluator(SCHEMA, func.apply("all_nan_null_bounds", 1D)).eval(FILE);
       Assert.assertFalse("Should not match: all nan column doesn't contain number", shouldRead);
 
-      shouldRead = new StrictMetricsEvaluator(SCHEMA, func.apply("some_nan_correct_bounds", 10F)).eval(FILE);
+      shouldRead = new StrictMetricsEvaluator(SCHEMA, func.apply("some_nan_correct_bounds", 30F)).eval(FILE);
       Assert.assertFalse("Should not match: nan value exists", shouldRead);
     }
   }
