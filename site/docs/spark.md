@@ -24,7 +24,7 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 | [SQL create table](#create-table)                | ✔️        |            |                                                |
 | [SQL create table as](#create-table-as-select)   | ✔️        |            |                                                |
 | [SQL replace table as](#replace-table-as-select) | ✔️        |            |                                                |
-| [SQL alter table](#alter-table)                  | ✔️        |            |  ⚠ Updating partition field or sort order requires extensions enabled  |
+| [SQL alter table](#alter-table)                  | ✔️        |            |  ⚠ requires extensions enabled to update partition field and sort order  |
 | [SQL drop table](#drop-table)                    | ✔️        |            |                                                |
 | [SQL select](#querying-with-sql)                 | ✔️        |            |                                                |
 | [SQL insert into](#insert-into)                  | ✔️        |            |                                                |
