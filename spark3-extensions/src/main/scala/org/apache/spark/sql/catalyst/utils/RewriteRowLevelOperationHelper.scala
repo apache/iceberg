@@ -52,6 +52,7 @@ import org.apache.spark.sql.execution.datasources.DataSourceStrategy
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Implicits
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
+import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implicits
 import org.apache.spark.sql.execution.datasources.v2.PushDownUtils
 import org.apache.spark.sql.sources
 import org.apache.spark.sql.types.StructType
@@ -61,6 +62,7 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
 
   import DataSourceV2Implicits._
   import RewriteRowLevelOperationHelper._
+  import ExtendedDataSourceV2Implicits.ScanBuilderHelper
 
   def resolver: Resolver
 
@@ -72,7 +74,7 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
 
     pushFilters(scanBuilder, cond, relation.output)
 
-    val scan = scanBuilder.build()
+    val scan = scanBuilder.asIceberg.withMetadataColumns(FILE_NAME_COL, ROW_POS_COL).build()
     val outputAttrs = toOutputAttrs(scan.readSchema(), relation.output)
     val predicates = extractFilters(cond, relation.output).reduceLeftOption(And)
     val scanRelation = DataSourceV2ScanRelation(relation.table, scan, outputAttrs)
@@ -93,7 +95,7 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
 
     pushFilters(scanBuilder, cond, tableAttrs)
 
-    val scan = scanBuilder.build()
+    val scan = scanBuilder.asIceberg.withMetadataColumns(FILE_NAME_COL, ROW_POS_COL).build()
     val outputAttrs = toOutputAttrs(scan.readSchema(), tableAttrs)
     val scanRelation = DataSourceV2ScanRelation(table, scan, outputAttrs)
 

@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -100,6 +101,11 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
     return Expressions.alwaysTrue();
   }
 
+  public SparkScanBuilder withMetadataColumns(String... metadataColumns) {
+    Collections.addAll(metaColumns, metadataColumns);
+    return this;
+  }
+
   public SparkScanBuilder caseSensitive(boolean isCaseSensitive) {
     this.caseSensitive = isCaseSensitive;
     return this;
@@ -178,9 +184,6 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
   public Scan buildMergeScan() {
     Broadcast<FileIO> io = lazySparkContext().broadcast(SparkUtil.serializableFileIO(table));
     Broadcast<EncryptionManager> encryption = lazySparkContext().broadcast(table.encryption());
-
-    metaColumns.add(MetadataColumns.FILE_PATH.name());
-    metaColumns.add(MetadataColumns.ROW_POSITION.name());
 
     return new SparkMergeScan(
         table, io, encryption, caseSensitive, ignoreResiduals,
