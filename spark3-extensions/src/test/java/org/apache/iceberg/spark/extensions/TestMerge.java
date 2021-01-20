@@ -327,7 +327,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
     AssertHelpers.assertThrows("Should complain about subquery expressions",
-        AnalysisException.class, "Subqueries are not supported in SEARCH conditions",
+        AnalysisException.class, "Subqueries are not supported in conditions",
         () -> {
           sql("MERGE INTO %s t USING source s " +
               "ON t.id == s.c1 AND t.id < (SELECT max(c2) FROM source) " +
@@ -336,7 +336,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         });
 
     AssertHelpers.assertThrows("Should complain about subquery expressions",
-        AnalysisException.class, "Subqueries are not supported in UPDATE conditions",
+        AnalysisException.class, "Subqueries are not supported in conditions",
         () -> {
           sql("MERGE INTO %s t USING source s " +
               "ON t.id == s.c1 " +
@@ -345,7 +345,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         });
 
     AssertHelpers.assertThrows("Should complain about subquery expressions",
-        AnalysisException.class, "Subqueries are not supported in DELETE conditions",
+        AnalysisException.class, "Subqueries are not supported in conditions",
         () -> {
           sql("MERGE INTO %s t USING source s " +
               "ON t.id == s.c1 " +
@@ -354,7 +354,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         });
 
     AssertHelpers.assertThrows("Should complain about subquery expressions",
-        AnalysisException.class, "Subqueries are not supported in INSERT conditions",
+        AnalysisException.class, "Subqueries are not supported in conditions",
         () -> {
           sql("MERGE INTO %s t USING source s " +
               "ON t.id == s.c1 " +

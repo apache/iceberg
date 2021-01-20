@@ -53,7 +53,8 @@ object MergeIntoTablePredicateCheck extends (LogicalPlan => Unit) {
     // Spark already validates the conditions are deterministic and don't contain aggregates
     if (SubqueryExpression.hasSubquery(cond)) {
       throw new AnalysisException(
-        s"Subqueries are not supported in $condName conditions of MERGE operation: ${cond.sql}")
+        s"Subqueries are not supported in conditions of MERGE operations. " +
+        s"Found a subquery in the $condName condition: ${cond.sql}")
     }
   }
 }
