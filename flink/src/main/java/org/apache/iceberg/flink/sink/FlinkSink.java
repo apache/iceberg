@@ -231,13 +231,13 @@ public class FlinkSink {
         }
       }
 
-      // Convert the flink requested table schema to flink row type.
+      // Convert the requested flink table schema to flink row type.
       RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
 
       // Distribute the records from input data stream based on the write.distribution-mode.
       rowDataInput = distributeDataStream(rowDataInput, table.properties(), table.spec(), table.schema(), flinkRowType);
 
-      // Concat the iceberg stream writer and committer operators.
+      // Chain the iceberg stream writer and committer operator.
       IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds);
       IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
 
@@ -295,7 +295,6 @@ public class FlinkSink {
   }
 
   static RowType toFlinkRowType(Schema schema, TableSchema requestedSchema) {
-    RowType flinkRowType;
     if (requestedSchema != null) {
       // Convert the flink schema to iceberg schema firstly, then reassign ids to match the existing iceberg schema.
       Schema writeSchema = TypeUtil.reassignIds(FlinkSchemaUtil.convert(requestedSchema), schema);
@@ -305,12 +304,10 @@ public class FlinkSink {
       // iceberg INTEGER, that means if we use iceberg's table schema to read TINYINT (backend by 1 'byte'), we will
       // read 4 bytes rather than 1 byte, it will mess up the byte array in BinaryRowData. So here we must use flink
       // schema.
-      flinkRowType = (RowType) requestedSchema.toRowDataType().getLogicalType();
+      return (RowType) requestedSchema.toRowDataType().getLogicalType();
     } else {
-      flinkRowType = FlinkSchemaUtil.convert(schema);
+      return FlinkSchemaUtil.convert(schema);
     }
-
-    return flinkRowType;
   }
 
   static IcebergStreamWriter<RowData> createStreamWriter(Table table,

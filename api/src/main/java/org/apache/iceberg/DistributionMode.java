@@ -29,7 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * partitions, otherwise that may produce too many small files because each task is writing rows into different
  * partitions randomly.
  * <p>
- * 2. hash: hash distribute by partition keys, which is suitable for the scenarios where the rows are located
+ * 2. hash: hash distribute by partition key, which is suitable for the scenarios where the rows are located
  * into different partitions evenly.
  * <p>
  * 3. range: range distribute by partition key (or sort key if table has an {@link SortOrder}), which is suitable
@@ -48,8 +48,8 @@ public enum DistributionMode {
     return modeName;
   }
 
-  public static DistributionMode fromName(String name) {
-    Preconditions.checkNotNull(name, "Name should not be null");
-    return DistributionMode.valueOf(name.toUpperCase(Locale.ENGLISH));
+  public static DistributionMode fromName(String modeName) {
+    Preconditions.checkNotNull(modeName, "Name of distribution mode should not be null");
+    return DistributionMode.valueOf(modeName.toUpperCase(Locale.ENGLISH));
   }
 }
