@@ -353,7 +353,10 @@ public class TestIcebergInputFormats {
 
   @Test
   public void testCustomCatalog() throws IOException {
-    conf.set("warehouse.location", temp.newFolder("hadoop_catalog").getAbsolutePath());
+    String warehouseLocation = temp.newFolder("hadoop_catalog").getAbsolutePath();
+    conf.set("warehouse.location", warehouseLocation);
+    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, "default"), Catalogs.HADOOP);
+    conf.set(String.format(InputFormatConfig.CATALOG_WAREHOUSE_TEMPLATE, "default"), warehouseLocation);
 
     Catalog catalog = new HadoopCatalogLoader().load(conf);
     TableIdentifier identifier = TableIdentifier.of("db", "t");

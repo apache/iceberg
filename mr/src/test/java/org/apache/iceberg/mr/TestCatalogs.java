@@ -77,8 +77,11 @@ public class TestCatalogs {
 
   @Test
   public void testLoadTableFromCatalog() throws IOException {
+    String defaultCatalogName = "default";
     conf.set("warehouse.location", temp.newFolder("hadoop", "warehouse").toString());
-    conf.setClass(InputFormatConfig.CATALOG_LOADER_CLASS, CustomHadoopCatalogLoader.class, CatalogLoader.class);
+    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, defaultCatalogName), Catalogs.CUSTOM);
+    conf.setClass(String.format(InputFormatConfig.CATALOG_LOADER_CLASS_TEMPLATE, defaultCatalogName),
+            CustomHadoopCatalogLoader.class, CatalogLoader.class);
 
     AssertHelpers.assertThrows(
             "Should complain about table identifier not set", IllegalArgumentException.class,
@@ -138,9 +141,12 @@ public class TestCatalogs {
   @Test
   public void testCreateDropTableToCatalog() throws IOException {
     TableIdentifier identifier = TableIdentifier.of("test", "table");
+    String defaultCatalogName = "default";
 
     conf.set("warehouse.location", temp.newFolder("hadoop", "warehouse").toString());
-    conf.setClass(InputFormatConfig.CATALOG_LOADER_CLASS, CustomHadoopCatalogLoader.class, CatalogLoader.class);
+    conf.setClass(String.format(InputFormatConfig.CATALOG_LOADER_CLASS_TEMPLATE, defaultCatalogName),
+            CustomHadoopCatalogLoader.class, CatalogLoader.class);
+    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, defaultCatalogName), Catalogs.CUSTOM);
 
     Properties missingSchema = new Properties();
     missingSchema.put("name", identifier.toString());
@@ -184,31 +190,87 @@ public class TestCatalogs {
 
   @Test
   public void testLoadCatalog() throws IOException {
-    Assert.assertFalse(Catalogs.loadCatalog(conf).isPresent());
+    Assert.assertFalse(Catalogs.loadCatalog(conf, null).isPresent());
 
-    conf.set(InputFormatConfig.CATALOG, "foo");
+    String nonExistentCatalog = "foo";
+
+    conf.set(InputFormatConfig.CATALOG, nonExistentCatalog);
     AssertHelpers.assertThrows(
             "Should complain about catalog not supported", NoSuchNamespaceException.class,
-            "is not supported", () -> Catalogs.loadCatalog(conf));
+            "is not supported", () -> Catalogs.loadCatalog(conf, nonExistentCatalog));
 
-    conf.set(InputFormatConfig.CATALOG, "hadoop");
-    Optional<Catalog> hadoopCatalog = Catalogs.loadCatalog(conf);
+    conf.set(InputFormatConfig.CATALOG, Catalogs.HADOOP);
+    Optional<Catalog> hadoopCatalog = Catalogs.loadCatalog(conf, nonExistentCatalog);
 
     Assert.assertTrue(hadoopCatalog.isPresent());
     Assert.assertTrue(hadoopCatalog.get() instanceof HadoopCatalog);
 
-    conf.set(InputFormatConfig.CATALOG, "hive");
-    Optional<Catalog> hiveCatalog = Catalogs.loadCatalog(conf);
+    conf.set(InputFormatConfig.CATALOG, Catalogs.HIVE);
+    Optional<Catalog> hiveCatalog = Catalogs.loadCatalog(conf, nonExistentCatalog);
 
     Assert.assertTrue(hiveCatalog.isPresent());
     Assert.assertTrue(hiveCatalog.get() instanceof HiveCatalog);
 
+    conf.set(InputFormatConfig.CATALOG, Catalogs.CUSTOM);
     conf.set("warehouse.location", temp.newFolder("hadoop", "warehouse").toString());
     conf.setClass(InputFormatConfig.CATALOG_LOADER_CLASS, CustomHadoopCatalogLoader.class, CatalogLoader.class);
-    Optional<Catalog> customHadoopCatalog = Catalogs.loadCatalog(conf);
+    Optional<Catalog> customHadoopCatalog = Catalogs.loadCatalog(conf, nonExistentCatalog);
 
     Assert.assertTrue(customHadoopCatalog.isPresent());
     Assert.assertTrue(customHadoopCatalog.get() instanceof CustomHadoopCatalog);
+
+    // arbitrary catalog name with non existent catalog type
+    String catalogName = "barCatalog";
+    conf.unset(InputFormatConfig.CATALOG);
+    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName), nonExistentCatalog);
+    AssertHelpers.assertThrows(
+            "should complain about catalog not supported", NoSuchNamespaceException.class,
+            "is not supported", () -> Catalogs.loadCatalog(conf, catalogName));
+
+    // arbitrary catalog name with hadoop catalog type and default warehouse location
+    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName), Catalogs.HADOOP);
+    hadoopCatalog = Catalogs.loadCatalog(conf, catalogName);
+
+    Assert.assertTrue(hadoopCatalog.isPresent());
+    Assert.assertTrue(hadoopCatalog.get() instanceof HadoopCatalog);
+
+    // arbitrary catalog name with hadoop catalog type and provided warehouse location
+    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName), Catalogs.HADOOP);
+    conf.set(String.format(InputFormatConfig.CATALOG_WAREHOUSE_TEMPLATE, catalogName), "/tmp/mylocation");
+    hadoopCatalog = Catalogs.loadCatalog(conf, catalogName);
+
+    Assert.assertTrue(hadoopCatalog.isPresent());
+    Assert.assertTrue(hadoopCatalog.get() instanceof HadoopCatalog);
+    Assert.assertEquals("HadoopCatalog{name=hadoop, location=/tmp/mylocation}", hadoopCatalog.get().toString());
+
+    // arbitrary catalog name with hive catalog type
+    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName), Catalogs.HIVE);
+    hiveCatalog = Catalogs.loadCatalog(conf, catalogName);
+
+    Assert.assertTrue(hiveCatalog.isPresent());
+    Assert.assertTrue(hiveCatalog.get() instanceof HiveCatalog);
+
+    // arbitrary catalog name with custom catalog type without specific classloader
+    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName), Catalogs.CUSTOM);
+    customHadoopCatalog = Catalogs.loadCatalog(conf, catalogName);
+
+    Assert.assertFalse(customHadoopCatalog.isPresent());
+
+    // arbitrary catalog name with custom catalog type and provided classloader
+    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName), Catalogs.CUSTOM);
+    conf.setClass(String.format(InputFormatConfig.CATALOG_LOADER_CLASS_TEMPLATE, catalogName),
+            CustomHadoopCatalogLoader.class, CatalogLoader.class);
+    customHadoopCatalog = Catalogs.loadCatalog(conf, catalogName);
+
+    Assert.assertTrue(customHadoopCatalog.isPresent());
+    Assert.assertTrue(customHadoopCatalog.get() instanceof CustomHadoopCatalog);
+
+    // default catalog configuration
+    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, "default"), Catalogs.HIVE);
+    hiveCatalog = Catalogs.loadCatalog(conf, null);
+
+    Assert.assertTrue(hiveCatalog.isPresent());
+    Assert.assertTrue(hiveCatalog.get() instanceof HiveCatalog);
   }
 
   public static class CustomHadoopCatalog extends HadoopCatalog {

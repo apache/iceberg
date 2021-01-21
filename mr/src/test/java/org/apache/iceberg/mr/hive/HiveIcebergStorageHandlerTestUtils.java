@@ -20,6 +20,7 @@
 package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
@@ -59,9 +60,14 @@ public class HiveIcebergStorageHandlerTestUtils {
   }
 
   static TestHiveShell shell() {
+    return shell(Collections.emptyMap());
+  }
+
+  static TestHiveShell shell(Map<String, String> configs) {
     TestHiveShell shell = new TestHiveShell();
     shell.setHiveConfValue("hive.notification.event.poll.interval", "-1");
     shell.setHiveConfValue("hive.tez.exec.print.summary", "true");
+    configs.entrySet().forEach(e -> shell.setHiveConfValue(e.getKey(), e.getValue()));
     // We would like to make sure that ORC reading overrides this config, so reading Iceberg tables could work in
     // systems (like Hive 3.2 and higher) where this value is set to true explicitly.
     shell.setHiveConfValue(OrcConf.FORCE_POSITIONAL_EVOLUTION.getHiveConfName(), "true");
@@ -70,9 +76,13 @@ public class HiveIcebergStorageHandlerTestUtils {
   }
 
   static TestTables testTables(TestHiveShell shell, TestTables.TestTableType testTableType, TemporaryFolder temp)
-      throws IOException {
+          throws IOException {
+    return testTables(shell, testTableType, temp, "default");
+  }
 
-    return testTableType.instance(shell.metastore().hiveConf(), temp);
+  static TestTables testTables(TestHiveShell shell, TestTables.TestTableType testTableType, TemporaryFolder temp,
+                               String catalogName) throws IOException {
+    return testTableType.instance(shell.metastore().hiveConf(), temp, catalogName);
   }
 
   static void init(TestHiveShell shell, TestTables testTables, TemporaryFolder temp, String engine) {

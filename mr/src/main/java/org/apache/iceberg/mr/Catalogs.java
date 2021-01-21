@@ -58,8 +58,9 @@ import org.slf4j.LoggerFactory;
 public final class Catalogs {
   private static final Logger LOG = LoggerFactory.getLogger(Catalogs.class);
 
-  private static final String HADOOP = "hadoop";
-  private static final String HIVE = "hive";
+  public static final String HADOOP = "hadoop";
+  public static final String HIVE = "hive";
+  public static final String CUSTOM = "custom";
 
   public static final String NAME = "name";
   public static final String LOCATION = "location";
@@ -76,14 +77,15 @@ public final class Catalogs {
    * @return an Iceberg table
    */
   public static Table loadTable(Configuration conf) {
-    return loadTable(conf, conf.get(InputFormatConfig.TABLE_IDENTIFIER), conf.get(InputFormatConfig.TABLE_LOCATION));
+    return loadTable(conf, conf.get(InputFormatConfig.TABLE_IDENTIFIER), conf.get(InputFormatConfig.TABLE_LOCATION),
+            conf.get(InputFormatConfig.TABLE_CATALOG));
   }
 
   /**
    * Load an Iceberg table using the catalog specified by the configuration.
    * <p>
-   * The table identifier ({@link Catalogs#NAME}) or table path ({@link Catalogs#LOCATION}) should be specified by
-   * the controlling properties.
+   * The table identifier ({@link Catalogs#NAME}) and the catalog name ({@link InputFormatConfig#TABLE_CATALOG}),
+   * or table path ({@link Catalogs#LOCATION}) should be specified by the controlling properties.
    * <p>
    * Used by HiveIcebergSerDe and HiveIcebergStorageHandler
    * @param conf a Hadoop
@@ -91,11 +93,13 @@ public final class Catalogs {
    * @return an Iceberg table
    */
   public static Table loadTable(Configuration conf, Properties props) {
-    return loadTable(conf, props.getProperty(NAME), props.getProperty(LOCATION));
+    return loadTable(conf, props.getProperty(NAME), props.getProperty(LOCATION),
+            props.getProperty(InputFormatConfig.TABLE_CATALOG));
   }
 
-  private static Table loadTable(Configuration conf, String tableIdentifier, String tableLocation) {
-    Optional<Catalog> catalog = loadCatalog(conf);
+  private static Table loadTable(Configuration conf, String tableIdentifier, String tableLocation,
+                                 String tableCatalogName) {
+    Optional<Catalog> catalog = loadCatalog(conf, tableCatalogName);
 
     if (catalog.isPresent()) {
       Preconditions.checkArgument(tableIdentifier != null, "Table identifier not set");
@@ -134,6 +138,7 @@ public final class Catalogs {
     }
 
     String location = props.getProperty(LOCATION);
+    String catalogName = props.getProperty(InputFormatConfig.TABLE_CATALOG);
 
     // Create a table property map without the controlling properties
     Map<String, String> map = new HashMap<>(props.size());
@@ -143,7 +148,7 @@ public final class Catalogs {
       }
     }
 
-    Optional<Catalog> catalog = loadCatalog(conf);
+    Optional<Catalog> catalog = loadCatalog(conf, catalogName);
 
     if (catalog.isPresent()) {
       String name = props.getProperty(NAME);
@@ -166,8 +171,9 @@ public final class Catalogs {
    */
   public static boolean dropTable(Configuration conf, Properties props) {
     String location = props.getProperty(LOCATION);
+    String catalogName = props.getProperty(InputFormatConfig.TABLE_CATALOG);
 
-    Optional<Catalog> catalog = loadCatalog(conf);
+    Optional<Catalog> catalog = loadCatalog(conf, catalogName);
 
     if (catalog.isPresent()) {
       String name = props.getProperty(NAME);
@@ -182,48 +188,81 @@ public final class Catalogs {
   /**
    * Returns true if HiveCatalog is used
    * @param conf a Hadoop conf
+   * @param props the controlling properties
    * @return true if the Catalog is HiveCatalog
    */
-  public static boolean hiveCatalog(Configuration conf) {
-    return HIVE.equalsIgnoreCase(conf.get(InputFormatConfig.CATALOG));
+  public static boolean hiveCatalog(Configuration conf, Properties props) {
+    String catalogName = props.getProperty(InputFormatConfig.TABLE_CATALOG);
+    if (catalogName != null) {
+      return HIVE.equals(conf.get(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName)));
+    } else {
+      if (HIVE.equals(conf.get(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, "default")))) {
+        return true;
+      } else {
+        return HIVE.equalsIgnoreCase(conf.get(InputFormatConfig.CATALOG));
+      }
+    }
   }
 
   @VisibleForTesting
-  static Optional<Catalog> loadCatalog(Configuration conf) {
-    String catalogLoaderClass = conf.get(InputFormatConfig.CATALOG_LOADER_CLASS);
+  static Optional<Catalog> loadCatalog(Configuration conf, String catalogName) {
+    String catalogType;
+    String name = catalogName;
+    if (name == null) {
+      name = "default";
+    }
+    catalogType = conf.get(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, name));
 
-    if (catalogLoaderClass != null) {
-      CatalogLoader loader = (CatalogLoader) DynConstructors.builder(CatalogLoader.class)
-              .impl(catalogLoaderClass)
-              .build()
-              .newInstance();
-      Catalog catalog = loader.load(conf);
-      LOG.info("Loaded catalog {} using {}", catalog, catalogLoaderClass);
-      return Optional.of(catalog);
+    // keep both catalog configuration methods for seamless transition
+    if (catalogType != null) {
+    // new logic
+      return loadCatalog(conf, catalogType, String.format(InputFormatConfig.CATALOG_WAREHOUSE_TEMPLATE, name),
+              String.format(InputFormatConfig.CATALOG_LOADER_CLASS_TEMPLATE, name));
+    } else {
+      // old logic
+      // use catalog {@link InputFormatConfig.CATALOG} stored in global hive config if table specific catalog
+      // configuration or default catalog definition is missing
+      catalogType = conf.get(InputFormatConfig.CATALOG);
+      return loadCatalog(conf, catalogType, InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION,
+              InputFormatConfig.CATALOG_LOADER_CLASS);
+    }
+  }
+
+  private static Optional<Catalog> loadCatalog(Configuration conf, String catalogType,
+                                               String warehouseLocationConfigName, String loaderClassConfigName) {
+    if (catalogType == null) {
+      LOG.info("Catalog is not configured");
+      return Optional.empty();
     }
 
-    String catalogName = conf.get(InputFormatConfig.CATALOG);
-
-    if (catalogName != null) {
-      Catalog catalog;
-      switch (catalogName.toLowerCase()) {
-        case HADOOP:
-          String warehouseLocation = conf.get(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION);
-
-          catalog = (warehouseLocation != null) ? new HadoopCatalog(conf, warehouseLocation) : new HadoopCatalog(conf);
-          LOG.info("Loaded Hadoop catalog {}", catalog);
+    Catalog catalog;
+    switch (catalogType.toLowerCase()) {
+      case HADOOP:
+        String warehouseLocation = conf.get(warehouseLocationConfigName);
+        catalog = (warehouseLocation != null) ? new HadoopCatalog(conf, warehouseLocation) :
+                new HadoopCatalog(conf);
+        LOG.info("Loaded Hadoop catalog {}", catalog);
+        return Optional.of(catalog);
+      case HIVE:
+        catalog = CatalogUtil.loadCatalog(HiveCatalog.class.getName(), CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
+                ImmutableMap.of(), conf);
+        LOG.info("Loaded Hive Metastore catalog {}", catalog);
+        return Optional.of(catalog);
+      case CUSTOM:
+        String catalogLoaderClass = conf.get(loaderClassConfigName);
+        if (catalogLoaderClass != null) {
+          CatalogLoader loader = (CatalogLoader) DynConstructors.builder(CatalogLoader.class)
+                  .impl(catalogLoaderClass)
+                  .build()
+                  .newInstance();
+          catalog = loader.load(conf);
+          LOG.info("Loaded catalog {} using {}", catalog, catalogLoaderClass);
           return Optional.of(catalog);
-        case HIVE:
-          catalog = CatalogUtil.loadCatalog(HiveCatalog.class.getName(), CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
-                  ImmutableMap.of(), conf);
-          LOG.info("Loaded Hive Metastore catalog {}", catalog);
-          return Optional.of(catalog);
-        default:
-          throw new NoSuchNamespaceException("Catalog %s is not supported.", catalogName);
-      }
+        } else {
+          return Optional.empty();
+        }
+      default:
+        throw new NoSuchNamespaceException("Catalog %s is not supported.", catalogType);
     }
-
-    LOG.info("Catalog is not configured");
-    return Optional.empty();
   }
 }

@@ -71,14 +71,16 @@ abstract class TestTables {
 
   private final Tables tables;
   protected final TemporaryFolder temp;
+  protected final String catalog;
 
-  protected TestTables(Tables tables, TemporaryFolder temp) {
+  protected TestTables(Tables tables, TemporaryFolder temp, String catalogName) {
     this.tables = tables;
     this.temp = temp;
+    this.catalog = catalogName;
   }
 
-  protected TestTables(Catalog catalog, TemporaryFolder temp) {
-    this(new CatalogToTables(catalog), temp);
+  protected TestTables(Catalog catalog, TemporaryFolder temp, String catalogName) {
+    this(new CatalogToTables(catalog), temp, catalogName);
   }
 
   public Map<String, String> properties() {
@@ -296,20 +298,22 @@ abstract class TestTables {
 
     private final String warehouseLocation;
 
-    CustomCatalogTestTables(Configuration conf, TemporaryFolder temp) throws IOException {
+    CustomCatalogTestTables(Configuration conf, TemporaryFolder temp, String catalogName) throws IOException {
       this(conf, temp, (MetastoreUtil.hive3PresentOnClasspath() ? "file:" : "") +
-          temp.newFolder("custom", "warehouse").toString());
+          temp.newFolder("custom", "warehouse").toString(), catalogName);
     }
 
-    CustomCatalogTestTables(Configuration conf, TemporaryFolder temp, String warehouseLocation) {
-      super(new TestCatalogs.CustomHadoopCatalog(conf, warehouseLocation), temp);
+    CustomCatalogTestTables(Configuration conf, TemporaryFolder temp, String warehouseLocation, String catalogName) {
+      super(new TestCatalogs.CustomHadoopCatalog(conf, warehouseLocation), temp, catalogName);
       this.warehouseLocation = warehouseLocation;
     }
 
     @Override
     public Map<String, String> properties() {
       return ImmutableMap.of(
-              InputFormatConfig.CATALOG_LOADER_CLASS, TestCatalogs.CustomHadoopCatalogLoader.class.getName(),
+              String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalog), "custom",
+              String.format(InputFormatConfig.CATALOG_LOADER_CLASS_TEMPLATE, catalog),
+              TestCatalogs.CustomHadoopCatalogLoader.class.getName(),
               TestCatalogs.CustomHadoopCatalog.WAREHOUSE_LOCATION, warehouseLocation
       );
     }
@@ -325,21 +329,21 @@ abstract class TestTables {
 
     private final String warehouseLocation;
 
-    HadoopCatalogTestTables(Configuration conf, TemporaryFolder temp) throws IOException {
+    HadoopCatalogTestTables(Configuration conf, TemporaryFolder temp, String catalogName) throws IOException {
       this(conf, temp, (MetastoreUtil.hive3PresentOnClasspath() ? "file:" : "") +
-          temp.newFolder("hadoop", "warehouse").toString());
+          temp.newFolder("hadoop", "warehouse").toString(), catalogName);
     }
 
-    HadoopCatalogTestTables(Configuration conf, TemporaryFolder temp, String warehouseLocation) {
-      super(new HadoopCatalog(conf, warehouseLocation), temp);
+    HadoopCatalogTestTables(Configuration conf, TemporaryFolder temp, String warehouseLocation, String catalogName) {
+      super(new HadoopCatalog(conf, warehouseLocation), temp, catalogName);
       this.warehouseLocation = warehouseLocation;
     }
 
     @Override
     public Map<String, String> properties() {
       return ImmutableMap.of(
-              InputFormatConfig.CATALOG, "hadoop",
-              InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION, warehouseLocation
+              String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalog), "hadoop",
+              String.format(InputFormatConfig.CATALOG_WAREHOUSE_TEMPLATE, catalog), warehouseLocation
       );
     }
 
@@ -349,8 +353,8 @@ abstract class TestTables {
   }
 
   static class HadoopTestTables extends TestTables {
-    HadoopTestTables(Configuration conf, TemporaryFolder temp) {
-      super(new HadoopTables(conf), temp);
+    HadoopTestTables(Configuration conf, TemporaryFolder temp, String catalogName) {
+      super(new HadoopTables(conf), temp, catalogName);
     }
 
     @Override
@@ -382,14 +386,14 @@ abstract class TestTables {
 
   static class HiveTestTables extends TestTables {
 
-    HiveTestTables(Configuration conf, TemporaryFolder temp) {
+    HiveTestTables(Configuration conf, TemporaryFolder temp, String catalogName) {
       super(CatalogUtil.loadCatalog(HiveCatalog.class.getName(), CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
-              ImmutableMap.of(), conf), temp);
+              ImmutableMap.of(), conf), temp, catalogName);
     }
 
     @Override
     public Map<String, String> properties() {
-      return ImmutableMap.of(InputFormatConfig.CATALOG, "hive");
+      return ImmutableMap.of(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalog), "hive");
     }
 
     @Override
@@ -423,26 +427,29 @@ abstract class TestTables {
 
   enum TestTableType {
     HADOOP_TABLE {
-      public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder) {
-        return new HadoopTestTables(conf, temporaryFolder);
+      public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder, String catalogName) {
+        return new HadoopTestTables(conf, temporaryFolder, catalogName);
       }
     },
     HADOOP_CATALOG {
-      public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder) throws IOException {
-        return new HadoopCatalogTestTables(conf, temporaryFolder);
+      public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder, String catalogName)
+          throws IOException {
+        return new HadoopCatalogTestTables(conf, temporaryFolder, catalogName);
       }
     },
     CUSTOM_CATALOG {
-      public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder) throws IOException {
-        return new CustomCatalogTestTables(conf, temporaryFolder);
+      public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder, String catalogName)
+          throws IOException {
+        return new CustomCatalogTestTables(conf, temporaryFolder, catalogName);
       }
     },
     HIVE_CATALOG {
-      public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder) {
-        return new HiveTestTables(conf, temporaryFolder);
+      public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder, String catalogName) {
+        return new HiveTestTables(conf, temporaryFolder, catalogName);
       }
     };
 
-    public abstract TestTables instance(Configuration conf, TemporaryFolder temporaryFolder) throws IOException;
+    public abstract TestTables instance(Configuration conf, TemporaryFolder temporaryFolder, String catalogName)
+        throws IOException;
   }
 }

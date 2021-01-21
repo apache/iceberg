@@ -42,6 +42,7 @@ import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.Record;
@@ -171,7 +172,12 @@ public class TestHiveIcebergStorageHandlerNoScan {
         icebergTable.schema().asStruct());
     Assert.assertEquals(PartitionSpec.unpartitioned(), icebergTable.spec());
 
-    if (!Catalogs.hiveCatalog(shell.getHiveConf())) {
+    org.apache.hadoop.hive.metastore.api.Table hmsTable = shell.metastore().getTable("default", "customers");
+    Properties tableProperties = new Properties();
+    hmsTable.getParameters().entrySet().stream()
+              .filter(e -> !IGNORED_PARAMS.contains(e.getKey()))
+              .forEach(e -> tableProperties.put(e.getKey(), e.getValue()));
+    if (!Catalogs.hiveCatalog(shell.getHiveConf(), tableProperties)) {
       shell.executeStatement("DROP TABLE customers");
 
       // Check if the table was really dropped even from the Catalog
@@ -181,7 +187,6 @@ public class TestHiveIcebergStorageHandlerNoScan {
           }
       );
     } else {
-      org.apache.hadoop.hive.metastore.api.Table hmsTable = shell.metastore().getTable("default", "customers");
       Path hmsTableLocation = new Path(hmsTable.getSd().getLocation());
 
       // Drop the table
@@ -203,6 +208,33 @@ public class TestHiveIcebergStorageHandlerNoScan {
         Assert.assertEquals(0, fs.listStatus(new Path(hmsTableLocation, "metadata")).length);
       }
     }
+  }
+
+  @Test
+  public void testCreateDropTableNonDefaultCatalog() throws TException, InterruptedException {
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    String catalogName = "nondefaultcatalog";
+    testTables.properties().entrySet()
+        .forEach(e -> shell.setHiveSessionValue(e.getKey().replace(testTables.catalog, catalogName), e.getValue()));
+    String createSql = "CREATE EXTERNAL TABLE " + identifier +
+        " (customer_id BIGINT, first_name STRING COMMENT 'This is first name'," +
+        " last_name STRING COMMENT 'This is last name')" +
+        " STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+        testTables.locationForCreateTableSQL(identifier) +
+        " TBLPROPERTIES ('" + InputFormatConfig.TABLE_CATALOG + "'='" + catalogName + "')";
+    shell.executeStatement(createSql);
+
+    Table icebergTable = testTables.loadTable(identifier);
+    Assert.assertEquals(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA.asStruct(),
+        icebergTable.schema().asStruct());
+
+    shell.executeStatement("DROP TABLE default.customers");
+    // Check if the table was really dropped even from the Catalog
+    AssertHelpers.assertThrows("should throw exception", NoSuchTableException.class,
+        "Table does not exist", () -> {
+          testTables.loadTable(identifier);
+        }
+    );
   }
 
   @Test
@@ -249,14 +281,18 @@ public class TestHiveIcebergStorageHandlerNoScan {
         SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA) + "', " +
         "'" + InputFormatConfig.EXTERNAL_TABLE_PURGE + "'='FALSE')");
 
-    if (!Catalogs.hiveCatalog(shell.getHiveConf())) {
+    org.apache.hadoop.hive.metastore.api.Table hmsTable = shell.metastore().getTable("default", "customers");
+    Properties tableProperties = new Properties();
+    hmsTable.getParameters().entrySet().stream()
+            .filter(e -> !IGNORED_PARAMS.contains(e.getKey()))
+            .forEach(e -> tableProperties.put(e.getKey(), e.getValue()));
+    if (!Catalogs.hiveCatalog(shell.getHiveConf(), tableProperties)) {
       shell.executeStatement("DROP TABLE customers");
 
       // Check if the table remains
       testTables.loadTable(identifier);
     } else {
       // Check the HMS table parameters
-      org.apache.hadoop.hive.metastore.api.Table hmsTable = shell.metastore().getTable("default", "customers");
       Path hmsTableLocation = new Path(hmsTable.getSd().getLocation());
 
       // Drop the table
@@ -318,7 +354,8 @@ public class TestHiveIcebergStorageHandlerNoScan {
     testTables.createIcebergTable(shell.getHiveConf(), "customers", COMPLEX_SCHEMA, FileFormat.PARQUET,
         Collections.emptyList());
 
-    if (Catalogs.hiveCatalog(shell.getHiveConf())) {
+    if (testTableType == TestTables.TestTableType.HIVE_CATALOG) {
+
       // In HiveCatalog we just expect an exception since the table is already exists
       AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
           "customers already exists", () -> {
@@ -504,7 +541,17 @@ public class TestHiveIcebergStorageHandlerNoScan {
     expectedIcebergProperties.put("custom_property", "initial_val");
     expectedIcebergProperties.put("EXTERNAL", "TRUE");
     expectedIcebergProperties.put("storage_handler", HiveIcebergStorageHandler.class.getName());
-    if (Catalogs.hiveCatalog(shell.getHiveConf())) {
+
+    // Check the HMS table parameters
+    org.apache.hadoop.hive.metastore.api.Table hmsTable = shell.metastore().getTable("default", "customers");
+    Map<String, String> hmsParams = hmsTable.getParameters()
+            .entrySet().stream()
+            .filter(e -> !IGNORED_PARAMS.contains(e.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    Properties tableProperties = new Properties();
+    tableProperties.putAll(hmsParams);
+
+    if (Catalogs.hiveCatalog(shell.getHiveConf(), tableProperties)) {
       expectedIcebergProperties.put(TableProperties.ENGINE_HIVE_ENABLED, "true");
     }
     if (MetastoreUtil.hive3PresentOnClasspath()) {
@@ -512,14 +559,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
     }
     Assert.assertEquals(expectedIcebergProperties, icebergTable.properties());
 
-    // Check the HMS table parameters
-    org.apache.hadoop.hive.metastore.api.Table hmsTable = shell.metastore().getTable("default", "customers");
-    Map<String, String> hmsParams = hmsTable.getParameters()
-        .entrySet().stream()
-        .filter(e -> !IGNORED_PARAMS.contains(e.getKey()))
-        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-    if (Catalogs.hiveCatalog(shell.getHiveConf())) {
+    if (Catalogs.hiveCatalog(shell.getHiveConf(), tableProperties)) {
       Assert.assertEquals(9, hmsParams.size());
       Assert.assertEquals("initial_val", hmsParams.get("custom_property"));
       Assert.assertEquals("TRUE", hmsParams.get(InputFormatConfig.EXTERNAL_TABLE_PURGE));
@@ -533,6 +573,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
               getCurrentSnapshotForHiveCatalogTable(icebergTable));
       Assert.assertNull(hmsParams.get(BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP));
       Assert.assertNotNull(hmsParams.get(hive_metastoreConstants.DDL_TIME));
+      Assert.assertNotNull(hmsParams.get(InputFormatConfig.PARTITION_SPEC));
     } else {
       Assert.assertEquals(7, hmsParams.size());
       Assert.assertNull(hmsParams.get(TableProperties.ENGINE_HIVE_ENABLED));
@@ -556,7 +597,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
         .filter(e -> !IGNORED_PARAMS.contains(e.getKey()))
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-    if (Catalogs.hiveCatalog(shell.getHiveConf())) {
+    if (Catalogs.hiveCatalog(shell.getHiveConf(), tableProperties)) {
       Assert.assertEquals(12, hmsParams.size()); // 2 newly-added properties + previous_metadata_location prop
       Assert.assertEquals("true", hmsParams.get("new_prop_1"));
       Assert.assertEquals("false", hmsParams.get("new_prop_2"));
@@ -571,7 +612,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
     }
 
     // Remove some Iceberg props and see if they're removed from HMS table props as well
-    if (Catalogs.hiveCatalog(shell.getHiveConf())) {
+    if (Catalogs.hiveCatalog(shell.getHiveConf(), tableProperties)) {
       icebergTable.updateProperties()
           .remove("custom_property")
           .remove("new_prop_1")
@@ -583,7 +624,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
     }
 
     // append some data and check whether HMS stats are aligned with snapshot summary
-    if (Catalogs.hiveCatalog(shell.getHiveConf())) {
+    if (Catalogs.hiveCatalog(shell.getHiveConf(), tableProperties)) {
       List<Record> records = HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS;
       testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, FileFormat.PARQUET, null, records);
       hmsParams = shell.metastore().getTable("default", "customers").getParameters();
@@ -609,8 +650,9 @@ public class TestHiveIcebergStorageHandlerNoScan {
   }
 
   @Test
-  public void testDropHiveTableWithoutUnderlyingTable() throws IOException {
-    Assume.assumeFalse("Not relevant for HiveCatalog", Catalogs.hiveCatalog(shell.getHiveConf()));
+  public void testDropHiveTableWithoutUnderlyingTable() throws IOException, TException, InterruptedException {
+    Assume.assumeFalse("Not relevant for HiveCatalog",
+            testTableType.equals(TestTables.TestTableType.HIVE_CATALOG));
 
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
     // Create the Iceberg table in non-HiveCatalog
