@@ -44,7 +44,7 @@ import org.apache.spark.sql.catalyst.expressions.aggregate.Complete
 import org.apache.spark.sql.catalyst.expressions.aggregate.Sum
 import org.apache.spark.sql.catalyst.plans.logical.Aggregate
 import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
-import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilterWithCountCheck
+import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilterWithCardinalityCheck
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
@@ -87,7 +87,8 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
 
   protected val FILE_NAME_COL = "_file"
   protected val ROW_POS_COL = "_pos"
-  protected val AFFECTED_FILES_ACC_NAME = "affectedFiles"
+  // `internal.metrics` prefix ensures the accumulator state is not tracked by Spark UI
+  protected val AFFECTED_FILES_ACC_NAME = "internal.metrics.merge.affectedFiles"
   protected val AFFECTED_FILES_ACC_ALIAS_NAME = "_affectedFiles_"
   protected val SUM_ROW_ID_ALIAS_NAME = "_sum_"
 
@@ -116,7 +117,7 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
       mergeBuilder: MergeBuilder,
       cond: catalyst.expressions.Expression,
       matchingRowsPlanBuilder: DataSourceV2ScanRelation => LogicalPlan,
-      performCountCheckForMerge: Boolean = false): LogicalPlan = {
+      runCardinalityCheck: Boolean = false): LogicalPlan = {
 
     val scanBuilder = mergeBuilder.asScanBuilder
 
@@ -127,18 +128,24 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
     val scanRelation = DataSourceV2ScanRelation(table, scan, outputAttrs)
 
     scan match {
+      case filterable: SupportsFileFilter if runCardinalityCheck =>
+        val affectedFilesAcc = new SetAccumulator[String]()
+        spark.sparkContext.register(affectedFilesAcc, AFFECTED_FILES_ACC_NAME)
+
+        val matchingRowsPlan = matchingRowsPlanBuilder(scanRelation)
+        val matchingFilesPlan = buildFileFilterPlan(affectedFilesAcc, matchingRowsPlan)
+
+        DynamicFileFilterWithCardinalityCheck(
+          scanRelation,
+          matchingFilesPlan,
+          filterable,
+          affectedFilesAcc)
+
       case filterable: SupportsFileFilter =>
-        if (performCountCheckForMerge) {
-          val affectedFilesAcc = new SetAccumulator[String]()
-          spark.sparkContext.register(affectedFilesAcc, AFFECTED_FILES_ACC_NAME)
-          val planWithAccumulator = buildPlanWithFileAccumulator(affectedFilesAcc,
-            matchingRowsPlanBuilder(scanRelation))
-          DynamicFileFilterWithCountCheck(scanRelation, planWithAccumulator, filterable,
-            affectedFilesAcc, table.name())
-        } else {
-          val matchingFilePlan = buildFileFilterPlan(scanRelation.output, matchingRowsPlanBuilder(scanRelation))
-          DynamicFileFilter(scanRelation, matchingFilePlan, filterable)
-        }
+        val matchingRowsPlan = matchingRowsPlanBuilder(scanRelation)
+        val matchingFilesPlan = buildFileFilterPlan(scanRelation.output, matchingRowsPlan)
+        DynamicFileFilter(scanRelation, matchingFilesPlan, filterable)
+
       case _ =>
         scanRelation
     }
@@ -183,9 +190,9 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
     Project(Seq(findOutputAttr(agg.output, FILE_NAME_COL)), agg)
   }
 
-  private def buildPlanWithFileAccumulator(
-         filesAccumulator: SetAccumulator[String],
-         prunedTargetPlan: LogicalPlan): LogicalPlan = {
+  private def buildFileFilterPlan(
+      filesAccumulator: SetAccumulator[String],
+      prunedTargetPlan: LogicalPlan): LogicalPlan = {
     val fileAttr = findOutputAttr(prunedTargetPlan.output, FILE_NAME_COL)
     val rowPosAttr = findOutputAttr(prunedTargetPlan.output, ROW_POS_COL)
     val accumulatorExpr = Alias(AccumulateFiles(filesAccumulator, fileAttr), AFFECTED_FILES_ACC_ALIAS_NAME)()
