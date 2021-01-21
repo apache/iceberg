@@ -591,7 +591,6 @@ License: http://www.apache.org/licenses/LICENSE-2.0
 
 This product includes code from Apache Spark.
 
-* dev/check-license script
 * vectorized reading of definition levels in BaseVectorizedParquetValuesReader.java
 * portions of the extensions parser
 * casting logic in AssignmentAlignmentSupport
