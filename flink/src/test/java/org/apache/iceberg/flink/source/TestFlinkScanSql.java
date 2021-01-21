@@ -22,6 +22,7 @@ package org.apache.iceberg.flink.source;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.config.TableConfigOptions;
@@ -35,7 +36,9 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.junit.Assert;
 import org.junit.Test;
 
 /**
@@ -104,6 +107,51 @@ public class TestFlinkScanSql extends TestFlinkScan {
 
     Expression filter = Expressions.and(Expressions.equal("dt", "2020-03-20"), Expressions.equal("id", 123));
     assertRecords(runWithFilter(filter, "where dt='2020-03-20' and id=123"), expectedRecords, SCHEMA);
+  }
+
+  @Test
+  public void testInferedParallelism() throws IOException {
+    Table table = catalog.createTable(TableIdentifier.of("default", "t"), SCHEMA, SPEC);
+
+    TableLoader tableLoader = TableLoader.fromHadoopTable(table.location());
+    FlinkInputFormat flinkInputFormat = FlinkSource.forRowData().tableLoader(tableLoader).table(table).buildFormat();
+    ScanContext scanContext = ScanContext.builder().build();
+
+    // Empty table ,parallelism at least 1
+    int parallelism = FlinkSource.forRowData()
+        .flinkConf(new Configuration())
+        .inferParallelism(flinkInputFormat, scanContext);
+    Assert.assertEquals("Should produce the expected parallelism.", 1, parallelism);
+
+    List<Record> writeRecords = RandomGenericData.generate(SCHEMA, 2, 0L);
+    writeRecords.get(0).set(1, 123L);
+    writeRecords.get(0).set(2, "2020-03-20");
+    writeRecords.get(1).set(1, 456L);
+    writeRecords.get(1).set(2, "2020-03-20");
+
+    GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
+
+    DataFile dataFile1 = helper.writeFile(TestHelpers.Row.of("2020-03-20", 0), writeRecords);
+    DataFile dataFile2 = helper.writeFile(TestHelpers.Row.of("2020-03-21", 0),
+        RandomGenericData.generate(SCHEMA, 2, 0L));
+    helper.appendToTable(dataFile1, dataFile2);
+
+    // Make sure to generate 2 CombinedScanTasks
+    long maxFileLen = Math.max(dataFile1.fileSizeInBytes(), dataFile2.fileSizeInBytes());
+    executeSQL(String
+        .format("ALTER TABLE t SET ('read.split.open-file-cost'='1', 'read.split.target-size'='%s')", maxFileLen));
+
+    // 2 splits ,the parallelism is  2
+    parallelism = FlinkSource.forRowData()
+        .flinkConf(new Configuration())
+        .inferParallelism(flinkInputFormat, scanContext);
+    Assert.assertEquals("Should produce the expected parallelism.", 2, parallelism);
+
+    // 2 splits  and limit is 1 ,the parallelism is  1
+    parallelism = FlinkSource.forRowData()
+        .flinkConf(new Configuration())
+        .inferParallelism(flinkInputFormat, ScanContext.builder().limit(1).build());
+    Assert.assertEquals("Should produce the expected parallelism.", 1, parallelism);
   }
 
   private List<Row> executeSQL(String sql) {

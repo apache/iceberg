@@ -89,8 +89,15 @@ public class IcebergTableSource
 
   @Override
   public DataStream<RowData> getDataStream(StreamExecutionEnvironment execEnv) {
-    return FlinkSource.forRowData().env(execEnv).tableLoader(loader).project(getProjectedSchema()).limit(limit)
-        .filters(filters).flinkConf(readableConfig).properties(properties).build();
+    return FlinkSource.forRowData()
+        .env(execEnv)
+        .tableLoader(loader)
+        .project(getProjectedSchema())
+        .limit(limit)
+        .filters(filters)
+        .flinkConf(readableConfig)
+        .properties(properties)
+        .build();
   }
 
   @Override

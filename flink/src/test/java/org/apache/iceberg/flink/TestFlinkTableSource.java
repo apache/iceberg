@@ -21,45 +21,20 @@ package org.apache.iceberg.flink;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
-import org.apache.flink.streaming.api.TimeCharacteristic;
-import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.SqlParserException;
-import org.apache.flink.table.api.Table;
-import org.apache.flink.table.api.TableEnvironment;
-import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
-import org.apache.flink.table.catalog.Catalog;
-import org.apache.flink.table.catalog.ObjectPath;
-import org.apache.flink.table.catalog.exceptions.TableNotExistException;
-import org.apache.flink.types.Row;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.After;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
-/**
- * In order to get faster execution speed, we only use HadoopCatalog and Avro format. we use streaming mode in the
- * {@link TestFlinkTableSource#testInferedParallelism()} method to get the operator parallelism, and use batch mode in
- * other methods.
- */
-@RunWith(Parameterized.class)
 public class TestFlinkTableSource extends FlinkTestBase {
 
   private static final String CATALOG_NAME = "test_catalog";
@@ -69,29 +44,15 @@ public class TestFlinkTableSource extends FlinkTestBase {
   private final FileFormat format = FileFormat.AVRO;
   private static String warehouse;
 
-  private TableEnvironment tEnv;
-  private boolean isStreamingJob;
   private int scanEventCount = 0;
   private ScanEvent lastScanEvent = null;
 
-
-  public TestFlinkTableSource(boolean isStreamingJob) {
-    this.isStreamingJob = isStreamingJob;
-
+  public TestFlinkTableSource() {
     // register a scan event listener to validate pushdown
     Listeners.register(event -> {
       scanEventCount += 1;
       lastScanEvent = event;
     }, ScanEvent.class);
-  }
-
-  @Parameterized.Parameters(name = "isStreaming={0}")
-  public static Iterable<Object[]> parameters() {
-    List<Object[]> parameters = Lists.newArrayList();
-    for (Boolean isStreaming : new Boolean[] {true, false}) {
-      parameters.add(new Object[] {isStreaming});
-    }
-    return parameters;
   }
 
   @BeforeClass
@@ -100,28 +61,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
     Assert.assertTrue("The warehouse should be deleted", warehouseFile.delete());
     // before variables
     warehouse = "file:" + warehouseFile;
-  }
-
-  @Override
-  protected TableEnvironment getTableEnv() {
-    if (tEnv == null) {
-      synchronized (this) {
-        EnvironmentSettings.Builder settingsBuilder = EnvironmentSettings
-            .newInstance()
-            .useBlinkPlanner();
-        if (isStreamingJob) {
-          settingsBuilder.inStreamingMode();
-          StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-          env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-          env.enableCheckpointing(400);
-          tEnv = StreamTableEnvironment.create(env, settingsBuilder.build());
-        } else {
-          settingsBuilder.inBatchMode();
-          tEnv = TableEnvironment.create(settingsBuilder.build());
-        }
-      }
-    }
-    return tEnv;
   }
 
   @Before
@@ -133,6 +72,8 @@ public class TestFlinkTableSource extends FlinkTestBase {
     sql("USE %s", DATABASE_NAME);
     sql("CREATE TABLE %s (id INT, data VARCHAR,d DOUBLE) WITH ('write.format.default'='%s')", TABLE_NAME,
         format.name());
+    sql("INSERT INTO %s VALUES (1,'iceberg',10),(2,'b',20),(3,CAST(NULL AS VARCHAR),30)", TABLE_NAME);
+
     this.scanEventCount = 0;
     this.lastScanEvent = null;
   }
@@ -146,8 +87,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testLimitPushDown() {
-    useBatchModeAndInsertData();
-
     String querySql = String.format("SELECT * FROM %s LIMIT 1", TABLE_NAME);
     String explain = getTableEnv().explainSql(querySql);
     String expectedExplain = "LimitPushDown : 1";
@@ -179,7 +118,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testNoFilterPushDown() {
-    useBatchModeAndInsertData();
     String sql = String.format("SELECT * FROM %s ", TABLE_NAME);
     String explain = getTableEnv().explainSql(sql);
     Assert.assertFalse("Explain should not contain FilterPushDown", explain.contains(expectedFilterPushDownExplain));
@@ -188,9 +126,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownEqual() {
-    useBatchModeAndInsertData();
     String sqlLiteralRight = String.format("SELECT * FROM %s WHERE id = 1 ", TABLE_NAME);
-    // scanEventCount + 1
     String explain = getTableEnv().explainSql(sqlLiteralRight);
     String expectedFilter = "ref(name=\"id\") == 1";
     Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
@@ -200,7 +136,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     Assert.assertEquals("Should have 1 record", 1, result.size());
     Assert.assertArrayEquals("Should produce the expected record", expectRecord, result.get(0));
 
-    // Because we add infer  parallelism, all data files will be scanned first.
+    // Because we add infer parallelism, all data files will be scanned first.
     // Flink will call FlinkInputFormat#createInputSplits method to scan the data files,
     // plus the operation to get the execution plan, so there are three scan event.
     Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
@@ -209,7 +145,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownEqualNull() {
-    useBatchModeAndInsertData();
     String sqlEqualNull = String.format("SELECT * FROM %s WHERE data = NULL ", TABLE_NAME);
     String explainEqualNull = getTableEnv().explainSql(sqlEqualNull);
     Assert.assertFalse("Explain should not contain FilterPushDown",
@@ -222,7 +157,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownEqualLiteralOnLeft() {
-    useBatchModeAndInsertData();
     String sqlLiteralLeft = String.format("SELECT * FROM %s WHERE 1 = id ", TABLE_NAME);
     String explainLeft = getTableEnv().explainSql(sqlLiteralLeft);
     String expectedFilter = "ref(name=\"id\") == 1";
@@ -239,7 +173,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownNoEqual() {
-    useBatchModeAndInsertData();
     String sqlNE = String.format("SELECT * FROM %s WHERE id <> 1 ", TABLE_NAME);
     String explainNE = getTableEnv().explainSql(sqlNE);
     String expectedFilter = "ref(name=\"id\") != 1";
@@ -258,7 +191,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownNoEqualNull() {
-    useBatchModeAndInsertData();
     String sqlNotEqualNull = String.format("SELECT * FROM %s WHERE data <> NULL ", TABLE_NAME);
     String explainNotEqualNull = getTableEnv().explainSql(sqlNotEqualNull);
     Assert.assertFalse("Explain should not contain FilterPushDown", explainNotEqualNull.contains(
@@ -271,7 +203,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownAnd() {
-    useBatchModeAndInsertData();
     String sqlAnd = String.format("SELECT * FROM %s WHERE id = 1 AND data = 'iceberg' ", TABLE_NAME);
     String explainAnd = getTableEnv().explainSql(sqlAnd);
     Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
@@ -289,7 +220,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownOr() {
-    useBatchModeAndInsertData();
     String sqlOr = String.format("SELECT * FROM %s WHERE id = 1 OR data = 'b' ", TABLE_NAME);
     String explainOr = getTableEnv().explainSql(sqlOr);
     String expectedFilter = "(ref(name=\"id\") == 1 or ref(name=\"data\") == \"b\")";
@@ -309,7 +239,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownGreaterThan() {
-    useBatchModeAndInsertData();
     String sqlGT = String.format("SELECT * FROM %s WHERE id > 1 ", TABLE_NAME);
     String explainGT = getTableEnv().explainSql(sqlGT);
     String expectedFilter = "ref(name=\"id\") > 1";
@@ -329,7 +258,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownGreaterThanNull() {
-    useBatchModeAndInsertData();
     String sqlGT = String.format("SELECT * FROM %s WHERE data > null ", TABLE_NAME);
     String explainGT = getTableEnv().explainSql(sqlGT);
     Assert.assertFalse("Explain should not contain FilterPushDown", explainGT.contains(expectedFilterPushDownExplain));
@@ -341,7 +269,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownGreaterThanLiteralOnLeft() {
-    useBatchModeAndInsertData();
     String sqlGT = String.format("SELECT * FROM %s WHERE 3 > id ", TABLE_NAME);
     String explainGT = getTableEnv().explainSql(sqlGT);
     String expectedFilter = "ref(name=\"id\") < 3";
@@ -361,7 +288,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownGreaterThanEqual() {
-    useBatchModeAndInsertData();
     String sqlGTE = String.format("SELECT * FROM %s WHERE id >= 2 ", TABLE_NAME);
     String explainGTE = getTableEnv().explainSql(sqlGTE);
     String expectedFilter = "ref(name=\"id\") >= 2";
@@ -381,7 +307,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownGreaterThanEqualNull() {
-    useBatchModeAndInsertData();
     String sqlGTE = String.format("SELECT * FROM %s WHERE data >= null ", TABLE_NAME);
     String explainGTE = getTableEnv().explainSql(sqlGTE);
     Assert.assertFalse("Explain should not contain FilterPushDown", explainGTE.contains(expectedFilterPushDownExplain));
@@ -393,7 +318,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownGreaterThanEqualLiteralOnLeft() {
-    useBatchModeAndInsertData();
     String sqlGTE = String.format("SELECT * FROM %s WHERE 2 >= id ", TABLE_NAME);
     String explainGTE = getTableEnv().explainSql(sqlGTE);
     String expectedFilter = "ref(name=\"id\") <= 2";
@@ -413,7 +337,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownLessThan() {
-    useBatchModeAndInsertData();
     String sqlLT = String.format("SELECT * FROM %s WHERE id < 2 ", TABLE_NAME);
     String explainLT = getTableEnv().explainSql(sqlLT);
     String expectedFilter = "ref(name=\"id\") < 2";
@@ -430,7 +353,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownLessThanNull() {
-    useBatchModeAndInsertData();
     String sqlLT = String.format("SELECT * FROM %s WHERE data < null ", TABLE_NAME);
     String explainLT = getTableEnv().explainSql(sqlLT);
     Assert.assertFalse("Explain should not contain FilterPushDown", explainLT.contains(expectedFilterPushDownExplain));
@@ -442,7 +364,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownLessThanLiteralOnLeft() {
-    useBatchModeAndInsertData();
     String sqlLT = String.format("SELECT * FROM %s WHERE 2 < id ", TABLE_NAME);
     String explainLT = getTableEnv().explainSql(sqlLT);
     Object[] expectRecord = new Object[] {3, null, 30.0};
@@ -459,7 +380,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownLessThanEqual() {
-    useBatchModeAndInsertData();
     String sqlLTE = String.format("SELECT * FROM %s WHERE id <= 1 ", TABLE_NAME);
     String explainLTE = getTableEnv().explainSql(sqlLTE);
     Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
@@ -476,7 +396,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownLessThanEqualNull() {
-    useBatchModeAndInsertData();
     String sqlLTE = String.format("SELECT * FROM %s WHERE data <= null ", TABLE_NAME);
     String explainLTE = getTableEnv().explainSql(sqlLTE);
     Assert.assertFalse("Explain should not contain FilterPushDown", explainLTE.contains(expectedFilterPushDownExplain));
@@ -488,7 +407,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownLessThanEqualLiteralOnLeft() {
-    useBatchModeAndInsertData();
     String sqlLTE = String.format("SELECT * FROM %s WHERE 3 <= id  ", TABLE_NAME);
     String explainLTE = getTableEnv().explainSql(sqlLTE);
     Object[] expectRecord = new Object[] {3, null, 30.0};
@@ -505,7 +423,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownIn() {
-    useBatchModeAndInsertData();
     String sqlIN = String.format("SELECT * FROM %s WHERE id IN (1,2) ", TABLE_NAME);
     String explainIN = getTableEnv().explainSql(sqlIN);
     String expectedFilter = "(ref(name=\"id\") == 1 or ref(name=\"id\") == 2)";
@@ -523,7 +440,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownInNull() {
-    useBatchModeAndInsertData();
     String sqlInNull = String.format("SELECT * FROM %s WHERE data IN ('iceberg',NULL) ", TABLE_NAME);
     String explainInNull = getTableEnv().explainSql(sqlInNull);
     Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
@@ -538,7 +454,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownNotIn() {
-    useBatchModeAndInsertData();
     String sqlNotIn = String.format("SELECT * FROM %s WHERE id NOT IN (3,2) ", TABLE_NAME);
     String explainNotIn = getTableEnv().explainSql(sqlNotIn);
     Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
@@ -555,7 +470,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownNotInNull() {
-    useBatchModeAndInsertData();
     String sqlNotInNull = String.format("SELECT * FROM %s WHERE id NOT IN (1,2,NULL) ", TABLE_NAME);
     String explainNotInNull = getTableEnv().explainSql(sqlNotInNull);
     Assert.assertFalse("Explain should not contain FilterPushDown",
@@ -567,7 +481,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownIsNotNull() {
-    useBatchModeAndInsertData();
     String sqlNotNull = String.format("SELECT * FROM %s WHERE data IS NOT NULL", TABLE_NAME);
     String explainNotNull = getTableEnv().explainSql(sqlNotNull);
     String expectedFilter = "not_null(ref(name=\"data\"))";
@@ -587,7 +500,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownIsNull() {
-    useBatchModeAndInsertData();
     String sqlNull = String.format("SELECT * FROM %s WHERE data IS  NULL", TABLE_NAME);
     String explainNull = getTableEnv().explainSql(sqlNull);
     Object[] expectRecord = new Object[] {3, null, 30.0};
@@ -604,7 +516,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownNot() {
-    useBatchModeAndInsertData();
     String sqlNot = String.format("SELECT * FROM %s WHERE NOT (id = 1 OR id = 2 ) ", TABLE_NAME);
     Object[] expectRecord = new Object[] {3, null, 30.0};
     String explainNot = getTableEnv().explainSql(sqlNot);
@@ -622,7 +533,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownBetween() {
-    useBatchModeAndInsertData();
     String sqlBetween = String.format("SELECT * FROM %s WHERE id BETWEEN 1 AND 2 ", TABLE_NAME);
     String explainBetween = getTableEnv().explainSql(sqlBetween);
     String expectedFilter = "ref(name=\"id\") >= 1,ref(name=\"id\") <= 2";
@@ -643,7 +553,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownNotBetween() {
-    useBatchModeAndInsertData();
     String sqlNotBetween = String.format("SELECT * FROM %s WHERE id  NOT BETWEEN 2 AND 3 ", TABLE_NAME);
     String explainNotBetween = getTableEnv().explainSql(sqlNotBetween);
     Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
@@ -660,7 +569,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDownLike() {
-    useBatchModeAndInsertData();
     String sqlLike = "SELECT * FROM " + TABLE_NAME + " WHERE data LIKE 'ice%' ";
     Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
     String explainLike = getTableEnv().explainSql(sqlLike);
@@ -677,7 +585,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterNotPushDownLike() {
-    useBatchModeAndInsertData();
     String sqlNoPushDown = "SELECT * FROM " + TABLE_NAME + " WHERE data LIKE '%i' ";
     String explainNoPushDown = getTableEnv().explainSql(sqlNoPushDown);
     Object[] expectRecord = new Object[] {1, "iceberg", 10.0};
@@ -743,7 +650,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
 
   @Test
   public void testFilterPushDown2Literal() {
-    useBatchModeAndInsertData();
     String sql2Literal = String.format("SELECT * FROM %s WHERE 1 > 0 ", TABLE_NAME);
     String explain2Literal = getTableEnv().explainSql(sql2Literal);
     Assert.assertFalse("Explain should not contain FilterPushDown",
@@ -757,7 +663,6 @@ public class TestFlinkTableSource extends FlinkTestBase {
    */
   @Test
   public void testSqlParseError() {
-    useBatchModeAndInsertData();
     String sqlParseErrorEqual = String.format("SELECT * FROM %s WHERE d = CAST('NaN' AS DOUBLE) ", TABLE_NAME);
     AssertHelpers.assertThrows("The NaN is not supported by flink now. ",
         NumberFormatException.class, () -> sql(sqlParseErrorEqual));
@@ -781,61 +686,5 @@ public class TestFlinkTableSource extends FlinkTestBase {
     String sqlParseErrorLTE = String.format("SELECT * FROM %s WHERE d <= CAST('NaN' AS DOUBLE) ", TABLE_NAME);
     AssertHelpers.assertThrows("The NaN is not supported by flink now. ",
         NumberFormatException.class, () -> sql(sqlParseErrorLTE));
-  }
-
-  /**
-   * The sql can be executed in both streaming and batch mode, in order to get the parallelism, we convert the flink
-   * Table to flink DataStream, so we only use streaming mode here.
-   *
-   * @throws TableNotExistException table not exist exception
-   */
-  @Test
-  public void testInferedParallelism() throws TableNotExistException {
-    Assume.assumeTrue("The execute mode should  be streaming mode", isStreamingJob);
-
-    // Empty table ,parallelism at least 1
-    Table tableEmpty = sqlQuery("SELECT * FROM %s", TABLE_NAME);
-    assertParallelismEquals(tableEmpty, 1);
-
-    sql("INSERT INTO %s  VALUES (1,'hello',10.0)", TABLE_NAME);
-    sql("INSERT INTO %s  VALUES (2,'iceberg',20.0)", TABLE_NAME);
-
-    // Make sure to generate 2 CombinedScanTasks
-    Optional<Catalog> catalog = tEnv.getCatalog(CATALOG_NAME);
-    Assert.assertTrue("Conversion should succeed", catalog.isPresent());
-    FlinkCatalog flinkCatalog = (FlinkCatalog) catalog.get();
-    org.apache.iceberg.Table table = flinkCatalog.loadIcebergTable(new ObjectPath(DATABASE_NAME, TABLE_NAME));
-    Stream<FileScanTask> stream = StreamSupport.stream(table.newScan().planFiles().spliterator(), false);
-    Optional<FileScanTask> fileScanTaskOptional = stream.max(Comparator.comparing(FileScanTask::length));
-    Assert.assertTrue("Conversion should succeed", fileScanTaskOptional.isPresent());
-    long maxFileLen = fileScanTaskOptional.get().length();
-    sql("ALTER TABLE %s SET ('read.split.open-file-cost'='1', 'read.split.target-size'='%s')", TABLE_NAME,
-        maxFileLen);
-
-    // 2 splits ,the parallelism is  2
-    Table tableSelect = sqlQuery("SELECT * FROM %s", TABLE_NAME);
-    assertParallelismEquals(tableSelect, 2);
-
-    // 2 splits  and limit is 1 ,the parallelism is  1
-    Table tableLimit = sqlQuery("SELECT * FROM %s LIMIT 1", TABLE_NAME);
-    assertParallelismEquals(tableLimit, 1);
-  }
-
-  private Table sqlQuery(String sql, Object... args) {
-    return getTableEnv().sqlQuery(String.format(sql, args));
-  }
-
-  private void assertParallelismEquals(Table table, int expected) {
-    Assert.assertTrue("The table environment should be StreamTableEnvironment",
-        getTableEnv() instanceof StreamTableEnvironment);
-    StreamTableEnvironment stenv = (StreamTableEnvironment) getTableEnv();
-    DataStream<Row> ds = stenv.toAppendStream(table, Row.class);
-    int parallelism = ds.getTransformation().getParallelism();
-    Assert.assertEquals("Should produce the expected parallelism ", expected, parallelism);
-  }
-
-  private void useBatchModeAndInsertData() {
-    Assume.assumeFalse("Should  be supported on batch mode", isStreamingJob);
-    sql("INSERT INTO %s VALUES (1,'iceberg',10),(2,'b',20),(3,CAST(NULL AS VARCHAR),30)", TABLE_NAME);
   }
 }

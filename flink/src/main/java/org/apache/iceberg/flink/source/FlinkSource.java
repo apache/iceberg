@@ -73,7 +73,7 @@ public class FlinkSource {
     private Table table;
     private TableLoader tableLoader;
     private TableSchema projectedSchema;
-    private ReadableConfig flinkConf;
+    private ReadableConfig readableConfig;
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
 
     public Builder tableLoader(TableLoader newLoader) {
@@ -162,7 +162,7 @@ public class FlinkSource {
     }
 
     public Builder flinkConf(ReadableConfig config) {
-      this.flinkConf = config;
+      this.readableConfig = config;
       return this;
     }
 
@@ -206,7 +206,8 @@ public class FlinkSource {
       TypeInformation<RowData> typeInfo = RowDataTypeInfo.of(FlinkSchemaUtil.convert(context.project()));
 
       if (!context.isStreaming()) {
-        return createInputDataStream(format, context, typeInfo);
+        int parallelism = inferParallelism(format, context);
+        return env.createInput(format, typeInfo).setParallelism(parallelism);
       } else {
         StreamingMonitorFunction function = new StreamingMonitorFunction(tableLoader, context);
 
@@ -218,14 +219,13 @@ public class FlinkSource {
       }
     }
 
-    private DataStream<RowData> createInputDataStream(FlinkInputFormat format, ScanContext context,
-                                                      TypeInformation<RowData> typeInfo) {
-      int parallelism = flinkConf.get(ExecutionConfigOptions.TABLE_EXEC_RESOURCE_DEFAULT_PARALLELISM);
-      if (flinkConf.get(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM)) {
-        int max = flinkConf.get(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX);
-        Preconditions.checkState(max >= 1,
+    int inferParallelism(FlinkInputFormat format, ScanContext context) {
+      int parallelism = readableConfig.get(ExecutionConfigOptions.TABLE_EXEC_RESOURCE_DEFAULT_PARALLELISM);
+      if (readableConfig.get(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM)) {
+        int maxInterParallelism = readableConfig.get(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX);
+        Preconditions.checkState(maxInterParallelism >= 1,
             FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX.key() + " cannot be less than 1");
-        int splitNum = 0;
+        int splitNum;
         try {
           FlinkInputSplit[] splits = format.createInputSplits(0);
           splitNum = splits.length;
@@ -233,13 +233,17 @@ public class FlinkSource {
           throw new UncheckedIOException("Failed to create iceberg input splits for table: " + table, e);
         }
 
-        parallelism = Math.min(splitNum, max);
+        parallelism = Math.min(splitNum, maxInterParallelism);
       }
 
-      int limitInt = context.limit() > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) context.limit();
-      parallelism = limitInt > 0 ? Math.min(parallelism, limitInt) : parallelism;
-      parallelism = Math.max(1, parallelism); // make sure that parallelism is at least 1
-      return env.createInput(format, typeInfo).setParallelism(parallelism);
+      if (context.limit() > 0) {
+        int limit = context.limit() >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) context.limit();
+        parallelism = Math.min(parallelism, limit);
+      }
+
+      // parallelism must be positive.
+      parallelism = Math.max(1, parallelism);
+      return parallelism;
     }
   }
 
