@@ -17,22 +17,21 @@
  * under the License.
  */
 
-package org.apache.spark.sql.catalyst.plans.logical
 
-import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.catalyst.expressions.Expression
+package org.apache.spark.sql.connector.iceberg.distributions.impl;
 
-case class MergeInto(
-    mergeIntoProcessor: MergeIntoParams,
-    output: Seq[Attribute],
-    child: LogicalPlan) extends UnaryNode
+import org.apache.spark.sql.connector.expressions.Expression;
+import org.apache.spark.sql.connector.iceberg.distributions.ClusteredDistribution;
 
-case class MergeIntoParams(
-    isSourceRowNotPresent: Expression,
-    isTargetRowNotPresent: Expression,
-    matchedConditions: Seq[Expression],
-    matchedOutputs: Seq[Option[Seq[Expression]]],
-    notMatchedConditions: Seq[Expression],
-    notMatchedOutputs: Seq[Option[Seq[Expression]]],
-    targetOutput: Seq[Expression],
-    joinedAttributes: Seq[Attribute]) extends Serializable
+public class ClusterDistributionImpl implements ClusteredDistribution {
+  private Expression[] clusterExprs;
+
+  public ClusterDistributionImpl(Expression[] clusterExprs) {
+    this.clusterExprs = clusterExprs;
+  }
+
+  @Override
+  public Expression[] clustering() {
+    return clusterExprs;
+  }
+}

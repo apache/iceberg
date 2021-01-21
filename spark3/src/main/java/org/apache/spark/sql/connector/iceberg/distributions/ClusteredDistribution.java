@@ -17,22 +17,21 @@
  * under the License.
  */
 
-package org.apache.spark.sql.catalyst.plans.logical
+package org.apache.spark.sql.connector.iceberg.distributions;
 
-import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.annotation.Experimental;
+import org.apache.spark.sql.connector.expressions.Expression;
 
-case class MergeInto(
-    mergeIntoProcessor: MergeIntoParams,
-    output: Seq[Attribute],
-    child: LogicalPlan) extends UnaryNode
-
-case class MergeIntoParams(
-    isSourceRowNotPresent: Expression,
-    isTargetRowNotPresent: Expression,
-    matchedConditions: Seq[Expression],
-    matchedOutputs: Seq[Option[Seq[Expression]]],
-    notMatchedConditions: Seq[Expression],
-    notMatchedOutputs: Seq[Option[Seq[Expression]]],
-    targetOutput: Seq[Expression],
-    joinedAttributes: Seq[Attribute]) extends Serializable
+/**
+ * A distribution where tuples that share the same values for clustering expressions are co-located
+ * in the same partition.
+ *
+ * @since 3.2.0
+ */
+@Experimental
+public interface ClusteredDistribution extends Distribution {
+  /**
+   * Returns clustering expressions.
+   */
+  Expression[] clustering();
+}

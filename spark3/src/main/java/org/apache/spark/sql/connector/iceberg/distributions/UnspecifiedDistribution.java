@@ -17,22 +17,14 @@
  * under the License.
  */
 
-package org.apache.spark.sql.catalyst.plans.logical
+package org.apache.spark.sql.connector.iceberg.distributions;
 
-import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.annotation.Experimental;
 
-case class MergeInto(
-    mergeIntoProcessor: MergeIntoParams,
-    output: Seq[Attribute],
-    child: LogicalPlan) extends UnaryNode
-
-case class MergeIntoParams(
-    isSourceRowNotPresent: Expression,
-    isTargetRowNotPresent: Expression,
-    matchedConditions: Seq[Expression],
-    matchedOutputs: Seq[Option[Seq[Expression]]],
-    notMatchedConditions: Seq[Expression],
-    notMatchedOutputs: Seq[Option[Seq[Expression]]],
-    targetOutput: Seq[Expression],
-    joinedAttributes: Seq[Attribute]) extends Serializable
+/**
+ * A distribution where no promises are made about co-location of data.
+ *
+ * @since 3.2.0
+ */
+@Experimental
+public interface UnspecifiedDistribution extends Distribution {}
