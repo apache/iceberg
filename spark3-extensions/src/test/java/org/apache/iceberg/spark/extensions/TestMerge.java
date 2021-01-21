@@ -320,4 +320,46 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               "  INSERT (id, c) VALUES (1, null)", tableName);
         });
   }
+
+  @Test
+  public void testMergeWithSubqueriesInConditions() {
+    createAndInitTable("id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>");
+    createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
+
+    AssertHelpers.assertThrows("Should complain about subquery expressions",
+        AnalysisException.class, "Subqueries are not supported in conditions",
+        () -> {
+          sql("MERGE INTO %s t USING source s " +
+              "ON t.id == s.c1 AND t.id < (SELECT max(c2) FROM source) " +
+              "WHEN MATCHED THEN " +
+              "  UPDATE SET t.c.n1 = s.c2", tableName);
+        });
+
+    AssertHelpers.assertThrows("Should complain about subquery expressions",
+        AnalysisException.class, "Subqueries are not supported in conditions",
+        () -> {
+          sql("MERGE INTO %s t USING source s " +
+              "ON t.id == s.c1 " +
+              "WHEN MATCHED AND t.id < (SELECT max(c2) FROM source) THEN " +
+              "  UPDATE SET t.c.n1 = s.c2", tableName);
+        });
+
+    AssertHelpers.assertThrows("Should complain about subquery expressions",
+        AnalysisException.class, "Subqueries are not supported in conditions",
+        () -> {
+          sql("MERGE INTO %s t USING source s " +
+              "ON t.id == s.c1 " +
+              "WHEN MATCHED AND t.id NOT IN (SELECT c2 FROM source) THEN " +
+              "  DELETE", tableName);
+        });
+
+    AssertHelpers.assertThrows("Should complain about subquery expressions",
+        AnalysisException.class, "Subqueries are not supported in conditions",
+        () -> {
+          sql("MERGE INTO %s t USING source s " +
+              "ON t.id == s.c1 " +
+              "WHEN NOT MATCHED AND s.c1 IN (SELECT c2 FROM source) THEN " +
+              "  INSERT (id, c) VALUES (1, null)", tableName);
+        });
+  }
 }
