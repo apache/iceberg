@@ -17,22 +17,30 @@
  * under the License.
  */
 
-package org.apache.spark.sql.catalyst.plans.logical
+package org.apache.spark.sql.connector.iceberg.expressions;
 
-import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.annotation.Experimental;
+import org.apache.spark.sql.connector.expressions.Expression;
 
-case class MergeInto(
-    mergeIntoProcessor: MergeIntoParams,
-    output: Seq[Attribute],
-    child: LogicalPlan) extends UnaryNode
+/**
+ * Represents a sort order in the public expression API.
+ *
+ * @since 3.2.0
+ */
+@Experimental
+public interface SortOrder extends Expression {
+  /**
+   * Returns the sort expression.
+   */
+  Expression expression();
 
-case class MergeIntoParams(
-    isSourceRowNotPresent: Expression,
-    isTargetRowNotPresent: Expression,
-    matchedConditions: Seq[Expression],
-    matchedOutputs: Seq[Option[Seq[Expression]]],
-    notMatchedConditions: Seq[Expression],
-    notMatchedOutputs: Seq[Option[Seq[Expression]]],
-    targetOutput: Seq[Expression],
-    joinedAttributes: Seq[Attribute]) extends Serializable
+  /**
+   * Returns the sort direction.
+   */
+  SortDirection direction();
+
+  /**
+   * Returns the null ordering.
+   */
+  NullOrdering nullOrdering();
+}

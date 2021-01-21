@@ -140,6 +140,8 @@ public class TableProperties {
 
   public static final String WRITE_DISTRIBUTION_MODE = "write.distribution-mode";
   public static final String WRITE_DISTRIBUTION_MODE_DEFAULT = "none";
+  public static final String WRITE_DISTRIBUTION_MODE_HASH = "hash";
+  public static final String WRITE_DISTRIBUTION_MODE_RANGE = "range";
 
   public static final String GC_ENABLED = "gc.enabled";
   public static final boolean GC_ENABLED_DEFAULT = true;
