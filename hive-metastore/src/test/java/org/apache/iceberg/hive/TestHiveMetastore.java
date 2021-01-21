@@ -156,10 +156,6 @@ public class TestHiveMetastore {
     return hiveConf;
   }
 
-  public HiveClientPool clientPool() {
-    return clientPool;
-  }
-
   public String getDatabasePath(String dbName) {
     File dbDir = new File(hiveLocalDir, dbName + ".db");
     return dbDir.getPath();
@@ -194,7 +190,7 @@ public class TestHiveMetastore {
   }
 
   public Table getTable(String dbName, String tableName) throws TException, InterruptedException {
-    return clientPool().run(client -> client.getTable(dbName, tableName));
+    return clientPool.run(client -> client.getTable(dbName, tableName));
   }
 
   private TServer newThriftServer(TServerSocket socket, int poolSize, HiveConf conf) throws Exception {
