@@ -225,15 +225,15 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   Object writeReplace() {
-    return new TableStub(this);
+    return new TableProxy(this);
   }
 
-  private static class TableStub implements Serializable {
+  private static class TableProxy implements Serializable {
     private FileIO io;
     private String name;
     private String metadataLocation;
 
-    private TableStub(BaseTable table) {
+    private TableProxy(BaseTable table) {
       io = table.io();
       name = table.name();
       metadataLocation = table.operations().current().metadataFileLocation();

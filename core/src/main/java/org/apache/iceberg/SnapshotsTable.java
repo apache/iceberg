@@ -80,8 +80,13 @@ public class SnapshotsTable extends BaseMetadataTable {
   }
 
   @Override
-  Object writeReplace() {
-    return new TableStub(io(), table.name(), name, ops.current().metadataFileLocation(), MetadataTableType.SNAPSHOTS);
+  String metadataLocation() {
+    return ops.current().metadataFileLocation();
+  }
+
+  @Override
+  MetadataTableType metadataTableType() {
+    return MetadataTableType.SNAPSHOTS;
   }
 
   private class SnapshotsTableScan extends StaticTableScan {

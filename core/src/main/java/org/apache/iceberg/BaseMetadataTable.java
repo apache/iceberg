@@ -195,17 +195,23 @@ abstract class BaseMetadataTable implements Table, Serializable {
     return name();
   }
 
-  abstract Object writeReplace();
+  abstract String metadataLocation();
 
-  static class TableStub implements Serializable {
+  abstract MetadataTableType metadataTableType();
+
+  final Object writeReplace() {
+    return new TableProxy(io(), table().name(), name(), metadataLocation(), metadataTableType());
+  }
+
+  static class TableProxy implements Serializable {
     private FileIO io;
     private String baseTableName;
     private String metadataTableName;
     private String metadataLocation;
     private MetadataTableType type;
 
-    TableStub(FileIO io, String baseTableName, String metadataTableName, String metadataLocation,
-              MetadataTableType type) {
+    TableProxy(FileIO io, String baseTableName, String metadataTableName, String metadataLocation,
+               MetadataTableType type) {
       this.io = io;
       this.baseTableName = baseTableName;
       this.metadataTableName = metadataTableName;

@@ -90,9 +90,13 @@ public class AllManifestsTable extends BaseMetadataTable {
   }
 
   @Override
-  Object writeReplace() {
-    return new TableStub(io(), table.name(), name, ops.current().metadataFileLocation(),
-        MetadataTableType.ALL_MANIFESTS);
+  String metadataLocation() {
+    return ops.current().metadataFileLocation();
+  }
+
+  @Override
+  MetadataTableType metadataTableType() {
+    return MetadataTableType.ALL_MANIFESTS;
   }
 
   public static class AllManifestsTableScan extends BaseAllMetadataTableScan {

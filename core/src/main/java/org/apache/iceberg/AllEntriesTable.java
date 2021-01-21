@@ -81,8 +81,13 @@ public class AllEntriesTable extends BaseMetadataTable {
   }
 
   @Override
-  Object writeReplace() {
-    return new TableStub(io(), table.name(), name, ops.current().metadataFileLocation(), MetadataTableType.ALL_ENTRIES);
+  String metadataLocation() {
+    return ops.current().metadataFileLocation();
+  }
+
+  @Override
+  MetadataTableType metadataTableType() {
+    return MetadataTableType.ALL_ENTRIES;
   }
 
   private static class Scan extends BaseAllMetadataTableScan {

@@ -76,8 +76,13 @@ public class HistoryTable extends BaseMetadataTable {
   }
 
   @Override
-  Object writeReplace() {
-    return new TableStub(io(), table.name(), name, ops.current().metadataFileLocation(), MetadataTableType.HISTORY);
+  String metadataLocation() {
+    return ops.current().metadataFileLocation();
+  }
+
+  @Override
+  MetadataTableType metadataTableType() {
+    return MetadataTableType.HISTORY;
   }
 
   private DataTask task(TableScan scan) {

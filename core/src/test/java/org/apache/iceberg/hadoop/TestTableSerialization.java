@@ -19,7 +19,12 @@
 
 package org.apache.iceberg.hadoop;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.FileScanTask;
@@ -29,7 +34,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.util.SerializationUtil;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -41,7 +45,7 @@ public class TestTableSerialization extends HadoopTableTestBase {
         .appendFile(FILE_A)
         .commit();
 
-    byte[] serialized = SerializationUtil.serializeToBytes(table);
+    byte[] serialized = serializeToBytes(table);
 
     Set<CharSequence> expected = getFiles(table);
 
@@ -49,7 +53,7 @@ public class TestTableSerialization extends HadoopTableTestBase {
         .appendFile(FILE_B)
         .commit();
 
-    Table deserialized = SerializationUtil.deserializeFromBytes(serialized);
+    Table deserialized = deserializeFromBytes(serialized);
 
     Set<CharSequence> deserializedFiles = getFiles(deserialized);
 
@@ -71,7 +75,7 @@ public class TestTableSerialization extends HadoopTableTestBase {
     for (MetadataTableType type : MetadataTableType.values()) {
       Table metaTable = getMetaDataTable(table, type);
       // Serialize the table
-      serialized.put(type, SerializationUtil.serializeToBytes(metaTable));
+      serialized.put(type, serializeToBytes(metaTable));
 
       // Collect the expected result
       expected.put(type, getFiles(metaTable));
@@ -83,7 +87,7 @@ public class TestTableSerialization extends HadoopTableTestBase {
 
     for (MetadataTableType type : MetadataTableType.values()) {
       // Collect the deserialized data
-      Set<CharSequence> deserializedFiles = getFiles(SerializationUtil.deserializeFromBytes(serialized.get(type)));
+      Set<CharSequence> deserializedFiles = getFiles(deserializeFromBytes(serialized.get(type)));
 
       // Checks that the deserialized data stays the same
       Assert.assertEquals(expected.get(type), deserializedFiles);
@@ -109,5 +113,31 @@ public class TestTableSerialization extends HadoopTableTestBase {
     }
 
     return files;
+  }
+
+  private static byte[] serializeToBytes(Object obj) {
+    try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+         ObjectOutputStream oos = new ObjectOutputStream(baos)) {
+      oos.writeObject(obj);
+      return baos.toByteArray();
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to serialize object", e);
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <T> T deserializeFromBytes(byte[] bytes) {
+    if (bytes == null) {
+      return null;
+    }
+
+    try (ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
+         ObjectInputStream ois = new ObjectInputStream(bais)) {
+      return (T) ois.readObject();
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to deserialize object", e);
+    } catch (ClassNotFoundException e) {
+      throw new RuntimeException("Could not read object ", e);
+    }
   }
 }

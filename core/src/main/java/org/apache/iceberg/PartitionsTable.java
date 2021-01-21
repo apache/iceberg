@@ -73,8 +73,13 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   @Override
-  Object writeReplace() {
-    return new TableStub(io(), table.name(), name, ops.current().metadataFileLocation(), MetadataTableType.PARTITIONS);
+  String metadataLocation() {
+    return ops.current().metadataFileLocation();
+  }
+
+  @Override
+  MetadataTableType metadataTableType() {
+    return MetadataTableType.PARTITIONS;
   }
 
   private DataTask task(TableScan scan) {
