@@ -178,7 +178,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
           }
       );
     } else {
-      org.apache.hadoop.hive.metastore.api.Table hmsTable = getHmsTable("default", "customers");
+      org.apache.hadoop.hive.metastore.api.Table hmsTable = shell.metastore().getTable("default", "customers");
       Path hmsTableLocation = new Path(hmsTable.getSd().getLocation());
 
       // Drop the table
@@ -253,7 +253,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
       testTables.loadTable(identifier);
     } else {
       // Check the HMS table parameters
-      org.apache.hadoop.hive.metastore.api.Table hmsTable = getHmsTable("default", "customers");
+      org.apache.hadoop.hive.metastore.api.Table hmsTable = shell.metastore().getTable("default", "customers");
       Path hmsTableLocation = new Path(hmsTable.getSd().getLocation());
 
       // Drop the table
@@ -510,7 +510,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
     Assert.assertEquals(expectedIcebergProperties, icebergTable.properties());
 
     // Check the HMS table parameters
-    org.apache.hadoop.hive.metastore.api.Table hmsTable = getHmsTable("default", "customers");
+    org.apache.hadoop.hive.metastore.api.Table hmsTable = shell.metastore().getTable("default", "customers");
     Map<String, String> hmsParams = hmsTable.getParameters()
         .entrySet().stream()
         .filter(e -> !IGNORED_PARAMS.contains(e.getKey()))
@@ -548,7 +548,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
         .commit();
 
     // Refresh the HMS table to see if new Iceberg properties got synced into HMS
-    hmsParams = getHmsTable("default", "customers").getParameters()
+    hmsParams = shell.metastore().getTable("default", "customers").getParameters()
         .entrySet().stream()
         .filter(e -> !IGNORED_PARAMS.contains(e.getKey()))
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -570,10 +570,5 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
   private String getCurrentSnapshotForHiveCatalogTable(org.apache.iceberg.Table icebergTable) {
     return ((BaseMetastoreTableOperations) ((BaseTable) icebergTable).operations()).currentMetadataLocation();
-  }
-
-  private org.apache.hadoop.hive.metastore.api.Table getHmsTable(String dbName, String tableName)
-      throws TException, InterruptedException {
-    return shell.metastore().clientPool().run(client -> client.getTable(dbName, tableName));
   }
 }

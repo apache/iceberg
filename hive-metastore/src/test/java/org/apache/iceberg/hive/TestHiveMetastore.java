@@ -38,9 +38,11 @@ import org.apache.hadoop.hive.metastore.HiveMetaStore;
 import org.apache.hadoop.hive.metastore.IHMSHandler;
 import org.apache.hadoop.hive.metastore.RetryingHMSHandler;
 import org.apache.hadoop.hive.metastore.TSetIpAddressProcessor;
+import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.server.TThreadPoolServer;
@@ -189,6 +191,10 @@ public class TestHiveMetastore {
         fs.delete(fileStatus.getPath(), true);
       }
     }
+  }
+
+  public Table getTable(String dbName, String tableName) throws TException, InterruptedException {
+    return clientPool().run(client -> client.getTable(dbName, tableName));
   }
 
   private TServer newThriftServer(TServerSocket socket, int poolSize, HiveConf conf) throws Exception {
