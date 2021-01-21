@@ -34,7 +34,6 @@ public class InputFormatConfig {
 
   // configuration values for Iceberg input formats
   public static final String REUSE_CONTAINERS = "iceberg.mr.reuse.containers";
-  public static final String CASE_SENSITIVE = "iceberg.mr.case.sensitive";
   public static final String SKIP_RESIDUAL_FILTERING = "skip.residual.filtering";
   public static final String AS_OF_TIMESTAMP = "iceberg.mr.as.of.time";
   public static final String FILTER_EXPRESSION = "iceberg.mr.filter.expression";
@@ -42,6 +41,7 @@ public class InputFormatConfig {
   public static final String READ_SCHEMA = "iceberg.mr.read.schema";
   public static final String SNAPSHOT_ID = "iceberg.mr.snapshot.id";
   public static final String SPLIT_SIZE = "iceberg.mr.split.size";
+  public static final String SCHEMA_AUTO_CONVERSION = "iceberg.mr.schema.auto.conversion";
   public static final String TABLE_IDENTIFIER = "iceberg.mr.table.identifier";
   public static final String TABLE_LOCATION = "iceberg.mr.table.location";
   public static final String TABLE_SCHEMA = "iceberg.mr.table.schema";
@@ -59,6 +59,11 @@ public class InputFormatConfig {
 
   public static final String COMMIT_THREAD_POOL_SIZE = "iceberg.mr.commit.thread.pool.size";
   public static final int COMMIT_THREAD_POOL_SIZE_DEFAULT = 10;
+  public static final String WRITE_TARGET_FILE_SIZE = "iceberg.mr.write.target.file.size";
+  public static final String WRITE_FILE_FORMAT = "iceberg.mr.write.file.format";
+
+  public static final String CASE_SENSITIVE = "iceberg.mr.case.sensitive";
+  public static final boolean CASE_SENSITIVE_DEFAULT = true;
 
   public static final String CATALOG_NAME = "iceberg.catalog";
   public static final String HADOOP_CATALOG = "hadoop.catalog";
@@ -81,7 +86,7 @@ public class InputFormatConfig {
       this.conf = conf;
       // defaults
       conf.setBoolean(SKIP_RESIDUAL_FILTERING, false);
-      conf.setBoolean(CASE_SENSITIVE, true);
+      conf.setBoolean(CASE_SENSITIVE, CASE_SENSITIVE_DEFAULT);
       conf.setBoolean(REUSE_CONTAINERS, false);
       conf.setBoolean(LOCALITY, false);
     }

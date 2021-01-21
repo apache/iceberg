@@ -202,6 +202,7 @@ public class SortOrder implements Serializable {
      * @param nullOrder a null order (first or last)
      * @return this for method chaining
      */
+    @Override
     public Builder asc(Term term, NullOrder nullOrder) {
       return addSortField(term, SortDirection.ASC, nullOrder);
     }
@@ -213,6 +214,7 @@ public class SortOrder implements Serializable {
      * @param nullOrder a null order (first or last)
      * @return this for method chaining
      */
+    @Override
     public Builder desc(Term term, NullOrder nullOrder) {
       return addSortField(term, SortDirection.DESC, nullOrder);
     }

@@ -35,7 +35,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.type.HiveDecimal;
@@ -59,12 +58,8 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergBinaryObjectInspector;
-import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDecimalObjectInspector;
-import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
-import org.apache.iceberg.util.UUIDUtil;
 import org.junit.Assert;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -72,41 +67,42 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 public class HiveIcebergTestUtils {
   // TODO: Can this be a constant all around the Iceberg tests?
   public static final Schema FULL_SCHEMA = new Schema(
+      // TODO: Create tests for field case insensitivity.
       optional(1, "boolean_type", Types.BooleanType.get()),
       optional(2, "integer_type", Types.IntegerType.get()),
       optional(3, "long_type", Types.LongType.get()),
       optional(4, "float_type", Types.FloatType.get()),
       optional(5, "double_type", Types.DoubleType.get()),
       optional(6, "date_type", Types.DateType.get()),
-      // TimeType is not supported
-      // required(7, "time_type", Types.TimeType.get()),
-      optional(7, "tsTz", Types.TimestampType.withZone()),
+      optional(7, "tstz", Types.TimestampType.withZone()),
       optional(8, "ts", Types.TimestampType.withoutZone()),
       optional(9, "string_type", Types.StringType.get()),
-      optional(10, "uuid_type", Types.UUIDType.get()),
-      optional(11, "fixed_type", Types.FixedType.ofLength(3)),
-      optional(12, "binary_type", Types.BinaryType.get()),
-      optional(13, "decimal_type", Types.DecimalType.of(38, 10)));
+      optional(10, "fixed_type", Types.FixedType.ofLength(3)),
+      optional(11, "binary_type", Types.BinaryType.get()),
+      optional(12, "decimal_type", Types.DecimalType.of(38, 10)),
+      optional(13, "time_type", Types.TimeType.get()),
+      optional(14, "uuid_type", Types.UUIDType.get()));
 
   public static final StandardStructObjectInspector FULL_SCHEMA_OBJECT_INSPECTOR =
       ObjectInspectorFactory.getStandardStructObjectInspector(
-          // Capitalized `boolean_type` field to check for field case insensitivity.
-          Arrays.asList("Boolean_Type", "integer_type", "long_type", "float_type", "double_type",
-              "date_type", "tsTz", "ts", "string_type", "uuid_type", "fixed_type", "binary_type", "decimal_type"),
+          Arrays.asList("boolean_type", "integer_type", "long_type", "float_type", "double_type",
+              "date_type", "tstz", "ts", "string_type", "fixed_type", "binary_type", "decimal_type",
+              "time_type", "uuid_type"),
           Arrays.asList(
               PrimitiveObjectInspectorFactory.writableBooleanObjectInspector,
               PrimitiveObjectInspectorFactory.writableIntObjectInspector,
               PrimitiveObjectInspectorFactory.writableLongObjectInspector,
               PrimitiveObjectInspectorFactory.writableFloatObjectInspector,
               PrimitiveObjectInspectorFactory.writableDoubleObjectInspector,
-              IcebergObjectInspector.DATE_INSPECTOR,
-              IcebergObjectInspector.TIMESTAMP_INSPECTOR_WITH_TZ,
-              IcebergObjectInspector.TIMESTAMP_INSPECTOR,
+              PrimitiveObjectInspectorFactory.writableDateObjectInspector,
+              PrimitiveObjectInspectorFactory.writableTimestampObjectInspector,
+              PrimitiveObjectInspectorFactory.writableTimestampObjectInspector,
               PrimitiveObjectInspectorFactory.writableStringObjectInspector,
+              PrimitiveObjectInspectorFactory.writableBinaryObjectInspector,
+              PrimitiveObjectInspectorFactory.writableBinaryObjectInspector,
+              PrimitiveObjectInspectorFactory.writableHiveDecimalObjectInspector,
               PrimitiveObjectInspectorFactory.writableStringObjectInspector,
-              IcebergBinaryObjectInspector.byteArray(),
-              IcebergBinaryObjectInspector.byteBuffer(),
-              IcebergDecimalObjectInspector.get(38, 10)
+              PrimitiveObjectInspectorFactory.writableStringObjectInspector
           ));
 
   private HiveIcebergTestUtils() {
@@ -115,10 +111,9 @@ public class HiveIcebergTestUtils {
 
   /**
    * Generates a test record where every field has a value.
-   * @param uuidAsByte As per #1881 Parquet needs byte[] value for UUID, other file formats need UUID object
    * @return Record with every field set
    */
-  public static Record getTestRecord(boolean uuidAsByte) {
+  public static Record getTestRecord() {
     Record record = GenericRecord.create(HiveIcebergTestUtils.FULL_SCHEMA);
     record.set(0, true);
     record.set(1, 1);
@@ -126,21 +121,15 @@ public class HiveIcebergTestUtils {
     record.set(3, 3.1f);
     record.set(4, 4.2d);
     record.set(5, LocalDate.of(2020, 1, 21));
-    // TimeType is not supported
-    // record.set(6, LocalTime.of(11, 33));
     // Nano is not supported ?
     record.set(6, OffsetDateTime.of(2017, 11, 22, 11, 30, 7, 0, ZoneOffset.ofHours(2)));
     record.set(7, LocalDateTime.of(2019, 2, 22, 9, 44, 54));
     record.set(8, "kilenc");
-    if (uuidAsByte) {
-      // TODO: Parquet UUID expect byte[], others are expecting UUID
-      record.set(9, UUIDUtil.convert(UUID.fromString("1-2-3-4-5")));
-    } else {
-      record.set(9, UUID.fromString("1-2-3-4-5"));
-    }
-    record.set(10, new byte[]{0, 1, 2});
-    record.set(11, ByteBuffer.wrap(new byte[]{0, 1, 2, 3}));
-    record.set(12, new BigDecimal("0.0000000013"));
+    record.set(9, new byte[]{0, 1, 2});
+    record.set(10, ByteBuffer.wrap(new byte[]{0, 1, 2, 3}));
+    record.set(11, new BigDecimal("0.0000000013"));
+    record.set(12, "11:33");
+    record.set(13, "73689599-d7fc-4dfb-b94e-106ff20284a5");
 
     return record;
   }
@@ -172,15 +161,14 @@ public class HiveIcebergTestUtils {
         new FloatWritable(record.get(3, Float.class)),
         new DoubleWritable(record.get(4, Double.class)),
         new DateWritable((int) record.get(5, LocalDate.class).toEpochDay()),
-        // TimeType is not supported
-        // new Timestamp()
         new TimestampWritable(Timestamp.from(record.get(6, OffsetDateTime.class).toInstant())),
         new TimestampWritable(Timestamp.valueOf(record.get(7, LocalDateTime.class))),
         new Text(record.get(8, String.class)),
-        new Text(record.get(9, UUID.class).toString()),
-        new BytesWritable(record.get(10, byte[].class)),
-        new BytesWritable(ByteBuffers.toByteArray(record.get(11, ByteBuffer.class))),
-        new HiveDecimalWritable(HiveDecimal.create(record.get(12, BigDecimal.class)))
+        new BytesWritable(record.get(9, byte[].class)),
+        new BytesWritable(ByteBuffers.toByteArray(record.get(10, ByteBuffer.class))),
+        new HiveDecimalWritable(HiveDecimal.create(record.get(11, BigDecimal.class))),
+        new Text(record.get(12, String.class)),
+        new Text(record.get(13, String.class))
     );
   }
 

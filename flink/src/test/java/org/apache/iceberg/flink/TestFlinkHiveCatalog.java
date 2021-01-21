@@ -44,7 +44,7 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
     Map<String, String> props = Maps.newHashMap();
     props.put("type", "iceberg");
     props.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hive");
-    props.put(CatalogProperties.HIVE_URI, FlinkCatalogTestBase.getURI(hiveConf));
+    props.put(CatalogProperties.URI, FlinkCatalogTestBase.getURI(hiveConf));
 
     File warehouseDir = tempFolder.newFolder();
     props.put(CatalogProperties.WAREHOUSE_LOCATION, "file://" + warehouseDir.getAbsolutePath());
@@ -70,7 +70,7 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
     Map<String, String> props = Maps.newHashMap();
     props.put("type", "iceberg");
     props.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hive");
-    props.put(CatalogProperties.HIVE_URI, FlinkCatalogTestBase.getURI(hiveConf));
+    props.put(CatalogProperties.URI, FlinkCatalogTestBase.getURI(hiveConf));
     // Set the 'hive-conf-dir' instead of 'warehouse'
     props.put(FlinkCatalogFactory.HIVE_CONF_DIR, hiveConfDir.getAbsolutePath());
 

@@ -529,7 +529,7 @@ public class TestFilteredScan {
     return Lists.newArrayList(
         record(schema, 0L, parse("2017-12-22T09:20:44.294658+00:00"), "junction"),
         record(schema, 1L, parse("2017-12-22T07:15:34.582910+00:00"), "alligator"),
-        record(schema, 2L, parse("2017-12-22T06:02:09.243857+00:00"), "forrest"),
+        record(schema, 2L, parse("2017-12-22T06:02:09.243857+00:00"), ""),
         record(schema, 3L, parse("2017-12-22T03:10:11.134509+00:00"), "clapping"),
         record(schema, 4L, parse("2017-12-22T00:34:00.184671+00:00"), "brush"),
         record(schema, 5L, parse("2017-12-21T22:20:08.935889+00:00"), "trap"),

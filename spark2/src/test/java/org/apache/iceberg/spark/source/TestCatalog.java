@@ -92,7 +92,7 @@ public class TestCatalog implements Catalog, Configurable {
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
-    String uri = properties.get(CatalogProperties.HIVE_URI);
+    String uri = properties.get(CatalogProperties.URI);
     warehouse = properties.get("warehouse");
     Preconditions.checkArgument(uri != null, "A uri parameter must be set");
     Preconditions.checkArgument(uri.contains("thrift"), "A ur parameter must be valid");

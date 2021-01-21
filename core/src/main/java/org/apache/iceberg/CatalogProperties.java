@@ -30,9 +30,9 @@ public class CatalogProperties {
   public static final String FILE_IO_IMPL = "io-impl";
   public static final String WAREHOUSE_LOCATION = "warehouse";
 
-  public static final String HIVE_URI = "uri";
-  public static final String HIVE_CLIENT_POOL_SIZE = "clients";
-  public static final int HIVE_CLIENT_POOL_SIZE_DEFAULT = 2;
+  public static final String URI = "uri";
+  public static final String CLIENT_POOL_SIZE = "clients";
+  public static final int CLIENT_POOL_SIZE_DEFAULT = 2;
 
   public static final String LOCK_IMPL = "lock-impl";
 

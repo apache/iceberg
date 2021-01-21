@@ -24,12 +24,14 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -226,6 +228,22 @@ public abstract class TestWriteMetricsConfig {
       Assert.assertEquals(1, file.upperBounds().size());
       Assert.assertTrue(file.upperBounds().containsKey(id.fieldId()));
     }
+  }
+
+  @Test
+  public void testBadCustomMetricCollectionForParquet() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts");
+    properties.put("write.metadata.metrics.column.ids", "full");
+
+    AssertHelpers.assertThrows("Creating a table with invalid metrics should fail",
+        ValidationException.class,
+        null,
+        () -> tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation));
   }
 
   @Test

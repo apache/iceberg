@@ -80,6 +80,6 @@ public final class IcebergDecimalObjectInspector extends AbstractPrimitiveJavaOb
 
   @Override
   public BigDecimal convert(Object o) {
-    return o == null ? null : ((HiveDecimalWritable) o).getHiveDecimal().bigDecimalValue();
+    return o == null ? null : ((HiveDecimal) o).bigDecimalValue();
   }
 }

@@ -357,7 +357,14 @@ class SchemaUpdate implements UpdateSchema {
    */
   @Override
   public Schema apply() {
-    return applyChanges(schema, deletes, updates, adds, moves);
+    Schema newSchema = applyChanges(schema, deletes, updates, adds, moves);
+
+    // Validate the metrics if we have existing properties.
+    if (base != null && base.properties() != null) {
+      MetricsConfig.fromProperties(base.properties()).validateReferencedColumns(newSchema);
+    }
+
+    return newSchema;
   }
 
   @Override

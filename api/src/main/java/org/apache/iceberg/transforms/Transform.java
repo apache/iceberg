@@ -125,4 +125,14 @@ public interface Transform<S, T> extends Serializable {
   default String toHumanString(T value) {
     return String.valueOf(value);
   }
+
+  /**
+   * Return the unique transform name to check if similar transforms for the same source field
+   * are added multiple times in partition spec builder.
+   *
+   * @return a name used for dedup
+   */
+  default String dedupName() {
+    return toString();
+  }
 }

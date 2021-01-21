@@ -26,8 +26,8 @@ Iceberg catalogs support using catalog properties to configure catalog behaviors
 | catalog-impl                      | null               | a custom `Catalog` implementation to use by an engine  |
 | io-impl                           | null               | a custom `FileIO` implementation to use in a catalog   |
 | warehouse                         | null               | the root path of the data warehouse                    |
-| uri                               | null               | (Hive catalog only) the Hive metastore URI             |
-| clients                           | 2                  | (Hive catalog only) the Hive client pool size          |
+| uri                               | null               | a URI string, such as Hive metastore URI               |
+| clients                           | 2                  | client pool size                                       |
 
 `HadoopCatalog` and `HiveCatalog` can access the properties in their constructors.
 Any other custom catalog can access the properties by implementing `Catalog.initialize(catalogName, catalogProperties)`.

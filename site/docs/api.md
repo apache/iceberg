@@ -207,15 +207,21 @@ Iceberg table support is organized in library modules:
 
 * `iceberg-common` contains utility classes used in other modules
 * `iceberg-api` contains the public Iceberg API, including expressions, types, tables, and operations
+* `iceberg-arrow` is an implementation of the Iceberg type system for reading and writing data stored in Iceberg tables using Apache Arrow as the in-memory data format
+* `iceberg-aws` contains implementations of the Iceberg API to be used with tables stored on AWS S3 and/or for tables defined using the AWS Glue data catalog
 * `iceberg-core` contains implementations of the Iceberg API and support for Avro data files, **this is what processing engines should depend on**
 * `iceberg-parquet` is an optional module for working with tables backed by Parquet files
 * `iceberg-orc` is an optional module for working with tables backed by ORC files (*experimental*)
 * `iceberg-hive-metastore` is an implementation of Iceberg tables backed by the Hive metastore Thrift client
 
-This project Iceberg also has modules for adding Iceberg support to processing engines:
+This project Iceberg also has modules for adding Iceberg support to processing engines and associated tooling:
 
 * `iceberg-spark2` is an implementation of Spark's Datasource V2 API in 2.4 for Iceberg (use iceberg-spark-runtime for a shaded version)
 * `iceberg-spark3` is an implementation of Spark's Datasource V2 API in 3.0 for Iceberg (use iceberg-spark3-runtime for a shaded version)
+* `iceberg-flink` is an implementation of Flink's Table and DataStream API for Iceberg (use iceberg-flink-runtime for a shaded version)
+* `iceberg-hive3` is an implementation of Hive 3 specific SerDe's for Timestamp, TimestampWithZone, and Date object inspectors (use iceberg-hive-runtime for a shaded version).
+* `iceberg-mr` is an implementation of MapReduce and Hive InputFormats and SerDes for Iceberg (use iceberg-hive-runtime for a shaded version for use with Hive)
+* `iceberg-nessie` is a module used to integrate Iceberg table metadata history and operations with [Project Nessie](https://projectnessie.org/)
 * `iceberg-data` is a client library used to read Iceberg tables from JVM applications
 * `iceberg-pig` is an implementation of Pig's LoadFunc API for Iceberg
 * `iceberg-runtime` generates a shaded runtime jar for Spark to integrate with iceberg tables

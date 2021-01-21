@@ -145,4 +145,9 @@ enum Dates implements Transform<Integer, Integer> {
   public String toString() {
     return name;
   }
+
+  @Override
+  public String dedupName() {
+    return "time";
+  }
 }

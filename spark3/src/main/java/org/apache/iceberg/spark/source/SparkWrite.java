@@ -516,7 +516,7 @@ class SparkWrite {
       OutputFileFactory fileFactory = new OutputFileFactory(
           spec, format, locations, io.value(), encryptionManager.value(), partitionId, taskId);
       SparkAppenderFactory appenderFactory = new SparkAppenderFactory(properties, writeSchema, dsSchema, spec);
-      if (spec.fields().isEmpty()) {
+      if (spec.isUnpartitioned()) {
         return new Unpartitioned3Writer(spec, format, appenderFactory, fileFactory, io.value(), targetFileSize);
       } else if (partitionedFanoutEnabled) {
         return new PartitionedFanout3Writer(

@@ -28,27 +28,34 @@ import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.StructTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Package private class for converting Hive schema to Iceberg schema. Should be used only by the HiveSchemaUtil.
  * Use {@link HiveSchemaUtil} for conversion purposes.
  */
 class HiveSchemaConverter {
-  private int id;
+  private static final Logger LOG = LoggerFactory.getLogger(HiveSchemaConverter.class);
 
-  private HiveSchemaConverter() {
-    id = 0;
+  private int id;
+  private boolean autoConvert;
+
+  private HiveSchemaConverter(boolean autoConvert) {
+    this.autoConvert = autoConvert;
+    this.id = 0;
   }
 
-  static Schema convert(List<String> names, List<TypeInfo> typeInfos) {
-    HiveSchemaConverter converter = new HiveSchemaConverter();
+  static Schema convert(List<String> names, List<TypeInfo> typeInfos, boolean autoConvert) {
+    HiveSchemaConverter converter = new HiveSchemaConverter(autoConvert);
     return new Schema(converter.convertInternal(names, typeInfos));
   }
 
-  static Type convert(TypeInfo typeInfo) {
-    HiveSchemaConverter converter = new HiveSchemaConverter();
+  static Type convert(TypeInfo typeInfo, boolean autoConvert) {
+    HiveSchemaConverter converter = new HiveSchemaConverter(autoConvert);
     return converter.convertType(typeInfo);
   }
 
@@ -73,9 +80,11 @@ class HiveSchemaConverter {
             return Types.BooleanType.get();
           case BYTE:
           case SHORT:
-            throw new IllegalArgumentException("Unsupported Hive type (" +
-                ((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory() +
-                ") for Iceberg tables. Consider using INT/INTEGER type instead.");
+            Preconditions.checkArgument(autoConvert, "Unsupported Hive type: %s, use integer instead",
+                ((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory());
+
+            LOG.debug("Using auto conversion from SHORT/BYTE to INTEGER");
+            return Types.IntegerType.get();
           case INT:
             return Types.IntegerType.get();
           case LONG:
@@ -84,9 +93,11 @@ class HiveSchemaConverter {
             return Types.BinaryType.get();
           case CHAR:
           case VARCHAR:
-            throw new IllegalArgumentException("Unsupported Hive type (" +
-                ((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory() +
-                ") for Iceberg tables. Consider using STRING type instead.");
+            Preconditions.checkArgument(autoConvert, "Unsupported Hive type: %s, use string instead",
+                ((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory());
+
+            LOG.debug("Using auto conversion from CHAR/VARCHAR to STRING");
+            return Types.StringType.get();
           case STRING:
             return Types.StringType.get();
           case TIMESTAMP:

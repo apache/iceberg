@@ -125,15 +125,18 @@ abstract class TestTables {
    * @param schema The schema used for the table creation
    * @param fileFormat The file format used for writing the data
    * @param records The records with which the table is populated
+   * @return The created table
    * @throws IOException If there is an error writing data
    */
-  public void createTable(TestHiveShell shell, String tableName, Schema schema, FileFormat fileFormat,
+  public Table createTable(TestHiveShell shell, String tableName, Schema schema, FileFormat fileFormat,
       List<Record> records) throws IOException {
-    createIcebergTable(shell.getHiveConf(), tableName, schema, fileFormat, records);
+    Table table = createIcebergTable(shell.getHiveConf(), tableName, schema, fileFormat, records);
     String createHiveSQL = createHiveTableSQL(TableIdentifier.of("default", tableName));
     if (createHiveSQL != null) {
       shell.executeStatement(createHiveSQL);
     }
+
+    return table;
   }
 
   /**
