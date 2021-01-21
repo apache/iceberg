@@ -103,7 +103,7 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
       config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hadoop");
     } else {
       config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hive");
-      config.put(CatalogProperties.HIVE_URI, getURI(hiveConf));
+      config.put(CatalogProperties.URI, getURI(hiveConf));
     }
     config.put(CatalogProperties.WAREHOUSE_LOCATION, String.format("file://%s", warehouseRoot()));
 
