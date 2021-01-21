@@ -417,14 +417,14 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
       createAndInitSourceTable(sourceName);
       append(targetName, new Employee(1, "emp-id-one"), new Employee(6, "emp-id-6"));
       append(sourceName, new Employee(2, "emp-id-2"), new Employee(1, "emp-id-1"), new Employee(6, "emp-id-6"));
-      String sqlText = "MERGE INTO " + targetName + " AS target \n" +
-              "USING " + sourceName + " AS source \n" +
+      String sqlText = "MERGE INTO %s AS target \n" +
+              "USING %s AS source \n" +
               "ON target.id = source.id \n" +
               "WHEN MATCHED AND target.id = 1 THEN UPDATE SET * \n" +
               "WHEN MATCHED AND target.id = 6 THEN DELETE \n" +
               "WHEN NOT MATCHED AND source.id = 2 THEN INSERT * ";
 
-      sql(sqlText, "");
+      sql(sqlText, targetName, sourceName);
       assertEquals("Should have expected rows",
              ImmutableList.of(row(1, "emp-id-1"), row(2, "emp-id-2")),
              sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", targetName));

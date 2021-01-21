@@ -97,8 +97,9 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
         )
 
         val mergePlan = MergeInto(mergeParams, target.output, joinPlan)
+        val writePlan = buildWritePlan(mergePlan, target.table)
 
-        AppendData.byPosition(target, mergePlan, Map.empty)
+        AppendData.byPosition(target, writePlan, Map.empty)
 
       case MergeIntoTable(target: DataSourceV2Relation, source: LogicalPlan, cond, matchedActions, notMatchedActions)
           if notMatchedActions.isEmpty =>
@@ -157,6 +158,7 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
         val mergePlan = MergeInto(mergeParams, target.output, joinPlan)
         val writePlan = buildWritePlan(mergePlan, target.table)
         val batchWrite = mergeBuilder.asWriteBuilder.buildForBatch()
+
         ReplaceData(target, batchWrite, writePlan)
     }
   }
@@ -237,9 +239,8 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
         val table = iceTable.table()
         val distributionMode: String = table.properties
           .getOrDefault(TableProperties.WRITE_DISTRIBUTION_MODE, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE)
-        val mode = DistributionMode.fromName(distributionMode)
         val order = toCatalyst(toOrderedDistribution(table.spec(), table.sortOrder(), true), childPlan)
-        mode match {
+        DistributionMode.fromName(distributionMode) match {
           case DistributionMode.NONE =>
             Sort(buildSortOrder(order), global = false, childPlan)
           case DistributionMode.HASH =>
