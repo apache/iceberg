@@ -1015,6 +1015,7 @@ project(':iceberg-spark3-runtime') {
 
   dependencies {
     compile project(':iceberg-spark3')
+    compile project(':iceberg-spark3-extensions')
     compile project(':iceberg-aws')
     compile 'org.apache.spark:spark-hive_2.11'
     compile(project(':iceberg-nessie')) {
