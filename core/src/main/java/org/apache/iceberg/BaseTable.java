@@ -70,6 +70,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public Map<Integer, Schema> schemas() {
+    return ops.current().schemasById();
+  }
+
+  @Override
   public PartitionSpec spec() {
     return ops.current().spec();
   }

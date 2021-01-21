@@ -162,6 +162,11 @@ public class SerializableTable implements Table, Serializable {
   }
 
   @Override
+  public Map<Integer, Schema> schemas() {
+    return lazyTable().schemas();
+  }
+
+  @Override
   public PartitionSpec spec() {
     if (lazySpec == null) {
       synchronized (this) {

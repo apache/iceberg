@@ -46,6 +46,7 @@ public class SnapshotParser {
   private static final String OPERATION = "operation";
   private static final String MANIFESTS = "manifests";
   private static final String MANIFEST_LIST = "manifest-list";
+  private static final String SCHEMA_ID = "schema-id";
 
   static void toJson(Snapshot snapshot, JsonGenerator generator)
       throws IOException {
@@ -86,6 +87,11 @@ public class SnapshotParser {
         generator.writeString(file.path());
       }
       generator.writeEndArray();
+    }
+
+    // schema ID might be null for snapshots written by old writers
+    if (snapshot.schemaId() != null) {
+      generator.writeNumberField(SCHEMA_ID, snapshot.schemaId());
     }
 
     generator.writeEndObject();
@@ -139,17 +145,20 @@ public class SnapshotParser {
       summary = builder.build();
     }
 
+    Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, node);
+
     if (node.has(MANIFEST_LIST)) {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
-      return new BaseSnapshot(io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary, manifestList);
+      return new BaseSnapshot(
+          io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary, schemaId, manifestList);
 
     } else {
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be
       // loaded lazily, if it is needed
       List<ManifestFile> manifests = Lists.transform(JsonUtil.getStringList(MANIFESTS, node),
           location -> new GenericManifestFile(io.newInputFile(location), 0));
-      return new BaseSnapshot(io, snapshotId, parentId, timestamp, operation, summary, manifests);
+      return new BaseSnapshot(io, snapshotId, parentId, timestamp, operation, summary, schemaId, manifests);
     }
   }
 

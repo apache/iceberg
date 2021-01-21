@@ -89,11 +89,11 @@ public class TestTableMetadata {
   public void testJsonConversion() throws Exception {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
+        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, 7, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
 
     List<HistoryEntry> snapshotLog = ImmutableList.<HistoryEntry>builder()
@@ -108,7 +108,6 @@ public class TestTableMetadata {
         SEQ_NO, System.currentTimeMillis(), 3,
         7, ImmutableList.of(TEST_SCHEMA, schema),
         5, ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
-
         3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog, ImmutableList.of());
 
@@ -153,11 +152,15 @@ public class TestTableMetadata {
         (Long) previousSnapshotId, metadata.currentSnapshot().parentId());
     Assert.assertEquals("Current snapshot files should match",
         currentSnapshot.allManifests(), metadata.currentSnapshot().allManifests());
+    Assert.assertEquals("Schema ID for current snapshot should match",
+        (Integer) 7, metadata.currentSnapshot().schemaId());
     Assert.assertEquals("Previous snapshot ID should match",
         previousSnapshotId, metadata.snapshot(previousSnapshotId).snapshotId());
     Assert.assertEquals("Previous snapshot files should match",
         previousSnapshot.allManifests(),
         metadata.snapshot(previousSnapshotId).allManifests());
+    Assert.assertNull("Previous snapshot's schema ID should be null",
+        metadata.snapshot(previousSnapshotId).schemaId());
   }
 
   @Test
@@ -168,11 +171,11 @@ public class TestTableMetadata {
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), spec.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
+        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
     TableMetadata expected = new TableMetadata(null, 1, null, TEST_LOCATION,
@@ -222,6 +225,8 @@ public class TestTableMetadata {
         (Long) previousSnapshotId, metadata.currentSnapshot().parentId());
     Assert.assertEquals("Current snapshot files should match",
         currentSnapshot.allManifests(), metadata.currentSnapshot().allManifests());
+    Assert.assertNull("Current snapshot's schema ID should be null",
+        metadata.currentSnapshot().schemaId());
     Assert.assertEquals("Previous snapshot ID should match",
         previousSnapshotId, metadata.snapshot(previousSnapshotId).snapshotId());
     Assert.assertEquals("Previous snapshot files should match",
@@ -229,6 +234,8 @@ public class TestTableMetadata {
         metadata.snapshot(previousSnapshotId).allManifests());
     Assert.assertEquals("Snapshot logs should match",
             expected.previousFiles(), metadata.previousFiles());
+    Assert.assertNull("Previous snapshot's schema ID should be null",
+        metadata.snapshot(previousSnapshotId).schemaId());
   }
 
   private static String toJsonWithoutSpecAndSchemaList(TableMetadata metadata) {
@@ -245,7 +252,7 @@ public class TestTableMetadata {
 
       // mimic an old writer by writing only schema and not the current ID or schema list
       generator.writeFieldName(SCHEMA);
-      SchemaParser.toJson(metadata.schema(), generator);
+      SchemaParser.toJson(metadata.schema().asStruct(), generator);
 
       // mimic an old writer by writing only partition-spec and not the default ID or spec list
       generator.writeFieldName(PARTITION_SPEC);
@@ -280,11 +287,11 @@ public class TestTableMetadata {
   public void testJsonWithPreviousMetadataLog() throws Exception {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
+        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
@@ -311,11 +318,11 @@ public class TestTableMetadata {
   public void testAddPreviousMetadataRemoveNone() {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
+        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
@@ -351,11 +358,11 @@ public class TestTableMetadata {
   public void testAddPreviousMetadataRemoveOne() {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
+        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
@@ -403,11 +410,11 @@ public class TestTableMetadata {
   public void testAddPreviousMetadataRemoveMultiple() {
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
-        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, ImmutableList.of(
+        ops.io(), previousSnapshotId, null, previousSnapshotId, null, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.1.avro"), SPEC_5.specId())));
     long currentSnapshotId = System.currentTimeMillis();
     Snapshot currentSnapshot = new BaseSnapshot(
-        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, ImmutableList.of(
+        ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, null, ImmutableList.of(
         new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), SPEC_5.specId())));
 
     List<HistoryEntry> reversedSnapshotLog = Lists.newArrayList();
@@ -707,7 +714,7 @@ public class TestTableMetadata {
         Types.NestedField.required(2, "x", Types.StringType.get())
     );
     TableMetadata sameSchemaTable = twoSchemasTable.updateSchema(sameSchema2, 2);
-    Assert.assertEquals("Should return same table metadata",
+    Assert.assertSame("Should return same table metadata",
         twoSchemasTable, sameSchemaTable);
 
     // update schema with the the same schema and different last column ID as current should create a new table
@@ -738,7 +745,7 @@ public class TestTableMetadata {
         Types.NestedField.required(4, "x", Types.StringType.get()),
         Types.NestedField.required(6, "z", Types.IntegerType.get())
     );
-    TableMetadata threeSchemaTable = revertSchemaTable.updateSchema(schema3, 3);
+    TableMetadata threeSchemaTable = revertSchemaTable.updateSchema(schema3, 6);
     Assert.assertEquals("Should have current schema id as 2",
         2, threeSchemaTable.currentSchemaId());
     assertSameSchemaList(ImmutableList.of(schema,
@@ -747,6 +754,6 @@ public class TestTableMetadata {
     Assert.assertEquals("Should have expected schema upon return",
         schema3.asStruct(), threeSchemaTable.schema().asStruct());
     Assert.assertEquals("Should return expected last column id",
-        3, threeSchemaTable.lastColumnId());
+        6, threeSchemaTable.lastColumnId());
   }
 }
