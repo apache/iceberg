@@ -35,6 +35,8 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 | [DataFrame CTAS and RTAS](#creating-tables)      | ✔️        |            |                                                |
 | [Metadata tables](#inspecting-tables)            | ✔️        | ✔️          |                                                |
 
+To enable Iceberg SQL extensions, set Spark configuration `spark.sql.extensions` as `org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions`. 
+
 ## Configuring catalogs
 
 Spark 3.0 adds an API to plug in table catalogs that are used to load, create, and manage Iceberg tables. Spark catalogs are configured by setting [Spark properties](./configuration.md#catalogs) under `spark.sql.catalog`.
