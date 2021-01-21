@@ -20,7 +20,7 @@ import java.util.List;
 import org.apache.beam.sdk.transforms.Combine;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -28,7 +28,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hive.HiveCatalog;
 
-class IcebergDataFileCommitter extends Combine.CombineFn<WrittenDataFile, List<WrittenDataFile>, Snapshot> {
+class IcebergDataFileCommitter extends Combine.CombineFn<DataFile, List<DataFile>, Snapshot> {
     private final TableIdentifier tableIdentifier;
     private final Schema schema;
     private final String hiveMetastoreUrl;
@@ -40,22 +40,22 @@ class IcebergDataFileCommitter extends Combine.CombineFn<WrittenDataFile, List<W
     }
 
     @Override
-    public List<WrittenDataFile> createAccumulator() {
+    public List<DataFile> createAccumulator() {
         return new ArrayList<>();
     }
 
     @Override
-    public List<WrittenDataFile> addInput(List<WrittenDataFile> mutableAccumulator, WrittenDataFile input) {
+    public List<DataFile> addInput(List<DataFile> mutableAccumulator, DataFile input) {
         mutableAccumulator.add(input);
         return mutableAccumulator;
     }
 
     @Override
-    public List<WrittenDataFile> mergeAccumulators(Iterable<List<WrittenDataFile>> accumulators) {
-        Iterator<List<WrittenDataFile>> itr = accumulators.iterator();
+    public List<DataFile> mergeAccumulators(Iterable<List<DataFile>> accumulators) {
+        Iterator<List<DataFile>> itr = accumulators.iterator();
 
         if (itr.hasNext()) {
-            List<WrittenDataFile> first = itr.next();
+            List<DataFile> first = itr.next();
 
             while (itr.hasNext()) {
                 first.addAll(itr.next());
@@ -68,7 +68,7 @@ class IcebergDataFileCommitter extends Combine.CombineFn<WrittenDataFile, List<W
     }
 
     @Override
-    public Snapshot extractOutput(List<WrittenDataFile> accumulator) {
+    public Snapshot extractOutput(List<DataFile> datafiles) {
         try (HiveCatalog catalog = new HiveCatalog(
                 HiveCatalog.DEFAULT_NAME,
                 this.hiveMetastoreUrl,
@@ -83,15 +83,9 @@ class IcebergDataFileCommitter extends Combine.CombineFn<WrittenDataFile, List<W
                 table = catalog.createTable(this.tableIdentifier, schema);
             }
 
-            // Append the new files
             final AppendFiles app = table.newAppend();
-            // We need to get the statistics, not easy to get them through Beam
-            for (WrittenDataFile dataFile : accumulator) {
-                app.appendFile(DataFiles.builder(table.spec())
-                        .withPath(dataFile.filename)
-                        .withFileSizeInBytes(dataFile.filesize)
-                        .withRecordCount(dataFile.records)
-                        .build());
+            for (DataFile datafile : datafiles) {
+                app.appendFile(datafile);
             }
             app.commit();
 
