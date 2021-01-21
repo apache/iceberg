@@ -73,7 +73,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
-    Preconditions.checkArgument(!properties.getOrDefault(CatalogProperties.HIVE_URI, "").isEmpty(),
+    Preconditions.checkArgument(!properties.getOrDefault(CatalogProperties.URI, "").isEmpty(),
         "No connection url provided for jdbc catalog!");
 
     this.warehouseLocation = properties.getOrDefault(CatalogProperties.WAREHOUSE_LOCATION, "")
@@ -105,8 +105,8 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
   }
 
   private void initializeConnection(Map<String, String> properties) throws SQLException, InterruptedException {
-    LOG.debug("Connecting to Jdbc database {}", properties.get(CatalogProperties.HIVE_URI));
-    connections = new JdbcClientPool(properties.get(CatalogProperties.HIVE_URI), properties);
+    LOG.debug("Connecting to Jdbc database {}", properties.get(CatalogProperties.URI));
+    connections = new JdbcClientPool(properties.get(CatalogProperties.URI), properties);
     initializeCatalogTables();
   }
 

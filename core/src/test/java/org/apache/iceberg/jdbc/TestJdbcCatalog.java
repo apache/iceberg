@@ -106,7 +106,7 @@ public class TestJdbcCatalog {
     this.tableDir = temp.newFolder();
     tableDir.delete(); // created by table create
     Map<String, String> properties = new HashMap<>();
-    properties.put(CatalogProperties.HIVE_URI,
+    properties.put(CatalogProperties.URI,
         "jdbc:sqlite:file::memory:?ic" + UUID.randomUUID().toString().replace("-", ""));
 
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "username", "user");
@@ -122,7 +122,7 @@ public class TestJdbcCatalog {
   public void testInitialize() {
     Map<String, String> properties = new HashMap<>();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.getAbsolutePath());
-    properties.put(CatalogProperties.HIVE_URI, "jdbc:sqlite:file::memory:?icebergDB");
+    properties.put(CatalogProperties.URI, "jdbc:sqlite:file::memory:?icebergDB");
     JdbcCatalog jdbcCatalog = new JdbcCatalog();
     jdbcCatalog.setConf(conf);
     jdbcCatalog.initialize("test_jdbc_catalog", properties);
