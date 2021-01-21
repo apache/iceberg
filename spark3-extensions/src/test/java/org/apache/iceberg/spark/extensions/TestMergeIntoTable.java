@@ -346,8 +346,8 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
 
       sql(sqlText, targetName, sourceName);
       assertEquals("Should have expected rows",
-              ImmutableList.of(row(1, "emp-id-1"), row(2, "emp-id-2")),
-              sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", targetName));
+             ImmutableList.of(row(1, "emp-id-1"), row(2, "emp-id-2")),
+             sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", targetName));
     });
   }
 
@@ -375,8 +375,8 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
 
       sql(sqlText, targetName, sourceName);
       assertEquals("Should have expected rows",
-              ImmutableList.of(row(1, "2001-01-01 00:00:00"), row(2, "2001-01-02 00:00:00")),
-              sql("SELECT id, CAST(ts AS STRING) FROM %s ORDER BY id ASC NULLS LAST", targetName));
+             ImmutableList.of(row(1, "2001-01-01 00:00:00"), row(2, "2001-01-02 00:00:00")),
+             sql("SELECT id, CAST(ts AS STRING) FROM %s ORDER BY id ASC NULLS LAST", targetName));
     });
   }
 
@@ -400,8 +400,8 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
 
       sql(sqlText, targetName, sourceName);
       assertEquals("Should have expected rows",
-              ImmutableList.of(row(1, "emp-id-1"), row(2, "emp-id-2")),
-              sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", targetName));
+             ImmutableList.of(row(1, "emp-id-1"), row(2, "emp-id-2")),
+             sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", targetName));
     });
   }
 
@@ -426,8 +426,8 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
 
       sql(sqlText, "");
       assertEquals("Should have expected rows",
-              ImmutableList.of(row(1, "emp-id-1"), row(2, "emp-id-2")),
-              sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", targetName));
+             ImmutableList.of(row(1, "emp-id-1"), row(2, "emp-id-2")),
+             sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", targetName));
     });
   }
 
