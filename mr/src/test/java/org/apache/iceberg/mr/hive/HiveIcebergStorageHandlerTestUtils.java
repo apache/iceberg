@@ -26,6 +26,7 @@ import java.util.Map;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.OrcConf;
@@ -77,7 +78,7 @@ public class HiveIcebergStorageHandlerTestUtils {
 
   static TestTables testTables(TestHiveShell shell, TestTables.TestTableType testTableType, TemporaryFolder temp)
           throws IOException {
-    return testTables(shell, testTableType, temp, "default");
+    return testTables(shell, testTableType, temp, Catalogs.DEFAULT_CATALOG);
   }
 
   static TestTables testTables(TestHiveShell shell, TestTables.TestTableType testTableType, TemporaryFolder temp,

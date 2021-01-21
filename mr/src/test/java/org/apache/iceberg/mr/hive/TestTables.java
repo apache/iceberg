@@ -312,9 +312,10 @@ abstract class TestTables {
     public Map<String, String> properties() {
       return ImmutableMap.of(
               String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalog), "custom",
-              String.format(InputFormatConfig.CATALOG_LOADER_CLASS_TEMPLATE, catalog),
-              TestCatalogs.CustomHadoopCatalogLoader.class.getName(),
-              TestCatalogs.CustomHadoopCatalog.WAREHOUSE_LOCATION, warehouseLocation
+              String.format(InputFormatConfig.CATALOG_CLASS_TEMPLATE, catalog),
+              TestCatalogs.CustomHadoopCatalog.class.getName(),
+              String.format(InputFormatConfig.CATALOG_WAREHOUSE_TEMPLATE, catalog),
+              warehouseLocation
       );
     }
 

@@ -55,4 +55,5 @@ public class CatalogProperties {
 
   public static final String LOCK_TABLE = "lock.table";
 
+  public static final String CLASS = "class";
 }

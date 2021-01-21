@@ -67,13 +67,13 @@ public class TestHiveIcebergStorageHandlerWithMultipleCatalogs {
   private TestTables testTables1;
   private TestTables testTables2;
 
-  @Parameterized.Parameters(name = "fileFormat={0}, fileFormat={1}, engine={2}, tableType1={3}, catalogName1={4}, " +
+  @Parameterized.Parameters(name = "fileFormat1={0}, fileFormat2={1}, engine={2}, tableType1={3}, catalogName1={4}, " +
           "tableType2={5}, catalogName2={6}")
   public static Collection<Object[]> parameters() {
     Collection<Object[]> testParams = new ArrayList<>();
     String javaVersion = System.getProperty("java.specification.version");
 
-    // Run tests with every FileFormat for a two Catalogs
+    // Run tests with PARQUET and ORC file formats for a two Catalogs
     for (String engine : EXECUTION_ENGINES) {
       // include Tez tests only for Java 8
       if (javaVersion.equals("1.8") || "mr".equals(engine)) {

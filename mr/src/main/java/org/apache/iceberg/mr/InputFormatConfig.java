@@ -73,9 +73,10 @@ public class InputFormatConfig {
   public static final String SNAPSHOT_TABLE = "iceberg.snapshots.table";
   public static final String SNAPSHOT_TABLE_SUFFIX = "__snapshots";
 
-  public static final String CATALOG_TYPE_TEMPLATE = CATALOG_NAME + ".%s.type";
-  public static final String CATALOG_WAREHOUSE_TEMPLATE = CATALOG_NAME + ".%s.warehouse";
-  public static final String CATALOG_LOADER_CLASS_TEMPLATE = CATALOG_NAME + ".%s.loader.class";
+  public static final String CATALOG_CONFIG_PREFIX = "iceberg.catalog.";
+  public static final String CATALOG_TYPE_TEMPLATE = CATALOG_CONFIG_PREFIX + "%s.type";
+  public static final String CATALOG_WAREHOUSE_TEMPLATE = CATALOG_CONFIG_PREFIX + "%s.warehouse";
+  public static final String CATALOG_CLASS_TEMPLATE = CATALOG_CONFIG_PREFIX + "%s.class";
 
   public enum InMemoryDataModel {
     PIG,
