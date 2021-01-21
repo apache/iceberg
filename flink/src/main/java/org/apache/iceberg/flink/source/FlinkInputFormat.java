@@ -61,7 +61,7 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
 
   @VisibleForTesting
   Schema projectedSchema() {
-    return context.projectedSchema();
+    return context.project();
   }
 
   @Override
@@ -92,7 +92,7 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   @Override
   public void open(FlinkInputSplit split) {
     this.iterator = new RowDataIterator(
-        split.getTask(), io, encryption, tableSchema, context.projectedSchema(), context.nameMapping(),
+        split.getTask(), io, encryption, tableSchema, context.project(), context.nameMapping(),
         context.caseSensitive());
   }
 

@@ -94,6 +94,11 @@ public class HadoopTables implements Tables, Configurable {
     return result;
   }
 
+  @Override
+  public boolean exists(String location) {
+    return newTableOps(location).current() != null;
+  }
+
   /**
    * Try to resolve a metadata table, which we encode as URI fragments
    * e.g. hdfs:///warehouse/my_table#snapshots

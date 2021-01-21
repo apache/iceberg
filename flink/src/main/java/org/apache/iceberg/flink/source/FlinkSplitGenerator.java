@@ -47,7 +47,7 @@ class FlinkSplitGenerator {
     TableScan scan = table
         .newScan()
         .caseSensitive(context.caseSensitive())
-        .project(context.projectedSchema());
+        .project(context.project());
 
     if (context.snapshotId() != null) {
       scan = scan.useSnapshot(context.snapshotId());
@@ -77,8 +77,8 @@ class FlinkSplitGenerator {
       scan = scan.option(TableProperties.SPLIT_OPEN_FILE_COST, context.splitOpenFileCost().toString());
     }
 
-    if (context.filterExpressions() != null) {
-      for (Expression filter : context.filterExpressions()) {
+    if (context.filters() != null) {
+      for (Expression filter : context.filters()) {
         scan = scan.filter(filter);
       }
     }

@@ -50,4 +50,6 @@ public interface Tables {
   }
 
   Table load(String tableIdentifier);
+
+  boolean exists(String tableIdentifier);
 }

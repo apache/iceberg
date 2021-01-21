@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.beam;
 
+
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.coders.SerializableCoder;
 import org.apache.beam.sdk.transforms.Combine;
@@ -29,7 +30,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.catalog.TableIdentifier;
-
 
 public class IcebergIO {
     private IcebergIO() {
@@ -55,3 +55,4 @@ public class IcebergIO {
         return dataFiles.apply(combined);
     }
 }
+

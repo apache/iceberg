@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.hive;
+package org.apache.iceberg.beam;
 
 import java.io.File;
 import java.io.IOException;
@@ -42,6 +42,7 @@ import org.apache.hadoop.hive.metastore.TSetIpAddressProcessor;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.hive.HiveClientPool;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.server.TThreadPoolServer;
@@ -60,14 +61,14 @@ public class TestHiveMetastore {
   // create the metastore handlers based on whether we're working with Hive2 or Hive3 dependencies
   // we need to do this because there is a breaking API change between Hive2 and Hive3
   private static final DynConstructors.Ctor<HiveMetaStore.HMSHandler> HMS_HANDLER_CTOR = DynConstructors.builder()
-          .impl(HiveMetaStore.HMSHandler.class, String.class, Configuration.class)
-          .impl(HiveMetaStore.HMSHandler.class, String.class, HiveConf.class)
-          .build();
+      .impl(HiveMetaStore.HMSHandler.class, String.class, Configuration.class)
+      .impl(HiveMetaStore.HMSHandler.class, String.class, HiveConf.class)
+      .build();
 
   private static final DynMethods.StaticMethod GET_BASE_HMS_HANDLER = DynMethods.builder("getProxy")
-          .impl(RetryingHMSHandler.class, Configuration.class, IHMSHandler.class, boolean.class)
-          .impl(RetryingHMSHandler.class, HiveConf.class, IHMSHandler.class, boolean.class)
-          .buildStatic();
+      .impl(RetryingHMSHandler.class, Configuration.class, IHMSHandler.class, boolean.class)
+      .impl(RetryingHMSHandler.class, HiveConf.class, IHMSHandler.class, boolean.class)
+      .buildStatic();
 
   // Hive3 introduces background metastore tasks (MetastoreTaskThread) for performing various cleanup duties. These
   // threads are scheduled and executed in a static thread pool (org.apache.hadoop.hive.metastore.ThreadPool).
@@ -76,9 +77,9 @@ public class TestHiveMetastore {
   // threads from our previous test suite will be stuck in the pool with stale config, and keep on being scheduled.
   // This can lead to issues, e.g. accidental Persistence Manager closure by ScheduledQueryExecutionsMaintTask.
   private static final DynMethods.StaticMethod METASTORE_THREADS_SHUTDOWN = DynMethods.builder("shutdown")
-          .impl("org.apache.hadoop.hive.metastore.ThreadPool")
-          .orNoop()
-          .buildStatic();
+      .impl("org.apache.hadoop.hive.metastore.ThreadPool")
+      .orNoop()
+      .buildStatic();
 
   private File hiveLocalDir;
   private HiveConf hiveConf;
@@ -214,7 +215,7 @@ public class TestHiveMetastore {
     ClassLoader classLoader = ClassLoader.getSystemClassLoader();
 
     try (InputStream inputStream = classLoader.getResourceAsStream("hive-schema-3.1.0.derby.sql");
-         Reader reader = new InputStreamReader(inputStream)) {
+        Reader reader = new InputStreamReader(inputStream)) {
       scriptRunner.runScript(reader);
     }
   }

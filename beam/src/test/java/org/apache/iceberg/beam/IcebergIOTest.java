@@ -1,15 +1,20 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package org.apache.iceberg.beam;
@@ -23,71 +28,86 @@ import org.apache.beam.sdk.coders.AvroCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.io.AvroIO;
 import org.apache.beam.sdk.io.FileIO;
-import org.apache.beam.sdk.io.WriteFilesResult;
 import org.apache.beam.sdk.options.PipelineOptions;
-import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.testing.TestPipeline;
-import org.apache.beam.sdk.testing.TestStream;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.ParDo;
-import org.apache.beam.sdk.transforms.windowing.FixedWindows;
-import org.apache.beam.sdk.transforms.windowing.Window;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TimestampedValue;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 
 public class IcebergIOTest {
-  private static final List<String> SENTENCES =
-      Arrays.asList(
-          "Beam window 1 1",
-          "Beam window 1 2",
-          "Beam window 1 3",
-          "Beam window 1 4",
-          "Beam window 2 1",
-          "Beam window 2 2");
-  private static final Instant START_TIME = new Instant(0);
+    private static final List<String> SENTENCES =
+            Arrays.asList(
+                    "Beam window 1 1",
+                    "Beam window 1 2",
+                    "Beam window 1 3",
+                    "Beam window 1 4",
+                    "Beam window 2 1",
+                    "Beam window 2 2");
+    private static final Instant START_TIME = new Instant(0);
 
-  @Rule
-  public final transient TestPipeline pipeline = TestPipeline.create();
-
-  private static final String stringSchema = "{\n" +
-      "\t\"type\": \"record\",\n" +
-      "\t\"name\": \"Word\",\n" +
-      "\t\"fields\": [{\n" +
-      "\t\t\"name\": \"word\",\n" +
-      "\t\t\"type\": [\"null\", \"string\"],\n" +
-      "\t\t\"default\": null\n" +
-      "\t}]\n" +
-      "}";
-
-  final Schema avroSchema = new Schema.Parser().parse(stringSchema);
-
-  @Test
-  public void testWriteFilesBatch() {
-    final PipelineOptions options = PipelineOptionsFactory.create();
-    final Pipeline p = Pipeline.create(options);
-
-    p.getCoderRegistry().registerCoderForClass(GenericRecord.class, AvroCoder.of(avroSchema));
-
-    PCollection<String> lines = p.apply(Create.of(SENTENCES)).setCoder(StringUtf8Coder.of());
-
-    PCollection<GenericRecord> records = lines.apply(ParDo.of(new StringToGenericRecord(stringSchema)));
+    @Rule
+    public final transient TestPipeline pipeline = TestPipeline.create();
 
     final String hiveMetastoreUrl = "thrift://localhost:9083/default";
 
-    org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
-    TableIdentifier name = TableIdentifier.of("default", "test_batch");
+    private static TestHiveMetastore metastore;
+    private static final PipelineOptions options = TestPipeline.testingPipelineOptions();
 
-    IcebergIO.write(name, icebergSchema, hiveMetastoreUrl, records);
+    @BeforeClass
+    public static void startMetastore() {
+        metastore = new TestHiveMetastore();
+        metastore.start();
+    }
 
-    p.run();
-  }
+    @AfterClass
+    public static void stopMetastore() {
+        metastore.stop();
+    }
+
+
+    private static final String stringSchema = "{\n" +
+            "\t\"type\": \"record\",\n" +
+            "\t\"name\": \"Word\",\n" +
+            "\t\"fields\": [{\n" +
+            "\t\t\"name\": \"word\",\n" +
+            "\t\t\"type\": [\"null\", \"string\"],\n" +
+            "\t\t\"default\": null\n" +
+            "\t}]\n" +
+            "}";
+
+    final Schema avroSchema = new Schema.Parser().parse(stringSchema);
+
+    @Test
+    public void testWriteFilesBatch() {
+        final Pipeline p = Pipeline.create(options);
+
+        p.getCoderRegistry().registerCoderForClass(GenericRecord.class, AvroCoder.of(avroSchema));
+
+        PCollection<String> lines = p.apply(Create.of(SENTENCES)).setCoder(StringUtf8Coder.of());
+
+        PCollection<GenericRecord> records = lines.apply(ParDo.of(new StringToGenericRecord(stringSchema)));
+
+        FileIO.Write<Void, GenericRecord> avroFileIO = FileIO.<GenericRecord>write()
+                .via(AvroIO.sink(avroSchema))
+                .to("/tmp/fokko/")
+                .withSuffix(".avro");
+
+        org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
+        TableIdentifier name = TableIdentifier.of("default", "test_batch");
+
+        IcebergIO.write(name, icebergSchema, hiveMetastoreUrl, records);
+
+        p.run();
+    }
 
 //  @Test
 //  public void testWriteFilesStreaming() {
@@ -134,7 +154,7 @@ public class IcebergIOTest {
 //    pipeline.run(options).waitUntilFinish();
 //  }
 
-  private TimestampedValue<String> event(String word, Long timestamp) {
-    return TimestampedValue.of(word, START_TIME.plus(new Duration(timestamp)));
-  }
+    private TimestampedValue<String> event(String word, Long timestamp) {
+        return TimestampedValue.of(word, START_TIME.plus(new Duration(timestamp)));
+    }
 }
