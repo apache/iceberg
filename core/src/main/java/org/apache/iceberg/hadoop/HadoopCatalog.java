@@ -29,6 +29,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
@@ -172,7 +174,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   private boolean shouldSuppressPermissionError(IOException ioException) {
     if (suppressPermissionError) {
       return ioException instanceof AccessDeniedException
-              || ioException.getMessage() != null && ioException.getMessage().contains("AuthorizationPermissionMismatch");
+              || (ioException.getMessage() != null && ioException.getMessage().contains("AuthorizationPermissionMismatch"));
     }
     return false;
   }
@@ -182,16 +184,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     // Only the path which contains metadata is the path for table, otherwise it could be
     // still a namespace.
     try {
-      // using the iterator listing allows for paged downloads
-      // from HDFS and prefetching from object storage.
-      RemoteIterator<FileStatus> it = fs.listStatusIterator(path);
-      while (it.hasNext()) {
-        if (TABLE_FILTER.accept(it.next().getPath())) {
-          return true;
-        }
-      }
-      // no match
-      return false;
+      return fs.listStatus(metadataPath, TABLE_FILTER).length >= 1;
     } catch (FileNotFoundException  e) {
       return false;
     } catch (IOException e) {
