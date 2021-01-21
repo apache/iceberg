@@ -305,24 +305,46 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void testSingleConditionalDeleteCountCheck() throws NoSuchTableException {
+    append(targetName, new Employee(1, "emp-id-one"), new Employee(6, "emp-id-6"));
+    append(sourceName, new Employee(1, "emp-id-1"), new Employee(1, "emp-id-1"),
+           new Employee(2, "emp-id-2"), new Employee(6, "emp-id-6"));
+
+    String sqlText = "MERGE INTO %s AS target " +
+           "USING %s AS source " +
+           "ON target.id = source.id " +
+           "WHEN MATCHED AND target.id = 1 THEN DELETE " +
+           "WHEN NOT MATCHED AND source.id = 2 THEN INSERT * ";
+
+    String tabName = catalogName + "." + "default.target";
+    String errorMsg = "The same row of target table `" + tabName + "` was identified more than\n" +
+            " once for an update, delete or insert operation of the MERGE statement.";
+    AssertHelpers.assertThrows("Should complain ambiguous row in target",
+           SparkException.class, errorMsg, () -> sql(sqlText, targetName, sourceName));
+    assertEquals("Target should be unchanged",
+           ImmutableList.of(row(1, "emp-id-one"), row(6, "emp-id-6")),
+           sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", targetName));
+  }
+
+  @Test
   public void testIdentityPartition()  {
     writeModes.forEach(mode -> {
       removeTables();
       sql("CREATE TABLE %s (id INT, dep STRING) USING iceberg PARTITIONED BY (identity(dep))", targetName);
       initTable(targetName);
-      setWriteMode(targetName, mode);
+      setDistributionMode(targetName, mode);
       createAndInitSourceTable(sourceName);
       append(targetName, new Employee(1, "emp-id-one"), new Employee(6, "emp-id-6"));
       append(sourceName, new Employee(2, "emp-id-2"), new Employee(1, "emp-id-1"), new Employee(6, "emp-id-6"));
 
-      String sqlText = "MERGE INTO " + targetName + " AS target \n" +
-              "USING " + sourceName + " AS source \n" +
-              "ON target.id = source.id \n" +
-              "WHEN MATCHED AND target.id = 1 THEN UPDATE SET * \n" +
-              "WHEN MATCHED AND target.id = 6 THEN DELETE \n" +
+      String sqlText = "MERGE INTO %s AS target " +
+              "USING %s AS source " +
+              "ON target.id = source.id " +
+              "WHEN MATCHED AND target.id = 1 THEN UPDATE SET * " +
+              "WHEN MATCHED AND target.id = 6 THEN DELETE " +
               "WHEN NOT MATCHED AND source.id = 2 THEN INSERT * ";
 
-      sql(sqlText, "");
+      sql(sqlText, targetName, sourceName);
       assertEquals("Should have expected rows",
               ImmutableList.of(row(1, "emp-id-1"), row(2, "emp-id-2")),
               sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", targetName));
@@ -335,7 +357,7 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
       removeTables();
       sql("CREATE TABLE %s (id INT, ts timestamp) USING iceberg PARTITIONED BY (days(ts))", targetName);
       initTable(targetName);
-      setWriteMode(targetName, mode);
+      setDistributionMode(targetName, mode);
       sql("CREATE TABLE %s (id INT, ts timestamp) USING iceberg", sourceName);
       initTable(sourceName);
       sql("INSERT INTO " + targetName + " VALUES (1, timestamp('2001-01-01 00:00:00'))," +
@@ -344,14 +366,14 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
               "(1, timestamp('2001-01-01 00:00:00'))," +
               "(6, timestamp('2001-01-06 00:00:00'))");
 
-      String sqlText = "MERGE INTO " + targetName + " AS target \n" +
-              "USING " + sourceName + " AS source \n" +
+      String sqlText = "MERGE INTO %s AS target \n" +
+              "USING %s AS source \n" +
               "ON target.id = source.id \n" +
               "WHEN MATCHED AND target.id = 1 THEN UPDATE SET * \n" +
               "WHEN MATCHED AND target.id = 6 THEN DELETE \n" +
               "WHEN NOT MATCHED AND source.id = 2 THEN INSERT * ";
 
-      sql(sqlText, "");
+      sql(sqlText, targetName, sourceName);
       assertEquals("Should have expected rows",
               ImmutableList.of(row(1, "2001-01-01 00:00:00"), row(2, "2001-01-02 00:00:00")),
               sql("SELECT id, CAST(ts AS STRING) FROM %s ORDER BY id ASC NULLS LAST", targetName));
@@ -365,18 +387,18 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
       sql("CREATE TABLE %s (id INT, dep STRING) USING iceberg" +
               " CLUSTERED BY (dep) INTO 2 BUCKETS", targetName);
       initTable(targetName);
-      setWriteMode(targetName, mode);
+      setDistributionMode(targetName, mode);
       createAndInitSourceTable(sourceName);
       append(targetName, new Employee(1, "emp-id-one"), new Employee(6, "emp-id-6"));
       append(sourceName, new Employee(2, "emp-id-2"), new Employee(1, "emp-id-1"), new Employee(6, "emp-id-6"));
-      String sqlText = "MERGE INTO " + targetName + " AS target \n" +
-              "USING " + sourceName + " AS source \n" +
+      String sqlText = "MERGE INTO %s AS target \n" +
+              "USING %s AS source \n" +
               "ON target.id = source.id \n" +
               "WHEN MATCHED AND target.id = 1 THEN UPDATE SET * \n" +
               "WHEN MATCHED AND target.id = 6 THEN DELETE \n" +
               "WHEN NOT MATCHED AND source.id = 2 THEN INSERT * ";
 
-      sql(sqlText, "");
+      sql(sqlText, targetName, sourceName);
       assertEquals("Should have expected rows",
               ImmutableList.of(row(1, "emp-id-1"), row(2, "emp-id-2")),
               sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", targetName));
@@ -388,9 +410,10 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
     writeModes.forEach(mode -> {
       removeTables();
       sql("CREATE TABLE %s (id INT, dep STRING) USING iceberg" +
-              " PARTITIONED BY (id) CLUSTERED BY (dep) INTO 2 BUCKETS", targetName);
+              " PARTITIONED BY (id)", targetName);
+      sql("ALTER TABLE %s  WRITE ORDERED BY (dep)", targetName);
       initTable(targetName);
-      setWriteMode(targetName, mode);
+      setDistributionMode(targetName, mode);
       createAndInitSourceTable(sourceName);
       append(targetName, new Employee(1, "emp-id-one"), new Employee(6, "emp-id-6"));
       append(sourceName, new Employee(2, "emp-id-2"), new Employee(1, "emp-id-1"), new Employee(6, "emp-id-6"));
@@ -439,7 +462,7 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
     });
   }
 
-  private void setWriteMode(String tabName, String mode) {
+  private void setDistributionMode(String tabName, String mode) {
     sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tabName, TableProperties.WRITE_DISTRIBUTION_MODE, mode);
   }
 

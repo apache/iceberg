@@ -19,7 +19,7 @@
 
 package org.apache.spark.sql.catalyst.optimizer
 
-import java.util.Locale
+import org.apache.iceberg.DistributionMode
 import org.apache.iceberg.TableProperties
 import org.apache.iceberg.TableProperties.MERGE_WRITE_CARDINALITY_CHECK
 import org.apache.iceberg.TableProperties.MERGE_WRITE_CARDINALITY_CHECK_DEFAULT
@@ -236,16 +236,17 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
         val numShufflePartitions = spark.sessionState.conf.numShufflePartitions
         val table = iceTable.table()
         val distributionMode: String = table.properties
-          .getOrDefault("write.distribution-mode", TableProperties.WRITE_DISTRIBUTION_MODE_RANGE)
+          .getOrDefault(TableProperties.WRITE_DISTRIBUTION_MODE, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE)
+        val mode = DistributionMode.fromName(distributionMode)
         val order = toCatalyst(toOrderedDistribution(table.spec(), table.sortOrder(), true), childPlan)
-        distributionMode.toLowerCase(Locale.ROOT) match {
-          case TableProperties.WRITE_DISTRIBUTION_MODE_DEFAULT =>
+        mode match {
+          case DistributionMode.NONE =>
             Sort(buildSortOrder(order), global = false, childPlan)
-          case TableProperties.WRITE_DISTRIBUTION_MODE_HASH =>
+          case DistributionMode.HASH =>
             val clustering = toCatalyst(toClusteredDistribution(table.spec()), childPlan)
             val hashPartitioned = RepartitionByExpression(clustering, childPlan, numShufflePartitions)
             Sort(buildSortOrder(order), global = false, hashPartitioned)
-          case TableProperties.WRITE_DISTRIBUTION_MODE_RANGE =>
+          case DistributionMode.RANGE =>
             val roundRobin = Repartition(numShufflePartitions, shuffle = true, childPlan)
             Sort(buildSortOrder(order), global = true, roundRobin)
         }

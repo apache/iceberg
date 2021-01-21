@@ -81,8 +81,8 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
     case ReplaceData(_, batchWrite, query) =>
       ReplaceDataExec(batchWrite, planLater(query)) :: Nil
 
-    case MergeInto(mergeIntoParms, targetAttributes, child) =>
-      MergeIntoExec(mergeIntoParms, targetAttributes, planLater(child)) :: Nil
+    case MergeInto(mergeIntoParams, output, child) =>
+      MergeIntoExec(mergeIntoParams, output, planLater(child)) :: Nil
 
     case _ => Nil
   }

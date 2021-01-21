@@ -286,7 +286,6 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
     }
   }
 
-
   private def toCatalyst(direction: SortDirection): catalyst.expressions.SortDirection = {
     direction match {
       case SortDirection.ASCENDING => catalyst.expressions.Ascending

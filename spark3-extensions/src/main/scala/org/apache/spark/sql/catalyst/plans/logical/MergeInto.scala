@@ -24,10 +24,8 @@ import org.apache.spark.sql.catalyst.expressions.Expression
 
 case class MergeInto(
     mergeIntoProcessor: MergeIntoParams,
-    targetOutput: Seq[Attribute],
-    child: LogicalPlan) extends UnaryNode {
-  override def output: Seq[Attribute] = targetOutput
-}
+    output: Seq[Attribute],
+    child: LogicalPlan) extends UnaryNode
 
 case class MergeIntoParams(
     isSourceRowNotPresent: Expression,
