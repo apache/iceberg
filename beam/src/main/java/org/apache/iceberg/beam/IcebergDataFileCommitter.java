@@ -30,7 +30,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hive.HiveCatalog;
 
 class IcebergDataFileCommitter extends Combine.CombineFn<DataFile, List<DataFile>, Snapshot> {
@@ -58,15 +57,11 @@ class IcebergDataFileCommitter extends Combine.CombineFn<DataFile, List<DataFile
     @Override
     public List<DataFile> mergeAccumulators(Iterable<List<DataFile>> accumulators) {
         Iterator<List<DataFile>> itr = accumulators.iterator();
-
         if (itr.hasNext()) {
             List<DataFile> first = itr.next();
-
-
             while (itr.hasNext()) {
                 first.addAll(itr.next());
             }
-
             return first;
         } else {
             return new ArrayList<>();
@@ -81,19 +76,14 @@ class IcebergDataFileCommitter extends Combine.CombineFn<DataFile, List<DataFile
                 1,
                 new Configuration()
         )) {
-            Table table;
-            try {
-                table = catalog.loadTable(this.tableIdentifier);
-            } catch (NoSuchTableException e) {
-                // If it doesn't exist, we just create the table
-                table = catalog.createTable(this.tableIdentifier, schema);
+            Table table = HiveCatalogHelper.loadOrCreateTable(catalog, tableIdentifier, schema);
+            if (!datafiles.isEmpty()) {
+                final AppendFiles app = table.newAppend();
+                for (DataFile datafile : datafiles) {
+                    app.appendFile(datafile);
+                }
+                app.commit();
             }
-
-            final AppendFiles app = table.newAppend();
-            for (DataFile datafile : datafiles) {
-                app.appendFile(datafile);
-            }
-            app.commit();
             return table.currentSnapshot();
         }
     }

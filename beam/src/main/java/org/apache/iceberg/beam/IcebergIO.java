@@ -43,7 +43,7 @@ public class IcebergIO {
     ) {
         // We take the filenames that are emitted by the FileIO
         final PCollection<DataFile> dataFiles = avroRecords
-                .apply(ParDo.of(new FileWriter(table, PartitionSpec.unpartitioned(), hiveMetastoreUrl)))
+                .apply(ParDo.of(new FileWriter(table, schema, PartitionSpec.unpartitioned(), hiveMetastoreUrl)))
                 .setCoder(SerializableCoder.of(DataFile.class));
 
         // We use a combiner, to combine all the files to a single commit in

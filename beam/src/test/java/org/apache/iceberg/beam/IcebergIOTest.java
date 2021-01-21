@@ -30,8 +30,11 @@ import org.apache.beam.sdk.io.AvroIO;
 import org.apache.beam.sdk.io.FileIO;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.testing.TestPipeline;
+import org.apache.beam.sdk.testing.TestStream;
 import org.apache.beam.sdk.transforms.Create;
 import org.apache.beam.sdk.transforms.ParDo;
+import org.apache.beam.sdk.transforms.windowing.FixedWindows;
+import org.apache.beam.sdk.transforms.windowing.Window;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.TimestampedValue;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -44,6 +47,7 @@ import org.junit.Rule;
 import org.junit.Test;
 
 public class IcebergIOTest {
+    private static final Duration WINDOW_DURATION = Duration.standardMinutes(1);
     private static final List<String> SENTENCES =
             Arrays.asList(
                     "Beam window 1 1",
@@ -73,7 +77,6 @@ public class IcebergIOTest {
         metastore.stop();
     }
 
-
     private static final String stringSchema = "{\n" +
             "\t\"type\": \"record\",\n" +
             "\t\"name\": \"Word\",\n" +
@@ -96,11 +99,6 @@ public class IcebergIOTest {
 
         PCollection<GenericRecord> records = lines.apply(ParDo.of(new StringToGenericRecord(stringSchema)));
 
-        FileIO.Write<Void, GenericRecord> avroFileIO = FileIO.<GenericRecord>write()
-                .via(AvroIO.sink(avroSchema))
-                .to("/tmp/fokko/")
-                .withSuffix(".avro");
-
         org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
         TableIdentifier name = TableIdentifier.of("default", "test_batch");
 
@@ -109,50 +107,42 @@ public class IcebergIOTest {
         p.run();
     }
 
-//  @Test
-//  public void testWriteFilesStreaming() {
-//    final String table_name = "test_streaming_crc_naming";
-//
-//    pipeline.getCoderRegistry().registerCoderForClass(GenericRecord.class, AvroCoder.of(avroSchema));
-//
-//    // We should see four commits in the log
-//    TestStream<String> stringsStream =
-//        TestStream.create(StringUtf8Coder.of())
-//            .advanceWatermarkTo(START_TIME)
-//            .addElements(event(SENTENCES.get(0), 2L))
-//            .advanceWatermarkTo(START_TIME.plus(Duration.standardSeconds(60L)))
-//            .addElements(event(SENTENCES.get(1), 62L))
-//            .advanceWatermarkTo(START_TIME.plus(Duration.standardSeconds(120L)))
-//            .addElements(event(SENTENCES.get(2), 122L))
-//            .advanceWatermarkTo(START_TIME.plus(Duration.standardSeconds(180L)))
-//            .addElements(event(SENTENCES.get(3), 182L))
-//            .advanceWatermarkToInfinity();
-//
-//    PCollection<GenericRecord> recordsStream = pipeline
-//        .apply(stringsStream)
-//        .setCoder(StringUtf8Coder.of())
-//        .apply(ParDo.of(new StringToGenericRecord(stringSchema)));
-//
-//    FileIO.Write.FileNaming naming = new HadoopCompatibleFilenamePolicy(".avro");
-//
-//    FileIO.Write<Void, GenericRecord> avroFileIO = FileIO.<GenericRecord>write()
-//        .via(AvroIO.sink(avroSchema))
-//        .to("/tmp/" + table_name + "/")
-//        .withNumShards(1)
-//        .withNaming(naming);
-//
-//    // Write the record
-//    WriteFilesResult<Void> filesWritten = recordsStream
-//        .apply(Window.into(FixedWindows.of(WINDOW_DURATION)))
-//        .apply(avroFileIO);
-//
-//    org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
-//    TableIdentifier name = TableIdentifier.of("default", table_name);
-//
-//    PCollection<Snapshot> snapshots = IcebergIO.write(name, icebergSchema, hiveMetastoreUrl, filesWritten);
-//
-//    pipeline.run(options).waitUntilFinish();
-//  }
+  @Test
+  public void testWriteFilesStreaming() {
+    final String table_name = "test_streaming_crc_naming";
+
+
+
+    pipeline.getCoderRegistry().registerCoderForClass(GenericRecord.class, AvroCoder.of(avroSchema));
+
+    // We should see four commits in the log
+    TestStream<String> stringsStream =
+        TestStream.create(StringUtf8Coder.of())
+            .advanceWatermarkTo(START_TIME)
+            .addElements(event(SENTENCES.get(0), 2L))
+            .advanceWatermarkTo(START_TIME.plus(Duration.standardSeconds(60L)))
+            .addElements(event(SENTENCES.get(1), 62L))
+            .advanceWatermarkTo(START_TIME.plus(Duration.standardSeconds(120L)))
+            .addElements(event(SENTENCES.get(2), 122L))
+            .advanceWatermarkTo(START_TIME.plus(Duration.standardSeconds(180L)))
+            .addElements(event(SENTENCES.get(3), 182L))
+            .advanceWatermarkToInfinity();
+
+    PCollection<GenericRecord> records = pipeline
+        .apply(stringsStream)
+        .setCoder(StringUtf8Coder.of())
+        .apply(ParDo.of(new StringToGenericRecord(stringSchema)));
+
+
+    org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
+    TableIdentifier name = TableIdentifier.of("default", table_name);
+
+    PCollection<GenericRecord> windowed = records.apply(Window.into(FixedWindows.of(WINDOW_DURATION)));
+
+    IcebergIO.write(name, icebergSchema, hiveMetastoreUrl, windowed);
+
+    pipeline.run(options).waitUntilFinish();
+  }
 
     private TimestampedValue<String> event(String word, Long timestamp) {
         return TimestampedValue.of(word, START_TIME.plus(new Duration(timestamp)));
