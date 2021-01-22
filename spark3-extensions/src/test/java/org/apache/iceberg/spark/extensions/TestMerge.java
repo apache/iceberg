@@ -362,4 +362,19 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               "  INSERT (id, c) VALUES (1, null)", tableName);
         });
   }
+
+  @Test
+  public void testMergeWithNonIcebergTargetTableNotSupported() {
+    createOrReplaceView("target", "{ \"c1\": -100, \"c2\": -200 }");
+    createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
+
+    AssertHelpers.assertThrows("Should complain non iceberg target table",
+        UnsupportedOperationException.class, "MERGE INTO TABLE is not supported temporarily.",
+        () -> {
+          sql("MERGE INTO target t USING source s " +
+              "ON t.c1 == s.c1 " +
+              "WHEN MATCHED THEN " +
+              "  UPDATE SET *");
+        });
+  }
 }
