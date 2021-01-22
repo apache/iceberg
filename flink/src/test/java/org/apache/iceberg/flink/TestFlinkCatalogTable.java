@@ -44,6 +44,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
@@ -51,6 +52,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
@@ -122,6 +124,25 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     CatalogTable catalogTable = catalogTable("tl");
     Assert.assertEquals(TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
+  }
+
+  @Ignore("Enable this after upgrade flink to 1.12.0, because it starts to support 'CREATE TABLE IF NOT EXISTS")
+  @Test
+  public void testCreateTableIfNotExists() {
+    sql("CREATE TABLE tl(id BIGINT)");
+
+    // Assert that table does exist.
+    Assert.assertEquals(Maps.newHashMap(), table("tl").properties());
+
+    sql("DROP TABLE tl");
+    AssertHelpers.assertThrows("Table 'tl' should be dropped",
+        NoSuchTableException.class, "Table does not exist: db.tl", () -> table("tl"));
+
+    sql("CREATE TABLE IF NO EXISTS tl(id BIGINT)");
+    Assert.assertEquals(Maps.newHashMap(), table("tl").properties());
+
+    sql("CREATE TABLE IF NOT EXISTS tl(id BIGINT) WITH ('location'='/tmp/location')");
+    Assert.assertEquals("Should still be the old table.", Maps.newHashMap(), table("tl").properties());
   }
 
   @Test
