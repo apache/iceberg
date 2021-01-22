@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -29,6 +30,7 @@ import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
@@ -131,5 +133,41 @@ public abstract class SparkTestBase {
 
   protected static String dbPath(String dbName) {
     return metastore.getDatabasePath(dbName);
+  }
+
+  protected void withSQLConf(Map<String, String> conf, Action action) {
+    SQLConf sqlConf = SQLConf.get();
+
+    Map<String, String> currentConfValues = Maps.newHashMap();
+    conf.keySet().forEach(confKey -> {
+      if (sqlConf.contains(confKey)) {
+        String currentConfValue = sqlConf.getConfString(confKey);
+        currentConfValues.put(confKey, currentConfValue);
+      }
+    });
+
+    conf.forEach((confKey, confValue) -> {
+      if (SQLConf.staticConfKeys().contains(confKey)) {
+        throw new RuntimeException("Cannot modify the value of a static config: " + confKey);
+      }
+      sqlConf.setConfString(confKey, confValue);
+    });
+
+    try {
+      action.invoke();
+    } finally {
+      conf.forEach((confKey, confValue) -> {
+        if (currentConfValues.containsKey(confKey)) {
+          sqlConf.setConfString(confKey, currentConfValues.get(confKey));
+        } else {
+          sqlConf.unsetConf(confKey);
+        }
+      });
+    }
+  }
+
+  @FunctionalInterface
+  protected interface Action {
+    void invoke();
   }
 }

@@ -23,7 +23,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.ql.plan.TableDesc;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.JobContextImpl;
 import org.apache.hadoop.mapred.JobID;
@@ -42,8 +45,10 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.mr.mapred.Container;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -188,7 +193,13 @@ public class TestHiveIcebergOutputCommitter {
     conf.setNumReduceTasks(0);
     conf.set(HiveConf.ConfVars.HIVEQUERYID.varname, QUERY_ID);
 
-    HiveIcebergStorageHandler.put(conf, table);
+    Map<String, String> propMap = Maps.newHashMap();
+    TableDesc tableDesc = new TableDesc();
+    tableDesc.setProperties(new Properties());
+    tableDesc.getProperties().setProperty(Catalogs.NAME, table.name());
+    tableDesc.getProperties().setProperty(Catalogs.LOCATION, table.location());
+    HiveIcebergStorageHandler.overlayTableProperties(conf, tableDesc, propMap);
+    propMap.forEach((key, value) -> conf.set(key, value));
     return conf;
   }
 

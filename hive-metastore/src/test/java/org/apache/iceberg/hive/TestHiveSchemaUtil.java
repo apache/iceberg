@@ -39,30 +39,30 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestHiveSchemaUtil {
   private static final Schema SIMPLE_ICEBERG_SCHEMA = new Schema(
-      optional(0, "customer_id", Types.LongType.get()),
-      optional(1, "first_name", Types.StringType.get())
+      optional(0, "customer_id", Types.LongType.get(), "customer comment"),
+      optional(1, "first_name", Types.StringType.get(), "first name comment")
   );
 
   private static final Schema COMPLEX_ICEBERG_SCHEMA = new Schema(
-      optional(0, "id", Types.LongType.get()),
-      optional(1, "name", Types.StringType.get()),
+      optional(0, "id", Types.LongType.get(), ""),
+      optional(1, "name", Types.StringType.get(), ""),
       optional(2, "employee_info", Types.StructType.of(
           optional(3, "employer", Types.StringType.get()),
           optional(4, "id", Types.LongType.get()),
           optional(5, "address", Types.StringType.get())
-      )),
+      ), ""),
       optional(6, "places_lived", Types.ListType.ofOptional(10, Types.StructType.of(
           optional(7, "street", Types.StringType.get()),
           optional(8, "city", Types.StringType.get()),
           optional(9, "country", Types.StringType.get())
-      ))),
+      )), ""),
       optional(11, "memorable_moments", Types.MapType.ofOptional(15, 16,
           Types.StringType.get(),
           Types.StructType.of(
               optional(12, "year", Types.IntegerType.get()),
               optional(13, "place", Types.StringType.get()),
               optional(14, "details", Types.StringType.get())
-          ))),
+          )), ""),
       optional(17, "current_address", Types.StructType.of(
           optional(18, "street_address", Types.StructType.of(
               optional(19, "street_number", Types.IntegerType.get()),
@@ -71,12 +71,12 @@ public class TestHiveSchemaUtil {
           )),
           optional(22, "country", Types.StringType.get()),
           optional(23, "postal_code", Types.StringType.get())
-      ))
+      ), "")
   );
 
   private static final List<FieldSchema> SIMPLE_HIVE_SCHEMA = ImmutableList.of(
-      new FieldSchema("customer_id", serdeConstants.BIGINT_TYPE_NAME, ""),
-      new FieldSchema("first_name", serdeConstants.STRING_TYPE_NAME, "")
+      new FieldSchema("customer_id", serdeConstants.BIGINT_TYPE_NAME, "customer comment"),
+      new FieldSchema("first_name", serdeConstants.STRING_TYPE_NAME, "first name comment")
   );
 
   private static final List<FieldSchema> COMPLEX_HIVE_SCHEMA = ImmutableList.of(
@@ -100,7 +100,8 @@ public class TestHiveSchemaUtil {
     List<TypeInfo> types = SIMPLE_HIVE_SCHEMA.stream()
         .map(field -> TypeInfoUtils.getTypeInfoFromTypeString(field.getType()))
         .collect(Collectors.toList());
-    Assert.assertEquals(SIMPLE_ICEBERG_SCHEMA.asStruct(), HiveSchemaUtil.convert(names, types).asStruct());
+    List<String> comments = SIMPLE_HIVE_SCHEMA.stream().map(FieldSchema::getComment).collect(Collectors.toList());
+    Assert.assertEquals(SIMPLE_ICEBERG_SCHEMA.asStruct(), HiveSchemaUtil.convert(names, types, comments).asStruct());
   }
 
   @Test
@@ -155,16 +156,16 @@ public class TestHiveSchemaUtil {
 
   protected List<FieldSchema> getSupportedFieldSchemas() {
     List<FieldSchema> fields = new ArrayList<>();
-    fields.add(new FieldSchema("c_float", serdeConstants.FLOAT_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_double", serdeConstants.DOUBLE_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_boolean", serdeConstants.BOOLEAN_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_int", serdeConstants.INT_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_long", serdeConstants.BIGINT_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_binary", serdeConstants.BINARY_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_string", serdeConstants.STRING_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_timestamp", serdeConstants.TIMESTAMP_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_date", serdeConstants.DATE_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_decimal", serdeConstants.DECIMAL_TYPE_NAME + "(38,10)", ""));
+    fields.add(new FieldSchema("c_float", serdeConstants.FLOAT_TYPE_NAME, "float comment"));
+    fields.add(new FieldSchema("c_double", serdeConstants.DOUBLE_TYPE_NAME, "double comment"));
+    fields.add(new FieldSchema("c_boolean", serdeConstants.BOOLEAN_TYPE_NAME, "boolean comment"));
+    fields.add(new FieldSchema("c_int", serdeConstants.INT_TYPE_NAME, "int comment"));
+    fields.add(new FieldSchema("c_long", serdeConstants.BIGINT_TYPE_NAME, "long comment"));
+    fields.add(new FieldSchema("c_binary", serdeConstants.BINARY_TYPE_NAME, null));
+    fields.add(new FieldSchema("c_string", serdeConstants.STRING_TYPE_NAME, null));
+    fields.add(new FieldSchema("c_timestamp", serdeConstants.TIMESTAMP_TYPE_NAME, null));
+    fields.add(new FieldSchema("c_date", serdeConstants.DATE_TYPE_NAME, null));
+    fields.add(new FieldSchema("c_decimal", serdeConstants.DECIMAL_TYPE_NAME + "(38,10)", null));
     return fields;
   }
 
@@ -181,11 +182,11 @@ public class TestHiveSchemaUtil {
 
   protected Schema getSchemaWithSupportedTypes() {
     return new Schema(
-        optional(0, "c_float", Types.FloatType.get()),
-        optional(1, "c_double", Types.DoubleType.get()),
-        optional(2, "c_boolean", Types.BooleanType.get()),
-        optional(3, "c_int", Types.IntegerType.get()),
-        optional(4, "c_long", Types.LongType.get()),
+        optional(0, "c_float", Types.FloatType.get(), "float comment"),
+        optional(1, "c_double", Types.DoubleType.get(), "double comment"),
+        optional(2, "c_boolean", Types.BooleanType.get(), "boolean comment"),
+        optional(3, "c_int", Types.IntegerType.get(), "int comment"),
+        optional(4, "c_long", Types.LongType.get(), "long comment"),
         optional(5, "c_binary", Types.BinaryType.get()),
         optional(6, "c_string", Types.StringType.get()),
         optional(7, "c_timestamp", Types.TimestampType.withoutZone()),

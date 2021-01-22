@@ -38,7 +38,9 @@ import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -48,13 +50,18 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
 public class FlinkSink {
+  private static final Logger LOG = LoggerFactory.getLogger(FlinkSink.class);
 
   private static final String ICEBERG_STREAM_WRITER_NAME = IcebergStreamWriter.class.getSimpleName();
   private static final String ICEBERG_FILES_COMMITTER_NAME = IcebergFilesCommitter.class.getSimpleName();
@@ -114,6 +121,7 @@ public class FlinkSink {
     private Table table;
     private TableSchema tableSchema;
     private boolean overwrite = false;
+    private DistributionMode distributionMode = null;
     private Integer writeParallelism = null;
     private List<String> equalityFieldColumns = null;
 
@@ -158,6 +166,20 @@ public class FlinkSink {
 
     public Builder overwrite(boolean newOverwrite) {
       this.overwrite = newOverwrite;
+      return this;
+    }
+
+    /**
+     * Configure the write {@link DistributionMode} that the flink sink will use. Currently, flink support
+     * {@link DistributionMode#NONE} and {@link DistributionMode#HASH}.
+     *
+     * @param mode to specify the write distribution mode.
+     * @return {@link Builder} to connect the iceberg table.
+     */
+    public Builder distributionMode(DistributionMode mode) {
+      Preconditions.checkArgument(!DistributionMode.RANGE.equals(mode),
+          "Flink does not support 'range' write distribution mode now.");
+      this.distributionMode = mode;
       return this;
     }
 
@@ -209,7 +231,14 @@ public class FlinkSink {
         }
       }
 
-      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, tableSchema, equalityFieldIds);
+      // Convert the requested flink table schema to flink row type.
+      RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
+
+      // Distribute the records from input data stream based on the write.distribution-mode.
+      rowDataInput = distributeDataStream(rowDataInput, table.properties(), table.spec(), table.schema(), flinkRowType);
+
+      // Chain the iceberg stream writer and committer operator.
+      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds);
       IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
 
       this.writeParallelism = writeParallelism == null ? rowDataInput.getParallelism() : writeParallelism;
@@ -225,32 +254,70 @@ public class FlinkSink {
           .name(String.format("IcebergSink %s", table.name()))
           .setParallelism(1);
     }
+
+    private DataStream<RowData> distributeDataStream(DataStream<RowData> input,
+                                                     Map<String, String> properties,
+                                                     PartitionSpec partitionSpec,
+                                                     Schema iSchema,
+                                                     RowType flinkRowType) {
+      DistributionMode writeMode;
+      if (distributionMode == null) {
+        // Fallback to use distribution mode parsed from table properties if don't specify in job level.
+        String modeName = PropertyUtil.propertyAsString(properties,
+            WRITE_DISTRIBUTION_MODE,
+            WRITE_DISTRIBUTION_MODE_DEFAULT);
+
+        writeMode = DistributionMode.fromName(modeName);
+      } else {
+        writeMode = distributionMode;
+      }
+
+      switch (writeMode) {
+        case NONE:
+          return input;
+
+        case HASH:
+          if (partitionSpec.isUnpartitioned()) {
+            return input;
+          } else {
+            return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+          }
+
+        case RANGE:
+          LOG.warn("Fallback to use 'none' distribution mode, because {}={} is not supported in flink now",
+              WRITE_DISTRIBUTION_MODE, DistributionMode.RANGE.modeName());
+          return input;
+
+        default:
+          throw new RuntimeException("Unrecognized write.distribution-mode: " + writeMode);
+      }
+    }
   }
 
-  static IcebergStreamWriter<RowData> createStreamWriter(Table table, TableSchema requestedSchema,
-                                                         List<Integer> equalityFieldIds) {
-    Preconditions.checkArgument(table != null, "Iceberg table should't be null");
-
-    RowType flinkSchema;
+  static RowType toFlinkRowType(Schema schema, TableSchema requestedSchema) {
     if (requestedSchema != null) {
       // Convert the flink schema to iceberg schema firstly, then reassign ids to match the existing iceberg schema.
-      Schema writeSchema = TypeUtil.reassignIds(FlinkSchemaUtil.convert(requestedSchema), table.schema());
-      TypeUtil.validateWriteSchema(table.schema(), writeSchema, true, true);
+      Schema writeSchema = TypeUtil.reassignIds(FlinkSchemaUtil.convert(requestedSchema), schema);
+      TypeUtil.validateWriteSchema(schema, writeSchema, true, true);
 
       // We use this flink schema to read values from RowData. The flink's TINYINT and SMALLINT will be promoted to
       // iceberg INTEGER, that means if we use iceberg's table schema to read TINYINT (backend by 1 'byte'), we will
       // read 4 bytes rather than 1 byte, it will mess up the byte array in BinaryRowData. So here we must use flink
       // schema.
-      flinkSchema = (RowType) requestedSchema.toRowDataType().getLogicalType();
+      return (RowType) requestedSchema.toRowDataType().getLogicalType();
     } else {
-      flinkSchema = FlinkSchemaUtil.convert(table.schema());
+      return FlinkSchemaUtil.convert(schema);
     }
+  }
 
+  static IcebergStreamWriter<RowData> createStreamWriter(Table table,
+                                                         RowType flinkRowType,
+                                                         List<Integer> equalityFieldIds) {
     Map<String, String> props = table.properties();
     long targetFileSize = getTargetFileSizeBytes(props);
     FileFormat fileFormat = getFileFormat(props);
 
-    TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(), flinkSchema,
+    TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(), flinkRowType,
         table.spec(), table.locationProvider(), table.io(), table.encryption(), targetFileSize, fileFormat, props,
         equalityFieldIds);
 

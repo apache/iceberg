@@ -88,7 +88,7 @@ public class GenericAppenderHelper {
     return DataFiles.builder(table.spec())
         .withRecordCount(records.size())
         .withFileSizeInBytes(file.length())
-        .withPath(file.toURI().toString())
+        .withPath(Files.localInput(file).location())
         .withMetrics(appender.metrics())
         .withFormat(format)
         .withPartition(partition)

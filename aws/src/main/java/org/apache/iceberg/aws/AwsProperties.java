@@ -32,7 +32,7 @@ public class AwsProperties implements Serializable {
    * <p>
    * For more details: https://docs.aws.amazon.com/AmazonS3/latest/dev/serv-side-encryption.html
    */
-  public static final String S3FILEIO_SSE_TYPE = "s3fileio.sse.type";
+  public static final String S3FILEIO_SSE_TYPE = "s3.sse.type";
 
   /**
    * No server side encryption.
@@ -65,13 +65,13 @@ public class AwsProperties implements Serializable {
    *   In case this property is not set, default key "aws/s3" is used.
    * If encryption type is SSE-C, input is a custom base-64 AES256 symmetric key.
    */
-  public static final String S3FILEIO_SSE_KEY = "s3fileio.sse.key";
+  public static final String S3FILEIO_SSE_KEY = "s3.sse.key";
 
   /**
    * If S3 encryption type is SSE-C, input is the base-64 MD5 digest of the secret key.
    * This MD5 must be explicitly passed in by the caller to ensure key integrity.
    */
-  public static final String S3FILEIO_SSE_MD5 = "s3fileio.sse.md5";
+  public static final String S3FILEIO_SSE_MD5 = "s3.sse.md5";
 
   /**
    * The ID of the Glue Data Catalog where the tables reside.
@@ -79,7 +79,7 @@ public class AwsProperties implements Serializable {
    * <p>
    * For more details, see https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-catalog-databases.html
    */
-  public static final String GLUE_CATALOG_ID = "gluecatalog.id";
+  public static final String GLUE_CATALOG_ID = "glue.id";
 
   /**
    * If Glue should skip archiving an old table version when creating a new version in a commit.
@@ -87,14 +87,14 @@ public class AwsProperties implements Serializable {
    * but Glue has a default max number of archived table versions (can be increased).
    * So for streaming use case with lots of commits, it is recommended to set this value to true.
    */
-  public static final String GLUE_CATALOG_SKIP_ARCHIVE = "gluecatalog.skip-archive";
+  public static final String GLUE_CATALOG_SKIP_ARCHIVE = "glue.skip-archive";
   public static final boolean GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT = false;
 
   /**
    * Number of threads to use for uploading parts to S3 (shared pool across all output streams),
    * default to {@link Runtime#availableProcessors()}
    */
-  public static final String S3FILEIO_MULTIPART_UPLOAD_THREADS  = "s3fileio.multipart.num-threads";
+  public static final String S3FILEIO_MULTIPART_UPLOAD_THREADS  = "s3.multipart.num-threads";
 
   /**
    * The size of a single part for multipart upload requests in bytes (default: 32MB).
@@ -103,7 +103,7 @@ public class AwsProperties implements Serializable {
    * <p>
    * For more details, see https://docs.aws.amazon.com/AmazonS3/latest/dev/qfacts.html
    */
-  public static final String S3FILEIO_MULTIPART_SIZE = "s3fileio.multipart.part.size";
+  public static final String S3FILEIO_MULTIPART_SIZE = "s3.multipart.part-size-bytes";
   public static final int S3FILEIO_MULTIPART_SIZE_DEFAULT = 32 * 1024 * 1024;
   public static final int S3FILEIO_MULTIPART_SIZE_MIN = 5 * 1024 * 1024;
 
@@ -112,13 +112,13 @@ public class AwsProperties implements Serializable {
    * switch from uploading using a single put object request to uploading using multipart upload
    * (default: 1.5).
    */
-  public static final String S3FILEIO_MULTIPART_THRESHOLD_FACTOR = "s3fileio.multipart.threshold";
+  public static final String S3FILEIO_MULTIPART_THRESHOLD_FACTOR = "s3.multipart.threshold";
   public static final double S3FILEIO_MULTIPART_THRESHOLD_FACTOR_DEFAULT = 1.5;
 
   /**
    * Location to put staging files for upload to S3, default to temp directory set in java.io.tmpdir.
    */
-  public static final String S3FILEIO_STAGING_DIRECTORY = "s3fileio.staging.dir";
+  public static final String S3FILEIO_STAGING_DIRECTORY = "s3.staging-dir";
 
   /**
    * Used to configure canned access control list (ACL) for S3 client to use during write.
@@ -128,7 +128,7 @@ public class AwsProperties implements Serializable {
    * such as 'public-read-write'
    * For more details: https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html
    */
-  public static final String S3FILEIO_ACL = "s3fileio.acl";
+  public static final String S3FILEIO_ACL = "s3.acl";
 
   /**
    * The implementation class of {@link AwsClientFactory} to customize AWS client configurations.
@@ -136,6 +136,37 @@ public class AwsProperties implements Serializable {
    * If not set, {@link AwsClientFactories#defaultFactory()} is used as default factory.
    */
   public static final String CLIENT_FACTORY = "client.factory";
+
+  /**
+   * Used by {@link AssumeRoleAwsClientFactory}.
+   * If set, all AWS clients will assume a role of the given ARN, instead of using the default credential chain.
+   */
+  public static final String CLIENT_ASSUME_ROLE_ARN = "client.assume-role.arn";
+
+  /**
+   * Used by {@link AssumeRoleAwsClientFactory}.
+   * The timeout of the assume role session in seconds, default to 1 hour.
+   * At the end of the timeout, a new set of role session credentials will be fetched through a STS client.
+   */
+  public static final String CLIENT_ASSUME_ROLE_TIMEOUT_SEC = "client.assume-role.timeout-sec";
+  public static final int CLIENT_ASSUME_ROLE_TIMEOUT_SEC_DEFAULT = 3600;
+
+  /**
+   * Used by {@link AssumeRoleAwsClientFactory}.
+   * Optional external ID used to assume an IAM role.
+   * <p>
+   * For more details, see https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html
+   */
+  public static final String CLIENT_ASSUME_ROLE_EXTERNAL_ID = "client.assume-role.external-id";
+
+  /**
+   * Used by {@link AssumeRoleAwsClientFactory}.
+   * If set, all AWS clients except STS client will use the given region instead of the default region chain.
+   * <p>
+   * The value must be one of {@link software.amazon.awssdk.regions.Region}, such as 'us-east-1'.
+   * For more details, see https://docs.aws.amazon.com/general/latest/gr/rande.html
+   */
+  public static final String CLIENT_ASSUME_ROLE_REGION = "client.assume-role.region";
 
   private String s3FileIoSseType;
   private String s3FileIoSseKey;

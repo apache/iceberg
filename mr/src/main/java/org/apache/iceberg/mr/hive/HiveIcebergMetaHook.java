@@ -206,16 +206,18 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     return properties;
   }
 
-  private static Schema schema(Properties properties, org.apache.hadoop.hive.metastore.api.Table hmsTable) {
+  private Schema schema(Properties properties, org.apache.hadoop.hive.metastore.api.Table hmsTable) {
+    boolean autoConversion = conf.getBoolean(InputFormatConfig.SCHEMA_AUTO_CONVERSION, false);
+
     if (properties.getProperty(InputFormatConfig.TABLE_SCHEMA) != null) {
       return SchemaParser.fromJson(properties.getProperty(InputFormatConfig.TABLE_SCHEMA));
     } else if (hmsTable.isSetPartitionKeys() && !hmsTable.getPartitionKeys().isEmpty()) {
       // Add partitioning columns to the original column list before creating the Iceberg Schema
       List<FieldSchema> cols = Lists.newArrayList(hmsTable.getSd().getCols());
       cols.addAll(hmsTable.getPartitionKeys());
-      return HiveSchemaUtil.convert(cols);
+      return HiveSchemaUtil.convert(cols, autoConversion);
     } else {
-      return HiveSchemaUtil.convert(hmsTable.getSd().getCols());
+      return HiveSchemaUtil.convert(hmsTable.getSd().getCols(), autoConversion);
     }
   }
 

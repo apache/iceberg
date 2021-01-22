@@ -461,3 +461,24 @@ License text:
 | LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 | NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 | SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
+This binary artifact includes Project Nessie with the following in its NOTICE
+file:
+
+| Dremio
+| Copyright 2015-2017 Dremio Corporation
+|
+| This product includes software developed at
+| The Apache Software Foundation (http://www.apache.org/).
+
+--------------------------------------------------------------------------------
+
+This binary includes code from Apache Commons.
+
+* Core ArrayUtil.
+
+Copyright: 2020 The Apache Software Foundation
+Home page: https://commons.apache.org/
+License: https://www.apache.org/licenses/LICENSE-2.0

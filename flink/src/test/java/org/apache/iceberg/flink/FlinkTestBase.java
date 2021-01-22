@@ -62,18 +62,32 @@ public abstract class FlinkTestBase extends AbstractTestBase {
     if (tEnv == null) {
       synchronized (this) {
         if (tEnv == null) {
-          this.tEnv = TableEnvironment.create(EnvironmentSettings
+          EnvironmentSettings settings = EnvironmentSettings
               .newInstance()
               .useBlinkPlanner()
-              .inBatchMode().build());
+              .inBatchMode()
+              .build();
+
+          TableEnvironment env = TableEnvironment.create(settings);
+          env.getConfig().getConfiguration().set(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
+          tEnv = env;
         }
       }
     }
     return tEnv;
   }
 
+  protected static TableResult exec(TableEnvironment env, String query, Object... args) {
+    return env.executeSql(String.format(query, args));
+  }
+
+  protected TableResult exec(String query, Object... args) {
+    return exec(getTableEnv(), query, args);
+  }
+
   protected List<Object[]> sql(String query, Object... args) {
-    TableResult tableResult = getTableEnv().executeSql(String.format(query, args));
+    TableResult tableResult = exec(query, args);
+
     tableResult.getJobClient().ifPresent(c -> {
       try {
         c.getJobExecutionResult(Thread.currentThread().getContextClassLoader()).get();
@@ -81,12 +95,17 @@ public abstract class FlinkTestBase extends AbstractTestBase {
         throw new RuntimeException(e);
       }
     });
-    CloseableIterator<Row> iter = tableResult.collect();
+
     List<Object[]> results = Lists.newArrayList();
-    while (iter.hasNext()) {
-      Row row = iter.next();
-      results.add(IntStream.range(0, row.getArity()).mapToObj(row::getField).toArray(Object[]::new));
+    try (CloseableIterator<Row> iter = tableResult.collect()) {
+      while (iter.hasNext()) {
+        Row row = iter.next();
+        results.add(IntStream.range(0, row.getArity()).mapToObj(row::getField).toArray(Object[]::new));
+      }
+    } catch (Exception e) {
+      throw new RuntimeException(e);
     }
+
     return results;
   }
 }

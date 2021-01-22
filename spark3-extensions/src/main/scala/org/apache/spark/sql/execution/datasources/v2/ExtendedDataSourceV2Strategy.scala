@@ -34,7 +34,9 @@ import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.Call
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
+import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilterWithCardinalityCheck
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.MergeInto
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteOrder
 import org.apache.spark.sql.connector.catalog.Identifier
@@ -65,6 +67,13 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
     case DynamicFileFilter(scanPlan, fileFilterPlan, filterable) =>
       DynamicFileFilterExec(planLater(scanPlan), planLater(fileFilterPlan), filterable) :: Nil
 
+    case DynamicFileFilterWithCardinalityCheck(scanPlan, fileFilterPlan, filterable, filesAccumulator) =>
+      DynamicFileFilterWithCardinalityCheckExec(
+        planLater(scanPlan),
+        planLater(fileFilterPlan),
+        filterable,
+        filesAccumulator) :: Nil
+
     case PhysicalOperation(project, filters, DataSourceV2ScanRelation(_, scan: SupportsFileFilter, output)) =>
       // projection and filters were already pushed down in the optimizer.
       // this uses PhysicalOperation to get the projection and ensure that if the batch scan does
@@ -74,6 +83,9 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
 
     case ReplaceData(_, batchWrite, query) =>
       ReplaceDataExec(batchWrite, planLater(query)) :: Nil
+
+    case MergeInto(mergeIntoParams, output, child) =>
+      MergeIntoExec(mergeIntoParams, output, planLater(child)) :: Nil
 
     case _ => Nil
   }

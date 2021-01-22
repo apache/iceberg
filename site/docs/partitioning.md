@@ -84,3 +84,7 @@ Table partitioning is configured using these relationships. The `logs` table wou
 Because Iceberg doesn't require user-maintained partition columns, it can hide partitioning. Partition values are produced correctly every time and always used to speed up queries, when possible. Producers and consumers wouldn't even see `event_date`.
 
 Most importantly, queries no longer depend on a table's physical layout. With a separation between physical and logical, Iceberg tables can evolve partition schemes over time as data volume changes. Misconfigured tables can be fixed without an expensive migration.
+
+For details about all the supported hidden partition transformations, see the [Partition Transforms](../spec/#partition-transforms) section.
+
+For details about updating a table's partition spec, see the [partition evolution](../evolution/#partition-evolution) section.

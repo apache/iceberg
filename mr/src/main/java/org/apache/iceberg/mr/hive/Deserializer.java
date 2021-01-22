@@ -23,14 +23,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -52,20 +50,26 @@ class Deserializer {
    */
   static class Builder {
     private Schema schema;
-    private ObjectInspector inspector;
+    private StructObjectInspector writerInspector;
+    private StructObjectInspector sourceInspector;
 
     Builder schema(Schema mainSchema) {
       this.schema = mainSchema;
       return this;
     }
 
-    Builder inspector(ObjectInspector mainInspector) {
-      this.inspector = mainInspector;
+    Builder writerInspector(StructObjectInspector inspector) {
+      this.writerInspector = inspector;
+      return this;
+    }
+
+    Builder sourceInspector(StructObjectInspector inspector) {
+      this.sourceInspector = inspector;
       return this;
     }
 
     Deserializer build() {
-      return new Deserializer(schema, inspector);
+      return new Deserializer(schema, new ObjectInspectorPair(writerInspector, sourceInspector));
     }
   }
 
@@ -78,62 +82,55 @@ class Deserializer {
     return (Record) fieldDeserializer.value(data);
   }
 
-  private Deserializer(Schema schema, ObjectInspector fieldInspector) {
-    this.fieldDeserializer = DeserializerVisitor.visit(schema, fieldInspector);
+  private Deserializer(Schema schema, ObjectInspectorPair pair) {
+    this.fieldDeserializer = DeserializerVisitor.visit(schema, pair);
   }
 
-  private static class DeserializerVisitor extends SchemaWithPartnerVisitor<ObjectInspector, FieldDeserializer> {
+  private static class DeserializerVisitor extends SchemaWithPartnerVisitor<ObjectInspectorPair, FieldDeserializer> {
 
-    public static FieldDeserializer visit(Schema schema, ObjectInspector objectInspector) {
-      return visit(schema, new FixNameMappingObjectInspector(schema, objectInspector), new DeserializerVisitor(),
+    public static FieldDeserializer visit(Schema schema, ObjectInspectorPair pair) {
+      return visit(schema, new FixNameMappingObjectInspectorPair(schema, pair), new DeserializerVisitor(),
           new PartnerObjectInspectorByNameAccessors());
     }
 
     @Override
-    public FieldDeserializer schema(Schema schema, ObjectInspector inspector, FieldDeserializer deserializer) {
+    public FieldDeserializer schema(Schema schema, ObjectInspectorPair pair, FieldDeserializer deserializer) {
       return deserializer;
     }
 
     @Override
-    public FieldDeserializer field(NestedField field, ObjectInspector inspector, FieldDeserializer deserializer) {
+    public FieldDeserializer field(NestedField field, ObjectInspectorPair pair, FieldDeserializer deserializer) {
       return deserializer;
     }
 
     @Override
-    public FieldDeserializer primitive(PrimitiveType type, ObjectInspector inspector) {
-      switch (type.typeId()) {
-        case BOOLEAN:
-        case INTEGER:
-        case LONG:
-        case FLOAT:
-        case DOUBLE:
-        case STRING:
-          // Generic conversions where Iceberg and Hive are using the same java object
-          return o -> ((PrimitiveObjectInspector) inspector).getPrimitiveJavaObject(o);
-        case UUID:
-          // TODO: This will not work with Parquet. Parquet UUID expect byte[], others are expecting UUID
-          return o -> UUID.fromString(((StringObjectInspector) inspector).getPrimitiveJavaObject(o));
-        case DATE:
-        case TIMESTAMP:
-        case FIXED:
-        case BINARY:
-        case DECIMAL:
-          // Iceberg specific conversions
-          return o -> ((WriteObjectInspector) inspector).convert(o);
-        case TIME:
-        default:
-          throw new IllegalArgumentException("Unsupported column type: " + type);
-      }
-    }
-
-    @Override
-    public FieldDeserializer struct(StructType type, ObjectInspector inspector, List<FieldDeserializer> deserializers) {
+    public FieldDeserializer primitive(PrimitiveType type, ObjectInspectorPair pair) {
       return o -> {
         if (o == null) {
           return null;
         }
 
-        List<Object> data = ((StructObjectInspector) inspector).getStructFieldsDataAsList(o);
+        ObjectInspector writerFieldInspector = pair.writerInspector();
+        ObjectInspector sourceFieldInspector = pair.sourceInspector();
+
+        Object result = ((PrimitiveObjectInspector) sourceFieldInspector).getPrimitiveJavaObject(o);
+        if (writerFieldInspector instanceof WriteObjectInspector) {
+          // If we have a conversion method defined for the ObjectInspector then convert
+          result = ((WriteObjectInspector) writerFieldInspector).convert(result);
+        }
+
+        return result;
+      };
+    }
+
+    @Override
+    public FieldDeserializer struct(StructType type, ObjectInspectorPair pair, List<FieldDeserializer> deserializers) {
+      return o -> {
+        if (o == null) {
+          return null;
+        }
+
+        List<Object> data = ((StructObjectInspector) pair.sourceInspector()).getStructFieldsDataAsList(o);
         Record result = GenericRecord.create(type);
 
         for (int i = 0; i < deserializers.size(); i++) {
@@ -150,14 +147,14 @@ class Deserializer {
     }
 
     @Override
-    public FieldDeserializer list(ListType listTypeInfo, ObjectInspector inspector, FieldDeserializer deserializer) {
+    public FieldDeserializer list(ListType listTypeInfo, ObjectInspectorPair pair, FieldDeserializer deserializer) {
       return o -> {
         if (o == null) {
           return null;
         }
 
         List<Object> result = new ArrayList<>();
-        ListObjectInspector listInspector = (ListObjectInspector) inspector;
+        ListObjectInspector listInspector = (ListObjectInspector) pair.sourceInspector();
 
         for (Object val : listInspector.getList(o)) {
           result.add(deserializer.value(val));
@@ -168,7 +165,7 @@ class Deserializer {
     }
 
     @Override
-    public FieldDeserializer map(MapType mapType, ObjectInspector inspector, FieldDeserializer keyDeserializer,
+    public FieldDeserializer map(MapType mapType, ObjectInspectorPair pair, FieldDeserializer keyDeserializer,
                                  FieldDeserializer valueDeserializer) {
       return o -> {
         if (o == null) {
@@ -176,7 +173,7 @@ class Deserializer {
         }
 
         Map<Object, Object> result = new HashMap<>();
-        MapObjectInspector mapObjectInspector = (MapObjectInspector) inspector;
+        MapObjectInspector mapObjectInspector = (MapObjectInspector) pair.sourceInspector();
 
         for (Map.Entry<?, ?> entry : mapObjectInspector.getMap(o).entrySet()) {
           result.put(keyDeserializer.value(entry.getKey()), valueDeserializer.value(entry.getValue()));
@@ -187,30 +184,35 @@ class Deserializer {
   }
 
   private static class PartnerObjectInspectorByNameAccessors
-      implements SchemaWithPartnerVisitor.PartnerAccessors<ObjectInspector> {
+      implements SchemaWithPartnerVisitor.PartnerAccessors<ObjectInspectorPair> {
 
     @Override
-    public ObjectInspector fieldPartner(ObjectInspector inspector, int fieldId, String name) {
-      StructObjectInspector fieldInspector  = (StructObjectInspector) inspector;
-      return fieldInspector.getStructFieldRef(name).getFieldObjectInspector();
+    public ObjectInspectorPair fieldPartner(ObjectInspectorPair pair, int fieldId, String name) {
+      String sourceName = pair.sourceName(name);
+      return new ObjectInspectorPair(
+          ((StructObjectInspector) pair.writerInspector()).getStructFieldRef(name).getFieldObjectInspector(),
+          ((StructObjectInspector) pair.sourceInspector()).getStructFieldRef(sourceName).getFieldObjectInspector());
     }
 
     @Override
-    public ObjectInspector mapKeyPartner(ObjectInspector inspector) {
-      MapObjectInspector fieldInspector  = (MapObjectInspector) inspector;
-      return fieldInspector.getMapKeyObjectInspector();
+    public ObjectInspectorPair mapKeyPartner(ObjectInspectorPair pair) {
+      return new ObjectInspectorPair(
+          ((MapObjectInspector) pair.writerInspector()).getMapKeyObjectInspector(),
+          ((MapObjectInspector) pair.sourceInspector()).getMapKeyObjectInspector());
     }
 
     @Override
-    public ObjectInspector mapValuePartner(ObjectInspector inspector) {
-      MapObjectInspector fieldInspector  = (MapObjectInspector) inspector;
-      return fieldInspector.getMapValueObjectInspector();
+    public ObjectInspectorPair mapValuePartner(ObjectInspectorPair pair) {
+      return new ObjectInspectorPair(
+          ((MapObjectInspector) pair.writerInspector()).getMapValueObjectInspector(),
+          ((MapObjectInspector) pair.sourceInspector()).getMapValueObjectInspector());
     }
 
     @Override
-    public ObjectInspector listElementPartner(ObjectInspector inspector) {
-      ListObjectInspector fieldInspector  = (ListObjectInspector) inspector;
-      return fieldInspector.getListElementObjectInspector();
+    public ObjectInspectorPair listElementPartner(ObjectInspectorPair pair) {
+      return new ObjectInspectorPair(
+          ((ListObjectInspector) pair.writerInspector()).getListElementObjectInspector(),
+          ((ListObjectInspector) pair.sourceInspector()).getListElementObjectInspector());
     }
   }
 
@@ -221,51 +223,57 @@ class Deserializer {
   /**
    * Hive query results schema column names do not match the target Iceberg column names.
    * Instead we have to rely on the column order. To keep the other parts of the code generic we fix this with a
-   * wrapper around the ObjectInspector. This wrapper uses the Iceberg schema column names instead of the Hive column
-   * names for {@link #getStructFieldRef(String) getStructFieldRef}
+   * wrapper around the ObjectInspectorPair. This wrapper maps the Iceberg schema column names instead of the Hive
+   * column names.
    */
-  private static class FixNameMappingObjectInspector extends StructObjectInspector {
-    private final StructObjectInspector innerInspector;
-    private final Map<String, StructField> nameMap;
+  private static class FixNameMappingObjectInspectorPair extends ObjectInspectorPair {
+    private final Map<String, String> sourceNameMap;
 
-    private FixNameMappingObjectInspector(Schema schema, ObjectInspector inspector) {
-      this.nameMap = new HashMap<>(schema.columns().size());
-      this.innerInspector = (StructObjectInspector) inspector;
-      List<? extends StructField> fields = innerInspector.getAllStructFieldRefs();
+    FixNameMappingObjectInspectorPair(Schema schema, ObjectInspectorPair pair) {
+      super(pair.writerInspector(), pair.sourceInspector());
 
+      this.sourceNameMap = new HashMap<>(schema.columns().size());
+
+      List<? extends StructField> fields = ((StructObjectInspector) sourceInspector()).getAllStructFieldRefs();
       for (int i = 0; i < schema.columns().size(); ++i) {
-        nameMap.put(schema.columns().get(i).name(), fields.get(i));
+        sourceNameMap.put(schema.columns().get(i).name(), fields.get(i).getFieldName());
       }
     }
 
     @Override
-    public List<? extends StructField> getAllStructFieldRefs() {
-      return innerInspector.getAllStructFieldRefs();
+    String sourceName(String originalName) {
+      return sourceNameMap.get(originalName);
+    }
+  }
+
+  /**
+   * To get the data for Iceberg {@link Record}s we have to use both ObjectInspectors.
+   * <p>
+   * We use the Hive ObjectInspectors (sourceInspector) to get the Hive primitive types.
+   * <p>
+   * We use the Iceberg ObjectInspectors (writerInspector) only if conversion is needed for
+   * generating the correct type for Iceberg Records. See: {@link WriteObjectInspector} interface on the provided
+   * writerInspector.
+   */
+  private static class ObjectInspectorPair {
+    private ObjectInspector writerInspector;
+    private ObjectInspector sourceInspector;
+
+    ObjectInspectorPair(ObjectInspector writerInspector, ObjectInspector sourceInspector) {
+      this.writerInspector = writerInspector;
+      this.sourceInspector = sourceInspector;
     }
 
-    @Override
-    public StructField getStructFieldRef(String fieldName) {
-      return nameMap.get(fieldName);
+    ObjectInspector writerInspector() {
+      return writerInspector;
     }
 
-    @Override
-    public Object getStructFieldData(Object data, StructField fieldRef) {
-      return innerInspector.getStructFieldData(data, fieldRef);
+    ObjectInspector sourceInspector() {
+      return sourceInspector;
     }
 
-    @Override
-    public List<Object> getStructFieldsDataAsList(Object data) {
-      return innerInspector.getStructFieldsDataAsList(data);
-    }
-
-    @Override
-    public String getTypeName() {
-      return innerInspector.getTypeName();
-    }
-
-    @Override
-    public Category getCategory() {
-      return innerInspector.getCategory();
+    String sourceName(String originalName) {
+      return originalName;
     }
   }
 }

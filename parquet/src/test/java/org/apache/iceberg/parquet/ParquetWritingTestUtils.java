@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.parquet;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
@@ -53,20 +54,41 @@ class ParquetWritingTestUtils {
   }
 
   static File writeRecords(
-      TemporaryFolder temp,
-      Schema schema, Map<String, String> properties,
-      Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
-      GenericData.Record... records) throws IOException {
+          TemporaryFolder temp,
+          Schema schema, Map<String, String> properties,
+          Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
+          GenericData.Record... records) throws IOException {
+    File file = createTempFile(temp);
+    write(file, schema, properties, createWriterFunc, records);
+    return file;
+  }
+
+  static long write(File file, Schema schema, Map<String, String> properties,
+                    Function<MessageType, ParquetValueWriter<?>> createWriterFunc,
+                    GenericData.Record... records) throws IOException {
+
+    long len = 0;
+
+    FileAppender<GenericData.Record> writer = Parquet.write(localOutput(file))
+            .schema(schema)
+            .setAll(properties)
+            .createWriterFunc(createWriterFunc)
+            .build();
+
+    try (Closeable toClose = writer) {
+      writer.addAll(Lists.newArrayList(records));
+      len = writer.length(); // in deprecated adapter we need to get the length first and then close the writer
+    }
+
+    if (writer instanceof ParquetWriter) {
+      len = writer.length();
+    }
+    return len;
+  }
+
+  static File createTempFile(TemporaryFolder temp) throws IOException {
     File tmpFolder = temp.newFolder("parquet");
     String filename = UUID.randomUUID().toString();
-    File file = new File(tmpFolder, FileFormat.PARQUET.addExtension(filename));
-    try (FileAppender<GenericData.Record> writer = Parquet.write(localOutput(file))
-        .schema(schema)
-        .setAll(properties)
-        .createWriterFunc(createWriterFunc)
-        .build()) {
-      writer.addAll(Lists.newArrayList(records));
-    }
-    return file;
+    return new File(tmpFolder, FileFormat.PARQUET.addExtension(filename));
   }
 }

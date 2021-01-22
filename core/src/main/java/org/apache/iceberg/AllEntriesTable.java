@@ -80,6 +80,16 @@ public class AllEntriesTable extends BaseMetadataTable {
     }
   }
 
+  @Override
+  String metadataLocation() {
+    return ops.current().metadataFileLocation();
+  }
+
+  @Override
+  MetadataTableType metadataTableType() {
+    return MetadataTableType.ALL_ENTRIES;
+  }
+
   private static class Scan extends BaseAllMetadataTableScan {
 
     Scan(TableOperations ops, Table table, Schema schema) {

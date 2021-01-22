@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.iceberg.common.DynConstructors;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.kms.KmsClient;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -86,6 +87,11 @@ public class AwsClientFactories {
     @Override
     public KmsClient kms() {
       return KmsClient.builder().httpClient(HTTP_CLIENT_DEFAULT).build();
+    }
+
+    @Override
+    public DynamoDbClient dynamo() {
+      return DynamoDbClient.builder().httpClient(HTTP_CLIENT_DEFAULT).build();
     }
 
     @Override

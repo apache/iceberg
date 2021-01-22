@@ -269,6 +269,8 @@ project(':iceberg-aws') {
     compileOnly 'software.amazon.awssdk:s3'
     compileOnly 'software.amazon.awssdk:kms'
     compileOnly 'software.amazon.awssdk:glue'
+    compileOnly 'software.amazon.awssdk:sts'
+    compileOnly 'software.amazon.awssdk:dynamodb'
 
     compileOnly("org.apache.hadoop:hadoop-common") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -277,6 +279,7 @@ project(':iceberg-aws') {
       exclude group: 'com.google.code.gson', module: 'gson'
     }
 
+    testCompile 'software.amazon.awssdk:iam'
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile("com.adobe.testing:s3mock-junit4") {
       exclude module: "spring-boot-starter-logging"
@@ -394,6 +397,9 @@ project(':iceberg-flink-runtime') {
   dependencies {
     compile project(':iceberg-flink')
     compile project(':iceberg-aws')
+    compile(project(':iceberg-nessie')) {
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
   }
 
   shadowJar {
@@ -1009,6 +1015,7 @@ project(':iceberg-spark3-runtime') {
 
   dependencies {
     compile project(':iceberg-spark3')
+    compile project(':iceberg-spark3-extensions')
     compile project(':iceberg-aws')
     compile 'org.apache.spark:spark-hive_2.11'
     compile(project(':iceberg-nessie')) {
@@ -1061,8 +1068,6 @@ project(':iceberg-pig') {
     compile project(':iceberg-common')
     compile project(':iceberg-core')
     compile project(':iceberg-parquet')
-
-    compile "org.apache.commons:commons-lang3"
 
     compileOnly("org.apache.pig:pig") {
       exclude group: "junit", module: "junit"

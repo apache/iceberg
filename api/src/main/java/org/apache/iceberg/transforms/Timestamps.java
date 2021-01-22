@@ -52,12 +52,23 @@ enum Timestamps implements Transform<Long, Integer> {
       return null;
     }
 
-    // discards fractional seconds, not needed for calculation
-    OffsetDateTime timestamp = Instant
-        .ofEpochSecond(timestampMicros / 1_000_000)
-        .atOffset(ZoneOffset.UTC);
-
-    return (int) granularity.between(EPOCH, timestamp);
+    if (timestampMicros >= 0) {
+      OffsetDateTime timestamp = Instant
+          .ofEpochSecond(
+              Math.floorDiv(timestampMicros, 1_000_000),
+              Math.floorMod(timestampMicros, 1_000_000) * 1000)
+          .atOffset(ZoneOffset.UTC);
+      return (int) granularity.between(EPOCH, timestamp);
+    } else {
+      // add 1 micro to the value to account for the case where there is exactly 1 unit between the timestamp and epoch
+      // because the result will always be decremented.
+      OffsetDateTime timestamp = Instant
+          .ofEpochSecond(
+              Math.floorDiv(timestampMicros, 1_000_000),
+              Math.floorMod(timestampMicros + 1, 1_000_000) * 1000)
+          .atOffset(ZoneOffset.UTC);
+      return (int) granularity.between(EPOCH, timestamp) - 1;
+    }
   }
 
   @Override
@@ -96,32 +107,43 @@ enum Timestamps implements Transform<Long, Integer> {
   @Override
   public UnboundPredicate<Integer> project(String fieldName, BoundPredicate<Long> pred) {
     if (pred.term() instanceof BoundTransform) {
-      return ProjectionUtil.projectTransformPredicate(this, name, pred);
+      return ProjectionUtil.projectTransformPredicate(this, fieldName, pred);
     }
 
     if (pred.isUnaryPredicate()) {
       return Expressions.predicate(pred.op(), fieldName);
+
     } else if (pred.isLiteralPredicate()) {
-      return ProjectionUtil.truncateLong(fieldName, pred.asLiteralPredicate(), this);
+      UnboundPredicate<Integer> projected = ProjectionUtil.truncateLong(fieldName, pred.asLiteralPredicate(), this);
+      return ProjectionUtil.fixInclusiveTimeProjection(projected);
+
     } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
-      return ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), this);
+      UnboundPredicate<Integer> projected = ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), this);
+      return ProjectionUtil.fixInclusiveTimeProjection(projected);
     }
+
     return null;
   }
 
   @Override
   public UnboundPredicate<Integer> projectStrict(String fieldName, BoundPredicate<Long> pred) {
     if (pred.term() instanceof BoundTransform) {
-      return ProjectionUtil.projectTransformPredicate(this, name, pred);
+      return ProjectionUtil.projectTransformPredicate(this, fieldName, pred);
     }
 
     if (pred.isUnaryPredicate()) {
       return Expressions.predicate(pred.op(), fieldName);
+
     } else if (pred.isLiteralPredicate()) {
-      return ProjectionUtil.truncateLongStrict(fieldName, pred.asLiteralPredicate(), this);
+      UnboundPredicate<Integer> projected = ProjectionUtil.truncateLongStrict(
+          fieldName, pred.asLiteralPredicate(), this);
+      return ProjectionUtil.fixStrictTimeProjection(projected);
+
     } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
-      return ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), this);
+      UnboundPredicate<Integer> projected = ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), this);
+      return ProjectionUtil.fixStrictTimeProjection(projected);
     }
+
     return null;
   }
 
@@ -148,5 +170,10 @@ enum Timestamps implements Transform<Long, Integer> {
   @Override
   public String toString() {
     return name;
+  }
+
+  @Override
+  public String dedupName() {
+    return "time";
   }
 }

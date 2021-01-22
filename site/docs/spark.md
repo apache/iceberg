@@ -24,7 +24,7 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 | [SQL create table](#create-table)                | ✔️        |            |                                                |
 | [SQL create table as](#create-table-as-select)   | ✔️        |            |                                                |
 | [SQL replace table as](#replace-table-as-select) | ✔️        |            |                                                |
-| [SQL alter table](#alter-table)                  | ✔️        |            |                                                |
+| [SQL alter table](#alter-table)                  | ✔️        |            |  ⚠ requires extensions enabled to update partition field and sort order  |
 | [SQL drop table](#drop-table)                    | ✔️        |            |                                                |
 | [SQL select](#querying-with-sql)                 | ✔️        |            |                                                |
 | [SQL insert into](#insert-into)                  | ✔️        |            |                                                |
@@ -34,6 +34,8 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 | [DataFrame overwrite](#overwriting-data)         | ✔️        | ✔️          | ⚠ Behavior changed in Spark 3.0                |
 | [DataFrame CTAS and RTAS](#creating-tables)      | ✔️        |            |                                                |
 | [Metadata tables](#inspecting-tables)            | ✔️        | ✔️          |                                                |
+
+To enable Iceberg SQL extensions, set Spark configuration `spark.sql.extensions` as `org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions`. 
 
 ## Configuring catalogs
 
@@ -256,6 +258,47 @@ ALTER TABLE prod.db.sample ALTER COLUMN id COMMENT 'unique id'
 ```sql
 ALTER TABLE prod.db.sample DROP COLUMN id
 ALTER TABLE prod.db.sample DROP COLUMN point.z
+```
+
+### `ALTER TABLE ... ADD PARTITION FIELD`
+
+```sql
+ALTER TABLE prod.db.sample ADD PARTITION FIELD catalog -- identity transform
+ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id)
+ALTER TABLE prod.db.sample ADD PARTITION FIELD truncate(data, 4)
+ALTER TABLE prod.db.sample ADD PARTITION FIELD years(ts)
+-- use optional AS keyword to specify a custom name for the partition field 
+ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id) AS shard
+```
+
+!!! Warning
+    Changing partitioning will change the behavior of dynamic writes, which overwrite any partition that is written to. 
+    For example, if you partition by days and move to partitioning by hours, overwrites will overwrite hourly partitions but not days anymore.
+
+
+### `ALTER TABLE ... DROP PARTITION FIELD`
+
+```sql
+ALTER TABLE prod.db.sample DROP PARTITION FIELD catalog
+ALTER TABLE prod.db.sample DROP PARTITION FIELD bucket(16, id)
+ALTER TABLE prod.db.sample DROP PARTITION FIELD truncate(data, 4)
+ALTER TABLE prod.db.sample DROP PARTITION FIELD years(ts)
+ALTER TABLE prod.db.sample DROP PARTITION FIELD shard
+```
+
+!!! Warning
+    Changing partitioning will change the behavior of dynamic writes, which overwrite any partition that is written to. 
+    For example, if you partition by days and move to partitioning by hours, overwrites will overwrite hourly partitions but not days anymore.
+
+
+### `ALTER TABLE ... WRITE ORDERED BY`
+
+```sql
+ALTER TABLE prod.db.sample WRITE ORDERED BY category, id
+-- use optional ASC/DEC keyword to specify sort order of each field (default ASC)
+ALTER TABLE prod.db.sample WRITE ORDERED BY category ASC, id DESC
+-- use optional NULLS FIRST/NULLS LAST keyword to specify null order of each field (default FIRST)
+ALTER TABLE prod.db.sample WRITE ORDERED BY category ASC NULLS LAST, id DESC NULLS FIRST
 ```
 
 ### `DROP TABLE`

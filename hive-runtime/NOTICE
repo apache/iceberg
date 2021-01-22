@@ -1,6 +1,6 @@
 
 Apache Iceberg
-Copyright 2017-2020 The Apache Software Foundation
+Copyright 2017-2021 The Apache Software Foundation
 
 This product includes software developed at
 The Apache Software Foundation (http://www.apache.org/).
@@ -78,3 +78,15 @@ file:
 |
 |
 | See LICENSE for terms.
+
+--------------------------------------------------------------------------------
+
+This binary artifact includes Project Nessie with the following in its NOTICE
+file:
+
+| Dremio
+| Copyright 2015-2017 Dremio Corporation
+|
+| This product includes software developed at
+| The Apache Software Foundation (http://www.apache.org/).
+

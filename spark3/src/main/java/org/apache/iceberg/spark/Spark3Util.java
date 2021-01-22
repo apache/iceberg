@@ -21,14 +21,18 @@ package org.apache.iceberg.spark;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.ArrayUtils;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortField;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.UpdateSchema;
@@ -45,10 +49,14 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Multimap;
+import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
+import org.apache.iceberg.transforms.SortOrderVisitor;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.Dataset;
@@ -67,6 +75,8 @@ import org.apache.spark.sql.connector.expressions.Expression;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.Literal;
 import org.apache.spark.sql.connector.expressions.Transform;
+import org.apache.spark.sql.connector.iceberg.distributions.Distribution;
+import org.apache.spark.sql.connector.iceberg.distributions.Distributions;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
@@ -223,7 +233,7 @@ public class Spark3Util {
    * @return an array of Transforms
    */
   public static Transform[] toTransforms(PartitionSpec spec) {
-    List<Transform> transforms = PartitionSpecVisitor.visit(spec.schema(), spec,
+    List<Transform> transforms = PartitionSpecVisitor.visit(spec,
         new PartitionSpecVisitor<Transform>() {
           @Override
           public Transform identity(String sourceName, int sourceId) {
@@ -267,6 +277,50 @@ public class Spark3Util {
         });
 
     return transforms.toArray(new Transform[0]);
+  }
+
+  public static Distribution toOrderedDistribution(PartitionSpec spec, SortOrder sortOrder, boolean inferFromSpec) {
+    if (sortOrder.isUnsorted()) {
+      if (inferFromSpec) {
+        SortOrder specOrder = Partitioning.sortOrderFor(spec);
+        return Distributions.ordered(convert(specOrder));
+      }
+
+      return Distributions.unspecified();
+    }
+
+    Schema schema = spec.schema();
+    Multimap<Integer, SortField> sortFieldIndex = Multimaps.index(sortOrder.fields(), SortField::sourceId);
+
+    // build a sort prefix of partition fields that are not already in the sort order
+    SortOrder.Builder builder = SortOrder.builderFor(schema);
+    for (PartitionField field : spec.fields()) {
+      Collection<SortField> sortFields = sortFieldIndex.get(field.sourceId());
+      boolean isSorted = sortFields.stream().anyMatch(sortField ->
+          field.transform().equals(sortField.transform()) || sortField.transform().satisfiesOrderOf(field.transform()));
+      if (!isSorted) {
+        String sourceName = schema.findColumnName(field.sourceId());
+        builder.asc(org.apache.iceberg.expressions.Expressions.transform(sourceName, field.transform()));
+      }
+    }
+
+    // add the configured sort to the partition spec prefix sort
+    SortOrderVisitor.visit(sortOrder, new CopySortOrderFields(builder));
+
+    return Distributions.ordered(convert(builder.build()));
+  }
+
+  public static Distribution toClusteredDistribution(PartitionSpec spec) {
+    if (spec.isUnpartitioned()) {
+      return Distributions.unspecified();
+    } else {
+      return Distributions.clustered(toTransforms(spec));
+    }
+  }
+
+  public static OrderField[] convert(SortOrder sortOrder) {
+    List<OrderField> converted = SortOrderVisitor.visit(sortOrder, new SortOrderToSpark());
+    return converted.toArray(new OrderField[0]);
   }
 
   public static Term toIcebergTerm(Transform transform) {
@@ -622,7 +676,7 @@ public class Spark3Util {
       if (catalogAndIdentifier.catalog instanceof BaseCatalog) {
         BaseCatalog catalog = (BaseCatalog) catalogAndIdentifier.catalog;
         Identifier baseId = catalogAndIdentifier.identifier;
-        Identifier metaId = Identifier.of(ArrayUtils.add(baseId.namespace(), baseId.name()), type.name());
+        Identifier metaId = Identifier.of(ArrayUtil.add(baseId.namespace(), baseId.name()), type.name());
         Table metaTable = catalog.loadTable(metaId);
         return Dataset.ofRows(spark, DataSourceV2Relation.create(metaTable, Some.apply(catalog), Some.apply(metaId)));
       }

@@ -33,6 +33,7 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.parquet.bytes.ByteBufferAllocator;
 import org.apache.parquet.column.ColumnWriteStore;
@@ -74,6 +75,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private long nextRowGroupSize = 0;
   private long recordCount = 0;
   private long nextCheckRecordCount = 10;
+  private boolean closed;
 
   private static final String COLUMN_INDEX_TRUNCATE_LENGTH = "parquet.columnindex.truncate.length";
   private static final int DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH = 64;
@@ -124,10 +126,23 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     return ParquetUtil.footerMetrics(writer.getFooter(), model.metrics(), metricsConfig);
   }
 
+  /**
+   * Returns the approximate length of the output file produced by this writer.
+   * <p>
+   * Prior to calling {@link ParquetWriter#close}, the result is approximate. After calling close, the length is
+   * exact.
+   *
+   * @return the approximate length of the output file produced by this writer or the exact length if this writer is
+   * closed.
+   */
   @Override
   public long length() {
     try {
-      return writer.getPos() + (writeStore.isColumnFlushNeeded() ? writeStore.getBufferedSize() : 0);
+      if (closed) {
+        return writer.getPos();
+      } else {
+        return writer.getPos() + (writeStore.isColumnFlushNeeded() ? writeStore.getBufferedSize() : 0);
+      }
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to get file length");
     }
@@ -170,6 +185,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   }
 
   private void startRowGroup() {
+    Preconditions.checkState(!closed, "Writer is closed");
+
     try {
       this.nextRowGroupSize = Math.min(writer.getNextRowGroupSize(), targetRowGroupSize);
     } catch (IOException e) {
@@ -189,8 +206,11 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   @Override
   public void close() throws IOException {
-    flushRowGroup(true);
-    writeStore.close();
-    writer.end(metadata);
+    if (!closed) {
+      this.closed = true;
+      flushRowGroup(true);
+      writeStore.close();
+      writer.end(metadata);
+    }
   }
 }
