@@ -22,24 +22,34 @@ This section describes how to use Iceberg with AWS.
 
 ## Enabling AWS Integration
 
-The `iceberg-aws` module is bundled with Spark and Flink engine runtimes.
+The `iceberg-aws` module is bundled with Spark and Flink engine runtimes for all versions from `0.11.0` onwards.
 However, the AWS clients are not bundled so that you can use the same client version as your application.
 You will need to provide the AWS v2 SDK because that is what Iceberg depends on.
 You can choose to use the [AWS SDK bundle](https://mvnrepository.com/artifact/software.amazon.awssdk/bundle), 
 or individual AWS client packages (Glue, S3, DynamoDB, KMS, STS) if you would like to have a minimal dependency footprint.
 
+All the default AWS clients use the [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client)
+for HTTP connection management.
+This dependency is not part of the AWS SDK bundle and needs to be added separately.
+To choose a different HTTP client library such as [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client),
+see the section [client customization](#aws-client-customization) for more details.
+
 For example, to use AWS features with Spark 3 and AWS clients version 2.15.40, you can start the Spark SQL shell with:
 
 ```sh
-spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:0.11.0,software.amazon.awssdk:bundle:2.15.40 \
+DEPENDENCIES="org.apache.iceberg:iceberg-spark3-runtime:0.11.0"
+DEPENDENCIES+=",software.amazon.awssdk:bundle:2.15.40"
+DEPENDENCIES+=",software.amazon.awssdk:url-connection-client:2.15.40"
+
+spark-sql --packages $DEPENDENCIES \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
-    --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \    
+    --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
     --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
     --conf spark.sql.catalog.my_catalog.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager \
     --conf spark.sql.catalog.my_catalog.lock.table=myGlueLockTable
 ```
 
-As you can see, In the shell command, we use `--packages` to specify the additional AWS bundle dependency with its version as `2.15.40`.
+As you can see, In the shell command, we use `--packages` to specify the additional AWS bundle and HTTP client dependencies with their version as `2.15.40`.
 
 ## Glue Catalog
 
