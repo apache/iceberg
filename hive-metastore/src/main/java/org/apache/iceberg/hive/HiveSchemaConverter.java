@@ -20,6 +20,7 @@
 package org.apache.iceberg.hive;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import org.apache.hadoop.hive.serde2.typeinfo.DecimalTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.ListTypeInfo;
@@ -49,9 +50,9 @@ class HiveSchemaConverter {
     this.id = 0;
   }
 
-  static Schema convert(List<String> names, List<TypeInfo> typeInfos, boolean autoConvert) {
+  static Schema convert(List<String> names, List<TypeInfo> typeInfos, List<String> comments, boolean autoConvert) {
     HiveSchemaConverter converter = new HiveSchemaConverter(autoConvert);
-    return new Schema(converter.convertInternal(names, typeInfos));
+    return new Schema(converter.convertInternal(names, typeInfos, comments));
   }
 
   static Type convert(TypeInfo typeInfo, boolean autoConvert) {
@@ -59,10 +60,11 @@ class HiveSchemaConverter {
     return converter.convertType(typeInfo);
   }
 
-  List<Types.NestedField> convertInternal(List<String> names, List<TypeInfo> typeInfos) {
+  List<Types.NestedField> convertInternal(List<String> names, List<TypeInfo> typeInfos, List<String> comments) {
     List<Types.NestedField> result = new ArrayList<>(names.size());
     for (int i = 0; i < names.size(); ++i) {
-      result.add(Types.NestedField.optional(id++, names.get(i), convertType(typeInfos.get(i))));
+      result.add(Types.NestedField.optional(id++, names.get(i), convertType(typeInfos.get(i)),
+          comments.isEmpty() ? null : comments.get(i)));
     }
 
     return result;
@@ -121,7 +123,8 @@ class HiveSchemaConverter {
       case STRUCT:
         StructTypeInfo structTypeInfo = (StructTypeInfo) typeInfo;
         List<Types.NestedField> fields =
-            convertInternal(structTypeInfo.getAllStructFieldNames(), structTypeInfo.getAllStructFieldTypeInfos());
+            convertInternal(structTypeInfo.getAllStructFieldNames(), structTypeInfo.getAllStructFieldTypeInfos(),
+                    Collections.emptyList());
         return Types.StructType.of(fields);
       case MAP:
         MapTypeInfo mapTypeInfo = (MapTypeInfo) typeInfo;

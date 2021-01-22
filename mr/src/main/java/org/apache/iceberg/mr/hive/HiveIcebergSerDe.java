@@ -51,6 +51,7 @@ import org.slf4j.LoggerFactory;
 
 public class HiveIcebergSerDe extends AbstractSerDe {
   private static final Logger LOG = LoggerFactory.getLogger(HiveIcebergSerDe.class);
+  private static final String LIST_COLUMN_COMMENT = "columns.comments";
 
   private ObjectInspector inspector;
   private Schema tableSchema;
@@ -168,6 +169,8 @@ public class HiveIcebergSerDe extends AbstractSerDe {
     // Read the configuration parameters
     String columnNames = serDeProperties.getProperty(serdeConstants.LIST_COLUMNS);
     String columnTypes = serDeProperties.getProperty(serdeConstants.LIST_COLUMN_TYPES);
+    // No constant for column comments and column comments delimiter.
+    String columnComments = serDeProperties.getProperty(LIST_COLUMN_COMMENT);
     String columnNameDelimiter = serDeProperties.containsKey(serdeConstants.COLUMN_NAME_DELIMITER) ?
         serDeProperties.getProperty(serdeConstants.COLUMN_NAME_DELIMITER) : String.valueOf(SerDeUtils.COMMA);
     if (columnNames != null && columnTypes != null && columnNameDelimiter != null &&
@@ -175,9 +178,12 @@ public class HiveIcebergSerDe extends AbstractSerDe {
       // Parse the configuration parameters
       List<String> names = new ArrayList<>();
       Collections.addAll(names, columnNames.split(columnNameDelimiter));
-
+      List<String> comments = new ArrayList<>();
+      if (columnComments != null) {
+        Collections.addAll(comments, columnComments.split(Character.toString(Character.MIN_VALUE)));
+      }
       Schema hiveSchema = HiveSchemaUtil.convert(names, TypeInfoUtils.getTypeInfosFromTypeString(columnTypes),
-          autoConversion);
+              comments, autoConversion);
       LOG.info("Using hive schema {}", SchemaParser.toJson(hiveSchema));
       return hiveSchema;
     } else {

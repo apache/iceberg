@@ -43,7 +43,7 @@ public final class HiveSchemaUtil {
    */
   public static List<FieldSchema> convert(Schema schema) {
     return schema.columns().stream()
-        .map(col -> new FieldSchema(col.name(), convertToTypeString(col.type()), ""))
+        .map(col -> new FieldSchema(col.name(), convertToTypeString(col.type()), col.doc()))
         .collect(Collectors.toList());
   }
 
@@ -68,13 +68,14 @@ public final class HiveSchemaUtil {
   public static Schema convert(List<FieldSchema> fieldSchemas, boolean autoConvert) {
     List<String> names = new ArrayList<>(fieldSchemas.size());
     List<TypeInfo> typeInfos = new ArrayList<>(fieldSchemas.size());
+    List<String> comments = new ArrayList<>(fieldSchemas.size());
 
     for (FieldSchema col : fieldSchemas) {
       names.add(col.getName());
       typeInfos.add(TypeInfoUtils.getTypeInfoFromTypeString(col.getType()));
+      comments.add(col.getComment());
     }
-
-    return HiveSchemaConverter.convert(names, typeInfos, autoConvert);
+    return HiveSchemaConverter.convert(names, typeInfos, comments, autoConvert);
   }
 
   /**
@@ -94,23 +95,25 @@ public final class HiveSchemaUtil {
    * convertible then exception is thrown.
    * @param names The list of the Hive column names
    * @param types The list of the Hive column types
+   * @param comments The list of the Hive column comments
    * @return The Iceberg schema
    */
-  public static Schema convert(List<String> names, List<TypeInfo> types) {
-    return HiveSchemaConverter.convert(names, types, false);
+  public static Schema convert(List<String> names, List<TypeInfo> types, List<String> comments) {
+    return HiveSchemaConverter.convert(names, types, comments, false);
   }
 
   /**
    * Converts the Hive list of column names and column types to an Iceberg schema.
    * @param names The list of the Hive column names
    * @param types The list of the Hive column types
+   * @param comments The list of the Hive column comments, can be null
    * @param autoConvert If <code>true</code> then TINYINT and SMALLINT is converted to INTEGER and VARCHAR and CHAR is
    *                    converted to STRING. Otherwise if these types are used in the Hive schema then exception is
    *                    thrown.
    * @return The Iceberg schema
    */
-  public static Schema convert(List<String> names, List<TypeInfo> types, boolean autoConvert) {
-    return HiveSchemaConverter.convert(names, types, autoConvert);
+  public static Schema convert(List<String> names, List<TypeInfo> types, List<String> comments, boolean autoConvert) {
+    return HiveSchemaConverter.convert(names, types, comments, autoConvert);
   }
 
   /**

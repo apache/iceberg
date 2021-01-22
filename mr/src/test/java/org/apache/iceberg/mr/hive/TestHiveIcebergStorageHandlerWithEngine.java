@@ -34,6 +34,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.hive.HiveSchemaUtil;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -194,9 +195,22 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   }
 
   @Test
+  public void testDescribeTable() throws IOException {
+    testTables.createTable(shell, "customers", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, fileFormat,
+            HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
+    List<Object[]> rows = shell.executeStatement("DESCRIBE default.customers");
+    Assert.assertEquals(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA.columns().size(), rows.size());
+    for (int i = 0; i < HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA.columns().size(); i++) {
+      Types.NestedField field = HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA.columns().get(i);
+      String comment = field.doc() == null ? "from deserializer" : field.doc();
+      Assert.assertArrayEquals(new Object[] {field.name(), HiveSchemaUtil.convert(field.type()).getTypeName(),
+          comment}, rows.get(i));
+    }
+  }
+
+  @Test
   public void testCBOWithSelectedColumnsOverlapJoin() throws IOException {
     shell.setHiveSessionValue("hive.cbo.enable", true);
-
     testTables.createTable(shell, "customers", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, fileFormat,
             HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     testTables.createTable(shell, "orders", ORDER_SCHEMA, fileFormat, ORDER_RECORDS);

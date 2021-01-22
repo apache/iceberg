@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.hadoop.fs.FileSystem;
@@ -41,6 +42,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.hive.HiveSchemaUtil;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -507,18 +509,57 @@ public class TestHiveIcebergStorageHandlerNoScan {
         "TINYINT", Types.IntegerType.get(),
         "SMALLINT", Types.IntegerType.get(),
         "VARCHAR(1)", Types.StringType.get(),
-        "CHAR(1)", Types.StringType.get());
+         "CHAR(1)", Types.StringType.get());
 
     shell.setHiveSessionValue(InputFormatConfig.SCHEMA_AUTO_CONVERSION, "true");
 
     for (String notSupportedType : notSupportedTypes.keySet()) {
       shell.executeStatement("CREATE EXTERNAL TABLE not_supported_types (not_supported " + notSupportedType + ") " +
-          "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
-          testTables.locationForCreateTableSQL(identifier));
+              "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+              testTables.locationForCreateTableSQL(identifier));
 
       org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
       Assert.assertEquals(notSupportedTypes.get(notSupportedType), icebergTable.schema().columns().get(0).type());
       shell.executeStatement("DROP TABLE not_supported_types");
+    }
+  }
+
+  @Test
+  public void testCreateTableWithColumnComments() {
+    TableIdentifier identifier = TableIdentifier.of("default", "comment_table");
+    shell.executeStatement("CREATE EXTERNAL TABLE comment_table (" +
+        "t_int INT COMMENT 'int column',  " +
+        "t_string STRING COMMENT 'string column') " +
+        "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+        testTables.locationForCreateTableSQL(identifier));
+    org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
+
+    List<Object[]> rows = shell.executeStatement("DESCRIBE default.comment_table");
+    Assert.assertEquals(icebergTable.schema().columns().size(), rows.size());
+    for (int i = 0; i < icebergTable.schema().columns().size(); i++) {
+      Types.NestedField field = icebergTable.schema().columns().get(i);
+      Assert.assertArrayEquals(new Object[] {field.name(), HiveSchemaUtil.convert(field.type()).getTypeName(),
+          field.doc()}, rows.get(i));
+    }
+  }
+
+  @Test
+  public void testCreateTableWithoutColumnComments() {
+    TableIdentifier identifier = TableIdentifier.of("default", "without_comment_table");
+    shell.executeStatement("CREATE EXTERNAL TABLE without_comment_table (" +
+            "t_int INT,  " +
+            "t_string STRING) " +
+            "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+            testTables.locationForCreateTableSQL(identifier));
+    org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
+
+    List<Object[]> rows = shell.executeStatement("DESCRIBE default.without_comment_table");
+    Assert.assertEquals(icebergTable.schema().columns().size(), rows.size());
+    for (int i = 0; i < icebergTable.schema().columns().size(); i++) {
+      Types.NestedField field = icebergTable.schema().columns().get(i);
+      Assert.assertNull(field.doc());
+      Assert.assertArrayEquals(new Object[] {field.name(), HiveSchemaUtil.convert(field.type()).getTypeName(),
+          "from deserializer"}, rows.get(i));
     }
   }
 }
