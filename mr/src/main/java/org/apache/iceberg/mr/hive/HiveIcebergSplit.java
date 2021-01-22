@@ -24,9 +24,9 @@ import java.io.DataOutput;
 import java.io.IOException;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.FileSplit;
-import org.apache.iceberg.mr.SerializationUtil;
 import org.apache.iceberg.mr.mapreduce.IcebergSplit;
 import org.apache.iceberg.mr.mapreduce.IcebergSplitContainer;
+import org.apache.iceberg.util.SerializationUtil;
 
 // Hive requires file formats to return splits that are instances of `FileSplit`.
 public class HiveIcebergSplit extends FileSplit implements IcebergSplitContainer {

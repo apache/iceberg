@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.ArrayUtils;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
@@ -57,6 +56,7 @@ import org.apache.iceberg.transforms.SortOrderVisitor;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.Dataset;
@@ -676,7 +676,7 @@ public class Spark3Util {
       if (catalogAndIdentifier.catalog instanceof BaseCatalog) {
         BaseCatalog catalog = (BaseCatalog) catalogAndIdentifier.catalog;
         Identifier baseId = catalogAndIdentifier.identifier;
-        Identifier metaId = Identifier.of(ArrayUtils.add(baseId.namespace(), baseId.name()), type.name());
+        Identifier metaId = Identifier.of(ArrayUtil.add(baseId.namespace(), baseId.name()), type.name());
         Table metaTable = catalog.loadTable(metaId);
         return Dataset.ofRows(spark, DataSourceV2Relation.create(metaTable, Some.apply(catalog), Some.apply(metaId)));
       }

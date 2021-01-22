@@ -26,7 +26,6 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
-import org.apache.commons.lang3.ArrayUtils;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.GenericRowData;
@@ -45,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
@@ -760,37 +760,37 @@ public class FlinkParquetReaders {
 
     @Override
     public boolean[] toBooleanArray() {
-      return ArrayUtils.toPrimitive((Boolean[]) values);
+      return ArrayUtil.toPrimitive((Boolean[]) values);
     }
 
     @Override
     public byte[] toByteArray() {
-      return ArrayUtils.toPrimitive((Byte[]) values);
+      return ArrayUtil.toPrimitive((Byte[]) values);
     }
 
     @Override
     public short[] toShortArray() {
-      return ArrayUtils.toPrimitive((Short[]) values);
+      return ArrayUtil.toPrimitive((Short[]) values);
     }
 
     @Override
     public int[] toIntArray() {
-      return ArrayUtils.toPrimitive((Integer[]) values);
+      return ArrayUtil.toPrimitive((Integer[]) values);
     }
 
     @Override
     public long[] toLongArray() {
-      return ArrayUtils.toPrimitive((Long[]) values);
+      return ArrayUtil.toPrimitive((Long[]) values);
     }
 
     @Override
     public float[] toFloatArray() {
-      return ArrayUtils.toPrimitive((Float[]) values);
+      return ArrayUtil.toPrimitive((Float[]) values);
     }
 
     @Override
     public double[] toDoubleArray() {
-      return ArrayUtils.toPrimitive((Double[]) values);
+      return ArrayUtil.toPrimitive((Double[]) values);
     }
   }
 }
