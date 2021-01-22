@@ -27,12 +27,13 @@ import org.apache.spark.sql.catalyst.plans.logical.InsertAction
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.MergeIntoTable
 import org.apache.spark.sql.catalyst.plans.logical.UpdateAction
+import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 
 object MergeIntoTablePredicateCheck extends (LogicalPlan => Unit) {
 
   override def apply(plan: LogicalPlan): Unit = {
     plan foreach {
-      case merge: MergeIntoTable =>
+      case merge: MergeIntoTable if isIcebergRelation(merge.targetTable) =>
         validateMergeIntoConditions(merge)
       case _ => // OK
     }

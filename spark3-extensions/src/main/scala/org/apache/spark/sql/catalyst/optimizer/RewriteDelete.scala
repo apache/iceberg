@@ -37,6 +37,7 @@ import org.apache.spark.sql.catalyst.plans.logical.RepartitionByExpression
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.Sort
 import org.apache.spark.sql.catalyst.rules.Rule
+import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 import org.apache.spark.sql.catalyst.utils.RewriteRowLevelOperationHelper
 import org.apache.spark.sql.connector.iceberg.catalog.ExtendedSupportsDelete
 import org.apache.spark.sql.execution.datasources.DataSourceStrategy
@@ -53,11 +54,12 @@ case class RewriteDelete(spark: SparkSession) extends Rule[LogicalPlan] with Rew
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     // don't rewrite deletes that can be answered by passing filters to deleteWhere in SupportsDelete
-    case d @ DeleteFromTable(r: DataSourceV2Relation, Some(cond)) if isMetadataDelete(r, cond) =>
+    case d @ DeleteFromTable(r: DataSourceV2Relation, Some(cond))
+        if isMetadataDelete(r, cond) && isIcebergRelation(r) =>
       d
 
     // rewrite all operations that require reading the table to delete records
-    case DeleteFromTable(r: DataSourceV2Relation, Some(cond)) =>
+    case DeleteFromTable(r: DataSourceV2Relation, Some(cond)) if isIcebergRelation(r) =>
       // TODO: do a switch based on whether we get BatchWrite or DeltaBatchWrite
       val writeInfo = newWriteInfo(r.schema)
       val mergeBuilder = r.table.asMergeable.newMergeBuilder("delete", writeInfo)

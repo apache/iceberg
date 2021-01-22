@@ -466,6 +466,15 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void testDeleteOnNonIcebergTableNotSupported() throws NoSuchTableException {
+    createOrReplaceView("testtable", "{ \"c1\": -100, \"c2\": -200 }");
+
+    AssertHelpers.assertThrows("Delete is not supported for non iceberg table",
+        AnalysisException.class, "DELETE is only supported with v2 tables.",
+        () -> sql("DELETE FROM %s WHERE c1 = -100", "testtable"));
+  }
+
+  @Test
   public void testDeleteWithExistSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
 
