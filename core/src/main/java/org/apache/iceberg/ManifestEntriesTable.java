@@ -77,6 +77,16 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     }
   }
 
+  @Override
+  String metadataLocation() {
+    return ops.current().metadataFileLocation();
+  }
+
+  @Override
+  MetadataTableType metadataTableType() {
+    return MetadataTableType.ENTRIES;
+  }
+
   private static class EntriesTableScan extends BaseTableScan {
 
     EntriesTableScan(TableOperations ops, Table table, Schema schema) {

@@ -79,6 +79,16 @@ public class SnapshotsTable extends BaseMetadataTable {
         SnapshotsTable::snapshotToRow);
   }
 
+  @Override
+  String metadataLocation() {
+    return ops.current().metadataFileLocation();
+  }
+
+  @Override
+  MetadataTableType metadataTableType() {
+    return MetadataTableType.SNAPSHOTS;
+  }
+
   private class SnapshotsTableScan extends StaticTableScan {
     SnapshotsTableScan() {
       super(ops, table, SNAPSHOT_SCHEMA, SnapshotsTable.this::task);
