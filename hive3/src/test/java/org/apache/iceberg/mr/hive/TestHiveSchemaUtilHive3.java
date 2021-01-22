@@ -35,7 +35,7 @@ public class TestHiveSchemaUtilHive3 extends TestHiveSchemaUtil {
   protected List<FieldSchema> getSupportedFieldSchemas() {
     List<FieldSchema> fields = Lists.newArrayList(super.getSupportedFieldSchemas());
     // timestamp local tz only present in Hive3
-    fields.add(new FieldSchema("c_timestamptz", serdeConstants.TIMESTAMPLOCALTZ_TYPE_NAME, ""));
+    fields.add(new FieldSchema("c_timestamptz", serdeConstants.TIMESTAMPLOCALTZ_TYPE_NAME, null));
     return fields;
   }
 
@@ -44,7 +44,7 @@ public class TestHiveSchemaUtilHive3 extends TestHiveSchemaUtil {
     Schema schema = super.getSchemaWithSupportedTypes();
     List<Types.NestedField> columns = Lists.newArrayList(schema.columns());
     // timestamp local tz only present in Hive3
-    columns.add(optional(columns.size(), "c_timestamptz", Types.TimestampType.withZone(), ""));
+    columns.add(optional(columns.size(), "c_timestamptz", Types.TimestampType.withZone()));
     return new Schema(columns);
   }
 }

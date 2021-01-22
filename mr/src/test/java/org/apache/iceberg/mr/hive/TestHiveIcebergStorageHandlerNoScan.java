@@ -506,10 +506,10 @@ public class TestHiveIcebergStorageHandlerNoScan {
     TableIdentifier identifier = TableIdentifier.of("default", "not_supported_types");
     // Can not create INTERVAL types from normal create table, so leave them out from this test
     Map<String, Type> notSupportedTypes = ImmutableMap.of(
-            "TINYINT", Types.IntegerType.get(),
-            "SMALLINT", Types.IntegerType.get(),
-            "VARCHAR(1)", Types.StringType.get(),
-            "CHAR(1)", Types.StringType.get());
+        "TINYINT", Types.IntegerType.get(),
+        "SMALLINT", Types.IntegerType.get(),
+        "VARCHAR(1)", Types.StringType.get(),
+         "CHAR(1)", Types.StringType.get());
 
     shell.setHiveSessionValue(InputFormatConfig.SCHEMA_AUTO_CONVERSION, "true");
 

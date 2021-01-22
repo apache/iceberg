@@ -156,16 +156,16 @@ public class TestHiveSchemaUtil {
 
   protected List<FieldSchema> getSupportedFieldSchemas() {
     List<FieldSchema> fields = new ArrayList<>();
-    fields.add(new FieldSchema("c_float", serdeConstants.FLOAT_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_double", serdeConstants.DOUBLE_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_boolean", serdeConstants.BOOLEAN_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_int", serdeConstants.INT_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_long", serdeConstants.BIGINT_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_binary", serdeConstants.BINARY_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_string", serdeConstants.STRING_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_timestamp", serdeConstants.TIMESTAMP_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_date", serdeConstants.DATE_TYPE_NAME, ""));
-    fields.add(new FieldSchema("c_decimal", serdeConstants.DECIMAL_TYPE_NAME + "(38,10)", ""));
+    fields.add(new FieldSchema("c_float", serdeConstants.FLOAT_TYPE_NAME, "float comment"));
+    fields.add(new FieldSchema("c_double", serdeConstants.DOUBLE_TYPE_NAME, "double comment"));
+    fields.add(new FieldSchema("c_boolean", serdeConstants.BOOLEAN_TYPE_NAME, "boolean comment"));
+    fields.add(new FieldSchema("c_int", serdeConstants.INT_TYPE_NAME, "int comment"));
+    fields.add(new FieldSchema("c_long", serdeConstants.BIGINT_TYPE_NAME, "long comment"));
+    fields.add(new FieldSchema("c_binary", serdeConstants.BINARY_TYPE_NAME, null));
+    fields.add(new FieldSchema("c_string", serdeConstants.STRING_TYPE_NAME, null));
+    fields.add(new FieldSchema("c_timestamp", serdeConstants.TIMESTAMP_TYPE_NAME, null));
+    fields.add(new FieldSchema("c_date", serdeConstants.DATE_TYPE_NAME, null));
+    fields.add(new FieldSchema("c_decimal", serdeConstants.DECIMAL_TYPE_NAME + "(38,10)", null));
     return fields;
   }
 
@@ -182,16 +182,16 @@ public class TestHiveSchemaUtil {
 
   protected Schema getSchemaWithSupportedTypes() {
     return new Schema(
-        optional(0, "c_float", Types.FloatType.get(), ""),
-        optional(1, "c_double", Types.DoubleType.get(), ""),
-        optional(2, "c_boolean", Types.BooleanType.get(), ""),
-        optional(3, "c_int", Types.IntegerType.get(), ""),
-        optional(4, "c_long", Types.LongType.get(), ""),
-        optional(5, "c_binary", Types.BinaryType.get(), ""),
-        optional(6, "c_string", Types.StringType.get(), ""),
-        optional(7, "c_timestamp", Types.TimestampType.withoutZone(), ""),
-        optional(8, "c_date", Types.DateType.get(), ""),
-        optional(9, "c_decimal", Types.DecimalType.of(38, 10), ""));
+        optional(0, "c_float", Types.FloatType.get(), "float comment"),
+        optional(1, "c_double", Types.DoubleType.get(), "double comment"),
+        optional(2, "c_boolean", Types.BooleanType.get(), "boolean comment"),
+        optional(3, "c_int", Types.IntegerType.get(), "int comment"),
+        optional(4, "c_long", Types.LongType.get(), "long comment"),
+        optional(5, "c_binary", Types.BinaryType.get()),
+        optional(6, "c_string", Types.StringType.get()),
+        optional(7, "c_timestamp", Types.TimestampType.withoutZone()),
+        optional(8, "c_date", Types.DateType.get()),
+        optional(9, "c_decimal", Types.DecimalType.of(38, 10)));
   }
 
   /**
