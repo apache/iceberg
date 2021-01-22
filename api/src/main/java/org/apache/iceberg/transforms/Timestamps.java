@@ -24,13 +24,12 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.BoundTransform;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-
-import static org.apache.iceberg.expressions.Expression.Operation.IS_NULL;
-import static org.apache.iceberg.expressions.Expression.Operation.NOT_NULL;
 
 enum Timestamps implements Transform<Long, Integer> {
   YEAR(ChronoUnit.YEARS, "year"),
@@ -49,12 +48,27 @@ enum Timestamps implements Transform<Long, Integer> {
 
   @Override
   public Integer apply(Long timestampMicros) {
-    // discards fractional seconds, not needed for calculation
-    OffsetDateTime timestamp = Instant
-        .ofEpochSecond(timestampMicros / 1_000_000)
-        .atOffset(ZoneOffset.UTC);
-    Integer year = Long.valueOf(granularity.between(EPOCH, timestamp)).intValue();
-    return year;
+    if (timestampMicros == null) {
+      return null;
+    }
+
+    if (timestampMicros >= 0) {
+      OffsetDateTime timestamp = Instant
+          .ofEpochSecond(
+              Math.floorDiv(timestampMicros, 1_000_000),
+              Math.floorMod(timestampMicros, 1_000_000) * 1000)
+          .atOffset(ZoneOffset.UTC);
+      return (int) granularity.between(EPOCH, timestamp);
+    } else {
+      // add 1 micro to the value to account for the case where there is exactly 1 unit between the timestamp and epoch
+      // because the result will always be decremented.
+      OffsetDateTime timestamp = Instant
+          .ofEpochSecond(
+              Math.floorDiv(timestampMicros, 1_000_000),
+              Math.floorMod(timestampMicros + 1, 1_000_000) * 1000)
+          .atOffset(ZoneOffset.UTC);
+      return (int) granularity.between(EPOCH, timestamp) - 1;
+    }
   }
 
   @Override
@@ -64,23 +78,73 @@ enum Timestamps implements Transform<Long, Integer> {
 
   @Override
   public Type getResultType(Type sourceType) {
+    if (granularity == ChronoUnit.DAYS) {
+      return Types.DateType.get();
+    }
     return Types.IntegerType.get();
   }
 
   @Override
-  public UnboundPredicate<Integer> project(String fieldName, BoundPredicate<Long> pred) {
-    if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
-      return Expressions.predicate(pred.op(), fieldName);
+  public boolean preservesOrder() {
+    return true;
+  }
+
+  @Override
+  public boolean satisfiesOrderOf(Transform<?, ?> other) {
+    if (this == other) {
+      return true;
     }
-    return ProjectionUtil.truncateLong(fieldName, pred, this);
+
+    if (other instanceof Timestamps) {
+      // test the granularity, in hours. hour(ts) => 1 hour, day(ts) => 24 hours, and hour satisfies the order of day
+      Timestamps otherTransform = (Timestamps) other;
+      return granularity.getDuration().toHours() <= otherTransform.granularity.getDuration().toHours();
+    }
+
+    return false;
+  }
+
+  @Override
+  public UnboundPredicate<Integer> project(String fieldName, BoundPredicate<Long> pred) {
+    if (pred.term() instanceof BoundTransform) {
+      return ProjectionUtil.projectTransformPredicate(this, fieldName, pred);
+    }
+
+    if (pred.isUnaryPredicate()) {
+      return Expressions.predicate(pred.op(), fieldName);
+
+    } else if (pred.isLiteralPredicate()) {
+      UnboundPredicate<Integer> projected = ProjectionUtil.truncateLong(fieldName, pred.asLiteralPredicate(), this);
+      return ProjectionUtil.fixInclusiveTimeProjection(projected);
+
+    } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
+      UnboundPredicate<Integer> projected = ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), this);
+      return ProjectionUtil.fixInclusiveTimeProjection(projected);
+    }
+
+    return null;
   }
 
   @Override
   public UnboundPredicate<Integer> projectStrict(String fieldName, BoundPredicate<Long> pred) {
-    if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
-      return Expressions.predicate(pred.op(), fieldName);
+    if (pred.term() instanceof BoundTransform) {
+      return ProjectionUtil.projectTransformPredicate(this, fieldName, pred);
     }
-    return ProjectionUtil.truncateLongStrict(fieldName, pred, this);
+
+    if (pred.isUnaryPredicate()) {
+      return Expressions.predicate(pred.op(), fieldName);
+
+    } else if (pred.isLiteralPredicate()) {
+      UnboundPredicate<Integer> projected = ProjectionUtil.truncateLongStrict(
+          fieldName, pred.asLiteralPredicate(), this);
+      return ProjectionUtil.fixStrictTimeProjection(projected);
+
+    } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
+      UnboundPredicate<Integer> projected = ProjectionUtil.transformSet(fieldName, pred.asSetPredicate(), this);
+      return ProjectionUtil.fixStrictTimeProjection(projected);
+    }
+
+    return null;
   }
 
   @Override
@@ -106,5 +170,10 @@ enum Timestamps implements Transform<Long, Integer> {
   @Override
   public String toString() {
     return name;
+  }
+
+  @Override
+  public String dedupName() {
+    return "time";
   }
 }

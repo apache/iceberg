@@ -19,14 +19,9 @@
 
 package org.apache.iceberg.parquet;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -44,16 +39,18 @@ import org.apache.iceberg.parquet.ParquetValueReaders.LongAsDecimalReader;
 import org.apache.iceberg.parquet.ParquetValueReaders.MapReader;
 import org.apache.iceberg.parquet.ParquetValueReaders.StructReader;
 import org.apache.iceberg.parquet.ParquetValueReaders.UnboxedReader;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.DecimalMetadata;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
-
-import static org.apache.iceberg.parquet.ParquetValueReaders.option;
 
 public class ParquetAvroValueReaders {
   private ParquetAvroValueReaders() {
@@ -95,9 +92,9 @@ public class ParquetAvroValueReaders {
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
         Type fieldType = fields.get(i);
-        int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName()))-1;
+        int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName())) - 1;
         int id = fieldType.getId().intValue();
-        readersById.put(id, option(fieldType, fieldD, fieldReaders.get(i)));
+        readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
         typesById.put(id, fieldType);
       }
 
@@ -127,13 +124,13 @@ public class ParquetAvroValueReaders {
       GroupType repeated = array.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
-      int repeatedD = type.getMaxDefinitionLevel(repeatedPath)-1;
-      int repeatedR = type.getMaxRepetitionLevel(repeatedPath)-1;
+      int repeatedD = type.getMaxDefinitionLevel(repeatedPath) - 1;
+      int repeatedR = type.getMaxRepetitionLevel(repeatedPath) - 1;
 
       Type elementType = repeated.getType(0);
-      int elementD = type.getMaxDefinitionLevel(path(elementType.getName()))-1;
+      int elementD = type.getMaxDefinitionLevel(path(elementType.getName())) - 1;
 
-      return new ListReader<>(repeatedD, repeatedR, option(elementType, elementD, elementReader));
+      return new ListReader<>(repeatedD, repeatedR, ParquetValueReaders.option(elementType, elementD, elementReader));
     }
 
     @Override
@@ -143,16 +140,17 @@ public class ParquetAvroValueReaders {
       GroupType repeatedKeyValue = map.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
-      int repeatedD = type.getMaxDefinitionLevel(repeatedPath)-1;
-      int repeatedR = type.getMaxRepetitionLevel(repeatedPath)-1;
+      int repeatedD = type.getMaxDefinitionLevel(repeatedPath) - 1;
+      int repeatedR = type.getMaxRepetitionLevel(repeatedPath) - 1;
 
       Type keyType = repeatedKeyValue.getType(0);
-      int keyD = type.getMaxDefinitionLevel(path(keyType.getName()))-1;
+      int keyD = type.getMaxDefinitionLevel(path(keyType.getName())) - 1;
       Type valueType = repeatedKeyValue.getType(1);
-      int valueD = type.getMaxDefinitionLevel(path(valueType.getName()))-1;
+      int valueD = type.getMaxDefinitionLevel(path(valueType.getName())) - 1;
 
       return new MapReader<>(repeatedD, repeatedR,
-          option(keyType, keyD, keyReader), option(valueType, valueD, valueReader));
+          ParquetValueReaders.option(keyType, keyD, keyReader),
+          ParquetValueReaders.option(valueType, valueD, valueReader));
     }
 
     @Override
@@ -232,32 +230,6 @@ public class ParquetAvroValueReaders {
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
     }
-
-    private String[] currentPath() {
-      String[] path = new String[fieldNames.size()];
-      if (!fieldNames.isEmpty()) {
-        Iterator<String> iter = fieldNames.descendingIterator();
-        for (int i = 0; iter.hasNext(); i += 1) {
-          path[i] = iter.next();
-        }
-      }
-
-      return path;
-    }
-
-    private String[] path(String name) {
-      String[] path = new String[fieldNames.size() + 1];
-      path[fieldNames.size()] = name;
-
-      if (!fieldNames.isEmpty()) {
-        Iterator<String> iter = fieldNames.descendingIterator();
-        for (int i = 0; iter.hasNext(); i += 1) {
-          path[i] = iter.next();
-        }
-      }
-
-      return path;
-    }
   }
 
   static class DecimalReader extends ParquetValueReaders.PrimitiveReader<BigDecimal> {
@@ -319,13 +291,7 @@ public class ParquetAvroValueReaders {
 
     @Override
     public UUID read(UUID ignored) {
-      ByteBuffer buffer = column.nextBinary().toByteBuffer();
-      buffer.order(ByteOrder.BIG_ENDIAN);
-
-      long mostSigBits = buffer.getLong();
-      long leastSigBits = buffer.getLong();
-
-      return new UUID(mostSigBits, leastSigBits);
+      return UUIDUtil.convert(column.nextBinary().toByteBuffer());
     }
   }
 

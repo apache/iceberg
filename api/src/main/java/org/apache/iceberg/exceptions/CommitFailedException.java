@@ -19,14 +19,18 @@
 
 package org.apache.iceberg.exceptions;
 
+import com.google.errorprone.annotations.FormatMethod;
+
 /**
  * Exception raised when a commit fails because of out of date metadata.
  */
 public class CommitFailedException extends RuntimeException {
+  @FormatMethod
   public CommitFailedException(String message, Object... args) {
     super(String.format(message, args));
   }
 
+  @FormatMethod
   public CommitFailedException(Throwable cause, String message, Object... args) {
     super(String.format(message, args), cause);
   }

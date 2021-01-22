@@ -38,19 +38,20 @@ public interface FileAppender<D> extends Closeable {
   }
 
   /**
-   * @return {@link Metrics} for this file. Only valid after the file is closed.
+   * Returns {@link Metrics} for this file. Only valid after the file is closed.
    */
   Metrics metrics();
 
   /**
-   * @return the length of this file.
+   * Returns the length of this file.
    */
   long length();
 
   /**
-   * @return a list of recommended split locations, if applicable, null otherwise. When available,
-   * this information is used for planning scan tasks whose boundaries are determined by these offsets.
-   * The returned list must be sorted in ascending order.
+   * Returns a list of recommended split locations, if applicable, null otherwise.
+   * <p>
+   * When available, this information is used for planning scan tasks whose boundaries
+   * are determined by these offsets. The returned list must be sorted in ascending order.
    * Only valid after the file is closed.
    */
   default List<Long> splitOffsets() {

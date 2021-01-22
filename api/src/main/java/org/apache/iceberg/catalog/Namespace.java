@@ -19,7 +19,8 @@
 
 package org.apache.iceberg.catalog;
 
-import com.google.common.base.Joiner;
+import java.util.Arrays;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 
 /**
  * A namespace in a {@link Catalog}.
@@ -56,6 +57,25 @@ public class Namespace {
 
   public boolean isEmpty() {
     return levels.length == 0;
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    if (this == other) {
+      return true;
+    }
+
+    if (other == null || getClass() != other.getClass()) {
+      return false;
+    }
+
+    Namespace namespace = (Namespace) other;
+    return Arrays.equals(levels, namespace.levels);
+  }
+
+  @Override
+  public int hashCode() {
+    return Arrays.hashCode(levels);
   }
 
   @Override

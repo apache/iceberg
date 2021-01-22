@@ -16,11 +16,23 @@
 # under the License.
 
 from enum import Enum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .predicate import Predicate
 
 
 class Expression(object):
+
+    left: 'Predicate'
+    right: 'Predicate'
+    child: 'Predicate'
+
     def __init__(self):
         pass
+
+    def op(self):
+        raise RuntimeError("No implementation for base class")
 
     def negate(self):
         raise RuntimeError("%s cannot be negated" % self)

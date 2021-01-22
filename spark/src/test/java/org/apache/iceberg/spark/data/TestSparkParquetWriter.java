@@ -27,6 +27,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.Assert;
@@ -62,14 +63,15 @@ public class TestSparkParquetWriter {
       optional(19, "renovate", Types.MapType.ofRequired(20, 21,
           Types.StringType.get(), Types.StructType.of(
               optional(22, "jumpy", Types.DoubleType.get()),
-              required(23, "koala", Types.IntegerType.get())
+              required(23, "koala", Types.IntegerType.get()),
+              required(24, "couch rope", Types.IntegerType.get())
           ))),
       optional(2, "slide", Types.StringType.get())
   );
 
   @Test
   public void testCorrectness() throws IOException {
-    int numRows = 250_000;
+    int numRows = 50_000;
     Iterable<InternalRow> records = RandomData.generateSpark(COMPLEX_SCHEMA, numRows, 19981);
 
     File testFile = temp.newFile();
@@ -77,7 +79,7 @@ public class TestSparkParquetWriter {
 
     try (FileAppender<InternalRow> writer = Parquet.write(Files.localOutput(testFile))
         .schema(COMPLEX_SCHEMA)
-        .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(COMPLEX_SCHEMA, msgType))
+        .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(COMPLEX_SCHEMA), msgType))
         .build()) {
       writer.addAll(records);
     }

@@ -19,15 +19,17 @@
 
 package org.apache.iceberg.types;
 
-import com.google.common.collect.Lists;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   private final Set<Integer> selected;
 
   PruneColumns(Set<Integer> selected) {
+    Preconditions.checkNotNull(selected, "Selected field ids cannot be null");
     this.selected = selected;
   }
 

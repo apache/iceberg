@@ -1,3 +1,19 @@
+<!--
+ - Licensed to the Apache Software Foundation (ASF) under one or more
+ - contributor license agreements.  See the NOTICE file distributed with
+ - this work for additional information regarding copyright ownership.
+ - The ASF licenses this file to You under the Apache License, Version 2.0
+ - (the "License"); you may not use this file except in compliance with
+ - the License.  You may obtain a copy of the License at
+ -
+ -   http://www.apache.org/licenses/LICENSE-2.0
+ -
+ - Unless required by applicable law or agreed to in writing, software
+ - distributed under the License is distributed on an "AS IS" BASIS,
+ - WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ - See the License for the specific language governing permissions and
+ - limitations under the License.
+ -->
 
 ## What is partitioning?
 
@@ -47,7 +63,7 @@ If the `event_date` filter were missing, Hive would scan through every file in t
 
 ### Problems with Hive partitioning
 
-Hive must be given partition values. In the logs example, it doesn't know the relationship bewteen `event_time` and `event_date`.
+Hive must be given partition values. In the logs example, it doesn't know the relationship between `event_time` and `event_date`.
 
 This leads to several problems:
 
@@ -68,3 +84,7 @@ Table partitioning is configured using these relationships. The `logs` table wou
 Because Iceberg doesn't require user-maintained partition columns, it can hide partitioning. Partition values are produced correctly every time and always used to speed up queries, when possible. Producers and consumers wouldn't even see `event_date`.
 
 Most importantly, queries no longer depend on a table's physical layout. With a separation between physical and logical, Iceberg tables can evolve partition schemes over time as data volume changes. Misconfigured tables can be fixed without an expensive migration.
+
+For details about all the supported hidden partition transformations, see the [Partition Transforms](../spec/#partition-transforms) section.
+
+For details about updating a table's partition spec, see the [partition evolution](../evolution/#partition-evolution) section.

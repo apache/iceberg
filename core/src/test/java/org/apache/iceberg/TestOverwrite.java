@@ -19,17 +19,19 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableMap;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.equal;
@@ -37,6 +39,7 @@ import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+@RunWith(Parameterized.class)
 public class TestOverwrite extends TableTestBase {
   private static final Schema DATE_SCHEMA = new Schema(
       required(1, "id", Types.LongType.get()),
@@ -89,6 +92,15 @@ public class TestOverwrite extends TableTestBase {
       ))
       .build();
 
+  @Parameterized.Parameters(name = "formatVersion = {0}")
+  public static Object[] parameters() {
+    return new Object[] { 1, 2 };
+  }
+
+  public TestOverwrite(int formatVersion) {
+    super(formatVersion);
+  }
+
   private static ByteBuffer longToBuffer(long value) {
     return ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(0, value);
   }
@@ -100,7 +112,7 @@ public class TestOverwrite extends TableTestBase {
     File tableDir = temp.newFolder();
     Assert.assertTrue(tableDir.delete());
 
-    this.table = TestTables.create(tableDir, TABLE_NAME, DATE_SCHEMA, PARTITION_BY_DATE);
+    this.table = TestTables.create(tableDir, TABLE_NAME, DATE_SCHEMA, PARTITION_BY_DATE, formatVersion);
 
     table.newAppend()
         .appendFile(FILE_0_TO_4)
@@ -121,9 +133,9 @@ public class TestOverwrite extends TableTestBase {
 
     Assert.assertNotEquals("Should create a new snapshot", baseId, overwriteId);
     Assert.assertEquals("Table should have one manifest",
-        1, table.currentSnapshot().manifests().size());
+        1, table.currentSnapshot().allManifests().size());
 
-    validateManifestEntries(table.currentSnapshot().manifests().get(0),
+    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
         ids(overwriteId, baseId),
         files(FILE_0_TO_4, FILE_5_TO_9),
         statuses(Status.DELETED, Status.EXISTING));
@@ -159,15 +171,15 @@ public class TestOverwrite extends TableTestBase {
 
     Assert.assertNotEquals("Should create a new snapshot", baseId, overwriteId);
     Assert.assertEquals("Table should have 2 manifests",
-        2, table.currentSnapshot().manifests().size());
+        2, table.currentSnapshot().allManifests().size());
 
     // manifest is not merged because it is less than the minimum
-    validateManifestEntries(table.currentSnapshot().manifests().get(0),
+    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
         ids(overwriteId),
         files(FILE_10_TO_14),
         statuses(Status.ADDED));
 
-    validateManifestEntries(table.currentSnapshot().manifests().get(1),
+    validateManifestEntries(table.currentSnapshot().allManifests().get(1),
         ids(overwriteId, baseId),
         files(FILE_0_TO_4, FILE_5_TO_9),
         statuses(Status.DELETED, Status.EXISTING));
@@ -190,9 +202,9 @@ public class TestOverwrite extends TableTestBase {
 
     Assert.assertNotEquals("Should create a new snapshot", baseId, overwriteId);
     Assert.assertEquals("Table should have one merged manifest",
-        1, table.currentSnapshot().manifests().size());
+        1, table.currentSnapshot().allManifests().size());
 
-    validateManifestEntries(table.currentSnapshot().manifests().get(0),
+    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
         ids(overwriteId, overwriteId, baseId),
         files(FILE_10_TO_14, FILE_0_TO_4, FILE_5_TO_9),
         statuses(Status.ADDED, Status.DELETED, Status.EXISTING));
@@ -209,7 +221,7 @@ public class TestOverwrite extends TableTestBase {
     OverwriteFiles overwrite = table.newOverwrite()
         .overwriteByRowFilter(equal("date", "2018-06-08"))
         .addFile(FILE_10_TO_14) // in 2018-06-09, NOT in 2018-06-08
-        .validateAddedFiles();
+        .validateAddedFilesMatchOverwriteFilter();
 
     AssertHelpers.assertThrows("Should reject commit with file not matching delete expression",
         ValidationException.class, "Cannot append file with rows that do not match filter",
@@ -227,7 +239,7 @@ public class TestOverwrite extends TableTestBase {
     OverwriteFiles overwrite = table.newOverwrite()
         .overwriteByRowFilter(and(equal("date", "2018-06-09"), lessThan("id", 10)))
         .addFile(FILE_10_TO_14) // in 2018-06-09 matches, but IDs are outside range
-        .validateAddedFiles();
+        .validateAddedFilesMatchOverwriteFilter();
 
     AssertHelpers.assertThrows("Should reject commit with file not matching delete expression",
         ValidationException.class, "Cannot append file with rows that do not match filter",
@@ -245,7 +257,7 @@ public class TestOverwrite extends TableTestBase {
     OverwriteFiles overwrite = table.newOverwrite()
         .overwriteByRowFilter(and(equal("date", "2018-06-09"), lessThan("id", 20)))
         .addFile(FILE_10_TO_14) // in 2018-06-09 matches and IDs are inside range
-        .validateAddedFiles();
+        .validateAddedFilesMatchOverwriteFilter();
 
     AssertHelpers.assertThrows("Should reject commit with file not matching delete expression",
         ValidationException.class, "Cannot append file with rows that do not match filter",

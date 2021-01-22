@@ -41,11 +41,25 @@ public interface Transaction {
   UpdateSchema updateSchema();
 
   /**
+   * Create a new {@link UpdatePartitionSpec} to alter the partition spec of this table.
+   *
+   * @return a new {@link UpdatePartitionSpec}
+   */
+  UpdatePartitionSpec updateSpec();
+
+  /**
    * Create a new {@link UpdateProperties} to update table properties.
    *
    * @return a new {@link UpdateProperties}
    */
   UpdateProperties updateProperties();
+
+  /**
+   * Create a new {@link ReplaceSortOrder} to set a table sort order and commit the change.
+   *
+   * @return a new {@link ReplaceSortOrder}
+   */
+  ReplaceSortOrder replaceSortOrder();
 
   /**
    * Create a new {@link UpdateLocation} to update table location.
@@ -97,6 +111,13 @@ public interface Transaction {
    * @return a new {@link OverwriteFiles}
    */
   OverwriteFiles newOverwrite();
+
+  /**
+   * Create a new {@link RowDelta row-level delta API} to remove or replace rows in existing data files.
+   *
+   * @return a new {@link RowDelta}
+   */
+  RowDelta newRowDelta();
 
   /**
    * Not recommended: Create a new {@link ReplacePartitions replace partitions API} to dynamically

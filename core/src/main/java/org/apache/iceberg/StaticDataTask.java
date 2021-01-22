@@ -19,16 +19,17 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class StaticDataTask implements DataTask {
 
@@ -41,12 +42,17 @@ class StaticDataTask implements DataTask {
   private final StructLike[] rows;
 
   private StaticDataTask(InputFile metadata, StructLike[] rows) {
-    this.metadataFile = DataFiles.builder()
+    this.metadataFile = DataFiles.builder(PartitionSpec.unpartitioned())
         .withInputFile(metadata)
         .withRecordCount(rows.length)
         .withFormat(FileFormat.METADATA)
         .build();
     this.rows = rows;
+  }
+
+  @Override
+  public List<DeleteFile> deletes() {
+    return ImmutableList.of();
   }
 
   @Override

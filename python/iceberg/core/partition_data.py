@@ -32,7 +32,7 @@ class PartitionData(StructLike):
                     raise RuntimeError("Partitions cannot contain nested types: %s" % field.type)
             self.partition_type = partition_type
             # schema = PartitionData.get_schema(self.partition_type)
-        self.size = len(self.partition_type.fields)
+        self._size = len(self.partition_type.fields)
         self.data = list()
         self.schema = schema
         self.string_schema = str(schema)
@@ -68,14 +68,17 @@ class PartitionData(StructLike):
         return "PartitionData{%s}" % (",".join(["{}={}".format(self.partition_type.fields[i],
                                                                datum) for i, datum in enumerate(self.data)]))
 
+    def __len__(self):
+        return self._size
+
     def put(self, i, v):
         self.data.insert(i, v)
 
     def get(self, pos):
-        if pos > len(self.data):
+        try:
+            return self.data[pos][1]
+        except IndexError:
             return None
-
-        return self.data[pos][1]
 
     @staticmethod
     def from_json(schema, json_obj):

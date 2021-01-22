@@ -19,16 +19,15 @@
 
 package org.apache.iceberg.spark.data;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
@@ -42,6 +41,10 @@ import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
 import org.apache.iceberg.parquet.ParquetValueReaders.StructReader;
 import org.apache.iceberg.parquet.ParquetValueReaders.UnboxedReader;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
@@ -66,23 +69,29 @@ public class SparkParquetReaders {
   private SparkParquetReaders() {
   }
 
-  @SuppressWarnings("unchecked")
   public static ParquetValueReader<InternalRow> buildReader(Schema expectedSchema,
                                                             MessageType fileSchema) {
+    return buildReader(expectedSchema, fileSchema, ImmutableMap.of());
+  }
+
+  @SuppressWarnings("unchecked")
+  public static ParquetValueReader<InternalRow> buildReader(Schema expectedSchema,
+                                                            MessageType fileSchema,
+                                                            Map<Integer, ?> idToConstant) {
     if (ParquetSchemaUtil.hasIds(fileSchema)) {
       return (ParquetValueReader<InternalRow>)
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-              new ReadBuilder(fileSchema));
+              new ReadBuilder(fileSchema, idToConstant));
     } else {
       return (ParquetValueReader<InternalRow>)
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-              new FallbackReadBuilder(fileSchema));
+              new FallbackReadBuilder(fileSchema, idToConstant));
     }
   }
 
   private static class FallbackReadBuilder extends ReadBuilder {
-    FallbackReadBuilder(MessageType type) {
-      super(type);
+    FallbackReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
+      super(type, idToConstant);
     }
 
     @Override
@@ -113,9 +122,11 @@ public class SparkParquetReaders {
 
   private static class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
     private final MessageType type;
+    private final Map<Integer, ?> idToConstant;
 
-    ReadBuilder(MessageType type) {
+    ReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
       this.type = type;
+      this.idToConstant = idToConstant;
     }
 
     @Override
@@ -134,9 +145,11 @@ public class SparkParquetReaders {
       for (int i = 0; i < fields.size(); i += 1) {
         Type fieldType = fields.get(i);
         int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName())) - 1;
-        int id = fieldType.getId().intValue();
-        readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
-        typesById.put(id, fieldType);
+        if (fieldType.getId() != null) {
+          int id = fieldType.getId().intValue();
+          readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
+          typesById.put(id, fieldType);
+        }
       }
 
       List<Types.NestedField> expectedFields = expected != null ?
@@ -146,13 +159,22 @@ public class SparkParquetReaders {
       List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
-        ParquetValueReader<?> reader = readersById.get(id);
-        if (reader != null) {
-          reorderedFields.add(reader);
-          types.add(typesById.get(id));
-        } else {
-          reorderedFields.add(ParquetValueReaders.nulls());
+        if (idToConstant.containsKey(id)) {
+          // containsKey is used because the constant may be null
+          reorderedFields.add(ParquetValueReaders.constant(idToConstant.get(id)));
           types.add(null);
+        } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
+          reorderedFields.add(ParquetValueReaders.position());
+          types.add(null);
+        } else {
+          ParquetValueReader<?> reader = readersById.get(id);
+          if (reader != null) {
+            reorderedFields.add(reader);
+            types.add(typesById.get(id));
+          } else {
+            reorderedFields.add(ParquetValueReaders.nulls());
+            types.add(null);
+          }
         }
       }
 
@@ -234,7 +256,7 @@ public class SparkParquetReaders {
                     "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
             }
           case BSON:
-            return new BytesReader(desc);
+            return new ParquetValueReaders.ByteArrayReader(desc);
           default:
             throw new UnsupportedOperationException(
                 "Unsupported logical type: " + primitive.getOriginalType());
@@ -244,7 +266,7 @@ public class SparkParquetReaders {
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
-          return new BytesReader(desc);
+          return new ParquetValueReaders.ByteArrayReader(desc);
         case INT32:
           if (expected != null && expected.typeId() == TypeID.LONG) {
             return new IntAsLongReader(desc);
@@ -261,39 +283,17 @@ public class SparkParquetReaders {
         case INT64:
         case DOUBLE:
           return new UnboxedReader<>(desc);
+        case INT96:
+          // Impala & Spark used to write timestamps as INT96 without a logical type. For backwards
+          // compatibility we try to read INT96 as timestamps.
+          return new TimestampInt96Reader(desc);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
     }
 
-    private String[] currentPath() {
-      String[] path = new String[fieldNames.size()];
-      if (!fieldNames.isEmpty()) {
-        Iterator<String> iter = fieldNames.descendingIterator();
-        for (int i = 0; iter.hasNext(); i += 1) {
-          path[i] = iter.next();
-        }
-      }
-
-      return path;
-    }
-
     protected MessageType type() {
       return type;
-    }
-
-    protected String[] path(String name) {
-      String[] path = new String[fieldNames.size() + 1];
-      path[fieldNames.size()] = name;
-
-      if (!fieldNames.isEmpty()) {
-        Iterator<String> iter = fieldNames.descendingIterator();
-        for (int i = 0; iter.hasNext(); i += 1) {
-          path[i] = iter.next();
-        }
-      }
-
-      return path;
     }
   }
 
@@ -360,6 +360,29 @@ public class SparkParquetReaders {
     }
   }
 
+  private static class TimestampInt96Reader extends UnboxedReader<Long> {
+    private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
+
+    TimestampInt96Reader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public Long read(Long ignored) {
+      return readLong();
+    }
+
+    @Override
+    public long readLong() {
+      final ByteBuffer byteBuffer = column.nextBinary().toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+      final long timeOfDayNanos = byteBuffer.getLong();
+      final int julianDay = byteBuffer.getInt();
+
+      return TimeUnit.DAYS.toMicros(julianDay - UNIX_EPOCH_JULIAN) +
+              TimeUnit.NANOSECONDS.toMicros(timeOfDayNanos);
+    }
+  }
+
   private static class StringReader extends PrimitiveReader<UTF8String> {
     StringReader(ColumnDescriptor desc) {
       super(desc);
@@ -375,17 +398,6 @@ public class SparkParquetReaders {
       } else {
         return UTF8String.fromBytes(binary.getBytes());
       }
-    }
-  }
-
-  private static class BytesReader extends PrimitiveReader<byte[]> {
-    BytesReader(ColumnDescriptor desc) {
-      super(desc);
-    }
-
-    @Override
-    public byte[] read(byte[] ignored) {
-      return column.nextBinary().getBytes();
     }
   }
 

@@ -66,14 +66,15 @@ public class TestParquetAvroWriter {
       optional(19, "renovate", Types.MapType.ofRequired(20, 21,
           Types.StringType.get(), Types.StructType.of(
               optional(22, "jumpy", Types.DoubleType.get()),
-              required(23, "koala", Types.TimeType.get())
+              required(23, "koala", Types.TimeType.get()),
+              required(24, "couch rope", Types.IntegerType.get())
           ))),
       optional(2, "slide", Types.StringType.get())
   );
 
   @Test
   public void testCorrectness() throws IOException {
-    Iterable<Record> records = RandomData.generate(COMPLEX_SCHEMA, 250_000, 34139);
+    Iterable<Record> records = RandomData.generate(COMPLEX_SCHEMA, 50_000, 34139);
 
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());

@@ -37,6 +37,7 @@ class SchemaParser(object):
     ELEMENT = "element"
     KEY = "key"
     VALUE = "value"
+    DOC = "doc"
     NAME = "name"
     ID = "id"
     ELEMENT_ID = "element-id"
@@ -85,10 +86,14 @@ class SchemaParser(object):
 
     @staticmethod
     def _struct_field_to_dict(field):
-        return {SchemaParser.ID: field.field_id,
-                SchemaParser.NAME: field.name,
-                SchemaParser.REQUIRED: field.is_required,
-                SchemaParser.TYPE: SchemaParser._type_to_dict(field.type)}
+        schema = {SchemaParser.ID: field.field_id,
+                  SchemaParser.NAME: field.name,
+                  SchemaParser.REQUIRED: field.is_required,
+                  SchemaParser.TYPE: SchemaParser._type_to_dict(field.type)}
+        if field.doc is not None:
+            schema[SchemaParser.DOC] = field.doc
+
+        return schema
 
     @staticmethod
     def _list_to_dict(list_type):
@@ -129,11 +134,12 @@ class SchemaParser(object):
             field_id = field.get(SchemaParser.ID)
             field_name = field.get(SchemaParser.NAME)
             field_type = SchemaParser.type_from_dict(field.get(SchemaParser.TYPE))
+            field_doc = field.get(SchemaParser.DOC)
 
             if field.get(SchemaParser.REQUIRED):
-                struct_fields.append(NestedField.required(field_id, field_name, field_type))
+                struct_fields.append(NestedField.required(field_id, field_name, field_type, field_doc))
             else:
-                struct_fields.append(NestedField.optional(field_id, field_name, field_type))
+                struct_fields.append(NestedField.optional(field_id, field_name, field_type, field_doc))
 
         return StructType.of(struct_fields)
 

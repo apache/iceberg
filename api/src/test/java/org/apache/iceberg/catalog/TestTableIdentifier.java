@@ -41,4 +41,17 @@ public class TestTableIdentifier {
     Assert.assertEquals("userdb", threeLevelIdentifier.namespace().levels()[1]);
     Assert.assertEquals("tbl", threeLevelIdentifier.name());
   }
+
+  @Test
+  public void testToLowerCase() {
+    Assert.assertEquals(
+        TableIdentifier.of("Tbl").toLowerCase(),
+        TableIdentifier.of("tbl"));
+    Assert.assertEquals(
+        TableIdentifier.of("dB", "TBL").toLowerCase(),
+        TableIdentifier.of("db", "tbl"));
+    Assert.assertEquals(
+        TableIdentifier.of("Catalog", "dB", "TBL").toLowerCase(),
+        TableIdentifier.of("catalog", "db", "tbl"));
+  }
 }

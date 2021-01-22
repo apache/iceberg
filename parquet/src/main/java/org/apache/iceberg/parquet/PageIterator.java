@@ -19,34 +19,22 @@
 
 package org.apache.iceberg.parquet;
 
-import com.google.common.base.Preconditions;
 import java.io.IOException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.CorruptDeltaByteArrays;
 import org.apache.parquet.bytes.ByteBufferInputStream;
-import org.apache.parquet.bytes.BytesInput;
-import org.apache.parquet.bytes.BytesUtils;
 import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.Encoding;
+import org.apache.parquet.column.ValuesType;
 import org.apache.parquet.column.page.DataPage;
 import org.apache.parquet.column.page.DataPageV1;
 import org.apache.parquet.column.page.DataPageV2;
 import org.apache.parquet.column.values.RequiresPreviousReader;
 import org.apache.parquet.column.values.ValuesReader;
-import org.apache.parquet.column.values.rle.RunLengthBitPackingHybridDecoder;
 import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.io.api.Binary;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import static java.lang.String.format;
-import static org.apache.parquet.column.ValuesType.DEFINITION_LEVEL;
-import static org.apache.parquet.column.ValuesType.REPETITION_LEVEL;
-import static org.apache.parquet.column.ValuesType.VALUES;
-
-abstract class PageIterator<T> implements TripleIterator<T> {
-  private static final Logger LOG = LoggerFactory.getLogger(PageIterator.class);
-
+abstract class PageIterator<T> extends BasePageIterator implements TripleIterator<T> {
   @SuppressWarnings("unchecked")
   static <T> PageIterator<T> newIterator(ColumnDescriptor desc, String writerVersion) {
     switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
@@ -69,6 +57,13 @@ abstract class PageIterator<T> implements TripleIterator<T> {
           @Override
           public Long next() {
             return nextLong();
+          }
+        };
+      case INT96:
+        return (PageIterator<T>) new PageIterator<Binary>(desc, writerVersion) {
+          @Override
+          public Binary next() {
+            return nextBinary();
           }
         };
       case FLOAT:
@@ -94,75 +89,19 @@ abstract class PageIterator<T> implements TripleIterator<T> {
           }
         };
       default:
-        throw new UnsupportedOperationException("Unsupported primitive type: "
-                + desc.getPrimitiveType().getPrimitiveTypeName());
+        throw new UnsupportedOperationException("Unsupported primitive type: " +
+            desc.getPrimitiveType().getPrimitiveTypeName());
     }
   }
 
-  private final ColumnDescriptor desc;
-  private final String writerVersion;
-
-  // iterator state
-  private boolean hasNext = false;
-  private int triplesRead = 0;
-  private int currentDL = 0;
-  private int currentRL = 0;
-
-  // page bookkeeping
-  private Dictionary dict = null;
-  private DataPage page = null;
-  private int triplesCount = 0;
-  private Encoding valueEncoding = null;
-  private IntIterator definitionLevels = null;
-  private IntIterator repetitionLevels = null;
-  private ValuesReader values = null;
-
   private PageIterator(ColumnDescriptor desc, String writerVersion) {
-    this.desc = desc;
-    this.writerVersion = writerVersion;
-  }
-
-  public void setPage(DataPage page) {
-    Preconditions.checkNotNull(page, "Cannot read from null page");
-    this.page = page;
-    this.page.accept(new DataPage.Visitor<ValuesReader>() {
-      @Override
-      public ValuesReader visit(DataPageV1 dataPageV1) {
-        initFromPage(dataPageV1);
-        return null;
-      }
-
-      @Override
-      public ValuesReader visit(DataPageV2 dataPageV2) {
-        initFromPage(dataPageV2);
-        return null;
-      }
-    });
-    this.triplesRead = 0;
-    advance();
-  }
-
-  public void setDictionary(Dictionary dict) {
-    this.dict = dict;
-  }
-
-  public void reset() {
-    this.page = null;
-    this.triplesCount = 0;
-    this.triplesRead = 0;
-    this.definitionLevels = null;
-    this.repetitionLevels = null;
-    this.values = null;
-    this.hasNext = false;
-  }
-
-  public int currentPageCount() {
-    return triplesCount;
+    super(desc, writerVersion);
   }
 
   @Override
-  public boolean hasNext() {
-    return hasNext;
+  public void setPage(DataPage page) {
+    super.setPage(page);
+    advance();
   }
 
   @Override
@@ -257,27 +196,28 @@ abstract class PageIterator<T> implements TripleIterator<T> {
     }
   }
 
-  RuntimeException handleRuntimeException(RuntimeException e) {
+  RuntimeException handleRuntimeException(RuntimeException exception) {
     if (CorruptDeltaByteArrays.requiresSequentialReads(writerVersion, valueEncoding) &&
-        e instanceof ArrayIndexOutOfBoundsException) {
+        exception instanceof ArrayIndexOutOfBoundsException) {
       // this is probably PARQUET-246, which may happen if reading data with
       // MR because this can't be detected without reading all footers
       throw new ParquetDecodingException("Read failure possibly due to " +
           "PARQUET-246: try setting parquet.split.files to false",
           new ParquetDecodingException(
-              format("Can't read value in column %s at value %d out of %d in current page. " +
-                     "repetition level: %d, definition level: %d",
+              String.format("Can't read value in column %s at value %d out of %d in current page. " +
+                            "repetition level: %d, definition level: %d",
                   desc, triplesRead, triplesCount, currentRL, currentDL),
-              e));
+              exception));
     }
     throw new ParquetDecodingException(
-        format("Can't read value in column %s at value %d out of %d in current page. " +
-               "repetition level: %d, definition level: %d",
+        String.format("Can't read value in column %s at value %d out of %d in current page. " +
+                      "repetition level: %d, definition level: %d",
             desc, triplesRead, triplesCount, currentRL, currentDL),
-        e);
+        exception);
   }
 
-  private void initDataReader(Encoding dataEncoding, ByteBufferInputStream in, int valueCount) {
+  @Override
+  protected void initDataReader(Encoding dataEncoding, ByteBufferInputStream in, int valueCount) {
     ValuesReader previousReader = values;
 
     this.valueEncoding = dataEncoding;
@@ -286,13 +226,13 @@ abstract class PageIterator<T> implements TripleIterator<T> {
     // For dictionary columns, this class could rely on wrappers to correctly handle dictionaries
     // This isn't currently possible because RLE must be read by getDictionaryBasedValuesReader
     if (dataEncoding.usesDictionary()) {
-      if (dict == null) {
+      if (dictionary == null) {
         throw new ParquetDecodingException(
             "could not read page in col " + desc + " as the dictionary was missing for encoding " + dataEncoding);
       }
-      this.values = dataEncoding.getDictionaryBasedValuesReader(desc, VALUES, dict);
+      this.values = dataEncoding.getDictionaryBasedValuesReader(desc, ValuesType.VALUES, dictionary);
     } else {
-      this.values = dataEncoding.getValuesReader(desc, VALUES);
+      this.values = dataEncoding.getValuesReader(desc, ValuesType.VALUES);
     }
 
 //    if (dataEncoding.usesDictionary() && converter.hasDictionarySupport()) {
@@ -308,99 +248,23 @@ abstract class PageIterator<T> implements TripleIterator<T> {
     }
 
     if (CorruptDeltaByteArrays.requiresSequentialReads(writerVersion, dataEncoding) &&
-        previousReader != null && previousReader instanceof RequiresPreviousReader) {
+        previousReader instanceof RequiresPreviousReader) {
       // previous reader can only be set if reading sequentially
       ((RequiresPreviousReader) values).setPreviousReader(previousReader);
     }
   }
 
-
-  private void initFromPage(DataPageV1 page) {
-    this.triplesCount = page.getValueCount();
-    ValuesReader rlReader = page.getRlEncoding().getValuesReader(desc, REPETITION_LEVEL);
-    ValuesReader dlReader = page.getDlEncoding().getValuesReader(desc, DEFINITION_LEVEL);
-    this.repetitionLevels = new ValuesReaderIntIterator(rlReader);
+  @Override
+  protected void initDefinitionLevelsReader(DataPageV1 dataPageV1, ColumnDescriptor desc, ByteBufferInputStream in,
+                                            int triplesCount) throws IOException {
+    ValuesReader dlReader = dataPageV1.getDlEncoding().getValuesReader(desc, ValuesType.DEFINITION_LEVEL);
     this.definitionLevels = new ValuesReaderIntIterator(dlReader);
-    try {
-      BytesInput bytes = page.getBytes();
-      LOG.debug("page size {} bytes and {} records", bytes.size(), triplesCount);
-      LOG.debug("reading repetition levels at 0");
-      ByteBufferInputStream in = bytes.toInputStream();
-      rlReader.initFromPage(triplesCount, in);
-      LOG.debug("reading definition levels at {}", in.position());
-      dlReader.initFromPage(triplesCount, in);
-      LOG.debug("reading data at {}", in.position());
-      initDataReader(page.getValueEncoding(), in, page.getValueCount());
-    } catch (IOException e) {
-      throw new ParquetDecodingException("could not read page " + page + " in col " + desc, e);
-    }
+    dlReader.initFromPage(triplesCount, in);
   }
 
-  private void initFromPage(DataPageV2 page) {
-    this.triplesCount = page.getValueCount();
-    this.repetitionLevels = newRLEIterator(desc.getMaxRepetitionLevel(), page.getRepetitionLevels());
-    this.definitionLevels = newRLEIterator(desc.getMaxDefinitionLevel(), page.getDefinitionLevels());
-    LOG.debug("page data size {} bytes and {} records", page.getData().size(), triplesCount);
-    try {
-      initDataReader(page.getDataEncoding(), page.getData().toInputStream(), triplesCount);
-    } catch (IOException e) {
-      throw new ParquetDecodingException("could not read page " + page + " in col " + desc, e);
-    }
+  @Override
+  protected void initDefinitionLevelsReader(DataPageV2 dataPageV2, ColumnDescriptor desc) {
+    this.definitionLevels = newRLEIterator(desc.getMaxDefinitionLevel(), dataPageV2.getDefinitionLevels());
   }
 
-  private IntIterator newRLEIterator(int maxLevel, BytesInput bytes) {
-    try {
-      if (maxLevel == 0) {
-        return new NullIntIterator();
-      }
-      return new RLEIntIterator(
-          new RunLengthBitPackingHybridDecoder(
-              BytesUtils.getWidthFromMaxInt(maxLevel),
-              bytes.toInputStream()));
-    } catch (IOException e) {
-      throw new ParquetDecodingException("could not read levels in page for col " + desc, e);
-    }
-  }
-
-  static abstract class IntIterator {
-    abstract int nextInt();
-  }
-
-  static class ValuesReaderIntIterator extends IntIterator {
-    ValuesReader delegate;
-
-    ValuesReaderIntIterator(ValuesReader delegate) {
-      super();
-      this.delegate = delegate;
-    }
-
-    @Override
-    int nextInt() {
-      return delegate.readInteger();
-    }
-  }
-
-  static class RLEIntIterator extends IntIterator {
-    RunLengthBitPackingHybridDecoder delegate;
-
-    RLEIntIterator(RunLengthBitPackingHybridDecoder delegate) {
-      this.delegate = delegate;
-    }
-
-    @Override
-    int nextInt() {
-      try {
-        return delegate.readInt();
-      } catch (IOException e) {
-        throw new ParquetDecodingException(e);
-      }
-    }
-  }
-
-  private static final class NullIntIterator extends IntIterator {
-    @Override
-    int nextInt() {
-      return 0;
-    }
-  }
 }

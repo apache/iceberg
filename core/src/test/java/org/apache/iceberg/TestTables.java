@@ -19,9 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 import java.io.File;
 import java.util.Map;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -31,58 +28,82 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 import static org.apache.iceberg.TableMetadata.newTableMetadata;
 
 public class TestTables {
 
-  private TestTables() {}
+  private TestTables() {
+  }
 
-  static TestTable create(File temp, String name, Schema schema, PartitionSpec spec) {
+  private static TestTable upgrade(File temp, String name, int newFormatVersion) {
+    TestTable table = load(temp, name);
+    TableOperations ops = table.ops();
+    TableMetadata base = ops.current();
+    ops.commit(base, ops.current().upgradeToFormatVersion(newFormatVersion));
+    return table;
+  }
+
+  public static TestTable create(File temp, String name, Schema schema, PartitionSpec spec, int formatVersion) {
+    return create(temp, name, schema, spec, SortOrder.unsorted(), formatVersion);
+  }
+
+  public static TestTable create(File temp, String name, Schema schema, PartitionSpec spec,
+                                 SortOrder sortOrder, int formatVersion) {
     TestTableOperations ops = new TestTableOperations(name, temp);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
-    ops.commit(null, TableMetadata.newTableMetadata(ops, schema, spec, temp.toString()));
+
+    ops.commit(null, newTableMetadata(schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), formatVersion));
+
     return new TestTable(ops, name);
   }
 
-  static Transaction beginCreate(File temp, String name, Schema schema, PartitionSpec spec) {
+  public static Transaction beginCreate(File temp, String name, Schema schema, PartitionSpec spec) {
+    return beginCreate(temp, name, schema, spec, SortOrder.unsorted());
+  }
+
+  public static Transaction beginCreate(File temp, String name, Schema schema,
+                                        PartitionSpec spec, SortOrder sortOrder) {
     TableOperations ops = new TestTableOperations(name, temp);
     if (ops.current() != null) {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
 
-    TableMetadata metadata = TableMetadata.newTableMetadata(ops, schema, spec, temp.toString());
+    TableMetadata metadata = newTableMetadata(schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), 1);
 
-    return Transactions.createTableTransaction(ops, metadata);
+    return Transactions.createTableTransaction(name, ops, metadata);
   }
 
   public static Transaction beginReplace(File temp, String name, Schema schema, PartitionSpec spec) {
-    return beginReplace(temp, name, schema, spec, ImmutableMap.of());
+    return beginReplace(temp, name, schema, spec, SortOrder.unsorted(), ImmutableMap.of());
   }
 
   public static Transaction beginReplace(File temp, String name, Schema schema, PartitionSpec spec,
-                                         Map<String, String> properties) {
+                                         SortOrder sortOrder, Map<String, String> properties) {
     TestTableOperations ops = new TestTableOperations(name, temp);
     TableMetadata current = ops.current();
 
     TableMetadata metadata;
     if (current != null) {
-      metadata = current.buildReplacement(schema, spec, properties);
-      return Transactions.replaceTableTransaction(ops, metadata);
+      metadata = current.buildReplacement(schema, spec, sortOrder, current.location(), properties);
+      return Transactions.replaceTableTransaction(name, ops, metadata);
     } else {
-      metadata = newTableMetadata(ops, schema, spec, temp.toString(), properties);
-      return Transactions.createTableTransaction(ops, metadata);
+      metadata = newTableMetadata(schema, spec, sortOrder, temp.toString(), properties);
+      return Transactions.createTableTransaction(name, ops, metadata);
     }
   }
 
-  static TestTable load(File temp, String name) {
+  public static TestTable load(File temp, String name) {
     TestTableOperations ops = new TestTableOperations(name, temp);
     return new TestTable(ops, name);
   }
 
-  static class TestTable extends BaseTable {
+  public static class TestTable extends BaseTable {
     private final TestTableOperations ops;
 
     private TestTable(TestTableOperations ops, String name) {
@@ -98,7 +119,7 @@ public class TestTables {
   private static final Map<String, TableMetadata> METADATA = Maps.newHashMap();
   private static final Map<String, Integer> VERSIONS = Maps.newHashMap();
 
-  static void clearTables() {
+  public static void clearTables() {
     synchronized (METADATA) {
       METADATA.clear();
       VERSIONS.clear();

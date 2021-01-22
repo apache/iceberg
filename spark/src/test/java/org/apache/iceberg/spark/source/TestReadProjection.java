@@ -19,17 +19,17 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -61,16 +61,16 @@ public abstract class TestReadProjection {
         Types.NestedField.optional(1, "data", Types.StringType.get())
     );
 
-    Record record = new Record(AvroSchemaUtil.convert(schema, "table"));
-    record.put("id", 34L);
-    record.put("data", "test");
+    Record record = GenericRecord.create(schema);
+    record.setField("id", 34L);
+    record.setField("data", "test");
 
     Record projected = writeAndRead("full_projection", schema, schema, record);
 
-    Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.get("id"));
+    Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.getField("id"));
 
     int cmp = Comparators.charSequences()
-        .compare("test", (CharSequence) projected.get("data"));
+        .compare("test", (CharSequence) projected.getField("data"));
     Assert.assertEquals("Should contain the correct data value", 0, cmp);
   }
 
@@ -85,9 +85,9 @@ public abstract class TestReadProjection {
         Types.NestedField.optional(1, "data", Types.StringType.get())
     );
 
-    Record record = new Record(AvroSchemaUtil.convert(schema, "table"));
-    record.put("id", 34L);
-    record.put("data", "test");
+    Record record = GenericRecord.create(schema);
+    record.setField("id", 34L);
+    record.setField("data", "test");
 
     Schema reordered = new Schema(
         Types.NestedField.optional(1, "data", Types.StringType.get()),
@@ -111,9 +111,9 @@ public abstract class TestReadProjection {
         Types.NestedField.optional(1, "data", Types.StringType.get())
     );
 
-    Record record = new Record(AvroSchemaUtil.convert(schema, "table"));
-    record.put("id", 34L);
-    record.put("data", "test");
+    Record record = GenericRecord.create(schema);
+    record.setField("id", 34L);
+    record.setField("data", "test");
 
     Schema reordered = new Schema(
         Types.NestedField.optional(2, "missing_1", Types.StringType.get()),
@@ -135,9 +135,9 @@ public abstract class TestReadProjection {
         Types.NestedField.optional(1, "data", Types.StringType.get())
     );
 
-    Record record = new Record(AvroSchemaUtil.convert(schema, "table"));
-    record.put("id", 34L);
-    record.put("data", "test");
+    Record record = GenericRecord.create(schema);
+    record.setField("id", 34L);
+    record.setField("data", "test");
 
     Record projected = writeAndRead("empty_projection", schema, schema.select(), record);
 
@@ -157,17 +157,17 @@ public abstract class TestReadProjection {
         Types.NestedField.optional(1, "data", Types.StringType.get())
     );
 
-    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
-    record.put("id", 34L);
-    record.put("data", "test");
+    Record record = GenericRecord.create(writeSchema);
+    record.setField("id", 34L);
+    record.setField("data", "test");
 
     Schema idOnly = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get())
     );
 
     Record projected = writeAndRead("basic_projection_id", writeSchema, idOnly, record);
-    Assert.assertNull("Should not project data", projected.get("data"));
-    Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.get("id"));
+    Assert.assertNull("Should not project data", projected.getField("data"));
+    Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.getField("id"));
 
     Schema dataOnly = new Schema(
         Types.NestedField.optional(1, "data", Types.StringType.get())
@@ -175,9 +175,9 @@ public abstract class TestReadProjection {
 
     projected = writeAndRead("basic_projection_data", writeSchema, dataOnly, record);
 
-    Assert.assertNull("Should not project id", projected.get("id"));
+    Assert.assertNull("Should not project id", projected.getField("id"));
     int cmp = Comparators.charSequences()
-        .compare("test", (CharSequence) projected.get("data"));
+        .compare("test", (CharSequence) projected.getField("data"));
     Assert.assertEquals("Should contain the correct data value", 0, cmp);
   }
 
@@ -188,9 +188,9 @@ public abstract class TestReadProjection {
         Types.NestedField.optional(1, "data", Types.StringType.get())
     );
 
-    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
-    record.put("id", 34L);
-    record.put("data", "test");
+    Record record = GenericRecord.create(writeSchema);
+    record.setField("id", 34L);
+    record.setField("data", "test");
 
     Schema readSchema = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get()),
@@ -199,9 +199,9 @@ public abstract class TestReadProjection {
 
     Record projected = writeAndRead("project_and_rename", writeSchema, readSchema, record);
 
-    Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.get("id"));
+    Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.getField("id"));
     int cmp = Comparators.charSequences()
-        .compare("test", (CharSequence) projected.get("renamed"));
+        .compare("test", (CharSequence) projected.getField("renamed"));
     Assert.assertEquals("Should contain the correct data/renamed value", 0, cmp);
   }
 
@@ -215,20 +215,20 @@ public abstract class TestReadProjection {
         ))
     );
 
-    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
-    record.put("id", 34L);
-    Record location = new Record(fromOption(record.getSchema().getField("location").schema()));
-    location.put("lat", 52.995143f);
-    location.put("long", -1.539054f);
-    record.put("location", location);
+    Record record = GenericRecord.create(writeSchema);
+    record.setField("id", 34L);
+    Record location = GenericRecord.create(writeSchema.findType("location").asStructType());
+    location.setField("lat", 52.995143f);
+    location.setField("long", -1.539054f);
+    record.setField("location", location);
 
     Schema idOnly = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get())
     );
 
     Record projected = writeAndRead("id_only", writeSchema, idOnly, record);
-    Record projectedLocation = (Record) projected.get("location");
-    Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.get("id"));
+    Record projectedLocation = (Record) projected.getField("location");
+    Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.getField("id"));
     Assert.assertNull("Should not project location", projectedLocation);
 
     Schema latOnly = new Schema(
@@ -238,12 +238,12 @@ public abstract class TestReadProjection {
     );
 
     projected = writeAndRead("latitude_only", writeSchema, latOnly, record);
-    projectedLocation = (Record) projected.get("location");
-    Assert.assertNull("Should not project id", projected.get("id"));
-    Assert.assertNotNull("Should project location", projected.get("location"));
-    Assert.assertNull("Should not project longitude", projectedLocation.get("long"));
+    projectedLocation = (Record) projected.getField("location");
+    Assert.assertNull("Should not project id", projected.getField("id"));
+    Assert.assertNotNull("Should project location", projected.getField("location"));
+    Assert.assertNull("Should not project longitude", projectedLocation.getField("long"));
     Assert.assertEquals("Should project latitude",
-        52.995143f, (float) projectedLocation.get("lat"), 0.000001f);
+        52.995143f, (float) projectedLocation.getField("lat"), 0.000001f);
 
     Schema longOnly = new Schema(
         Types.NestedField.optional(3, "location", Types.StructType.of(
@@ -252,22 +252,22 @@ public abstract class TestReadProjection {
     );
 
     projected = writeAndRead("longitude_only", writeSchema, longOnly, record);
-    projectedLocation = (Record) projected.get("location");
-    Assert.assertNull("Should not project id", projected.get("id"));
-    Assert.assertNotNull("Should project location", projected.get("location"));
-    Assert.assertNull("Should not project latitutde", projectedLocation.get("lat"));
+    projectedLocation = (Record) projected.getField("location");
+    Assert.assertNull("Should not project id", projected.getField("id"));
+    Assert.assertNotNull("Should project location", projected.getField("location"));
+    Assert.assertNull("Should not project latitutde", projectedLocation.getField("lat"));
     Assert.assertEquals("Should project longitude",
-        -1.539054f, (float) projectedLocation.get("long"), 0.000001f);
+        -1.539054f, (float) projectedLocation.getField("long"), 0.000001f);
 
     Schema locationOnly = writeSchema.select("location");
     projected = writeAndRead("location_only", writeSchema, locationOnly, record);
-    projectedLocation = (Record) projected.get("location");
-    Assert.assertNull("Should not project id", projected.get("id"));
-    Assert.assertNotNull("Should project location", projected.get("location"));
+    projectedLocation = (Record) projected.getField("location");
+    Assert.assertNull("Should not project id", projected.getField("id"));
+    Assert.assertNotNull("Should project location", projected.getField("location"));
     Assert.assertEquals("Should project latitude",
-        52.995143f, (float) projectedLocation.get("lat"), 0.000001f);
+        52.995143f, (float) projectedLocation.getField("lat"), 0.000001f);
     Assert.assertEquals("Should project longitude",
-        -1.539054f, (float) projectedLocation.get("long"), 0.000001f);
+        -1.539054f, (float) projectedLocation.getField("long"), 0.000001f);
   }
 
   @Test
@@ -280,35 +280,35 @@ public abstract class TestReadProjection {
 
     Map<String, String> properties = ImmutableMap.of("a", "A", "b", "B");
 
-    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
-    record.put("id", 34L);
-    record.put("properties", properties);
+    Record record = GenericRecord.create(writeSchema);
+    record.setField("id", 34L);
+    record.setField("properties", properties);
 
     Schema idOnly = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get())
     );
 
     Record projected = writeAndRead("id_only", writeSchema, idOnly, record);
-    Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.get("id"));
-    Assert.assertNull("Should not project properties map", projected.get("properties"));
+    Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.getField("id"));
+    Assert.assertNull("Should not project properties map", projected.getField("properties"));
 
     Schema keyOnly = writeSchema.select("properties.key");
     projected = writeAndRead("key_only", writeSchema, keyOnly, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    Assert.assertNull("Should not project id", projected.getField("id"));
     Assert.assertEquals("Should project entire map",
-        properties, toStringMap((Map) projected.get("properties")));
+        properties, toStringMap((Map) projected.getField("properties")));
 
     Schema valueOnly = writeSchema.select("properties.value");
     projected = writeAndRead("value_only", writeSchema, valueOnly, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    Assert.assertNull("Should not project id", projected.getField("id"));
     Assert.assertEquals("Should project entire map",
-        properties, toStringMap((Map) projected.get("properties")));
+        properties, toStringMap((Map) projected.getField("properties")));
 
     Schema mapOnly = writeSchema.select("properties");
     projected = writeAndRead("map_only", writeSchema, mapOnly, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    Assert.assertNull("Should not project id", projected.getField("id"));
     Assert.assertEquals("Should project entire map",
-        properties, toStringMap((Map) projected.get("properties")));
+        properties, toStringMap((Map) projected.getField("properties")));
   }
 
   private Map<String, ?> toStringMap(Map<?, ?> map) {
@@ -336,65 +336,64 @@ public abstract class TestReadProjection {
         ))
     );
 
-    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
-    record.put("id", 34L);
-    Record l1 = new Record(fromOption(
-        fromOption(record.getSchema().getField("locations").schema()).getValueType()));
-    l1.put("lat", 53.992811f);
-    l1.put("long", -1.542616f);
-    Record l2 = new Record(l1.getSchema());
-    l2.put("lat", 52.995143f);
-    l2.put("long", -1.539054f);
-    record.put("locations", ImmutableMap.of("L1", l1, "L2", l2));
+    Record record = GenericRecord.create(writeSchema);
+    record.setField("id", 34L);
+    Record l1 = GenericRecord.create(writeSchema.findType("locations.value").asStructType());
+    l1.setField("lat", 53.992811f);
+    l1.setField("long", -1.542616f);
+    Record l2 = GenericRecord.create(l1.struct());
+    l2.setField("lat", 52.995143f);
+    l2.setField("long", -1.539054f);
+    record.setField("locations", ImmutableMap.of("L1", l1, "L2", l2));
 
     Schema idOnly = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get())
     );
 
     Record projected = writeAndRead("id_only", writeSchema, idOnly, record);
-    Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.get("id"));
-    Assert.assertNull("Should not project locations map", projected.get("locations"));
+    Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.getField("id"));
+    Assert.assertNull("Should not project locations map", projected.getField("locations"));
 
     projected = writeAndRead("all_locations", writeSchema, writeSchema.select("locations"), record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    Assert.assertNull("Should not project id", projected.getField("id"));
     Assert.assertEquals("Should project locations map",
-        record.get("locations"), toStringMap((Map) projected.get("locations")));
+        record.getField("locations"), toStringMap((Map) projected.getField("locations")));
 
     projected = writeAndRead("lat_only",
         writeSchema, writeSchema.select("locations.lat"), record);
-    Assert.assertNull("Should not project id", projected.get("id"));
-    Map<String, ?> locations = toStringMap((Map) projected.get("locations"));
+    Assert.assertNull("Should not project id", projected.getField("id"));
+    Map<String, ?> locations = toStringMap((Map) projected.getField("locations"));
     Assert.assertNotNull("Should project locations map", locations);
     Assert.assertEquals("Should contain L1 and L2",
         Sets.newHashSet("L1", "L2"), locations.keySet());
     Record projectedL1 = (Record) locations.get("L1");
     Assert.assertNotNull("L1 should not be null", projectedL1);
     Assert.assertEquals("L1 should contain lat",
-        53.992811f, (float) projectedL1.get("lat"), 0.000001);
-    Assert.assertNull("L1 should not contain long", projectedL1.get("long"));
+        53.992811f, (float) projectedL1.getField("lat"), 0.000001);
+    Assert.assertNull("L1 should not contain long", projectedL1.getField("long"));
     Record projectedL2 = (Record) locations.get("L2");
     Assert.assertNotNull("L2 should not be null", projectedL2);
     Assert.assertEquals("L2 should contain lat",
-        52.995143f, (float) projectedL2.get("lat"), 0.000001);
-    Assert.assertNull("L2 should not contain long", projectedL2.get("long"));
+        52.995143f, (float) projectedL2.getField("lat"), 0.000001);
+    Assert.assertNull("L2 should not contain long", projectedL2.getField("long"));
 
     projected = writeAndRead("long_only",
         writeSchema, writeSchema.select("locations.long"), record);
-    Assert.assertNull("Should not project id", projected.get("id"));
-    locations = toStringMap((Map) projected.get("locations"));
+    Assert.assertNull("Should not project id", projected.getField("id"));
+    locations = toStringMap((Map) projected.getField("locations"));
     Assert.assertNotNull("Should project locations map", locations);
     Assert.assertEquals("Should contain L1 and L2",
         Sets.newHashSet("L1", "L2"), locations.keySet());
     projectedL1 = (Record) locations.get("L1");
     Assert.assertNotNull("L1 should not be null", projectedL1);
-    Assert.assertNull("L1 should not contain lat", projectedL1.get("lat"));
+    Assert.assertNull("L1 should not contain lat", projectedL1.getField("lat"));
     Assert.assertEquals("L1 should contain long",
-        -1.542616f, (float) projectedL1.get("long"), 0.000001);
+        -1.542616f, (float) projectedL1.getField("long"), 0.000001);
     projectedL2 = (Record) locations.get("L2");
     Assert.assertNotNull("L2 should not be null", projectedL2);
-    Assert.assertNull("L2 should not contain lat", projectedL2.get("lat"));
+    Assert.assertNull("L2 should not contain lat", projectedL2.getField("lat"));
     Assert.assertEquals("L2 should contain long",
-        -1.539054f, (float) projectedL2.get("long"), 0.000001);
+        -1.539054f, (float) projectedL2.getField("long"), 0.000001);
 
     Schema latitiudeRenamed = new Schema(
         Types.NestedField.optional(5, "locations", Types.MapType.ofOptional(6, 7,
@@ -406,23 +405,23 @@ public abstract class TestReadProjection {
     );
 
     projected = writeAndRead("latitude_renamed", writeSchema, latitiudeRenamed, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
-    locations = toStringMap((Map) projected.get("locations"));
+    Assert.assertNull("Should not project id", projected.getField("id"));
+    locations = toStringMap((Map) projected.getField("locations"));
     Assert.assertNotNull("Should project locations map", locations);
     Assert.assertEquals("Should contain L1 and L2",
         Sets.newHashSet("L1", "L2"), locations.keySet());
     projectedL1 = (Record) locations.get("L1");
     Assert.assertNotNull("L1 should not be null", projectedL1);
     Assert.assertEquals("L1 should contain latitude",
-        53.992811f, (float) projectedL1.get("latitude"), 0.000001);
-    Assert.assertNull("L1 should not contain lat", projectedL1.get("lat"));
-    Assert.assertNull("L1 should not contain long", projectedL1.get("long"));
+        53.992811f, (float) projectedL1.getField("latitude"), 0.000001);
+    Assert.assertNull("L1 should not contain lat", projectedL1.getField("lat"));
+    Assert.assertNull("L1 should not contain long", projectedL1.getField("long"));
     projectedL2 = (Record) locations.get("L2");
     Assert.assertNotNull("L2 should not be null", projectedL2);
     Assert.assertEquals("L2 should contain latitude",
-        52.995143f, (float) projectedL2.get("latitude"), 0.000001);
-    Assert.assertNull("L2 should not contain lat", projectedL2.get("lat"));
-    Assert.assertNull("L2 should not contain long", projectedL2.get("long"));
+        52.995143f, (float) projectedL2.getField("latitude"), 0.000001);
+    Assert.assertNull("L2 should not contain lat", projectedL2.getField("lat"));
+    Assert.assertNull("L2 should not contain long", projectedL2.getField("long"));
   }
 
   @Test
@@ -435,27 +434,27 @@ public abstract class TestReadProjection {
 
     List<Long> values = ImmutableList.of(56L, 57L, 58L);
 
-    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
-    record.put("id", 34L);
-    record.put("values", values);
+    Record record = GenericRecord.create(writeSchema);
+    record.setField("id", 34L);
+    record.setField("values", values);
 
     Schema idOnly = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get())
     );
 
     Record projected = writeAndRead("id_only", writeSchema, idOnly, record);
-    Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.get("id"));
-    Assert.assertNull("Should not project values list", projected.get("values"));
+    Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.getField("id"));
+    Assert.assertNull("Should not project values list", projected.getField("values"));
 
     Schema elementOnly = writeSchema.select("values.element");
     projected = writeAndRead("element_only", writeSchema, elementOnly, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
-    Assert.assertEquals("Should project entire list", values, projected.get("values"));
+    Assert.assertNull("Should not project id", projected.getField("id"));
+    Assert.assertEquals("Should project entire list", values, projected.getField("values"));
 
     Schema listOnly = writeSchema.select("values");
     projected = writeAndRead("list_only", writeSchema, listOnly, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
-    Assert.assertEquals("Should project entire list", values, projected.get("values"));
+    Assert.assertNull("Should not project id", projected.getField("id"));
+    Assert.assertEquals("Should project entire list", values, projected.getField("values"));
   }
 
   @Test
@@ -471,53 +470,52 @@ public abstract class TestReadProjection {
         )
     );
 
-    Record record = new Record(AvroSchemaUtil.convert(writeSchema, "table"));
-    record.put("id", 34L);
-    Record p1 = new Record(fromOption(
-        fromOption(record.getSchema().getField("points").schema()).getElementType()));
-    p1.put("x", 1);
-    p1.put("y", 2);
-    Record p2 = new Record(p1.getSchema());
-    p2.put("x", 3);
-    p2.put("y", null);
-    record.put("points", ImmutableList.of(p1, p2));
+    Record record = GenericRecord.create(writeSchema);
+    record.setField("id", 34L);
+    Record p1 = GenericRecord.create(writeSchema.findType("points.element").asStructType());
+    p1.setField("x", 1);
+    p1.setField("y", 2);
+    Record p2 = GenericRecord.create(p1.struct());
+    p2.setField("x", 3);
+    p2.setField("y", null);
+    record.setField("points", ImmutableList.of(p1, p2));
 
     Schema idOnly = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get())
     );
 
     Record projected = writeAndRead("id_only", writeSchema, idOnly, record);
-    Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.get("id"));
-    Assert.assertNull("Should not project points list", projected.get("points"));
+    Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.getField("id"));
+    Assert.assertNull("Should not project points list", projected.getField("points"));
 
     projected = writeAndRead("all_points", writeSchema, writeSchema.select("points"), record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    Assert.assertNull("Should not project id", projected.getField("id"));
     Assert.assertEquals("Should project points list",
-        record.get("points"), projected.get("points"));
+        record.getField("points"), projected.getField("points"));
 
     projected = writeAndRead("x_only", writeSchema, writeSchema.select("points.x"), record);
-    Assert.assertNull("Should not project id", projected.get("id"));
-    Assert.assertNotNull("Should project points list", projected.get("points"));
-    List<Record> points = (List<Record>) projected.get("points");
+    Assert.assertNull("Should not project id", projected.getField("id"));
+    Assert.assertNotNull("Should project points list", projected.getField("points"));
+    List<Record> points = (List<Record>) projected.getField("points");
     Assert.assertEquals("Should read 2 points", 2, points.size());
     Record projectedP1 = points.get(0);
-    Assert.assertEquals("Should project x", 1, (int) projectedP1.get("x"));
-    Assert.assertNull("Should not project y", projectedP1.get("y"));
+    Assert.assertEquals("Should project x", 1, (int) projectedP1.getField("x"));
+    Assert.assertNull("Should not project y", projectedP1.getField("y"));
     Record projectedP2 = points.get(1);
-    Assert.assertEquals("Should project x", 3, (int) projectedP2.get("x"));
-    Assert.assertNull("Should not project y", projectedP2.get("y"));
+    Assert.assertEquals("Should project x", 3, (int) projectedP2.getField("x"));
+    Assert.assertNull("Should not project y", projectedP2.getField("y"));
 
     projected = writeAndRead("y_only", writeSchema, writeSchema.select("points.y"), record);
-    Assert.assertNull("Should not project id", projected.get("id"));
-    Assert.assertNotNull("Should project points list", projected.get("points"));
-    points = (List<Record>) projected.get("points");
+    Assert.assertNull("Should not project id", projected.getField("id"));
+    Assert.assertNotNull("Should project points list", projected.getField("points"));
+    points = (List<Record>) projected.getField("points");
     Assert.assertEquals("Should read 2 points", 2, points.size());
     projectedP1 = points.get(0);
-    Assert.assertNull("Should not project x", projectedP1.get("x"));
-    Assert.assertEquals("Should project y", 2, (int) projectedP1.get("y"));
+    Assert.assertNull("Should not project x", projectedP1.getField("x"));
+    Assert.assertEquals("Should project y", 2, (int) projectedP1.getField("y"));
     projectedP2 = points.get(1);
-    Assert.assertNull("Should not project x", projectedP2.get("x"));
-    Assert.assertNull("Should project null y", projectedP2.get("y"));
+    Assert.assertNull("Should not project x", projectedP2.getField("x"));
+    Assert.assertNull("Should project null y", projectedP2.getField("y"));
 
     Schema yRenamed = new Schema(
         Types.NestedField.optional(22, "points",
@@ -528,18 +526,18 @@ public abstract class TestReadProjection {
     );
 
     projected = writeAndRead("y_renamed", writeSchema, yRenamed, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
-    Assert.assertNotNull("Should project points list", projected.get("points"));
-    points = (List<Record>) projected.get("points");
+    Assert.assertNull("Should not project id", projected.getField("id"));
+    Assert.assertNotNull("Should project points list", projected.getField("points"));
+    points = (List<Record>) projected.getField("points");
     Assert.assertEquals("Should read 2 points", 2, points.size());
     projectedP1 = points.get(0);
-    Assert.assertNull("Should not project x", projectedP1.get("x"));
-    Assert.assertNull("Should not project y", projectedP1.get("y"));
-    Assert.assertEquals("Should project z", 2, (int) projectedP1.get("z"));
+    Assert.assertNull("Should not project x", projectedP1.getField("x"));
+    Assert.assertNull("Should not project y", projectedP1.getField("y"));
+    Assert.assertEquals("Should project z", 2, (int) projectedP1.getField("z"));
     projectedP2 = points.get(1);
-    Assert.assertNull("Should not project x", projectedP2.get("x"));
-    Assert.assertNull("Should not project y", projectedP2.get("y"));
-    Assert.assertNull("Should project null z", projectedP2.get("z"));
+    Assert.assertNull("Should not project x", projectedP2.getField("x"));
+    Assert.assertNull("Should not project y", projectedP2.getField("y"));
+    Assert.assertNull("Should project null z", projectedP2.getField("z"));
 
     Schema zAdded = new Schema(
         Types.NestedField.optional(22, "points",
@@ -552,18 +550,18 @@ public abstract class TestReadProjection {
     );
 
     projected = writeAndRead("z_added", writeSchema, zAdded, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
-    Assert.assertNotNull("Should project points list", projected.get("points"));
-    points = (List<Record>) projected.get("points");
+    Assert.assertNull("Should not project id", projected.getField("id"));
+    Assert.assertNotNull("Should project points list", projected.getField("points"));
+    points = (List<Record>) projected.getField("points");
     Assert.assertEquals("Should read 2 points", 2, points.size());
     projectedP1 = points.get(0);
-    Assert.assertEquals("Should project x", 1, (int) projectedP1.get("x"));
-    Assert.assertEquals("Should project y", 2, (int) projectedP1.get("y"));
-    Assert.assertNull("Should contain null z", projectedP1.get("z"));
+    Assert.assertEquals("Should project x", 1, (int) projectedP1.getField("x"));
+    Assert.assertEquals("Should project y", 2, (int) projectedP1.getField("y"));
+    Assert.assertNull("Should contain null z", projectedP1.getField("z"));
     projectedP2 = points.get(1);
-    Assert.assertEquals("Should project x", 3, (int) projectedP2.get("x"));
-    Assert.assertNull("Should project null y", projectedP2.get("y"));
-    Assert.assertNull("Should contain null z", projectedP2.get("z"));
+    Assert.assertEquals("Should project x", 3, (int) projectedP2.getField("x"));
+    Assert.assertNull("Should project null y", projectedP2.getField("y"));
+    Assert.assertNull("Should contain null z", projectedP2.getField("z"));
   }
 
   private static org.apache.avro.Schema fromOption(org.apache.avro.Schema schema) {

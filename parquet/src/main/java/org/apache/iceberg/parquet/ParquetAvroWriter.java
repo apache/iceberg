@@ -19,13 +19,12 @@
 
 package org.apache.iceberg.parquet;
 
-import com.google.common.collect.Lists;
-import java.util.Iterator;
 import java.util.List;
 import org.apache.avro.generic.GenericData.Fixed;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.DecimalMetadata;
@@ -33,10 +32,6 @@ import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
-
-import static org.apache.iceberg.parquet.ParquetValueWriters.collections;
-import static org.apache.iceberg.parquet.ParquetValueWriters.maps;
-import static org.apache.iceberg.parquet.ParquetValueWriters.option;
 
 public class ParquetAvroWriter {
   private ParquetAvroWriter() {
@@ -68,7 +63,7 @@ public class ParquetAvroWriter {
       for (int i = 0; i < fields.size(); i += 1) {
         Type fieldType = struct.getType(i);
         int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName()));
-        writers.add(option(fieldType, fieldD, fieldWriters.get(i)));
+        writers.add(ParquetValueWriters.option(fieldType, fieldD, fieldWriters.get(i)));
       }
 
       return new RecordWriter(writers);
@@ -85,7 +80,8 @@ public class ParquetAvroWriter {
       org.apache.parquet.schema.Type elementType = repeated.getType(0);
       int elementD = type.getMaxDefinitionLevel(path(elementType.getName()));
 
-      return collections(repeatedD, repeatedR, option(elementType, elementD, elementWriter));
+      return ParquetValueWriters.collections(repeatedD, repeatedR,
+          ParquetValueWriters.option(elementType, elementD, elementWriter));
     }
 
     @Override
@@ -103,8 +99,9 @@ public class ParquetAvroWriter {
       org.apache.parquet.schema.Type valueType = repeatedKeyValue.getType(1);
       int valueD = type.getMaxDefinitionLevel(path(valueType.getName()));
 
-      return maps(repeatedD, repeatedR,
-          option(keyType, keyD, keyWriter), option(valueType, valueD, valueWriter));
+      return ParquetValueWriters.maps(repeatedD, repeatedR,
+          ParquetValueWriters.option(keyType, keyD, keyWriter),
+          ParquetValueWriters.option(valueType, valueD, valueWriter));
     }
 
     @Override
@@ -121,10 +118,11 @@ public class ParquetAvroWriter {
           case INT_8:
           case INT_16:
           case INT_32:
+            return ParquetValueWriters.ints(desc);
           case INT_64:
           case TIME_MICROS:
           case TIMESTAMP_MICROS:
-            return ParquetValueWriters.unboxed(desc);
+            return ParquetValueWriters.longs(desc);
           case DECIMAL:
             DecimalMetadata decimal = primitive.getDecimalMetadata();
             switch (primitive.getPrimitiveTypeName()) {
@@ -156,40 +154,18 @@ public class ParquetAvroWriter {
         case BINARY:
           return ParquetValueWriters.byteBuffers(desc);
         case BOOLEAN:
+          return ParquetValueWriters.booleans(desc);
         case INT32:
+          return ParquetValueWriters.ints(desc);
         case INT64:
+          return ParquetValueWriters.longs(desc);
         case FLOAT:
+          return ParquetValueWriters.floats(desc);
         case DOUBLE:
-          return ParquetValueWriters.unboxed(desc);
+          return ParquetValueWriters.doubles(desc);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
-    }
-
-    private String[] currentPath() {
-      String[] path = new String[fieldNames.size()];
-      if (!fieldNames.isEmpty()) {
-        Iterator<String> iter = fieldNames.descendingIterator();
-        for (int i = 0; iter.hasNext(); i += 1) {
-          path[i] = iter.next();
-        }
-      }
-
-      return path;
-    }
-
-    private String[] path(String name) {
-      String[] path = new String[fieldNames.size() + 1];
-      path[fieldNames.size()] = name;
-
-      if (!fieldNames.isEmpty()) {
-        Iterator<String> iter = fieldNames.descendingIterator();
-        for (int i = 0; iter.hasNext(); i += 1) {
-          path[i] = iter.next();
-        }
-      }
-
-      return path;
     }
   }
 

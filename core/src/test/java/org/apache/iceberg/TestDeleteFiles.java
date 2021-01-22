@@ -22,8 +22,20 @@ package org.apache.iceberg;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestDeleteFiles extends TableTestBase {
+  @Parameterized.Parameters(name = "formatVersion = {0}")
+  public static Object[] parameters() {
+    return new Object[] { 1, 2 };
+  }
+
+  public TestDeleteFiles(int formatVersion) {
+    super(formatVersion);
+  }
+
   @Test
   public void testMultipleDeletes() {
     table.newAppend()
@@ -42,8 +54,8 @@ public class TestDeleteFiles extends TableTestBase {
 
     Assert.assertEquals("Metadata should be at version 2", 2L, (long) version());
     Snapshot delete = readMetadata().currentSnapshot();
-    Assert.assertEquals("Should have 1 manifest", 1, delete.manifests().size());
-    validateManifestEntries(delete.manifests().get(0),
+    Assert.assertEquals("Should have 1 manifest", 1, delete.allManifests().size());
+    validateManifestEntries(delete.allManifests().get(0),
         ids(delete.snapshotId(), append.snapshotId(), append.snapshotId()),
         files(FILE_A, FILE_B, FILE_C),
         statuses(Status.DELETED, Status.EXISTING, Status.EXISTING));
@@ -54,8 +66,8 @@ public class TestDeleteFiles extends TableTestBase {
 
     Assert.assertEquals("Metadata should be at version 3", 3L, (long) version());
     Snapshot delete2 = readMetadata().currentSnapshot();
-    Assert.assertEquals("Should have 1 manifest", 1, delete2.manifests().size());
-    validateManifestEntries(delete2.manifests().get(0),
+    Assert.assertEquals("Should have 1 manifest", 1, delete2.allManifests().size());
+    validateManifestEntries(delete2.allManifests().get(0),
         ids(delete2.snapshotId(), append.snapshotId()),
         files(FILE_B, FILE_C),
         statuses(Status.DELETED, Status.EXISTING));

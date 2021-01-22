@@ -19,12 +19,8 @@
 
 package org.apache.iceberg.parquet;
 
-import avro.shaded.com.google.common.collect.Sets;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -35,13 +31,16 @@ import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.NaNUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
-import org.apache.parquet.column.Encoding;
-import org.apache.parquet.column.EncodingStats;
 import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.DictionaryPageReadStore;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
@@ -49,30 +48,16 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 
-import static org.apache.iceberg.expressions.Expressions.rewriteNot;
-import static org.apache.iceberg.parquet.ParquetConversions.converterFromParquet;
-
 public class ParquetDictionaryRowGroupFilter {
-  private final Schema schema;
-  private final StructType struct;
   private final Expression expr;
-  private transient ThreadLocal<EvalVisitor> visitors = null;
-
-  private EvalVisitor visitor() {
-    if (visitors == null) {
-      this.visitors = ThreadLocal.withInitial(EvalVisitor::new);
-    }
-    return visitors.get();
-  }
 
   public ParquetDictionaryRowGroupFilter(Schema schema, Expression unbound) {
     this(schema, unbound, true);
   }
 
   public ParquetDictionaryRowGroupFilter(Schema schema, Expression unbound, boolean caseSensitive) {
-    this.schema = schema;
-    this.struct = schema.asStruct();
-    this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
+    StructType struct = schema.asStruct();
+    this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
   }
 
   /**
@@ -84,7 +69,7 @@ public class ParquetDictionaryRowGroupFilter {
    */
   public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup,
                             DictionaryPageReadStore dictionaries) {
-    return visitor().eval(fileSchema, rowGroup, dictionaries);
+    return new EvalVisitor().eval(fileSchema, rowGroup, dictionaries);
   }
 
   private static final boolean ROWS_MIGHT_MATCH = true;
@@ -99,8 +84,8 @@ public class ParquetDictionaryRowGroupFilter {
     private Map<Integer, Function<Object, Object>> conversions = null;
 
     private boolean eval(MessageType fileSchema, BlockMetaData rowGroup,
-                         DictionaryPageReadStore dictionaries) {
-      this.dictionaries = dictionaries;
+                         DictionaryPageReadStore dictionaryReadStore) {
+      this.dictionaries = dictionaryReadStore;
       this.dictCache = Maps.newHashMap();
       this.isFallback = Maps.newHashMap();
       this.mayContainNulls = Maps.newHashMap();
@@ -112,7 +97,7 @@ public class ParquetDictionaryRowGroupFilter {
         if (colType.getId() != null) {
           int id = colType.getId().intValue();
           cols.put(id, desc);
-          conversions.put(id, converterFromParquet(colType));
+          conversions.put(id, ParquetConversions.converterFromParquet(colType));
         }
       }
 
@@ -120,12 +105,12 @@ public class ParquetDictionaryRowGroupFilter {
         PrimitiveType colType = fileSchema.getType(meta.getPath().toArray()).asPrimitiveType();
         if (colType.getId() != null) {
           int id = colType.getId().intValue();
-          isFallback.put(id, hasNonDictionaryPages(meta));
+          isFallback.put(id, ParquetUtil.hasNonDictionaryPages(meta));
           mayContainNulls.put(id, mayContainNull(meta));
         }
       }
 
-      return ExpressionVisitors.visit(expr, this);
+      return ExpressionVisitors.visitEvaluator(expr, this);
     }
 
     @Override
@@ -166,8 +151,41 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
+    public <T> Boolean isNaN(BoundReference<T> ref) {
+      int id = ref.fieldId();
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      if (hasNonDictPage == null || hasNonDictPage) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Set<T> dictionary = dict(id, comparatorForNaNPredicate(ref));
+      return dictionary.stream().anyMatch(NaNUtil::isNaN) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notNaN(BoundReference<T> ref) {
+      int id = ref.fieldId();
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      if (hasNonDictPage == null || hasNonDictPage) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Set<T> dictionary = dict(id, comparatorForNaNPredicate(ref));
+      return dictionary.stream().allMatch(NaNUtil::isNaN) ? ROWS_CANNOT_MATCH : ROWS_MIGHT_MATCH;
+    }
+
+    private <T> Comparator<T> comparatorForNaNPredicate(BoundReference<T> ref) {
+      // Construct the same comparator as in ComparableLiteral.comparator, ignoring null value order as dictionary
+      // cannot contain null values.
+      // No need to check type: incompatible types will be handled during expression binding.
+      return Comparators.forType(ref.type().asPrimitiveType());
+    }
+
+    @Override
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {
@@ -189,7 +207,7 @@ public class ParquetDictionaryRowGroupFilter {
 
     @Override
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {
@@ -211,7 +229,7 @@ public class ParquetDictionaryRowGroupFilter {
 
     @Override
     public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {
@@ -233,7 +251,7 @@ public class ParquetDictionaryRowGroupFilter {
 
     @Override
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {
@@ -255,7 +273,7 @@ public class ParquetDictionaryRowGroupFilter {
 
     @Override
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {
@@ -269,7 +287,7 @@ public class ParquetDictionaryRowGroupFilter {
 
     @Override
     public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
-      Integer id = ref.fieldId();
+      int id = ref.fieldId();
 
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {
@@ -285,17 +303,80 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean in(BoundReference<T> ref, Literal<T> lit) {
-      return ROWS_MIGHT_MATCH;
+    public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
+      int id = ref.fieldId();
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      if (hasNonDictPage == null || hasNonDictPage) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Set<T> dictionary = dict(id, ref.comparator());
+
+      // we need to find out the smaller set to iterate through
+      Set<T> smallerSet;
+      Set<T> biggerSet;
+
+      if (literalSet.size() < dictionary.size()) {
+        smallerSet = literalSet;
+        biggerSet = dictionary;
+      } else {
+        smallerSet = dictionary;
+        biggerSet = literalSet;
+      }
+
+      for (T e : smallerSet) {
+        if (biggerSet.contains(e)) {
+          // value sets intersect so rows match
+          return ROWS_MIGHT_MATCH;
+        }
+      }
+
+      // value sets are disjoint so rows don't match
+      return ROWS_CANNOT_MATCH;
     }
 
     @Override
-    public <T> Boolean notIn(BoundReference<T> ref, Literal<T> lit) {
-      return ROWS_MIGHT_MATCH;
+    public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
+      int id = ref.fieldId();
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      if (hasNonDictPage == null || hasNonDictPage) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Set<T> dictionary = dict(id, ref.comparator());
+      if (dictionary.size() > literalSet.size() || mayContainNulls.get(id)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      // ROWS_CANNOT_MATCH if no values in the dictionary that are not also in the set (the difference is empty)
+      return Sets.difference(dictionary, literalSet).isEmpty() ? ROWS_CANNOT_MATCH : ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
+      int id = ref.fieldId();
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      if (hasNonDictPage == null || hasNonDictPage) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Set<T> dictionary = dict(id, lit.comparator());
+      for (T item : dictionary) {
+        if (item.toString().startsWith(lit.value().toString())) {
+          return ROWS_MIGHT_MATCH;
+        }
+      }
+
+      return ROWS_CANNOT_MATCH;
     }
 
     @SuppressWarnings("unchecked")
     private <T> Set<T> dict(int id, Comparator<T> comparator) {
+      Preconditions.checkNotNull(dictionaries, "Dictionary is required");
+
       Set<?> cached = dictCache.get(id);
       if (cached != null) {
         return (Set<T>) cached;
@@ -305,7 +386,7 @@ public class ParquetDictionaryRowGroupFilter {
       DictionaryPage page = dictionaries.readDictionaryPage(col);
       // may not be dictionary-encoded
       if (page == null) {
-        return null;
+        throw new IllegalStateException("Failed to read required dictionary page for id: " + id);
       }
 
       Function<Object, Object> conversion = conversions.get(id);
@@ -317,9 +398,9 @@ public class ParquetDictionaryRowGroupFilter {
         throw new RuntimeIOException("Failed to create reader for dictionary page");
       }
 
-      Set<T> dictSet = Sets.newTreeSet(comparator);;
+      Set<T> dictSet = Sets.newTreeSet(comparator);
 
-      for (int i=0; i<=dict.getMaxId(); i++) {
+      for (int i = 0; i <= dict.getMaxId(); i++) {
         switch (col.getPrimitiveType().getPrimitiveTypeName()) {
           case BINARY: dictSet.add((T) conversion.apply(dict.decodeToBinary(i)));
             break;
@@ -347,35 +428,4 @@ public class ParquetDictionaryRowGroupFilter {
     return meta.getStatistics() == null || meta.getStatistics().getNumNulls() != 0;
   }
 
-  @SuppressWarnings("deprecation")
-  private static boolean hasNonDictionaryPages(ColumnChunkMetaData meta) {
-    EncodingStats stats = meta.getEncodingStats();
-    if (stats != null) {
-      return stats.hasNonDictionaryEncodedPages();
-    }
-
-    // without EncodingStats, fall back to testing the encoding list
-    Set<Encoding> encodings = new HashSet<Encoding>(meta.getEncodings());
-    if (encodings.remove(Encoding.PLAIN_DICTIONARY)) {
-      // if remove returned true, PLAIN_DICTIONARY was present, which means at
-      // least one page was dictionary encoded and 1.0 encodings are used
-
-      // RLE and BIT_PACKED are only used for repetition or definition levels
-      encodings.remove(Encoding.RLE);
-      encodings.remove(Encoding.BIT_PACKED);
-
-      if (encodings.isEmpty()) {
-        return false; // no encodings other than dictionary or rep/def levels
-      }
-
-      return true;
-
-    } else {
-      // if PLAIN_DICTIONARY wasn't present, then either the column is not
-      // dictionary-encoded, or the 2.0 encoding, RLE_DICTIONARY, was used.
-      // for 2.0, this cannot determine whether a page fell back without
-      // page encoding stats
-      return true;
-    }
-  }
 }

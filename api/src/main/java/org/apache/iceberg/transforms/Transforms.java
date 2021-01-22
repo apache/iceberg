@@ -19,19 +19,19 @@
 
 package org.apache.iceberg.transforms;
 
-import com.google.common.base.Preconditions;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 
 /**
  * Factory methods for transforms.
  * <p>
  * Most users should create transforms using a
- * {@link PartitionSpec.Builder#builderFor(Schema)} partition spec builder}.
+ * {@link PartitionSpec#builderFor(Schema)} partition spec builder}.
  *
  * @see PartitionSpec#builderFor(Schema) The partition spec builder.
  */
@@ -55,13 +55,23 @@ public class Transforms {
 
     if (transform.equalsIgnoreCase("identity")) {
       return Identity.get(type);
-    } else if (type.typeId() == Type.TypeID.TIMESTAMP) {
-      return Timestamps.valueOf(transform.toUpperCase(Locale.ENGLISH));
-    } else if (type.typeId() == Type.TypeID.DATE) {
-      return Dates.valueOf(transform.toUpperCase(Locale.ENGLISH));
     }
 
-    throw new IllegalArgumentException("Unknown transform: " + transform);
+    try {
+      if (type.typeId() == Type.TypeID.TIMESTAMP) {
+        return Timestamps.valueOf(transform.toUpperCase(Locale.ENGLISH));
+      } else if (type.typeId() == Type.TypeID.DATE) {
+        return Dates.valueOf(transform.toUpperCase(Locale.ENGLISH));
+      }
+    } catch (IllegalArgumentException ignored) {
+      // fall through to return unknown transform
+    }
+
+    if (transform.equalsIgnoreCase("void")) {
+      return VoidTransform.get();
+    }
+
+    return new UnknownTransform<>(type, transform);
   }
 
   /**
@@ -171,5 +181,15 @@ public class Transforms {
    */
   public static <T> Transform<T, T> truncate(Type type, int width) {
     return Truncate.get(type, width);
+  }
+
+  /**
+   * Returns a {@link Transform} that always produces null.
+   *
+   * @param <T> Java type accepted by the transform.
+   * @return a transform that always produces null (the void transform).
+   */
+  public static <T> Transform<T, Void> alwaysNull() {
+    return VoidTransform.get();
   }
 }

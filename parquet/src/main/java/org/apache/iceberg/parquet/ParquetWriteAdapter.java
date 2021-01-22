@@ -19,16 +19,23 @@
 
 package org.apache.iceberg.parquet;
 
-import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Stream;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 
+/**
+ * Parquet writer that wraps around hadoop's {@link ParquetWriter}.
+ * It shouldn't be used in production; {@link org.apache.iceberg.parquet.ParquetWriter} is a better alternative.
+ * @deprecated use {@link org.apache.iceberg.parquet.ParquetWriter}
+ */
+@Deprecated
 public class ParquetWriteAdapter<D> implements FileAppender<D> {
   private ParquetWriter<D> writer;
   private MetricsConfig metricsConfig;
@@ -51,7 +58,9 @@ public class ParquetWriteAdapter<D> implements FileAppender<D> {
   @Override
   public Metrics metrics() {
     Preconditions.checkState(footer != null, "Cannot produce metrics until closed");
-    return ParquetUtil.footerMetrics(footer, metricsConfig);
+    // Note: Metrics reported by this method do not contain a full set of available metrics.
+    // Specifically, it lacks metrics not included in Parquet file's footer (e.g. NaN count)
+    return ParquetUtil.footerMetrics(footer, Stream.empty(),  metricsConfig);
   }
 
   @Override

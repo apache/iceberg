@@ -19,56 +19,81 @@
 
 package org.apache.iceberg.types;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class TypeUtil {
 
-  private TypeUtil() {}
+  private TypeUtil() {
+  }
 
   public static Schema select(Schema schema, Set<Integer> fieldIds) {
     Preconditions.checkNotNull(schema, "Schema cannot be null");
-    Preconditions.checkNotNull(fieldIds, "Field ids cannot be null");
 
-    Type result = visit(schema, new PruneColumns(fieldIds));
+    Types.StructType result = select(schema.asStruct(), fieldIds);
     if (schema.asStruct() == result) {
       return schema;
     } else if (result != null) {
       if (schema.getAliases() != null) {
-        return new Schema(result.asNestedType().fields(), schema.getAliases());
+        return new Schema(result.fields(), schema.getAliases());
       } else {
-        return new Schema(result.asNestedType().fields());
+        return new Schema(result.fields());
       }
     }
 
     return new Schema(ImmutableList.of(), schema.getAliases());
   }
 
-  public static Set<Integer> getProjectedIds(Schema schema) {
-    return visit(schema, new GetProjectedIds());
+  public static Types.StructType select(Types.StructType struct, Set<Integer> fieldIds) {
+    Preconditions.checkNotNull(struct, "Struct cannot be null");
+    Preconditions.checkNotNull(fieldIds, "Field ids cannot be null");
+
+    Type result = visit(struct, new PruneColumns(fieldIds));
+    if (struct == result) {
+      return struct;
+    } else if (result != null) {
+      return result.asStructType();
+    }
+
+    return Types.StructType.of();
   }
 
-  public static Set<Integer> getProjectedIds(Type schema) {
-    if (schema.isPrimitiveType()) {
+  public static Set<Integer> getProjectedIds(Schema schema) {
+    return ImmutableSet.copyOf(getIdsInternal(schema.asStruct()));
+  }
+
+  public static Set<Integer> getProjectedIds(Type type) {
+    if (type.isPrimitiveType()) {
       return ImmutableSet.of();
     }
-    return ImmutableSet.copyOf(visit(schema, new GetProjectedIds()));
+    return ImmutableSet.copyOf(getIdsInternal(type));
+  }
+
+  private static Set<Integer> getIdsInternal(Type type) {
+    return visit(type, new GetProjectedIds());
+  }
+
+  public static Types.StructType selectNot(Types.StructType struct, Set<Integer> fieldIds) {
+    Set<Integer> projectedIds = getIdsInternal(struct);
+    projectedIds.removeAll(fieldIds);
+    return select(struct, projectedIds);
   }
 
   public static Schema selectNot(Schema schema, Set<Integer> fieldIds) {
-    Set<Integer> projectedIds = getProjectedIds(schema);
+    Set<Integer> projectedIds = getIdsInternal(schema.asStruct());
     projectedIds.removeAll(fieldIds);
     return select(schema, projectedIds);
   }
@@ -81,7 +106,15 @@ public class TypeUtil {
   }
 
   public static Map<String, Integer> indexByName(Types.StructType struct) {
-    return visit(struct, new IndexByName());
+    IndexByName indexer = new IndexByName();
+    visit(struct, indexer);
+    return indexer.byName();
+  }
+
+  public static Map<Integer, String> indexNameById(Types.StructType struct) {
+    IndexByName indexer = new IndexByName();
+    visit(struct, indexer);
+    return indexer.byId();
   }
 
   public static Map<String, Integer> indexByLowerCaseName(Types.StructType struct) {
@@ -93,6 +126,10 @@ public class TypeUtil {
 
   public static Map<Integer, Types.NestedField> indexById(Types.StructType struct) {
     return visit(struct, new IndexById());
+  }
+
+  public static Map<Integer, Integer> indexParents(Types.StructType struct) {
+    return ImmutableMap.copyOf(visit(struct, new IndexParents()));
   }
 
   /**
@@ -111,13 +148,39 @@ public class TypeUtil {
    *
    * @param schema a schema
    * @param nextId an id assignment function
-   * @return an structurally identical schema with new ids assigned by the nextId function
+   * @return a structurally identical schema with new ids assigned by the nextId function
    */
   public static Schema assignFreshIds(Schema schema, NextID nextId) {
     return new Schema(TypeUtil
         .visit(schema.asStruct(), new AssignFreshIds(nextId))
         .asNestedType()
         .fields());
+  }
+
+  /**
+   * Assigns ids to match a given schema, and fresh ids from the {@link NextID nextId function} for all other fields.
+   *
+   * @param schema a schema
+   * @param baseSchema a schema with existing IDs to copy by name
+   * @param nextId an id assignment function
+   * @return a structurally identical schema with new ids assigned by the nextId function
+   */
+  public static Schema assignFreshIds(Schema schema, Schema baseSchema, NextID nextId) {
+    return new Schema(TypeUtil
+        .visit(schema.asStruct(), new AssignFreshIds(schema, baseSchema, nextId))
+        .asNestedType()
+        .fields());
+  }
+
+  /**
+   * Assigns strictly increasing fresh ids for all fields in a schema, starting from 1.
+   *
+   * @param schema a schema
+   * @return a structurally identical schema with new ids assigned strictly increasing from 1
+   */
+  public static Schema assignIncreasingFreshIds(Schema schema) {
+    AtomicInteger lastColumnId = new AtomicInteger(0);
+    return TypeUtil.assignFreshIds(schema, lastColumnId::incrementAndGet);
   }
 
   /**
@@ -171,6 +234,37 @@ public class TypeUtil {
   }
 
   /**
+   * Check whether we could write the iceberg table with the user-provided write schema.
+   *
+   * @param tableSchema      the table schema written in iceberg meta data.
+   * @param writeSchema      the user-provided write schema.
+   * @param checkNullability If true, not allow to write optional values to a required field.
+   * @param checkOrdering    If true, not allow input schema to have different ordering than table schema.
+   */
+  public static void validateWriteSchema(Schema tableSchema, Schema writeSchema,
+                                         Boolean checkNullability, Boolean checkOrdering) {
+    List<String> errors;
+    if (checkNullability) {
+      errors = CheckCompatibility.writeCompatibilityErrors(tableSchema, writeSchema, checkOrdering);
+    } else {
+      errors = CheckCompatibility.typeCompatibilityErrors(tableSchema, writeSchema, checkOrdering);
+    }
+
+    if (!errors.isEmpty()) {
+      StringBuilder sb = new StringBuilder();
+      sb.append("Cannot write incompatible dataset to table with schema:\n")
+          .append(tableSchema)
+          .append("\nwrite schema:")
+          .append(writeSchema)
+          .append("\nProblems:");
+      for (String error : errors) {
+        sb.append("\n* ").append(error);
+      }
+      throw new IllegalArgumentException(sb.toString());
+    }
+  }
+
+  /**
    * Interface for passing a function that assigns column IDs.
    */
   public interface NextID {
@@ -178,8 +272,35 @@ public class TypeUtil {
   }
 
   public static class SchemaVisitor<T> {
-    private final Deque<String> fieldNames = Lists.newLinkedList();
-    private final Deque<Integer> fieldIds = Lists.newLinkedList();
+    public void beforeField(Types.NestedField field) {
+    }
+
+    public void afterField(Types.NestedField field) {
+    }
+
+    public void beforeListElement(Types.NestedField elementField) {
+      beforeField(elementField);
+    }
+
+    public void afterListElement(Types.NestedField elementField) {
+      afterField(elementField);
+    }
+
+    public void beforeMapKey(Types.NestedField keyField) {
+      beforeField(keyField);
+    }
+
+    public void afterMapKey(Types.NestedField keyField) {
+      afterField(keyField);
+    }
+
+    public void beforeMapValue(Types.NestedField valueField) {
+      beforeField(valueField);
+    }
+
+    public void afterMapValue(Types.NestedField valueField) {
+      afterField(valueField);
+    }
 
     public T schema(Schema schema, T structResult) {
       return null;
@@ -204,14 +325,6 @@ public class TypeUtil {
     public T primitive(Type.PrimitiveType primitive) {
       return null;
     }
-
-    protected Deque<String> fieldNames() {
-      return fieldNames;
-    }
-
-    protected Deque<Integer> fieldIds() {
-      return fieldIds;
-    }
   }
 
   public static <T> T visit(Schema schema, SchemaVisitor<T> visitor) {
@@ -224,14 +337,12 @@ public class TypeUtil {
         Types.StructType struct = type.asNestedType().asStructType();
         List<T> results = Lists.newArrayListWithExpectedSize(struct.fields().size());
         for (Types.NestedField field : struct.fields()) {
-          visitor.fieldIds.push(field.fieldId());
-          visitor.fieldNames.push(field.name());
+          visitor.beforeField(field);
           T result;
           try {
             result = visit(field.type(), visitor);
           } finally {
-            visitor.fieldIds.pop();
-            visitor.fieldNames.pop();
+            visitor.afterField(field);
           }
           results.add(visitor.field(field, result));
         }
@@ -241,11 +352,12 @@ public class TypeUtil {
         Types.ListType list = type.asNestedType().asListType();
         T elementResult;
 
-        visitor.fieldIds.push(list.elementId());
+        Types.NestedField elementField = list.field(list.elementId());
+        visitor.beforeListElement(elementField);
         try {
           elementResult = visit(list.elementType(), visitor);
         } finally {
-          visitor.fieldIds.pop();
+          visitor.afterListElement(elementField);
         }
 
         return visitor.list(list, elementResult);
@@ -255,18 +367,20 @@ public class TypeUtil {
         T keyResult;
         T valueResult;
 
-        visitor.fieldIds.push(map.keyId());
+        Types.NestedField keyField = map.field(map.keyId());
+        visitor.beforeMapKey(keyField);
         try {
           keyResult = visit(map.keyType(), visitor);
         } finally {
-          visitor.fieldIds.pop();
+          visitor.afterMapKey(keyField);
         }
 
-        visitor.fieldIds.push(map.valueId());
+        Types.NestedField valueField = map.field(map.valueId());
+        visitor.beforeMapValue(valueField);
         try {
           valueResult = visit(map.valueType(), visitor);
         } finally {
-          visitor.fieldIds.pop();
+          visitor.afterMapValue(valueField);
         }
 
         return visitor.map(map, keyResult, valueResult);
@@ -384,7 +498,7 @@ public class TypeUtil {
     return MAX_PRECISION[numBytes];
   }
 
-  public static int decimalRequriedBytes(int precision) {
+  public static int decimalRequiredBytes(int precision) {
     Preconditions.checkArgument(precision >= 0 && precision < 40,
         "Unsupported decimal precision: %s", precision);
     return REQUIRED_LENGTH[precision];

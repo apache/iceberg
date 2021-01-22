@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 
 public class SimpleRecord {
   private Integer id;
@@ -28,7 +28,7 @@ public class SimpleRecord {
   public SimpleRecord() {
   }
 
-  SimpleRecord(Integer id, String data) {
+  public SimpleRecord(Integer id, String data) {
     this.id = id;
     this.data = data;
   }

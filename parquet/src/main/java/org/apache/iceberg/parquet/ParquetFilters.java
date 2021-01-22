@@ -25,6 +25,7 @@ import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
+import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
@@ -35,12 +36,13 @@ import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.filter2.predicate.Operators;
 import org.apache.parquet.io.api.Binary;
 
-import static org.apache.iceberg.expressions.ExpressionVisitors.visit;
-
 class ParquetFilters {
 
+  private ParquetFilters() {
+  }
+
   static FilterCompat.Filter convert(Schema schema, Expression expr, boolean caseSensitive) {
-    FilterPredicate pred = visit(expr, new ConvertFilterToParquet(schema, caseSensitive));
+    FilterPredicate pred = ExpressionVisitors.visit(expr, new ConvertFilterToParquet(schema, caseSensitive));
     // TODO: handle AlwaysFalse.INSTANCE
     if (pred != null && pred != AlwaysTrue.INSTANCE) {
       // FilterCompat will apply LogicalInverseRewriter
@@ -103,45 +105,53 @@ class ParquetFilters {
       return FilterApi.or(left, right);
     }
 
+    protected Expression bind(UnboundPredicate<?> pred) {
+      return pred.bind(schema.asStruct(), caseSensitive);
+    }
+
     @Override
     public <T> FilterPredicate predicate(BoundPredicate<T> pred) {
+      if (!(pred.term() instanceof BoundReference)) {
+        throw new UnsupportedOperationException("Cannot convert non-reference to Parquet filter: " + pred.term());
+      }
+
       Operation op = pred.op();
-      BoundReference<T> ref = pred.ref();
-      Literal<T> lit = pred.literal();
+      BoundReference<T> ref = (BoundReference<T>) pred.term();
       String path = schema.idToAlias(ref.fieldId());
+      Literal<T> lit;
+      if (pred.isUnaryPredicate()) {
+        lit = null;
+      } else if (pred.isLiteralPredicate()) {
+        lit = pred.asLiteralPredicate().literal();
+      } else {
+        throw new UnsupportedOperationException("Cannot convert to Parquet filter: " + pred);
+      }
 
       switch (ref.type().typeId()) {
         case BOOLEAN:
-          Operators.BooleanColumn col = FilterApi.booleanColumn(schema.idToAlias(ref.fieldId()));
+          Operators.BooleanColumn col = FilterApi.booleanColumn(path);
           switch (op) {
             case EQ:
               return FilterApi.eq(col, getParquetPrimitive(lit));
             case NOT_EQ:
-              return FilterApi.eq(col, getParquetPrimitive(lit));
+              return FilterApi.notEq(col, getParquetPrimitive(lit));
           }
-
+          break;
         case INTEGER:
+        case DATE:
           return pred(op, FilterApi.intColumn(path), getParquetPrimitive(lit));
         case LONG:
+        case TIME:
+        case TIMESTAMP:
           return pred(op, FilterApi.longColumn(path), getParquetPrimitive(lit));
         case FLOAT:
           return pred(op, FilterApi.floatColumn(path), getParquetPrimitive(lit));
         case DOUBLE:
           return pred(op, FilterApi.doubleColumn(path), getParquetPrimitive(lit));
-        case DATE:
-          return pred(op, FilterApi.intColumn(path), getParquetPrimitive(lit));
-        case TIME:
-          return pred(op, FilterApi.longColumn(path), getParquetPrimitive(lit));
-        case TIMESTAMP:
-          return pred(op, FilterApi.longColumn(path), getParquetPrimitive(lit));
         case STRING:
-          return pred(op, FilterApi.binaryColumn(path), getParquetPrimitive(lit));
         case UUID:
-          return pred(op, FilterApi.binaryColumn(path), getParquetPrimitive(lit));
         case FIXED:
-          return pred(op, FilterApi.binaryColumn(path), getParquetPrimitive(lit));
         case BINARY:
-          return pred(op, FilterApi.binaryColumn(path), getParquetPrimitive(lit));
         case DECIMAL:
           return pred(op, FilterApi.binaryColumn(path), getParquetPrimitive(lit));
       }
@@ -149,12 +159,7 @@ class ParquetFilters {
       throw new UnsupportedOperationException("Cannot convert to Parquet filter: " + pred);
     }
 
-    protected Expression bind(UnboundPredicate<?> pred) {
-      return pred.bind(schema.asStruct(), caseSensitive);
-    }
-
     @Override
-    @SuppressWarnings("unchecked")
     public <T> FilterPredicate predicate(UnboundPredicate<T> pred) {
       Expression bound = bind(pred);
       if (bound instanceof BoundPredicate) {
@@ -168,14 +173,30 @@ class ParquetFilters {
     }
   }
 
-  private static
-  <C extends Comparable<C>, COL extends Operators.Column<C> & Operators.SupportsLtGt>
-  FilterPredicate pred(Operation op, COL col, C value) {
+  @SuppressWarnings("checkstyle:MethodTypeParameterName")
+  private static <C extends Comparable<C>, COL extends Operators.Column<C> & Operators.SupportsLtGt>
+      FilterPredicate pred(Operation op, COL col, C value) {
     switch (op) {
       case IS_NULL:
         return FilterApi.eq(col, null);
       case NOT_NULL:
         return FilterApi.notEq(col, null);
+      case IS_NAN:
+        if (col.getColumnType().equals(Double.class)) {
+          return FilterApi.eq(col, (C) (Double) Double.NaN);
+        } else if (col.getColumnType().equals(Float.class)) {
+          return FilterApi.eq(col, (C) (Float) Float.NaN);
+        } else {
+          return AlwaysFalse.INSTANCE;
+        }
+      case NOT_NAN:
+        if (col.getColumnType().equals(Double.class)) {
+          return FilterApi.notEq(col, (C) (Double) Double.NaN);
+        } else if (col.getColumnType().equals(Float.class)) {
+          return FilterApi.notEq(col, (C) (Float) Float.NaN);
+        } else {
+          return AlwaysTrue.INSTANCE;
+        }
       case EQ:
         return FilterApi.eq(col, value);
       case NOT_EQ:

@@ -24,22 +24,24 @@ from ..types import Conversions
 
 class StrictMetricsEvaluator(object):
 
-    def visitor(self):
-        if not hasattr(self.thread_local_data, "visitors"):
-            self.thread_local_data.visitors = StrictMetricsEvaluator.MetricsEvalVisitor(self.expr,
-                                                                                                          self.schema,
-                                                                                                          self.struct)
-
-        return self.thread_local_data.visitors
-
     def __init__(self, schema, unbound):
         self.schema = schema
         self.struct = schema.as_struct()
         self.expr = Binder.bind(self.struct, Expressions.rewrite_not(unbound))
         self.thread_local_data = threading.local()
 
+    def _visitor(self):
+        if not hasattr(self.thread_local_data, "visitors"):
+            self.thread_local_data.visitors = StrictMetricsEvaluator.MetricsEvalVisitor(
+                self.expr,
+                self.schema,
+                self.struct
+            )
+
+        return self.thread_local_data.visitors
+
     def eval(self, file):
-        return self.visitor().eval(file)
+        return self._visitor().eval(file)
 
     class MetricsEvalVisitor(ExpressionVisitors.BoundExpressionVisitor):
         ROWS_MUST_MATCH = True

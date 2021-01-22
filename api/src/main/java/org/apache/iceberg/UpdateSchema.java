@@ -31,6 +31,22 @@ import org.apache.iceberg.types.Type;
 public interface UpdateSchema extends PendingUpdate<Schema> {
 
   /**
+   * Allow incompatible changes to the schema.
+   * <p>
+   * Incompatible changes can cause failures when attempting to read older data files. For example, adding a required
+   * column and attempting to read data files without that column will cause a failure. However, if there are no data
+   * files that are not compatible with the change, it can be allowed.
+   * <p>
+   * This option allows incompatible changes to be made to a schema. This should be used when the caller has validated
+   * that the change will not break. For example, if a column is added as optional but always populated and data older
+   * than the column addition has been deleted from the table, this can be used with {@link #requireColumn(String)} to
+   * mark the column required.
+   *
+   * @return this for method chaining
+   */
+  UpdateSchema allowIncompatibleChanges();
+
+  /**
    * Add a new top-level column.
    * <p>
    * Because "." may be interpreted as a column path separator or may be used in field names, it is
@@ -113,6 +129,100 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
   UpdateSchema addColumn(String parent, String name, Type type, String doc);
 
   /**
+   * Add a new required top-level column.
+   * <p>
+   * This is an incompatible change that can break reading older data. This method will result in an exception unless
+   * {@link #allowIncompatibleChanges()} has been called.
+   * <p>
+   * Because "." may be interpreted as a column path separator or may be used in field names, it is
+   * not allowed in names passed to this method. To add to nested structures or to add fields with
+   * names that contain ".", use {@link #addRequiredColumn(String, String, Type)}.
+   * <p>
+   * If type is a nested type, its field IDs are reassigned when added to the existing schema.
+   *
+   * @param name name for the new column
+   * @param type type for the new column
+   * @return this for method chaining
+   * @throws IllegalArgumentException If name contains "."
+   */
+  default UpdateSchema addRequiredColumn(String name, Type type) {
+    return addRequiredColumn(name, type, null);
+  }
+
+  /**
+   * Add a new required top-level column.
+   * <p>
+   * This is an incompatible change that can break reading older data. This method will result in an exception unless
+   * {@link #allowIncompatibleChanges()} has been called.
+   * <p>
+   * Because "." may be interpreted as a column path separator or may be used in field names, it is
+   * not allowed in names passed to this method. To add to nested structures or to add fields with
+   * names that contain ".", use {@link #addRequiredColumn(String, String, Type)}.
+   * <p>
+   * If type is a nested type, its field IDs are reassigned when added to the existing schema.
+   *
+   * @param name name for the new column
+   * @param type type for the new column
+   * @param doc documentation string for the new column
+   * @return this for method chaining
+   * @throws IllegalArgumentException If name contains "."
+   */
+  UpdateSchema addRequiredColumn(String name, Type type, String doc);
+
+  /**
+   * Add a new required top-level column.
+   * <p>
+   * This is an incompatible change that can break reading older data. This method will result in an exception unless
+   * {@link #allowIncompatibleChanges()} has been called.
+   * <p>
+   * The parent name is used to find the parent using {@link Schema#findField(String)}. If the
+   * parent name is null, the new column will be added to the root as a top-level column. If parent
+   * identifies a struct, a new column is added to that struct. If it identifies a list, the column
+   * is added to the list element struct, and if it identifies a map, the new column is added to
+   * the map's value struct.
+   * <p>
+   * The given name is used to name the new column and names containing "." are not handled
+   * differently.
+   * <p>
+   * If type is a nested type, its field IDs are reassigned when added to the existing schema.
+   *
+   * @param parent name of the parent struct to the column will be added to
+   * @param name name for the new column
+   * @param type type for the new column
+   * @return this for method chaining
+   * @throws IllegalArgumentException If parent doesn't identify a struct
+   */
+  default UpdateSchema addRequiredColumn(String parent, String name, Type type) {
+    return addRequiredColumn(parent, name, type, null);
+  }
+
+  /**
+   * Add a new required top-level column.
+   * <p>
+   * This is an incompatible change that can break reading older data. This method will result in an exception unless
+   * {@link #allowIncompatibleChanges()} has been called.
+   * <p>
+   * The parent name is used to find the parent using {@link Schema#findField(String)}. If the
+   * parent name is null, the new column will be added to the root as a top-level column. If parent
+   * identifies a struct, a new column is added to that struct. If it identifies a list, the column
+   * is added to the list element struct, and if it identifies a map, the new column is added to
+   * the map's value struct.
+   * <p>
+   * The given name is used to name the new column and names containing "." are not handled
+   * differently.
+   * <p>
+   * If type is a nested type, its field IDs are reassigned when added to the existing schema.
+   *
+   * @param parent name of the parent struct to the column will be added to
+   * @param name name for the new column
+   * @param type type for the new column
+   * @param doc documentation string for the new column
+   * @return this for method chaining
+   * @throws IllegalArgumentException If parent doesn't identify a struct
+   */
+  UpdateSchema addRequiredColumn(String parent, String name, Type type, String doc);
+
+  /**
    * Rename a column in the schema.
    * <p>
    * The name is used to find the column to rename using {@link Schema#findField(String)}.
@@ -185,6 +295,25 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
   UpdateSchema updateColumnDoc(String name, String newDoc);
 
   /**
+   * Update a column to optional.
+   *
+   * @param name name of the column to mark optional
+   * @return this for method chaining
+   */
+  UpdateSchema makeColumnOptional(String name);
+
+  /**
+   * Update a column to required.
+   * <p>
+   * This is an incompatible change that can break reading older data. This method will result in an exception unless
+   * {@link #allowIncompatibleChanges()} has been called.
+   *
+   * @param name name of the column to mark required
+   * @return this for method chaining
+   */
+  UpdateSchema requireColumn(String name);
+
+  /**
    * Delete a column in the schema.
    * <p>
    * The name is used to find the column to delete using {@link Schema#findField(String)}.
@@ -196,4 +325,63 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    */
   UpdateSchema deleteColumn(String name);
 
+  /**
+   * Move a column from its current position to the start of the schema or its parent struct.
+   * @param name name of the column to move
+   * @return this for method chaining
+   * @throws IllegalArgumentException If name doesn't identify a column in the schema or if this
+   *                                  change conflicts with other changes.
+   */
+  UpdateSchema moveFirst(String name);
+
+  /**
+   * Move a column from its current position to directly before a reference column.
+   * <p>
+   * The name is used to find the column to move using {@link Schema#findField(String)}. If the name identifies a nested
+   * column, it can only be moved within the nested struct that contains it.
+   *
+   * @param name name of the column to move
+   * @param beforeName name of the reference column
+   * @return this for method chaining
+   * @throws IllegalArgumentException If name doesn't identify a column in the schema or if this
+   *                                  change conflicts with other changes.
+   */
+  UpdateSchema moveBefore(String name, String beforeName);
+
+  /**
+   * Move a column from its current position to directly after a reference column.
+   * <p>
+   * The name is used to find the column to move using {@link Schema#findField(String)}. If the name identifies a nested
+   * column, it can only be moved within the nested struct that contains it.
+   *
+   * @param name name of the column to move
+   * @param afterName name of the reference column
+   * @return this for method chaining
+   * @throws IllegalArgumentException If name doesn't identify a column in the schema or if this
+   *                                  change conflicts with other changes.
+   */
+  UpdateSchema moveAfter(String name, String afterName);
+
+
+  /**
+   * Applies all field additions and updates from the provided new schema to the existing schema so
+   * to create a union schema.
+   * <p>
+   * For fields with same canonical names in both schemas it is required that the widen types is
+   * supported using {@link UpdateSchema#updateColumn(String, Type.PrimitiveType)}
+   * <p>
+   * Only supports turning a previously required field into an optional one if it is marked
+   * optional in the provided new schema using {@link UpdateSchema#makeColumnOptional(String)}
+   * <p>
+   * Only supports updating existing field docs with fields docs from the provided new schema using
+   * {@link UpdateSchema#updateColumnDoc(String, String)}
+   *
+   * @param newSchema a schema used in conjunction with the existing schema to create a union schema
+   * @return this for method chaining
+   * @throws IllegalStateException If it encounters errors during provided schema traversal
+   * @throws IllegalArgumentException If name doesn't identify a column in the schema or if this
+   *                                  change introduces a type incompatibility or if it conflicts
+   *                                  with other additions, renames, or updates.
+   */
+  UpdateSchema unionByNameWith(Schema newSchema);
 }

@@ -50,8 +50,29 @@ class ManifestFile(object):
     def schema():
         return ManifestFile.SCHEMA
 
+    @property
+    def added_files_count(self):
+        raise NotImplementedError()
+
+    @property
+    def existing_files_count(self):
+        raise NotImplementedError()
+
+    @property
+    def deleted_files_count(self):
+        raise NotImplementedError()
+
     def copy(self):
         raise NotImplementedError()
+
+    def has_added_files(self):
+        return self.added_files_count is None or self.added_files_count > 0
+
+    def has_existing_files(self):
+        return self.existing_files_count is None or self.existing_files_count > 0
+
+    def has_deleted_files(self):
+        return self.deleted_files_count is None or self.deleted_files_count > 0
 
 
 class PartitionFieldSummary(object):

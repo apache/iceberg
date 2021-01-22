@@ -48,7 +48,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.Files.localOutput;
 
-public class TestAvroScan extends AvroDataTest {
+public abstract class TestAvroScan extends AvroDataTest {
   private static final Configuration CONF = new Configuration();
 
   @Rule

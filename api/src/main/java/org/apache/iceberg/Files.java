@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Paths;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -33,7 +34,8 @@ import org.apache.iceberg.io.SeekableInputStream;
 
 public class Files {
 
-  private Files() {}
+  private Files() {
+  }
 
   public static OutputFile localOutput(File file) {
     return new LocalOutputFile(file);
@@ -58,15 +60,14 @@ public class Files {
 
       if (!file.getParentFile().isDirectory() && !file.getParentFile().mkdirs()) {
         throw new RuntimeIOException(
-            String.format(
                 "Failed to create the file's directory at %s.",
-                file.getParentFile().getAbsolutePath()));
+                file.getParentFile().getAbsolutePath());
       }
 
       try {
         return new PositionFileOutputStream(file, new RandomAccessFile(file, "rw"));
       } catch (FileNotFoundException e) {
-        throw new RuntimeIOException(e, "Failed to create file: %s", file);
+        throw new NotFoundException(e, "Failed to create file: %s", file);
       }
     }
 
@@ -74,7 +75,7 @@ public class Files {
     public PositionOutputStream createOrOverwrite() {
       if (file.exists()) {
         if (!file.delete()) {
-          throw new RuntimeIOException("Failed to delete: " + file);
+          throw new RuntimeIOException("Failed to delete: %s", file);
         }
       }
       return create();
@@ -124,7 +125,7 @@ public class Files {
       try {
         return new SeekableFileInputStream(new RandomAccessFile(file, "r"));
       } catch (FileNotFoundException e) {
-        throw new RuntimeIOException(e, "Failed to read file: %s", file);
+        throw new NotFoundException(e, "Failed to read file: %s", file);
       }
     }
 

@@ -19,26 +19,19 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.collect.MapMaker;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.function.Supplier;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
-import org.apache.avro.io.DecoderFactory;
-import org.apache.avro.io.ResolvingDecoder;
 import org.apache.iceberg.common.DynClasses;
-import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.data.avro.DecoderResolver;
 
-class GenericAvroReader<T> implements DatumReader<T> {
-
-  private static final ThreadLocal<Map<Schema, Map<Schema, ResolvingDecoder>>> DECODER_CACHES =
-      ThreadLocal.withInitial(() -> new MapMaker().weakKeys().makeMap());
+class GenericAvroReader<T> implements DatumReader<T>, SupportsRowPosition {
 
   private final Schema readSchema;
   private ClassLoader loader = Thread.currentThread().getContextClassLoader();
@@ -65,35 +58,15 @@ class GenericAvroReader<T> implements DatumReader<T> {
   }
 
   @Override
+  public void setRowPositionSupplier(Supplier<Long> posSupplier) {
+    if (reader instanceof SupportsRowPosition) {
+      ((SupportsRowPosition) reader).setRowPositionSupplier(posSupplier);
+    }
+  }
+
+  @Override
   public T read(T reuse, Decoder decoder) throws IOException {
-    ResolvingDecoder resolver = resolve(decoder);
-    T value = reader.read(resolver, reuse);
-    resolver.drain();
-    return value;
-  }
-
-  private ResolvingDecoder resolve(Decoder decoder) throws IOException {
-    Map<Schema, Map<Schema, ResolvingDecoder>> cache = DECODER_CACHES.get();
-    Map<Schema, ResolvingDecoder> fileSchemaToResolver = cache
-        .computeIfAbsent(readSchema, k -> new HashMap<>());
-
-    ResolvingDecoder resolver = fileSchemaToResolver.get(fileSchema);
-    if (resolver == null) {
-      resolver = newResolver();
-      fileSchemaToResolver.put(fileSchema, resolver);
-    }
-
-    resolver.configure(decoder);
-
-    return resolver;
-  }
-
-  private ResolvingDecoder newResolver() {
-    try {
-      return DecoderFactory.get().resolvingDecoder(fileSchema, readSchema, null);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
+    return DecoderResolver.resolveAndRead(decoder, readSchema, fileSchema, reader, reuse);
   }
 
   private static class ReadBuilder extends AvroSchemaVisitor<ValueReader<?>> {
@@ -158,6 +131,9 @@ class GenericAvroReader<T> implements DatumReader<T> {
             // Spark uses the same representation
             return ValueReaders.ints();
 
+          case "time-micros":
+            return ValueReaders.longs();
+
           case "timestamp-millis":
             // adjust to microseconds
             ValueReader<Long> longs = ValueReaders.longs();
@@ -168,21 +144,9 @@ class GenericAvroReader<T> implements DatumReader<T> {
             return ValueReaders.longs();
 
           case "decimal":
-            ValueReader<byte[]> inner;
-            switch (primitive.getType()) {
-              case FIXED:
-                inner = ValueReaders.fixed(primitive.getFixedSize());
-                break;
-              case BYTES:
-                inner = ValueReaders.bytes();
-                break;
-              default:
-                throw new IllegalArgumentException(
-                    "Invalid primitive type for decimal: " + primitive.getType());
-            }
-
-            LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
-            return ValueReaders.decimal(inner, decimal.getScale());
+            return ValueReaders.decimal(
+                ValueReaders.decimalBytesReader(primitive),
+                ((LogicalTypes.Decimal) logicalType).getScale());
 
           case "uuid":
             return ValueReaders.uuids();
@@ -211,6 +175,8 @@ class GenericAvroReader<T> implements DatumReader<T> {
           return ValueReaders.fixed(primitive);
         case BYTES:
           return ValueReaders.byteBuffers();
+        case ENUM:
+          return ValueReaders.enums(primitive.getEnumSymbols());
         default:
           throw new IllegalArgumentException("Unsupported type: " + primitive);
       }

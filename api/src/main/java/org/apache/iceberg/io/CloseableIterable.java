@@ -19,18 +19,27 @@
 
 package org.apache.iceberg.io;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public interface CloseableIterable<T> extends Iterable<T>, Closeable {
+
+  /**
+   * Returns an closeable iterator over elements of type {@code T}.
+   *
+   * @return an {@link CloseableIterator}.
+   */
+  @Override
+  CloseableIterator<T> iterator();
+
   static <E> CloseableIterable<E> withNoopClose(E entry) {
     return withNoopClose(ImmutableList.of(entry));
   }
@@ -42,8 +51,8 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
       }
 
       @Override
-      public Iterator<E> iterator() {
-        return iterable.iterator();
+      public CloseableIterator<E> iterator() {
+        return CloseableIterator.withClose(iterable.iterator());
       }
     };
   }
@@ -60,14 +69,19 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
       }
 
       @Override
-      public Iterator<E> iterator() {
-        return iterable.iterator();
+      public CloseableIterator<E> iterator() {
+        return CloseableIterator.withClose(iterable.iterator());
       }
     };
   }
 
   static <E> CloseableIterable<E> filter(CloseableIterable<E> iterable, Predicate<E> pred) {
-    return combine(Iterables.filter(iterable, pred::test), iterable);
+    return combine(() -> new FilterIterator<E>(iterable.iterator()) {
+      @Override
+      protected boolean shouldKeep(E item) {
+        return pred.test(item);
+      }
+    }, iterable);
   }
 
   static <I, O> CloseableIterable<O> transform(CloseableIterable<I> iterable, Function<I, O> transform) {
@@ -80,9 +94,14 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
       }
 
       @Override
-      public Iterator<O> iterator() {
-        return new Iterator<O>() {
-          private final Iterator<I> inner = iterable.iterator();
+      public CloseableIterator<O> iterator() {
+        return new CloseableIterator<O>() {
+          private final CloseableIterator<I> inner = iterable.iterator();
+
+          @Override
+          public void close() throws IOException {
+            inner.close();
+          }
 
           @Override
           public boolean hasNext() {
@@ -115,13 +134,13 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
     }
 
     @Override
-    public Iterator<E> iterator() {
+    public CloseableIterator<E> iterator() {
       ConcatCloseableIterator<E> iter = new ConcatCloseableIterator<>(inputs);
       addCloseable(iter);
       return iter;
     }
 
-    private static class ConcatCloseableIterator<E> implements Iterator<E>, Closeable {
+    private static class ConcatCloseableIterator<E> implements CloseableIterator<E> {
       private final Iterator<CloseableIterable<E>> iterables;
       private CloseableIterable<E> currentIterable = null;
       private Iterator<E> currentIterator = null;
@@ -183,7 +202,11 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
 
       @Override
       public E next() {
-        return currentIterator.next();
+        if (hasNext()) {
+          return currentIterator.next();
+        } else {
+          throw new NoSuchElementException();
+        }
       }
     }
   }

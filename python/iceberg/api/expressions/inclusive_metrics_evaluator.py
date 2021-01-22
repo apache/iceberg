@@ -24,12 +24,6 @@ from ..types import Conversions
 
 class InclusiveMetricsEvaluator(object):
 
-    def visitor(self):
-        if not hasattr(self.thread_local_data, "visitors"):
-            self.thread_local_data.visitors = MetricsEvalVisitor(self.expr, self.schema, self.struct)
-
-        return self.thread_local_data.visitors
-
     def __init__(self, schema, unbound, case_sensitive=True):
         self.schema = schema
         self.struct = schema.as_struct()
@@ -37,8 +31,14 @@ class InclusiveMetricsEvaluator(object):
         self.expr = Binder.bind(self.struct, Expressions.rewrite_not(unbound), case_sensitive)
         self.thread_local_data = threading.local()
 
+    def _visitor(self):
+        if not hasattr(self.thread_local_data, "visitors"):
+            self.thread_local_data.visitors = MetricsEvalVisitor(self.expr, self.schema, self.struct)
+
+        return self.thread_local_data.visitors
+
     def eval(self, file):
-        return self.visitor().eval(file)
+        return self._visitor().eval(file)
 
 
 class MetricsEvalVisitor(ExpressionVisitors.BoundExpressionVisitor):

@@ -22,16 +22,17 @@ package org.apache.iceberg.util;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class JsonUtil {
 
-  private JsonUtil() {}
+  private JsonUtil() {
+  }
 
   private static final JsonFactory FACTORY = new JsonFactory();
   private static final ObjectMapper MAPPER = new ObjectMapper(FACTORY);
@@ -52,8 +53,18 @@ public class JsonUtil {
     return pNode.asInt();
   }
 
+  public static Integer getIntOrNull(String property, JsonNode node) {
+    if (!node.has(property)) {
+      return null;
+    }
+    JsonNode pNode = node.get(property);
+    Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isIntegralNumber() && pNode.canConvertToInt(),
+        "Cannot parse %s from non-string value: %s", property, pNode);
+    return pNode.asInt();
+  }
+
   public static long getLong(String property, JsonNode node) {
-    Preconditions.checkArgument(node.has(property), "Cannot parse missing int %s", property);
+    Preconditions.checkArgument(node.has(property), "Cannot parse missing long %s", property);
     JsonNode pNode = node.get(property);
     Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isNumber(),
         "Cannot parse %s from non-numeric value: %s", property, pNode);
@@ -81,7 +92,10 @@ public class JsonUtil {
       return null;
     }
     JsonNode pNode = node.get(property);
-    Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isTextual(),
+    if (pNode != null && pNode.isNull()) {
+      return null;
+    }
+    Preconditions.checkArgument(pNode != null && pNode.isTextual(),
         "Cannot parse %s from non-string value: %s", property, pNode);
     return pNode.asText();
   }

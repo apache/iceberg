@@ -19,26 +19,31 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Sets;
-import java.util.Collection;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 
 /**
  * A {@link Table} implementation that exposes a table's data files as rows.
  */
-class DataFilesTable extends BaseMetadataTable {
+public class DataFilesTable extends BaseMetadataTable {
   private final TableOperations ops;
   private final Table table;
+  private final String name;
 
   DataFilesTable(TableOperations ops, Table table) {
+    this(ops, table, table.name() + ".files");
+  }
+
+  DataFilesTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
+    this.name = name;
   }
 
   @Override
@@ -47,8 +52,8 @@ class DataFilesTable extends BaseMetadataTable {
   }
 
   @Override
-  String metadataTableName() {
-    return "files";
+  public String name() {
+    return name;
   }
 
   @Override
@@ -60,20 +65,24 @@ class DataFilesTable extends BaseMetadataTable {
   public Schema schema() {
     Schema schema = new Schema(DataFile.getType(table.spec().partitionType()).fields());
     if (table.spec().fields().size() < 1) {
-      // avoid returning an empty struct, which is not always supported. instead, drop the partition field (id 102)
-      return TypeUtil.selectNot(schema, Sets.newHashSet(102));
+      // avoid returning an empty struct, which is not always supported. instead, drop the partition field
+      return TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));
     } else {
       return schema;
     }
   }
 
   @Override
-  public String location() {
-    return table.currentSnapshot().manifestListLocation();
+  String metadataLocation() {
+    return ops.current().metadataFileLocation();
+  }
+
+  @Override
+  MetadataTableType metadataTableType() {
+    return MetadataTableType.FILES;
   }
 
   public static class FilesTableScan extends BaseTableScan {
-    private static final long TARGET_SPLIT_SIZE = 32 * 1024 * 1024; // 32 MB
     private final Schema fileSchema;
 
     FilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
@@ -81,94 +90,60 @@ class DataFilesTable extends BaseMetadataTable {
       this.fileSchema = fileSchema;
     }
 
-    private FilesTableScan(
-        TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns, Schema fileSchema) {
-      super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+    private FilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema,
+                           TableScanContext context) {
+      super(ops, table, schema, context);
       this.fileSchema = fileSchema;
     }
 
     @Override
-    protected TableScan newRefinedScan(
-        TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
-      return new FilesTableScan(
-          ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns, fileSchema);
+    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+      return new FilesTableScan(ops, table, schema, fileSchema, context);
     }
 
     @Override
     protected long targetSplitSize(TableOperations ops) {
-      return TARGET_SPLIT_SIZE;
+      return ops.current().propertyAsLong(
+          TableProperties.METADATA_SPLIT_SIZE, TableProperties.METADATA_SPLIT_SIZE_DEFAULT);
     }
 
     @Override
     protected CloseableIterable<FileScanTask> planFiles(
-        TableOperations ops, Snapshot snapshot, Expression rowFilter, boolean caseSensitive, boolean colStats) {
-      CloseableIterable<ManifestFile> manifests = Avro
-          .read(ops.io().newInputFile(snapshot.manifestListLocation()))
-          .rename("manifest_file", GenericManifestFile.class.getName())
-          .rename("partitions", GenericPartitionFieldSummary.class.getName())
-          // 508 is the id used for the partition field, and r508 is the record name created for it in Avro schemas
-          .rename("r508", GenericPartitionFieldSummary.class.getName())
-          .project(ManifestFile.schema())
-          .reuseContainers(false)
-          .build();
-
+        TableOperations ops, Snapshot snapshot, Expression rowFilter,
+        boolean ignoreResiduals, boolean caseSensitive, boolean colStats) {
+      CloseableIterable<ManifestFile> manifests = CloseableIterable.withNoopClose(snapshot.dataManifests());
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
+      Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
+      ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
       // Data tasks produce the table schema, not the projection schema and projection is done by processing engines.
       // This data task needs to use the table schema, which may not include a partition schema to avoid having an
       // empty struct in the schema for unpartitioned tables. Some engines, like Spark, can't handle empty structs in
       // all cases.
       return CloseableIterable.transform(manifests, manifest ->
-          new ManifestReadTask(ops.io(), new BaseFileScanTask(
-              DataFiles.fromManifest(manifest), schemaString, specString, ResidualEvaluator.unpartitioned(rowFilter)),
-              fileSchema));
+          new ManifestReadTask(ops.io(), manifest, fileSchema, schemaString, specString, residuals));
     }
   }
 
-  private static class ManifestReadTask implements DataTask {
+  static class ManifestReadTask extends BaseFileScanTask implements DataTask {
     private final FileIO io;
-    private final FileScanTask manifestTask;
+    private final ManifestFile manifest;
     private final Schema schema;
 
-    private ManifestReadTask(FileIO io, FileScanTask manifestTask, Schema schema) {
+    ManifestReadTask(FileIO io, ManifestFile manifest, Schema schema, String schemaString,
+                     String specString, ResidualEvaluator residuals) {
+      super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
       this.io = io;
-      this.manifestTask = manifestTask;
+      this.manifest = manifest;
       this.schema = schema;
     }
 
     @Override
     public CloseableIterable<StructLike> rows() {
       return CloseableIterable.transform(
-          ManifestReader.read(io.newInputFile(manifestTask.file().path().toString())).project(schema),
+          ManifestFiles.read(manifest, io).project(schema),
           file -> (GenericDataFile) file);
-    }
-
-    @Override
-    public DataFile file() {
-      return manifestTask.file();
-    }
-
-    @Override
-    public PartitionSpec spec() {
-      return manifestTask.spec();
-    }
-
-    @Override
-    public long start() {
-      return 0;
-    }
-
-    @Override
-    public long length() {
-      return manifestTask.length();
-    }
-
-    @Override
-    public Expression residual() {
-      return manifestTask.residual();
     }
 
     @Override

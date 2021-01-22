@@ -26,14 +26,14 @@ Community discussions happen primarily on the dev mailing list or on specific is
 
 ## Contributing
 
-Iceberg uses Apache's GitHub integration. The code is available at <https://github.com/apache/incubator-iceberg>
+Iceberg uses Apache's GitHub integration. The code is available at <https://github.com/apache/iceberg>
 
 The Iceberg community prefers to receive contributions as [Github pull requests][github-pr-docs].
 
 * [View open pull requests][iceberg-prs]
 * [Learn about pull requests][github-pr-docs]
 
-[iceberg-prs]: https://github.com/apache/incubator-iceberg/pulls
+[iceberg-prs]: https://github.com/apache/iceberg/pulls
 [github-pr-docs]: https://help.github.com/articles/about-pull-requests/
 
 
@@ -44,13 +44,15 @@ Issues are tracked in GitHub:
 * [View open issues][open-issues]
 * [Open a new issue][new-issue]
 
-[open-issues]: https://github.com/apache/incubator-iceberg/issues
-[new-issue]: https://github.com/apache/incubator-iceberg/issues/new
+[open-issues]: https://github.com/apache/iceberg/issues
+[new-issue]: https://github.com/apache/iceberg/issues/new
 
+## Slack
+[![Slack](https://img.shields.io/badge/chat-on%20Slack-brightgreen.svg)](https://the-asf.slack.com/archives/CF01LKV9S)
 
 ## Mailing Lists
 
-Iceberg has three mailing lists:
+Iceberg has four mailing lists:
 
 * **Developers**: <dev@iceberg.apache.org> -- used for community discussions
     - [Subscribe](mailto:dev-subscribe@iceberg.apache.org)
@@ -60,5 +62,9 @@ Iceberg has three mailing lists:
     - [Subscribe](mailto:commits-subscribe@iceberg.apache.org)
     - [Unsubscribe](mailto:commits-unsubscribe@iceberg.apache.org)
     - [Archive](https://lists.apache.org/list.html?commits@iceberg.apache.org)
-* **Private**: <private@iceberg.apache.org> -- private PMC list for committer nominations
+* **Issues**: <issues@iceberg.apache.org> -- Github issue tracking
+    - [Subscribe](mailto:issues-subscribe@iceberg.apache.org)
+    - [Unsubscribe](mailto:issues-unsubscribe@iceberg.apache.org)
+    - [Archive](https://lists.apache.org/list.html?issues@iceberg.apache.org)
+* **Private**: <private@iceberg.apache.org> -- private list for the PMC to discuss sensitive issues related to the health of the project
     - [Archive](https://lists.apache.org/list.html?private@iceberg.apache.org)

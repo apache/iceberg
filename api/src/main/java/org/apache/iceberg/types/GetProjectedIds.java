@@ -19,10 +19,10 @@
 
 package org.apache.iceberg.types;
 
-import com.google.common.collect.Sets;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 class GetProjectedIds extends TypeUtil.SchemaVisitor<Set<Integer>> {
   private final Set<Integer> fieldIds = Sets.newHashSet();

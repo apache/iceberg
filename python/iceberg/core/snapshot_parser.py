@@ -18,7 +18,6 @@
 import json
 
 from .base_snapshot import BaseSnapshot
-from .generic_manifest_file import GenericManifestFile
 
 
 class SnapshotParser(object):
@@ -39,10 +38,12 @@ class SnapshotParser(object):
         return {SnapshotParser.SNAPSHOT_ID: snapshot.snapshot_id,
                 SnapshotParser.TIMESTAMP_MS: snapshot.timestamp_millis,
                 SnapshotParser.PARENT_SNAPSHOT_ID: snapshot.parent_id,
+                SnapshotParser.OPERATION: snapshot.operation,
+                SnapshotParser.SUMMARY: snapshot.summary,
                 SnapshotParser.MANIFESTS: [manifest.manifest_path for manifest in snapshot.manifests]}
 
     @staticmethod
-    def from_json(ops, json_obj):
+    def from_json(ops, json_obj, spec=None):
         if isinstance(json_obj, str):
             json_obj = json.loads(json_obj)
 
@@ -63,8 +64,8 @@ class SnapshotParser(object):
                                 operation=operation,
                                 summary=summary)
         else:
-            manifests = [GenericManifestFile.generic_manifest_from_file(ops.new_input_file(location), 0)  # noqa: F841
-                         for location in json_obj.get(SnapshotParser.MANIFESTS, list())]
+            manifests = json_obj.get(SnapshotParser.MANIFESTS, list())
+
             return BaseSnapshot(ops, version_id, parent_id,
                                 manifests=manifests,
                                 timestamp_millis=timestamp_millis,

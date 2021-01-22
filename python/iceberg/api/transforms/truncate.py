@@ -32,7 +32,7 @@ class Truncate(Transform):
         if type_var.type_id == TypeID.INTEGER:
             return TruncateInteger(width)
         elif type_var.type_id == TypeID.LONG:
-            return TruncateInteger(width)
+            return TruncateLong(width)
         elif type_var.type_id == TypeID.DECIMAL:
             return TruncateDecimal(width)
         elif type_var.type_id == TypeID.STRING:

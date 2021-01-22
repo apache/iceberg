@@ -19,20 +19,13 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Set;
-import java.util.SortedMap;
 import java.util.function.Function;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.And;
@@ -43,6 +36,14 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSortedMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
@@ -51,7 +52,7 @@ public class ScanSummary {
   private ScanSummary() {
   }
 
-  private static final List<String> SCAN_SUMMARY_COLUMNS = ImmutableList.of(
+  private static final ImmutableList<String> SCAN_SUMMARY_COLUMNS = ImmutableList.of(
       "partition", "record_count", "file_size_in_bytes");
 
   /**
@@ -73,7 +74,7 @@ public class ScanSummary {
     private final Map<Long, Long> snapshotTimestamps;
     private int limit = Integer.MAX_VALUE;
     private boolean throwIfLimited = false;
-    private List<UnboundPredicate<Long>> timeFilters = Lists.newArrayList();
+    private final List<UnboundPredicate<Long>> timeFilters = Lists.newArrayList();
 
     public Builder(TableScan scan) {
       this.scan = scan;
@@ -130,13 +131,15 @@ public class ScanSummary {
 
       } else if (expression instanceof UnboundPredicate) {
         UnboundPredicate pred = (UnboundPredicate) expression;
-        NamedReference ref = (NamedReference) pred.ref();
-        Literal<?> lit = pred.literal();
-        if (TIMESTAMP_NAMES.contains(ref.name())) {
-          Literal<Long> tsLiteral = lit.to(Types.TimestampType.withoutZone());
-          long millis = toMillis(tsLiteral.value());
-          addTimestampFilter(Expressions.predicate(pred.op(), "timestamp_ms", millis));
-          return;
+        if (pred.term() instanceof NamedReference) {
+          NamedReference<?> ref = (NamedReference<?>) pred.term();
+          Literal<?> lit = pred.literal();
+          if (TIMESTAMP_NAMES.contains(ref.name())) {
+            Literal<Long> tsLiteral = lit.to(Types.TimestampType.withoutZone());
+            long millis = toMillis(tsLiteral.value());
+            addTimestampFilter(Expressions.predicate(pred.op(), "timestamp_ms", millis));
+            return;
+          }
         }
       }
 
@@ -157,7 +160,7 @@ public class ScanSummary {
       removeTimeFilters(filters, Expressions.rewriteNot(scan.filter()));
       Expression rowFilter = joinFilters(filters);
 
-      Iterable<ManifestFile> manifests = table.currentSnapshot().manifests();
+      Iterable<ManifestFile> manifests = table.currentSnapshot().dataManifests();
 
       boolean filterByTimestamp = !timeFilters.isEmpty();
       Set<Long> snapshotsInTimeRange = Sets.newHashSet();
@@ -216,14 +219,15 @@ public class ScanSummary {
       TopN<String, PartitionMetrics> topN = new TopN<>(
           limit, throwIfLimited, Comparators.charSequences());
 
-      try (CloseableIterable<ManifestEntry> entries = new ManifestGroup(ops, manifests)
+      try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(ops.io(), manifests)
+          .specsById(ops.current().specsById())
           .filterData(rowFilter)
           .ignoreDeleted()
           .select(SCAN_SUMMARY_COLUMNS)
           .entries()) {
 
         PartitionSpec spec = table.spec();
-        for (ManifestEntry entry : entries) {
+        for (ManifestEntry<?> entry : entries) {
           Long timestamp = snapshotTimestamps.get(entry.snapshotId());
 
           // if filtering, skip timestamps that are outside the range
@@ -266,7 +270,18 @@ public class ScanSummary {
       return dataTimestampMillis;
     }
 
-    private PartitionMetrics updateFromFile(DataFile file, Long timestampMillis) {
+    PartitionMetrics updateFromCounts(int numFiles, long filesRecordCount, long filesSize,
+                                      Long timestampMillis) {
+      this.fileCount += numFiles;
+      this.recordCount += filesRecordCount;
+      this.totalSize += filesSize;
+      if (timestampMillis != null && (dataTimestampMillis == null || dataTimestampMillis < timestampMillis)) {
+        this.dataTimestampMillis = timestampMillis;
+      }
+      return this;
+    }
+
+    private PartitionMetrics updateFromFile(ContentFile<?> file, Long timestampMillis) {
       this.fileCount += 1;
       this.recordCount += file.recordCount();
       this.totalSize += file.fileSizeInBytes();
@@ -291,7 +306,7 @@ public class ScanSummary {
   private static class TopN<K, V> {
     private final int maxSize;
     private final boolean throwIfLimited;
-    private final SortedMap<K, V> map;
+    private final NavigableMap<K, V> map;
     private final Comparator<? super K> keyComparator;
     private K cut = null;
 
@@ -323,7 +338,7 @@ public class ScanSummary {
     }
 
     public Map<K, V> get() {
-      return ImmutableMap.copyOf(map);
+      return ImmutableSortedMap.copyOfSorted(map);
     }
   }
 

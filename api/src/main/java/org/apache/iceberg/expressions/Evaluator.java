@@ -21,12 +21,14 @@ package org.apache.iceberg.expressions;
 
 import java.io.Serializable;
 import java.util.Comparator;
+import java.util.Set;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.expressions.ExpressionVisitors.BoundVisitor;
+import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.NaNUtil;
 
 /**
- * Evaluates an {@link Expression} for data described by a {@link Types.StructType}.
+ * Evaluates an {@link Expression} for data described by a {@link StructType}.
  * <p>
  * Data rows must implement {@link StructLike} and are passed to {@link #eval(StructLike)}.
  * <p>
@@ -34,33 +36,25 @@ import org.apache.iceberg.types.Types;
  */
 public class Evaluator implements Serializable {
   private final Expression expr;
-  private transient ThreadLocal<EvalVisitor> visitors = null;
 
-  private EvalVisitor visitor() {
-    if (visitors == null) {
-      this.visitors = ThreadLocal.withInitial(EvalVisitor::new);
-    }
-    return visitors.get();
-  }
-
-  public Evaluator(Types.StructType struct, Expression unbound) {
+  public Evaluator(StructType struct, Expression unbound) {
     this.expr = Binder.bind(struct, unbound, true);
   }
 
-  public Evaluator(Types.StructType struct, Expression unbound, boolean caseSensitive) {
+  public Evaluator(StructType struct, Expression unbound, boolean caseSensitive) {
     this.expr = Binder.bind(struct, unbound, caseSensitive);
   }
 
   public boolean eval(StructLike data) {
-    return visitor().eval(data);
+    return new EvalVisitor().eval(data);
   }
 
-  private class EvalVisitor extends BoundExpressionVisitor<Boolean> {
+  private class EvalVisitor extends BoundVisitor<Boolean> {
     private StructLike struct;
 
     private boolean eval(StructLike row) {
       this.struct = row;
-      return ExpressionVisitors.visit(expr, this);
+      return ExpressionVisitors.visitEvaluator(expr, this);
     }
 
     @Override
@@ -89,58 +83,73 @@ public class Evaluator implements Serializable {
     }
 
     @Override
-    public <T> Boolean isNull(BoundReference<T> ref) {
-      return ref.get(struct) == null;
+    public <T> Boolean isNull(Bound<T> valueExpr) {
+      return valueExpr.eval(struct) == null;
     }
 
     @Override
-    public <T> Boolean notNull(BoundReference<T> ref) {
-      return ref.get(struct) != null;
+    public <T> Boolean notNull(Bound<T> valueExpr) {
+      return valueExpr.eval(struct) != null;
     }
 
     @Override
-    public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean isNaN(Bound<T> valueExpr) {
+      return NaNUtil.isNaN(valueExpr.eval(struct));
+    }
+
+    @Override
+    public <T> Boolean notNaN(Bound<T> valueExpr) {
+      return !NaNUtil.isNaN(valueExpr.eval(struct));
+    }
+
+    @Override
+    public <T> Boolean lt(Bound<T> valueExpr, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return cmp.compare(ref.get(struct), lit.value()) < 0;
+      return cmp.compare(valueExpr.eval(struct), lit.value()) < 0;
     }
 
     @Override
-    public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean ltEq(Bound<T> valueExpr, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return cmp.compare(ref.get(struct), lit.value()) <= 0;
+      return cmp.compare(valueExpr.eval(struct), lit.value()) <= 0;
     }
 
     @Override
-    public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean gt(Bound<T> valueExpr, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return cmp.compare(ref.get(struct), lit.value()) > 0;
+      return cmp.compare(valueExpr.eval(struct), lit.value()) > 0;
     }
 
     @Override
-    public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean gtEq(Bound<T> valueExpr, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return cmp.compare(ref.get(struct), lit.value()) >= 0;
+      return cmp.compare(valueExpr.eval(struct), lit.value()) >= 0;
     }
 
     @Override
-    public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean eq(Bound<T> valueExpr, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
-      return cmp.compare(ref.get(struct), lit.value()) == 0;
+      return cmp.compare(valueExpr.eval(struct), lit.value()) == 0;
     }
 
     @Override
-    public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
-      return !eq(ref, lit);
+    public <T> Boolean notEq(Bound<T> valueExpr, Literal<T> lit) {
+      return !eq(valueExpr, lit);
     }
 
     @Override
-    public <T> Boolean in(BoundReference<T> ref, Literal<T> lit) {
-      throw new UnsupportedOperationException("In is not supported yet");
+    public <T> Boolean in(Bound<T> valueExpr, Set<T> literalSet) {
+      return literalSet.contains(valueExpr.eval(struct));
     }
 
     @Override
-    public <T> Boolean notIn(BoundReference<T> ref, Literal<T> lit) {
-      return !in(ref, lit);
+    public <T> Boolean notIn(Bound<T> valueExpr, Set<T> literalSet) {
+      return !in(valueExpr, literalSet);
+    }
+
+    @Override
+    public <T> Boolean startsWith(Bound<T> valueExpr, Literal<T> lit) {
+      return ((String) valueExpr.eval(struct)).startsWith((String) lit.value());
     }
   }
 }

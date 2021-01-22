@@ -19,20 +19,30 @@
 
 package org.apache.iceberg.orc;
 
-import com.google.common.base.Preconditions;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.orc.OrcConf;
+import org.apache.orc.OrcFile;
+import org.apache.orc.OrcFile.ReaderOptions;
+import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
@@ -52,15 +62,16 @@ public class ORC {
     private final OutputFile file;
     private final Configuration conf;
     private Schema schema = null;
-    private Function<TypeDescription, OrcValueWriter<?>>  createWriterFunc;
+    private BiFunction<Schema, TypeDescription, OrcRowWriter<?>> createWriterFunc;
     private Map<String, byte[]> metadata = new HashMap<>();
+    private MetricsConfig metricsConfig;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
       if (file instanceof HadoopOutputFile) {
-        conf = new Configuration(((HadoopOutputFile) file).getConf());
+        this.conf = new Configuration(((HadoopOutputFile) file).getConf());
       } else {
-        conf = new Configuration();
+        this.conf = new Configuration();
       }
     }
 
@@ -74,7 +85,7 @@ public class ORC {
       return this;
     }
 
-    public WriteBuilder createWriterFunc(Function<TypeDescription, OrcValueWriter<?>> writerFunction) {
+    public WriteBuilder createWriterFunc(BiFunction<Schema, TypeDescription, OrcRowWriter<?>> writerFunction) {
       this.createWriterFunc = writerFunction;
       return this;
     }
@@ -89,11 +100,25 @@ public class ORC {
       return this;
     }
 
+    public WriteBuilder overwrite() {
+      return overwrite(true);
+    }
+
+    public WriteBuilder overwrite(boolean enabled) {
+      OrcConf.OVERWRITE_OUTPUT_FILE.setBoolean(conf, enabled);
+      return this;
+    }
+
+    public WriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
+      this.metricsConfig = newMetricsConfig;
+      return this;
+    }
+
     public <D> FileAppender<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
-      return new OrcFileAppender<>(TypeConversion.toOrc(schema, new ColumnIdMap()),
+      return new OrcFileAppender<>(schema,
           this.file, createWriterFunc, conf, metadata,
-          conf.getInt(VECTOR_ROW_BATCH_SIZE, VectorizedRowBatch.DEFAULT_SIZE));
+          conf.getInt(VECTOR_ROW_BATCH_SIZE, VectorizedRowBatch.DEFAULT_SIZE), metricsConfig);
     }
   }
 
@@ -104,20 +129,28 @@ public class ORC {
   public static class ReadBuilder {
     private final InputFile file;
     private final Configuration conf;
-    private org.apache.iceberg.Schema schema = null;
+    private Schema schema = null;
     private Long start = null;
     private Long length = null;
+    private Expression filter = null;
+    private boolean caseSensitive = true;
+    private NameMapping nameMapping = null;
 
-    private Function<Schema, OrcValueReader<?>> readerFunc;
+    private Function<TypeDescription, OrcRowReader<?>> readerFunc;
+    private Function<TypeDescription, OrcBatchReader<?>> batchedReaderFunc;
+    private int recordsPerBatch = VectorizedRowBatch.DEFAULT_SIZE;
 
     private ReadBuilder(InputFile file) {
       Preconditions.checkNotNull(file, "Input file cannot be null");
       this.file = file;
       if (file instanceof HadoopInputFile) {
-        conf = new Configuration(((HadoopInputFile) file).getConf());
+        this.conf = new Configuration(((HadoopInputFile) file).getConf());
       } else {
-        conf = new Configuration();
+        this.conf = new Configuration();
       }
+
+      // We need to turn positional schema evolution off since we use column name based schema evolution for projection
+      this.conf.setBoolean(OrcConf.FORCE_POSITIONAL_EVOLUTION.getHiveConfName(), false);
     }
 
     /**
@@ -133,13 +166,14 @@ public class ORC {
       return this;
     }
 
-    public ReadBuilder schema(org.apache.iceberg.Schema projectSchema) {
-      this.schema = projectSchema;
+    public ReadBuilder project(Schema newSchema) {
+      this.schema = newSchema;
       return this;
     }
 
-    public ReadBuilder caseSensitive(boolean caseSensitive) {
-      OrcConf.IS_SCHEMA_EVOLUTION_CASE_SENSITIVE.setBoolean(this.conf, caseSensitive);
+    public ReadBuilder caseSensitive(boolean newCaseSensitive) {
+      OrcConf.IS_SCHEMA_EVOLUTION_CASE_SENSITIVE.setBoolean(this.conf, newCaseSensitive);
+      this.caseSensitive = newCaseSensitive;
       return this;
     }
 
@@ -148,14 +182,55 @@ public class ORC {
       return this;
     }
 
-    public ReadBuilder createReaderFunc(Function<Schema, OrcValueReader<?>> readerFunction) {
+    public ReadBuilder createReaderFunc(Function<TypeDescription, OrcRowReader<?>> readerFunction) {
+      Preconditions.checkArgument(this.batchedReaderFunc == null,
+          "Reader function cannot be set since the batched version is already set");
       this.readerFunc = readerFunction;
+      return this;
+    }
+
+    public ReadBuilder filter(Expression newFilter) {
+      this.filter = newFilter;
+      return this;
+    }
+
+    public ReadBuilder createBatchedReaderFunc(Function<TypeDescription, OrcBatchReader<?>> batchReaderFunction) {
+      Preconditions.checkArgument(this.readerFunc == null,
+          "Batched reader function cannot be set since the non-batched version is already set");
+      this.batchedReaderFunc = batchReaderFunction;
+      return this;
+    }
+
+    public ReadBuilder recordsPerBatch(int numRecordsPerBatch) {
+      this.recordsPerBatch = numRecordsPerBatch;
+      return this;
+    }
+
+    public ReadBuilder withNameMapping(NameMapping newNameMapping) {
+      this.nameMapping = newNameMapping;
       return this;
     }
 
     public <D> CloseableIterable<D> build() {
       Preconditions.checkNotNull(schema, "Schema is required");
-      return new OrcIterable<>(file, conf, schema, start, length, readerFunc);
+      return new OrcIterable<>(file, conf, schema, nameMapping, start, length, readerFunc, caseSensitive, filter,
+          batchedReaderFunc, recordsPerBatch);
     }
+  }
+
+  static Reader newFileReader(String location, ReaderOptions readerOptions) {
+    try {
+      return OrcFile.createReader(new Path(location), readerOptions);
+    } catch (IOException ioe) {
+      throw new RuntimeIOException(ioe, "Failed to open file: %s", location);
+    }
+  }
+
+  static Reader newFileReader(InputFile file, Configuration config) {
+    ReaderOptions readerOptions = OrcFile.readerOptions(config).useUTCTimestamp(true);
+    if (file instanceof HadoopInputFile) {
+      readerOptions.filesystem(((HadoopInputFile) file).getFileSystem());
+    }
+    return newFileReader(file.location(), readerOptions);
   }
 }

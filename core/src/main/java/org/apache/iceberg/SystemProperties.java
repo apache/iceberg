@@ -24,7 +24,8 @@ package org.apache.iceberg;
  */
 public class SystemProperties {
 
-  private SystemProperties() {}
+  private SystemProperties() {
+  }
 
   /**
    * Sets the size of the worker pool. The worker pool limits the number of tasks concurrently

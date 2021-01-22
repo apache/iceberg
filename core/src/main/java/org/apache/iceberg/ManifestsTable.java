@@ -19,15 +19,15 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Lists;
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 
 /**
  * A {@link Table} implementation that exposes a table's manifest files as rows.
  */
-class ManifestsTable extends BaseMetadataTable {
+public class ManifestsTable extends BaseMetadataTable {
   private static final Schema SNAPSHOT_SCHEMA = new Schema(
       Types.NestedField.required(1, "path", Types.StringType.get()),
       Types.NestedField.required(2, "length", Types.LongType.get()),
@@ -46,11 +46,17 @@ class ManifestsTable extends BaseMetadataTable {
   private final TableOperations ops;
   private final Table table;
   private final PartitionSpec spec;
+  private final String name;
 
   ManifestsTable(TableOperations ops, Table table) {
+    this(ops, table, table.name() + ".manifests");
+  }
+
+  ManifestsTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
     this.spec = table.spec();
+    this.name = name;
   }
 
   @Override
@@ -59,18 +65,13 @@ class ManifestsTable extends BaseMetadataTable {
   }
 
   @Override
-  String metadataTableName() {
-    return "manifests";
+  public String name() {
+    return name;
   }
 
   @Override
   public TableScan newScan() {
-    return new SnapshotsTableScan();
-  }
-
-  @Override
-  public String location() {
-    return ops.current().file().location();
+    return new ManifestsTableScan();
   }
 
   @Override
@@ -78,20 +79,31 @@ class ManifestsTable extends BaseMetadataTable {
     return SNAPSHOT_SCHEMA;
   }
 
-  protected DataTask task(TableScan scan) {
-    return StaticDataTask.of(
-        ops.io().newInputFile(scan.snapshot().manifestListLocation()),
-        scan.snapshot().manifests(),
-        this::manifestFileToRow);
+  @Override
+  String metadataLocation() {
+    return ops.current().metadataFileLocation();
   }
 
-  private class SnapshotsTableScan extends StaticTableScan {
-    SnapshotsTableScan() {
+  @Override
+  MetadataTableType metadataTableType() {
+    return MetadataTableType.MANIFESTS;
+  }
+
+  protected DataTask task(TableScan scan) {
+    String location = scan.snapshot().manifestListLocation();
+    return StaticDataTask.of(
+        ops.io().newInputFile(location != null ? location : ops.current().metadataFileLocation()),
+        scan.snapshot().allManifests(),
+        manifest -> ManifestsTable.manifestFileToRow(spec, manifest));
+  }
+
+  private class ManifestsTableScan extends StaticTableScan {
+    ManifestsTableScan() {
       super(ops, table, SNAPSHOT_SCHEMA, ManifestsTable.this::task);
     }
   }
 
-  private StaticDataTask.Row manifestFileToRow(ManifestFile manifest) {
+  static StaticDataTask.Row manifestFileToRow(PartitionSpec spec, ManifestFile manifest) {
     return StaticDataTask.Row.of(
         manifest.path(),
         manifest.length(),
@@ -100,14 +112,19 @@ class ManifestsTable extends BaseMetadataTable {
         manifest.addedFilesCount(),
         manifest.existingFilesCount(),
         manifest.deletedFilesCount(),
-        partitionSummariesToRows(manifest.partitions())
+        partitionSummariesToRows(spec, manifest.partitions())
     );
   }
 
-  private List<StaticDataTask.Row> partitionSummariesToRows(List<ManifestFile.PartitionFieldSummary> summaries) {
+  static List<StaticDataTask.Row> partitionSummariesToRows(PartitionSpec spec,
+                                                           List<ManifestFile.PartitionFieldSummary> summaries) {
+    if (summaries == null) {
+      return null;
+    }
+
     List<StaticDataTask.Row> rows = Lists.newArrayList();
 
-    for (int i = 0; i < spec.fields().size(); i += 1) {
+    for (int i = 0; i < summaries.size(); i += 1) {
       ManifestFile.PartitionFieldSummary summary = summaries.get(i);
       rows.add(StaticDataTask.Row.of(
           summary.containsNull(),

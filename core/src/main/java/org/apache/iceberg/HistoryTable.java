@@ -19,11 +19,12 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 
@@ -32,7 +33,7 @@ import org.apache.iceberg.util.SnapshotUtil;
  * <p>
  * History is based on the table's snapshot log, which logs each update to the table's current snapshot.
  */
-class HistoryTable extends BaseMetadataTable {
+public class HistoryTable extends BaseMetadataTable {
   private static final Schema HISTORY_SCHEMA = new Schema(
       Types.NestedField.required(1, "made_current_at", Types.TimestampType.withZone()),
       Types.NestedField.required(2, "snapshot_id", Types.LongType.get()),
@@ -42,10 +43,16 @@ class HistoryTable extends BaseMetadataTable {
 
   private final TableOperations ops;
   private final Table table;
+  private final String name;
 
   HistoryTable(TableOperations ops, Table table) {
+    this(ops, table, table.name() + ".history");
+  }
+
+  HistoryTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
+    this.name = name;
   }
 
   @Override
@@ -54,8 +61,8 @@ class HistoryTable extends BaseMetadataTable {
   }
 
   @Override
-  String metadataTableName() {
-    return "history";
+  public String name() {
+    return name;
   }
 
   @Override
@@ -64,22 +71,36 @@ class HistoryTable extends BaseMetadataTable {
   }
 
   @Override
-  public String location() {
-    return ops.current().file().location();
-  }
-
-  @Override
   public Schema schema() {
     return HISTORY_SCHEMA;
   }
 
+  @Override
+  String metadataLocation() {
+    return ops.current().metadataFileLocation();
+  }
+
+  @Override
+  MetadataTableType metadataTableType() {
+    return MetadataTableType.HISTORY;
+  }
+
   private DataTask task(TableScan scan) {
-    return StaticDataTask.of(ops.current().file(), ops.current().snapshotLog(), convertHistoryEntryFunc(table));
+    return StaticDataTask.of(
+        ops.io().newInputFile(ops.current().metadataFileLocation()),
+        ops.current().snapshotLog(),
+        convertHistoryEntryFunc(table));
   }
 
   private class HistoryScan extends StaticTableScan {
     HistoryScan() {
       super(ops, table, HISTORY_SCHEMA, HistoryTable.this::task);
+    }
+
+    @Override
+    public CloseableIterable<FileScanTask> planFiles() {
+      // override planFiles to avoid the check for a current snapshot because this metadata table is for all snapshots
+      return CloseableIterable.withNoopClose(HistoryTable.this.task(this));
     }
   }
 

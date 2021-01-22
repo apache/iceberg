@@ -19,12 +19,12 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.rules.TemporaryFolder;
 
 class LocalTableOperations implements TableOperations {

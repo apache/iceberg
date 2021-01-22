@@ -50,7 +50,7 @@ class Timestamps(Transform):
         return apply_func(datetime.datetime.utcfromtimestamp(value / 1000000), Timestamps.EPOCH)
 
     def can_transform(self, type_var):
-        return type_var == TypeID.TIMESTAMP
+        return type_var.type_id == TypeID.TIMESTAMP
 
     def get_result_type(self, source_type):
         return IntegerType.get()

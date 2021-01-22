@@ -31,6 +31,15 @@ import org.apache.iceberg.io.LocationProvider;
 public interface Table {
 
   /**
+   * Return the full name for this table.
+   *
+   * @return this table's name
+   */
+  default String name() {
+    return toString();
+  }
+
+  /**
    * Refresh the current table metadata.
    */
   void refresh();
@@ -57,6 +66,27 @@ public interface Table {
    * @return this table's partition spec
    */
   PartitionSpec spec();
+
+  /**
+   * Return a map of {@link PartitionSpec partition specs} for this table.
+   *
+   * @return this table's partition specs map
+   */
+  Map<Integer, PartitionSpec> specs();
+
+  /**
+   * Return the {@link SortOrder sort order} for this table.
+   *
+   * @return this table's sort order
+   */
+  SortOrder sortOrder();
+
+  /**
+   * Return a map of sort order IDs to {@link SortOrder sort orders} for this table.
+   *
+   * @return this table's sort orders map
+   */
+  Map<Integer, SortOrder> sortOrders();
 
   /**
    * Return a map of string properties for this table.
@@ -109,11 +139,25 @@ public interface Table {
   UpdateSchema updateSchema();
 
   /**
+   * Create a new {@link UpdatePartitionSpec} to alter the partition spec of this table and commit the change.
+   *
+   * @return a new {@link UpdatePartitionSpec}
+   */
+  UpdatePartitionSpec updateSpec();
+
+  /**
    * Create a new {@link UpdateProperties} to update table properties and commit the changes.
    *
    * @return a new {@link UpdateProperties}
    */
   UpdateProperties updateProperties();
+
+  /**
+   * Create a new {@link ReplaceSortOrder} to set the table sort order and commit the change.
+   *
+   * @return a new {@link ReplaceSortOrder}
+   */
+  ReplaceSortOrder replaceSortOrder();
 
   /**
    * Create a new {@link UpdateLocation} to update table location and commit the changes.
@@ -168,6 +212,13 @@ public interface Table {
   OverwriteFiles newOverwrite();
 
   /**
+   * Create a new {@link RowDelta row-level delta API} to remove or replace rows in existing data files.
+   *
+   * @return a new {@link RowDelta}
+   */
+  RowDelta newRowDelta();
+
+  /**
    * Not recommended: Create a new {@link ReplacePartitions replace partitions API} to dynamically
    * overwrite partitions in the table with new data.
    * <p>
@@ -196,8 +247,16 @@ public interface Table {
    * Create a new {@link Rollback rollback API} to roll back to a previous snapshot and commit.
    *
    * @return a new {@link Rollback}
+   * @deprecated Replaced by {@link #manageSnapshots()}
    */
+  @Deprecated
   Rollback rollback();
+
+  /**
+   * Create a new {@link ManageSnapshots manage snapshots API} to manage snapshots in this table and commit.
+   * @return a new {@link ManageSnapshots}
+   */
+  ManageSnapshots manageSnapshots();
 
   /**
    * Create a new {@link Transaction transaction API} to commit multiple table operations at once.
@@ -207,18 +266,17 @@ public interface Table {
   Transaction newTransaction();
 
   /**
-   * @return a {@link FileIO} to read and write table data and metadata files
+   * Returns a {@link FileIO} to read and write table data and metadata files.
    */
   FileIO io();
 
   /**
-   * @return an {@link org.apache.iceberg.encryption.EncryptionManager} to encrypt and decrypt
-   * data files.
+   * Returns an {@link org.apache.iceberg.encryption.EncryptionManager} to encrypt and decrypt data files.
    */
   EncryptionManager encryption();
 
   /**
-   * @return a {@link LocationProvider} to provide locations for new data files
+   * Returns a {@link LocationProvider} to provide locations for new data files.
    */
   LocationProvider locationProvider();
 }

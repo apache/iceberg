@@ -19,26 +19,29 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ListMultimap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Multimaps;
-import com.google.common.collect.Sets;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ListMultimap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.StructType;
 
 /**
  * Represents how to produce partition data for a table.
@@ -47,7 +50,7 @@ import org.apache.iceberg.types.Types;
  * represented by a named {@link PartitionField}.
  */
 public class PartitionSpec implements Serializable {
-  // start assigning IDs for partition fields at 1000
+  // IDs for partition fields start at 1000
   private static final int PARTITION_DATA_ID_START = 1000;
 
   private final Schema schema;
@@ -56,41 +59,52 @@ public class PartitionSpec implements Serializable {
   private final int specId;
   private final PartitionField[] fields;
   private transient volatile ListMultimap<Integer, PartitionField> fieldsBySourceId = null;
-  private transient volatile Map<String, PartitionField> fieldsByName = null;
   private transient volatile Class<?>[] lazyJavaClasses = null;
   private transient volatile List<PartitionField> fieldList = null;
+  private final int lastAssignedFieldId;
 
-  private PartitionSpec(Schema schema, int specId, List<PartitionField> fields) {
+  private PartitionSpec(Schema schema, int specId, List<PartitionField> fields, int lastAssignedFieldId) {
     this.schema = schema;
     this.specId = specId;
     this.fields = new PartitionField[fields.size()];
     for (int i = 0; i < this.fields.length; i += 1) {
       this.fields[i] = fields.get(i);
     }
+    this.lastAssignedFieldId = lastAssignedFieldId;
   }
 
   /**
-   * @return the {@link Schema} for this spec.
+   * Returns the {@link Schema} for this spec.
    */
   public Schema schema() {
     return schema;
   }
 
   /**
-   * @return the ID of this spec
+   * Returns the ID of this spec.
    */
   public int specId() {
     return specId;
   }
 
   /**
-   * @return the list of {@link PartitionField partition fields} for this spec.
+   * Returns the list of {@link PartitionField partition fields} for this spec.
    */
   public List<PartitionField> fields() {
     return lazyFieldList();
   }
 
+  public boolean isUnpartitioned() {
+    return fields.length < 1;
+  }
+
+  int lastAssignedFieldId() {
+    return lastAssignedFieldId;
+  }
+
   /**
+   * Returns the {@link PartitionField field} that partitions the given source field
+   *
    * @param fieldId a field id from the source schema
    * @return the {@link PartitionField field} that partitions the given source field
    */
@@ -99,18 +113,17 @@ public class PartitionSpec implements Serializable {
   }
 
   /**
-   * @return a {@link Types.StructType} for partition data defined by this spec.
+   * Returns a {@link StructType} for partition data defined by this spec.
    */
-  public Types.StructType partitionType() {
+  public StructType partitionType() {
     List<Types.NestedField> structFields = Lists.newArrayListWithExpectedSize(fields.length);
 
     for (int i = 0; i < fields.length; i += 1) {
       PartitionField field = fields[i];
       Type sourceType = schema.findType(field.sourceId());
       Type resultType = field.transform().getResultType(sourceType);
-      // assign ids for partition fields starting at 100 to leave room for data file's other fields
       structFields.add(
-          Types.NestedField.optional(PARTITION_DATA_ID_START + i, field.name(), resultType));
+          Types.NestedField.optional(field.fieldId(), field.name(), resultType));
     }
 
     return Types.StructType.of(structFields);
@@ -123,9 +136,13 @@ public class PartitionSpec implements Serializable {
           Class<?>[] classes = new Class<?>[fields.length];
           for (int i = 0; i < fields.length; i += 1) {
             PartitionField field = fields[i];
-            Type sourceType = schema.findType(field.sourceId());
-            Type result = field.transform().getResultType(sourceType);
-            classes[i] = result.typeId().javaClass();
+            if (field.transform() instanceof UnknownTransform) {
+              classes[i] = Object.class;
+            } else {
+              Type sourceType = schema.findType(field.sourceId());
+              Type result = field.transform().getResultType(sourceType);
+              classes[i] = result.typeId().javaClass();
+            }
           }
 
           this.lazyJavaClasses = classes;
@@ -165,8 +182,8 @@ public class PartitionSpec implements Serializable {
   }
 
   /**
-   * Returns true if this spec is equivalent to the other, with field names ignored. That is, if
-   * both specs have the same number of fields, field order, source columns, and transforms.
+   * Returns true if this spec is equivalent to the other, with partition field ids ignored.
+   * That is, if both specs have the same number of fields, field order, field name, source columns, and transforms.
    *
    * @param other another PartitionSpec
    * @return true if the specs have the same fields, source columns, and transforms.
@@ -184,7 +201,8 @@ public class PartitionSpec implements Serializable {
       PartitionField thisField = fields[i];
       PartitionField thatField = other.fields[i];
       if (thisField.sourceId() != thatField.sourceId() ||
-          !thisField.transform().toString().equals(thatField.transform().toString())) {
+          !thisField.transform().toString().equals(thatField.transform().toString()) ||
+          !thisField.name().equals(thatField.name())) {
         return false;
       }
     }
@@ -196,8 +214,7 @@ public class PartitionSpec implements Serializable {
   public boolean equals(Object other) {
     if (this == other) {
       return true;
-    }
-    if (other == null || getClass() != other.getClass()) {
+    } else if (!(other instanceof PartitionSpec)) {
       return false;
     }
 
@@ -210,7 +227,7 @@ public class PartitionSpec implements Serializable {
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(Arrays.hashCode(fields));
+    return 31 * Integer.hashCode(specId) + Arrays.hashCode(fields);
   }
 
   private List<PartitionField> lazyFieldList() {
@@ -222,22 +239,6 @@ public class PartitionSpec implements Serializable {
       }
     }
     return fieldList;
-  }
-
-  private Map<String, PartitionField> lazyFieldsByName() {
-    if (fieldsByName == null) {
-      synchronized (this) {
-        if (fieldsByName == null) {
-          ImmutableMap.Builder<String, PartitionField> builder = ImmutableMap.builder();
-          for (PartitionField field : fields) {
-            builder.put(field.name(), field);
-          }
-          this.fieldsByName = builder.build();
-        }
-      }
-    }
-
-    return fieldsByName;
   }
 
   private ListMultimap<Integer, PartitionField> lazyFieldsBySourceId() {
@@ -289,7 +290,7 @@ public class PartitionSpec implements Serializable {
   }
 
   private static final PartitionSpec UNPARTITIONED_SPEC =
-      new PartitionSpec(new Schema(), 0, ImmutableList.of());
+      new PartitionSpec(new Schema(), 0, ImmutableList.of(), PARTITION_DATA_ID_START - 1);
 
   /**
    * Returns a spec for unpartitioned tables.
@@ -319,14 +320,34 @@ public class PartitionSpec implements Serializable {
     private final Schema schema;
     private final List<PartitionField> fields = Lists.newArrayList();
     private final Set<String> partitionNames = Sets.newHashSet();
-    private Map<Integer, PartitionField> timeFields = Maps.newHashMap();
+    private Map<Map.Entry<Integer, String>, PartitionField> dedupFields = Maps.newHashMap();
     private int specId = 0;
+    private final AtomicInteger lastAssignedFieldId = new AtomicInteger(PARTITION_DATA_ID_START - 1);
 
     private Builder(Schema schema) {
       this.schema = schema;
     }
 
+    private int nextFieldId() {
+      return lastAssignedFieldId.incrementAndGet();
+    }
+
     private void checkAndAddPartitionName(String name) {
+      checkAndAddPartitionName(name, null);
+    }
+
+    private void checkAndAddPartitionName(String name, Integer sourceColumnId) {
+      Types.NestedField schemaField = schema.findField(name);
+      if (sourceColumnId != null) {
+        // for identity transform case we allow  conflicts between partition and schema field name as
+        //   long as they are sourced from the same schema field
+        Preconditions.checkArgument(schemaField == null || schemaField.fieldId() == sourceColumnId,
+            "Cannot create identity partition sourced from different field in schema: %s", name);
+      } else {
+        // for all other transforms we don't allow conflicts between partition name and schema field name
+        Preconditions.checkArgument(schemaField == null,
+            "Cannot create partition from name that exists in schema: %s", name);
+      }
       Preconditions.checkArgument(name != null && !name.isEmpty(),
           "Cannot use empty or null partition name: %s", name);
       Preconditions.checkArgument(!partitionNames.contains(name),
@@ -335,10 +356,12 @@ public class PartitionSpec implements Serializable {
     }
 
     private void checkForRedundantPartitions(PartitionField field) {
-      PartitionField timeField = timeFields.get(field.sourceId());
-      Preconditions.checkArgument(timeField == null,
-          "Cannot add redundant partition: %s conflicts with %s", timeField, field);
-      timeFields.put(field.sourceId(), field);
+      Map.Entry<Integer, String> dedupKey = new AbstractMap.SimpleEntry<>(
+          field.sourceId(), field.transform().dedupName());
+      PartitionField partitionField = dedupFields.get(dedupKey);
+      Preconditions.checkArgument(partitionField == null,
+          "Cannot add redundant partition: %s conflicts with %s", partitionField, field);
+      dedupFields.put(dedupKey, field);
     }
 
     public Builder withSpecId(int newSpecId) {
@@ -352,95 +375,141 @@ public class PartitionSpec implements Serializable {
       return sourceColumn;
     }
 
-    public Builder identity(String sourceName) {
-      checkAndAddPartitionName(sourceName);
+    Builder identity(String sourceName, String targetName) {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
-      fields.add(new PartitionField(
-          sourceColumn.fieldId(), sourceName, Transforms.identity(sourceColumn.type())));
+      checkAndAddPartitionName(targetName, sourceColumn.fieldId());
+      PartitionField field = new PartitionField(
+          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.identity(sourceColumn.type()));
+      checkForRedundantPartitions(field);
+      fields.add(field);
+      return this;
+    }
+
+    public Builder identity(String sourceName) {
+      return identity(sourceName, sourceName);
+    }
+
+    public Builder year(String sourceName, String targetName) {
+      checkAndAddPartitionName(targetName);
+      Types.NestedField sourceColumn = findSourceColumn(sourceName);
+      PartitionField field = new PartitionField(
+          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.year(sourceColumn.type()));
+      checkForRedundantPartitions(field);
+      fields.add(field);
       return this;
     }
 
     public Builder year(String sourceName) {
-      String name = sourceName + "_year";
-      checkAndAddPartitionName(name);
+      return year(sourceName, sourceName + "_year");
+    }
+
+    public Builder month(String sourceName, String targetName) {
+      checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
-          sourceColumn.fieldId(), name, Transforms.year(sourceColumn.type()));
+          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.month(sourceColumn.type()));
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
     }
 
     public Builder month(String sourceName) {
-      String name = sourceName + "_month";
-      checkAndAddPartitionName(name);
+      return month(sourceName, sourceName + "_month");
+    }
+
+    public Builder day(String sourceName, String targetName) {
+      checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
-          sourceColumn.fieldId(), name, Transforms.month(sourceColumn.type()));
+          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.day(sourceColumn.type()));
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
     }
 
     public Builder day(String sourceName) {
-      String name = sourceName + "_day";
-      checkAndAddPartitionName(name);
+      return day(sourceName, sourceName + "_day");
+    }
+
+    public Builder hour(String sourceName, String targetName) {
+      checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       PartitionField field = new PartitionField(
-          sourceColumn.fieldId(), name, Transforms.day(sourceColumn.type()));
+          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.hour(sourceColumn.type()));
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
     }
 
     public Builder hour(String sourceName) {
-      String name = sourceName + "_hour";
-      checkAndAddPartitionName(name);
+      return hour(sourceName, sourceName + "_hour");
+    }
+
+    public Builder bucket(String sourceName, int numBuckets, String targetName) {
+      checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
-      PartitionField field = new PartitionField(
-          sourceColumn.fieldId(), name, Transforms.hour(sourceColumn.type()));
-      checkForRedundantPartitions(field);
-      fields.add(field);
+      fields.add(new PartitionField(
+          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.bucket(sourceColumn.type(), numBuckets)));
       return this;
     }
 
     public Builder bucket(String sourceName, int numBuckets) {
-      String name = sourceName + "_bucket";
-      checkAndAddPartitionName(name);
+      return bucket(sourceName, numBuckets, sourceName + "_bucket");
+    }
+
+    public Builder truncate(String sourceName, int width, String targetName) {
+      checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       fields.add(new PartitionField(
-          sourceColumn.fieldId(), name, Transforms.bucket(sourceColumn.type(), numBuckets)));
+          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.truncate(sourceColumn.type(), width)));
       return this;
     }
 
     public Builder truncate(String sourceName, int width) {
-      String name = sourceName + "_trunc";
-      checkAndAddPartitionName(name);
+      return truncate(sourceName, width, sourceName + "_trunc");
+    }
+
+    public Builder alwaysNull(String sourceName, String targetName) {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
-      fields.add(new PartitionField(
-          sourceColumn.fieldId(), name, Transforms.truncate(sourceColumn.type(), width)));
+      checkAndAddPartitionName(targetName, sourceColumn.fieldId()); // can duplicate a source column name
+      fields.add(new PartitionField(sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.alwaysNull()));
       return this;
     }
 
-    public Builder add(int sourceId, String name, String transform) {
-      checkAndAddPartitionName(name);
+    public Builder alwaysNull(String sourceName) {
+      return alwaysNull(sourceName, sourceName + "_null");
+    }
+
+    // add a partition field with an auto-increment partition field id starting from PARTITION_DATA_ID_START
+    Builder add(int sourceId, String name, String transform) {
+      return add(sourceId, nextFieldId(), name, transform);
+    }
+
+    Builder add(int sourceId, int fieldId, String name, String transform) {
       Types.NestedField column = schema.findField(sourceId);
-      Preconditions.checkNotNull(column, "Cannot find source column: %d", sourceId);
-      fields.add(new PartitionField(
-          sourceId, name, Transforms.fromString(column.type(), transform)));
+      Preconditions.checkNotNull(column, "Cannot find source column: %s", sourceId);
+      return add(sourceId, fieldId, name, Transforms.fromString(column.type(), transform));
+    }
+
+    Builder add(int sourceId, int fieldId, String name, Transform<?, ?> transform) {
+      checkAndAddPartitionName(name, sourceId);
+      fields.add(new PartitionField(sourceId, fieldId, name, transform));
+      lastAssignedFieldId.getAndAccumulate(fieldId, Math::max);
       return this;
     }
 
     public PartitionSpec build() {
-      PartitionSpec spec = new PartitionSpec(schema, specId, fields);
+      PartitionSpec spec = new PartitionSpec(schema, specId, fields, lastAssignedFieldId.get());
       checkCompatibility(spec, schema);
       return spec;
     }
   }
 
-  public static void checkCompatibility(PartitionSpec spec, Schema schema) {
+  static void checkCompatibility(PartitionSpec spec, Schema schema) {
     for (PartitionField field : spec.fields) {
       Type sourceType = schema.findType(field.sourceId());
+      ValidationException.check(sourceType != null,
+          "Cannot find source column for partition field: %s", field);
       ValidationException.check(sourceType.isPrimitiveType(),
           "Cannot partition by non-primitive source field: %s", sourceType);
       ValidationException.check(
@@ -448,5 +517,14 @@ public class PartitionSpec implements Serializable {
           "Invalid source type %s for transform: %s",
           sourceType, field.transform());
     }
+  }
+
+  static boolean hasSequentialIds(PartitionSpec spec) {
+    for (int i = 0; i < spec.fields.length; i += 1) {
+      if (spec.fields[i].fieldId() != PARTITION_DATA_ID_START + i) {
+        return false;
+      }
+    }
+    return true;
   }
 }

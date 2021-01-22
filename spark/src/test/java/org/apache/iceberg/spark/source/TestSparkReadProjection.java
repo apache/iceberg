@@ -19,27 +19,26 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
-import org.apache.avro.generic.GenericData.Fixed;
-import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkValueConverter;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -52,31 +51,46 @@ import org.junit.BeforeClass;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.avro.Schema.Type.NULL;
-import static org.apache.avro.Schema.Type.UNION;
 import static org.apache.iceberg.Files.localOutput;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
-public class TestSparkReadProjection extends TestReadProjection {
+public abstract class TestSparkReadProjection extends TestReadProjection {
+
   private static SparkSession spark = null;
 
-  @Parameterized.Parameters
+  @Parameterized.Parameters(name = "format = {0}, vectorized = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] { "parquet" },
-        new Object[] { "avro" }
+        { "parquet", false },
+        { "parquet", true },
+        { "avro", false },
+        { "orc", false },
+        { "orc", true }
     };
   }
 
-  public TestSparkReadProjection(String format) {
+  private final FileFormat format;
+  private final boolean vectorized;
+
+  public TestSparkReadProjection(String format, boolean vectorized) {
     super(format);
+    this.format = FileFormat.valueOf(format.toUpperCase(Locale.ROOT));
+    this.vectorized = vectorized;
   }
 
   @BeforeClass
   public static void startSpark() {
     TestSparkReadProjection.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    ImmutableMap<String, String> config = ImmutableMap.of(
+        "type", "hive",
+        "default-namespace", "default",
+        "parquet-enabled", "true",
+        "cache-enabled", "false"
+    );
+    spark.conf().set("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.source.TestSparkCatalog");
+    config.forEach((key, value) -> spark.conf().set("spark.sql.catalog.spark_catalog." + key, value));
   }
 
   @AfterClass
@@ -94,9 +108,7 @@ public class TestSparkReadProjection extends TestReadProjection {
     File dataFolder = new File(location, "data");
     Assert.assertTrue("mkdirs should succeed", dataFolder.mkdirs());
 
-    FileFormat fileFormat = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
-
-    File testFile = new File(dataFolder, fileFormat.addExtension(UUID.randomUUID().toString()));
+    File testFile = new File(dataFolder, format.addExtension(UUID.randomUUID().toString()));
 
     Table table = TestTables.create(location, desc, writeSchema, PartitionSpec.unpartitioned());
     try {
@@ -104,22 +116,9 @@ public class TestSparkReadProjection extends TestReadProjection {
       // When tables are created, the column ids are reassigned.
       Schema tableSchema = table.schema();
 
-      switch (fileFormat) {
-        case AVRO:
-          try (FileAppender<Record> writer = Avro.write(localOutput(testFile))
-              .schema(tableSchema)
-              .build()) {
-            writer.add(record);
-          }
-          break;
-
-        case PARQUET:
-          try (FileAppender<Record> writer = Parquet.write(localOutput(testFile))
-              .schema(tableSchema)
-              .build()) {
-            writer.add(record);
-          }
-          break;
+      try (FileAppender<Record> writer = new GenericAppenderFactory(tableSchema).newAppender(
+          localOutput(testFile), format)) {
+        writer.add(record);
       }
 
       DataFile file = DataFiles.builder(PartitionSpec.unpartitioned())
@@ -146,112 +145,14 @@ public class TestSparkReadProjection extends TestReadProjection {
       Dataset<Row> df = spark.read()
           .format("org.apache.iceberg.spark.source.TestIcebergSource")
           .option("iceberg.table.name", desc)
+          .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
           .load();
 
-      // convert to Avro using the read schema so that the record schemas match
-      return convert(AvroSchemaUtil.convert(readSchema, "table"), df.collectAsList().get(0));
+      return SparkValueConverter.convert(readSchema, df.collectAsList().get(0));
 
     } finally {
       TestTables.clearTables();
     }
-  }
-
-  @SuppressWarnings("unchecked")
-  private Object convert(org.apache.avro.Schema schema, Object object) {
-    switch (schema.getType()) {
-      case RECORD:
-        return convert(schema, (Row) object);
-
-      case ARRAY:
-        List<Object> convertedList = Lists.newArrayList();
-        List<?> list = (List<?>) object;
-        for (Object element : list) {
-          convertedList.add(convert(schema.getElementType(), element));
-        }
-        return convertedList;
-
-      case MAP:
-        Map<String, Object> convertedMap = Maps.newLinkedHashMap();
-        Map<String, ?> map = (Map<String, ?>) object;
-        for (Map.Entry<String, ?> entry : map.entrySet()) {
-          convertedMap.put(entry.getKey(), convert(schema.getValueType(), entry.getValue()));
-        }
-        return convertedMap;
-
-      case UNION:
-        if (object == null) {
-          return null;
-        }
-        List<org.apache.avro.Schema> types = schema.getTypes();
-        if (types.get(0).getType() != NULL) {
-          return convert(types.get(0), object);
-        } else {
-          return convert(types.get(1), object);
-        }
-
-      case FIXED:
-        Fixed convertedFixed = new Fixed(schema);
-        convertedFixed.bytes((byte[]) object);
-        return convertedFixed;
-
-      case BYTES:
-        return ByteBuffer.wrap((byte[]) object);
-
-      case BOOLEAN:
-      case INT:
-      case LONG:
-      case FLOAT:
-      case DOUBLE:
-      case STRING:
-        return object;
-
-      case NULL:
-        return null;
-
-      default:
-        throw new UnsupportedOperationException("Not a supported type: " + schema);
-    }
-  }
-
-  private Record convert(org.apache.avro.Schema schema, Row row) {
-    org.apache.avro.Schema schemaToConvert = schema;
-    if (schema.getType() == UNION) {
-      if (schema.getTypes().get(0).getType() != NULL) {
-        schemaToConvert = schema.getTypes().get(0);
-      } else {
-        schemaToConvert = schema.getTypes().get(1);
-      }
-    }
-
-    Record record = new Record(schemaToConvert);
-    List<org.apache.avro.Schema.Field> fields = schemaToConvert.getFields();
-    for (int i = 0; i < fields.size(); i += 1) {
-      org.apache.avro.Schema.Field field = fields.get(i);
-
-      org.apache.avro.Schema fieldSchema = field.schema();
-      if (fieldSchema.getType() == UNION) {
-        if (fieldSchema.getTypes().get(0).getType() != NULL) {
-          fieldSchema = fieldSchema.getTypes().get(0);
-        } else {
-          fieldSchema = fieldSchema.getTypes().get(1);
-        }
-      }
-
-      switch (fieldSchema.getType()) {
-        case RECORD:
-          record.put(i, convert(field.schema(), row.getStruct(i)));
-          break;
-        case ARRAY:
-          record.put(i, convert(field.schema(), row.getList(i)));
-          break;
-        case MAP:
-          record.put(i, convert(field.schema(), row.getJavaMap(i)));
-          break;
-        default:
-          record.put(i, convert(field.schema(), row.get(i)));
-      }
-    }
-    return record;
   }
 
   private List<Integer> allIds(Schema schema) {

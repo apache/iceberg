@@ -19,23 +19,27 @@
 
 package org.apache.iceberg.transforms;
 
-import com.google.common.base.Objects;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import org.apache.iceberg.expressions.BoundLiteralPredicate;
 import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.BoundTransform;
+import org.apache.iceberg.expressions.BoundUnaryPredicate;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
-
-import static org.apache.iceberg.expressions.Expression.Operation.IS_NULL;
-import static org.apache.iceberg.expressions.Expression.Operation.LT;
-import static org.apache.iceberg.expressions.Expression.Operation.LT_EQ;
-import static org.apache.iceberg.expressions.Expression.Operation.NOT_NULL;
+import org.apache.iceberg.util.UnicodeUtil;
 
 abstract class Truncate<T> implements Transform<T, T> {
   @SuppressWarnings("unchecked")
   static <T> Truncate<T> get(Type type, int width) {
+    Preconditions.checkArgument(width > 0,
+        "Invalid truncate width: %s (must be > 0)", width);
+
     switch (type.typeId()) {
       case INTEGER:
         return (Truncate<T>) new TruncateInteger(width);
@@ -63,6 +67,11 @@ abstract class Truncate<T> implements Transform<T, T> {
     return sourceType;
   }
 
+  @Override
+  public boolean preservesOrder() {
+    return true;
+  }
+
   private static class TruncateInteger extends Truncate<Integer> {
     private final int width;
 
@@ -77,6 +86,10 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public Integer apply(Integer value) {
+      if (value == null) {
+        return null;
+      }
+
       return value - (((value % width) + width) % width);
     }
 
@@ -87,61 +100,44 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public UnboundPredicate<Integer> project(String name, BoundPredicate<Integer> pred) {
-      if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
-        return Expressions.predicate(pred.op(), name);
+      if (pred.term() instanceof BoundTransform) {
+        return ProjectionUtil.projectTransformPredicate(this, name, pred);
       }
-      return ProjectionUtil.truncateInteger(name, pred, this);
+
+      if (pred.isUnaryPredicate()) {
+        return Expressions.predicate(pred.op(), name);
+      } else if (pred.isLiteralPredicate()) {
+        return ProjectionUtil.truncateInteger(name, pred.asLiteralPredicate(), this);
+      } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
+        return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
+      }
+      return null;
     }
 
     @Override
-    public UnboundPredicate<Integer> projectStrict(String name, BoundPredicate<Integer> predicate) {
+    public UnboundPredicate<Integer> projectStrict(String name, BoundPredicate<Integer> pred) {
+      if (pred.term() instanceof BoundTransform) {
+        return ProjectionUtil.projectTransformPredicate(this, name, pred);
+      }
+
       // TODO: for integers, can this return the original predicate?
       // No. the predicate needs to be in terms of the applied value. For all x, apply(x) <= x.
       // Therefore, the lower bound can be transformed outside of a greater-than bound.
-      int in;
-      int out;
-      int inImage;
-      int outImage;
-      switch (predicate.op()) {
-        case LT:
-          in = predicate.literal().value() - 1;
-          out = predicate.literal().value();
-          inImage = apply(in);
-          outImage = apply(out);
-          if (inImage != outImage) {
-            return Expressions.predicate(LT_EQ, name, inImage);
-          } else {
-            return Expressions.predicate(LT, name, inImage);
-          }
-        case LT_EQ:
-          in = predicate.literal().value();
-          out = predicate.literal().value() + 1;
-          inImage = apply(in);
-          outImage = apply(out);
-          if (inImage != outImage) {
-            return Expressions.predicate(LT_EQ, name, inImage);
-          } else {
-            return Expressions.predicate(LT, name, inImage);
-          }
-        case GT:
-        case GT_EQ:
-        case EQ:
-        case NOT_EQ:
-//        case IN:
-//          break;
-//        case NOT_IN:
-//          break;
-        default:
-          return null;
+      if (pred instanceof BoundUnaryPredicate) {
+        return Expressions.predicate(pred.op(), name);
+      } else if (pred instanceof BoundLiteralPredicate) {
+        return ProjectionUtil.truncateIntegerStrict(name, pred.asLiteralPredicate(), this);
+      } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
+        return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
       }
+      return null;
     }
 
     @Override
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof TruncateInteger)) {
         return false;
       }
 
@@ -174,6 +170,10 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public Long apply(Long value) {
+      if (value == null) {
+        return null;
+      }
+
       return value - (((value % width) + width) % width);
     }
 
@@ -184,14 +184,33 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public UnboundPredicate<Long> project(String name, BoundPredicate<Long> pred) {
-      if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
-        return Expressions.predicate(pred.op(), name);
+      if (pred.term() instanceof BoundTransform) {
+        return ProjectionUtil.projectTransformPredicate(this, name, pred);
       }
-      return ProjectionUtil.truncateLong(name, pred, this);
+
+      if (pred.isUnaryPredicate()) {
+        return Expressions.predicate(pred.op(), name);
+      } else if (pred.isLiteralPredicate()) {
+        return ProjectionUtil.truncateLong(name, pred.asLiteralPredicate(), this);
+      } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
+        return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
+      }
+      return null;
     }
 
     @Override
-    public UnboundPredicate<Long> projectStrict(String name, BoundPredicate<Long> predicate) {
+    public UnboundPredicate<Long> projectStrict(String name, BoundPredicate<Long> pred) {
+      if (pred.term() instanceof BoundTransform) {
+        return ProjectionUtil.projectTransformPredicate(this, name, pred);
+      }
+
+      if (pred.isUnaryPredicate()) {
+        return Expressions.predicate(pred.op(), name);
+      } else if (pred.isLiteralPredicate()) {
+        return ProjectionUtil.truncateLongStrict(name, pred.asLiteralPredicate(), this);
+      } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
+        return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
+      }
       return null;
     }
 
@@ -199,8 +218,7 @@ abstract class Truncate<T> implements Transform<T, T> {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof TruncateLong)) {
         return false;
       }
 
@@ -233,7 +251,11 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public CharSequence apply(CharSequence value) {
-      return value.subSequence(0, Math.min(value.length(), length));
+      if (value == null) {
+        return null;
+      }
+
+      return UnicodeUtil.truncateString(value, length);
     }
 
     @Override
@@ -242,17 +264,57 @@ abstract class Truncate<T> implements Transform<T, T> {
     }
 
     @Override
-    public UnboundPredicate<CharSequence> project(String name,
-                                                  BoundPredicate<CharSequence> pred) {
-      if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
-        return Expressions.predicate(pred.op(), name);
+    public boolean satisfiesOrderOf(Transform<?, ?> other) {
+      if (this == other) {
+        return true;
+      } else if (other instanceof TruncateString) {
+        TruncateString otherTransform = (TruncateString) other;
+        return width() >= otherTransform.width();
       }
-      return ProjectionUtil.truncateArray(name, pred, this);
+
+      return false;
+    }
+
+    @Override
+    public UnboundPredicate<CharSequence> project(String name,
+                                                  BoundPredicate<CharSequence> predicate) {
+      if (predicate.term() instanceof BoundTransform) {
+        return ProjectionUtil.projectTransformPredicate(this, name, predicate);
+      }
+
+      if (predicate.isUnaryPredicate()) {
+        return Expressions.predicate(predicate.op(), name);
+      } else if (predicate.isLiteralPredicate()) {
+        return ProjectionUtil.truncateArray(name, predicate.asLiteralPredicate(), this);
+      } else if (predicate.isSetPredicate() && predicate.op() == Expression.Operation.IN) {
+        return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), this);
+      }
+      return null;
     }
 
     @Override
     public UnboundPredicate<CharSequence> projectStrict(String name,
                                                         BoundPredicate<CharSequence> predicate) {
+      if (predicate.term() instanceof BoundTransform) {
+        return ProjectionUtil.projectTransformPredicate(this, name, predicate);
+      }
+
+      if (predicate instanceof BoundUnaryPredicate) {
+        return Expressions.predicate(predicate.op(), name);
+      } else if (predicate instanceof BoundLiteralPredicate) {
+        BoundLiteralPredicate<CharSequence> pred = predicate.asLiteralPredicate();
+        if (pred.op() == Expression.Operation.STARTS_WITH) {
+          if (pred.literal().value().length() < width()) {
+            return Expressions.predicate(pred.op(), name, pred.literal().value());
+          } else if (pred.literal().value().length() == width()) {
+            return Expressions.equal(name, pred.literal().value());
+          }
+        } else {
+          return ProjectionUtil.truncateArrayStrict(name, pred, this);
+        }
+      } else if (predicate.isSetPredicate() && predicate.op() == Expression.Operation.NOT_IN) {
+        return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), this);
+      }
       return null;
     }
 
@@ -260,8 +322,7 @@ abstract class Truncate<T> implements Transform<T, T> {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof TruncateString)) {
         return false;
       }
 
@@ -294,6 +355,10 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public ByteBuffer apply(ByteBuffer value) {
+      if (value == null) {
+        return null;
+      }
+
       ByteBuffer ret = value.duplicate();
       ret.limit(Math.min(value.limit(), value.position() + length));
       return ret;
@@ -307,15 +372,34 @@ abstract class Truncate<T> implements Transform<T, T> {
     @Override
     public UnboundPredicate<ByteBuffer> project(String name,
                                                 BoundPredicate<ByteBuffer> pred) {
-      if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
-        return Expressions.predicate(pred.op(), name);
+      if (pred.term() instanceof BoundTransform) {
+        return ProjectionUtil.projectTransformPredicate(this, name, pred);
       }
-      return ProjectionUtil.truncateArray(name, pred, this);
+
+      if (pred.isUnaryPredicate()) {
+        return Expressions.predicate(pred.op(), name);
+      } else if (pred.isLiteralPredicate()) {
+        return ProjectionUtil.truncateArray(name, pred.asLiteralPredicate(), this);
+      } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
+        return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
+      }
+      return null;
     }
 
     @Override
     public UnboundPredicate<ByteBuffer> projectStrict(String name,
-                                                      BoundPredicate<ByteBuffer> predicate) {
+                                                      BoundPredicate<ByteBuffer> pred) {
+      if (pred.term() instanceof BoundTransform) {
+        return ProjectionUtil.projectTransformPredicate(this, name, pred);
+      }
+
+      if (pred.isUnaryPredicate()) {
+        return Expressions.predicate(pred.op(), name);
+      } else if (pred.isLiteralPredicate()) {
+        return ProjectionUtil.truncateArrayStrict(name, pred.asLiteralPredicate(), this);
+      } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
+        return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
+      }
       return null;
     }
 
@@ -323,8 +407,7 @@ abstract class Truncate<T> implements Transform<T, T> {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof TruncateByteBuffer)) {
         return false;
       }
 
@@ -362,12 +445,17 @@ abstract class Truncate<T> implements Transform<T, T> {
 
     @Override
     public BigDecimal apply(BigDecimal value) {
+      if (value == null) {
+        return null;
+      }
+
       BigDecimal remainder = new BigDecimal(
           value.unscaledValue()
               .remainder(unscaledWidth)
               .add(unscaledWidth)
               .remainder(unscaledWidth),
           value.scale());
+
       return value.subtract(remainder);
     }
 
@@ -379,15 +467,34 @@ abstract class Truncate<T> implements Transform<T, T> {
     @Override
     public UnboundPredicate<BigDecimal> project(String name,
                                                 BoundPredicate<BigDecimal> pred) {
-      if (pred.op() == NOT_NULL || pred.op() == IS_NULL) {
-        return Expressions.predicate(pred.op(), name);
+      if (pred.term() instanceof BoundTransform) {
+        return ProjectionUtil.projectTransformPredicate(this, name, pred);
       }
-      return ProjectionUtil.truncateDecimal(name, pred, this);
+
+      if (pred.isUnaryPredicate()) {
+        return Expressions.predicate(pred.op(), name);
+      } else if (pred.isLiteralPredicate()) {
+        return ProjectionUtil.truncateDecimal(name, pred.asLiteralPredicate(), this);
+      } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.IN) {
+        return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
+      }
+      return null;
     }
 
     @Override
     public UnboundPredicate<BigDecimal> projectStrict(String name,
-                                                      BoundPredicate<BigDecimal> predicate) {
+                                                      BoundPredicate<BigDecimal> pred) {
+      if (pred.term() instanceof BoundTransform) {
+        return ProjectionUtil.projectTransformPredicate(this, name, pred);
+      }
+
+      if (pred.isUnaryPredicate()) {
+        return Expressions.predicate(pred.op(), name);
+      } else if (pred.isLiteralPredicate()) {
+        return ProjectionUtil.truncateDecimalStrict(name, pred.asLiteralPredicate(), this);
+      } else if (pred.isSetPredicate() && pred.op() == Expression.Operation.NOT_IN) {
+        return ProjectionUtil.transformSet(name, pred.asSetPredicate(), this);
+      }
       return null;
     }
 
@@ -395,8 +502,7 @@ abstract class Truncate<T> implements Transform<T, T> {
     public boolean equals(Object o) {
       if (this == o) {
         return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
+      } else if (!(o instanceof TruncateDecimal)) {
         return false;
       }
 

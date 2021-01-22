@@ -19,10 +19,11 @@
 
 package org.apache.iceberg.catalog;
 
-import com.google.common.base.Preconditions;
-import com.google.common.base.Splitter;
-import com.google.common.collect.Iterables;
 import java.util.Arrays;
+import java.util.Objects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 /**
  * Identifies a table in iceberg catalog.
@@ -56,27 +57,59 @@ public class TableIdentifier {
 
   /**
    * Whether the namespace is empty.
-   * @return true if the namespace is empty, false otherwise
+   * @return true if the namespace is not empty, false otherwise
    */
   public boolean hasNamespace() {
     return !namespace.isEmpty();
   }
 
   /**
-   * @return the identifier namespace
+   * Returns the identifier namespace.
    */
   public Namespace namespace() {
     return namespace;
   }
 
   /**
-   * @return the identifier name
+   * Returns the identifier name.
    */
   public String name() {
     return name;
   }
 
+  public TableIdentifier toLowerCase() {
+    String[] newLevels = Arrays.stream(namespace().levels())
+        .map(String::toLowerCase)
+        .toArray(String[]::new);
+    String newName = name().toLowerCase();
+    return TableIdentifier.of(Namespace.of(newLevels), newName);
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    if (this == other) {
+      return true;
+    }
+
+    if (other == null || getClass() != other.getClass()) {
+      return false;
+    }
+
+    TableIdentifier that = (TableIdentifier) other;
+    return namespace.equals(that.namespace) && name.equals(that.name);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(namespace, name);
+  }
+
+  @Override
   public String toString() {
-    return namespace.toString() + "." + name;
+    if (hasNamespace()) {
+      return namespace.toString() + "." + name;
+    } else {
+      return name;
+    }
   }
 }

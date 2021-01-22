@@ -20,6 +20,7 @@
 package org.apache.iceberg.io;
 
 import java.io.Serializable;
+import java.util.Map;
 
 /**
  * Pluggable module for reading, writing, and deleting files.
@@ -57,5 +58,12 @@ public interface FileIO extends Serializable {
    */
   default void deleteFile(OutputFile file) {
     deleteFile(file.location());
+  }
+
+  /**
+   * Initialize File IO from catalog properties.
+   * @param properties catalog properties
+   */
+  default void initialize(Map<String, String> properties) {
   }
 }

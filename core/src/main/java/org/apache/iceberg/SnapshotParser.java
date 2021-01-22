@@ -21,21 +21,24 @@ package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.JsonUtil;
 
 public class SnapshotParser {
 
-  private SnapshotParser() {}
+  private SnapshotParser() {
+  }
 
+  private static final String SEQUENCE_NUMBER = "sequence-number";
   private static final String SNAPSHOT_ID = "snapshot-id";
   private static final String PARENT_SNAPSHOT_ID = "parent-snapshot-id";
   private static final String TIMESTAMP_MS = "timestamp-ms";
@@ -47,6 +50,9 @@ public class SnapshotParser {
   static void toJson(Snapshot snapshot, JsonGenerator generator)
       throws IOException {
     generator.writeStartObject();
+    if (snapshot.sequenceNumber() > TableMetadata.INITIAL_SEQUENCE_NUMBER) {
+      generator.writeNumberField(SEQUENCE_NUMBER, snapshot.sequenceNumber());
+    }
     generator.writeNumberField(SNAPSHOT_ID, snapshot.snapshotId());
     if (snapshot.parentId() != null) {
       generator.writeNumberField(PARENT_SNAPSHOT_ID, snapshot.parentId());
@@ -74,9 +80,9 @@ public class SnapshotParser {
       // write just the location. manifests should not be embedded in JSON along with a list
       generator.writeStringField(MANIFEST_LIST, manifestList);
     } else {
-      // embed the manifest list in the JSON
+      // embed the manifest list in the JSON, v1 only
       generator.writeArrayFieldStart(MANIFESTS);
-      for (ManifestFile file : snapshot.manifests()) {
+      for (ManifestFile file : snapshot.allManifests()) {
         generator.writeString(file.path());
       }
       generator.writeEndArray();
@@ -98,11 +104,15 @@ public class SnapshotParser {
     }
   }
 
-  static Snapshot fromJson(TableOperations ops, JsonNode node) {
+  static Snapshot fromJson(FileIO io, JsonNode node) {
     Preconditions.checkArgument(node.isObject(),
         "Cannot parse table version from a non-object: %s", node);
 
-    long versionId = JsonUtil.getLong(SNAPSHOT_ID, node);
+    long sequenceNumber = TableMetadata.INITIAL_SEQUENCE_NUMBER;
+    if (node.has(SEQUENCE_NUMBER)) {
+      sequenceNumber = JsonUtil.getLong(SEQUENCE_NUMBER, node);
+    }
+    long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
     Long parentId = null;
     if (node.has(PARENT_SNAPSHOT_ID)) {
       parentId = JsonUtil.getLong(PARENT_SNAPSHOT_ID, node);
@@ -132,22 +142,20 @@ public class SnapshotParser {
     if (node.has(MANIFEST_LIST)) {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
-      return new BaseSnapshot(
-          ops, versionId, parentId, timestamp, operation, summary,
-          ops.io().newInputFile(manifestList));
+      return new BaseSnapshot(io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary, manifestList);
 
     } else {
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be
       // loaded lazily, if it is needed
       List<ManifestFile> manifests = Lists.transform(JsonUtil.getStringList(MANIFESTS, node),
-          location -> new GenericManifestFile(ops.io().newInputFile(location), 0));
-      return new BaseSnapshot(ops, versionId, parentId, timestamp, operation, summary, manifests);
+          location -> new GenericManifestFile(io.newInputFile(location), 0));
+      return new BaseSnapshot(io, snapshotId, parentId, timestamp, operation, summary, manifests);
     }
   }
 
-  public static Snapshot fromJson(TableOperations ops, String json) {
+  public static Snapshot fromJson(FileIO io, String json) {
     try {
-      return fromJson(ops, JsonUtil.mapper().readValue(json, JsonNode.class));
+      return fromJson(io, JsonUtil.mapper().readValue(json, JsonNode.class));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read version from json: %s", json);
     }

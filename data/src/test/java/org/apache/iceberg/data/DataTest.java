@@ -20,7 +20,9 @@
 package org.apache.iceberg.data;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.LongType;
@@ -46,13 +48,15 @@ public abstract class DataTest {
       optional(105, "f", Types.FloatType.get()),
       required(106, "d", Types.DoubleType.get()),
       optional(107, "date", Types.DateType.get()),
-      required(108, "ts", Types.TimestampType.withZone()),
+      required(108, "ts_tz", Types.TimestampType.withZone()),
+      required(109, "ts", Types.TimestampType.withoutZone()),
       required(110, "s", Types.StringType.get()),
       required(112, "fixed", Types.FixedType.ofLength(7)),
       optional(113, "bytes", Types.BinaryType.get()),
       required(114, "dec_9_0", Types.DecimalType.of(9, 0)),
       required(115, "dec_11_2", Types.DecimalType.of(11, 2)),
-      required(116, "dec_38_10", Types.DecimalType.of(38, 10)) // maximum precision
+      required(116, "dec_38_10", Types.DecimalType.of(38, 10)), // maximum precision
+      required(117, "time", Types.TimeType.get())
   );
 
   @Rule
@@ -129,7 +133,7 @@ public abstract class DataTest {
 
   @Test
   public void testMixedTypes() throws IOException {
-    Schema schema = new Schema(
+    StructType structType = StructType.of(
         required(0, "id", LongType.get()),
         optional(1, "list_of_maps",
             ListType.ofOptional(2, MapType.ofOptional(3, 4,
@@ -158,6 +162,9 @@ public abstract class DataTest {
                 SUPPORTED_PRIMITIVES))
         )))
     );
+
+    Schema schema = new Schema(TypeUtil.assignFreshIds(structType, new AtomicInteger(0)::incrementAndGet)
+        .asStructType().fields());
 
     writeAndValidate(schema);
   }

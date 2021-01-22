@@ -23,13 +23,23 @@ import java.util.Map;
 
 public class PropertyUtil {
 
-  private PropertyUtil() {}
+  private PropertyUtil() {
+  }
 
   public static boolean propertyAsBoolean(Map<String, String> properties,
                                           String property, boolean defaultValue) {
     String value = properties.get(property);
     if (value != null) {
       return Boolean.parseBoolean(properties.get(property));
+    }
+    return defaultValue;
+  }
+
+  public static double propertyAsDouble(Map<String, String> properties,
+      String property, double defaultValue) {
+    String value = properties.get(property);
+    if (value != null) {
+      return Double.parseDouble(properties.get(property));
     }
     return defaultValue;
   }
@@ -48,6 +58,15 @@ public class PropertyUtil {
     String value = properties.get(property);
     if (value != null) {
       return Long.parseLong(properties.get(property));
+    }
+    return defaultValue;
+  }
+
+  public static String propertyAsString(Map<String, String> properties,
+                                        String property, String defaultValue) {
+    String value = properties.get(property);
+    if (value != null) {
+      return properties.get(property);
     }
     return defaultValue;
   }

@@ -15,7 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from iceberg.core import SnapshotParser
+from iceberg.api import DataOperations
+from iceberg.core import BaseSnapshot, SnapshotParser
 
 
 def test_json_conversion(ops, expected_base_snapshot):
@@ -24,3 +25,34 @@ def test_json_conversion(ops, expected_base_snapshot):
 
     assert expected_base_snapshot.snapshot_id == snapshot.snapshot_id
     assert expected_base_snapshot.manifests == snapshot.manifests
+
+
+def test_json_conversion_with_operation(ops, snapshot_manifests):
+    parent_id = 1
+    id = 2
+    expected = BaseSnapshot(ops=ops, snapshot_id=id, parent_id=parent_id,
+                            manifests=snapshot_manifests, operation=DataOperations.REPLACE,
+                            summary={"files-added": 4,
+                                     "files-deleted": "100"})
+
+    json_obj = SnapshotParser.to_json(expected)
+    snapshot = SnapshotParser.from_json(ops, json_obj)
+
+    assert expected.snapshot_id == snapshot.snapshot_id
+    assert expected.timestamp_millis == snapshot.timestamp_millis
+    assert expected.parent_id == snapshot.parent_id
+    assert expected.manifest_location == snapshot.manifest_location
+    assert expected.manifests == snapshot.manifests
+    assert expected.operation == snapshot.operation
+    assert expected.summary == snapshot.summary
+
+# def test_conversion_with_manifest_list(snapshot_manifests):
+#     parent_id = 1
+#     id = 2
+#
+#     with NamedTemporaryFile() as manifest_list:
+#         with ManifestListWriter(Files.local_output(manifest_list), id, parent_id) as writer:
+#             writer.add_all(snapshot_manifests)
+#
+#         with open(manifest_list) as fo:
+#             print(fo.read())

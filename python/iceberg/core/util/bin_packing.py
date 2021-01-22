@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+
 from copy import deepcopy
+
 
 class PackingIterator(object):
 

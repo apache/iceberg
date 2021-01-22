@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.avro;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.UUID;
 import org.apache.avro.Conversion;
 import org.apache.avro.LogicalType;
@@ -28,6 +26,7 @@ import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericFixed;
+import org.apache.iceberg.util.UUIDUtil;
 
 public class UUIDConversion extends Conversion<UUID> {
   @Override
@@ -42,19 +41,11 @@ public class UUIDConversion extends Conversion<UUID> {
 
   @Override
   public UUID fromFixed(GenericFixed value, Schema schema, LogicalType type) {
-    ByteBuffer buffer = ByteBuffer.wrap(value.bytes());
-    buffer.order(ByteOrder.BIG_ENDIAN);
-    long mostSigBits = buffer.getLong();
-    long leastSigBits = buffer.getLong();
-    return new UUID(mostSigBits, leastSigBits);
+    return UUIDUtil.convert(value.bytes());
   }
 
   @Override
   public GenericFixed toFixed(UUID value, Schema schema, LogicalType type) {
-    ByteBuffer buffer = ByteBuffer.allocate(16);
-    buffer.order(ByteOrder.BIG_ENDIAN);
-    buffer.putLong(value.getMostSignificantBits());
-    buffer.putLong(value.getLeastSignificantBits());
-    return new GenericData.Fixed(schema, buffer.array());
+    return new GenericData.Fixed(schema, UUIDUtil.convert(value));
   }
 }

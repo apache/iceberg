@@ -18,7 +18,6 @@
 import datetime
 from decimal import (Decimal,
                      ROUND_HALF_UP)
-import sys
 import uuid
 
 import pytz
@@ -29,11 +28,6 @@ from .expression import (FALSE,
 from .java_variables import (JAVA_MAX_FLOAT,
                              JAVA_MIN_FLOAT)
 from ..types.type import TypeID
-
-# to-do un-wind python 2 switches
-if sys.version_info >= (3, 0):
-    unicode = str
-    long = int
 
 
 class Literals(object):
@@ -55,7 +49,7 @@ class Literals(object):
             if Literal.JAVA_MIN_FLOAT < value < Literal.JAVA_MAX_FLOAT:
                 return FloatLiteral(value)
             return DoubleLiteral(value)
-        elif isinstance(value, (str, unicode)):
+        elif isinstance(value, str):
             return StringLiteral(value)
         elif isinstance(value, uuid.UUID):
             return UUIDLiteral(value)
@@ -96,7 +90,7 @@ class Literal(object):
             if value < Literal.JAVA_MIN_FLOAT or value > Literal.JAVA_MAX_FLOAT:
                 return DoubleLiteral(value)
             return FloatLiteral(value)
-        elif isinstance(value, (str, unicode)):
+        elif isinstance(value, str):
             return StringLiteral(value)
         elif isinstance(value, uuid.UUID):
             return UUIDLiteral(value)

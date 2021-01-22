@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.transforms;
 
-import com.google.common.base.Objects;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -55,17 +55,36 @@ class Identity<T> implements Transform<T, T> {
   }
 
   @Override
+  public boolean preservesOrder() {
+    return true;
+  }
+
+  @Override
+  public boolean satisfiesOrderOf(Transform<?, ?> other) {
+    // ordering by value is the same as long as the other preserves order
+    return other.preservesOrder();
+  }
+
+  @Override
   public UnboundPredicate<T> project(String name, BoundPredicate<T> predicate) {
     return projectStrict(name, predicate);
   }
 
   @Override
   public UnboundPredicate<T> projectStrict(String name, BoundPredicate<T> predicate) {
-    if (predicate.literal() != null) {
-      return Expressions.predicate(predicate.op(), name, predicate.literal().value());
-    } else {
+    if (predicate.isUnaryPredicate()) {
       return Expressions.predicate(predicate.op(), name);
+    } else if (predicate.isLiteralPredicate()) {
+      return Expressions.predicate(predicate.op(), name, predicate.asLiteralPredicate().literal().value());
+    } else if (predicate.isSetPredicate()) {
+      return Expressions.predicate(predicate.op(), name, predicate.asSetPredicate().literalSet());
     }
+    return null;
+  }
+
+  @Override
+  public boolean isIdentity() {
+    return true;
   }
 
   @Override
@@ -108,8 +127,7 @@ class Identity<T> implements Transform<T, T> {
   public boolean equals(Object o) {
     if (this == o) {
       return true;
-    }
-    if (o == null || getClass() != o.getClass()) {
+    } else if (!(o instanceof Identity)) {
       return false;
     }
 

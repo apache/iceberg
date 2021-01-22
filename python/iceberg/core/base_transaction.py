@@ -93,7 +93,7 @@ class TransactionTableOperations(TableOperations):
         return self._bt.current
 
     def commit(self, base, metadata):
-        if base != self._current:
+        if base != self.current():
             raise CommitFailedException("Table metadata refresh is required")
 
         old_id = BaseTransaction.current_id(self._bt.current)

@@ -24,7 +24,7 @@ public class MockFileScanTask extends BaseFileScanTask {
   private final long length;
 
   public MockFileScanTask(long length) {
-    super(null, null, null, null);
+    super(null, null, null, null, null);
     this.length = length;
   }
 

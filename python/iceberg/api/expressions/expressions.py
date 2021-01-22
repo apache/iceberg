@@ -15,15 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import logging
+
 from .expression import (And,
                          FALSE,
                          Not,
                          Operation,
                          Or,
                          TRUE)
+from .expression_parser import parse_expr_string
 from .predicate import (Predicate,
                         UnboundPredicate)
 from .reference import NamedReference
+
+_logger = logging.getLogger(__name__)
 
 
 class Expressions(object):
@@ -121,6 +126,22 @@ class Expressions(object):
     @staticmethod
     def ref(name):
         return NamedReference(name)
+
+    @staticmethod
+    def convert_string_to_expr(predicate_string):
+        expr_map = {"and": (Expressions.and_,),
+                    "eq": (Expressions.equal,),
+                    "exists": (Expressions.not_null,),
+                    "gt": (Expressions.greater_than,),
+                    "gte": (Expressions.greater_than_or_equal,),
+                    "lt": (Expressions.less_than,),
+                    "lte": (Expressions.less_than_or_equal,),
+                    "missing": (Expressions.is_null,),
+                    "neq": (Expressions.not_equal,),
+                    "not": (Expressions.not_,),
+                    "or": (Expressions.or_,)}
+
+        return parse_expr_string(predicate_string, expr_map)
 
 
 class ExpressionVisitors(object):

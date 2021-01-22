@@ -18,8 +18,9 @@
 
 class PartitionField(object):
 
-    def __init__(self, source_id, name, transform):
+    def __init__(self, source_id, field_id, name, transform):
         self.source_id = source_id
+        self.field_id = field_id
         self.name = name
         self.transform = transform
 
@@ -29,7 +30,8 @@ class PartitionField(object):
         elif other is None or not isinstance(other, PartitionField):
             return False
 
-        return self.source_id == other.source_id and self.name == other.name and self.transform == other.transform
+        return self.source_id == other.source_id and self.field_id == other.field_id and \
+            self.name == other.name and self.transform == other.transform
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -38,4 +40,4 @@ class PartitionField(object):
         return hash(self.__key())
 
     def __key(self):
-        return PartitionField.__class__, self.source_id, self.name, self.transform
+        return PartitionField.__class__, self.source_id, self.field_id, self.name, self.transform

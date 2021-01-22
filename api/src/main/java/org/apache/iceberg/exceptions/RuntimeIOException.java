@@ -19,21 +19,29 @@
 
 package org.apache.iceberg.exceptions;
 
+import com.google.errorprone.annotations.FormatMethod;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 
 /**
+ * @deprecated Use java.io.UncheckedIOException directly instead.
+ *
  * Exception used to wrap {@link IOException} as a {@link RuntimeException} and add context.
  */
-public class RuntimeIOException extends RuntimeException {
+@Deprecated
+public class RuntimeIOException extends UncheckedIOException {
+
   public RuntimeIOException(IOException cause) {
     super(cause);
   }
 
+  @FormatMethod
   public RuntimeIOException(IOException cause, String message, Object... args) {
     super(String.format(message, args), cause);
   }
 
+  @FormatMethod
   public RuntimeIOException(String message, Object...args) {
-    super(String.format(message, args));
+    super(new IOException(String.format(message, args)));
   }
 }

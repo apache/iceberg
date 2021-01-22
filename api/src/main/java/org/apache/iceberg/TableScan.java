@@ -19,10 +19,10 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Lists;
 import java.util.Collection;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * API for configuring a table scan.
@@ -57,6 +57,16 @@ public interface TableScan {
    * @throws IllegalArgumentException if the snapshot cannot be found
    */
   TableScan asOfTime(long timestampMillis);
+
+  /**
+   * Create a new {@link TableScan} from this scan's configuration that will override the {@link Table}'s behavior based
+   * on the incoming pair. Unknown properties will be ignored.
+   *
+   * @param property name of the table property to be overridden
+   * @param value value to override with
+   * @return a new scan based on this with overridden behavior
+   */
+  TableScan option(String property, String value);
 
   /**
    * Create a new {@link TableScan} from this with the schema as its projection.
@@ -122,6 +132,34 @@ public interface TableScan {
   Expression filter();
 
   /**
+   * Create a new {@link TableScan} from this that applies data filtering to files but not to rows in those files.
+   *
+   * @return a new scan based on this that does not filter rows in files.
+   */
+  TableScan ignoreResiduals();
+
+  /**
+   * Create a new {@link TableScan} to read appended data from {@code fromSnapshotId} exclusive to {@code toSnapshotId}
+   * inclusive.
+   *
+   * @param fromSnapshotId the last snapshot id read by the user, exclusive
+   * @param toSnapshotId read append data up to this snapshot id
+   * @return a table scan which can read append data from {@code fromSnapshotId}
+   * exclusive and up to {@code toSnapshotId} inclusive
+   */
+  TableScan appendsBetween(long fromSnapshotId, long toSnapshotId);
+
+  /**
+   * Create a new {@link TableScan} to read appended data from {@code fromSnapshotId} exclusive to the current snapshot
+   * inclusive.
+   *
+   * @param fromSnapshotId - the last snapshot id read by the user, exclusive
+   * @return a table scan which can read append data from {@code fromSnapshotId}
+   * exclusive and up to current snapshot inclusive
+   */
+  TableScan appendsAfter(long fromSnapshotId);
+
+  /**
    * Plan the {@link FileScanTask files} that will be read by this scan.
    * <p>
    * Each file has a residual expression that should be applied to filter the file's rows.
@@ -170,4 +208,5 @@ public interface TableScan {
    * @return true if case sensitive, false otherwise.
    */
   boolean isCaseSensitive();
+
 }

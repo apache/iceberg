@@ -26,7 +26,8 @@ import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 
 public class DataTestHelpers {
-  private DataTestHelpers() {}
+  private DataTestHelpers() {
+  }
 
   public static void assertEquals(Types.StructType struct, Record expected, Record actual) {
     List<Types.NestedField> fields = struct.fields();
@@ -84,7 +85,7 @@ public class DataTestHelpers {
       case UUID:
       case BINARY:
       case DECIMAL:
-        Assert.assertEquals("Primitive value should be equal to expected", expected, actual);
+        Assert.assertEquals("Primitive value should be equal to expected for type " + type, expected, actual);
         break;
       case FIXED:
         Assert.assertTrue("Expected should be a byte[]", expected instanceof byte[]);

@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -33,13 +31,19 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.Decoder;
 import org.apache.avro.io.ResolvingDecoder;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.UUIDUtil;
 
 import static java.util.Collections.emptyIterator;
 
@@ -79,6 +83,10 @@ public class ValueReaders {
     return Utf8Reader.INSTANCE;
   }
 
+  public static ValueReader<String> enums(List<String> symbols) {
+    return new EnumReader(symbols);
+  }
+
   public static ValueReader<UUID> uuids() {
     return UUIDReader.INSTANCE;
   }
@@ -101,6 +109,18 @@ public class ValueReaders {
 
   public static ValueReader<BigDecimal> decimal(ValueReader<byte[]> unscaledReader, int scale) {
     return new DecimalReader(unscaledReader, scale);
+  }
+
+  public static ValueReader<byte[]> decimalBytesReader(Schema schema) {
+    switch (schema.getType()) {
+      case FIXED:
+        return ValueReaders.fixed(schema.getFixedSize());
+      case BYTES:
+        return ValueReaders.bytes();
+      default:
+        throw new IllegalArgumentException(
+            "Invalid primitive type for decimal: " + schema.getType());
+    }
   }
 
   public static ValueReader<Object> union(List<ValueReader<?>> readers) {
@@ -252,15 +272,14 @@ public class ValueReaders {
     }
 
     @Override
+    @SuppressWarnings("ByteBufferBackingArray")
     public UUID read(Decoder decoder, Object ignored) throws IOException {
       ByteBuffer buffer = BUFFER.get();
       buffer.rewind();
 
       decoder.readFixed(buffer.array(), 0, 16);
-      long mostSigBits = buffer.getLong();
-      long leastSigBits = buffer.getLong();
 
-      return new UUID(mostSigBits, leastSigBits);
+      return UUIDUtil.convert(buffer);
     }
   }
 
@@ -555,13 +574,65 @@ public class ValueReaders {
     }
   }
 
-  public abstract static class StructReader<S> implements ValueReader<S> {
+  public abstract static class StructReader<S> implements ValueReader<S>, SupportsRowPosition {
     private final ValueReader<?>[] readers;
+    private final int[] positions;
+    private final Object[] constants;
+    private int posField = -1;
 
-    protected StructReader(List<ValueReader<?>> readers) {
-      this.readers = new ValueReader[readers.size()];
-      for (int i = 0; i < this.readers.length; i += 1) {
-        this.readers[i] = readers.get(i);
+    protected StructReader(List<ValueReader<?>> readers, Schema schema) {
+      this.readers = readers.toArray(new ValueReader[0]);
+      this.positions = new int[0];
+      this.constants = new Object[0];
+
+      List<Schema.Field> fields = schema.getFields();
+      for (int pos = 0; pos < fields.size(); pos += 1) {
+        Schema.Field field = fields.get(pos);
+        if (AvroSchemaUtil.getFieldId(field) == MetadataColumns.ROW_POSITION.fieldId()) {
+          // track where the _pos field is located for setRowPositionSupplier
+          this.posField = pos;
+        }
+      }
+    }
+
+    protected StructReader(List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
+      this.readers = readers.toArray(new ValueReader[0]);
+
+      List<Types.NestedField> fields = struct.fields();
+      List<Integer> positionList = Lists.newArrayListWithCapacity(fields.size());
+      List<Object> constantList = Lists.newArrayListWithCapacity(fields.size());
+      for (int pos = 0; pos < fields.size(); pos += 1) {
+        Types.NestedField field = fields.get(pos);
+        if (idToConstant.containsKey(field.fieldId())) {
+          positionList.add(pos);
+          constantList.add(idToConstant.get(field.fieldId()));
+        } else if (field.fieldId() == MetadataColumns.ROW_POSITION.fieldId()) {
+          // track where the _pos field is located for setRowPositionSupplier
+          this.posField = pos;
+        }
+      }
+
+      this.positions = positionList.stream().mapToInt(Integer::intValue).toArray();
+      this.constants = constantList.toArray();
+    }
+
+    @Override
+    public void setRowPositionSupplier(Supplier<Long> posSupplier) {
+      if (posField >= 0) {
+        long startingPos = posSupplier.get();
+        this.readers[posField] = new PositionReader(startingPos);
+        for (ValueReader<?> reader : readers) {
+          if (reader instanceof SupportsRowPosition) {
+            ((SupportsRowPosition) reader).setRowPositionSupplier(() -> startingPos);
+          }
+        }
+
+      } else {
+        for (ValueReader<?> reader : readers) {
+          if (reader instanceof SupportsRowPosition) {
+            ((SupportsRowPosition) reader).setRowPositionSupplier(posSupplier);
+          }
+        }
       }
     }
 
@@ -593,6 +664,10 @@ public class ValueReaders {
         }
       }
 
+      for (int i = 0; i < positions.length; i += 1) {
+        set(struct, positions[i], constants[i]);
+      }
+
       return struct;
     }
   }
@@ -601,7 +676,7 @@ public class ValueReaders {
     private final Schema recordSchema;
 
     private RecordReader(List<ValueReader<?>> readers, Schema recordSchema) {
-      super(readers);
+      super(readers, recordSchema);
       this.recordSchema = recordSchema;
     }
 
@@ -631,7 +706,7 @@ public class ValueReaders {
     private final Schema schema;
 
     IndexedRecordReader(List<ValueReader<?>> readers, Class<R> recordClass, Schema schema) {
-      super(readers);
+      super(readers, schema);
       this.recordClass = recordClass;
       this.ctor = DynConstructors.builder(IndexedRecord.class)
           .hiddenImpl(recordClass, Schema.class)
@@ -657,6 +732,20 @@ public class ValueReaders {
     @Override
     protected void set(R struct, int pos, Object value) {
       struct.put(pos, value);
+    }
+  }
+
+  static class PositionReader implements ValueReader<Long> {
+    private long currentPosition;
+
+    PositionReader(long rowPosition) {
+      this.currentPosition = rowPosition - 1;
+    }
+
+    @Override
+    public Long read(Decoder ignored, Object reuse) throws IOException {
+      currentPosition += 1;
+      return currentPosition;
     }
   }
 }

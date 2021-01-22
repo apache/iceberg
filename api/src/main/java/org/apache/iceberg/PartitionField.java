@@ -19,8 +19,8 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Objects;
 import java.io.Serializable;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.transforms.Transform;
 
 /**
@@ -28,31 +28,40 @@ import org.apache.iceberg.transforms.Transform;
  */
 public class PartitionField implements Serializable {
   private final int sourceId;
+  private final int fieldId;
   private final String name;
   private final Transform<?, ?> transform;
 
-  PartitionField(int sourceId, String name, Transform<?, ?> transform) {
+  PartitionField(int sourceId, int fieldId, String name, Transform<?, ?> transform) {
     this.sourceId = sourceId;
+    this.fieldId = fieldId;
     this.name = name;
     this.transform = transform;
   }
 
   /**
-   * @return the field id of the source field in the {@link PartitionSpec spec's} table schema
+   * Returns the field id of the source field in the {@link PartitionSpec spec's} table schema.
    */
   public int sourceId() {
     return sourceId;
   }
 
   /**
-   * @return the name of this partition field
+   * Returns the partition field id across all the table metadata's partition specs.
+   */
+  public int fieldId() {
+    return fieldId;
+  }
+
+  /**
+   * Returns the name of this partition field.
    */
   public String name() {
     return name;
   }
 
   /**
-   * @return the transform used to produce partition values from source values
+   * Returns the transform used to produce partition values from source values.
    */
   public Transform<?, ?> transform() {
     return transform;
@@ -60,26 +69,26 @@ public class PartitionField implements Serializable {
 
   @Override
   public String toString() {
-    return name + ": " + transform + "(" + sourceId + ")";
+    return fieldId + ": " + name + ": " + transform + "(" + sourceId + ")";
   }
 
   @Override
   public boolean equals(Object other) {
     if (this == other) {
       return true;
-    }
-    if (other == null || getClass() != other.getClass()) {
+    } else if (!(other instanceof PartitionField)) {
       return false;
     }
 
     PartitionField that = (PartitionField) other;
     return sourceId == that.sourceId &&
+        fieldId == that.fieldId &&
         name.equals(that.name) &&
         transform.equals(that.transform);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(sourceId, name, transform);
+    return Objects.hashCode(sourceId, fieldId, name, transform);
   }
 }

@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -29,8 +30,12 @@ import org.apache.iceberg.io.LocationProvider;
  * Base {@link Table} implementation.
  * <p>
  * This can be extended by providing a {@link TableOperations} to the constructor.
+ * <p>
+ * Serializing and deserializing a BaseTable object returns a read only implementation of the BaseTable using a
+ * {@link StaticTableOperations}. This way no Catalog related calls are needed when reading the table data after
+ * deserialization.
  */
-public class BaseTable implements Table, HasTableOperations {
+public class BaseTable implements Table, HasTableOperations, Serializable {
   private final TableOperations ops;
   private final String name;
 
@@ -42,6 +47,11 @@ public class BaseTable implements Table, HasTableOperations {
   @Override
   public TableOperations operations() {
     return ops;
+  }
+
+  @Override
+  public String name() {
+    return name;
   }
 
   @Override
@@ -62,6 +72,21 @@ public class BaseTable implements Table, HasTableOperations {
   @Override
   public PartitionSpec spec() {
     return ops.current().spec();
+  }
+
+  @Override
+  public Map<Integer, PartitionSpec> specs() {
+    return ops.current().specsById();
+  }
+
+  @Override
+  public SortOrder sortOrder() {
+    return ops.current().sortOrder();
+  }
+
+  @Override
+  public Map<Integer, SortOrder> sortOrders() {
+    return ops.current().sortOrdersById();
   }
 
   @Override
@@ -100,8 +125,18 @@ public class BaseTable implements Table, HasTableOperations {
   }
 
   @Override
+  public UpdatePartitionSpec updateSpec() {
+    return new BaseUpdatePartitionSpec(ops);
+  }
+
+  @Override
   public UpdateProperties updateProperties() {
     return new PropertiesUpdate(ops);
+  }
+
+  @Override
+  public ReplaceSortOrder replaceSortOrder() {
+    return new BaseReplaceSortOrder(ops);
   }
 
   @Override
@@ -111,37 +146,42 @@ public class BaseTable implements Table, HasTableOperations {
 
   @Override
   public AppendFiles newAppend() {
-    return new MergeAppend(ops);
+    return new MergeAppend(name, ops);
   }
 
   @Override
   public AppendFiles newFastAppend() {
-    return new FastAppend(ops);
+    return new FastAppend(name, ops);
   }
 
   @Override
   public RewriteFiles newRewrite() {
-    return new ReplaceFiles(ops);
+    return new BaseRewriteFiles(name, ops);
   }
 
   @Override
   public RewriteManifests rewriteManifests() {
-    return new ReplaceManifests(ops);
+    return new BaseRewriteManifests(ops);
   }
 
   @Override
   public OverwriteFiles newOverwrite() {
-    return new OverwriteData(ops);
+    return new BaseOverwriteFiles(name, ops);
+  }
+
+  @Override
+  public RowDelta newRowDelta() {
+    return new BaseRowDelta(name, ops);
   }
 
   @Override
   public ReplacePartitions newReplacePartitions() {
-    return new ReplacePartitionsOperation(ops);
+    return new BaseReplacePartitions(name, ops);
   }
 
   @Override
   public DeleteFiles newDelete() {
-    return new StreamingDelete(ops);
+    return new StreamingDelete(name, ops);
   }
 
   @Override
@@ -151,12 +191,17 @@ public class BaseTable implements Table, HasTableOperations {
 
   @Override
   public Rollback rollback() {
-    return new RollbackToSnapshot(ops);
+    return new RollbackToSnapshot(name, ops);
+  }
+
+  @Override
+  public ManageSnapshots manageSnapshots() {
+    return new SnapshotManager(name, ops);
   }
 
   @Override
   public Transaction newTransaction() {
-    return Transactions.newTransaction(ops);
+    return Transactions.newTransaction(name, ops);
   }
 
   @Override
@@ -176,6 +221,32 @@ public class BaseTable implements Table, HasTableOperations {
 
   @Override
   public String toString() {
-    return name;
+    return name();
+  }
+
+  Object writeReplace() {
+    return new TableProxy(this);
+  }
+
+  private static class TableProxy implements Serializable {
+    private FileIO io;
+    private String name;
+    private String metadataLocation;
+
+    private TableProxy(BaseTable table) {
+      io = table.io();
+      name = table.name();
+      metadataLocation = table.operations().current().metadataFileLocation();
+    }
+
+    /**
+     * Returns a BaseTable with {@link StaticTableOperations} so after deserialization no Catalog related calls are
+     * needed for accessing the table snapshot data.
+     * @return The BaseTable object for reading the table data at the time of the serialization of the original
+     *         BaseTable object
+     */
+    private Object readResolve()  {
+      return new BaseTable(new StaticTableOperations(metadataLocation, io), name);
+    }
   }
 }

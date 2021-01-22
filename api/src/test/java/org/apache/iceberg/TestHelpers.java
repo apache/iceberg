@@ -25,10 +25,11 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
 import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.BoundSetPredicate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.UnboundPredicate;
@@ -36,7 +37,8 @@ import org.junit.Assert;
 
 public class TestHelpers {
 
-  private TestHelpers() {}
+  private TestHelpers() {
+  }
 
   public static <T> T assertAndUnwrap(Expression expr, Class<T> expected) {
     Assert.assertTrue("Expression should have expected type: " + expected,
@@ -49,6 +51,13 @@ public class TestHelpers {
     Assert.assertTrue("Expression should be a bound predicate: " + expr,
         expr instanceof BoundPredicate);
     return (BoundPredicate<T>) expr;
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T> BoundSetPredicate<T> assertAndUnwrapBoundSet(Expression expr) {
+    Assert.assertTrue("Expression should be a bound set predicate: " + expr,
+        expr instanceof BoundSetPredicate);
+    return (BoundSetPredicate<T>) expr;
   }
 
   @SuppressWarnings("unchecked")
@@ -118,64 +127,24 @@ public class TestHelpers {
     public <T> void set(int pos, T value) {
       throw new UnsupportedOperationException("Setting values is not supported");
     }
-  }
 
-  /**
-   * A convenience method to avoid a large number of @Test(expected=...) tests
-   * @param message A String message to describe this assertion
-   * @param expected An Exception class that the Runnable should throw
-   * @param containedInMessage A String that should be contained by the thrown
-   *                           exception's message
-   * @param callable A Callable that is expected to throw the exception
-   */
-  public static void assertThrows(String message,
-                                  Class<? extends Exception> expected,
-                                  String containedInMessage,
-                                  Callable callable) {
-    try {
-      callable.call();
-      Assert.fail("No exception was thrown (" + message + "), expected: " +
-          expected.getName());
-    } catch (Exception actual) {
-      handleException(message, expected, containedInMessage, actual);
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      }
+      if (other == null || getClass() != other.getClass()) {
+        return false;
+      }
+
+      Row that = (Row) other;
+
+      return Arrays.equals(values, that.values);
     }
-  }
 
-  /**
-   * A convenience method to avoid a large number of @Test(expected=...) tests
-   * @param message A String message to describe this assertion
-   * @param expected An Exception class that the Runnable should throw
-   * @param containedInMessage A String that should be contained by the thrown
-   *                           exception's message
-   * @param runnable A Runnable that is expected to throw the runtime exception
-   */
-  public static void assertThrows(String message,
-                                  Class<? extends Exception> expected,
-                                  String containedInMessage,
-                                  Runnable runnable) {
-    try {
-      runnable.run();
-      Assert.fail("No exception was thrown (" + message + "), expected: " +
-          expected.getName());
-    } catch (Exception actual) {
-      handleException(message, expected, containedInMessage, actual);
-    }
-  }
-
-  private static void handleException(String message,
-                                      Class<? extends Exception> expected,
-                                      String containedInMessage,
-                                      Exception actual) {
-    try {
-      Assert.assertEquals(message, expected, actual.getClass());
-      Assert.assertTrue(
-          "Expected exception message (" + containedInMessage + ") missing: " +
-              actual.getMessage(),
-          actual.getMessage().contains(containedInMessage)
-      );
-    } catch (AssertionError e) {
-      e.addSuppressed(actual);
-      throw e;
+    @Override
+    public int hashCode() {
+      return Arrays.hashCode(values);
     }
   }
 
@@ -215,10 +184,14 @@ public class TestHelpers {
     private final String path;
     private final long length;
     private final int specId;
+    private final ManifestContent content;
     private final Long snapshotId;
     private final Integer addedFiles;
+    private final Long addedRows;
     private final Integer existingFiles;
+    private final Long existingRows;
     private final Integer deletedFiles;
+    private final Long deletedRows;
     private final List<PartitionFieldSummary> partitions;
 
     public TestManifestFile(String path, long length, int specId, Long snapshotId,
@@ -227,10 +200,32 @@ public class TestHelpers {
       this.path = path;
       this.length = length;
       this.specId = specId;
+      this.content = ManifestContent.DATA;
       this.snapshotId = snapshotId;
       this.addedFiles = addedFiles;
+      this.addedRows = null;
       this.existingFiles = existingFiles;
+      this.existingRows = null;
       this.deletedFiles = deletedFiles;
+      this.deletedRows = null;
+      this.partitions = partitions;
+    }
+
+    public TestManifestFile(String path, long length, int specId, ManifestContent content, Long snapshotId,
+                            Integer addedFiles, Long addedRows, Integer existingFiles,
+                            Long existingRows, Integer deletedFiles, Long deletedRows,
+                            List<PartitionFieldSummary> partitions) {
+      this.path = path;
+      this.length = length;
+      this.specId = specId;
+      this.content = content;
+      this.snapshotId = snapshotId;
+      this.addedFiles = addedFiles;
+      this.addedRows = addedRows;
+      this.existingFiles = existingFiles;
+      this.existingRows = existingRows;
+      this.deletedFiles = deletedFiles;
+      this.deletedRows = deletedRows;
       this.partitions = partitions;
     }
 
@@ -250,6 +245,21 @@ public class TestHelpers {
     }
 
     @Override
+    public ManifestContent content() {
+      return content;
+    }
+
+    @Override
+    public long sequenceNumber() {
+      return 0;
+    }
+
+    @Override
+    public long minSequenceNumber() {
+      return 0;
+    }
+
+    @Override
     public Long snapshotId() {
       return snapshotId;
     }
@@ -260,13 +270,28 @@ public class TestHelpers {
     }
 
     @Override
+    public Long addedRowsCount() {
+      return addedRows;
+    }
+
+    @Override
     public Integer existingFilesCount() {
       return existingFiles;
     }
 
     @Override
+    public Long existingRowsCount() {
+      return existingRows;
+    }
+
+    @Override
     public Integer deletedFilesCount() {
       return deletedFiles;
+    }
+
+    @Override
+    public Long deletedRowsCount() {
+      return deletedRows;
     }
 
     @Override
@@ -286,16 +311,18 @@ public class TestHelpers {
     private final long recordCount;
     private final Map<Integer, Long> valueCounts;
     private final Map<Integer, Long> nullValueCounts;
+    private final Map<Integer, Long> nanValueCounts;
     private final Map<Integer, ByteBuffer> lowerBounds;
     private final Map<Integer, ByteBuffer> upperBounds;
 
     public TestDataFile(String path, StructLike partition, long recordCount) {
-      this(path, partition, recordCount, null, null, null, null);
+      this(path, partition, recordCount, null, null, null, null, null);
     }
 
     public TestDataFile(String path, StructLike partition, long recordCount,
                         Map<Integer, Long> valueCounts,
                         Map<Integer, Long> nullValueCounts,
+                        Map<Integer, Long> nanValueCounts,
                         Map<Integer, ByteBuffer> lowerBounds,
                         Map<Integer, ByteBuffer> upperBounds) {
       this.path = path;
@@ -303,8 +330,19 @@ public class TestHelpers {
       this.recordCount = recordCount;
       this.valueCounts = valueCounts;
       this.nullValueCounts = nullValueCounts;
+      this.nanValueCounts = nanValueCounts;
       this.lowerBounds = lowerBounds;
       this.upperBounds = upperBounds;
+    }
+
+    @Override
+    public Long pos() {
+      return null;
+    }
+
+    @Override
+    public int specId() {
+      return 0;
     }
 
     @Override
@@ -333,16 +371,6 @@ public class TestHelpers {
     }
 
     @Override
-    public Integer fileOrdinal() {
-      return null;
-    }
-
-    @Override
-    public List<Integer> sortColumns() {
-      return null;
-    }
-
-    @Override
     public Map<Integer, Long> columnSizes() {
       return null;
     }
@@ -355,6 +383,11 @@ public class TestHelpers {
     @Override
     public Map<Integer, Long> nullValueCounts() {
       return nullValueCounts;
+    }
+
+    @Override
+    public Map<Integer, Long> nanValueCounts() {
+      return nanValueCounts;
     }
 
     @Override

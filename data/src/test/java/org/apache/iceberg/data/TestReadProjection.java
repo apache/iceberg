@@ -19,14 +19,15 @@
 
 package org.apache.iceberg.data;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import java.io.IOException;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -61,6 +62,32 @@ public abstract class TestReadProjection {
     int cmp = Comparators.charSequences()
         .compare("test", (CharSequence) projected.getField("data"));
     Assert.assertTrue("Should contain the correct data value", cmp == 0);
+  }
+
+  @Test
+  public void testSpecialCharacterProjection() throws Exception {
+    Schema schema = new Schema(
+        Types.NestedField.required(0, "user id", Types.LongType.get()),
+        Types.NestedField.optional(1, "data%0", Types.StringType.get())
+    );
+
+    Record record = GenericRecord.create(schema.asStruct());
+    record.setField("user id", 34L);
+    record.setField("data%0", "test");
+
+    Record full = writeAndRead("special_chars", schema, schema, record);
+
+    Assert.assertEquals("Should contain the correct id value", 34L, (long) full.getField("user id"));
+    Assert.assertEquals("Should contain the correct data value",
+        0,
+        Comparators.charSequences().compare("test", (CharSequence) full.getField("data%0")));
+
+    Record projected = writeAndRead("special_characters", schema, schema.select("data%0"), record);
+
+    Assert.assertNull("Should not contain id value", projected.getField("user id"));
+    Assert.assertEquals("Should contain the correct data value",
+        0,
+        Comparators.charSequences().compare("test", (CharSequence) projected.getField("data%0")));
   }
 
   @Test
@@ -110,6 +137,37 @@ public abstract class TestReadProjection {
   }
 
   @Test
+  public void testRenamedAddedField() throws Exception {
+    Schema schema = new Schema(
+        Types.NestedField.required(1, "a", Types.LongType.get()),
+        Types.NestedField.required(2, "b", Types.LongType.get()),
+        Types.NestedField.required(3, "d", Types.LongType.get())
+    );
+
+    Record record = GenericRecord.create(schema.asStruct());
+    record.setField("a", 100L);
+    record.setField("b", 200L);
+    record.setField("d", 300L);
+
+    Schema renamedAdded = new Schema(
+        Types.NestedField.optional(1, "a", Types.LongType.get()),
+        Types.NestedField.optional(2, "b", Types.LongType.get()),
+        Types.NestedField.optional(3, "c", Types.LongType.get()),
+        Types.NestedField.optional(4, "d", Types.LongType.get())
+    );
+
+    Record projected = writeAndRead("rename_and_add_column_projection", schema, renamedAdded, record);
+    Assert.assertEquals("Should contain the correct value in column 1", projected.get(0), 100L);
+    Assert.assertEquals("Should contain the correct value in column a", projected.getField("a"), 100L);
+    Assert.assertEquals("Should contain the correct value in column 2", projected.get(1), 200L);
+    Assert.assertEquals("Should contain the correct value in column b", projected.getField("b"), 200L);
+    Assert.assertEquals("Should contain the correct value in column 3", projected.get(2), 300L);
+    Assert.assertEquals("Should contain the correct value in column c", projected.getField("c"), 300L);
+    Assert.assertNull("Should contain empty value on new column 4", projected.get(3));
+    Assert.assertNull("Should contain the correct value in column d", projected.getField("d"));
+  }
+
+  @Test
   public void testEmptyProjection() throws Exception {
     Schema schema = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get()),
@@ -135,12 +193,14 @@ public abstract class TestReadProjection {
   public void testBasicProjection() throws Exception {
     Schema writeSchema = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get()),
-        Types.NestedField.optional(1, "data", Types.StringType.get())
+        Types.NestedField.optional(1, "data", Types.StringType.get()),
+        Types.NestedField.optional(2, "time", Types.TimestampType.withZone())
     );
 
     Record record = GenericRecord.create(writeSchema.asStruct());
     record.setField("id", 34L);
     record.setField("data", "test");
+    record.setField("time", OffsetDateTime.now());
 
     Schema idOnly = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get())
@@ -519,5 +579,34 @@ public abstract class TestReadProjection {
     Assert.assertNull("Should not project x", projectedP2.getField("x"));
     Assert.assertNull("Should not project y", projectedP2.getField("y"));
     Assert.assertEquals("Should project null z", null, projectedP2.getField("z"));
+  }
+
+  @Test
+  public void testAddedFieldsWithRequiredChildren() throws Exception {
+    Schema schema = new Schema(
+        Types.NestedField.required(1, "a", Types.LongType.get())
+    );
+
+    Record record = GenericRecord.create(schema.asStruct());
+    record.setField("a", 100L);
+
+    Schema addedFields = new Schema(
+        Types.NestedField.optional(1, "a", Types.LongType.get()),
+        Types.NestedField.optional(2, "b", Types.StructType.of(
+            Types.NestedField.required(3, "c", Types.LongType.get())
+        )),
+        Types.NestedField.optional(4, "d", Types.ListType.ofRequired(5, Types.LongType.get())),
+        Types.NestedField.optional(6, "e", Types.MapType.ofRequired(7, 8, Types.LongType.get(), Types.LongType.get()))
+    );
+
+    Record projected = writeAndRead("add_fields_with_required_children_projection", schema, addedFields, record);
+    Assert.assertEquals("Should contain the correct value in column 1", projected.get(0), 100L);
+    Assert.assertEquals("Should contain the correct value in column a", projected.getField("a"), 100L);
+    Assert.assertNull("Should contain empty value in new column 2", projected.get(1));
+    Assert.assertNull("Should contain empty value in column b", projected.getField("b"));
+    Assert.assertNull("Should contain empty value in new column 4", projected.get(2));
+    Assert.assertNull("Should contain empty value in column d", projected.getField("d"));
+    Assert.assertNull("Should contain empty value in new column 6", projected.get(3));
+    Assert.assertNull("Should contain empty value in column e", projected.getField("e"));
   }
 }

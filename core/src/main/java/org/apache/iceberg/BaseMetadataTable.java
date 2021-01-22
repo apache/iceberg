@@ -19,20 +19,35 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableMap;
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
-abstract class BaseMetadataTable implements Table {
+/**
+ * Base class for metadata tables.
+ * <p>
+ * Serializing and deserializing a metadata table object returns a read only implementation of the metadata table
+ * using a {@link StaticTableOperations}. This way no Catalog related calls are needed when reading the table data after
+ * deserialization.
+ */
+abstract class BaseMetadataTable implements Table, Serializable {
+  private final PartitionSpec spec = PartitionSpec.unpartitioned();
+  private final SortOrder sortOrder = SortOrder.unsorted();
+
   abstract Table table();
-  abstract String metadataTableName();
 
   @Override
   public FileIO io() {
     return table().io();
+  }
+
+  @Override
+  public String location() {
+    return table().location();
   }
 
   @Override
@@ -52,7 +67,22 @@ abstract class BaseMetadataTable implements Table {
 
   @Override
   public PartitionSpec spec() {
-    return PartitionSpec.unpartitioned();
+    return spec;
+  }
+
+  @Override
+  public Map<Integer, PartitionSpec> specs() {
+    return ImmutableMap.of(spec.specId(), spec);
+  }
+
+  @Override
+  public SortOrder sortOrder() {
+    return sortOrder;
+  }
+
+  @Override
+  public Map<Integer, SortOrder> sortOrders() {
+    return ImmutableMap.of(sortOrder.orderId(), sortOrder);
   }
 
   @Override
@@ -86,8 +116,18 @@ abstract class BaseMetadataTable implements Table {
   }
 
   @Override
+  public UpdatePartitionSpec updateSpec() {
+    throw new UnsupportedOperationException("Cannot update the partition spec of a metadata table");
+  }
+
+  @Override
   public UpdateProperties updateProperties() {
     throw new UnsupportedOperationException("Cannot update the properties of a metadata table");
+  }
+
+  @Override
+  public ReplaceSortOrder replaceSortOrder() {
+    throw new UnsupportedOperationException("Cannot update the sort order of a metadata table");
   }
 
   @Override
@@ -116,6 +156,11 @@ abstract class BaseMetadataTable implements Table {
   }
 
   @Override
+  public RowDelta newRowDelta() {
+    throw new UnsupportedOperationException("Cannot remove or replace rows in a metadata table");
+  }
+
+  @Override
   public ReplacePartitions newReplacePartitions() {
     throw new UnsupportedOperationException("Cannot replace partitions in a metadata table");
   }
@@ -136,12 +181,53 @@ abstract class BaseMetadataTable implements Table {
   }
 
   @Override
+  public ManageSnapshots manageSnapshots() {
+    throw new UnsupportedOperationException("Cannot manage snapshots in a metadata table");
+  }
+
+  @Override
   public Transaction newTransaction() {
     throw new UnsupportedOperationException("Cannot create transactions for a metadata table");
   }
 
   @Override
   public String toString() {
-    return table().toString() + "." + metadataTableName();
+    return name();
+  }
+
+  abstract String metadataLocation();
+
+  abstract MetadataTableType metadataTableType();
+
+  final Object writeReplace() {
+    return new TableProxy(io(), table().name(), name(), metadataLocation(), metadataTableType());
+  }
+
+  static class TableProxy implements Serializable {
+    private FileIO io;
+    private String baseTableName;
+    private String metadataTableName;
+    private String metadataLocation;
+    private MetadataTableType type;
+
+    TableProxy(FileIO io, String baseTableName, String metadataTableName, String metadataLocation,
+               MetadataTableType type) {
+      this.io = io;
+      this.baseTableName = baseTableName;
+      this.metadataTableName = metadataTableName;
+      this.metadataLocation = metadataLocation;
+      this.type = type;
+    }
+
+    /**
+     * Returns a table with {@link StaticTableOperations} so after deserialization no Catalog related calls are
+     * needed for accessing the table snapshot data.
+     * @return The metadata Table object for reading the table data at the time of the serialization of the original
+     *         object
+     */
+    private Object readResolve()  {
+      TableOperations ops = new StaticTableOperations(metadataLocation, io);
+      return MetadataTableUtils.createMetadataTableInstance(ops, baseTableName, metadataTableName, type);
+    }
   }
 }

@@ -32,8 +32,8 @@ public class SerializableConfiguration implements Serializable {
 
   private transient Configuration hadoopConf;
 
-  public SerializableConfiguration(Configuration hadoopCOnf) {
-    this.hadoopConf = hadoopCOnf;
+  public SerializableConfiguration(Configuration hadoopConf) {
+    this.hadoopConf = hadoopConf;
   }
 
   private void writeObject(ObjectOutputStream out) throws IOException {

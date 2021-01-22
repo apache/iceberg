@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Maps;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -30,7 +29,9 @@ import java.util.Map;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
 import org.apache.iceberg.TableMetadataParser.Codec;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types.BooleanType;
 import org.junit.After;
 import org.junit.Assert;
@@ -48,12 +49,9 @@ public class TableMetadataParserTest {
 
   private static final Schema SCHEMA = new Schema(optional(1, "b", BooleanType.get()));
 
-  @Parameterized.Parameters
-  public static Object[][] parameters() {
-    return new Object[][] {
-        new Object[] { "none" },
-        new Object[] { "gzip" }
-    };
+  @Parameterized.Parameters(name = "codecName = {0}")
+  public static Object[] parameters() {
+    return new Object[] { "none", "gzip" };
   }
 
   private final String codecName;
@@ -71,10 +69,10 @@ public class TableMetadataParserTest {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(TableProperties.METADATA_COMPRESSION, codecName);
     String location = "file://tmp/db/table";
-    TableMetadata metadata = newTableMetadata(null, SCHEMA, unpartitioned(), location, properties);
+    TableMetadata metadata = newTableMetadata(SCHEMA, unpartitioned(), location, properties);
     TableMetadataParser.write(metadata, outputFile);
     Assert.assertEquals(codec == Codec.GZIP, isCompressed(fileName));
-    TableMetadata actualMetadata = TableMetadataParser.read(null, Files.localInput(new File(fileName)));
+    TableMetadata actualMetadata = TableMetadataParser.read((FileIO) null, Files.localInput(new File(fileName)));
     verifyMetadata(metadata, actualMetadata);
   }
 

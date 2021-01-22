@@ -61,15 +61,27 @@ class GenericManifestFile(ManifestFile, StructLike):
         self._length = length
         self.spec_id = spec_id
         self.snapshot_id = snapshot_id
-        self.added_files_count = added_files_count
-        self.existing_files_count = existing_files_count
-        self.deleted_files_count = deleted_files_count
-        self.partitions = partitions if partitions is not None else list()
+        self._added_files_count = added_files_count
+        self._existing_files_count = existing_files_count
+        self._deleted_files_count = deleted_files_count
+        self.partitions = partitions
         self.from_projection_pos = None
 
     @property
     def length(self):
         return self.lazy_length()
+
+    @property
+    def added_files_count(self):
+        return self._added_files_count
+
+    @property
+    def existing_files_count(self):
+        return self._existing_files_count
+
+    @property
+    def deleted_files_count(self):
+        return self._deleted_files_count
 
     def lazy_length(self):
         if self._length is None:
@@ -103,17 +115,17 @@ class GenericManifestFile(ManifestFile, StructLike):
         if pos == 0:
             self.manifest_path = str(value)
         elif pos == 1:
-            self.length = int(value)
+            self._length = int(value)
         elif pos == 2:
             self.spec_id = int(value)
         elif pos == 3:
             self.snapshot_id = int(value)
         elif pos == 4:
-            self.added_files_count = int(value)
+            self._added_files_count = int(value)
         elif pos == 5:
-            self.existing_files_count = int(value)
+            self._existing_files_count = int(value)
         elif pos == 6:
-            self.deleted_files_count = int(value)
+            self._deleted_files_count = int(value)
         elif pos == 7:
             self.partitions = value
 
@@ -122,7 +134,7 @@ class GenericManifestFile(ManifestFile, StructLike):
                                    snapshot_id=self.snapshot_id, added_files_count=self.added_files_count,
                                    existing_files_count=self.existing_files_count,
                                    deleted_files_count=self.deleted_files_count,
-                                   partitions=list(self.partitions), avro_schema=self.avro_schema)
+                                   partitions=list(self.partitions))
 
     @staticmethod
     def get_schema():
@@ -145,16 +157,19 @@ class GenericManifestFile(ManifestFile, StructLike):
 
     @staticmethod
     def from_avro_record_json(row):
+        partitions = row.get("partitions")
+        if partitions is not None:
+            partitions = [GenericPartitionFieldSummary(contains_null=partition["contains_null"],
+                                                       lower_bound=partition["lower_bound"],
+                                                       upper_bound=partition["upper_bound"])
+                          for partition in row.get("partitions")]
         return GenericManifestFile(path=row.get("manifest_path"),
                                    length=row.get("manifest_length"),
                                    spec_id=row.get("partition_spec_id"),
                                    added_files_count=row.get("added_data_files_count"),
                                    existing_files_count=row.get("existing_data_files_count"),
                                    deleted_files_count=row.get("existing_data_files_count"),
-                                   partitions=[GenericPartitionFieldSummary(contains_null=partition["contains_null"],
-                                                                            lower_bound=partition["lower_bound"],
-                                                                            upper_bound=partition["upper_bound"])
-                                               for partition in row.get("partitions")])
+                                   partitions=partitions)
 
     def __eq__(self, other):
         if id(self) == id(other):

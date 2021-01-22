@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
@@ -34,7 +33,9 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.Encoder;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.DecimalUtil;
 
 public class ValueWriters {
   private ValueWriters() {
@@ -46,6 +47,14 @@ public class ValueWriters {
 
   public static ValueWriter<Boolean> booleans() {
     return BooleanWriter.INSTANCE;
+  }
+
+  public static ValueWriter<Byte> tinyints() {
+    return ByteToIntegerWriter.INSTANCE;
+  }
+
+  public static ValueWriter<Short> shorts() {
+    return ShortToIntegerWriter.INSTANCE;
   }
 
   public static ValueWriter<Integer> ints() {
@@ -139,6 +148,30 @@ public class ValueWriters {
     @Override
     public void write(Boolean bool, Encoder encoder) throws IOException {
       encoder.writeBoolean(bool);
+    }
+  }
+
+  private static class ByteToIntegerWriter implements ValueWriter<Byte> {
+    private static final ByteToIntegerWriter INSTANCE = new ByteToIntegerWriter();
+
+    private ByteToIntegerWriter() {
+    }
+
+    @Override
+    public void write(Byte b, Encoder encoder) throws IOException {
+      encoder.writeInt(b.intValue());
+    }
+  }
+
+  private static class ShortToIntegerWriter implements ValueWriter<Short> {
+    private static final ShortToIntegerWriter INSTANCE = new ShortToIntegerWriter();
+
+    private ShortToIntegerWriter() {
+    }
+
+    @Override
+    public void write(Short s, Encoder encoder) throws IOException {
+      encoder.writeInt(s.intValue());
     }
   }
 
@@ -239,6 +272,7 @@ public class ValueWriters {
     }
 
     @Override
+    @SuppressWarnings("ByteBufferBackingArray")
     public void write(UUID uuid, Encoder encoder) throws IOException {
       // TODO: direct conversion from string to byte buffer
       ByteBuffer buffer = BUFFER.get();
@@ -306,37 +340,17 @@ public class ValueWriters {
   private static class DecimalWriter implements ValueWriter<BigDecimal> {
     private final int precision;
     private final int scale;
-    private final int length;
     private final ThreadLocal<byte[]> bytes;
 
     private DecimalWriter(int precision, int scale) {
       this.precision = precision;
       this.scale = scale;
-      this.length = TypeUtil.decimalRequriedBytes(precision);
-      this.bytes = ThreadLocal.withInitial(() -> new byte[length]);
+      this.bytes = ThreadLocal.withInitial(() -> new byte[TypeUtil.decimalRequiredBytes(precision)]);
     }
 
     @Override
     public void write(BigDecimal decimal, Encoder encoder) throws IOException {
-      Preconditions.checkArgument(decimal.scale() == scale,
-          "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, decimal);
-      Preconditions.checkArgument(decimal.precision() <= precision,
-          "Cannot write value as decimal(%s,%s), too large: %s", precision, scale, decimal);
-
-      byte fillByte = (byte) (decimal.signum() < 0 ? 0xFF : 0x00);
-      byte[] unscaled = decimal.unscaledValue().toByteArray();
-      byte[] buf = bytes.get();
-      int offset = length - unscaled.length;
-
-      for (int i = 0; i < length; i += 1) {
-        if (i < offset) {
-          buf[i] = fillByte;
-        } else {
-          buf[i] = unscaled[i - offset];
-        }
-      }
-
-      encoder.writeFixed(buf);
+      encoder.writeFixed(DecimalUtil.toReusedFixLengthBytes(precision, scale, decimal, bytes.get()));
     }
   }
 

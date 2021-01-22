@@ -20,6 +20,7 @@
 package org.apache.iceberg.expressions;
 
 import java.math.BigDecimal;
+import java.util.stream.IntStream;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -153,16 +154,28 @@ public class TestNumericLiteralConversions {
   public void testDecimalToDecimalConversion() {
     Literal<BigDecimal> lit = Literal.of(new BigDecimal("34.11"));
 
-    Assert.assertSame("Should return identical object when converting to same scale",
-        lit, lit.to(Types.DecimalType.of(9, 2)));
-    Assert.assertSame("Should return identical object when converting to same scale",
-        lit, lit.to(Types.DecimalType.of(11, 2)));
-
-    Assert.assertNull("Changing decimal scale is not allowed",
-        lit.to(Types.DecimalType.of(9, 0)));
-    Assert.assertNull("Changing decimal scale is not allowed",
-        lit.to(Types.DecimalType.of(9, 1)));
-    Assert.assertNull("Changing decimal scale is not allowed",
-        lit.to(Types.DecimalType.of(9, 3)));
+    IntStream.range(0, 10).forEach(scale -> {
+      Assert.assertSame("Should return identical object",
+          lit, lit.to(Types.DecimalType.of(9, scale)));
+      Assert.assertSame("Should return identical object",
+          lit, lit.to(Types.DecimalType.of(11, scale)));
+    });
   }
+
+  @Test
+  public void testIntegerToDateConversion() {
+    Literal<Integer> lit = Literal.of(0);
+    Assert.assertEquals("Dates should be equal", lit.to(Types.DateType.get()), new Literals.DateLiteral(0));
+    lit = Literal.of(365 * 50);
+    Assert.assertEquals("Dates should be equal", lit.to(Types.DateType.get()), new Literals.DateLiteral(365 * 50));
+  }
+
+  @Test
+  public void testLongToDateConversion() {
+    Literal<Long> lit = Literal.of(0L);
+    Assert.assertEquals("Dates should be equal", lit.to(Types.DateType.get()), new Literals.DateLiteral(0));
+    lit = Literal.of(365L * 50);
+    Assert.assertEquals("Dates should be equal", lit.to(Types.DateType.get()), new Literals.DateLiteral(365 * 50));
+  }
+
 }

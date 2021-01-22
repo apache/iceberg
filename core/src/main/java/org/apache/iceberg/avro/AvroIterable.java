@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.collect.Maps;
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
@@ -32,7 +30,9 @@ import org.apache.avro.io.DatumReader;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class AvroIterable<D> extends CloseableGroup implements CloseableIterable<D> {
   private final InputFile file;
@@ -73,11 +73,17 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
   }
 
   @Override
-  public Iterator<D> iterator() {
+  public CloseableIterator<D> iterator() {
     FileReader<D> fileReader = initMetadata(newFileReader());
 
     if (start != null) {
+      if (reader instanceof SupportsRowPosition) {
+        ((SupportsRowPosition) reader).setRowPositionSupplier(
+            () -> AvroIO.findStartingRowPos(file::newStream, start));
+      }
       fileReader = new AvroRangeIterator<>(fileReader, start, end);
+    } else if (reader instanceof SupportsRowPosition) {
+      ((SupportsRowPosition) reader).setRowPositionSupplier(() -> 0L);
     }
 
     addCloseable(fileReader);
@@ -86,7 +92,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
       return new AvroReuseIterator<>(fileReader);
     }
 
-    return fileReader;
+    return CloseableIterator.withClose(fileReader);
   }
 
   private DataFileReader<D> newFileReader() {
@@ -173,7 +179,7 @@ public class AvroIterable<D> extends CloseableGroup implements CloseableIterable
     }
   }
 
-  private static class AvroReuseIterator<D> implements Iterator<D>, Closeable {
+  private static class AvroReuseIterator<D> implements CloseableIterator<D> {
     private final FileReader<D> reader;
     private D reused = null;
 

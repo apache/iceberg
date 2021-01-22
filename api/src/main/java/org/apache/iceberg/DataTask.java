@@ -36,7 +36,7 @@ public interface DataTask extends FileScanTask {
   }
 
   /**
-   * @return an iterable of {@link StructLike} rows
+   * Returns an iterable of {@link StructLike} rows.
    */
   CloseableIterable<StructLike> rows();
 }

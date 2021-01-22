@@ -19,9 +19,6 @@
 
 package org.apache.iceberg.parquet;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -29,6 +26,9 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.io.api.Binary;
@@ -53,10 +53,18 @@ public class ParquetValueReaders {
     return (ParquetValueReader<T>) NullReader.INSTANCE;
   }
 
+  public static <C> ParquetValueReader<C> constant(C value) {
+    return new ConstantReader<>(value);
+  }
+
+  public static ParquetValueReader<Long> position() {
+    return new PositionReader();
+  }
+
   private static class NullReader<T> implements ParquetValueReader<T> {
     private static final NullReader<Void> INSTANCE = new NullReader<>();
-    private static final List<TripleIterator<?>> COLUMNS = ImmutableList.of();
-    private static final TripleIterator<?> NULL_COLUMN = new TripleIterator<Object> () {
+    private static final ImmutableList<TripleIterator<?>> COLUMNS = ImmutableList.of();
+    private static final TripleIterator<?> NULL_COLUMN = new TripleIterator<Object>() {
       @Override
       public int currentDefinitionLevel() {
         return 0;
@@ -102,12 +110,67 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore) {
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
+    }
+  }
+
+  static class ConstantReader<C> implements ParquetValueReader<C> {
+    private final C constantValue;
+
+    ConstantReader(C constantValue) {
+      this.constantValue = constantValue;
+    }
+
+    @Override
+    public C read(C reuse) {
+      return constantValue;
+    }
+
+    @Override
+    public TripleIterator<?> column() {
+      return NullReader.NULL_COLUMN;
+    }
+
+    @Override
+    public List<TripleIterator<?>> columns() {
+      return NullReader.COLUMNS;
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
+    }
+  }
+
+  static class PositionReader implements ParquetValueReader<Long> {
+    private long rowOffset = -1;
+    private long rowGroupStart;
+
+    @Override
+    public Long read(Long reuse) {
+      rowOffset = rowOffset + 1;
+      return rowGroupStart + rowOffset;
+    }
+
+    @Override
+    public TripleIterator<?> column() {
+      return NullReader.NULL_COLUMN;
+    }
+
+    @Override
+    public List<TripleIterator<?>> columns() {
+      return NullReader.COLUMNS;
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
+      this.rowGroupStart = rowPosition;
+      this.rowOffset = -1;
     }
   }
 
   public abstract static class PrimitiveReader<T> implements ParquetValueReader<T> {
     private final ColumnDescriptor desc;
+    @SuppressWarnings("checkstyle:VisibilityModifier")
     protected final ColumnIterator<?> column;
     private final List<TripleIterator<?>> children;
 
@@ -118,7 +181,7 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore) {
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
       column.setPageSource(pageStore.getPageReader(desc));
     }
 
@@ -277,6 +340,17 @@ public class ParquetValueReaders {
     }
   }
 
+  public static class ByteArrayReader extends ParquetValueReaders.PrimitiveReader<byte[]> {
+    public ByteArrayReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public byte[] read(byte[] ignored) {
+      return column.nextBinary().getBytes();
+    }
+  }
+
   private static class OptionReader<T> implements ParquetValueReader<T> {
     private final int definitionLevel;
     private final ParquetValueReader<T> reader;
@@ -291,8 +365,8 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore) {
-      reader.setPageSource(pageStore);
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
+      reader.setPageSource(pageStore, rowPosition);
     }
 
     @Override
@@ -306,8 +380,8 @@ public class ParquetValueReaders {
         return reader.read(reuse);
       }
 
-      for (TripleIterator<?> column : children) {
-        column.nextNull();
+      for (TripleIterator<?> child : children) {
+        child.nextNull();
       }
 
       return null;
@@ -335,8 +409,8 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore) {
-      reader.setPageSource(pageStore);
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
+      reader.setPageSource(pageStore, rowPosition);
     }
 
     @Override
@@ -353,8 +427,8 @@ public class ParquetValueReaders {
           addElement(intermediate, reader.read(getElement(intermediate)));
         } else {
           // consume the empty list triple
-          for (TripleIterator<?> column : children) {
-            column.nextNull();
+          for (TripleIterator<?> child : children) {
+            child.nextNull();
           }
           // if the current definition level is equal to the definition level of this repeated type,
           // then the result is an empty list and the repetition level will always be <= rl.
@@ -451,9 +525,9 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public void setPageSource(PageReadStore pageStore) {
-      keyReader.setPageSource(pageStore);
-      valueReader.setPageSource(pageStore);
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
+      keyReader.setPageSource(pageStore, rowPosition);
+      valueReader.setPageSource(pageStore, rowPosition);
     }
 
     @Override
@@ -471,8 +545,8 @@ public class ParquetValueReaders {
           addPair(intermediate, keyReader.read(pair.getKey()), valueReader.read(pair.getValue()));
         } else {
           // consume the empty map triple
-          for (TripleIterator<?> column : children) {
-            column.nextNull();
+          for (TripleIterator<?> child : children) {
+            child.nextNull();
           }
           // if the current definition level is equal to the definition level of this repeated type,
           // then the result is an empty list and the repetition level will always be <= rl.
@@ -553,9 +627,9 @@ public class ParquetValueReaders {
     private K key = null;
     private V value = null;
 
-    public void set(K key, V value) {
-      this.key = key;
-      this.value = value;
+    public void set(K newKey, V  newValue) {
+      this.key = newKey;
+      this.value =  newValue;
     }
 
     @Override
@@ -569,9 +643,9 @@ public class ParquetValueReaders {
     }
 
     @Override
-    public V setValue(V value) {
+    public V setValue(V newValue) {
       V lastValue = this.value;
-      this.value = value;
+      this.value = newValue;
       return lastValue;
     }
   }
@@ -583,38 +657,32 @@ public class ParquetValueReaders {
 
     private final ParquetValueReader<?>[] readers;
     private final TripleIterator<?> column;
-    private final TripleIterator<?>[] columns;
-    private final Setter<I>[] setters;
     private final List<TripleIterator<?>> children;
 
     @SuppressWarnings("unchecked")
     protected StructReader(List<Type> types, List<ParquetValueReader<?>> readers) {
       this.readers = (ParquetValueReader<?>[]) Array.newInstance(
           ParquetValueReader.class, readers.size());
-      this.columns = (TripleIterator<?>[]) Array.newInstance(TripleIterator.class, readers.size());
-      this.setters = (Setter<I>[]) Array.newInstance(Setter.class, readers.size());
+      TripleIterator<?>[] columns = (TripleIterator<?>[]) Array.newInstance(TripleIterator.class, readers.size());
+      Setter<I>[] setters = (Setter<I>[]) Array.newInstance(Setter.class, readers.size());
 
       ImmutableList.Builder<TripleIterator<?>> columnsBuilder = ImmutableList.builder();
       for (int i = 0; i < readers.size(); i += 1) {
         ParquetValueReader<?> reader = readers.get(i);
         this.readers[i] = readers.get(i);
-        this.columns[i] = reader.column();
-        this.setters[i] = newSetter(reader, types.get(i));
+        columns[i] = reader.column();
+        setters[i] = newSetter(reader, types.get(i));
         columnsBuilder.addAll(reader.columns());
       }
 
       this.children = columnsBuilder.build();
-      if (children.size() > 0) {
-        this.column = children.get(0);
-      } else {
-        this.column = NullReader.NULL_COLUMN;
-      }
+      this.column = firstNonNullColumn(children);
     }
 
     @Override
-    public final void setPageSource(PageReadStore pageStore) {
+    public final void setPageSource(PageReadStore pageStore, long rowPosition) {
       for (int i = 0; i < readers.length; i += 1) {
-        readers[i].setPageSource(pageStore);
+        readers[i].setPageSource(pageStore, rowPosition);
       }
     }
 
@@ -629,7 +697,7 @@ public class ParquetValueReaders {
 
       for (int i = 0; i < readers.length; i += 1) {
         set(intermediate, i, readers[i].read(get(intermediate, i)));
-        //setters[i].set(intermediate, i, get(intermediate, i));
+        // setters[i].set(intermediate, i, get(intermediate, i));
       }
 
       return buildStruct(intermediate);
@@ -655,6 +723,7 @@ public class ParquetValueReaders {
             return (record, pos, ignored) -> setFloat(record, pos, unboxed.readFloat());
           case DOUBLE:
             return (record, pos, ignored) -> setDouble(record, pos, unboxed.readDouble());
+          case INT96:
           case FIXED_LEN_BYTE_ARRAY:
           case BINARY:
             return (record, pos, ignored) -> set(record, pos, unboxed.readBinary());
@@ -718,6 +787,21 @@ public class ParquetValueReaders {
 
     protected void setDouble(I struct, int pos, double value) {
       set(struct, pos, value);
+    }
+
+    /**
+     * Find a non-null column or return NULL_COLUMN if one is not available.
+     *
+     * @param columns a collection of triple iterator columns
+     * @return the first non-null column in columns
+     */
+    private TripleIterator<?> firstNonNullColumn(List<TripleIterator<?>> columns) {
+      for (TripleIterator<?> col : columns) {
+        if (col != NullReader.NULL_COLUMN) {
+          return col;
+        }
+      }
+      return NullReader.NULL_COLUMN;
     }
   }
 }

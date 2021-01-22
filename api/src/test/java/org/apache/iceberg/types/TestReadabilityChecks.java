@@ -332,6 +332,22 @@ public class TestReadabilityChecks {
   }
 
   @Test
+  public void testDifferentFieldOrdering() {
+    // writes should not reorder fields
+    Schema read = new Schema(required(0, "nested", Types.StructType.of(
+            required(1, "field_a", Types.IntegerType.get()),
+            required(2, "field_b", Types.IntegerType.get())
+    )));
+    Schema write = new Schema(required(0, "nested", Types.StructType.of(
+            required(2, "field_b", Types.IntegerType.get()),
+            required(1, "field_a", Types.IntegerType.get())
+    )));
+
+    List<String> errors = CheckCompatibility.writeCompatibilityErrors(read, write, false);
+    Assert.assertEquals("Should produce 0 error message", 0, errors.size());
+  }
+
+  @Test
   public void testStructWriteReordering() {
     // writes should not reorder fields
     Schema read = new Schema(required(0, "nested", Types.StructType.of(
@@ -384,5 +400,27 @@ public class TestReadabilityChecks {
     Assert.assertNotNull(schema.caseInsensitiveSelect("loCATIONs").findField(5));
     Assert.assertNotNull(schema.caseInsensitiveSelect("LoCaTiOnS.LaT").findField(1));
     Assert.assertNotNull(schema.caseInsensitiveSelect("locations.LONG").findField(2));
+  }
+
+  @Test
+  public void testCheckNullabilityRequiredSchemaField() {
+    Schema write = new Schema(optional(1, "from_field", Types.IntegerType.get()));
+    Schema read = new Schema(required(1, "to_field", Types.IntegerType.get()));
+
+    List<String> errors = CheckCompatibility.typeCompatibilityErrors(read, write);
+    Assert.assertEquals("Should produce no error messages", 0, errors.size());
+  }
+
+  @Test
+  public void testCheckNullabilityRequiredStructField() {
+    Schema write = new Schema(required(0, "nested", Types.StructType.of(
+        optional(1, "from_field", Types.IntegerType.get())
+    )));
+    Schema read = new Schema(required(0, "nested", Types.StructType.of(
+        required(1, "to_field", Types.IntegerType.get())
+    )));
+
+    List<String> errors = CheckCompatibility.typeCompatibilityErrors(read, write);
+    Assert.assertEquals("Should produce no error messages", 0, errors.size());
   }
 }

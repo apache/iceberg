@@ -19,12 +19,10 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
-import com.google.common.hash.Hasher;
-import com.google.common.hash.Hashing;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
 import org.apache.avro.Schema;
@@ -32,6 +30,9 @@ import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.hash.Hasher;
+import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -78,7 +79,7 @@ class PartitionData
   private PartitionData(PartitionData toCopy) {
     this.partitionType = toCopy.partitionType;
     this.size = toCopy.size;
-    this.data = Arrays.copyOf(toCopy.data, toCopy.data.length);
+    this.data = copyData(toCopy.partitionType, toCopy.data);
     this.stringSchema = toCopy.stringSchema;
     this.schema = toCopy.schema;
   }
@@ -179,8 +180,7 @@ class PartitionData
   public boolean equals(Object o) {
     if (this == o) {
       return true;
-    }
-    if (o == null || getClass() != o.getClass()) {
+    } else if (!(o instanceof PartitionData)) {
       return false;
     }
 
@@ -194,5 +194,36 @@ class PartitionData
     Stream.of(data).map(Objects::hashCode).forEach(hasher::putInt);
     partitionType.fields().stream().map(Objects::hashCode).forEach(hasher::putInt);
     return hasher.hash().hashCode();
+  }
+
+  public static Object[] copyData(Types.StructType type, Object[] data) {
+    List<Types.NestedField> fields = type.fields();
+    Object[] copy = new Object[data.length];
+    for (int i = 0; i < data.length; i += 1) {
+      if (data[i] == null) {
+        copy[i] = null;
+      } else {
+        Types.NestedField field = fields.get(i);
+        switch (field.type().typeId()) {
+          case STRUCT:
+          case LIST:
+          case MAP:
+            throw new IllegalArgumentException("Unsupported type in partition data: " + type);
+          case BINARY:
+          case FIXED:
+            byte[] buffer = (byte[]) data[i];
+            copy[i] = Arrays.copyOf(buffer, buffer.length);
+            break;
+          case STRING:
+            copy[i] = data[i].toString();
+            break;
+          default:
+            // no need to copy the object
+            copy[i] = data[i];
+        }
+      }
+    }
+
+    return copy;
   }
 }

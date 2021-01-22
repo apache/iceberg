@@ -1,11 +1,57 @@
+*.swp
+.DS_Store
+.cache
+tmp/
+
 # intellij files
 .idea
+.idea_modules/
 *.ipr
 *.iws
 *.iml
+
 # gradle build
 .gradle
 build
+dependencies.lock
+**/dependencies.lock
+gradle/
 out
+gradle/wrapper/gradle-wrapper.jar
+
+# rat library install location
+lib/
+
 # web site build
 site/site
+
+__pycache__/
+*.py[cod]
+.eggs/
+.tox/
+env/
+venv/
+*.egg-info/
+test-reports
+build/
+dist/
+sdist/
+.coverage
+coverage.xml
+.pytest_cache/
+
+# vscode/eclipse files
+.classpath
+.project
+.settings
+bin/
+
+# Hive/metastore files
+metastore_db/
+
+# Spark/metastore files
+spark-warehouse/
+derby.log
+
+# Python stuff
+python/.mypy_cache/

@@ -19,10 +19,13 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Pair;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.ScanSummary.timestampRange;
 import static org.apache.iceberg.ScanSummary.toMillis;
@@ -32,7 +35,62 @@ import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 
-public class TestScanSummary {
+@RunWith(Parameterized.class)
+public class TestScanSummary extends TableTestBase {
+  @Parameterized.Parameters(name = "formatVersion = {0}")
+  public static Object[] parameters() {
+    return new Object[] { 1, 2 };
+  }
+
+  public TestScanSummary(int formatVersion) {
+    super(formatVersion);
+  }
+
+  @Test
+  public void testSnapshotTimeRangeValidation() {
+    long t0 = System.currentTimeMillis();
+
+    table.newAppend()
+        .appendFile(FILE_A) // data_bucket=0
+        .appendFile(FILE_B) // data_bucket=1
+        .commit();
+
+    long t1 = System.currentTimeMillis();
+    while (t1 <= table.currentSnapshot().timestampMillis()) {
+      t1 = System.currentTimeMillis();
+    }
+
+    table.newAppend()
+        .appendFile(FILE_C) // data_bucket=2
+        .commit();
+
+    long secondSnapshotId = table.currentSnapshot().snapshotId();
+
+    long t2 = System.currentTimeMillis();
+    while (t2 <= table.currentSnapshot().timestampMillis()) {
+      t2 = System.currentTimeMillis();
+    }
+
+    // expire the first snapshot
+    table.expireSnapshots()
+        .expireOlderThan(t1)
+        .commit();
+
+    Assert.assertEquals("Should have one snapshot",
+        1, Lists.newArrayList(table.snapshots()).size());
+    Assert.assertEquals("Snapshot should be the second snapshot created",
+        secondSnapshotId, table.currentSnapshot().snapshotId());
+
+    // this should include the first snapshot, but it was removed from the dataset
+    TableScan scan = table.newScan()
+        .filter(greaterThanOrEqual("dateCreated", t0))
+        .filter(lessThan("dateCreated", t2));
+
+    AssertHelpers.assertThrows("Should fail summary because range may include expired snapshots",
+        IllegalArgumentException.class, "may include expired snapshots",
+        () -> new ScanSummary.Builder(scan).build());
+  }
+
   @Test
   public void testTimestampRanges() {
     long lower = 1542750188523L;

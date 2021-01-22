@@ -19,12 +19,12 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
 import java.util.List;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -93,9 +93,9 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
       int fieldId = getId(field);
 
       if (AvroSchemaUtil.isOptionSchema(field.schema())) {
-        newFields.add(Types.NestedField.optional(fieldId, field.name(), fieldType));
+        newFields.add(Types.NestedField.optional(fieldId, field.name(), fieldType, field.doc()));
       } else {
-        newFields.add(Types.NestedField.required(fieldId, field.name(), fieldType));
+        newFields.add(Types.NestedField.required(fieldId, field.name(), fieldType, field.doc()));
       }
     }
 
@@ -181,10 +181,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
       } else if (
           logical instanceof LogicalTypes.TimestampMillis ||
           logical instanceof LogicalTypes.TimestampMicros) {
-        Object adjustToUTC = primitive.getObjectProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP);
-        Preconditions.checkArgument(adjustToUTC instanceof Boolean,
-            "Invalid value for adjust-to-utc: %s", adjustToUTC);
-        if ((Boolean) adjustToUTC) {
+        if (AvroSchemaUtil.isTimestamptz(primitive)) {
           return Types.TimestampType.withZone();
         } else {
           return Types.TimestampType.withoutZone();

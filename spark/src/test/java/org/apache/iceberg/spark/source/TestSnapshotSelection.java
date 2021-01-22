@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
@@ -29,6 +27,9 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -43,7 +44,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public class TestSnapshotSelection {
+public abstract class TestSnapshotSelection {
 
   private static final Configuration CONF = new Configuration();
   private static final Schema SCHEMA = new Schema(
@@ -167,7 +168,7 @@ public class TestSnapshotSelection {
     // verify records in the previous snapshot
     Dataset<Row> previousSnapshotResult = spark.read()
         .format("iceberg")
-        .option("as-of-timestamp", firstSnapshotTimestamp)
+        .option(SparkReadOptions.AS_OF_TIMESTAMP, firstSnapshotTimestamp)
         .load(tableLocation);
     List<SimpleRecord> previousSnapshotRecords = previousSnapshotResult.orderBy("id")
         .as(Encoders.bean(SimpleRecord.class))
@@ -202,7 +203,7 @@ public class TestSnapshotSelection {
 
     Dataset<Row> df = spark.read()
         .format("iceberg")
-        .option("as-of-timestamp", timestamp)
+        .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
         .load(tableLocation);
 
     df.collectAsList();
@@ -228,8 +229,8 @@ public class TestSnapshotSelection {
     long snapshotId = table.currentSnapshot().snapshotId();
     Dataset<Row> df = spark.read()
         .format("iceberg")
-        .option("snapshot-id", snapshotId)
-        .option("as-of-timestamp", timestamp)
+        .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
+        .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
         .load(tableLocation);
 
     df.collectAsList();

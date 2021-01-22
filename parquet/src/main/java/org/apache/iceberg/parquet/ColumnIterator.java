@@ -19,16 +19,10 @@
 
 package org.apache.iceberg.parquet;
 
-import java.io.IOException;
 import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.parquet.column.Dictionary;
-import org.apache.parquet.column.page.DataPage;
-import org.apache.parquet.column.page.DictionaryPage;
-import org.apache.parquet.column.page.PageReader;
-import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.io.api.Binary;
 
-public abstract class ColumnIterator<T> implements TripleIterator<T> {
+public abstract class ColumnIterator<T> extends BaseColumnIterator implements TripleIterator<T> {
   @SuppressWarnings("unchecked")
   static <T> ColumnIterator<T> newIterator(ColumnDescriptor desc, String writerVersion) {
     switch (desc.getPrimitiveType().getPrimitiveTypeName()) {
@@ -51,6 +45,13 @@ public abstract class ColumnIterator<T> implements TripleIterator<T> {
           @Override
           public Long next() {
             return nextLong();
+          }
+        };
+      case INT96:
+        return (ColumnIterator<T>) new ColumnIterator<Binary>(desc, writerVersion) {
+          @Override
+          public Binary next() {
+            return nextBinary();
           }
         };
       case FLOAT:
@@ -76,52 +77,16 @@ public abstract class ColumnIterator<T> implements TripleIterator<T> {
           }
         };
       default:
-        throw new UnsupportedOperationException("Unsupported primitive type: "
-                + desc.getPrimitiveType().getPrimitiveTypeName());
+        throw new UnsupportedOperationException("Unsupported primitive type: " +
+            desc.getPrimitiveType().getPrimitiveTypeName());
     }
   }
 
-  private final ColumnDescriptor desc;
   private final PageIterator<T> pageIterator;
 
-  // state reset for each row group
-  private PageReader pageSource = null;
-  private long triplesCount = 0L;
-  private long triplesRead = 0L;
-  private long advanceNextPageCount = 0L;
-
   private ColumnIterator(ColumnDescriptor desc, String writerVersion) {
-    this.desc = desc;
+    super(desc);
     this.pageIterator = PageIterator.newIterator(desc, writerVersion);
-  }
-
-  public void setPageSource(PageReader source) {
-    this.pageSource = source;
-    this.triplesCount = source.getTotalValueCount();
-    this.triplesRead = 0L;
-    this.advanceNextPageCount = 0L;
-    this.pageIterator.reset();
-    this.pageIterator.setDictionary(readDictionary(desc, pageSource));
-    advance();
-  }
-
-  private void advance() {
-    if (triplesRead >= advanceNextPageCount) {
-      while (!pageIterator.hasNext()) {
-        DataPage page = pageSource.readPage();
-        if (page != null) {
-          pageIterator.setPage(page);
-          this.advanceNextPageCount += pageIterator.currentPageCount();
-        } else {
-          return;
-        }
-      }
-    }
-  }
-
-  @Override
-  public boolean hasNext() {
-    return triplesRead < triplesCount;
   }
 
   @Override
@@ -185,18 +150,9 @@ public abstract class ColumnIterator<T> implements TripleIterator<T> {
     return pageIterator.nextNull();
   }
 
-  private static Dictionary readDictionary(ColumnDescriptor desc, PageReader pageSource) {
-    DictionaryPage dictionaryPage = pageSource.readDictionaryPage();
-    if (dictionaryPage != null) {
-      try {
-        return dictionaryPage.getEncoding().initDictionary(desc, dictionaryPage);
-//        if (converter.hasDictionarySupport()) {
-//          converter.setDictionary(dictionary);
-//        }
-      } catch (IOException e) {
-        throw new ParquetDecodingException("could not decode the dictionary for " + desc, e);
-      }
-    }
-    return null;
+  @Override
+  protected BasePageIterator pageIterator() {
+    return pageIterator;
   }
+
 }

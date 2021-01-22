@@ -19,26 +19,29 @@
 
 package org.apache.iceberg;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.MoreObjects;
-import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 class BaseFileScanTask implements FileScanTask {
   private final DataFile file;
+  private final DeleteFile[] deletes;
   private final String schemaString;
   private final String specString;
   private final ResidualEvaluator residuals;
 
   private transient PartitionSpec spec = null;
 
-  BaseFileScanTask(DataFile file, String schemaString, String specString, ResidualEvaluator residuals) {
+  BaseFileScanTask(DataFile file, DeleteFile[] deletes, String schemaString, String specString,
+                   ResidualEvaluator residuals) {
     this.file = file;
+    this.deletes = deletes != null ? deletes : new DeleteFile[0];
     this.schemaString = schemaString;
     this.specString = specString;
     this.residuals = residuals;
@@ -47,6 +50,11 @@ class BaseFileScanTask implements FileScanTask {
   @Override
   public DataFile file() {
     return file;
+  }
+
+  @Override
+  public List<DeleteFile> deletes() {
+    return ImmutableList.copyOf(deletes);
   }
 
   @Override
@@ -183,6 +191,11 @@ class BaseFileScanTask implements FileScanTask {
     @Override
     public DataFile file() {
       return fileScanTask.file();
+    }
+
+    @Override
+    public List<DeleteFile> deletes() {
+      return fileScanTask.deletes();
     }
 
     @Override

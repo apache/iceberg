@@ -42,22 +42,22 @@ class Transforms(object):
         pass
 
     @staticmethod
-    def from_string(type, transform):
+    def from_string(type_var, transform):
         match = Transforms.HAS_WIDTH.match(transform)
 
         if match is not None:
             name = match.group(1)
-            w = match.group(2)
+            w = int(match.group(2))
             if name.lower() == "truncate":
-                return Truncate.get(type, w)
+                return Truncate.get(type_var, w)
             elif name.lower() == "bucket":
-                return Bucket.get(type, w)
+                return Bucket.get(type_var, w)
 
         if transform.lower() == "identity":
-            return Identity.get(type)
-        elif type.type_id() == TypeID.TIMESTAMP:
+            return Identity.get(type_var)
+        elif type_var.type_id == TypeID.TIMESTAMP:
             return Timestamps(transform.lower(), transform.lower())
-        elif type.type_id() == TypeID.DATE:
+        elif type_var.type_id == TypeID.DATE:
             return Dates(transform.lower(), transform.lower())
 
         raise RuntimeError("Unknown transform: %s" % transform)
@@ -108,4 +108,4 @@ class Transforms(object):
 
     @staticmethod
     def truncate(type_var, width):
-        return Truncate.get(type, width)
+        return Truncate.get(type_var, width)

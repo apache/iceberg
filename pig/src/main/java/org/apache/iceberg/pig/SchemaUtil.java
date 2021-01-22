@@ -19,10 +19,10 @@
 
 package org.apache.iceberg.pig;
 
-import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.pig.ResourceSchema;
@@ -30,13 +30,10 @@ import org.apache.pig.ResourceSchema.ResourceFieldSchema;
 import org.apache.pig.data.DataType;
 import org.apache.pig.impl.logicalLayer.FrontendException;
 
-import static java.lang.String.format;
-import static org.apache.iceberg.types.Types.ListType;
-import static org.apache.iceberg.types.Types.MapType;
-import static org.apache.iceberg.types.Types.NestedField;
-import static org.apache.iceberg.types.Types.StructType;
-
 public class SchemaUtil {
+
+  private SchemaUtil() {
+  }
 
   public static ResourceSchema convert(Schema icebergSchema) throws IOException {
     ResourceSchema result = new ResourceSchema();
@@ -44,20 +41,10 @@ public class SchemaUtil {
     return result;
   }
 
-  private static ResourceFieldSchema [] convertFields(List<Types.NestedField> fields) throws IOException {
-    List<ResourceFieldSchema> result = Lists.newArrayList();
-
-    for (Types.NestedField nf : fields) {
-      result.add(convert(nf));
-    }
-
-    return result.toArray(new ResourceFieldSchema[0]);
-  }
-
   private static ResourceFieldSchema convert(Types.NestedField field) throws IOException {
     ResourceFieldSchema result = convert(field.type());
     result.setName(field.name());
-    result.setDescription(format("FieldId: %s", field.fieldId()));
+    result.setDescription(String.format("FieldId: %s", field.fieldId()));
 
     return result;
   }
@@ -71,6 +58,16 @@ public class SchemaUtil {
     }
 
     return result;
+  }
+
+  private static ResourceFieldSchema [] convertFields(List<Types.NestedField> fields) throws IOException {
+    List<ResourceFieldSchema> result = Lists.newArrayList();
+
+    for (Types.NestedField nf : fields) {
+      result.add(convert(nf));
+    }
+
+    return result.toArray(new ResourceFieldSchema[0]);
   }
 
   private static byte convertType(Type type) throws IOException {
@@ -99,7 +96,7 @@ public class SchemaUtil {
 
     switch (type.typeId()) {
       case STRUCT:
-        StructType structType = type.asStructType();
+        Types.StructType structType = type.asStructType();
 
         List<ResourceFieldSchema> fields = Lists.newArrayList();
 
@@ -111,14 +108,14 @@ public class SchemaUtil {
 
         return result;
       case LIST:
-        ListType listType = type.asListType();
+        Types.ListType listType = type.asListType();
 
         ResourceFieldSchema [] elementFieldSchemas = new ResourceFieldSchema[]{convert(listType.elementType())};
 
         if (listType.elementType().isStructType()) {
           result.setFields(elementFieldSchemas);
         } else {
-          //Wrap non-struct types in tuples
+          // Wrap non-struct types in tuples
           ResourceSchema elementSchema = new ResourceSchema();
           elementSchema.setFields(elementFieldSchemas);
 
@@ -131,7 +128,7 @@ public class SchemaUtil {
 
         return result;
       case MAP:
-        MapType mapType = type.asMapType();
+        Types.MapType mapType = type.asMapType();
 
         if (mapType.keyType().typeId() != Type.TypeID.STRING) {
           throw new FrontendException("Unsupported map key type: " + mapType.keyType());
@@ -145,7 +142,7 @@ public class SchemaUtil {
   }
 
   public static Schema project(Schema schema, List<String> requiredFields) {
-    List<NestedField> columns = Lists.newArrayList();
+    List<Types.NestedField> columns = Lists.newArrayList();
 
     for (String column : requiredFields) {
       columns.add(schema.findField(column));

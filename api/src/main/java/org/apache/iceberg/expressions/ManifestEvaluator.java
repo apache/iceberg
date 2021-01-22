@@ -20,14 +20,20 @@
 package org.apache.iceberg.expressions;
 
 import java.nio.ByteBuffer;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.Accessors;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.BinaryUtil;
 
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
@@ -42,16 +48,10 @@ import static org.apache.iceberg.expressions.Expressions.rewriteNot;
  * return value of {@code eval} is false.
  */
 public class ManifestEvaluator {
+  private static final int IN_PREDICATE_LIMIT = 200;
+
   private final StructType struct;
   private final Expression expr;
-  private transient ThreadLocal<ManifestEvalVisitor> visitors = null;
-
-  private ManifestEvalVisitor visitor() {
-    if (visitors == null) {
-      this.visitors = ThreadLocal.withInitial(ManifestEvalVisitor::new);
-    }
-    return visitors.get();
-  }
 
   public static ManifestEvaluator forRowFilter(Expression rowFilter, PartitionSpec spec, boolean caseSensitive) {
     return new ManifestEvaluator(spec, Projections.inclusive(spec, caseSensitive).project(rowFilter), caseSensitive);
@@ -74,7 +74,7 @@ public class ManifestEvaluator {
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
   public boolean eval(ManifestFile manifest) {
-    return visitor().eval(manifest);
+    return new ManifestEvalVisitor().eval(manifest);
   }
 
   private static final boolean ROWS_MIGHT_MATCH = true;
@@ -89,7 +89,7 @@ public class ManifestEvaluator {
         return ROWS_MIGHT_MATCH;
       }
 
-      return ExpressionVisitors.visit(expr, this);
+      return ExpressionVisitors.visitEvaluator(expr, this);
     }
 
     @Override
@@ -134,11 +134,28 @@ public class ManifestEvaluator {
       int pos = Accessors.toPosition(ref.accessor());
       // containsNull encodes whether at least one partition value is null, lowerBound is null if
       // all partition values are null.
-      ByteBuffer lowerBound = stats.get(pos).lowerBound();
-      if (lowerBound == null) {
+      if (stats.get(pos).containsNull() && stats.get(pos).lowerBound() == null) {
         return ROWS_CANNOT_MATCH; // all values are null
       }
 
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean isNaN(BoundReference<T> ref) {
+      int pos = Accessors.toPosition(ref.accessor());
+      // containsNull encodes whether at least one partition value is null, lowerBound is null if
+      // all partition values are null.
+      if (stats.get(pos).containsNull() && stats.get(pos).lowerBound() == null) {
+        return ROWS_CANNOT_MATCH; // all values are null
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notNaN(BoundReference<T> ref) {
+      // we don't have enough information to tell if there is no NaN value
       return ROWS_MIGHT_MATCH;
     }
 
@@ -245,12 +262,71 @@ public class ManifestEvaluator {
     }
 
     @Override
-    public <T> Boolean in(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
+      int pos = Accessors.toPosition(ref.accessor());
+      PartitionFieldSummary fieldStats = stats.get(pos);
+      if (fieldStats.lowerBound() == null) {
+        return ROWS_CANNOT_MATCH; // values are all null and literalSet cannot contain null.
+      }
+
+      Collection<T> literals = literalSet;
+
+      if (literals.size() > IN_PREDICATE_LIMIT) {
+        // skip evaluating the predicate if the number of values is too big
+        return ROWS_MIGHT_MATCH;
+      }
+
+      T lower = Conversions.fromByteBuffer(ref.type(), fieldStats.lowerBound());
+      literals = literals.stream().filter(v -> ref.comparator().compare(lower, v) <= 0).collect(Collectors.toList());
+      if (literals.isEmpty()) { // if all values are less than lower bound, rows cannot match.
+        return ROWS_CANNOT_MATCH;
+      }
+
+      T upper = Conversions.fromByteBuffer(ref.type(), fieldStats.upperBound());
+      literals = literals.stream().filter(v -> ref.comparator().compare(upper, v) >= 0).collect(Collectors.toList());
+      if (literals.isEmpty()) { // if all remaining values are greater than upper bound, rows cannot match.
+        return ROWS_CANNOT_MATCH;
+      }
+
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean notIn(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
+      // because the bounds are not necessarily a min or max value, this cannot be answered using
+      // them. notIn(col, {X, ...}) with (X, Y) doesn't guarantee that X is a value in col.
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
+      int pos = Accessors.toPosition(ref.accessor());
+      PartitionFieldSummary fieldStats = stats.get(pos);
+
+      if (fieldStats.lowerBound() == null) {
+        return ROWS_CANNOT_MATCH; // values are all null and literal cannot contain null
+      }
+
+      ByteBuffer prefixAsBytes = lit.toByteBuffer();
+
+      Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
+
+      ByteBuffer lower = fieldStats.lowerBound();
+      // truncate lower bound so that its length in bytes is not greater than the length of prefix
+      int lowerLength = Math.min(prefixAsBytes.remaining(), lower.remaining());
+      int lowerCmp = comparator.compare(BinaryUtil.truncateBinary(lower, lowerLength), prefixAsBytes);
+      if (lowerCmp > 0) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      ByteBuffer upper = fieldStats.upperBound();
+      // truncate upper bound so that its length in bytes is not greater than the length of prefix
+      int upperLength = Math.min(prefixAsBytes.remaining(), upper.remaining());
+      int upperCmp = comparator.compare(BinaryUtil.truncateBinary(upper, upperLength), prefixAsBytes);
+      if (upperCmp < 0) {
+        return ROWS_CANNOT_MATCH;
+      }
+
       return ROWS_MIGHT_MATCH;
     }
   }

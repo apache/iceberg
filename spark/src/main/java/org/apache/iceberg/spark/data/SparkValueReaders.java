@@ -19,19 +19,21 @@
 
 package org.apache.iceberg.spark.data;
 
-import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.UUID;
-import org.apache.avro.Schema;
+import java.util.Map;
 import org.apache.avro.io.Decoder;
-import org.apache.avro.io.ResolvingDecoder;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.ValueReader;
+import org.apache.iceberg.avro.ValueReaders;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
@@ -42,10 +44,15 @@ import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkValueReaders {
 
-  private SparkValueReaders() {}
+  private SparkValueReaders() {
+  }
 
   static ValueReader<UTF8String> strings() {
     return StringReader.INSTANCE;
+  }
+
+  static ValueReader<UTF8String> enums(List<String> symbols) {
+    return new EnumReader(symbols);
   }
 
   static ValueReader<UTF8String> uuids() {
@@ -69,8 +76,9 @@ public class SparkValueReaders {
     return new MapReader(keyReader, valueReader);
   }
 
-  static ValueReader<InternalRow> struct(List<ValueReader<?>> readers) {
-    return new StructReader(readers);
+  static ValueReader<InternalRow> struct(List<ValueReader<?>> readers, Types.StructType struct,
+                                         Map<Integer, ?> idToConstant) {
+    return new StructReader(readers, struct, idToConstant);
   }
 
   private static class StringReader implements ValueReader<UTF8String> {
@@ -96,6 +104,23 @@ public class SparkValueReaders {
     }
   }
 
+  private static class EnumReader implements ValueReader<UTF8String> {
+    private final UTF8String[] symbols;
+
+    private EnumReader(List<String> symbols) {
+      this.symbols = new UTF8String[symbols.size()];
+      for (int i = 0; i < this.symbols.length; i += 1) {
+        this.symbols[i] = UTF8String.fromBytes(symbols.get(i).getBytes(StandardCharsets.UTF_8));
+      }
+    }
+
+    @Override
+    public UTF8String read(Decoder decoder, Object ignore) throws IOException {
+      int index = decoder.readEnum();
+      return symbols[index];
+    }
+  }
+
   private static class UUIDReader implements ValueReader<UTF8String> {
     private static final ThreadLocal<ByteBuffer> BUFFER = ThreadLocal.withInitial(() -> {
       ByteBuffer buffer = ByteBuffer.allocate(16);
@@ -109,15 +134,14 @@ public class SparkValueReaders {
     }
 
     @Override
+    @SuppressWarnings("ByteBufferBackingArray")
     public UTF8String read(Decoder decoder, Object reuse) throws IOException {
       ByteBuffer buffer = BUFFER.get();
       buffer.rewind();
 
       decoder.readFixed(buffer.array(), 0, 16);
-      long mostSigBits = buffer.getLong();
-      long leastSigBits = buffer.getLong();
 
-      return UTF8String.fromString(new UUID(mostSigBits, leastSigBits).toString());
+      return UTF8String.fromString(UUIDUtil.convert(buffer).toString());
     }
   }
 
@@ -231,46 +255,34 @@ public class SparkValueReaders {
     }
   }
 
-  static class StructReader implements ValueReader<InternalRow> {
-    private final ValueReader<?>[] readers;
+  static class StructReader extends ValueReaders.StructReader<InternalRow> {
+    private final int numFields;
 
-    private StructReader(List<ValueReader<?>> readers) {
-      this.readers = new ValueReader[readers.size()];
-      for (int i = 0; i < this.readers.length; i += 1) {
-        this.readers[i] = readers.get(i);
-      }
-    }
-
-    ValueReader<?>[] readers() {
-      return readers;
+    protected StructReader(List<ValueReader<?>> readers, Types.StructType struct, Map<Integer, ?> idToConstant) {
+      super(readers, struct, idToConstant);
+      this.numFields = readers.size();
     }
 
     @Override
-    public InternalRow read(Decoder decoder, Object reuse) throws IOException {
-      GenericInternalRow row = new GenericInternalRow(readers.length);
-      if (decoder instanceof ResolvingDecoder) {
-        // this may not set all of the fields. nulls are set by default.
-        for (Schema.Field field : ((ResolvingDecoder) decoder).readFieldOrder()) {
-          Object value = readers[field.pos()].read(decoder, null);
-          if (value != null) {
-            row.update(field.pos(), value);
-          } else {
-            row.setNullAt(field.pos());
-          }
-        }
-
-      } else {
-        for (int i = 0; i < readers.length; i += 1) {
-          Object value = readers[i].read(decoder, null);
-          if (value != null) {
-            row.update(i, value);
-          } else {
-            row.setNullAt(i);
-          }
-        }
+    protected InternalRow reuseOrCreate(Object reuse) {
+      if (reuse instanceof GenericInternalRow && ((GenericInternalRow) reuse).numFields() == numFields) {
+        return (InternalRow) reuse;
       }
+      return new GenericInternalRow(numFields);
+    }
 
-      return row;
+    @Override
+    protected Object get(InternalRow struct, int pos) {
+      return null;
+    }
+
+    @Override
+    protected void set(InternalRow struct, int pos, Object value) {
+      if (value != null) {
+        struct.update(pos, value);
+      } else {
+        struct.setNullAt(pos);
+      }
     }
   }
 }

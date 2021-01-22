@@ -19,68 +19,81 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.MoreObjects;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class BaseSnapshot implements Snapshot {
-  private final TableOperations ops;
+  private static final long INITIAL_SEQUENCE_NUMBER = 0;
+
+  private final FileIO io;
   private final long snapshotId;
   private final Long parentId;
+  private final long sequenceNumber;
   private final long timestampMillis;
-  private final InputFile manifestList;
+  private final String manifestListLocation;
   private final String operation;
   private final Map<String, String> summary;
 
   // lazily initialized
-  private List<ManifestFile> manifests = null;
-  private List<DataFile> cachedAdds = null;
-  private List<DataFile> cachedDeletes = null;
+  private transient List<ManifestFile> allManifests = null;
+  private transient List<ManifestFile> dataManifests = null;
+  private transient List<ManifestFile> deleteManifests = null;
+  private transient List<DataFile> cachedAdds = null;
+  private transient List<DataFile> cachedDeletes = null;
 
   /**
    * For testing only.
    */
-  BaseSnapshot(TableOperations ops,
+  BaseSnapshot(FileIO io,
                long snapshotId,
                String... manifestFiles) {
-    this(ops, snapshotId, null, System.currentTimeMillis(), null, null,
+    this(io, snapshotId, null, System.currentTimeMillis(), null, null,
         Lists.transform(Arrays.asList(manifestFiles),
-            path -> new GenericManifestFile(ops.io().newInputFile(path), 0)));
+            path -> new GenericManifestFile(io.newInputFile(path), 0)));
   }
 
-  BaseSnapshot(TableOperations ops,
+  BaseSnapshot(FileIO io,
+               long sequenceNumber,
                long snapshotId,
                Long parentId,
                long timestampMillis,
                String operation,
                Map<String, String> summary,
-               InputFile manifestList) {
-    this.ops = ops;
+               String manifestList) {
+    this.io = io;
+    this.sequenceNumber = sequenceNumber;
     this.snapshotId = snapshotId;
     this.parentId = parentId;
     this.timestampMillis = timestampMillis;
     this.operation = operation;
     this.summary = summary;
-    this.manifestList = manifestList;
+    this.manifestListLocation = manifestList;
   }
 
-  BaseSnapshot(TableOperations ops,
+  BaseSnapshot(FileIO io,
                long snapshotId,
                Long parentId,
                long timestampMillis,
                String operation,
                Map<String, String> summary,
-               List<ManifestFile> manifests) {
-    this(ops, snapshotId, parentId, timestampMillis, operation, summary, (InputFile) null);
-    this.manifests = manifests;
+               List<ManifestFile> dataManifests) {
+    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, null);
+    this.allManifests = dataManifests;
+  }
+
+  @Override
+  public long sequenceNumber() {
+    return sequenceNumber;
   }
 
   @Override
@@ -108,26 +121,42 @@ class BaseSnapshot implements Snapshot {
     return summary;
   }
 
-  @Override
-  public List<ManifestFile> manifests() {
-    if (manifests == null) {
+  private void cacheManifests() {
+    if (allManifests == null) {
       // if manifests isn't set, then the snapshotFile is set and should be read to get the list
-      try (CloseableIterable<ManifestFile> files = Avro.read(manifestList)
-          .rename("manifest_file", GenericManifestFile.class.getName())
-          .rename("partitions", GenericPartitionFieldSummary.class.getName())
-          .rename("r508", GenericPartitionFieldSummary.class.getName())
-          .project(ManifestFile.schema())
-          .reuseContainers(false)
-          .build()) {
-
-        this.manifests = Lists.newLinkedList(files);
-
-      } catch (IOException e) {
-        throw new RuntimeIOException(e, "Cannot read snapshot file: %s", manifestList.location());
-      }
+      this.allManifests = ManifestLists.read(io.newInputFile(manifestListLocation));
     }
 
-    return manifests;
+    if (dataManifests == null || deleteManifests == null) {
+      this.dataManifests = ImmutableList.copyOf(Iterables.filter(allManifests,
+          manifest -> manifest.content() == ManifestContent.DATA));
+      this.deleteManifests = ImmutableList.copyOf(Iterables.filter(allManifests,
+          manifest -> manifest.content() == ManifestContent.DELETES));
+    }
+  }
+
+  @Override
+  public List<ManifestFile> allManifests() {
+    if (allManifests == null) {
+      cacheManifests();
+    }
+    return allManifests;
+  }
+
+  @Override
+  public List<ManifestFile> dataManifests() {
+    if (dataManifests == null) {
+      cacheManifests();
+    }
+    return dataManifests;
+  }
+
+  @Override
+  public List<ManifestFile> deleteManifests() {
+    if (deleteManifests == null) {
+      cacheManifests();
+    }
+    return deleteManifests;
   }
 
   @Override
@@ -148,36 +177,65 @@ class BaseSnapshot implements Snapshot {
 
   @Override
   public String manifestListLocation() {
-    return manifestList != null ? manifestList.location() : null;
+    return manifestListLocation;
   }
 
   private void cacheChanges() {
-    List<DataFile> adds = Lists.newArrayList();
-    List<DataFile> deletes = Lists.newArrayList();
+    ImmutableList.Builder<DataFile> adds = ImmutableList.builder();
+    ImmutableList.Builder<DataFile> deletes = ImmutableList.builder();
 
-    // accumulate adds and deletes from all manifests.
-    // because manifests can be reused in newer snapshots, filter the changes by snapshot id.
-    for (String manifest : Iterables.transform(manifests(), ManifestFile::path)) {
-      try (ManifestReader reader = ManifestReader.read(
-          ops.io().newInputFile(manifest),
-          ops.current()::spec)) {
-        for (ManifestEntry add : reader.addedFiles()) {
-          if (add.snapshotId() == snapshotId) {
-            adds.add(add.file().copyWithoutStats());
-          }
+    // read only manifests that were created by this snapshot
+    Iterable<ManifestFile> changedManifests = Iterables.filter(dataManifests(),
+        manifest -> Objects.equal(manifest.snapshotId(), snapshotId));
+    try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(io, changedManifests)
+        .ignoreExisting()
+        .entries()) {
+      for (ManifestEntry<DataFile> entry : entries) {
+        switch (entry.status()) {
+          case ADDED:
+            adds.add(entry.file().copy());
+            break;
+          case DELETED:
+            deletes.add(entry.file().copyWithoutStats());
+            break;
+          default:
+            throw new IllegalStateException(
+                "Unexpected entry status, not added or deleted: " + entry);
         }
-        for (ManifestEntry delete : reader.deletedFiles()) {
-          if (delete.snapshotId() == snapshotId) {
-            deletes.add(delete.file().copyWithoutStats());
-          }
-        }
-      } catch (IOException e) {
-        throw new RuntimeIOException(e, "Failed to close reader while caching changes");
       }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to close entries while caching changes");
     }
 
-    this.cachedAdds = adds;
-    this.cachedDeletes = deletes;
+    this.cachedAdds = adds.build();
+    this.cachedDeletes = deletes.build();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+
+    if (o instanceof BaseSnapshot) {
+      BaseSnapshot other = (BaseSnapshot) o;
+      return this.snapshotId == other.snapshotId() &&
+          Objects.equal(this.parentId, other.parentId()) &&
+          this.sequenceNumber == other.sequenceNumber() &&
+          this.timestampMillis == other.timestampMillis();
+    }
+
+    return false;
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(
+      this.snapshotId,
+      this.parentId,
+      this.sequenceNumber,
+      this.timestampMillis
+    );
   }
 
   @Override
@@ -187,7 +245,7 @@ class BaseSnapshot implements Snapshot {
         .add("timestamp_ms", timestampMillis)
         .add("operation", operation)
         .add("summary", summary)
-        .add("manifests", manifests())
+        .add("manifest-list", manifestListLocation)
         .toString();
   }
 }

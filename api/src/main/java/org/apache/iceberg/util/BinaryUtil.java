@@ -19,21 +19,34 @@
 
 package org.apache.iceberg.util;
 
-import com.google.common.base.Preconditions;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class BinaryUtil {
   // not meant to be instantiated
   private BinaryUtil() {
   }
 
+  private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.allocate(0);
+
   /**
-   * Truncates the input byte buffer to the given length
+   * Truncates the input byte buffer to the given length.
+   * <p>
+   * We allow for a length of zero so that rows with empty string can be evaluated.
+   * Partition specs still cannot be created with a length of zero due to a constraint
+   * when parsing column truncation specs in {@code org.apache.iceberg.MetricsModes}.
+   *
+   * @param input The ByteBuffer to be truncated
+   * @param length The non-negative length to truncate input to
    */
   public static ByteBuffer truncateBinary(ByteBuffer input, int length) {
-    Preconditions.checkArgument(length > 0 && length < input.remaining(),
-        "Truncate length should be positive and lower than the number of remaining elements");
+    Preconditions.checkArgument(length >= 0, "Truncate length should be non-negative");
+    if (length == 0) {
+      return EMPTY_BYTE_BUFFER;
+    } else if (length >= input.remaining()) {
+      return input;
+    }
     byte[] array = new byte[length];
     input.duplicate().get(array);
     return ByteBuffer.wrap(array);

@@ -19,14 +19,21 @@
 
 package org.apache.iceberg.hadoop;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * {@link InputFile} implementation using the Hadoop {@link FileSystem} API.
@@ -34,6 +41,7 @@ import org.apache.iceberg.io.SeekableInputStream;
  * This class is based on Parquet's HadoopInputFile.
  */
 public class HadoopInputFile implements InputFile {
+  public static final String[] NO_LOCATION_PREFERENCE = new String[0];
 
   private final FileSystem fs;
   private final Path path;
@@ -52,31 +60,54 @@ public class HadoopInputFile implements InputFile {
     return fromPath(path, length, conf);
   }
 
+  public static HadoopInputFile fromLocation(CharSequence location, FileSystem fs) {
+    Path path = new Path(location.toString());
+    return fromPath(path, fs);
+  }
+
+  public static HadoopInputFile fromLocation(CharSequence location, long length,
+                                             FileSystem fs) {
+    Path path = new Path(location.toString());
+    return fromPath(path, length, fs);
+  }
+
   public static HadoopInputFile fromPath(Path path, Configuration conf) {
-    try {
-      FileSystem fs = path.getFileSystem(conf);
-      return new HadoopInputFile(fs, path, conf);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to get file system for path: %s", path);
-    }
+    FileSystem fs = Util.getFs(path, conf);
+    return fromPath(path, fs, conf);
   }
 
   public static HadoopInputFile fromPath(Path path, long length, Configuration conf) {
-    try {
-      FileSystem fs = path.getFileSystem(conf);
-      return new HadoopInputFile(fs, path, length, conf);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to get file system for path: %s", path);
-    }
+    FileSystem fs = Util.getFs(path, conf);
+    return fromPath(path, length, fs, conf);
+  }
+
+  public static HadoopInputFile fromPath(Path path, FileSystem fs) {
+    return fromPath(path, fs, fs.getConf());
+  }
+
+  public static HadoopInputFile fromPath(Path path, long length, FileSystem fs) {
+    return fromPath(path, length, fs, fs.getConf());
+  }
+
+  public static HadoopInputFile fromPath(Path path, FileSystem fs, Configuration conf) {
+    return new HadoopInputFile(fs, path, conf);
+  }
+
+  public static HadoopInputFile fromPath(Path path, long length, FileSystem fs, Configuration conf) {
+    return new HadoopInputFile(fs, path, length, conf);
   }
 
   public static HadoopInputFile fromStatus(FileStatus stat, Configuration conf) {
-    try {
-      FileSystem fs = stat.getPath().getFileSystem(conf);
-      return new HadoopInputFile(fs, stat, conf);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to get file system for path: %s", stat.getPath());
-    }
+    FileSystem fs = Util.getFs(stat.getPath(), conf);
+    return fromStatus(stat, fs, conf);
+  }
+
+  public static HadoopInputFile fromStatus(FileStatus stat, FileSystem fs) {
+    return fromStatus(stat, fs, fs.getConf());
+  }
+
+  public static HadoopInputFile fromStatus(FileStatus stat, FileSystem fs, Configuration conf) {
+    return new HadoopInputFile(fs, stat, conf);
   }
 
   private HadoopInputFile(FileSystem fs, Path path, Configuration conf) {
@@ -86,6 +117,7 @@ public class HadoopInputFile implements InputFile {
   }
 
   private HadoopInputFile(FileSystem fs, Path path, long length, Configuration conf) {
+    Preconditions.checkArgument(length >= 0, "Invalid file length: %s", length);
     this.fs = fs;
     this.path = path;
     this.conf = conf;
@@ -123,6 +155,8 @@ public class HadoopInputFile implements InputFile {
   public SeekableInputStream newStream() {
     try {
       return HadoopStreams.wrap(fs.open(path));
+    } catch (FileNotFoundException e) {
+      throw new NotFoundException(e, "Failed to open input stream for file: %s", path);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to open input stream for file: %s", path);
     }
@@ -132,8 +166,30 @@ public class HadoopInputFile implements InputFile {
     return conf;
   }
 
+  public FileSystem getFileSystem() {
+    return fs;
+  }
+
   public FileStatus getStat() {
     return lazyStat();
+  }
+
+  public Path getPath() {
+    return path;
+  }
+
+  public String[] getBlockLocations(long start, long end) {
+    List<String> hosts = Lists.newArrayList();
+    try {
+      for (BlockLocation location : fs.getFileBlockLocations(path, start, end)) {
+        Collections.addAll(hosts, location.getHosts());
+      }
+
+      return hosts.toArray(NO_LOCATION_PREFERENCE);
+
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to get block locations for path: %s", path);
+    }
   }
 
   @Override

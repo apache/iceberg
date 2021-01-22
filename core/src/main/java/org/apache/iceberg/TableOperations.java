@@ -59,13 +59,12 @@ public interface TableOperations {
   void commit(TableMetadata base, TableMetadata metadata);
 
   /**
-   * @return a {@link FileIO} to read and write table data and metadata files
+   * Returns a {@link FileIO} to read and write table data and metadata files.
    */
   FileIO io();
 
   /**
-   * @return a {@link org.apache.iceberg.encryption.EncryptionManager} to encrypt and decrypt
-   * data files.
+   * Returns a {@link org.apache.iceberg.encryption.EncryptionManager} to encrypt and decrypt data files.
    */
   default EncryptionManager encryption() {
     return new PlaintextEncryptionManager();
@@ -86,6 +85,21 @@ public interface TableOperations {
    * @return a location provider configured for the current table state
    */
   LocationProvider locationProvider();
+
+  /**
+   * Return a temporary {@link TableOperations} instance that uses configuration from uncommitted metadata.
+   * <p>
+   * This is called by transactions when uncommitted table metadata should be used; for example, to create a metadata
+   * file location based on metadata in the transaction that has not been committed.
+   * <p>
+   * Transactions will not call {@link #refresh()} or {@link #commit(TableMetadata, TableMetadata)}.
+   *
+   * @param uncommittedMetadata uncommitted table metadata
+   * @return a temporary table operations that behaves like the uncommitted metadata is current
+   */
+  default TableOperations temp(TableMetadata uncommittedMetadata) {
+    return this;
+  }
 
   /**
    * Create a new ID for a Snapshot

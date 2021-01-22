@@ -19,36 +19,47 @@
 
 package org.apache.iceberg.util;
 
-import java.util.Objects;
+import java.util.Comparator;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.JavaHash;
+import org.apache.iceberg.types.Types;
 
 /**
  * Wrapper to adapt StructLike for use in maps and sets by implementing equals and hashCode.
  */
 public class StructLikeWrapper {
 
-  public static StructLikeWrapper wrap(StructLike struct) {
+  public static StructLikeWrapper forType(Types.StructType struct) {
     return new StructLikeWrapper(struct);
   }
 
+  private final Comparator<StructLike> comparator;
+  private final JavaHash<StructLike> structHash;
+  private Integer hashCode;
   private StructLike struct;
 
-  private StructLikeWrapper(StructLike struct) {
-    this.struct = struct;
+  private StructLikeWrapper(Types.StructType type) {
+    this.comparator = Comparators.forType(type);
+    this.structHash = JavaHash.forType(type);
+    this.hashCode = null;
   }
 
   public StructLikeWrapper set(StructLike newStruct) {
     this.struct = newStruct;
+    this.hashCode = null;
     return this;
+  }
+
+  public StructLike get() {
+    return struct;
   }
 
   @Override
   public boolean equals(Object other) {
     if (this == other) {
       return true;
-    }
-
-    if (other == null || getClass() != other.getClass()) {
+    } else if (!(other instanceof StructLikeWrapper)) {
       return false;
     }
 
@@ -62,28 +73,15 @@ public class StructLikeWrapper {
       return false;
     }
 
-    int len = struct.size();
-    if (len != that.struct.size()) {
-      return false;
-    }
-
-    for (int i = 0; i < len; i += 1) {
-      if (!Objects.equals(struct.get(i, Object.class), that.struct.get(i, Object.class))) {
-        return false;
-      }
-    }
-
-    return true;
+    return comparator.compare(this.struct, that.struct) == 0;
   }
 
   @Override
   public int hashCode() {
-    int result = 97;
-    int len = struct.size();
-    result = 41 * result + len;
-    for (int i = 0; i < len; i += 1) {
-      result = 41 * result + Objects.hashCode(struct.get(i, Object.class));
+    if (hashCode == null) {
+      this.hashCode = structHash.hash(struct);
     }
-    return result;
+
+    return hashCode;
   }
 }

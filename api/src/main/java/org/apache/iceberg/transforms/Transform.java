@@ -43,7 +43,7 @@ public interface Transform<S, T> extends Serializable {
   T apply(S value);
 
   /**
-   * Checks whether this function can be applied to the give {@link Type}.
+   * Checks whether this function can be applied to the given {@link Type}.
    *
    * @param type a type
    * @return true if this transform can be applied to the type, false otherwise
@@ -57,6 +57,29 @@ public interface Transform<S, T> extends Serializable {
    * @return the result type created by the apply method for the given type
    */
   Type getResultType(Type sourceType);
+
+  /**
+   * Whether the transform preserves the order of values (is monotonic).
+   * <p>
+   * A transform preserves order for values when for any given a and b, if a &lt; b then apply(a) &lt;= apply(b).
+   *
+   * @return true if the transform preserves the order of values
+   */
+  default boolean preservesOrder() {
+    return false;
+  }
+
+  /**
+   * Whether ordering by this transform's result satisfies the ordering of another transform's result.
+   * <p>
+   * For example, sorting by day(ts) will produce an ordering that is also by month(ts) or year(ts). However, sorting
+   * by day(ts) will not satisfy the order of hour(ts) or identity(ts).
+   *
+   * @return true if ordering by this transform is equivalent to ordering by the other transform
+   */
+  default boolean satisfiesOrderOf(Transform<?, ?> other) {
+    return equals(other);
+  }
 
   /**
    * Transforms a {@link BoundPredicate predicate} to an inclusive predicate on the partition
@@ -83,6 +106,15 @@ public interface Transform<S, T> extends Serializable {
   UnboundPredicate<T> projectStrict(String name, BoundPredicate<S> predicate);
 
   /**
+   * Return whether this transform is the identity transform.
+   *
+   * @return true if this is an identity transform, false otherwise
+   */
+  default boolean isIdentity() {
+    return false;
+  }
+
+  /**
    * Returns a human-readable String representation of a transformed value.
    * <p>
    * null values will return "null"
@@ -92,5 +124,15 @@ public interface Transform<S, T> extends Serializable {
    */
   default String toHumanString(T value) {
     return String.valueOf(value);
+  }
+
+  /**
+   * Return the unique transform name to check if similar transforms for the same source field
+   * are added multiple times in partition spec builder.
+   *
+   * @return a name used for dedup
+   */
+  default String dedupName() {
+    return toString();
   }
 }

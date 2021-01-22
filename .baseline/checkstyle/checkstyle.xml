@@ -8,6 +8,10 @@
     <property name="severity" value="error"/>
 
     <module name="FileTabCharacter"/> <!-- Java Style Guide: Whitespace characters -->
+    <module name="LineLength"> <!-- Java Style Guide: No line-wrapping -->
+        <property name="max" value="120"/>
+        <property name="ignorePattern" value="^package.*|^import.*|a href|href|http://|https://|ftp://"/>
+    </module>
     <module name="NewlineAtEndOfFile"> <!-- Java Style Guide: Line ending: LF -->
         <property name="lineSeparator" value="lf"/>
     </module>
@@ -36,6 +40,11 @@
         <property name="fileExtensions" value="java"/>
         <property name="format" value="^\n\n$"/>
         <property name="message" value="Two consecutive blank lines are not permitted."/>
+    </module>
+    <module name="RegexpSingleline">
+        <property name="fileExtensions" value="java"/>
+        <property name="format" value="sparkContext\(\)\.hadoopConfiguration\(\)"/>
+        <property name="message" value="Are you sure that you want to use sparkContext().hadoopConfiguration()? In most cases, you should use sessionState().newHadoopConf() instead, so that the Hadoop configurations specified in the Spark session configuration will come into effect."/>
     </module>
     <module name="SuppressionFilter"> <!-- baseline-gradle: README.md -->
         <property name="file" value="${config_loc}/checkstyle-suppressions.xml"/>
@@ -73,20 +82,24 @@
         <module name="AvoidStarImport"/> <!-- Java Style Guide: No wildcard imports -->
         <module name="AvoidStaticImport"> <!-- Java Style Guide: No static imports -->
             <property name="excludes" value="
+                com.google.common.base.Preconditions.*,
+                com.palantir.logsafe.Preconditions.*,
                 java.util.Collections.*,
                 java.util.stream.Collectors.*,
-                com.palantir.logsafe.Preconditions.*,
-                com.google.common.base.Preconditions.*,
                 org.apache.commons.lang3.Validate.*,
                 org.apache.iceberg.expressions.Expressions.*,
                 org.apache.iceberg.expressions.Expression.Operation.*,
-                org.apache.parquet.schema.OriginalType.*,
-                org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.*,
-                org.apache.iceberg.types.Types.NestedField.*,
+                org.apache.iceberg.IsolationLevel.*,
+                org.apache.iceberg.NullOrder.*,
+                org.apache.iceberg.MetadataTableType.*,
+                org.apache.iceberg.SortDirection.*,
                 org.apache.iceberg.TableProperties.*,
                 org.apache.iceberg.types.Type.*,
-                org.junit.Assert.*,
-                org.apache.spark.sql.functions.*"/>
+                org.apache.iceberg.types.Types.NestedField.*,
+                org.apache.parquet.schema.OriginalType.*,
+                org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.*,
+                org.apache.spark.sql.functions.*,
+                org.junit.Assert.*"/>
         </module>
         <module name="ClassTypeParameterName"> <!-- Java Style Guide: Type variable names -->
             <property name="format" value="(^[A-Z][0-9]?)$|([A-Z][a-zA-Z0-9]*[T]$)"/>
@@ -130,7 +143,7 @@
             <message key="import.illegal" value="Must not import javafx classes because some OpenJDK builds do not include javafx."/>
         </module>
         <module name="IllegalImport"> <!-- Java Coding Guidelines: Import the canonical package -->
-            <property name="illegalPkgs" value="org.elasticsearch.common.base, com.clearspring.analytics.util, org.spark_project.guava"/>
+            <property name="illegalPkgs" value="org.elasticsearch.common.base, com.clearspring.analytics.util, org.spark_project.guava, org.sparkproject.guava, org.glassfish.jersey.internal.guava, org.apache.commons.compress.utils"/>
             <message key="import.illegal" value="Must not import repackaged classes."/>
         </module>
         <module name="IllegalImport"> <!-- Java Coding Guidelines: Import the canonical package -->
@@ -164,6 +177,11 @@
         <module name="IllegalImport">
             <property name="illegalClasses" value="com.google.common.base.Optional, com.google.common.base.Supplier"/>
             <message key="import.illegal" value="Use the Java8 version of Guava objects."/>
+        </module>
+        <module name="IllegalImport">
+            <property name="id" value="BanUnrelocatedGuavaClasses"/>
+            <property name="illegalPkgs" value="com.google.common"/>
+            <message key="import.illegal" value="Use org.apache.iceberg.relocated.* classes from bundled-guava module instead."/>
         </module>
         <module name="IllegalInstantiation"> <!-- Java Coding Guidelines: Never instantiate primitive types -->
             <property name="classes" value="java.lang.Boolean"/>
@@ -202,10 +220,6 @@
         </module>
         <module name="InnerAssignment"/> <!-- Java Coding Guidelines: Inner assignments: Not used -->
         <module name="LeftCurly"/> <!-- Java Style Guide: Nonempty blocks: K & R style -->
-        <module name="LineLength"> <!-- Java Style Guide: No line-wrapping -->
-            <property name="max" value="120"/>
-            <property name="ignorePattern" value="^package.*|^import.*|a href|href|http://|https://|ftp://"/>
-        </module>
         <module name="MemberName"> <!-- Java Style Guide: Non-constant field names -->
             <property name="format" value="^[a-z][a-zA-Z0-9]+$"/>
             <message key="name.invalidPattern" value="Member name ''{0}'' must match pattern ''{1}''."/>
@@ -238,7 +252,6 @@
             <property name="tokens" value="BAND, BOR, BSR, BXOR, DIV, EQUAL, GE, GT, LAND, LE, LITERAL_INSTANCEOF, LOR, LT, MINUS, MOD, NOT_EQUAL, PLUS, QUESTION, SL, SR, STAR "/>
         </module>
         <module name="OuterTypeFilename"/> <!-- Java Style Guide: File name -->
-        <module name="OverloadMethodsDeclarationOrder"/> <!-- Java Style Guide: Overloads: never split -->
         <module name="PackageAnnotation"/> <!-- Java Style Guide: Package statement -->
         <module name="PackageDeclaration"/> <!-- Java Style Guide: Package statement -->
         <module name="PackageName"> <!-- Java Style Guide: Package names -->
@@ -365,6 +378,10 @@
             <property name="format" value="serial"/>
         </module>
         <module name="SuppressWarningsHolder" />  <!-- Required for SuppressWarningsFilter -->
+        <module name="TodoComment"> <!-- Using TodoComment as a CommentRegex to find comments without a leading space-->
+            <property name="format" value="^\w"/>
+            <message key="todo.match" value="There must be whitespace at the beginning of all comments."/>
+        </module>
         <module name="TypeName"> <!-- Java Style Guide: Class names -->
             <message key="name.invalidPattern" value="Type name ''{0}'' must match pattern ''{1}''."/>
         </module>
@@ -399,12 +416,11 @@
         <module name="JavadocMethod"> <!-- Java Style Guide: Where Javadoc is used -->
             <property name="scope" value="public"/>
             <property name="allowMissingParamTags" value="true"/>
-            <property name="allowMissingThrowsTags" value="true"/>
             <property name="allowMissingReturnTag" value="true"/>
-            <property name="minLineCount" value="99999999"/>
             <property name="allowedAnnotations" value="Override, Test"/>
-            <property name="allowThrowsTagsForSubclasses" value="true"/>
+            <property name="validateThrows" value="false"/>
         </module>
+        <module name="JavadocMissingWhitespaceAfterAsterisk"/>
         <module name="JavadocStyle"> <!-- Java Style Guide: Javadoc -->
             <property name="checkFirstSentence" value="false"/>
         </module>

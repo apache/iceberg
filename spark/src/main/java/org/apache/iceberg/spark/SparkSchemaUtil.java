@@ -19,9 +19,6 @@
 
 package org.apache.iceberg.spark;
 
-import com.google.common.base.Splitter;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -30,6 +27,9 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -37,6 +37,7 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalog.Column;
 import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
 /**
@@ -162,7 +163,7 @@ public class SparkSchemaUtil {
     // reassign ids to match the base schema
     Schema schema = TypeUtil.reassignIds(new Schema(struct.fields()), baseSchema);
     // fix types that can't be represented in Spark (UUID and Fixed)
-    return FixupTypes.fixup(schema, baseSchema);
+    return SparkFixupTypes.fixup(schema, baseSchema);
   }
 
   /**
@@ -242,10 +243,6 @@ public class SparkSchemaUtil {
     return identitySpec(schema, names);
   }
 
-  private static PartitionSpec identitySpec(Schema schema, String... partitionNames) {
-    return identitySpec(schema, Lists.newArrayList(partitionNames));
-  }
-
   private static PartitionSpec identitySpec(Schema schema, List<String> partitionNames) {
     if (partitionNames == null || partitionNames.isEmpty()) {
       return null;
@@ -259,4 +256,24 @@ public class SparkSchemaUtil {
     return builder.build();
   }
 
+  /**
+   * estimate approximate table size based on spark schema and total records.
+   *
+   * @param tableSchema  spark schema
+   * @param totalRecords total records in the table
+   * @return approxiate size based on table schema
+   */
+  public static long estimateSize(StructType tableSchema, long totalRecords) {
+    if (totalRecords == Long.MAX_VALUE) {
+      return totalRecords;
+    }
+
+    long approximateSize = 0;
+    for (StructField sparkField : tableSchema.fields()) {
+      approximateSize += sparkField.dataType().defaultSize();
+    }
+
+    long result = approximateSize * totalRecords;
+    return result > 0 ? result : Long.MAX_VALUE;
+  }
 }

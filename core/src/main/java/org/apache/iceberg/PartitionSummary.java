@@ -19,10 +19,10 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Lists;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
@@ -43,7 +43,7 @@ class PartitionSummary {
   }
 
   List<PartitionFieldSummary> summaries() {
-    return Lists.transform(Arrays.asList(fields), PartitionFieldStats::toSummary);
+    return Arrays.stream(fields).map(PartitionFieldStats::toSummary).collect(Collectors.toList());
   }
 
   public void update(StructLike partitionKey) {

@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.types;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
 import java.util.List;
 import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   private final Schema sourceSchema;
@@ -73,6 +73,9 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
     Types.StructType sourceStruct = sourceType.asStructType();
     Types.NestedField sourceField = sourceStruct.field(field.name());
+    if (sourceField == null) {
+      throw new IllegalArgumentException("Field " + field.name() + " not found in source schema");
+    }
 
     this.sourceType = sourceField.type();
     try {

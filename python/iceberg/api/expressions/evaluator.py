@@ -22,20 +22,19 @@ from .expressions import ExpressionVisitors
 
 
 class Evaluator(object):
-    THREAD_LOCAL_DATA = threading.local()
-
-    def visitor(self):
-        if not hasattr(Evaluator.THREAD_LOCAL_DATA, "visitors") :
-            Evaluator.THREAD_LOCAL_DATA.visitors = Evaluator.EvalVisitor()
-
-        return Evaluator.THREAD_LOCAL_DATA.visitors
 
     def __init__(self, struct, unbound, case_sensitive=True):
         self.expr = Binder.bind(struct, unbound, case_sensitive)
-        self.visitors = None
+        self.thread_local_data = threading.local()
+
+    def _visitor(self):
+        if not hasattr(self.thread_local_data, "visitors"):
+            self.thread_local_data.visitors = Evaluator.EvalVisitor()
+
+        return self.thread_local_data.visitors
 
     def eval(self, data):
-        return self.visitor().eval(data, self.expr)
+        return self._visitor().eval(data, self.expr)
 
     class EvalVisitor(ExpressionVisitors.BoundExpressionVisitor):
 

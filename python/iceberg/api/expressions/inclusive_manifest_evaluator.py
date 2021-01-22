@@ -28,12 +28,6 @@ ROWS_CANNOT_MATCH = False
 
 class InclusiveManifestEvaluator(object):
 
-    def visitor(self):
-        if not hasattr(self.thread_local_data, "visitors"):
-            self.thread_local_data.visitors = ManifestEvalVistor(self.expr)
-
-        return self.thread_local_data.visitors
-
     def __init__(self, spec, row_filter, case_sensitive=True):
         self.struct = spec.partition_type()
         self.expr = Binder.bind(self.struct,
@@ -42,11 +36,17 @@ class InclusiveManifestEvaluator(object):
                                 case_sensitive=case_sensitive)
         self.thread_local_data = threading.local()
 
+    def _visitor(self):
+        if not hasattr(self.thread_local_data, "visitors"):
+            self.thread_local_data.visitors = ManifestEvalVisitor(self.expr)
+
+        return self.thread_local_data.visitors
+
     def eval(self, manifest):
-        return self.visitor().eval(manifest)
+        return self._visitor().eval(manifest)
 
 
-class ManifestEvalVistor(ExpressionVisitors.BoundExpressionVisitor):
+class ManifestEvalVisitor(ExpressionVisitors.BoundExpressionVisitor):
 
     def __init__(self, expr):
         self.expr = expr

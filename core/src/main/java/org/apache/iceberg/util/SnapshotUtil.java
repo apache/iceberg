@@ -19,14 +19,35 @@
 
 package org.apache.iceberg.util;
 
-import com.google.common.collect.Lists;
 import java.util.List;
 import java.util.function.Function;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class SnapshotUtil {
   private SnapshotUtil() {
+  }
+
+  /**
+   * Returns whether ancestorSnapshotId is an ancestor of snapshotId.
+   */
+  public static boolean ancestorOf(Table table, long snapshotId, long ancestorSnapshotId) {
+    Snapshot current = table.snapshot(snapshotId);
+    while (current != null) {
+      long id = current.snapshotId();
+      if (ancestorSnapshotId == id) {
+        return true;
+      } else if (current.parentId() != null) {
+        current = table.snapshot(current.parentId());
+      } else {
+        return false;
+      }
+    }
+    return false;
   }
 
   /**
@@ -42,6 +63,17 @@ public class SnapshotUtil {
     return ancestorIds(table.currentSnapshot(), table::snapshot);
   }
 
+  /**
+   * Returns list of snapshot ids in the range - (fromSnapshotId, toSnapshotId]
+   * <p>
+   * This method assumes that fromSnapshotId is an ancestor of toSnapshotId.
+   */
+  public static List<Long> snapshotIdsBetween(Table table, long fromSnapshotId, long toSnapshotId) {
+    List<Long> snapshotIds = Lists.newArrayList(ancestorIds(table.snapshot(toSnapshotId),
+        snapshotId -> snapshotId != fromSnapshotId ? table.snapshot(snapshotId) : null));
+    return snapshotIds;
+  }
+
   public static List<Long> ancestorIds(Snapshot snapshot, Function<Long, Snapshot> lookup) {
     List<Long> ancestorIds = Lists.newArrayList();
     Snapshot current = snapshot;
@@ -54,5 +86,25 @@ public class SnapshotUtil {
       }
     }
     return ancestorIds;
+  }
+
+  public static List<DataFile> newFiles(Long baseSnapshotId, long latestSnapshotId, Function<Long, Snapshot> lookup) {
+    List<DataFile> newFiles = Lists.newArrayList();
+
+    Long currentSnapshotId = latestSnapshotId;
+    while (currentSnapshotId != null && !currentSnapshotId.equals(baseSnapshotId)) {
+      Snapshot currentSnapshot = lookup.apply(currentSnapshotId);
+
+      if (currentSnapshot == null) {
+        throw new ValidationException(
+            "Cannot determine history between read snapshot %s and current %s",
+            baseSnapshotId, currentSnapshotId);
+      }
+
+      Iterables.addAll(newFiles, currentSnapshot.addedFiles());
+      currentSnapshotId = currentSnapshot.parentId();
+    }
+
+    return newFiles;
   }
 }

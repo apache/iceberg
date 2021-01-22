@@ -19,18 +19,15 @@
 
 package org.apache.iceberg.pig;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.parquet.ParquetValueReaders.BinaryAsDecimalReader;
@@ -46,6 +43,9 @@ import org.apache.iceberg.parquet.ParquetValueReaders.StringReader;
 import org.apache.iceberg.parquet.ParquetValueReaders.StructReader;
 import org.apache.iceberg.parquet.ParquetValueReaders.UnboxedReader;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
@@ -61,22 +61,15 @@ import org.apache.pig.data.DataByteArray;
 import org.apache.pig.data.Tuple;
 import org.apache.pig.data.TupleFactory;
 
-import static java.lang.String.format;
-import static org.apache.iceberg.parquet.ParquetSchemaUtil.convert;
-import static org.apache.iceberg.parquet.ParquetSchemaUtil.hasIds;
-import static org.apache.iceberg.parquet.ParquetValueReaders.option;
-
 public class PigParquetReader {
-  private final ParquetValueReader reader;
-
-  public PigParquetReader(Schema readSchema, MessageType fileSchema, Map<Integer, Object> partitionValues) {
-    this.reader = buildReader(convert(readSchema, fileSchema.getName()), readSchema, partitionValues);
+  private PigParquetReader() {
   }
 
   @SuppressWarnings("unchecked")
-  public static ParquetValueReader<Tuple> buildReader(MessageType fileSchema, Schema expectedSchema, Map<Integer, Object> partitionValues) {
+  public static ParquetValueReader<Tuple> buildReader(
+      MessageType fileSchema, Schema expectedSchema, Map<Integer, Object> partitionValues) {
 
-    if (hasIds(fileSchema)) {
+    if (ParquetSchemaUtil.hasIds(fileSchema)) {
       return (ParquetValueReader<Tuple>)
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
               new ReadBuilder(fileSchema, partitionValues));
@@ -93,13 +86,15 @@ public class PigParquetReader {
     }
 
     @Override
-    public ParquetValueReader<?> message(Types.StructType expected, MessageType message, List<ParquetValueReader<?>> fieldReaders) {
+    public ParquetValueReader<?> message(
+        Types.StructType expected, MessageType message, List<ParquetValueReader<?>> fieldReaders) {
       // the top level matches by ID, but the remaining IDs are missing
       return super.struct(expected, message, fieldReaders);
     }
 
     @Override
-    public ParquetValueReader<?> struct(Types.StructType ignored, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
+    public ParquetValueReader<?> struct(
+        Types.StructType ignored, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
       // the expected struct is ignored because nested fields are never found when the
       List<ParquetValueReader<?>> newFields = Lists.newArrayListWithExpectedSize(
           fieldReaders.size());
@@ -107,31 +102,37 @@ public class PigParquetReader {
       List<Type> fields = struct.getFields();
       for (int i = 0; i < fields.size(); i += 1) {
         Type fieldType = fields.get(i);
-        int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName())) - 1;
-        newFields.add(option(fieldType, fieldD, fieldReaders.get(i)));
+        int fieldD = getMessageType().getMaxDefinitionLevel(path(fieldType.getName())) - 1;
+        newFields.add(ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
         types.add(fieldType);
       }
 
-      return new TupleReader(types, newFields, partitionValues);
+      return new TupleReader(types, newFields);
     }
   }
 
   private static class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
-    final MessageType type;
-    final Map<Integer, Object> partitionValues;
+    private final MessageType type;
+    private final Map<Integer, Object> partitionValues;
 
     ReadBuilder(MessageType type, Map<Integer, Object> partitionValues) {
       this.type = type;
       this.partitionValues = partitionValues;
     }
 
+    MessageType getMessageType() {
+      return this.type;
+    }
+
     @Override
-    public ParquetValueReader<?> message(Types.StructType expected, MessageType message, List<ParquetValueReader<?>> fieldReaders) {
+    public ParquetValueReader<?> message(
+        Types.StructType expected, MessageType message, List<ParquetValueReader<?>> fieldReaders) {
       return struct(expected, message.asGroupType(), fieldReaders);
     }
 
     @Override
-    public ParquetValueReader<?> struct(Types.StructType expected, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
+    public ParquetValueReader<?> struct(
+        Types.StructType expected, GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
       // match the expected struct's order
       Map<Integer, ParquetValueReader<?>> readersById = Maps.newHashMap();
       Map<Integer, Type> typesById = Maps.newHashMap();
@@ -140,7 +141,7 @@ public class PigParquetReader {
         Type fieldType = fields.get(i);
         int fieldD = type.getMaxDefinitionLevel(path(fieldType.getName())) - 1;
         int id = fieldType.getId().intValue();
-        readersById.put(id, option(fieldType, fieldD, fieldReaders.get(i)));
+        readersById.put(id, ParquetValueReaders.option(fieldType, fieldD, fieldReaders.get(i)));
         typesById.put(id, fieldType);
       }
 
@@ -151,21 +152,28 @@ public class PigParquetReader {
       List<Type> types = Lists.newArrayListWithExpectedSize(expectedFields.size());
       for (Types.NestedField field : expectedFields) {
         int id = field.fieldId();
-        ParquetValueReader<?> reader = readersById.get(id);
-        if (reader != null) {
-          reorderedFields.add(reader);
-          types.add(typesById.get(id));
-        } else {
-          reorderedFields.add(ParquetValueReaders.nulls());
+        if (partitionValues.containsKey(id)) {
+          // the value may be null so containsKey is used to check for a partition value
+          reorderedFields.add(ParquetValueReaders.constant(partitionValues.get(id)));
           types.add(null);
+        } else {
+          ParquetValueReader<?> reader = readersById.get(id);
+          if (reader != null) {
+            reorderedFields.add(reader);
+            types.add(typesById.get(id));
+          } else {
+            reorderedFields.add(ParquetValueReaders.nulls());
+            types.add(null);
+          }
         }
       }
 
-      return new TupleReader(types, reorderedFields, partitionValues);
+      return new TupleReader(types, reorderedFields);
     }
 
     @Override
-    public ParquetValueReader<?> list(Types.ListType expectedList, GroupType array, ParquetValueReader<?> elementReader) {
+    public ParquetValueReader<?> list(
+        Types.ListType expectedList, GroupType array, ParquetValueReader<?> elementReader) {
       GroupType repeated = array.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -175,11 +183,12 @@ public class PigParquetReader {
       Type elementType = repeated.getType(0);
       int elementD = type.getMaxDefinitionLevel(path(elementType.getName())) - 1;
 
-      return new ArrayReader<>(repeatedD, repeatedR, option(elementType, elementD, elementReader));
+      return new ArrayReader<>(repeatedD, repeatedR, ParquetValueReaders.option(elementType, elementD, elementReader));
     }
 
     @Override
-    public ParquetValueReader<?> map(Types.MapType expectedMap, GroupType map, ParquetValueReader<?> keyReader, ParquetValueReader<?> valueReader) {
+    public ParquetValueReader<?> map(
+        Types.MapType expectedMap, GroupType map, ParquetValueReader<?> keyReader, ParquetValueReader<?> valueReader) {
       GroupType repeatedKeyValue = map.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -192,19 +201,23 @@ public class PigParquetReader {
       int valueD = type.getMaxDefinitionLevel(path(valueType.getName())) - 1;
 
       return new MapReader<>(repeatedD, repeatedR,
-          option(keyType, keyD, keyReader), option(valueType, valueD, valueReader));
+          ParquetValueReaders.option(keyType, keyD, keyReader),
+          ParquetValueReaders.option(valueType, valueD, valueReader));
     }
 
     @Override
-    public ParquetValueReader<?> primitive(org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
+    public ParquetValueReader<?> primitive(
+        org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
 
       if (primitive.getOriginalType() != null) {
         switch (primitive.getOriginalType()) {
           case ENUM:
           case JSON:
-          case UTF8: return new StringReader(desc);
-          case DATE: return new DateReader(desc);
+          case UTF8:
+            return new StringReader(desc);
+          case DATE:
+            return new DateReader(desc);
           case INT_8:
           case INT_16:
           case INT_32:
@@ -220,9 +233,12 @@ public class PigParquetReader {
             DecimalMetadata decimal = primitive.getDecimalMetadata();
             switch (primitive.getPrimitiveTypeName()) {
               case BINARY:
-              case FIXED_LEN_BYTE_ARRAY: return new BinaryAsDecimalReader(desc, decimal.getScale());
-              case INT32: return new IntegerAsDecimalReader(desc, decimal.getScale());
-              case INT64: return new LongAsDecimalReader(desc, decimal.getScale());
+              case FIXED_LEN_BYTE_ARRAY:
+                return new BinaryAsDecimalReader(desc, decimal.getScale());
+              case INT32:
+                return new IntegerAsDecimalReader(desc, decimal.getScale());
+              case INT64:
+                return new LongAsDecimalReader(desc, decimal.getScale());
               default:
                 throw new UnsupportedOperationException(
                     "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
@@ -256,32 +272,6 @@ public class PigParquetReader {
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
     }
-
-    private String[] currentPath() {
-      String[] path = new String[fieldNames.size()];
-      if (!fieldNames.isEmpty()) {
-        Iterator<String> iter = fieldNames.descendingIterator();
-        for (int i = 0; iter.hasNext(); i += 1) {
-          path[i] = iter.next();
-        }
-      }
-
-      return path;
-    }
-
-    protected String[] path(String name) {
-      String[] path = new String[fieldNames.size() + 1];
-      path[fieldNames.size()] = name;
-
-      if (!fieldNames.isEmpty()) {
-        Iterator<String> iter = fieldNames.descendingIterator();
-        for (int i = 0; iter.hasNext(); i += 1) {
-          path[i] = iter.next();
-        }
-      }
-
-      return path;
-    }
   }
 
   private static class DateReader extends PrimitiveReader<String> {
@@ -294,7 +284,7 @@ public class PigParquetReader {
     @Override
     public String read(String reuse) {
       OffsetDateTime day = EPOCH.plusDays(column.nextInteger());
-      return format("%04d-%02d-%02d", day.getYear(), day.getMonth().getValue(), day.getDayOfMonth());
+      return String.format("%04d-%02d-%02d", day.getYear(), day.getMonth().getValue(), day.getDayOfMonth());
     }
   }
 
@@ -312,6 +302,7 @@ public class PigParquetReader {
 
   private static class TimestampMicrosReader extends UnboxedReader<String> {
     private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+
     TimestampMicrosReader(ColumnDescriptor desc) {
       super(desc);
     }
@@ -324,6 +315,7 @@ public class PigParquetReader {
 
   private static class TimestampMillisReader extends UnboxedReader<String> {
     private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
+
     TimestampMillisReader(ColumnDescriptor desc) {
       super(desc);
     }
@@ -335,7 +327,7 @@ public class PigParquetReader {
   }
 
   private static class MapReader<K, V> extends RepeatedKeyValueReader<Map<K, V>, Map<K, V>, K, V> {
-    ReusableEntry<K, V> nullEntry = new ReusableEntry<>();
+    private final ReusableEntry<K, V> nullEntry = new ReusableEntry<>();
 
     MapReader(int definitionLevel, int repetitionLevel,
               ParquetValueReader<K> keyReader, ParquetValueReader<V> valueReader) {
@@ -364,8 +356,8 @@ public class PigParquetReader {
   }
 
   private static class ArrayReader<T> extends RepeatedReader<DataBag, DataBag, T> {
-    private final BagFactory BF = BagFactory.getInstance();
-    private final TupleFactory TF = TupleFactory.getInstance();
+    private final BagFactory bagFactory = BagFactory.getInstance();
+    private final TupleFactory tupleFactory = TupleFactory.getInstance();
 
     ArrayReader(int definitionLevel, int repetitionLevel, ParquetValueReader<T> reader) {
       super(definitionLevel, repetitionLevel, reader);
@@ -373,7 +365,7 @@ public class PigParquetReader {
 
     @Override
     protected DataBag newListData(DataBag reuse) {
-      return BF.newDefaultBag();
+      return bagFactory.newDefaultBag();
     }
 
     @Override
@@ -383,7 +375,7 @@ public class PigParquetReader {
 
     @Override
     protected void addElement(DataBag bag, T element) {
-      bag.add(TF.newTuple(element));
+      bag.add(tupleFactory.newTuple(element));
     }
 
     @Override
@@ -394,19 +386,16 @@ public class PigParquetReader {
 
   private static class TupleReader extends StructReader<Tuple, Tuple> {
     private static final TupleFactory TF = TupleFactory.getInstance();
-    private final Map<Integer, Object> partitionValues;
-    private final int columns;
+    private final int numColumns;
 
-    protected TupleReader(List<Type> types, List<ParquetValueReader<?>> readers, Map<Integer, Object> partitionValues) {
+    TupleReader(List<Type> types, List<ParquetValueReader<?>> readers) {
       super(types, readers);
-
-      this.partitionValues = partitionValues;
-      this.columns = types.size() + partitionValues.size();
+      this.numColumns = readers.size();
     }
 
     @Override
     protected Tuple newStructData(Tuple reuse) {
-      return TF.newTuple(columns);
+      return TF.newTuple(numColumns);
     }
 
     @Override
@@ -416,14 +405,6 @@ public class PigParquetReader {
 
     @Override
     protected Tuple buildStruct(Tuple tuple) {
-      for (Map.Entry<Integer, Object> e : partitionValues.entrySet()) {
-        try {
-          tuple.set(e.getKey(), e.getValue());
-        } catch (ExecException ex) {
-          throw new RuntimeException("Error setting value for key" + e.getKey(), ex);
-        }
-      }
-
       return tuple;
     }
 
@@ -432,7 +413,7 @@ public class PigParquetReader {
       try {
         tuple.set(pos, value);
       } catch (ExecException e) {
-        throw new RuntimeException(format("Error setting tuple value for pos: %d, value: %s", pos, value), e);
+        throw new RuntimeException(String.format("Error setting tuple value for pos: %d, value: %s", pos, value), e);
       }
     }
   }

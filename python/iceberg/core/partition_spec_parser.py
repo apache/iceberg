@@ -25,6 +25,7 @@ class PartitionSpecParser(object):
     SPEC_ID = "spec-id"
     FIELDS = "fields"
     SOURCE_ID = "source-id"
+    FIELD_ID = "field-id"
     TRANSFORM = "transform"
     NAME = "name"
 
@@ -41,7 +42,8 @@ class PartitionSpecParser(object):
     def to_json_fields(spec):
         return [{PartitionSpecParser.NAME: field.name,
                  PartitionSpecParser.TRANSFORM: str(field.transform),
-                 PartitionSpecParser.SOURCE_ID: field.source_id}
+                 PartitionSpecParser.SOURCE_ID: field.source_id,
+                 PartitionSpecParser.FIELD_ID: field.field_id}
                 for field in spec.fields]
 
     @staticmethod
@@ -56,18 +58,8 @@ class PartitionSpecParser(object):
 
         builder = PartitionSpec.builder_for(schema).with_spec_id(spec_id)
         fields = json_obj.get(PartitionSpecParser.FIELDS)
-        if not isinstance(fields, (list, tuple)):
-            raise RuntimeError("Cannot parse partition spec fields, not an array: %s" % fields)
 
-        for element in fields:
-            if not isinstance(element, dict):
-                raise RuntimeError("Cannot parse partition field, not an object: %s" % element)
-
-            builder.add(element.get(PartitionSpecParser.SOURCE_ID),
-                        element.get(PartitionSpecParser.NAME),
-                        element.get(PartitionSpecParser.TRANSFORM))
-
-        return builder.build()
+        return PartitionSpecParser.__build_from_json_fields(builder, fields)
 
     @staticmethod
     def from_json_fields(schema, spec_id, json_obj):
@@ -76,14 +68,31 @@ class PartitionSpecParser(object):
         if isinstance(json_obj, str):
             json_obj = json.loads(json_obj)
 
-        if not isinstance(json_obj, list):
-            raise RuntimeError("Cannot parse partition spec fields, not an array: %s" % json_obj)
+        return PartitionSpecParser.__build_from_json_fields(builder, json_obj)
 
-        for item in json_obj:
-            if not isinstance(item, dict):
-                raise RuntimeError("Cannot parse partition field, not an object: %s" % json_obj)
-            builder.add(item.get(PartitionSpecParser.SOURCE_ID),
-                        item.get(PartitionSpecParser.NAME),
-                        item.get(PartitionSpecParser.TRANSFORM))
+    @staticmethod
+    def __build_from_json_fields(builder, json_fields):
+        if not isinstance(json_fields, (list, tuple)):
+            raise RuntimeError("Cannot parse partition spec fields, not an array: %s" % json_fields)
+
+        field_id_count = 0
+        for element in json_fields:
+            if not isinstance(element, dict):
+                raise RuntimeError("Cannot parse partition field, not an object: %s" % element)
+
+            if element.get(PartitionSpecParser.FIELD_ID) is not None:
+                builder.add(element.get(PartitionSpecParser.SOURCE_ID),
+                            element.get(PartitionSpecParser.FIELD_ID),
+                            element.get(PartitionSpecParser.NAME),
+                            element.get(PartitionSpecParser.TRANSFORM))
+                field_id_count = field_id_count + 1
+            else:
+                builder.add_without_field_id(element.get(PartitionSpecParser.SOURCE_ID),
+                                             element.get(PartitionSpecParser.NAME),
+                                             element.get(PartitionSpecParser.TRANSFORM))
+
+        if field_id_count > 0 and field_id_count != len(json_fields):
+            raise RuntimeError("Cannot parse spec with missing field IDs: %s missing of %s fields." %
+                               (len(json_fields) - field_id_count, len(json_fields)))
 
         return builder.build()

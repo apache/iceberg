@@ -30,7 +30,8 @@ import java.util.Base64;
 
 class TransformUtil {
 
-  private TransformUtil() {}
+  private TransformUtil() {
+  }
 
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final int EPOCH_YEAR = EPOCH.getYear();
@@ -40,7 +41,8 @@ class TransformUtil {
   }
 
   static String humanMonth(int monthOrdinal) {
-    return String.format("%04d-%02d", EPOCH_YEAR + (monthOrdinal / 12), 1 + (monthOrdinal % 12));
+    return String.format("%04d-%02d",
+        EPOCH_YEAR + Math.floorDiv(monthOrdinal, 12), 1 + Math.floorMod(monthOrdinal, 12));
   }
 
   static String humanDay(int dayOrdinal) {

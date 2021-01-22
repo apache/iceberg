@@ -71,15 +71,14 @@ public abstract class ColumnWriter<T> implements TripleWriter<T> {
           }
         };
       default:
-        throw new UnsupportedOperationException("Unsupported primitive type: "
-                + desc.getPrimitiveType().getPrimitiveTypeName());
+        throw new UnsupportedOperationException("Unsupported primitive type: " +
+            desc.getPrimitiveType().getPrimitiveTypeName());
     }
   }
 
   private final ColumnDescriptor desc;
   private final int maxDefinitionLevel;
 
-  private long triplesCount = 0L;
   private org.apache.parquet.column.ColumnWriter columnWriter = null;
 
   private ColumnWriter(ColumnDescriptor desc) {
@@ -93,43 +92,36 @@ public abstract class ColumnWriter<T> implements TripleWriter<T> {
 
   @Override
   public void writeBoolean(int rl, boolean value) {
-    this.triplesCount += 1;
     columnWriter.write(value, rl, maxDefinitionLevel);
   }
 
   @Override
   public void writeInteger(int rl, int value) {
-    this.triplesCount += 1;
     columnWriter.write(value, rl, maxDefinitionLevel);
   }
 
   @Override
   public void writeLong(int rl, long value) {
-    this.triplesCount += 1;
     columnWriter.write(value, rl, maxDefinitionLevel);
   }
 
   @Override
   public void writeFloat(int rl, float value) {
-    this.triplesCount += 1;
     columnWriter.write(value, rl, maxDefinitionLevel);
   }
 
   @Override
   public void writeDouble(int rl, double value) {
-    this.triplesCount += 1;
     columnWriter.write(value, rl, maxDefinitionLevel);
   }
 
   @Override
   public void writeBinary(int rl, Binary value) {
-    this.triplesCount += 1;
     columnWriter.write(value, rl, maxDefinitionLevel);
   }
 
   @Override
   public void writeNull(int rl, int dl) {
-    this.triplesCount += 1;
     columnWriter.writeNull(rl, dl);
   }
 }

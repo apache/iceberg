@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.util;
 
-import com.google.common.collect.Lists;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -35,13 +34,16 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class Tasks {
   private static final Logger LOG = LoggerFactory.getLogger(Tasks.class);
 
-  private Tasks() {}
+  private Tasks() {
+  }
 
   public static class UnrecoverableException extends RuntimeException {
     public UnrecoverableException(String message) {
@@ -81,6 +83,7 @@ public class Tasks {
     private List<Class<? extends Exception>> stopRetryExceptions = Lists.newArrayList(
         UnrecoverableException.class);
     private List<Class<? extends Exception>> onlyRetryExceptions = null;
+    private Predicate<Exception> shouldRetryPredicate = null;
     private int maxAttempts = 1;          // not all operations can be retried
     private long minSleepTimeMs = 1000;   // 1 second
     private long maxSleepTimeMs = 600000; // 10 minutes
@@ -143,6 +146,11 @@ public class Tasks {
 
     public Builder<I> stopRetryOn(Class<? extends Exception>... exceptions) {
       stopRetryExceptions.addAll(Arrays.asList(exceptions));
+      return this;
+    }
+
+    public Builder<I> shouldRetryTest(Predicate<Exception> shouldRetry) {
+      this.shouldRetryPredicate = shouldRetry;
       return this;
     }
 
@@ -405,7 +413,12 @@ public class Tasks {
             throw e;
           }
 
-          if (onlyRetryExceptions != null) {
+          if (shouldRetryPredicate != null) {
+            if (!shouldRetryPredicate.test(e)) {
+              throw e;
+            }
+
+          } else if (onlyRetryExceptions != null) {
             // if onlyRetryExceptions are present, then this retries if one is found
             boolean matchedRetryException = false;
             for (Class<? extends Exception> exClass : onlyRetryExceptions) {
@@ -541,6 +554,10 @@ public class Tasks {
 
   public static Builder<Integer> range(int upTo) {
     return new Builder<>(new Range(upTo));
+  }
+
+  public static <I> Builder<I> foreach(Iterator<I> items) {
+    return new Builder<>(() -> items);
   }
 
   public static <I> Builder<I> foreach(Iterable<I> items) {

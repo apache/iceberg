@@ -25,7 +25,10 @@ import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestReplacePartitions extends TableTestBase {
 
   static final DataFile FILE_E = DataFiles.builder(SPEC)
@@ -49,6 +52,15 @@ public class TestReplacePartitions extends TableTestBase {
       .withRecordCount(0)
       .build();
 
+  @Parameterized.Parameters(name = "formatVersion = {0}")
+  public static Object[] parameters() {
+    return new Object[] { 1, 2 };
+  }
+
+  public TestReplacePartitions(int formatVersion) {
+    super(formatVersion);
+  }
+
   @Test
   public void testReplaceOnePartition() {
     table.newFastAppend()
@@ -66,15 +78,15 @@ public class TestReplacePartitions extends TableTestBase {
     long replaceId = readMetadata().currentSnapshot().snapshotId();
     Assert.assertNotEquals("Should create a new snapshot", baseId, replaceId);
     Assert.assertEquals("Table should have 2 manifests",
-        2, table.currentSnapshot().manifests().size());
+        2, table.currentSnapshot().allManifests().size());
 
     // manifest is not merged because it is less than the minimum
-    validateManifestEntries(table.currentSnapshot().manifests().get(0),
+    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
         ids(replaceId),
         files(FILE_E),
         statuses(Status.ADDED));
 
-    validateManifestEntries(table.currentSnapshot().manifests().get(1),
+    validateManifestEntries(table.currentSnapshot().allManifests().get(1),
         ids(replaceId, baseId),
         files(FILE_A, FILE_B),
         statuses(Status.DELETED, Status.EXISTING));
@@ -100,9 +112,9 @@ public class TestReplacePartitions extends TableTestBase {
     long replaceId = readMetadata().currentSnapshot().snapshotId();
     Assert.assertNotEquals("Should create a new snapshot", baseId, replaceId);
     Assert.assertEquals("Table should have 1 manifest",
-        1, table.currentSnapshot().manifests().size());
+        1, table.currentSnapshot().allManifests().size());
 
-    validateManifestEntries(table.currentSnapshot().manifests().get(0),
+    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
         ids(replaceId, replaceId, baseId),
         files(FILE_E, FILE_A, FILE_B),
         statuses(Status.ADDED, Status.DELETED, Status.EXISTING));
@@ -114,7 +126,7 @@ public class TestReplacePartitions extends TableTestBase {
     Assert.assertTrue(tableDir.delete());
 
     Table unpartitioned = TestTables.create(
-        tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned());
+        tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
 
     Assert.assertEquals("Table version should be 0",
         0, (long) TestTables.metadataVersion("unpartitioned"));
@@ -138,12 +150,12 @@ public class TestReplacePartitions extends TableTestBase {
     long replaceId = replaceMetadata.currentSnapshot().snapshotId();
 
     Assert.assertEquals("Table should have 2 manifests",
-        2, replaceMetadata.currentSnapshot().manifests().size());
+        2, replaceMetadata.currentSnapshot().allManifests().size());
 
-    validateManifestEntries(replaceMetadata.currentSnapshot().manifests().get(0),
+    validateManifestEntries(replaceMetadata.currentSnapshot().allManifests().get(0),
         ids(replaceId), files(FILE_B), statuses(Status.ADDED));
 
-    validateManifestEntries(replaceMetadata.currentSnapshot().manifests().get(1),
+    validateManifestEntries(replaceMetadata.currentSnapshot().allManifests().get(1),
         ids(replaceId), files(FILE_A), statuses(Status.DELETED));
   }
 
@@ -153,7 +165,7 @@ public class TestReplacePartitions extends TableTestBase {
     Assert.assertTrue(tableDir.delete());
 
     Table unpartitioned = TestTables.create(
-        tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned());
+        tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
 
     // ensure the overwrite results in a merge
     unpartitioned.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
@@ -180,9 +192,9 @@ public class TestReplacePartitions extends TableTestBase {
     long replaceId = replaceMetadata.currentSnapshot().snapshotId();
 
     Assert.assertEquals("Table should have 1 manifest",
-        1, replaceMetadata.currentSnapshot().manifests().size());
+        1, replaceMetadata.currentSnapshot().allManifests().size());
 
-    validateManifestEntries(replaceMetadata.currentSnapshot().manifests().get(0),
+    validateManifestEntries(replaceMetadata.currentSnapshot().allManifests().get(0),
         ids(replaceId, replaceId), files(FILE_B, FILE_A), statuses(Status.ADDED, Status.DELETED));
   }
 
@@ -227,17 +239,23 @@ public class TestReplacePartitions extends TableTestBase {
     long replaceId = readMetadata().currentSnapshot().snapshotId();
     Assert.assertNotEquals("Should create a new snapshot", baseId, replaceId);
     Assert.assertEquals("Table should have 2 manifests",
-        2, table.currentSnapshot().manifests().size());
+        2, table.currentSnapshot().allManifests().size());
 
     // manifest is not merged because it is less than the minimum
-    validateManifestEntries(table.currentSnapshot().manifests().get(0),
+    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
         ids(replaceId),
         files(FILE_G),
         statuses(Status.ADDED));
 
-    validateManifestEntries(table.currentSnapshot().manifests().get(1),
+    validateManifestEntries(table.currentSnapshot().allManifests().get(1),
         ids(baseId, baseId),
         files(FILE_A, FILE_B),
         statuses(Status.ADDED, Status.ADDED));
+  }
+
+  @Test
+  public void testEmptyPartitionPathWithUnpartitionedTable() {
+    DataFiles.builder(PartitionSpec.unpartitioned())
+        .withPartitionPath("");
   }
 }

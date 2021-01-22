@@ -30,6 +30,8 @@ public interface Expression extends Serializable {
     FALSE,
     IS_NULL,
     NOT_NULL,
+    IS_NAN,
+    NOT_NAN,
     LT,
     LT_EQ,
     GT,
@@ -40,10 +42,11 @@ public interface Expression extends Serializable {
     NOT_IN,
     NOT,
     AND,
-    OR;
+    OR,
+    STARTS_WITH;
 
     /**
-     * @return the operation used when this is negated
+     * Returns the operation used when this is negated.
      */
     public Operation negate() {
       switch (this) {
@@ -51,6 +54,10 @@ public interface Expression extends Serializable {
           return Operation.NOT_NULL;
         case NOT_NULL:
           return Operation.IS_NULL;
+        case IS_NAN:
+          return Operation.NOT_NAN;
+        case NOT_NAN:
+          return Operation.IS_NAN;
         case LT:
           return Operation.GT_EQ;
         case LT_EQ:
@@ -73,7 +80,7 @@ public interface Expression extends Serializable {
     }
 
     /**
-     * @return the equivalent operation when the left and right operands are exchanged
+     * Returns the equivalent operation when the left and right operands are exchanged.
      */
     // Allow flipLR as a name because it's a public API
     @SuppressWarnings("checkstyle:AbbreviationAsWordInName")
@@ -102,12 +109,12 @@ public interface Expression extends Serializable {
   }
 
   /**
-   * @return the operation for an expression node.
+   * Returns the operation for an expression node.
    */
   Operation op();
 
   /**
-   * @return the negation of this expression, equivalent to not(this).
+   * Returns the negation of this expression, equivalent to not(this).
    */
   default Expression negate() {
     throw new UnsupportedOperationException(String.format("%s cannot be negated", this));

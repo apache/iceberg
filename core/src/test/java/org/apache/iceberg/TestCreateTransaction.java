@@ -21,15 +21,27 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.PartitionSpec.unpartitioned;
 
+@RunWith(Parameterized.class)
 public class TestCreateTransaction extends TableTestBase {
+  @Parameterized.Parameters(name = "formatVersion = {0}")
+  public static Object[] parameters() {
+    return new Object[] { 1, 2 };
+  }
+
+  public TestCreateTransaction(int formatVersion) {
+    super(formatVersion);
+  }
+
   @Test
   public void testCreateTransaction() throws IOException {
     File tableDir = temp.newFolder();
@@ -52,7 +64,7 @@ public class TestCreateTransaction extends TableTestBase {
         0, listManifestFiles(tableDir).size());
 
     Assert.assertEquals("Table schema should match with reassigned IDs",
-        assignFreshIds(SCHEMA).asStruct(), meta.schema().asStruct());
+        TypeUtil.assignIncreasingFreshIds(SCHEMA).asStruct(), meta.schema().asStruct());
     Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
     Assert.assertEquals("Table should not have any snapshots", 0, meta.snapshots().size());
   }
@@ -89,7 +101,7 @@ public class TestCreateTransaction extends TableTestBase {
         1, listManifestFiles(tableDir).size());
 
     Assert.assertEquals("Table schema should match with reassigned IDs",
-        assignFreshIds(SCHEMA).asStruct(), meta.schema().asStruct());
+        TypeUtil.assignIncreasingFreshIds(SCHEMA).asStruct(), meta.schema().asStruct());
     Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
     Assert.assertEquals("Table should have one snapshot", 1, meta.snapshots().size());
 
@@ -131,7 +143,7 @@ public class TestCreateTransaction extends TableTestBase {
         1, listManifestFiles(tableDir).size());
 
     Assert.assertEquals("Table schema should match with reassigned IDs",
-        assignFreshIds(SCHEMA).asStruct(), meta.schema().asStruct());
+        TypeUtil.assignIncreasingFreshIds(SCHEMA).asStruct(), meta.schema().asStruct());
     Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
     Assert.assertEquals("Table should have one snapshot", 1, meta.snapshots().size());
 
@@ -169,7 +181,7 @@ public class TestCreateTransaction extends TableTestBase {
         0, listManifestFiles(tableDir).size());
 
     Assert.assertEquals("Table schema should match with reassigned IDs",
-        assignFreshIds(SCHEMA).asStruct(), meta.schema().asStruct());
+        TypeUtil.assignIncreasingFreshIds(SCHEMA).asStruct(), meta.schema().asStruct());
     Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
     Assert.assertEquals("Table should not have any snapshots", 0, meta.snapshots().size());
     Assert.assertEquals("Should have one table property", 1, meta.properties().size());
@@ -211,7 +223,7 @@ public class TestCreateTransaction extends TableTestBase {
         0, listManifestFiles(tableDir).size());
 
     Assert.assertEquals("Table schema should match with reassigned IDs",
-        assignFreshIds(SCHEMA).asStruct(), meta.schema().asStruct());
+        TypeUtil.assignIncreasingFreshIds(SCHEMA).asStruct(), meta.schema().asStruct());
     Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
     Assert.assertEquals("Table should not have any snapshots", 0, meta.snapshots().size());
     Assert.assertEquals("Should have one table property", 1, meta.properties().size());
@@ -265,15 +277,18 @@ public class TestCreateTransaction extends TableTestBase {
 
     Transaction txn = TestTables.beginCreate(tableDir, "test_conflict", SCHEMA, SPEC);
 
+    // append in the transaction to ensure a manifest file is created
+    txn.newAppend().appendFile(FILE_A).commit();
+
     Assert.assertNull("Starting a create transaction should not commit metadata",
         TestTables.readMetadata("test_conflict"));
     Assert.assertNull("Should have no metadata version",
         TestTables.metadataVersion("test_conflict"));
 
-    Table conflict = TestTables.create(tableDir, "test_conflict", SCHEMA, unpartitioned());
+    Table conflict = TestTables.create(tableDir, "test_conflict", SCHEMA, unpartitioned(), formatVersion);
 
     Assert.assertEquals("Table schema should match with reassigned IDs",
-        assignFreshIds(SCHEMA).asStruct(), conflict.schema().asStruct());
+        TypeUtil.assignIncreasingFreshIds(SCHEMA).asStruct(), conflict.schema().asStruct());
     Assert.assertEquals("Table spec should match conflict table, not transaction table",
         unpartitioned(), conflict.spec());
     Assert.assertFalse("Table should not have any snapshots",
@@ -281,10 +296,7 @@ public class TestCreateTransaction extends TableTestBase {
 
     AssertHelpers.assertThrows("Transaction commit should fail",
         CommitFailedException.class, "Commit failed: table was updated", txn::commitTransaction);
-  }
 
-  private static Schema assignFreshIds(Schema schema) {
-    AtomicInteger lastColumnId = new AtomicInteger(0);
-    return TypeUtil.assignFreshIds(schema, lastColumnId::incrementAndGet);
+    Assert.assertEquals("Should clean up metadata", Sets.newHashSet(), Sets.newHashSet(listManifestFiles(tableDir)));
   }
 }

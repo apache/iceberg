@@ -19,8 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Locale;
@@ -30,18 +28,21 @@ import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class DataFiles {
 
-  private DataFiles() {}
+  private DataFiles() {
+  }
 
-  private static PartitionData newPartitionData(PartitionSpec spec) {
+  static PartitionData newPartitionData(PartitionSpec spec) {
     return new PartitionData(spec.partitionType());
   }
 
-  private static PartitionData copyPartitionData(PartitionSpec spec, StructLike partitionData, PartitionData reuse) {
+  static PartitionData copyPartitionData(PartitionSpec spec, StructLike partitionData, PartitionData reuse) {
     PartitionData data = reuse;
     if (data == null) {
       data = newPartitionData(spec);
@@ -56,7 +57,7 @@ public class DataFiles {
     return data;
   }
 
-  private static PartitionData fillFromPath(PartitionSpec spec, String partitionPath, PartitionData reuse) {
+  static PartitionData fillFromPath(PartitionSpec spec, String partitionPath, PartitionData reuse) {
     PartitionData data = reuse;
     if (data == null) {
       data = newPartitionData(spec);
@@ -94,84 +95,27 @@ public class DataFiles {
     return copyPartitionData(spec, partition, null);
   }
 
-  public static DataFile fromStat(FileStatus stat, long rowCount) {
-    String location = stat.getPath().toString();
-    FileFormat format = FileFormat.fromFileName(location);
-    return new GenericDataFile(location, format, rowCount, stat.getLen());
-  }
-
-  public static DataFile fromStat(FileStatus stat, PartitionData partition, long rowCount) {
-    String location = stat.getPath().toString();
-    FileFormat format = FileFormat.fromFileName(location);
-    return new GenericDataFile(
-        location, format, partition, rowCount, stat.getLen());
-  }
-
-  public static DataFile fromStat(FileStatus stat, PartitionData partition, Metrics metrics,
-      EncryptionKeyMetadata keyMetadata, List<Long> splitOffsets) {
-    String location = stat.getPath().toString();
-    FileFormat format = FileFormat.fromFileName(location);
-    return new GenericDataFile(
-        location, format, partition, stat.getLen(), metrics, keyMetadata.buffer(), splitOffsets);
-  }
-
-  public static DataFile fromInputFile(InputFile file, PartitionData partition, long rowCount) {
-    if (file instanceof HadoopInputFile) {
-      return fromStat(((HadoopInputFile) file).getStat(), partition, rowCount);
-    }
-
-    String location = file.location();
-    FileFormat format = FileFormat.fromFileName(location);
-    return new GenericDataFile(
-        location, format, partition, rowCount, file.getLength());
-  }
-
-  public static DataFile fromInputFile(InputFile file, long rowCount) {
-    if (file instanceof HadoopInputFile) {
-      return fromStat(((HadoopInputFile) file).getStat(), rowCount);
-    }
-
-    String location = file.location();
-    FileFormat format = FileFormat.fromFileName(location);
-    return new GenericDataFile(location, format, rowCount, file.getLength());
-  }
-
-  public static DataFile fromEncryptedOutputFile(EncryptedOutputFile encryptedFile, PartitionData partition,
-                                                Metrics metrics, List<Long> splitOffsets) {
-    EncryptionKeyMetadata keyMetadata = encryptedFile.keyMetadata();
-    InputFile file = encryptedFile.encryptingOutputFile().toInputFile();
-    if (encryptedFile instanceof HadoopInputFile) {
-      return fromStat(((HadoopInputFile) file).getStat(), partition, metrics, keyMetadata, splitOffsets);
-    }
-
-    String location = file.location();
-    FileFormat format = FileFormat.fromFileName(location);
-    return new GenericDataFile(
-        location, format, partition, file.getLength(), metrics, keyMetadata.buffer(), splitOffsets);
-  }
-
   public static DataFile fromManifest(ManifestFile manifest) {
     Preconditions.checkArgument(
         manifest.addedFilesCount() != null && manifest.existingFilesCount() != null,
         "Cannot create data file from manifest: data file counts are missing.");
 
-    return new GenericDataFile(manifest.path(),
-        FileFormat.AVRO,
-        manifest.addedFilesCount() + manifest.existingFilesCount(),
-        manifest.length());
+    return DataFiles.builder(PartitionSpec.unpartitioned())
+        .withPath(manifest.path())
+        .withFormat(FileFormat.AVRO)
+        .withRecordCount(manifest.addedFilesCount() + manifest.existingFilesCount())
+        .withFileSizeInBytes(manifest.length())
+        .build();
   }
 
   public static Builder builder(PartitionSpec spec) {
     return new Builder(spec);
   }
 
-  static Builder builder() {
-    return new Builder();
-  }
-
   public static class Builder {
     private final PartitionSpec spec;
     private final boolean isPartitioned;
+    private final int specId;
     private PartitionData partitionData;
     private String filePath = null;
     private FileFormat format = null;
@@ -182,19 +126,15 @@ public class DataFiles {
     private Map<Integer, Long> columnSizes = null;
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Long> nullValueCounts = null;
+    private Map<Integer, Long> nanValueCounts = null;
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
     private ByteBuffer keyMetadata = null;
     private List<Long> splitOffsets = null;
 
-    public Builder() {
-      this.spec = null;
-      this.partitionData = null;
-      this.isPartitioned = false;
-    }
-
     public Builder(PartitionSpec spec) {
       this.spec = spec;
+      this.specId = spec.specId();
       this.isPartitioned = spec.fields().size() > 0;
       this.partitionData = isPartitioned ? newPartitionData(spec) : null;
     }
@@ -210,6 +150,7 @@ public class DataFiles {
       this.columnSizes = null;
       this.valueCounts = null;
       this.nullValueCounts = null;
+      this.nanValueCounts = null;
       this.lowerBounds = null;
       this.upperBounds = null;
       this.splitOffsets = null;
@@ -217,6 +158,7 @@ public class DataFiles {
 
     public Builder copy(DataFile toCopy) {
       if (isPartitioned) {
+        Preconditions.checkState(specId == toCopy.specId(), "Cannot copy a DataFile with a different spec");
         this.partitionData = copyPartitionData(spec, toCopy.partition(), partitionData);
       }
       this.filePath = toCopy.path().toString();
@@ -226,11 +168,12 @@ public class DataFiles {
       this.columnSizes = toCopy.columnSizes();
       this.valueCounts = toCopy.valueCounts();
       this.nullValueCounts = toCopy.nullValueCounts();
+      this.nanValueCounts = toCopy.nanValueCounts();
       this.lowerBounds = toCopy.lowerBounds();
       this.upperBounds = toCopy.upperBounds();
       this.keyMetadata = toCopy.keyMetadata() == null ? null
           : ByteBuffers.copy(toCopy.keyMetadata());
-      this.splitOffsets = toCopy.splitOffsets() == null ? null : ImmutableList.copyOf(toCopy.splitOffsets());
+      this.splitOffsets = toCopy.splitOffsets() == null ? null : copyList(toCopy.splitOffsets());
       return this;
     }
 
@@ -289,7 +232,9 @@ public class DataFiles {
     public Builder withPartitionPath(String newPartitionPath) {
       Preconditions.checkArgument(isPartitioned || newPartitionPath.isEmpty(),
           "Cannot add partition data for an unpartitioned table");
-      this.partitionData = fillFromPath(spec, newPartitionPath, partitionData);
+      if (!newPartitionPath.isEmpty()) {
+        this.partitionData = fillFromPath(spec, newPartitionPath, partitionData);
+      }
       return this;
     }
 
@@ -299,13 +244,18 @@ public class DataFiles {
       this.columnSizes = metrics.columnSizes();
       this.valueCounts = metrics.valueCounts();
       this.nullValueCounts = metrics.nullValueCounts();
+      this.nanValueCounts = metrics.nanValueCounts();
       this.lowerBounds = metrics.lowerBounds();
       this.upperBounds = metrics.upperBounds();
       return this;
     }
 
     public Builder withSplitOffsets(List<Long> offsets) {
-      this.splitOffsets = offsets == null ? null : ImmutableList.copyOf(offsets);
+      if (offsets != null) {
+        this.splitOffsets = copyList(offsets);
+      } else {
+        this.splitOffsets = null;
+      }
       return this;
     }
 
@@ -328,10 +278,16 @@ public class DataFiles {
       Preconditions.checkArgument(recordCount >= 0, "Record count is required");
 
       return new GenericDataFile(
-          filePath, format, isPartitioned ? partitionData.copy() : null,
+          specId, filePath, format, isPartitioned ? partitionData.copy() : null,
           fileSizeInBytes, new Metrics(
-              recordCount, columnSizes, valueCounts, nullValueCounts, lowerBounds, upperBounds),
+              recordCount, columnSizes, valueCounts, nullValueCounts, nanValueCounts, lowerBounds, upperBounds),
           keyMetadata, splitOffsets);
     }
+  }
+
+  private static <E> List<E> copyList(List<E> toCopy) {
+    List<E> copy = Lists.newArrayListWithExpectedSize(toCopy.size());
+    copy.addAll(toCopy);
+    return copy;
   }
 }

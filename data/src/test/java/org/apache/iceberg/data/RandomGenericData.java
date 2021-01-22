@@ -19,49 +19,72 @@
 
 package org.apache.iceberg.data;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.RandomUtil;
 
 import static java.time.temporal.ChronoUnit.MICROS;
 
 public class RandomGenericData {
-  private RandomGenericData() {}
-
-  public static List<Record> generate(Schema schema, int numRecords, long seed) {
-    RandomDataGenerator generator = new RandomDataGenerator(seed);
-    List<Record> records = Lists.newArrayListWithExpectedSize(numRecords);
-    for (int i = 0; i < numRecords; i += 1) {
-      records.add((Record) TypeUtil.visit(schema, generator));
-    }
-
-    return records;
+  private RandomGenericData() {
   }
 
-  private static class RandomDataGenerator extends TypeUtil.CustomOrderSchemaVisitor<Object> {
-    private final Random random;
+  public static List<Record> generate(Schema schema, int numRecords, long seed) {
+    return Lists.newArrayList(generateIcebergGenerics(schema, numRecords, () -> new RandomRecordGenerator(seed)));
+  }
 
-    private RandomDataGenerator(long seed) {
-      this.random = new Random(seed);
+  public static Iterable<Record> generateFallbackRecords(Schema schema, int numRecords, long seed, long numDictRows) {
+    return generateIcebergGenerics(schema, numRecords, () -> new FallbackGenerator(seed, numDictRows));
+  }
+
+  public static Iterable<Record> generateDictionaryEncodableRecords(Schema schema, int numRecords, long seed) {
+    return generateIcebergGenerics(schema, numRecords, () -> new DictionaryEncodedGenerator(seed));
+  }
+
+  private static Iterable<Record> generateIcebergGenerics(Schema schema, int numRecords,
+                                                          Supplier<RandomDataGenerator<Record>> supplier) {
+    return () -> new Iterator<Record>() {
+      private final RandomDataGenerator<Record> generator = supplier.get();
+      private int count = 0;
+
+      @Override
+      public boolean hasNext() {
+        return count < numRecords;
+      }
+
+      @Override
+      public Record next() {
+        if (!hasNext()) {
+          throw new NoSuchElementException();
+        }
+        ++count;
+        return (Record) TypeUtil.visit(schema, generator);
+      }
+    };
+  }
+
+  private static class RandomRecordGenerator extends RandomDataGenerator<Record> {
+    private RandomRecordGenerator(long seed) {
+      super(seed);
     }
 
     @Override
@@ -80,6 +103,65 @@ public class RandomGenericData {
 
       return rec;
     }
+  }
+
+  private static class DictionaryEncodedGenerator extends RandomRecordGenerator  {
+    DictionaryEncodedGenerator(long seed) {
+      super(seed);
+    }
+
+    @Override
+    protected int getMaxEntries() {
+      // Here we limited the max entries in LIST or MAP to be 3, because we have the mechanism to duplicate
+      // the keys in RandomDataGenerator#map while the dictionary encoder will generate a string with
+      // limited values("0","1","2"). It's impossible for us to request the generator to generate more than 3 keys,
+      // otherwise we will get in a infinite loop in RandomDataGenerator#map.
+      return 3;
+    }
+
+    @Override
+    protected Object randomValue(Type.PrimitiveType primitive, Random random) {
+      return RandomUtil.generateDictionaryEncodablePrimitive(primitive, random);
+    }
+  }
+
+  private static class FallbackGenerator extends RandomRecordGenerator {
+    private final long dictionaryEncodedRows;
+    private long rowCount = 0;
+
+    FallbackGenerator(long seed, long numDictionaryEncoded) {
+      super(seed);
+      this.dictionaryEncodedRows = numDictionaryEncoded;
+    }
+
+    @Override
+    protected Object randomValue(Type.PrimitiveType primitive, Random rand) {
+      this.rowCount += 1;
+      if (rowCount > dictionaryEncodedRows) {
+        return RandomUtil.generatePrimitive(primitive, rand);
+      } else {
+        return RandomUtil.generateDictionaryEncodablePrimitive(primitive, rand);
+      }
+    }
+  }
+
+  public abstract static class RandomDataGenerator<T> extends TypeUtil.CustomOrderSchemaVisitor<Object> {
+    private final Random random;
+    private static final int MAX_ENTRIES = 20;
+
+    protected RandomDataGenerator(long seed) {
+      this.random = new Random(seed);
+    }
+
+    protected int getMaxEntries() {
+      return MAX_ENTRIES;
+    }
+
+    @Override
+    public abstract T schema(Schema schema, Supplier<Object> structResult);
+
+    @Override
+    public abstract T struct(Types.StructType struct, Iterable<Object> fieldResults);
 
     @Override
     public Object field(Types.NestedField field, Supplier<Object> fieldResult) {
@@ -92,7 +174,7 @@ public class RandomGenericData {
 
     @Override
     public Object list(Types.ListType list, Supplier<Object> elementResult) {
-      int numElements = random.nextInt(20);
+      int numElements = random.nextInt(getMaxEntries());
 
       List<Object> result = Lists.newArrayListWithExpectedSize(numElements);
       for (int i = 0; i < numElements; i += 1) {
@@ -109,7 +191,7 @@ public class RandomGenericData {
 
     @Override
     public Object map(Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
-      int numEntries = random.nextInt(20);
+      int numEntries = random.nextInt(getMaxEntries());
 
       Map<Object, Object> result = Maps.newLinkedHashMap();
       Supplier<Object> keyFunc;
@@ -142,174 +224,33 @@ public class RandomGenericData {
 
     @Override
     public Object primitive(Type.PrimitiveType primitive) {
-      Object result = generatePrimitive(primitive, random);
+      Object result = randomValue(primitive, random);
       switch (primitive.typeId()) {
         case BINARY:
           return ByteBuffer.wrap((byte[]) result);
         case UUID:
           return UUID.nameUUIDFromBytes((byte[]) result);
+        case DATE:
+          return EPOCH_DAY.plusDays((Integer) result);
+        case TIME:
+          return LocalTime.ofNanoOfDay((long) result * 1000);
+        case TIMESTAMP:
+          Types.TimestampType ts = (Types.TimestampType) primitive;
+          if (ts.shouldAdjustToUTC()) {
+            return EPOCH.plus((long) result, MICROS);
+          } else {
+            return EPOCH.plus((long) result, MICROS).toLocalDateTime();
+          }
         default:
           return result;
       }
     }
-  }
 
-  @SuppressWarnings("RandomModInteger")
-  private static Object generatePrimitive(Type.PrimitiveType primitive, Random random) {
-    int choice = random.nextInt(20);
-
-    switch (primitive.typeId()) {
-      case BOOLEAN:
-        return choice < 10;
-
-      case INTEGER:
-        switch (choice) {
-          case 1:
-            return Integer.MIN_VALUE;
-          case 2:
-            return Integer.MAX_VALUE;
-          case 3:
-            return 0;
-          default:
-            return random.nextInt();
-        }
-
-      case LONG:
-        switch (choice) {
-          case 1:
-            return Long.MIN_VALUE;
-          case 2:
-            return Long.MAX_VALUE;
-          case 3:
-            return 0L;
-          default:
-            return random.nextLong();
-        }
-
-      case FLOAT:
-        switch (choice) {
-          case 1:
-            return Float.MIN_VALUE;
-          case 2:
-            return -Float.MIN_VALUE;
-          case 3:
-            return Float.MAX_VALUE;
-          case 4:
-            return -Float.MAX_VALUE;
-          case 5:
-            return Float.NEGATIVE_INFINITY;
-          case 6:
-            return Float.POSITIVE_INFINITY;
-          case 7:
-            return 0.0F;
-          case 8:
-            return Float.NaN;
-          default:
-            return random.nextFloat();
-        }
-
-      case DOUBLE:
-        switch (choice) {
-          case 1:
-            return Double.MIN_VALUE;
-          case 2:
-            return -Double.MIN_VALUE;
-          case 3:
-            return Double.MAX_VALUE;
-          case 4:
-            return -Double.MAX_VALUE;
-          case 5:
-            return Double.NEGATIVE_INFINITY;
-          case 6:
-            return Double.POSITIVE_INFINITY;
-          case 7:
-            return 0.0D;
-          case 8:
-            return Double.NaN;
-          default:
-            return random.nextDouble();
-        }
-
-      case DATE:
-        // this will include negative values (dates before 1970-01-01)
-        return EPOCH_DAY.plusDays(random.nextInt() % ABOUT_380_YEARS_IN_DAYS);
-
-      case TIME:
-        return LocalTime.ofNanoOfDay(
-            ((random.nextLong() & Integer.MAX_VALUE) % ONE_DAY_IN_MICROS) * 1000);
-
-      case TIMESTAMP:
-        Types.TimestampType ts = (Types.TimestampType) primitive;
-        if (ts.shouldAdjustToUTC()) {
-          return EPOCH.plus(random.nextLong() % FIFTY_YEARS_IN_MICROS, MICROS);
-        } else {
-          return EPOCH.plus(random.nextLong() % FIFTY_YEARS_IN_MICROS, MICROS).toLocalDateTime();
-        }
-
-      case STRING:
-        return randomString(random);
-
-      case UUID:
-        byte[] uuidBytes = new byte[16];
-        random.nextBytes(uuidBytes);
-        // this will hash the uuidBytes
-        return uuidBytes;
-
-      case FIXED:
-        byte[] fixed = new byte[((Types.FixedType) primitive).length()];
-        random.nextBytes(fixed);
-        return fixed;
-
-      case BINARY:
-        byte[] binary = new byte[random.nextInt(50)];
-        random.nextBytes(binary);
-        return binary;
-
-      case DECIMAL:
-        Types.DecimalType type = (Types.DecimalType) primitive;
-        BigInteger unscaled = randomUnscaled(type.precision(), random);
-        return new BigDecimal(unscaled, type.scale());
-
-      default:
-        throw new IllegalArgumentException(
-            "Cannot generate random value for unknown type: " + primitive);
+    protected Object randomValue(Type.PrimitiveType primitive, Random rand) {
+      return RandomUtil.generatePrimitive(primitive, rand);
     }
   }
 
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
-
-  private static final long FIFTY_YEARS_IN_MICROS =
-      (50L * (365 * 3 + 366) * 24 * 60 * 60 * 1_000_000) / 4;
-  private static final int ABOUT_380_YEARS_IN_DAYS = 380 * 365;
-  private static final long ONE_DAY_IN_MICROS = 24 * 60 * 60 * 1_000_000L;
-  private static final String CHARS =
-      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.!?";
-
-  private static String randomString(Random random) {
-    int length = random.nextInt(50);
-    byte[] buffer = new byte[length];
-
-    for (int i = 0; i < length; i += 1) {
-      buffer[i] = (byte) CHARS.charAt(random.nextInt(CHARS.length()));
-    }
-
-    return new String(buffer, StandardCharsets.UTF_8);
-  }
-
-  private static final String DIGITS = "0123456789";
-
-  private static BigInteger randomUnscaled(int precision, Random random) {
-    int length = random.nextInt(precision);
-    if (length == 0) {
-      return BigInteger.ZERO;
-    }
-
-    StringBuilder sb = new StringBuilder();
-    for (int i = 0; i < length; i += 1) {
-      sb.append(DIGITS.charAt(random.nextInt(DIGITS.length())));
-    }
-
-    return new BigInteger(sb.toString());
-  }
 }

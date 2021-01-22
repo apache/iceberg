@@ -22,36 +22,47 @@ package org.apache.iceberg.expressions;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
-public class BoundReference<T> implements Reference {
-  private final int fieldId;
+public class BoundReference<T> implements BoundTerm<T>, Reference<T> {
+  private final Types.NestedField field;
   private final Accessor<StructLike> accessor;
 
-  BoundReference(int fieldId, Accessor<StructLike> accessor) {
-    this.fieldId = fieldId;
+  BoundReference(Types.NestedField field, Accessor<StructLike> accessor) {
+    this.field = field;
     this.accessor = accessor;
   }
 
+  @Override
+  @SuppressWarnings("unchecked")
+  public T eval(StructLike struct) {
+    return (T) accessor.get(struct);
+  }
+
+  public Types.NestedField field() {
+    return field;
+  }
+
+  @Override
+  public BoundReference<T> ref() {
+    return this;
+  }
+
+  @Override
   public Type type() {
-    return accessor.type();
+    return field.type();
   }
 
   public int fieldId() {
-    return fieldId;
+    return field.fieldId();
   }
 
   public Accessor<StructLike> accessor() {
     return accessor;
   }
 
-  @SuppressWarnings("unchecked")
-  public T get(StructLike struct) {
-    return (T) accessor.get(struct);
-  }
-
   @Override
   public String toString() {
-    return String.format("ref(id=%d, accessor-type=%s)", fieldId, accessor.type());
+    return String.format("ref(id=%d, accessor-type=%s)", field.fieldId(), accessor.type());
   }
-
 }

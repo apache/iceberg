@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Append implementation that produces a minimal number of manifest files.
@@ -27,8 +28,8 @@ import org.apache.iceberg.exceptions.CommitFailedException;
  * This implementation will attempt to commit 5 times before throwing {@link CommitFailedException}.
  */
 class MergeAppend extends MergingSnapshotProducer<AppendFiles> implements AppendFiles {
-  MergeAppend(TableOperations ops) {
-    super(ops);
+  MergeAppend(String tableName, TableOperations ops) {
+    super(tableName, ops);
   }
 
   @Override
@@ -49,6 +50,13 @@ class MergeAppend extends MergingSnapshotProducer<AppendFiles> implements Append
 
   @Override
   public AppendFiles appendManifest(ManifestFile manifest) {
+    Preconditions.checkArgument(!manifest.hasExistingFiles(), "Cannot append manifest with existing files");
+    Preconditions.checkArgument(!manifest.hasDeletedFiles(), "Cannot append manifest with deleted files");
+    Preconditions.checkArgument(
+        manifest.snapshotId() == null || manifest.snapshotId() == -1,
+        "Snapshot id must be assigned during commit");
+    Preconditions.checkArgument(manifest.sequenceNumber() == -1,
+        "Sequence must be assigned during commit");
     add(manifest);
     return this;
   }

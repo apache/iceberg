@@ -19,10 +19,10 @@
 
 package org.apache.iceberg.io;
 
-import com.google.common.collect.Lists;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Deque;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public abstract class CloseableGroup implements Closeable {
   private final Deque<Closeable> closeables = Lists.newLinkedList();

@@ -27,13 +27,22 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.util.SerializableSupplier;
 
 public class HadoopFileIO implements FileIO {
 
-  private final SerializableConfiguration hadoopConf;
+  private final SerializableSupplier<Configuration> hadoopConf;
 
   public HadoopFileIO(Configuration hadoopConf) {
-    this.hadoopConf = new SerializableConfiguration(hadoopConf);
+    this(new SerializableConfiguration(hadoopConf)::get);
+  }
+
+  public HadoopFileIO(SerializableSupplier<Configuration> hadoopConf) {
+    this.hadoopConf = hadoopConf;
+  }
+
+  public Configuration conf() {
+    return hadoopConf.get();
   }
 
   @Override

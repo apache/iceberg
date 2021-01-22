@@ -19,16 +19,17 @@
 
 package org.apache.iceberg.util;
 
-import com.google.common.util.concurrent.MoreExecutors;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import org.apache.iceberg.SystemProperties;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 public class ThreadPools {
 
-  private ThreadPools() {}
+  private ThreadPools() {
+  }
 
   public static final String WORKER_THREAD_POOL_SIZE_PROP =
       SystemProperties.WORKER_THREAD_POOL_SIZE_PROP;

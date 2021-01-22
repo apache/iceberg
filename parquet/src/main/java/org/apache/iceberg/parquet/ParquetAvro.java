@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.parquet;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -34,9 +32,15 @@ import org.apache.avro.generic.GenericFixed;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaVisitor;
 import org.apache.iceberg.avro.UUIDConversion;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.TypeUtil;
 
 class ParquetAvro {
+
+  private ParquetAvro() {
+  }
+
   static Schema parquetAvroSchema(Schema avroSchema) {
     return AvroSchemaVisitor.visit(avroSchema, new ParquetDecimalSchemaConverter());
   }
@@ -85,6 +89,7 @@ class ParquetAvro {
         case LONG:
           Preconditions.checkArgument(precision <= 18,
               "Long cannot hold decimal precision: %s", precision);
+          break;
         case FIXED:
           break;
         default:
@@ -173,7 +178,7 @@ class ParquetAvro {
     }
   }
 
-  static GenericData DEFAULT_MODEL = new SpecificData() {
+  static final GenericData DEFAULT_MODEL = new SpecificData() {
     private final Conversion<?> fixedDecimalConversion = new FixedDecimalConversion();
     private final Conversion<?> intDecimalConversion = new IntDecimalConversion();
     private final Conversion<?> longDecimalConversion = new LongDecimalConversion();
@@ -299,7 +304,7 @@ class ParquetAvro {
         } else {
           return new ParquetDecimal(decimal.getPrecision(), decimal.getScale())
               .addToSchema(Schema.createFixed(primitive.getName(),
-                  null, null, TypeUtil.decimalRequriedBytes(decimal.getPrecision())));
+                  null, null, TypeUtil.decimalRequiredBytes(decimal.getPrecision())));
         }
       }
 

@@ -19,14 +19,15 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
+import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -48,6 +49,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
   }
 
   @Override
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Schema record(Schema record, List<String> names, Iterable<Schema.Field> schemaIterable) {
     Preconditions.checkArgument(
         current.isNestedType() && current.asNestedType().isStructType(),
@@ -87,16 +89,19 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
         hasChange = true;
       }
 
-      Schema.Field avroField = updateMap.get(field.name());
+      Schema.Field avroField = updateMap.get(AvroSchemaUtil.makeCompatibleName(field.name()));
 
       if (avroField != null) {
         updatedFields.add(avroField);
 
       } else {
-        Preconditions.checkArgument(field.isOptional(), "Missing required field: %s", field.name());
-        // create a field that will be defaulted to null
+        Preconditions.checkArgument(
+            field.isOptional() || MetadataColumns.metadataFieldIds().contains(field.fieldId()),
+            "Missing required field: %s", field.name());
+        // Create a field that will be defaulted to null. We assign a unique suffix to the field
+        // to make sure that even if records in the file have the field it is not projected.
         Schema.Field newField = new Schema.Field(
-            field.name(),
+            field.name() + "_r" + field.fieldId(),
             AvroSchemaUtil.toOption(AvroSchemaUtil.convert(field.type())), null, JsonProperties.NULL_VALUE);
         newField.addProp(AvroSchemaUtil.FIELD_ID_PROP, field.fieldId());
         updatedFields.add(newField);
@@ -115,7 +120,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
   public Schema.Field field(Schema.Field field, Supplier<Schema> fieldResult) {
     Types.StructType struct = current.asNestedType().asStructType();
     int fieldId = AvroSchemaUtil.getFieldId(field);
-    Types.NestedField expectedField = struct.field(fieldId); // TODO: what if there are no ids?
+    Types.NestedField expectedField = struct.field(fieldId);
 
     // if the field isn't present, it was not selected
     if (expectedField == null) {
@@ -130,7 +135,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
 
       if (schema != field.schema() || !expectedName.equals(field.name())) {
         // add an alias for the field
-        return AvroSchemaUtil.copyField(field, schema, expectedName);
+        return AvroSchemaUtil.copyField(field, schema, AvroSchemaUtil.makeCompatibleName(expectedName));
       } else {
         // always copy because fields can't be reused
         return AvroSchemaUtil.copyField(field, field.schema(), field.name());

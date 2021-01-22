@@ -29,11 +29,13 @@ import org.junit.Test;
 import static org.apache.iceberg.expressions.Expressions.alwaysFalse;
 import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestExpressionBinding {
@@ -96,9 +98,9 @@ public class TestExpressionBinding {
 
     // make sure the refs are for the right fields
     BoundPredicate<?> left = TestHelpers.assertAndUnwrap(and.left());
-    Assert.assertEquals("Should bind x correctly", 0, left.ref().fieldId());
+    Assert.assertEquals("Should bind x correctly", 0, left.term().ref().fieldId());
     BoundPredicate<?> right = TestHelpers.assertAndUnwrap(and.right());
-    Assert.assertEquals("Should bind y correctly", 1, right.ref().fieldId());
+    Assert.assertEquals("Should bind y correctly", 1, right.term().ref().fieldId());
   }
 
   @Test
@@ -112,9 +114,9 @@ public class TestExpressionBinding {
 
     // make sure the refs are for the right fields
     BoundPredicate<?> left = TestHelpers.assertAndUnwrap(or.left());
-    Assert.assertEquals("Should bind z correctly", 2, left.ref().fieldId());
+    Assert.assertEquals("Should bind z correctly", 2, left.term().ref().fieldId());
     BoundPredicate<?> right = TestHelpers.assertAndUnwrap(or.right());
-    Assert.assertEquals("Should bind y correctly", 1, right.ref().fieldId());
+    Assert.assertEquals("Should bind y correctly", 1, right.term().ref().fieldId());
   }
 
   @Test
@@ -128,7 +130,19 @@ public class TestExpressionBinding {
 
     // make sure the refs are for the right fields
     BoundPredicate<?> child = TestHelpers.assertAndUnwrap(not.child());
-    Assert.assertEquals("Should bind x correctly", 0, child.ref().fieldId());
+    Assert.assertEquals("Should bind x correctly", 0, child.term().ref().fieldId());
+  }
+
+  @Test
+  public void testStartsWith() {
+    StructType struct = StructType.of(required(0, "s", Types.StringType.get()));
+    Expression expr = startsWith("s", "abc");
+    Expression boundExpr = Binder.bind(struct, expr);
+    TestHelpers.assertAllReferencesBound("StartsWith", boundExpr);
+    // make sure the expression is a StartsWith
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(boundExpr, BoundPredicate.class);
+    Assert.assertEquals("Should be right operation", Expression.Operation.STARTS_WITH, pred.op());
+    Assert.assertEquals("Should bind s correctly", 0, pred.term().ref().fieldId());
   }
 
   @Test
@@ -160,6 +174,16 @@ public class TestExpressionBinding {
 
     Expression bound = Binder.bind(STRUCT, not(not(lessThan("y", 100))));
     BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
-    Assert.assertEquals("Should have the correct bound field", 1, pred.ref().fieldId());
+    Assert.assertEquals("Should have the correct bound field", 1, pred.term().ref().fieldId());
+  }
+
+  @Test
+  public void testTransformExpressionBinding() {
+    Expression bound = Binder.bind(STRUCT, equal(bucket("x", 16), 10));
+    TestHelpers.assertAllReferencesBound("BoundTransform", bound);
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
+    Assert.assertTrue("Should use a BoundTransform child", pred.term() instanceof BoundTransform);
+    BoundTransform<?, ?> transformExpr = (BoundTransform<?, ?>) pred.term();
+    Assert.assertEquals("Should use a bucket[16] transform", "bucket[16]", transformExpr.transform().toString());
   }
 }

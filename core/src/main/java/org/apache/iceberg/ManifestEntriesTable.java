@@ -19,27 +19,36 @@
 
 package org.apache.iceberg;
 
-import com.google.common.collect.Sets;
-import java.util.Collection;
-import org.apache.iceberg.avro.Avro;
+import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 
 /**
- * A {@link Table} implementation that exposes a table's manifest entries as rows.
+ * A {@link Table} implementation that exposes a table's manifest entries as rows, for both delete and data files.
  * <p>
  * WARNING: this table exposes internal details, like files that have been deleted. For a table of the live data files,
  * use {@link DataFilesTable}.
  */
-class ManifestEntriesTable extends BaseMetadataTable {
+public class ManifestEntriesTable extends BaseMetadataTable {
   private final TableOperations ops;
   private final Table table;
+  private final String name;
 
   ManifestEntriesTable(TableOperations ops, Table table) {
+    this(ops, table, table.name() + ".entries");
+  }
+
+  ManifestEntriesTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
+    this.name = name;
   }
 
   @Override
@@ -48,8 +57,8 @@ class ManifestEntriesTable extends BaseMetadataTable {
   }
 
   @Override
-  String metadataTableName() {
-    return "entries";
+  public String name() {
+    return name;
   }
 
   @Override
@@ -69,54 +78,86 @@ class ManifestEntriesTable extends BaseMetadataTable {
   }
 
   @Override
-  public String location() {
-    return table.currentSnapshot().manifestListLocation();
+  String metadataLocation() {
+    return ops.current().metadataFileLocation();
+  }
+
+  @Override
+  MetadataTableType metadataTableType() {
+    return MetadataTableType.ENTRIES;
   }
 
   private static class EntriesTableScan extends BaseTableScan {
-    private static final long TARGET_SPLIT_SIZE = 32 * 1024 * 1024; // 32 MB
 
     EntriesTableScan(TableOperations ops, Table table, Schema schema) {
       super(ops, table, schema);
     }
 
-    private EntriesTableScan(
-        TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
-      super(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+    private EntriesTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+      super(ops, table, schema, context);
     }
 
     @Override
-    protected TableScan newRefinedScan(
-        TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-        boolean caseSensitive, boolean colStats, Collection<String> selectedColumns) {
-      return new EntriesTableScan(
-          ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+    protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema,
+                                       TableScanContext context) {
+      return new EntriesTableScan(ops, table, schema, context);
     }
 
     @Override
     protected long targetSplitSize(TableOperations ops) {
-      return TARGET_SPLIT_SIZE;
+      return ops.current().propertyAsLong(
+          TableProperties.METADATA_SPLIT_SIZE, TableProperties.METADATA_SPLIT_SIZE_DEFAULT);
     }
 
     @Override
     protected CloseableIterable<FileScanTask> planFiles(
-        TableOperations ops, Snapshot snapshot, Expression rowFilter, boolean caseSensitive, boolean colStats) {
-      CloseableIterable<ManifestFile> manifests = Avro
-          .read(ops.io().newInputFile(snapshot.manifestListLocation()))
-          .rename("manifest_file", GenericManifestFile.class.getName())
-          .rename("partitions", GenericPartitionFieldSummary.class.getName())
-          // 508 is the id used for the partition field, and r508 is the record name created for it in Avro schemas
-          .rename("r508", GenericPartitionFieldSummary.class.getName())
-          .project(ManifestFile.schema())
-          .reuseContainers(false)
-          .build();
-
+        TableOperations ops, Snapshot snapshot, Expression rowFilter,
+        boolean ignoreResiduals, boolean caseSensitive, boolean colStats) {
+      // return entries from both data and delete manifests
+      CloseableIterable<ManifestFile> manifests = CloseableIterable.withNoopClose(snapshot.allManifests());
+      Type fileProjection = schema().findType("data_file");
+      Schema fileSchema = fileProjection != null ? new Schema(fileProjection.asStructType().fields()) : new Schema();
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
+      Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
+      ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
-      return CloseableIterable.transform(manifests, manifest -> new BaseFileScanTask(
-          DataFiles.fromManifest(manifest), schemaString, specString, ResidualEvaluator.unpartitioned(rowFilter)));
+      return CloseableIterable.transform(manifests, manifest ->
+          new ManifestReadTask(ops.io(), manifest, fileSchema, schemaString, specString, residuals,
+              ops.current().specsById()));
+    }
+  }
+
+  static class ManifestReadTask extends BaseFileScanTask implements DataTask {
+    private final Schema fileSchema;
+    private final FileIO io;
+    private final ManifestFile manifest;
+    private final Map<Integer, PartitionSpec> specsById;
+
+    ManifestReadTask(FileIO io, ManifestFile manifest, Schema fileSchema, String schemaString,
+                     String specString, ResidualEvaluator residuals, Map<Integer, PartitionSpec> specsById) {
+      super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
+      this.fileSchema = fileSchema;
+      this.io = io;
+      this.manifest = manifest;
+      this.specsById = specsById;
+    }
+
+    @Override
+    public CloseableIterable<StructLike> rows() {
+      if (manifest.content() == ManifestContent.DATA) {
+        return CloseableIterable.transform(ManifestFiles.read(manifest, io).project(fileSchema).entries(),
+            file -> (GenericManifestEntry<DataFile>) file);
+      } else {
+        return CloseableIterable.transform(ManifestFiles.readDeleteManifest(manifest, io, specsById)
+                .project(fileSchema).entries(),
+            file -> (GenericManifestEntry<DeleteFile>) file);
+      }
+    }
+
+    @Override
+    public Iterable<FileScanTask> split(long splitSize) {
+      return ImmutableList.of(this); // don't split
     }
   }
 }

@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.Types;
 
 /**
@@ -26,7 +27,7 @@ import org.apache.iceberg.types.Types;
  * <p>
  * This does not include snapshots that have been expired using {@link ExpireSnapshots}.
  */
-class SnapshotsTable extends BaseMetadataTable {
+public class SnapshotsTable extends BaseMetadataTable {
   private static final Schema SNAPSHOT_SCHEMA = new Schema(
       Types.NestedField.required(1, "committed_at", Types.TimestampType.withZone()),
       Types.NestedField.required(2, "snapshot_id", Types.LongType.get()),
@@ -39,10 +40,16 @@ class SnapshotsTable extends BaseMetadataTable {
 
   private final TableOperations ops;
   private final Table table;
+  private final String name;
 
   SnapshotsTable(TableOperations ops, Table table) {
+    this(ops, table, table.name() + ".snapshots");
+  }
+
+  SnapshotsTable(TableOperations ops, Table table, String name) {
     this.ops = ops;
     this.table = table;
+    this.name = name;
   }
 
   @Override
@@ -51,8 +58,8 @@ class SnapshotsTable extends BaseMetadataTable {
   }
 
   @Override
-  String metadataTableName() {
-    return "snapshots";
+  public String name() {
+    return name;
   }
 
   @Override
@@ -61,22 +68,36 @@ class SnapshotsTable extends BaseMetadataTable {
   }
 
   @Override
-  public String location() {
-    return ops.current().file().location();
-  }
-
-  @Override
   public Schema schema() {
     return SNAPSHOT_SCHEMA;
   }
 
   private DataTask task(BaseTableScan scan) {
-    return StaticDataTask.of(ops.current().file(), ops.current().snapshots(), SnapshotsTable::snapshotToRow);
+    return StaticDataTask.of(
+        ops.io().newInputFile(ops.current().metadataFileLocation()),
+        ops.current().snapshots(),
+        SnapshotsTable::snapshotToRow);
+  }
+
+  @Override
+  String metadataLocation() {
+    return ops.current().metadataFileLocation();
+  }
+
+  @Override
+  MetadataTableType metadataTableType() {
+    return MetadataTableType.SNAPSHOTS;
   }
 
   private class SnapshotsTableScan extends StaticTableScan {
     SnapshotsTableScan() {
       super(ops, table, SNAPSHOT_SCHEMA, SnapshotsTable.this::task);
+    }
+
+    @Override
+    public CloseableIterable<FileScanTask> planFiles() {
+      // override planFiles to avoid the check for a current snapshot because this metadata table is for all snapshots
+      return CloseableIterable.withNoopClose(SnapshotsTable.this.task(this));
     }
   }
 

@@ -19,62 +19,78 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.MoreObjects;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.FluentIterable;
-import com.google.common.collect.Sets;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.util.BinPacking;
+import org.apache.iceberg.util.TableScanUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Base class for {@link TableScan} implementations.
  */
-@SuppressWarnings("checkstyle:OverloadMethodsDeclarationOrder")
 abstract class BaseTableScan implements TableScan {
-  private static final Logger LOG = LoggerFactory.getLogger(TableScan.class);
+  private static final Logger LOG = LoggerFactory.getLogger(BaseTableScan.class);
 
   private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
   private final TableOperations ops;
   private final Table table;
-  private final Long snapshotId;
   private final Schema schema;
-  private final Expression rowFilter;
-  private final boolean caseSensitive;
-  private final boolean colStats;
-  private final Collection<String> selectedColumns;
+  private final TableScanContext context;
 
   protected BaseTableScan(TableOperations ops, Table table, Schema schema) {
-    this(ops, table, null, schema, Expressions.alwaysTrue(), true, false, null);
+    this(ops, table, schema, new TableScanContext());
   }
 
-  protected BaseTableScan(TableOperations ops, Table table, Long snapshotId, Schema schema,
-                        Expression rowFilter, boolean caseSensitive, boolean colStats,
-                        Collection<String> selectedColumns) {
+  protected BaseTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
     this.ops = ops;
     this.table = table;
-    this.snapshotId = snapshotId;
     this.schema = schema;
-    this.rowFilter = rowFilter;
-    this.caseSensitive = caseSensitive;
-    this.colStats = colStats;
-    this.selectedColumns = selectedColumns;
+    this.context = context;
+  }
+
+  protected TableOperations tableOps() {
+    return ops;
+  }
+
+  protected Long snapshotId() {
+    return context.snapshotId();
+  }
+
+  protected boolean colStats() {
+    return context.returnColumnStats();
+  }
+
+  protected boolean shouldIgnoreResiduals() {
+    return context.ignoreResiduals();
+  }
+
+  protected Collection<String> selectedColumns() {
+    return context.selectedColumns();
+  }
+
+  protected Map<String, String> options() {
+    return context.options();
+  }
+
+  protected  TableScanContext context() {
+    return context;
   }
 
   @SuppressWarnings("checkstyle:HiddenField")
@@ -82,12 +98,12 @@ abstract class BaseTableScan implements TableScan {
 
   @SuppressWarnings("checkstyle:HiddenField")
   protected abstract TableScan newRefinedScan(
-      TableOperations ops, Table table, Long snapshotId, Schema schema, Expression rowFilter,
-      boolean caseSensitive, boolean colStats, Collection<String> selectedColumns);
+      TableOperations ops, Table table, Schema schema, TableScanContext context);
 
   @SuppressWarnings("checkstyle:HiddenField")
   protected abstract CloseableIterable<FileScanTask> planFiles(
-      TableOperations ops, Snapshot snapshot, Expression rowFilter, boolean caseSensitive, boolean colStats);
+      TableOperations ops, Snapshot snapshot, Expression rowFilter,
+      boolean ignoreResiduals, boolean caseSensitive, boolean colStats);
 
   @Override
   public Table table() {
@@ -95,18 +111,29 @@ abstract class BaseTableScan implements TableScan {
   }
 
   @Override
+  public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
+    throw new UnsupportedOperationException("Incremental scan is not supported");
+  }
+
+  @Override
+  public TableScan appendsAfter(long fromSnapshotId) {
+    throw new UnsupportedOperationException("Incremental scan is not supported");
+  }
+
+  @Override
   public TableScan useSnapshot(long scanSnapshotId) {
-    Preconditions.checkArgument(this.snapshotId == null,
-        "Cannot override snapshot, already set to id=%s", scanSnapshotId);
+    Preconditions.checkArgument(context.snapshotId() == null,
+        "Cannot override snapshot, already set to id=%s", context.snapshotId());
     Preconditions.checkArgument(ops.current().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s", scanSnapshotId);
-    return newRefinedScan(ops, table, scanSnapshotId, schema, rowFilter, caseSensitive, colStats, selectedColumns);
+    return newRefinedScan(
+        ops, table, schema, context.useSnapshotId(scanSnapshotId));
   }
 
   @Override
   public TableScan asOfTime(long timestampMillis) {
-    Preconditions.checkArgument(this.snapshotId == null,
-        "Cannot override snapshot, already set to id=%s", snapshotId);
+    Preconditions.checkArgument(context.snapshotId() == null,
+        "Cannot override snapshot, already set to id=%s", context.snapshotId());
 
     Long lastSnapshotId = null;
     for (HistoryEntry logEntry : ops.current().snapshotLog()) {
@@ -124,35 +151,50 @@ abstract class BaseTableScan implements TableScan {
   }
 
   @Override
+  public TableScan option(String property, String value) {
+    return newRefinedScan(
+        ops, table, schema, context.withOption(property, value));
+  }
+
+  @Override
   public TableScan project(Schema projectedSchema) {
     return newRefinedScan(
-        ops, table, snapshotId, projectedSchema, rowFilter, caseSensitive, colStats, selectedColumns);
+        ops, table, schema, context.project(projectedSchema));
   }
 
   @Override
   public TableScan caseSensitive(boolean scanCaseSensitive) {
-    return newRefinedScan(ops, table, snapshotId, schema, rowFilter, scanCaseSensitive, colStats, selectedColumns);
+    return newRefinedScan(
+        ops, table, schema, context.setCaseSensitive(scanCaseSensitive));
   }
 
   @Override
   public TableScan includeColumnStats() {
-    return newRefinedScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, true, selectedColumns);
+    return newRefinedScan(
+        ops, table, schema, context.shouldReturnColumnStats(true));
   }
 
   @Override
   public TableScan select(Collection<String> columns) {
-    return newRefinedScan(ops, table, snapshotId, schema, rowFilter, caseSensitive, colStats, columns);
+    return newRefinedScan(
+        ops, table, schema, context.selectColumns(columns));
   }
 
   @Override
   public TableScan filter(Expression expr) {
-    return newRefinedScan(
-        ops, table, snapshotId, schema, Expressions.and(rowFilter, expr), caseSensitive, colStats, selectedColumns);
+    return newRefinedScan(ops, table, schema,
+        context.filterRows(Expressions.and(context.rowFilter(), expr)));
   }
 
   @Override
   public Expression filter() {
-    return rowFilter;
+    return context.rowFilter();
+  }
+
+  @Override
+  public TableScan ignoreResiduals() {
+    return newRefinedScan(
+        ops, table, schema, context.ignoreResiduals(true));
   }
 
   @Override
@@ -161,12 +203,13 @@ abstract class BaseTableScan implements TableScan {
     if (snapshot != null) {
       LOG.info("Scanning table {} snapshot {} created at {} with filter {}", table,
           snapshot.snapshotId(), formatTimestampMillis(snapshot.timestampMillis()),
-          rowFilter);
+          context.rowFilter());
 
       Listeners.notifyAll(
-          new ScanEvent(table.toString(), snapshot.snapshotId(), rowFilter, schema()));
+          new ScanEvent(table.name(), snapshot.snapshotId(), context.rowFilter(), schema()));
 
-      return planFiles(ops, snapshot, rowFilter, caseSensitive, colStats);
+      return planFiles(ops, snapshot,
+          context.rowFilter(), context.ignoreResiduals(), context.caseSensitive(), context.returnColumnStats());
 
     } else {
       LOG.info("Scanning empty table {}", table);
@@ -176,20 +219,31 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public CloseableIterable<CombinedScanTask> planTasks() {
-    long splitSize = targetSplitSize(ops);
-    int lookback = ops.current().propertyAsInt(
-        TableProperties.SPLIT_LOOKBACK, TableProperties.SPLIT_LOOKBACK_DEFAULT);
-    long openFileCost = ops.current().propertyAsLong(
-        TableProperties.SPLIT_OPEN_FILE_COST, TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+    Map<String, String> options = context.options();
+    long splitSize;
+    if (options.containsKey(TableProperties.SPLIT_SIZE)) {
+      splitSize = Long.parseLong(options.get(TableProperties.SPLIT_SIZE));
+    } else {
+      splitSize = targetSplitSize(ops);
+    }
+    int lookback;
+    if (options.containsKey(TableProperties.SPLIT_LOOKBACK)) {
+      lookback = Integer.parseInt(options.get(TableProperties.SPLIT_LOOKBACK));
+    } else {
+      lookback = ops.current().propertyAsInt(
+          TableProperties.SPLIT_LOOKBACK, TableProperties.SPLIT_LOOKBACK_DEFAULT);
+    }
+    long openFileCost;
+    if (options.containsKey(TableProperties.SPLIT_OPEN_FILE_COST)) {
+      openFileCost = Long.parseLong(options.get(TableProperties.SPLIT_OPEN_FILE_COST));
+    } else {
+      openFileCost = ops.current().propertyAsLong(
+          TableProperties.SPLIT_OPEN_FILE_COST, TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+    }
 
-    Function<FileScanTask, Long> weightFunc = file -> Math.max(file.length(), openFileCost);
-
-    CloseableIterable<FileScanTask> splitFiles = splitFiles(splitSize);
-    return CloseableIterable.transform(
-        CloseableIterable.combine(
-            new BinPacking.PackingIterable<>(splitFiles, splitSize, lookback, weightFunc, true),
-            splitFiles),
-        BaseCombinedScanTask::new);
+    CloseableIterable<FileScanTask> fileScanTasks = planFiles();
+    CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(fileScanTasks, splitSize);
+    return TableScanUtil.planTasks(splitFiles, splitSize, lookback, openFileCost);
   }
 
   @Override
@@ -199,14 +253,14 @@ abstract class BaseTableScan implements TableScan {
 
   @Override
   public Snapshot snapshot() {
-    return snapshotId != null ?
-        ops.current().snapshot(snapshotId) :
+    return context.snapshotId() != null ?
+        ops.current().snapshot(context.snapshotId()) :
         ops.current().currentSnapshot();
   }
 
   @Override
   public boolean isCaseSensitive() {
-    return caseSensitive;
+    return context.caseSensitive();
   }
 
   @Override
@@ -214,18 +268,10 @@ abstract class BaseTableScan implements TableScan {
     return MoreObjects.toStringHelper(this)
         .add("table", table)
         .add("projection", schema().asStruct())
-        .add("filter", rowFilter)
-        .add("caseSensitive", caseSensitive)
+        .add("filter", context.rowFilter())
+        .add("ignoreResiduals", context.ignoreResiduals())
+        .add("caseSensitive", context.caseSensitive())
         .toString();
-  }
-
-  private CloseableIterable<FileScanTask> splitFiles(long splitSize) {
-    CloseableIterable<FileScanTask> fileScanTasks = planFiles();
-    Iterable<FileScanTask> splitTasks = FluentIterable
-        .from(fileScanTasks)
-        .transformAndConcat(input -> input.split(splitSize));
-    // Capture manifests which can be closed after scan planning
-    return CloseableIterable.combine(splitTasks, fileScanTasks);
   }
 
   /**
@@ -235,23 +281,28 @@ abstract class BaseTableScan implements TableScan {
    * @return the Schema to project
    */
   private Schema lazyColumnProjection() {
+    Collection<String> selectedColumns = context.selectedColumns();
     if (selectedColumns != null) {
       Set<Integer> requiredFieldIds = Sets.newHashSet();
 
       // all of the filter columns are required
       requiredFieldIds.addAll(
-          Binder.boundReferences(table.schema().asStruct(), Collections.singletonList(rowFilter), caseSensitive));
+          Binder.boundReferences(schema.asStruct(),
+              Collections.singletonList(context.rowFilter()), context.caseSensitive()));
 
       // all of the projection columns are required
       Set<Integer> selectedIds;
-      if (caseSensitive) {
-        selectedIds = TypeUtil.getProjectedIds(table.schema().select(selectedColumns));
+      if (context.caseSensitive()) {
+        selectedIds = TypeUtil.getProjectedIds(schema.select(selectedColumns));
       } else {
-        selectedIds = TypeUtil.getProjectedIds(table.schema().caseInsensitiveSelect(selectedColumns));
+        selectedIds = TypeUtil.getProjectedIds(schema.caseInsensitiveSelect(selectedColumns));
       }
       requiredFieldIds.addAll(selectedIds);
 
-      return TypeUtil.select(table.schema(), requiredFieldIds);
+      return TypeUtil.select(schema, requiredFieldIds);
+
+    } else if (context.projectedSchema() != null) {
+      return context.projectedSchema();
     }
 
     return schema;

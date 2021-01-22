@@ -25,11 +25,6 @@ from .transforms import Transforms
 from .types import (NestedField,
                     StructType)
 
-"""
-TO-DO: Needs some work, please review
-
-"""
-
 
 class PartitionSpec(object):
 
@@ -37,13 +32,13 @@ class PartitionSpec(object):
 
     @staticmethod
     def UNPARTITIONED_SPEC():
-        return PartitionSpec(Schema(), 0, [])
+        return PartitionSpec(Schema(), 0, [], PartitionSpec.PARTITION_DATA_ID_START - 1)
 
     @staticmethod
     def unpartitioned():
         return PartitionSpec.UNPARTITIONED_SPEC()
 
-    def __init__(self, schema, spec_id, fields):
+    def __init__(self, schema, spec_id, fields, last_assigned_field_id):
         self.fields_by_source_id = None
         self.fields_by_name = None
         self.__java_classes = None
@@ -54,6 +49,7 @@ class PartitionSpec(object):
         self.__fields = list()
         for field in fields:
             self.__fields.append(field)
+        self.last_assigned_field_id = last_assigned_field_id
 
     @property
     def fields(self):
@@ -63,7 +59,7 @@ class PartitionSpec(object):
     def java_classes(self):
         if self.__java_classes is None:
             self.__java_classes
-        for i, field in enumerate(self.__fields):
+        for field in self.__fields:
             source_type = self.schema.find_type(field.source_id)
             result = field.transform().get_result_by_type(source_type)
             self.__java_classes.append(result.type_id.java_class())
@@ -75,10 +71,10 @@ class PartitionSpec(object):
 
     def partition_type(self):
         struct_fields = list()
-        for i, field in enumerate(self.__fields):
+        for _i, field in enumerate(self.__fields):
             source_type = self.schema.find_type(field.source_id)
             result_type = field.transform.get_result_type(source_type)
-            struct_fields.append(NestedField.optional(PartitionSpec.PARTITION_DATA_ID_START + i,
+            struct_fields.append(NestedField.optional(field.field_id,
                                                       field.name,
                                                       result_type))
 
@@ -166,7 +162,7 @@ class PartitionSpec(object):
         return hash(self.__key())
 
     def __key(self):
-        return PartitionSpec.__class__, self.fields
+        return PartitionSpec.__class__, tuple(self.fields)
 
     def __str__(self):
         return self.__repr__()
@@ -175,9 +171,10 @@ class PartitionSpec(object):
         sb = ["["]
 
         for field in self.__fields:
-            sb.append("\n {name}: {transform}({source_id})".format(name=field.name,
-                                                                   transform=str(field.transform),
-                                                                   source_id=field.source_id))
+            sb.append("\n {field_id}: {name}: {transform}({source_id})".format(field_id=field.field_id,
+                                                                               name=field.name,
+                                                                               transform=str(field.transform),
+                                                                               source_id=field.source_id))
 
         if len(self.__fields) > 0:
             sb.append("\n")
@@ -186,7 +183,7 @@ class PartitionSpec(object):
         return "".join(sb)
 
     @staticmethod
-    def builder_for(schema):
+    def builder_for(schema: Schema) -> "PartitionSpecBuilder":
         return PartitionSpecBuilder(schema)
 
     @staticmethod
@@ -194,9 +191,9 @@ class PartitionSpec(object):
         for field in spec.fields:
             src_type = schema.find_type(field.source_id)
             if not src_type.is_primitive_type():
-                raise ValidationException("Cannot partition by non-primitive source field: %s" % src_type)
+                raise ValidationException("Cannot partition by non-primitive source field: %s", src_type)
             if not field.transform.can_transform(src_type):
-                ValidationException("Invalid source type %s for transform: %s" % (src_type, field.transform))
+                raise ValidationException("Invalid source type %s for transform: %s", (src_type, field.transform))
 
 
 class PartitionSpecBuilder(object):
@@ -206,6 +203,11 @@ class PartitionSpecBuilder(object):
         self.fields = list()
         self.partition_names = set()
         self.spec_id = 0
+        self.last_assigned_field_id = PartitionSpec.PARTITION_DATA_ID_START - 1
+
+    def __next_field_id(self):
+        self.last_assigned_field_id = self.last_assigned_field_id + 1
+        return self.last_assigned_field_id
 
     def with_spec_id(self, spec_id):
         self.spec_id = spec_id
@@ -231,65 +233,75 @@ class PartitionSpecBuilder(object):
         self.check_and_add_partition_name(source_name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
+                                          self.__next_field_id(),
                                           source_name,
                                           Transforms.identity(source_column.type)))
         return self
 
     def year(self, source_name):
-        name = "%s_year".format(source_name)
+        name = "{}_year".format(source_name)
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
-                                          source_name,
-                                          Transforms.year(source_column.types)))
+                                          self.__next_field_id(),
+                                          name,
+                                          Transforms.year(source_column.type)))
         return self
 
     def month(self, source_name):
-        name = "%s_month".format(source_name)
+        name = "{}_month".format(source_name)
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
-                                          source_name,
-                                          Transforms.month(source_column.types)))
+                                          self.__next_field_id(),
+                                          name,
+                                          Transforms.month(source_column.type)))
         return self
 
     def day(self, source_name):
-        name = "%s_day".format(source_name)
+        name = "{}_day".format(source_name)
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
-                                          source_name,
-                                          Transforms.day(source_column.types)))
+                                          self.__next_field_id(),
+                                          name,
+                                          Transforms.day(source_column.type)))
         return self
 
     def hour(self, source_name):
-        name = "%s_hour".format(source_name)
+        name = "{}_hour".format(source_name)
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
-                                          source_name,
-                                          Transforms.hour(source_column.types)))
+                                          self.__next_field_id(),
+                                          name,
+                                          Transforms.hour(source_column.type)))
         return self
 
     def bucket(self, source_name, num_buckets):
-        name = "%s_bucket".format(source_name)
+        name = "{}_bucket".format(source_name)
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
-                                          source_name,
-                                          Transforms.bucket(source_column.types, num_buckets)))
+                                          self.__next_field_id(),
+                                          name,
+                                          Transforms.bucket(source_column.type, num_buckets)))
         return self
 
     def truncate(self, source_name, width):
-        name = "%s_truncate".format(source_name)
+        name = "{}_truncate".format(source_name)
         self.check_and_add_partition_name(name)
         source_column = self.find_source_column(source_name)
         self.fields.append(PartitionField(source_column.field_id,
-                                          source_name,
-                                          Transforms.truncate(source_column.types, width)))
+                                          self.__next_field_id(),
+                                          name,
+                                          Transforms.truncate(source_column.type, width)))
         return self
 
-    def add(self, source_id, name, transform):
+    def add_without_field_id(self, source_id, name, transform):
+        return self.add(source_id, self.__next_field_id(), name, transform)
+
+    def add(self, source_id: int, field_id: int, name: str, transform: str) -> "PartitionSpecBuilder":
         self.check_and_add_partition_name(name)
         column = self.schema.find_field(source_id)
         if column is None:
@@ -297,12 +309,14 @@ class PartitionSpecBuilder(object):
 
         transform_obj = Transforms.from_string(column.type, transform)
         field = PartitionField(source_id,
+                               field_id,
                                name,
                                transform_obj)
         self.fields.append(field)
+        self.last_assigned_field_id = max(self.last_assigned_field_id, field_id)
         return self
 
     def build(self):
-        spec = PartitionSpec(self.schema, self.spec_id, self.fields)
+        spec = PartitionSpec(self.schema, self.spec_id, self.fields, self.last_assigned_field_id)
         PartitionSpec.check_compatibility(spec, self.schema)
         return spec

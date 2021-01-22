@@ -19,20 +19,23 @@
 
 package org.apache.iceberg.spark.source;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
@@ -40,6 +43,7 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.AfterClass;
@@ -53,7 +57,7 @@ import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-public class TestWriteMetricsConfig {
+public abstract class TestWriteMetricsConfig {
 
   private static final Configuration CONF = new Configuration();
   private static final Schema SIMPLE_SCHEMA = new Schema(
@@ -109,8 +113,8 @@ public class TestWriteMetricsConfig {
         .coalesce(1)
         .write()
         .format("iceberg")
-        .option("write-format", "parquet")
-        .mode("append")
+        .option(SparkWriteOptions.WRITE_FORMAT, "parquet")
+        .mode(SaveMode.Append)
         .save(tableLocation);
 
     for (FileScanTask task : table.newScan().includeColumnStats().planFiles()) {
@@ -142,8 +146,8 @@ public class TestWriteMetricsConfig {
         .coalesce(1)
         .write()
         .format("iceberg")
-        .option("write-format", "parquet")
-        .mode("append")
+        .option(SparkWriteOptions.WRITE_FORMAT, "parquet")
+        .mode(SaveMode.Append)
         .save(tableLocation);
 
     for (FileScanTask task : table.newScan().includeColumnStats().planFiles()) {
@@ -175,8 +179,8 @@ public class TestWriteMetricsConfig {
         .coalesce(1)
         .write()
         .format("iceberg")
-        .option("write-format", "parquet")
-        .mode("append")
+        .option(SparkWriteOptions.WRITE_FORMAT, "parquet")
+        .mode(SaveMode.Append)
         .save(tableLocation);
 
     for (FileScanTask task : table.newScan().includeColumnStats().planFiles()) {
@@ -209,8 +213,8 @@ public class TestWriteMetricsConfig {
         .coalesce(1)
         .write()
         .format("iceberg")
-        .option("write-format", "parquet")
-        .mode("append")
+        .option(SparkWriteOptions.WRITE_FORMAT, "parquet")
+        .mode(SaveMode.Append)
         .save(tableLocation);
 
     Schema schema = table.schema();
@@ -224,6 +228,22 @@ public class TestWriteMetricsConfig {
       Assert.assertEquals(1, file.upperBounds().size());
       Assert.assertTrue(file.upperBounds().containsKey(id.fieldId()));
     }
+  }
+
+  @Test
+  public void testBadCustomMetricCollectionForParquet() throws IOException {
+    String tableLocation = temp.newFolder("iceberg-table").toString();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts");
+    properties.put("write.metadata.metrics.column.ids", "full");
+
+    AssertHelpers.assertThrows("Creating a table with invalid metrics should fail",
+        ValidationException.class,
+        null,
+        () -> tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation));
   }
 
   @Test
@@ -247,8 +267,8 @@ public class TestWriteMetricsConfig {
 
     df.coalesce(1).write()
         .format("iceberg")
-        .option("write-format", "parquet")
-        .mode("append")
+        .option(SparkWriteOptions.WRITE_FORMAT, "parquet")
+        .mode(SaveMode.Append)
         .save(tableLocation);
 
     Schema schema = table.schema();

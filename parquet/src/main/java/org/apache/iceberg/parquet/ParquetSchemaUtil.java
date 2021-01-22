@@ -19,22 +19,56 @@
 
 package org.apache.iceberg.parquet;
 
-import com.google.common.collect.Sets;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types.MessageTypeBuilder;
 
 public class ParquetSchemaUtil {
+
+  private ParquetSchemaUtil() {
+  }
+
   public static MessageType convert(Schema schema, String name) {
     return new TypeToMessageType().convert(schema, name);
   }
 
+  /**
+   * Converts a Parquet schema to an Iceberg schema. Fields without IDs are kept and assigned fallback IDs.
+   *
+   * @param parquetSchema a Parquet schema
+   * @return a matching Iceberg schema for the provided Parquet schema
+   */
   public static Schema convert(MessageType parquetSchema) {
-    MessageTypeToType converter = new MessageTypeToType(parquetSchema);
+    // if the Parquet schema does not contain ids, we assign fallback ids to top-level fields
+    // all remaining fields will get ids >= 1000 to avoid pruning columns without ids
+    MessageType parquetSchemaWithIds = hasIds(parquetSchema) ? parquetSchema : addFallbackIds(parquetSchema);
+    AtomicInteger nextId = new AtomicInteger(1000);
+    return convertInternal(parquetSchemaWithIds, name -> nextId.getAndIncrement());
+  }
+
+  /**
+   * Converts a Parquet schema to an Iceberg schema and prunes fields without IDs.
+   *
+   * @param parquetSchema a Parquet schema
+   * @return a matching Iceberg schema for the provided Parquet schema
+   */
+  public static Schema convertAndPrune(MessageType parquetSchema) {
+    return convertInternal(parquetSchema, name -> null);
+  }
+
+  private static Schema convertInternal(MessageType parquetSchema, Function<String[], Integer> nameToIdFunc) {
+    MessageTypeToType converter = new MessageTypeToType(nameToIdFunc);
     return new Schema(
         ParquetTypeVisitor.visit(parquetSchema, converter).asNestedType().fields(),
         converter.getAliases());
@@ -79,22 +113,7 @@ public class ParquetSchemaUtil {
   }
 
   public static boolean hasIds(MessageType fileSchema) {
-    try {
-      // Try to convert the type to Iceberg. If an ID assignment is needed, return false.
-      ParquetTypeVisitor.visit(fileSchema, new MessageTypeToType(fileSchema) {
-        @Override
-        protected int nextId() {
-          throw new IllegalStateException("Needed to assign ID");
-        }
-      });
-
-      // no assignment was needed
-      return true;
-
-    } catch (IllegalStateException e) {
-      // at least one field was missing an id.
-      return false;
-    }
+    return ParquetTypeVisitor.visit(fileSchema, new HasIds());
   }
 
   public static MessageType addFallbackIds(MessageType fileSchema) {
@@ -108,4 +127,41 @@ public class ParquetSchemaUtil {
 
     return builder.named(fileSchema.getName());
   }
+
+  public static MessageType applyNameMapping(MessageType fileSchema, NameMapping nameMapping) {
+    return (MessageType) ParquetTypeVisitor.visit(fileSchema, new ApplyNameMapping(nameMapping));
+  }
+
+  public static class HasIds extends ParquetTypeVisitor<Boolean> {
+    @Override
+    public Boolean message(MessageType message, List<Boolean> fields) {
+      return struct(message, fields);
+    }
+
+    @Override
+    public Boolean struct(GroupType struct, List<Boolean> hasIds) {
+      for (Boolean hasId : hasIds) {
+        if (hasId) {
+          return true;
+        }
+      }
+      return struct.getId() != null;
+    }
+
+    @Override
+    public Boolean list(GroupType array, Boolean hasId) {
+      return hasId || array.getId() != null;
+    }
+
+    @Override
+    public Boolean map(GroupType map, Boolean keyHasId, Boolean valueHasId) {
+      return keyHasId || valueHasId || map.getId() != null;
+    }
+
+    @Override
+    public Boolean primitive(PrimitiveType primitive) {
+      return primitive.getId() != null;
+    }
+  }
+
 }

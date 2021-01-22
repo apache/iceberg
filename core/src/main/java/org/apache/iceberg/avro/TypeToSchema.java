@@ -19,13 +19,14 @@
 
 package org.apache.iceberg.avro;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -54,6 +55,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
     TIMESTAMPTZ_SCHEMA.addProp(AvroSchemaUtil.ADJUST_TO_UTC_PROP, true);
   }
 
+  private final Deque<Integer> fieldIds = Lists.newLinkedList();
   private final Map<Type, Schema> results = Maps.newHashMap();
   private final Map<Types.StructType, String> names;
 
@@ -71,6 +73,16 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
   }
 
   @Override
+  public void beforeField(Types.NestedField field) {
+    fieldIds.push(field.fieldId());
+  }
+
+  @Override
+  public void afterField(Types.NestedField field) {
+    fieldIds.pop();
+  }
+
+  @Override
   public Schema struct(Types.StructType struct, List<Schema> fieldSchemas) {
     Schema recordSchema = results.get(struct);
     if (recordSchema != null) {
@@ -79,7 +91,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
 
     String recordName = names.get(struct);
     if (recordName == null) {
-      recordName = "r" + fieldIds().peek();
+      recordName = "r" + fieldIds.peek();
     }
 
     List<Types.NestedField> structFields = struct.fields();
@@ -90,7 +102,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
       boolean isValidFieldName = AvroSchemaUtil.validAvroName(origFieldName);
       String fieldName =  isValidFieldName ? origFieldName : AvroSchemaUtil.sanitize(origFieldName);
       Schema.Field field = new Schema.Field(
-          fieldName, fieldSchemas.get(i), null,
+          fieldName, fieldSchemas.get(i), structField.doc(),
           structField.isOptional() ? JsonProperties.NULL_VALUE : null);
       if (!isValidFieldName) {
         field.addProp(AvroSchemaUtil.ICEBERG_FIELD_NAME_PROP, origFieldName);
@@ -209,7 +221,7 @@ class TypeToSchema extends TypeUtil.SchemaVisitor<Schema> {
         primitiveSchema = LogicalTypes.decimal(decimal.precision(), decimal.scale())
             .addToSchema(Schema.createFixed(
                 "decimal_" + decimal.precision() + "_" + decimal.scale(),
-                null, null, TypeUtil.decimalRequriedBytes(decimal.precision())));
+                null, null, TypeUtil.decimalRequiredBytes(decimal.precision())));
         break;
       default:
         throw new UnsupportedOperationException(

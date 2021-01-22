@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.data.avro;
 
-import com.google.common.collect.Iterables;
 import java.io.File;
 import java.io.IOException;
 import org.apache.iceberg.Files;
@@ -28,6 +27,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.TestReadProjection;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 public class TestGenericReadProjection extends TestReadProjection {
   @Override

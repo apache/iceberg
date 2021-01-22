@@ -19,17 +19,18 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.MoreObjects;
-import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData.SchemaConstructable;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 
 public class GenericManifestFile
@@ -45,10 +46,16 @@ public class GenericManifestFile
   private String manifestPath = null;
   private Long length = null;
   private int specId = -1;
+  private ManifestContent content = ManifestContent.DATA;
+  private long sequenceNumber = 0;
+  private long minSequenceNumber = 0;
   private Long snapshotId = null;
   private Integer addedFilesCount = null;
   private Integer existingFilesCount = null;
   private Integer deletedFilesCount = null;
+  private Long addedRowsCount = null;
+  private Long existingRowsCount = null;
+  private Long deletedRowsCount = null;
   private List<PartitionFieldSummary> partitions = null;
 
   /**
@@ -57,10 +64,7 @@ public class GenericManifestFile
   public GenericManifestFile(org.apache.avro.Schema avroSchema) {
     this.avroSchema = avroSchema;
 
-    List<Types.NestedField> fields = AvroSchemaUtil.convert(avroSchema)
-        .asNestedType()
-        .asStructType()
-        .fields();
+    List<Types.NestedField> fields = AvroSchemaUtil.convert(avroSchema).asStructType().fields();
     List<Types.NestedField> allFields = ManifestFile.schema().asStruct().fields();
 
     this.fromProjectionPos = new int[fields.size()];
@@ -85,25 +89,38 @@ public class GenericManifestFile
     this.manifestPath = file.location();
     this.length = null; // lazily loaded from file
     this.specId = specId;
+    this.sequenceNumber = 0;
+    this.minSequenceNumber = 0;
     this.snapshotId = null;
     this.addedFilesCount = null;
+    this.addedRowsCount = null;
     this.existingFilesCount = null;
+    this.existingRowsCount = null;
     this.deletedFilesCount = null;
+    this.deletedRowsCount = null;
     this.partitions = null;
     this.fromProjectionPos = null;
   }
 
-  public GenericManifestFile(String path, long length, int specId, long snapshotId,
-                             int addedFilesCount, int existingFilesCount, int deletedFilesCount,
+  public GenericManifestFile(String path, long length, int specId, ManifestContent content,
+                             long sequenceNumber, long minSequenceNumber, Long snapshotId,
+                             int addedFilesCount, long addedRowsCount, int existingFilesCount,
+                             long existingRowsCount, int deletedFilesCount, long deletedRowsCount,
                              List<PartitionFieldSummary> partitions) {
     this.avroSchema = AVRO_SCHEMA;
     this.manifestPath = path;
     this.length = length;
     this.specId = specId;
+    this.content = content;
+    this.sequenceNumber = sequenceNumber;
+    this.minSequenceNumber = minSequenceNumber;
     this.snapshotId = snapshotId;
     this.addedFilesCount = addedFilesCount;
+    this.addedRowsCount = addedRowsCount;
     this.existingFilesCount = existingFilesCount;
+    this.existingRowsCount = existingRowsCount;
     this.deletedFilesCount = deletedFilesCount;
+    this.deletedRowsCount = deletedRowsCount;
     this.partitions = partitions;
     this.fromProjectionPos = null;
   }
@@ -118,11 +135,17 @@ public class GenericManifestFile
     this.manifestPath = toCopy.manifestPath;
     this.length = toCopy.length;
     this.specId = toCopy.specId;
+    this.content = toCopy.content;
+    this.sequenceNumber = toCopy.sequenceNumber;
+    this.minSequenceNumber = toCopy.minSequenceNumber;
     this.snapshotId = toCopy.snapshotId;
     this.addedFilesCount = toCopy.addedFilesCount;
+    this.addedRowsCount = toCopy.addedRowsCount;
     this.existingFilesCount = toCopy.existingFilesCount;
+    this.existingRowsCount = toCopy.existingRowsCount;
     this.deletedFilesCount = toCopy.deletedFilesCount;
-    this.partitions = ImmutableList.copyOf(Iterables.transform(toCopy.partitions, PartitionFieldSummary::copy));
+    this.deletedRowsCount = toCopy.deletedRowsCount;
+    this.partitions = copyList(toCopy.partitions, PartitionFieldSummary::copy);
     this.fromProjectionPos = toCopy.fromProjectionPos;
   }
 
@@ -161,6 +184,21 @@ public class GenericManifestFile
   }
 
   @Override
+  public ManifestContent content() {
+    return content;
+  }
+
+  @Override
+  public long sequenceNumber() {
+    return sequenceNumber;
+  }
+
+  @Override
+  public long minSequenceNumber() {
+    return minSequenceNumber;
+  }
+
+  @Override
   public Long snapshotId() {
     return snapshotId;
   }
@@ -171,13 +209,28 @@ public class GenericManifestFile
   }
 
   @Override
+  public Long addedRowsCount() {
+    return addedRowsCount;
+  }
+
+  @Override
   public Integer existingFilesCount() {
     return existingFilesCount;
   }
 
   @Override
+  public Long existingRowsCount() {
+    return existingRowsCount;
+  }
+
+  @Override
   public Integer deletedFilesCount() {
     return deletedFilesCount;
+  }
+
+  @Override
+  public Long deletedRowsCount() {
+    return deletedRowsCount;
   }
 
   @Override
@@ -210,14 +263,26 @@ public class GenericManifestFile
       case 2:
         return specId;
       case 3:
-        return snapshotId;
+        return content.id();
       case 4:
-        return addedFilesCount;
+        return sequenceNumber;
       case 5:
-        return existingFilesCount;
+        return minSequenceNumber;
       case 6:
-        return deletedFilesCount;
+        return snapshotId;
       case 7:
+        return addedFilesCount;
+      case 8:
+        return existingFilesCount;
+      case 9:
+        return deletedFilesCount;
+      case 10:
+        return addedRowsCount;
+      case 11:
+        return existingRowsCount;
+      case 12:
+        return deletedRowsCount;
+      case 13:
         return partitions;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -244,18 +309,36 @@ public class GenericManifestFile
         this.specId = (Integer) value;
         return;
       case 3:
-        this.snapshotId = (Long) value;
+        this.content = value != null ? ManifestContent.values()[(Integer) value] : ManifestContent.DATA;
         return;
       case 4:
-        this.addedFilesCount = (Integer) value;
+        this.sequenceNumber = value != null ? (Long) value : 0;
         return;
       case 5:
-        this.existingFilesCount = (Integer) value;
+        this.minSequenceNumber = value != null ? (Long) value : 0;
         return;
       case 6:
-        this.deletedFilesCount = (Integer) value;
+        this.snapshotId = (Long) value;
         return;
       case 7:
+        this.addedFilesCount = (Integer) value;
+        return;
+      case 8:
+        this.existingFilesCount = (Integer) value;
+        return;
+      case 9:
+        this.deletedFilesCount = (Integer) value;
+        return;
+      case 10:
+        this.addedRowsCount = (Long) value;
+        return;
+      case 11:
+        this.existingRowsCount = (Long) value;
+        return;
+      case 12:
+        this.deletedRowsCount = (Long) value;
+        return;
+      case 13:
         this.partitions = (List<PartitionFieldSummary>) value;
         return;
       default:
@@ -282,8 +365,7 @@ public class GenericManifestFile
   public boolean equals(Object other) {
     if (this == other) {
       return true;
-    }
-    if (other == null || getClass() != other.getClass()) {
+    } else if (!(other instanceof GenericManifestFile)) {
       return false;
     }
     GenericManifestFile that = (GenericManifestFile) other;
@@ -303,9 +385,53 @@ public class GenericManifestFile
         .add("partition_spec_id", specId)
         .add("added_snapshot_id", snapshotId)
         .add("added_data_files_count", addedFilesCount)
+        .add("added_rows_count", addedRowsCount)
         .add("existing_data_files_count", existingFilesCount)
+        .add("existing_rows_count", existingRowsCount)
         .add("deleted_data_files_count", deletedFilesCount)
+        .add("deleted_rows_count", deletedRowsCount)
         .add("partitions", partitions)
         .toString();
+  }
+
+  public static CopyBuilder copyOf(ManifestFile manifestFile) {
+    return new CopyBuilder(manifestFile);
+  }
+
+  public static class CopyBuilder {
+    private final GenericManifestFile manifestFile;
+
+    private CopyBuilder(ManifestFile toCopy) {
+      if (toCopy instanceof GenericManifestFile) {
+        this.manifestFile = new GenericManifestFile((GenericManifestFile) toCopy);
+      } else {
+        this.manifestFile = new GenericManifestFile(
+            toCopy.path(), toCopy.length(), toCopy.partitionSpecId(), toCopy.content(),
+            toCopy.sequenceNumber(), toCopy.minSequenceNumber(), toCopy.snapshotId(),
+            toCopy.addedFilesCount(), toCopy.addedRowsCount(), toCopy.existingFilesCount(),
+            toCopy.existingRowsCount(), toCopy.deletedFilesCount(), toCopy.deletedRowsCount(),
+            copyList(toCopy.partitions(), PartitionFieldSummary::copy));
+      }
+    }
+
+    public CopyBuilder withSnapshotId(Long newSnapshotId) {
+      manifestFile.snapshotId = newSnapshotId;
+      return this;
+    }
+
+    public ManifestFile build() {
+      return manifestFile;
+    }
+  }
+
+  private static <E, R> List<R> copyList(List<E> list, Function<E, R> transform) {
+    if (list != null) {
+      List<R> copy = Lists.newArrayListWithExpectedSize(list.size());
+      for (E element : list) {
+        copy.add(transform.apply(element));
+      }
+      return Collections.unmodifiableList(copy);
+    }
+    return null;
   }
 }

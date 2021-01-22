@@ -52,7 +52,7 @@ class Dates(Transform):
             return apply_func(datetime.datetime.utcfromtimestamp(days * Dates.SECONDS_IN_DAY), Dates.EPOCH)
 
     def can_transform(self, type):
-        return type.type_id() == TypeID.DATE
+        return type.type_id == TypeID.DATE
 
     def get_result_type(self, source_type):
         return IntegerType.get()
@@ -73,4 +73,4 @@ class Dates(Transform):
         return Dates.HUMAN_FUNCS[self.granularity](value)
 
     def __str__(self):
-        return "%s" % self
+        return self.name

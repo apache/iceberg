@@ -19,15 +19,17 @@
 
 package org.apache.iceberg.expressions;
 
-public abstract class Predicate<T, R extends Reference> implements Expression {
-  private final Operation op;
-  private final R ref;
-  private final Literal<T> literal;
 
-  Predicate(Operation op, R ref, Literal<T> lit) {
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+
+public abstract class Predicate<T, C extends Term> implements Expression {
+  private final Operation op;
+  private final C term;
+
+  Predicate(Operation op, C term) {
+    Preconditions.checkNotNull(term, "Term cannot be null");
     this.op = op;
-    this.ref = ref;
-    this.literal = lit;
+    this.term = term;
   }
 
   @Override
@@ -35,39 +37,7 @@ public abstract class Predicate<T, R extends Reference> implements Expression {
     return op;
   }
 
-  public R ref() {
-    return ref;
-  }
-
-  public Literal<T> literal() {
-    return literal;
-  }
-
-  @Override
-  public String toString() {
-    switch (op) {
-      case IS_NULL:
-        return "is_null(" + ref() + ")";
-      case NOT_NULL:
-        return "not_null(" + ref() + ")";
-      case LT:
-        return String.valueOf(ref()) + " < " + literal();
-      case LT_EQ:
-        return String.valueOf(ref()) + " <= " + literal();
-      case GT:
-        return String.valueOf(ref()) + " > " + literal();
-      case GT_EQ:
-        return String.valueOf(ref()) + " >= " + literal();
-      case EQ:
-        return String.valueOf(ref()) + " == " + literal();
-      case NOT_EQ:
-        return String.valueOf(ref()) + " != " + literal();
-//      case IN:
-//        break;
-//      case NOT_IN:
-//        break;
-      default:
-        return "Invalid predicate: operation = " + op;
-    }
+  public C term() {
+    return term;
   }
 }

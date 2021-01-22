@@ -19,11 +19,6 @@
 
 package org.apache.iceberg;
 
-import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.BiMap;
-import com.google.common.collect.ImmutableBiMap;
-import com.google.common.collect.Sets;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
@@ -32,9 +27,16 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.types.Types.StructType;
 
 /**
  * The schema of a data table.
@@ -43,43 +45,55 @@ public class Schema implements Serializable {
   private static final Joiner NEWLINE = Joiner.on('\n');
   private static final String ALL_COLUMNS = "*";
 
-  private final Types.StructType struct;
+  private final StructType struct;
   private transient BiMap<String, Integer> aliasToId = null;
-  private transient Map<Integer, Types.NestedField> idToField = null;
-  private transient BiMap<String, Integer> nameToId = null;
-  private transient BiMap<String, Integer> lowerCaseNameToId = null;
+  private transient Map<Integer, NestedField> idToField = null;
+  private transient Map<String, Integer> nameToId = null;
+  private transient Map<String, Integer> lowerCaseNameToId = null;
   private transient Map<Integer, Accessor<StructLike>> idToAccessor = null;
+  private transient Map<Integer, String> idToName = null;
 
-  public Schema(List<Types.NestedField> columns, Map<String, Integer> aliases) {
-    this.struct = Types.StructType.of(columns);
+  public Schema(List<NestedField> columns, Map<String, Integer> aliases) {
+    this.struct = StructType.of(columns);
     this.aliasToId = aliases != null ? ImmutableBiMap.copyOf(aliases) : null;
+
+    // validate the schema through IndexByName visitor
+    lazyIdToName();
   }
 
-  public Schema(List<Types.NestedField> columns) {
-    this.struct = Types.StructType.of(columns);
+  public Schema(List<NestedField> columns) {
+    this.struct = StructType.of(columns);
+    lazyIdToName();
   }
 
-  public Schema(Types.NestedField... columns) {
+  public Schema(NestedField... columns) {
     this(Arrays.asList(columns));
   }
 
-  private Map<Integer, Types.NestedField> lazyIdToField() {
+  private Map<Integer, NestedField> lazyIdToField() {
     if (idToField == null) {
       this.idToField = TypeUtil.indexById(struct);
     }
     return idToField;
   }
 
-  private BiMap<String, Integer> lazyNameToId() {
+  private Map<String, Integer> lazyNameToId() {
     if (nameToId == null) {
-      this.nameToId = ImmutableBiMap.copyOf(TypeUtil.indexByName(struct));
+      this.nameToId = ImmutableMap.copyOf(TypeUtil.indexByName(struct));
     }
     return nameToId;
   }
 
-  private BiMap<String, Integer> lazyLowerCaseNameToId() {
+  private Map<Integer, String> lazyIdToName() {
+    if (idToName == null) {
+      this.idToName = ImmutableMap.copyOf(TypeUtil.indexNameById(struct));
+    }
+    return idToName;
+  }
+
+  private Map<String, Integer> lazyLowerCaseNameToId() {
     if (lowerCaseNameToId == null) {
-      this.lowerCaseNameToId = ImmutableBiMap.copyOf(TypeUtil.indexByLowerCaseName(struct));
+      this.lowerCaseNameToId = ImmutableMap.copyOf(TypeUtil.indexByLowerCaseName(struct));
     }
     return lowerCaseNameToId;
   }
@@ -104,24 +118,36 @@ public class Schema implements Serializable {
   }
 
   /**
-   * Returns the underlying {@link Types.StructType struct type} for this schema.
+   * Returns the underlying {@link StructType struct type} for this schema.
    *
    * @return the StructType version of this schema.
    */
-  public Types.StructType asStruct() {
+  public StructType asStruct() {
     return struct;
   }
 
   /**
-   * @return a List of the {@link Types.NestedField columns} in this Schema.
+   * Returns a List of the {@link NestedField columns} in this Schema.
    */
-  public List<Types.NestedField> columns() {
+  public List<NestedField> columns() {
     return struct.fields();
   }
 
+  /**
+   * Returns the {@link Type} of a sub-field identified by the field name.
+   *
+   * @param name a field name
+   * @return a Type for the sub-field or null if it is not found
+   */
   public Type findType(String name) {
     Preconditions.checkArgument(!name.isEmpty(), "Invalid column name: (empty)");
-    return findType(lazyNameToId().get(name));
+    Integer id = lazyNameToId().get(name);
+    if (id != null) {  // name is found
+      return findType(id);
+    }
+
+    // name could not be found
+    return null;
   }
 
   /**
@@ -131,7 +157,7 @@ public class Schema implements Serializable {
    * @return a Type for the sub-field or null if it is not found
    */
   public Type findType(int id) {
-    Types.NestedField field = lazyIdToField().get(id);
+    NestedField field = lazyIdToField().get(id);
     if (field != null) {
       return field.type();
     }
@@ -139,24 +165,24 @@ public class Schema implements Serializable {
   }
 
   /**
-   * Returns the sub-field identified by the field id as a {@link Types.NestedField}.
+   * Returns the sub-field identified by the field id as a {@link NestedField}.
    *
    * @param id a field id
    * @return the sub-field or null if it is not found
    */
-  public Types.NestedField findField(int id) {
+  public NestedField findField(int id) {
     return lazyIdToField().get(id);
   }
 
   /**
-   * Returns a sub-field by name as a {@link Types.NestedField}.
+   * Returns a sub-field by name as a {@link NestedField}.
    * <p>
    * The result may be a top-level or a nested field.
    *
    * @param name a String name
    * @return a Type for the sub-field or null if it is not found
    */
-  public Types.NestedField findField(String name) {
+  public NestedField findField(String name) {
     Preconditions.checkArgument(!name.isEmpty(), "Invalid column name: (empty)");
     Integer id = lazyNameToId().get(name);
     if (id != null) {
@@ -166,14 +192,14 @@ public class Schema implements Serializable {
   }
 
   /**
-   * Returns a sub-field by name as a {@link Types.NestedField}.
+   * Returns a sub-field by name as a {@link NestedField}.
    * <p>
    * The result may be a top-level or a nested field.
    *
    * @param name a String name
    * @return the sub-field or null if it is not found
    */
-  public Types.NestedField caseInsensitiveFindField(String name) {
+  public NestedField caseInsensitiveFindField(String name) {
     Preconditions.checkArgument(!name.isEmpty(), "Invalid column name: (empty)");
     Integer id = lazyLowerCaseNameToId().get(name.toLowerCase(Locale.ROOT));
     if (id != null) {
@@ -189,7 +215,7 @@ public class Schema implements Serializable {
    * @return the full column name in this schema that resolves to the id
    */
   public String findColumnName(int id) {
-    return lazyNameToId().inverse().get(id);
+    return lazyIdToName().get(id);
   }
 
   /**
@@ -207,8 +233,8 @@ public class Schema implements Serializable {
   }
 
   /**
-   * Returns the column id for the given column alias. Column aliases are set
-   * by conversions from Parquet or Avro to this Schema type.
+   * Returns the full column name in the unconverted data schema for the given column id.
+   * Column aliases are set by conversions from Parquet or Avro to this Schema type.
    *
    * @param fieldId a column id in this schema
    * @return the full column name in the unconverted data schema, or null if one wasn't found
@@ -221,7 +247,7 @@ public class Schema implements Serializable {
   }
 
   /**
-   * Return an accessor for retrieving the data from {@link StructLike}.
+   * Returns an accessor for retrieving the data from {@link StructLike}.
    * <p>
    * Accessors do not retrieve data contained in lists or maps.
    *
@@ -257,24 +283,24 @@ public class Schema implements Serializable {
   }
 
   /**
-   * Creates a projection schema for a subset of columns, selected by case insensitive name
+   * Creates a projection schema for a subset of columns, selected by case insensitive names
    * <p>
    * Names that identify nested fields will select part or all of the field's top-level column.
    *
    * @param names a List of String names for selected columns
-   * @return a projection schema from this schema, by name
+   * @return a projection schema from this schema, by names
    */
   public Schema caseInsensitiveSelect(String... names) {
     return caseInsensitiveSelect(Arrays.asList(names));
   }
 
   /**
-   * Creates a projection schema for a subset of columns, selected by case insensitive name
+   * Creates a projection schema for a subset of columns, selected by case insensitive names
    * <p>
    * Names that identify nested fields will select part or all of the field's top-level column.
    *
    * @param names a List of String names for selected columns
-   * @return a projection schema from this schema, by name
+   * @return a projection schema from this schema, by names
    */
   public Schema caseInsensitiveSelect(Collection<String> names) {
     return internalSelect(names, false);
@@ -306,7 +332,7 @@ public class Schema implements Serializable {
   public String toString() {
     return String.format("table {\n%s\n}",
         NEWLINE.join(struct.fields().stream()
-            .map(f -> "  " + f + (f.doc() == null ? "" : " COMMENT '" + f.doc() + "'"))
+            .map(f -> "  " + f)
             .collect(Collectors.toList())));
   }
 }

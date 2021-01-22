@@ -19,41 +19,38 @@
 
 package org.apache.iceberg.parquet;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Maps;
+import java.nio.ByteBuffer;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.BinaryUtil;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 
-import static org.apache.iceberg.expressions.Expressions.rewriteNot;
-import static org.apache.iceberg.parquet.ParquetConversions.converterFromParquet;
-
 public class ParquetMetricsRowGroupFilter {
-  private final Schema schema;
-  private final StructType struct;
-  private final Expression expr;
-  private transient ThreadLocal<MetricsEvalVisitor> visitors = null;
+  private static final int IN_PREDICATE_LIMIT = 200;
 
-  private MetricsEvalVisitor visitor() {
-    if (visitors == null) {
-      this.visitors = ThreadLocal.withInitial(MetricsEvalVisitor::new);
-    }
-    return visitors.get();
-  }
+  private final Schema schema;
+  private final Expression expr;
 
   public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -61,8 +58,8 @@ public class ParquetMetricsRowGroupFilter {
 
   public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound, boolean caseSensitive) {
     this.schema = schema;
-    this.struct = schema.asStruct();
-    this.expr = Binder.bind(struct, rewriteNot(unbound), caseSensitive);
+    StructType struct = schema.asStruct();
+    this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
   }
 
   /**
@@ -73,7 +70,7 @@ public class ParquetMetricsRowGroupFilter {
    * @return false if the file cannot contain rows that match the expression, true otherwise.
    */
   public boolean shouldRead(MessageType fileSchema, BlockMetaData rowGroup) {
-    return visitor().eval(fileSchema, rowGroup);
+    return new MetricsEvalVisitor().eval(fileSchema, rowGroup);
   }
 
   private static final boolean ROWS_MIGHT_MATCH = true;
@@ -98,11 +95,11 @@ public class ParquetMetricsRowGroupFilter {
           int id = colType.getId().intValue();
           stats.put(id, col.getStatistics());
           valueCounts.put(id, col.getValueCount());
-          conversions.put(id, converterFromParquet(colType));
+          conversions.put(id, ParquetConversions.converterFromParquet(colType));
         }
       }
 
-      return ExpressionVisitors.visit(expr, this);
+      return ExpressionVisitors.visitEvaluator(expr, this);
     }
 
     @Override
@@ -180,6 +177,30 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
+    public <T> Boolean isNaN(BoundReference<T> ref) {
+      int id = ref.fieldId();
+
+      Long valueCount = valueCounts.get(id);
+      if (valueCount == null) {
+        // the column is not present and is all nulls
+        return ROWS_CANNOT_MATCH;
+      }
+
+      Statistics<?> colStats = stats.get(id);
+      if (colStats != null && valueCount - colStats.getNumNulls() == 0) {
+        // (num nulls == value count) => all values are null => no nan values
+        return ROWS_CANNOT_MATCH;
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notNaN(BoundReference<T> ref) {
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
 
@@ -191,6 +212,10 @@ public class ParquetMetricsRowGroupFilter {
 
       Statistics<?> colStats = stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
+        if (hasNonNullButNoMinMax(colStats, valueCount)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
         if (!colStats.hasNonNullValue()) {
           return ROWS_CANNOT_MATCH;
         }
@@ -217,6 +242,10 @@ public class ParquetMetricsRowGroupFilter {
 
       Statistics<?> colStats = stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
+        if (hasNonNullButNoMinMax(colStats, valueCount)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
         if (!colStats.hasNonNullValue()) {
           return ROWS_CANNOT_MATCH;
         }
@@ -243,6 +272,10 @@ public class ParquetMetricsRowGroupFilter {
 
       Statistics<?> colStats = stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
+        if (hasNonNullButNoMinMax(colStats, valueCount)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
         if (!colStats.hasNonNullValue()) {
           return ROWS_CANNOT_MATCH;
         }
@@ -269,6 +302,10 @@ public class ParquetMetricsRowGroupFilter {
 
       Statistics<?> colStats = stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
+        if (hasNonNullButNoMinMax(colStats, valueCount)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
         if (!colStats.hasNonNullValue()) {
           return ROWS_CANNOT_MATCH;
         }
@@ -302,6 +339,10 @@ public class ParquetMetricsRowGroupFilter {
 
       Statistics<?> colStats = stats.get(id);
       if (colStats != null && !colStats.isEmpty()) {
+        if (hasNonNullButNoMinMax(colStats, valueCount)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
         if (!colStats.hasNonNullValue()) {
           return ROWS_CANNOT_MATCH;
         }
@@ -330,23 +371,135 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean in(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
+      Integer id = ref.fieldId();
+
+      // When filtering nested types notNull() is implicit filter passed even though complex
+      // filters aren't pushed down in Parquet. Leave all nested column type filters to be
+      // evaluated post scan.
+      if (schema.findType(id) instanceof Type.NestedType) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Long valueCount = valueCounts.get(id);
+      if (valueCount == null) {
+        // the column is not present and is all nulls
+        return ROWS_CANNOT_MATCH;
+      }
+
+      Statistics<?> colStats = stats.get(id);
+      if (colStats != null && !colStats.isEmpty()) {
+        if (hasNonNullButNoMinMax(colStats, valueCount)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
+        if (!colStats.hasNonNullValue()) {
+          return ROWS_CANNOT_MATCH;
+        }
+
+        Collection<T> literals = literalSet;
+
+        if (literals.size() > IN_PREDICATE_LIMIT) {
+          // skip evaluating the predicate if the number of values is too big
+          return ROWS_MIGHT_MATCH;
+        }
+
+        T lower = min(colStats, id);
+        literals = literals.stream().filter(v -> ref.comparator().compare(lower, v) <= 0).collect(Collectors.toList());
+        if (literals.isEmpty()) {  // if all values are less than lower bound, rows cannot match.
+          return ROWS_CANNOT_MATCH;
+        }
+
+        T upper = max(colStats, id);
+        literals = literals.stream().filter(v -> ref.comparator().compare(upper, v) >= 0).collect(Collectors.toList());
+        if (literals.isEmpty()) { // if all remaining values are greater than upper bound, rows cannot match.
+          return ROWS_CANNOT_MATCH;
+        }
+      }
+
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean notIn(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
+      // because the bounds are not necessarily a min or max value, this cannot be answered using
+      // them. notIn(col, {X, ...}) with (X, Y) doesn't guarantee that X is a value in col.
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
+      int id = ref.fieldId();
+
+      Long valueCount = valueCounts.get(id);
+      if (valueCount == null) {
+        // the column is not present and is all nulls
+        return ROWS_CANNOT_MATCH;
+      }
+
+      Statistics<Binary> colStats = (Statistics<Binary>) stats.get(id);
+      if (colStats != null && !colStats.isEmpty()) {
+        if (hasNonNullButNoMinMax(colStats, valueCount)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
+        if (!colStats.hasNonNullValue()) {
+          return ROWS_CANNOT_MATCH;
+        }
+
+        ByteBuffer prefixAsBytes = lit.toByteBuffer();
+
+        Comparator<ByteBuffer> comparator = Comparators.unsignedBytes();
+
+        Binary lower = colStats.genericGetMin();
+        // truncate lower bound so that its length in bytes is not greater than the length of prefix
+        int lowerLength = Math.min(prefixAsBytes.remaining(), lower.length());
+        int lowerCmp = comparator.compare(BinaryUtil.truncateBinary(lower.toByteBuffer(), lowerLength), prefixAsBytes);
+        if (lowerCmp > 0) {
+          return ROWS_CANNOT_MATCH;
+        }
+
+        Binary upper = colStats.genericGetMax();
+        // truncate upper bound so that its length in bytes is not greater than the length of prefix
+        int upperLength = Math.min(prefixAsBytes.remaining(), upper.length());
+        int upperCmp = comparator.compare(BinaryUtil.truncateBinary(upper.toByteBuffer(), upperLength), prefixAsBytes);
+        if (upperCmp < 0) {
+          return ROWS_CANNOT_MATCH;
+        }
+      }
+
       return ROWS_MIGHT_MATCH;
     }
 
     @SuppressWarnings("unchecked")
-    private <T> T min(Statistics<?> stats, int id) {
-      return (T) conversions.get(id).apply(stats.genericGetMin());
+    private <T> T min(Statistics<?> statistics, int id) {
+      return (T) conversions.get(id).apply(statistics.genericGetMin());
     }
 
     @SuppressWarnings("unchecked")
-    private <T> T max(Statistics<?> stats, int id) {
-      return (T) conversions.get(id).apply(stats.genericGetMax());
+    private <T> T max(Statistics<?> statistics, int id) {
+      return (T) conversions.get(id).apply(statistics.genericGetMax());
     }
+  }
+
+  /**
+   * Checks against older versions of Parquet statistics which may have a null count but undefined min and max
+   * statistics. Returns true if nonNull values exist in the row group but no further statistics are available.
+   * <p>
+   * We can't use {@code  statistics.hasNonNullValue()} because it is inaccurate with older files and will return
+   * false if min and max are not set.
+   * <p>
+   * This is specifically for 1.5.0-CDH Parquet builds and later which contain the different unusual hasNonNull
+   * behavior. OSS Parquet builds are not effected because PARQUET-251 prohibits the reading of these statistics
+   * from versions of Parquet earlier than 1.8.0.
+   *
+   * @param statistics Statistics to check
+   * @param valueCount Number of values in the row group
+   * @return true if nonNull values exist and no other stats can be used
+   */
+  static boolean hasNonNullButNoMinMax(Statistics statistics, long valueCount) {
+    return statistics.getNumNulls() < valueCount &&
+        (statistics.getMaxBytes() == null || statistics.getMinBytes() == null);
   }
 }

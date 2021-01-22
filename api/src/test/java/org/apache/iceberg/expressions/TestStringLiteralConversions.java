@@ -21,15 +21,16 @@ package org.apache.iceberg.expressions;
 
 import java.math.BigDecimal;
 import java.time.DateTimeException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
+import java.util.stream.IntStream;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.data.TimeConversions;
 import org.apache.iceberg.types.Types;
-import org.joda.time.DateTimeZone;
-import org.joda.time.LocalDate;
-import org.joda.time.LocalDateTime;
-import org.joda.time.LocalTime;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -50,9 +51,25 @@ public class TestStringLiteralConversions {
     Schema avroSchema = LogicalTypes.date().addToSchema(Schema.create(Schema.Type.INT));
     TimeConversions.DateConversion avroConversion = new TimeConversions.DateConversion();
     int avroValue = avroConversion.toInt(
-        new LocalDate(2017, 8, 18),
+        LocalDate.of(2017, 8, 18),
         avroSchema, avroSchema.getLogicalType());
 
+    Assert.assertEquals("Date should match", avroValue, (int) date.value());
+  }
+
+  @Test
+  public void testNegativeStringToDateLiteral() {
+    Literal<CharSequence> dateStr = Literal.of("1969-12-30");
+    Literal<Integer> date = dateStr.to(Types.DateType.get());
+
+    // use Avro's date conversion to validate the result
+    Schema avroSchema = LogicalTypes.date().addToSchema(Schema.create(Schema.Type.INT));
+    TimeConversions.DateConversion avroConversion = new TimeConversions.DateConversion();
+    int avroValue = avroConversion.toInt(
+        LocalDate.of(1969, 12, 30),
+        avroSchema, avroSchema.getLogicalType());
+
+    Assert.assertEquals("Date should be -2", -2, (int) date.value());
     Assert.assertEquals("Date should match", avroValue, (int) date.value());
   }
 
@@ -60,14 +77,12 @@ public class TestStringLiteralConversions {
   public void testStringToTimeLiteral() {
     // use Avro's time conversion to validate the result
     Schema avroSchema = LogicalTypes.timeMicros().addToSchema(Schema.create(Schema.Type.LONG));
-    TimeConversions.LossyTimeMicrosConversion avroConversion =
-        new TimeConversions.LossyTimeMicrosConversion();
 
     Literal<CharSequence> timeStr = Literal.of("14:21:01.919");
     Literal<Long> time = timeStr.to(Types.TimeType.get());
 
-    long avroValue = avroConversion.toLong(
-        new LocalTime(14, 21, 1, 919),
+    long avroValue = new TimeConversions.TimeMicrosConversion().toLong(
+        LocalTime.of(14, 21, 1, 919 * 1000000),
         avroSchema, avroSchema.getLogicalType());
 
     Assert.assertEquals("Time should match", avroValue, (long) time.value());
@@ -77,14 +92,14 @@ public class TestStringLiteralConversions {
   public void testStringToTimestampLiteral() {
     // use Avro's timestamp conversion to validate the result
     Schema avroSchema = LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
-    TimeConversions.LossyTimestampMicrosConversion avroConversion =
-        new TimeConversions.LossyTimestampMicrosConversion();
+    TimeConversions.TimestampMicrosConversion avroConversion =
+        new TimeConversions.TimestampMicrosConversion();
 
     // Timestamp with explicit UTC offset, +00:00
     Literal<CharSequence> timestampStr = Literal.of("2017-08-18T14:21:01.919+00:00");
     Literal<Long> timestamp = timestampStr.to(Types.TimestampType.withZone());
     long avroValue = avroConversion.toLong(
-        new LocalDateTime(2017, 8, 18, 14, 21, 1, 919).toDateTime(DateTimeZone.UTC),
+        LocalDateTime.of(2017, 8, 18, 14, 21, 1, 919 * 1000000).toInstant(ZoneOffset.UTC),
         avroSchema, avroSchema.getLogicalType());
 
     Assert.assertEquals("Timestamp should match", avroValue, (long) timestamp.value());
@@ -100,11 +115,48 @@ public class TestStringLiteralConversions {
     timestampStr = Literal.of("2017-08-18T14:21:01.919-07:00");
     timestamp = timestampStr.to(Types.TimestampType.withZone());
     avroValue = avroConversion.toLong(
-        new LocalDateTime(2017, 8, 18, 21, 21, 1, 919).toDateTime(DateTimeZone.UTC),
+        LocalDateTime.of(2017, 8, 18, 21, 21, 1, 919 * 1000000).toInstant(ZoneOffset.UTC),
         avroSchema, avroSchema.getLogicalType());
 
     Assert.assertEquals("Timestamp without zone should match UTC",
         avroValue, (long) timestamp.value());
+  }
+
+  @Test
+  public void testNegativeStringToTimestampLiteral() {
+    // use Avro's timestamp conversion to validate the result
+    Schema avroSchema = LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+    TimeConversions.TimestampMicrosConversion avroConversion =
+        new TimeConversions.TimestampMicrosConversion();
+
+    // Timestamp with explicit UTC offset, +00:00
+    Literal<CharSequence> timestampStr = Literal.of("1969-12-31T23:59:58.999999+00:00");
+    Literal<Long> timestamp = timestampStr.to(Types.TimestampType.withZone());
+    long avroValue = avroConversion.toLong(
+        LocalDateTime.of(1969, 12, 31, 23, 59, 58, 999999 * 1_000).toInstant(ZoneOffset.UTC),
+        avroSchema, avroSchema.getLogicalType());
+
+    Assert.assertEquals("Timestamp should match", avroValue, (long) timestamp.value());
+    Assert.assertEquals("Timestamp should be -1_000_001", -1_000_001, (long) timestamp.value());
+
+    // Timestamp without an explicit zone should be UTC (equal to the previous converted value)
+    timestampStr = Literal.of("1969-12-31T23:59:58.999999");
+    timestamp = timestampStr.to(Types.TimestampType.withoutZone());
+
+    Assert.assertEquals("Timestamp without zone should match UTC",
+        avroValue, (long) timestamp.value());
+
+    // Timestamp with an explicit offset should be adjusted to UTC
+    timestampStr = Literal.of("1969-12-31T16:59:58.999999-07:00");
+    timestamp = timestampStr.to(Types.TimestampType.withZone());
+    avroValue = avroConversion.toLong(
+        LocalDateTime.of(1969, 12, 31, 23, 59, 58, 999999 * 1_000).toInstant(ZoneOffset.UTC),
+        avroSchema, avroSchema.getLogicalType());
+
+    Assert.assertEquals("Timestamp without zone should match UTC",
+        avroValue, (long) timestamp.value());
+    Assert.assertEquals("Timestamp without zone should be -1_000_001", -1_000_001, (long) timestamp.value());
+
   }
 
   @Test(expected = DateTimeException.class)
@@ -134,14 +186,11 @@ public class TestStringLiteralConversions {
   public void testStringToDecimalLiteral() {
     BigDecimal expected = new BigDecimal("34.560");
     Literal<CharSequence> decimalStr = Literal.of("34.560");
-    Literal<BigDecimal> decimal = decimalStr.to(Types.DecimalType.of(9, 3));
 
-    Assert.assertEquals("Decimal should have scale 3", 3, decimal.value().scale());
-    Assert.assertEquals("Decimal should match", expected, decimal.value());
-
-    Assert.assertNull("Wrong scale in conversion should return null",
-        decimalStr.to(Types.DecimalType.of(9, 2)));
-    Assert.assertNull("Wrong scale in conversion should return null",
-        decimalStr.to(Types.DecimalType.of(9, 4)));
+    IntStream.range(0, 10).forEach(scale -> {
+      Literal<BigDecimal> decimal = decimalStr.to(Types.DecimalType.of(9, scale));
+      Assert.assertEquals("Decimal should have scale 3", 3, decimal.value().scale());
+      Assert.assertEquals("Decimal should match", expected, decimal.value());
+    });
   }
 }

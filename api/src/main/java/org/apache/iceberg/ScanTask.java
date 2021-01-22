@@ -26,13 +26,15 @@ import java.io.Serializable;
  */
 public interface ScanTask extends Serializable {
   /**
-   * @return true if this is a {@link FileScanTask}, false otherwise.
+   * Returns true if this is a {@link FileScanTask}, false otherwise.
    */
   default boolean isFileScanTask() {
     return false;
   }
 
   /**
+   * Returns this cast to {@link FileScanTask} if it is one
+   *
    * @return this cast to {@link FileScanTask} if it is one
    * @throws IllegalStateException if this is not a {@link FileScanTask}
    */
@@ -41,13 +43,15 @@ public interface ScanTask extends Serializable {
   }
 
   /**
-   * @return true if this is a {@link DataTask}, false otherwise.
+   * Returns true if this is a {@link DataTask}, false otherwise.
    */
   default boolean isDataTask() {
     return false;
   }
 
   /**
+   * Returns this cast to {@link DataTask} if it is one
+   *
    * @return this cast to {@link DataTask} if it is one
    * @throws IllegalStateException if this is not a {@link DataTask}
    */
@@ -56,6 +60,8 @@ public interface ScanTask extends Serializable {
   }
 
   /**
+   * Returns this cast to {@link CombinedScanTask} if it is one
+   *
    * @return this cast to {@link CombinedScanTask} if it is one
    * @throws IllegalStateException if this is not a {@link CombinedScanTask}
    */

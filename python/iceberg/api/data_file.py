@@ -79,7 +79,7 @@ class DataFile(object):
     def sort_columns(self):
         raise NotImplementedError()
 
-    def column_size(self):
+    def column_sizes(self):
         raise NotImplementedError()
 
     def value_counts(self):
