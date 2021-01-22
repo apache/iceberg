@@ -73,13 +73,12 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
   @Override
   public void initialize(String name, Map<String, String> properties) {
-    Preconditions.checkArgument(!properties.getOrDefault(CatalogProperties.URI, "").isEmpty(),
-        "No connection url provided for jdbc catalog!");
+    String uri = properties.get(CatalogProperties.URI);
+    Preconditions.checkNotNull(uri, "JDBC connection URI is required");
 
-    this.warehouseLocation = properties.getOrDefault(CatalogProperties.WAREHOUSE_LOCATION, "")
-        .replaceAll("/$", "");
-    Preconditions.checkArgument(!warehouseLocation.isEmpty(),
-        "Cannot initialize Jdbc Catalog because warehousePath must not be null!");
+    String warehouse = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
+    Preconditions.checkNotNull(warehouse, "JDBC warehouse location is required");
+    this.warehouseLocation = warehouse.replaceAll("/$", "");
 
     if (name != null) {
       this.catalogName = name;
@@ -93,14 +92,14 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     try {
       initializeConnection(properties);
     } catch (SQLTimeoutException e) {
-      throw new UncheckedSQLException("Database Connection timeout!", e);
+      throw new UncheckedSQLException("Database Connection timeout", e);
     } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
-      throw new UncheckedSQLException("Database Connection failed!", e);
+      throw new UncheckedSQLException("Database Connection failed", e);
     } catch (SQLException e) {
-      throw new UncheckedSQLException("Failed to initialize catalog!", e);
+      throw new UncheckedSQLException("Failed to initialize catalog", e);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new RuntimeException("Interrupted in call to initialize!", e);
+      throw new RuntimeException("Interrupted in call to initialize", e);
     }
   }
 
@@ -242,7 +241,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     } catch (SQLIntegrityConstraintViolationException e) {
       throw new AlreadyExistsException("Table with name '%s' already exists in the catalog!", to);
     } catch (SQLException e) {
-      throw new UncheckedSQLException("Failed to rename table!", e);
+      throw new UncheckedSQLException("Failed to rename table", e);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new RuntimeException("Interrupted in call to rename", e);

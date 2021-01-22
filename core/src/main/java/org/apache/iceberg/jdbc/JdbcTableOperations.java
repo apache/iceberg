@@ -112,15 +112,15 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     } catch (SQLIntegrityConstraintViolationException e) {
       throw new AlreadyExistsException(e, "Table already exists! maybe another process created it!");
     } catch (SQLTimeoutException e) {
-      throw new UncheckedSQLException("Database Connection timeout!", e);
+      throw new UncheckedSQLException("Database Connection timeout", e);
     } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
-      throw new UncheckedSQLException("Database Connection failed!", e);
+      throw new UncheckedSQLException("Database Connection failed", e);
     } catch (DataTruncation e) {
-      throw new UncheckedSQLException("Database data truncation error!", e);
+      throw new UncheckedSQLException("Database data truncation error", e);
     } catch (SQLWarning e) {
-      throw new UncheckedSQLException("Database warning!", e);
+      throw new UncheckedSQLException("Database warning", e);
     } catch (SQLException e) {
-      throw new UncheckedSQLException("Failed to connect to database!", e);
+      throw new UncheckedSQLException("Failed to connect to database", e);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new RuntimeException("Interrupted during commit", e);

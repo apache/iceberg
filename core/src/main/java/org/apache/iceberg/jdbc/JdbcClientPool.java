@@ -66,7 +66,7 @@ class JdbcClientPool extends ClientPool<Connection, SQLException> {
     try {
       client.close();
     } catch (SQLException e) {
-      throw new UncheckedSQLException("Failed to connect to database!", e);
+      throw new UncheckedSQLException("Failed to connect to database", e);
     }
   }
 }
