@@ -24,17 +24,17 @@ import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.SubqueryAlias
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 
-object IcebergTable {
-  def unapply(relation: DataSourceV2Relation): Option[DataSourceV2Relation] = relation.table match {
-    case _: SparkTable => Some(relation)
-    case _ => None
-  }
-}
+object PlanUtils {
+  def isIcebergRelation(plan: LogicalPlan): Boolean = {
+    def isIcebergTable(relation: DataSourceV2Relation): Boolean = relation.table match {
+      case _: SparkTable => true
+      case _ => false
+    }
 
-object AliasedIcebergTable {
-  def unapply(relation: LogicalPlan): Option[LogicalPlan] = relation match {
-    case s: SubqueryAlias => unapply(s.child)
-    case r: DataSourceV2Relation => IcebergTable.unapply(r)
-    case _ => None
+    plan match {
+      case s: SubqueryAlias => isIcebergRelation(s.child)
+      case r: DataSourceV2Relation => isIcebergTable(r)
+      case _ => false
+    }
   }
 }

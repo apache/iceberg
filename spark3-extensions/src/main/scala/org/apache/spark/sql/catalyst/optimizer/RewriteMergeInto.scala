@@ -57,7 +57,8 @@ import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.Sort
 import org.apache.spark.sql.catalyst.plans.logical.UpdateAction
 import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.catalyst.utils.IcebergTable
+import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
+import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 import org.apache.spark.sql.catalyst.utils.RewriteRowLevelOperationHelper
 import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.iceberg.write.MergeBuilder
@@ -76,8 +77,8 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
 
   override def apply(plan: LogicalPlan): LogicalPlan = {
     plan resolveOperators {
-      case MergeIntoTable(target@ IcebergTable(_), source: LogicalPlan, cond, matchedActions, notMatchedActions)
-          if matchedActions.isEmpty =>
+      case MergeIntoTable(target: DataSourceV2Relation, source, cond, matchedActions, notMatchedActions)
+          if matchedActions.isEmpty && isIcebergRelation(target) =>
 
         val targetTableScan = buildSimpleScanPlan(target, cond)
 
@@ -101,8 +102,8 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
 
         AppendData.byPosition(target, writePlan, Map.empty)
 
-      case MergeIntoTable(target@ IcebergTable(_), source: LogicalPlan, cond, matchedActions, notMatchedActions)
-          if notMatchedActions.isEmpty =>
+      case MergeIntoTable(target: DataSourceV2Relation, source, cond, matchedActions, notMatchedActions)
+          if notMatchedActions.isEmpty && isIcebergRelation(target) =>
 
         val mergeBuilder = target.table.asMergeable.newMergeBuilder("merge", newWriteInfo(target.schema))
 
@@ -132,7 +133,8 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
 
         ReplaceData(target, batchWrite, writePlan)
 
-      case MergeIntoTable(target@ IcebergTable(_), source: LogicalPlan, cond, matchedActions, notMatchedActions) =>
+      case MergeIntoTable(target: DataSourceV2Relation, source, cond, matchedActions, notMatchedActions)
+          if isIcebergRelation(target) =>
 
         val mergeBuilder = target.table.asMergeable.newMergeBuilder("merge", newWriteInfo(target.schema))
 
