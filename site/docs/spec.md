@@ -215,7 +215,7 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 | **`128  upper_bounds`**           | `optional map<129: int, 130: binary>` | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all non-null, non-NaN values in the column for the file. [3]                   |
 | **`131  key_metadata`**           | `optional binary`                     | Implementation-specific key metadata for encryption                                                                                                                                                  |
 | **`132  split_offsets`**          | `optional list`                       | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending.                                                                                     |
-| **`134  nan_value_counts`**       | `optional map`                        | Map from column id to number of NaN values in the column                                                                                                                                             |
+| **`137  nan_value_counts`**       | `optional map`                        | Map from column id to number of NaN values in the column                                                                                                                                             |
 
 Notes:
 
