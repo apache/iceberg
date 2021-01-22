@@ -32,14 +32,9 @@ object IcebergTable {
 }
 
 object AliasedIcebergTable {
-  def checkRelation(relation: DataSourceV2Relation): Option[DataSourceV2Relation] = relation.table match {
-    case _: SparkTable => Some(relation)
-    case _ => None
-  }
-
   def unapply(relation: LogicalPlan): Option[LogicalPlan] = relation match {
     case s: SubqueryAlias => unapply(s.child)
-    case r: DataSourceV2Relation => checkRelation(r)
+    case r: DataSourceV2Relation => IcebergTable.unapply(r)
     case _ => None
   }
 }
