@@ -24,6 +24,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -73,7 +74,7 @@ public class FlinkSource {
     private Table table;
     private TableLoader tableLoader;
     private TableSchema projectedSchema;
-    private ReadableConfig readableConfig;
+    private ReadableConfig readableConfig = new Configuration();
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
 
     public Builder tableLoader(TableLoader newLoader) {
@@ -222,8 +223,8 @@ public class FlinkSource {
     int inferParallelism(FlinkInputFormat format, ScanContext context) {
       int parallelism = readableConfig.get(ExecutionConfigOptions.TABLE_EXEC_RESOURCE_DEFAULT_PARALLELISM);
       if (readableConfig.get(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM)) {
-        int maxInterParallelism = readableConfig.get(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX);
-        Preconditions.checkState(maxInterParallelism >= 1,
+        int maxInferParallelism = readableConfig.get(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX);
+        Preconditions.checkState(maxInferParallelism >= 1,
             FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX.key() + " cannot be less than 1");
         int splitNum;
         try {
@@ -233,7 +234,7 @@ public class FlinkSource {
           throw new UncheckedIOException("Failed to create iceberg input splits for table: " + table, e);
         }
 
-        parallelism = Math.min(splitNum, maxInterParallelism);
+        parallelism = Math.min(splitNum, maxInferParallelism);
       }
 
       if (context.limit() > 0) {

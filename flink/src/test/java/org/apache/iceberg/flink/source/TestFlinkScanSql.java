@@ -36,6 +36,7 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.flink.FlinkTableOptions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
@@ -117,21 +118,13 @@ public class TestFlinkScanSql extends TestFlinkScan {
     FlinkInputFormat flinkInputFormat = FlinkSource.forRowData().tableLoader(tableLoader).table(table).buildFormat();
     ScanContext scanContext = ScanContext.builder().build();
 
-    // Empty table ,parallelism at least 1
-    int parallelism = FlinkSource.forRowData()
-        .flinkConf(new Configuration())
-        .inferParallelism(flinkInputFormat, scanContext);
+    // Empty table, infer parallelism should be at least 1
+    int parallelism = FlinkSource.forRowData().inferParallelism(flinkInputFormat, scanContext);
     Assert.assertEquals("Should produce the expected parallelism.", 1, parallelism);
 
-    List<Record> writeRecords = RandomGenericData.generate(SCHEMA, 2, 0L);
-    writeRecords.get(0).set(1, 123L);
-    writeRecords.get(0).set(2, "2020-03-20");
-    writeRecords.get(1).set(1, 456L);
-    writeRecords.get(1).set(2, "2020-03-20");
-
     GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
-
-    DataFile dataFile1 = helper.writeFile(TestHelpers.Row.of("2020-03-20", 0), writeRecords);
+    DataFile dataFile1 = helper.writeFile(TestHelpers.Row.of("2020-03-20", 0),
+        RandomGenericData.generate(SCHEMA, 2, 0L));
     DataFile dataFile2 = helper.writeFile(TestHelpers.Row.of("2020-03-21", 0),
         RandomGenericData.generate(SCHEMA, 2, 0L));
     helper.appendToTable(dataFile1, dataFile2);
@@ -141,16 +134,34 @@ public class TestFlinkScanSql extends TestFlinkScan {
     executeSQL(String
         .format("ALTER TABLE t SET ('read.split.open-file-cost'='1', 'read.split.target-size'='%s')", maxFileLen));
 
-    // 2 splits ,the parallelism is  2
-    parallelism = FlinkSource.forRowData()
-        .flinkConf(new Configuration())
-        .inferParallelism(flinkInputFormat, scanContext);
+    // 2 splits (max infer is the default value 100 , max > splits num), the parallelism is splits num : 2
+    parallelism = FlinkSource.forRowData().inferParallelism(flinkInputFormat, scanContext);
     Assert.assertEquals("Should produce the expected parallelism.", 2, parallelism);
 
-    // 2 splits  and limit is 1 ,the parallelism is  1
+    // 2 splits and limit is 1 , max infer parallelism is default 100，
+    // which is greater than splits num and limit, the parallelism is the limit value : 1
+    parallelism = FlinkSource.forRowData().inferParallelism(flinkInputFormat, ScanContext.builder().limit(1).build());
+    Assert.assertEquals("Should produce the expected parallelism.", 1, parallelism);
+
+    // 2 splits and max infer parallelism is 1 (max < splits num), the parallelism is  1
+    Configuration configuration = new Configuration();
+    configuration.setInteger(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX, 1);
     parallelism = FlinkSource.forRowData()
-        .flinkConf(new Configuration())
-        .inferParallelism(flinkInputFormat, ScanContext.builder().limit(1).build());
+        .flinkConf(configuration)
+        .inferParallelism(flinkInputFormat, ScanContext.builder().build());
+    Assert.assertEquals("Should produce the expected parallelism.", 1, parallelism);
+
+    // 2 splits, max infer parallelism is 1, limit is 3, the parallelism is max infer parallelism : 1
+    parallelism = FlinkSource.forRowData()
+        .flinkConf(configuration)
+        .inferParallelism(flinkInputFormat, ScanContext.builder().limit(3).build());
+    Assert.assertEquals("Should produce the expected parallelism.", 1, parallelism);
+
+    // 2 splits, infer parallelism is disabled, the parallelism is flink default parallelism 1
+    configuration.setBoolean(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
+    parallelism = FlinkSource.forRowData()
+        .flinkConf(configuration)
+        .inferParallelism(flinkInputFormat, ScanContext.builder().limit(3).build());
     Assert.assertEquals("Should produce the expected parallelism.", 1, parallelism);
   }
 

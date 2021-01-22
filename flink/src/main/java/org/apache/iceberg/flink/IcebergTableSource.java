@@ -52,11 +52,11 @@ public class IcebergTableSource
   private final TableLoader loader;
   private final TableSchema schema;
   private final Map<String, String> properties;
-  private final ReadableConfig readableConfig;
   private final int[] projectedFields;
   private final boolean isLimitPushDown;
   private final long limit;
   private final List<org.apache.iceberg.expressions.Expression> filters;
+  private final ReadableConfig readableConfig;
 
   public IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> properties,
                             ReadableConfig readableConfig) {
@@ -92,11 +92,11 @@ public class IcebergTableSource
     return FlinkSource.forRowData()
         .env(execEnv)
         .tableLoader(loader)
+        .properties(properties)
         .project(getProjectedSchema())
         .limit(limit)
         .filters(filters)
         .flinkConf(readableConfig)
-        .properties(properties)
         .build();
   }
 

@@ -47,6 +47,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
   private int scanEventCount = 0;
   private ScanEvent lastScanEvent = null;
 
+
   public TestFlinkTableSource() {
     // register a scan event listener to validate pushdown
     Listeners.register(event -> {
@@ -121,7 +122,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     String sql = String.format("SELECT * FROM %s ", TABLE_NAME);
     String explain = getTableEnv().explainSql(sql);
     Assert.assertFalse("Explain should not contain FilterPushDown", explain.contains(expectedFilterPushDownExplain));
-    Assert.assertEquals("Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
+    Assert.assertNull("Should not push down a filter", lastScanEvent);
   }
 
   @Test
@@ -136,10 +137,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     Assert.assertEquals("Should have 1 record", 1, result.size());
     Assert.assertArrayEquals("Should produce the expected record", expectRecord, result.get(0));
 
-    // Because we add infer parallelism, all data files will be scanned first.
-    // Flink will call FlinkInputFormat#createInputSplits method to scan the data files,
-    // plus the operation to get the execution plan, so there are three scan event.
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
 
@@ -167,7 +165,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     Assert.assertEquals("Should have 1 record", 1, resultLeft.size());
     Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultLeft.get(0));
 
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
 
@@ -185,7 +183,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     expectedNE.add(new Object[] {2, "b", 20.0});
     expectedNE.add(new Object[] {3, null, 30.0});
     Assert.assertArrayEquals("Should produce the expected record", expectedNE.toArray(), resultNE.toArray());
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
 
@@ -213,7 +211,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     Assert.assertEquals("Should have 1 record", 1, resultAnd.size());
     Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultAnd.get(0));
 
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     String expected = "(ref(name=\"id\") == 1 and ref(name=\"data\") == \"iceberg\")";
     Assert.assertEquals("Should contain the push down filter", expected, lastScanEvent.filter().toString());
   }
@@ -233,7 +231,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     expectedOR.add(new Object[] {2, "b", 20.0});
     Assert.assertArrayEquals("Should produce the expected record", expectedOR.toArray(), resultOr.toArray());
 
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
 
@@ -252,7 +250,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     expectedGT.add(new Object[] {3, null, 30.0});
     Assert.assertArrayEquals("Should produce the expected record", expectedGT.toArray(), resultGT.toArray());
 
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
 
@@ -282,7 +280,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     expectedGT.add(new Object[] {2, "b", 20.0});
     Assert.assertArrayEquals("Should produce the expected record", expectedGT.toArray(), resultGT.toArray());
 
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
 
@@ -301,7 +299,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     expectedGTE.add(new Object[] {3, null, 30.0});
     Assert.assertArrayEquals("Should produce the expected record", expectedGTE.toArray(), resultGTE.toArray());
 
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
 
@@ -331,7 +329,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     expectedGTE.add(new Object[] {2, "b", 20.0});
     Assert.assertArrayEquals("Should produce the expected record", expectedGTE.toArray(), resultGTE.toArray());
 
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
 
@@ -347,7 +345,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     Assert.assertEquals("Should have 1 record", 1, resultLT.size());
     Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultLT.get(0));
 
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
 
@@ -374,7 +372,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     Assert.assertEquals("Should have 1 record", 1, resultLT.size());
     Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultLT.get(0));
 
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
 
@@ -390,7 +388,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     Assert.assertEquals("Should have 1 record", 1, resultLTE.size());
     Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultLTE.get(0));
 
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
 
@@ -417,7 +415,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     Assert.assertEquals("Should have 1 record", 1, resultLTE.size());
     Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultLTE.get(0));
 
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
 
@@ -434,7 +432,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     expectedIN.add(new Object[] {1, "iceberg", 10.0});
     expectedIN.add(new Object[] {2, "b", 20.0});
     Assert.assertArrayEquals("Should produce the expected record", expectedIN.toArray(), resultIN.toArray());
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
 
@@ -463,7 +461,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     List<Object[]> resultNotIn = sql(sqlNotIn);
     Assert.assertEquals("Should have 1 record", 1, resultNotIn.size());
     Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultNotIn.get(0));
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     String expectedScan = "(ref(name=\"id\") != 3 and ref(name=\"id\") != 2)";
     Assert.assertEquals("Should contain the push down filter", expectedScan, lastScanEvent.filter().toString());
   }
@@ -494,7 +492,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     expected.add(new Object[] {2, "b", 20.0});
     Assert.assertArrayEquals("Should produce the expected record", expected.toArray(), resultNotNull.toArray());
 
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
 
@@ -510,7 +508,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     Assert.assertEquals("Should have 1 record", 1, resultNull.size());
     Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultNull.get(0));
 
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
 
@@ -526,7 +524,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     Assert.assertEquals("Should have 1 record", 1, resultNot.size());
     Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultNot.get(0));
 
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     expectedFilter = "(ref(name=\"id\") != 1 and ref(name=\"id\") != 2)";
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
@@ -546,7 +544,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     expectedBetween.add(new Object[] {2, "b", 20.0});
     Assert.assertArrayEquals("Should produce the expected record", expectedBetween.toArray(), resultBetween.toArray());
 
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     String expected = "(ref(name=\"id\") >= 1 and ref(name=\"id\") <= 2)";
     Assert.assertEquals("Should contain the push down filter", expected, lastScanEvent.filter().toString());
   }
@@ -563,7 +561,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     Assert.assertEquals("Should have 1 record", 1, resultNotBetween.size());
     Assert.assertArrayEquals("Should produce the expected record", expectRecord, resultNotBetween.get(0));
 
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
 
@@ -579,7 +577,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     List<Object[]> resultLike = sql(sqlLike);
     Assert.assertEquals("Should have 1 record", 1, resultLike.size());
     Assert.assertArrayEquals("The like result should produce the expected record", expectRecord, resultLike.get(0));
-    Assert.assertEquals("Should create 3 scans", 3, scanEventCount);
+    Assert.assertEquals("Should create only one scan", 1, scanEventCount);
     Assert.assertEquals("Should contain the push down filter", expectedFilter, lastScanEvent.filter().toString());
   }
 
@@ -654,7 +652,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
     String explain2Literal = getTableEnv().explainSql(sql2Literal);
     Assert.assertFalse("Explain should not contain FilterPushDown",
         explain2Literal.contains(expectedFilterPushDownExplain));
-    Assert.assertEquals("Should not push down a filter", Expressions.alwaysTrue(), lastScanEvent.filter());
+    Assert.assertNull("Should not push down a filter", lastScanEvent);
   }
 
   /**
