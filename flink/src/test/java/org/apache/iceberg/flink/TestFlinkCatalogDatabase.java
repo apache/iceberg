@@ -57,6 +57,15 @@ public class TestFlinkCatalogDatabase extends FlinkCatalogTestBase {
     sql("CREATE DATABASE %s", flinkDatabase);
 
     Assert.assertTrue("Database should exist", validationNamespaceCatalog.namespaceExists(icebergNamespace));
+
+    sql("CREATE DATABASE IF NOT EXISTS %s", flinkDatabase);
+    Assert.assertTrue("Database should still exist", validationNamespaceCatalog.namespaceExists(icebergNamespace));
+
+    sql("DROP DATABASE IF EXISTS %s", flinkDatabase);
+    Assert.assertFalse("Database should be dropped", validationNamespaceCatalog.namespaceExists(icebergNamespace));
+
+    sql("CREATE DATABASE IF NOT EXISTS %s", flinkDatabase);
+    Assert.assertTrue("Database should be created", validationNamespaceCatalog.namespaceExists(icebergNamespace));
   }
 
   @Test
