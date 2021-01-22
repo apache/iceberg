@@ -42,7 +42,7 @@ import org.junit.Test;
 import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static org.apache.iceberg.TableProperties.MERGE_WRITE_CARDINALITY_CHECK;
+import static org.apache.iceberg.TableProperties.MERGE_CARDINALITY_CHECK_ENABLED;
 import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
 
 public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
@@ -253,9 +253,7 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
             "WHEN MATCHED AND target.id = 6 THEN DELETE " +
             "WHEN NOT MATCHED AND source.id = 2 THEN INSERT * ";
 
-    String tabName = catalogName + "." + "default.target";
-    String errorMsg = "The same row of target table `" + tabName + "` was identified more than\n" +
-            " once for an update, delete or insert operation of the MERGE statement.";
+    String errorMsg = "statement matched a single row from the target table with multiple rows of the source table";
     AssertHelpers.assertThrows("Should complain ambiguous row in target",
            SparkException.class, errorMsg, () -> sql(sqlText, targetName, sourceName));
     assertEquals("Target should be unchanged",
@@ -270,7 +268,7 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
            new Employee(2, "emp-id-2"), new Employee(6, "emp-id-6"));
 
     // Disable count check
-    sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%b')", targetName, MERGE_WRITE_CARDINALITY_CHECK, false);
+    sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%b')", targetName, MERGE_CARDINALITY_CHECK_ENABLED, false);
 
     String sqlText = "MERGE INTO %s AS target " +
             "USING %s AS source " +
@@ -316,9 +314,7 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
            "WHEN MATCHED AND target.id = 1 THEN DELETE " +
            "WHEN NOT MATCHED AND source.id = 2 THEN INSERT * ";
 
-    String tabName = catalogName + "." + "default.target";
-    String errorMsg = "The same row of target table `" + tabName + "` was identified more than\n" +
-            " once for an update, delete or insert operation of the MERGE statement.";
+    String errorMsg = "statement matched a single row from the target table with multiple rows of the source table";
     AssertHelpers.assertThrows("Should complain ambiguous row in target",
            SparkException.class, errorMsg, () -> sql(sqlText, targetName, sourceName));
     assertEquals("Target should be unchanged",

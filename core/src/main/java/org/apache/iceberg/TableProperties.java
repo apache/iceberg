@@ -170,6 +170,6 @@ public class TableProperties {
   public static final String MERGE_MODE = "write.merge.mode";
   public static final String MERGE_MODE_DEFAULT = "copy-on-write";
 
-  public static final String MERGE_WRITE_CARDINALITY_CHECK = "write.merge.cardinality-check.enabled";
-  public static final boolean MERGE_WRITE_CARDINALITY_CHECK_DEFAULT = true;
+  public static final String MERGE_CARDINALITY_CHECK_ENABLED = "write.merge.cardinality-check.enabled";
+  public static final boolean MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT = true;
 }

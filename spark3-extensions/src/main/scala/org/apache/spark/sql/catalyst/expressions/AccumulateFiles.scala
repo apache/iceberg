@@ -28,12 +28,12 @@ import org.apache.spark.sql.types.IntegerType
 case class AccumulateFiles(
     filesAccumulator: SetAccumulator[String],
     child: Expression) extends UnaryExpression with CodegenFallback {
-  override def dataType: DataType = IntegerType
 
+  override def dataType: DataType = IntegerType
   override def nullable: Boolean = true
   override def prettyName: String = "AccumulateFiles"
-  override lazy val deterministic = false
-  val RETURN_VAL: Integer = 1
+  override lazy val deterministic: Boolean = false
+  private val RETURN_VAL: Integer = 1
 
   override def eval(input: InternalRow) : Any = {
     val resultVal = child.eval(input)
