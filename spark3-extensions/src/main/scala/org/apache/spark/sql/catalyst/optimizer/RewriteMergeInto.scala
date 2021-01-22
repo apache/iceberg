@@ -236,12 +236,19 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
   def buildWritePlan(
      childPlan: LogicalPlan,
      table: Table): LogicalPlan = {
+    val defaultDistributionMode = table match {
+      case iceberg: SparkTable if !iceberg.table.sortOrder.isUnsorted =>
+        TableProperties.WRITE_DISTRIBUTION_MODE_RANGE
+      case _ =>
+        TableProperties.WRITE_DISTRIBUTION_MODE_DEFAULT
+    }
+
     table match {
       case iceTable: SparkTable =>
         val numShufflePartitions = spark.sessionState.conf.numShufflePartitions
         val table = iceTable.table()
         val distributionMode: String = table.properties
-          .getOrDefault(TableProperties.WRITE_DISTRIBUTION_MODE, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE)
+          .getOrDefault(TableProperties.WRITE_DISTRIBUTION_MODE, defaultDistributionMode)
         val order = toCatalyst(toOrderedDistribution(table.spec(), table.sortOrder(), true), childPlan)
         DistributionMode.fromName(distributionMode) match {
           case DistributionMode.NONE =>
