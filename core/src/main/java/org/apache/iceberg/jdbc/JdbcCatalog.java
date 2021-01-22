@@ -90,7 +90,9 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
         CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     try {
-      initializeConnection(properties);
+      LOG.debug("Connecting to Jdbc database {}", properties.get(CatalogProperties.URI));
+      connections = new JdbcClientPool(properties.get(CatalogProperties.URI), properties);
+      initializeCatalogTables();
     } catch (SQLTimeoutException e) {
       throw new UncheckedSQLException("Database Connection timeout", e);
     } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
@@ -101,12 +103,6 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       Thread.currentThread().interrupt();
       throw new RuntimeException("Interrupted in call to initialize", e);
     }
-  }
-
-  private void initializeConnection(Map<String, String> properties) throws SQLException, InterruptedException {
-    LOG.debug("Connecting to Jdbc database {}", properties.get(CatalogProperties.URI));
-    connections = new JdbcClientPool(properties.get(CatalogProperties.URI), properties);
-    initializeCatalogTables();
   }
 
   private void initializeCatalogTables() throws InterruptedException, SQLException {
