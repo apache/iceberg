@@ -17,8 +17,11 @@
  * under the License.
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.util;
 
+import org.apache.iceberg.NullOrder;
+import org.apache.iceberg.SortDirection;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.transforms.SortOrderVisitor;
 
