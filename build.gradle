@@ -439,6 +439,8 @@ project(':iceberg-hive-metastore') {
 
     compileOnly "org.apache.avro:avro"
 
+    compileOnly "org.apache.calcite:calcite-core"
+
     compileOnly("org.apache.hive:hive-metastore") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
