@@ -37,38 +37,38 @@ import org.junit.Test;
 
 public class BatchTest extends BaseTest {
 
-    @Test
-    public void testWriteFilesAvro() {
-        runPipeline(FileFormat.AVRO);
-    }
+  @Test
+  public void testWriteFilesAvro() {
+    runPipeline(FileFormat.AVRO);
+  }
 
-    @Test
-    public void testWriteFilesParquet() {
-        runPipeline(FileFormat.PARQUET);
-    }
+  @Test
+  public void testWriteFilesParquet() {
+    runPipeline(FileFormat.PARQUET);
+  }
 
-    @Test
-    public void testWriteFilesOrc() {
-        runPipeline(FileFormat.ORC);
-    }
+  @Test
+  public void testWriteFilesOrc() {
+    runPipeline(FileFormat.ORC);
+  }
 
-    public void runPipeline(FileFormat fileFormat) {
-        final Pipeline p = Pipeline.create(options);
+  public void runPipeline(FileFormat fileFormat) {
+    final Pipeline p = Pipeline.create(options);
 
-        p.getCoderRegistry().registerCoderForClass(GenericRecord.class, AvroCoder.of(avroSchema));
+    p.getCoderRegistry().registerCoderForClass(GenericRecord.class, AvroCoder.of(avroSchema));
 
-        Map<String, String> properties = new HashMap<>();
-        properties.put(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name());
+    Map<String, String> properties = new HashMap<>();
+    properties.put(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name());
 
-        PCollection<String> lines = p.apply(Create.of(SENTENCES)).setCoder(StringUtf8Coder.of());
+    PCollection<String> lines = p.apply(Create.of(SENTENCES)).setCoder(StringUtf8Coder.of());
 
-        PCollection<GenericRecord> records = lines.apply(ParDo.of(new StringToGenericRecord(stringSchema)));
+    PCollection<GenericRecord> records = lines.apply(ParDo.of(new StringToGenericRecord(stringSchema)));
 
-        org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
-        TableIdentifier name = TableIdentifier.of("default", "test_batch_" + fileFormat.name());
+    org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
+    TableIdentifier name = TableIdentifier.of("default", "test_batch_" + fileFormat.name());
 
-        IcebergIO.write(name, icebergSchema, hiveMetastoreUrl, records, properties);
+    IcebergIO.write(name, icebergSchema, hiveMetastoreUrl, records, properties);
 
-        p.run();
-    }
+    p.run();
+  }
 }

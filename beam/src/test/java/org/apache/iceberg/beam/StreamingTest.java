@@ -38,54 +38,54 @@ import org.joda.time.Duration;
 import org.junit.Test;
 
 public class StreamingTest extends BaseTest {
-    private static final Duration WINDOW_DURATION = Duration.standardMinutes(1);
+  private static final Duration WINDOW_DURATION = Duration.standardMinutes(1);
 
-    @Test
-    public void testWriteFilesAvro() {
-        runPipeline(FileFormat.AVRO);
-    }
+  @Test
+  public void testWriteFilesAvro() {
+    runPipeline(FileFormat.AVRO);
+  }
 
-    @Test
-    public void testWriteFilesParquet() {
-        runPipeline(FileFormat.PARQUET);
-    }
+  @Test
+  public void testWriteFilesParquet() {
+    runPipeline(FileFormat.PARQUET);
+  }
 
-    @Test
-    public void testWriteFilesOrc() {
-        runPipeline(FileFormat.ORC);
-    }
+  @Test
+  public void testWriteFilesOrc() {
+    runPipeline(FileFormat.ORC);
+  }
 
-    public void runPipeline(FileFormat fileFormat) {
-        pipeline.getCoderRegistry().registerCoderForClass(GenericRecord.class, AvroCoder.of(avroSchema));
+  public void runPipeline(FileFormat fileFormat) {
+    pipeline.getCoderRegistry().registerCoderForClass(GenericRecord.class, AvroCoder.of(avroSchema));
 
-        // We should see four commits in the log
-        TestStream<String> stringsStream =
-                TestStream.create(StringUtf8Coder.of())
-                        .advanceWatermarkTo(START_TIME)
-                        .addElements(event(SENTENCES.get(0), 2L))
-                        .advanceWatermarkTo(START_TIME.plus(Duration.standardSeconds(60L)))
-                        .addElements(event(SENTENCES.get(1), 62L))
-                        .advanceWatermarkTo(START_TIME.plus(Duration.standardSeconds(120L)))
-                        .addElements(event(SENTENCES.get(2), 122L))
-                        .advanceWatermarkTo(START_TIME.plus(Duration.standardSeconds(180L)))
-                        .addElements(event(SENTENCES.get(3), 182L))
-                        .advanceWatermarkToInfinity();
+    // We should see four commits in the log
+    TestStream<String> stringsStream =
+        TestStream.create(StringUtf8Coder.of())
+            .advanceWatermarkTo(START_TIME)
+            .addElements(event(SENTENCES.get(0), 2L))
+            .advanceWatermarkTo(START_TIME.plus(Duration.standardSeconds(60L)))
+            .addElements(event(SENTENCES.get(1), 62L))
+            .advanceWatermarkTo(START_TIME.plus(Duration.standardSeconds(120L)))
+            .addElements(event(SENTENCES.get(2), 122L))
+            .advanceWatermarkTo(START_TIME.plus(Duration.standardSeconds(180L)))
+            .addElements(event(SENTENCES.get(3), 182L))
+            .advanceWatermarkToInfinity();
 
-        PCollection<GenericRecord> records = pipeline
-                .apply(stringsStream)
-                .setCoder(StringUtf8Coder.of())
-                .apply(ParDo.of(new StringToGenericRecord(stringSchema)));
+    PCollection<GenericRecord> records = pipeline
+        .apply(stringsStream)
+        .setCoder(StringUtf8Coder.of())
+        .apply(ParDo.of(new StringToGenericRecord(stringSchema)));
 
-        org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
-        TableIdentifier name = TableIdentifier.of("default", "test_streaming_" + fileFormat.name());
+    org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
+    TableIdentifier name = TableIdentifier.of("default", "test_streaming_" + fileFormat.name());
 
-        PCollection<GenericRecord> windowed = records.apply(Window.into(FixedWindows.of(WINDOW_DURATION)));
+    PCollection<GenericRecord> windowed = records.apply(Window.into(FixedWindows.of(WINDOW_DURATION)));
 
-        Map<String, String> properties = new HashMap<>();
-        properties.put(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name());
+    Map<String, String> properties = new HashMap<>();
+    properties.put(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name());
 
-        IcebergIO.write(name, icebergSchema, hiveMetastoreUrl, windowed, properties);
+    IcebergIO.write(name, icebergSchema, hiveMetastoreUrl, windowed, properties);
 
-        pipeline.run(options).waitUntilFinish();
-    }
+    pipeline.run(options).waitUntilFinish();
+  }
 }
