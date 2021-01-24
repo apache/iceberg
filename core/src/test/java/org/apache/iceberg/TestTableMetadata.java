@@ -482,6 +482,16 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void testParserV2LastAssignedFieldIdValidation() throws Exception {
+    String unsupportedVersion = readTableMetadataInputFile("TableMetadataV2MissingLastAssignedFieldId.json");
+    AssertHelpers.assertThrows("Should reject v2 metadata without last assigned field id",
+        IllegalArgumentException.class, "Cannot parse missing int last-assigned-field-Id",
+        () -> TableMetadataParser.fromJson(
+            ops.io(), null, JsonUtil.mapper().readValue(unsupportedVersion, JsonNode.class))
+    );
+  }
+
+  @Test
   public void testParserV2SortOrderValidation() throws Exception {
     String unsupportedVersion = readTableMetadataInputFile("TableMetadataV2MissingSortOrder.json");
     AssertHelpers.assertThrows("Should reject v2 metadata without sort order",

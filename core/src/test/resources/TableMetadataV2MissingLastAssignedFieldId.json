@@ -43,7 +43,26 @@
       ]
     }
   ],
-  "last-assigned-field-Id": 1000,
+  "default-sort-order-id": 3,
+  "sort-orders": [
+    {
+      "order-id": 3,
+      "fields": [
+        {
+          "transform": "identity",
+          "source-id": 2,
+          "direction": "asc",
+          "null-order": "nulls-first"
+        },
+        {
+          "transform": "bucket[4]",
+          "source-id": 3,
+          "direction": "desc",
+          "null-order": "nulls-last"
+        }
+      ]
+    }
+  ],
   "properties": {},
   "current-snapshot-id": -1,
   "snapshots": [],

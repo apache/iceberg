@@ -292,8 +292,13 @@ public class TableMetadataParser {
           schema, TableMetadata.INITIAL_SPEC_ID, node.get(PARTITION_SPEC)));
     }
 
-    int lastAssignedFieldId = Optional.ofNullable(JsonUtil.getIntOrNull(LAST_ASSIGNED_FIELD_ID, node))
-        .orElseGet(() -> specs.stream().mapToInt(PartitionSpec::lastAssignedFieldId).max().orElse(999));
+    int lastAssignedFieldId;
+    if (formatVersion > 1) {
+      lastAssignedFieldId = JsonUtil.getInt(LAST_ASSIGNED_FIELD_ID, node);
+    } else {
+      lastAssignedFieldId = Optional.ofNullable(JsonUtil.getIntOrNull(LAST_ASSIGNED_FIELD_ID, node))
+          .orElseGet(() -> specs.stream().mapToInt(PartitionSpec::lastAssignedFieldId).max().orElse(999));
+    }
 
     JsonNode sortOrderArray = node.get(SORT_ORDERS);
     List<SortOrder> sortOrders;
