@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.beam;
+package org.apache.iceberg.beam.util;
 
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;

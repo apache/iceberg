@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.beam;
+package org.apache.iceberg.beam.util;
 
 import java.io.IOException;
 import java.io.LineNumberReader;
@@ -93,9 +93,7 @@ public class ScriptRunner {
       } finally {
         connection.setAutoCommit(originalAutoCommit);
       }
-    } catch (IOException e) {
-      throw e;
-    } catch (SQLException e) {
+    } catch (IOException | SQLException e) {
       throw e;
     } catch (Exception e) {
       throw new RuntimeException("Error running script.  Cause: " + e, e);
@@ -103,8 +101,7 @@ public class ScriptRunner {
   }
 
   /**
-   * Runs an SQL script (read in using the Reader parameter) using the
-   * connection passed in
+   * Runs an SQL script (read in using the Reader parameter) using the connection passed in
    *
    * @param conn   - the connection to use for the script
    * @param reader - the source of the script

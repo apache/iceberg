@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.beam;
+package org.apache.iceberg.beam.util;
 
 import java.io.File;
 import java.io.IOException;
@@ -97,6 +97,7 @@ public class TestHiveMetastore {
 
   /**
    * Starts a TestHiveMetastore with a provided connection pool size.
+   *
    * @param poolSize The number of threads in the executor pool
    */
   public void start(int poolSize) {
@@ -215,7 +216,7 @@ public class TestHiveMetastore {
     ClassLoader classLoader = ClassLoader.getSystemClassLoader();
 
     try (InputStream inputStream = classLoader.getResourceAsStream("hive-schema-3.1.0.derby.sql");
-        Reader reader = new InputStreamReader(inputStream)) {
+         Reader reader = new InputStreamReader(inputStream)) {
       scriptRunner.runScript(reader);
     }
   }

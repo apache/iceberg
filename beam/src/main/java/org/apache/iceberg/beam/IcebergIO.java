@@ -20,6 +20,7 @@
 package org.apache.iceberg.beam;
 
 
+import java.util.Map;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.coders.SerializableCoder;
 import org.apache.beam.sdk.transforms.Combine;
@@ -32,27 +33,28 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.catalog.TableIdentifier;
 
 public class IcebergIO {
-    private IcebergIO() {
-    }
+  private IcebergIO() {
+  }
 
-    public static PCollection<Snapshot> write(
-            TableIdentifier table,
-            Schema schema,
-            String hiveMetastoreUrl,
-            PCollection<GenericRecord> avroRecords
-    ) {
-        // We take the filenames that are emitted by the FileIO
-        final PCollection<DataFile> dataFiles = avroRecords
-                .apply(ParDo.of(new FileWriter(table, schema, PartitionSpec.unpartitioned(), hiveMetastoreUrl)))
-                .setCoder(SerializableCoder.of(DataFile.class));
+  public static PCollection<Snapshot> write(
+      TableIdentifier table,
+      Schema schema,
+      String hiveMetastoreUrl,
+      PCollection<GenericRecord> avroRecords,
+      Map<String, String> properties
+  ) {
+    // We take the filenames that are emitted by the FileIO
+    final PCollection<DataFile> dataFiles = avroRecords
+        .apply(ParDo.of(new FileWriter(table, schema, PartitionSpec.unpartitioned(), hiveMetastoreUrl, properties)))
+        .setCoder(SerializableCoder.of(DataFile.class));
 
-        // We use a combiner, to combine all the files to a single commit in
-        // the Iceberg log
-        final IcebergDataFileCommitter combiner = new IcebergDataFileCommitter(table, schema, hiveMetastoreUrl);
-        final Combine.Globally<DataFile, Snapshot> combined = Combine.globally(combiner).withoutDefaults();
+    // We use a combiner, to combine all the files to a single commit in
+    // the Iceberg log
+    final IcebergDataFileCommitter combiner = new IcebergDataFileCommitter(table, schema, hiveMetastoreUrl);
+    final Combine.Globally<DataFile, Snapshot> combined = Combine.globally(combiner).withoutDefaults();
 
-        // We return the latest snapshot, which can be used to notify downstream consumers.
-        return dataFiles.apply(combined);
-    }
+    // We return the latest snapshot, which can be used to notify downstream consumers.
+    return dataFiles.apply(combined);
+  }
 }
 

@@ -314,6 +314,7 @@ project(':iceberg-beam') {
     compile project(':iceberg-core')
     compile project(':iceberg-data')
     compile project(':iceberg-arrow')
+    compile project(':iceberg-orc')
     compile project(':iceberg-hive-metastore')
     compile "org.apache.beam:beam-sdks-java-core"
     testCompile "org.apache.beam:beam-runners-direct-java"
