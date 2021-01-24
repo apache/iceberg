@@ -113,6 +113,10 @@ public class RowDataRewriter implements Serializable {
       writer = new SparkPartitionedFanoutWriter(
           spec, format, appenderFactory, fileFactory, io.value(), Long.MAX_VALUE, schema,
           structType);
+    } else {
+      writer = new SparkPartitionedWriter(
+          spec, format, appenderFactory, fileFactory, io.value(), Long.MAX_VALUE, schema,
+          structType);
     }
 
     try {
