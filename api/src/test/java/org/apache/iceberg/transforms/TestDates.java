@@ -27,6 +27,29 @@ import org.junit.Test;
 
 public class TestDates {
   @Test
+  public void testDateTransform() {
+    Types.DateType type = Types.DateType.get();
+    Literal<Integer> date = Literal.of("2017-12-01").to(type);
+    Literal<Integer> pd = Literal.of("1970-01-01").to(type);
+    Literal<Integer> nd = Literal.of("1969-12-31").to(type);
+
+    Transform<Integer, Integer> years = Transforms.year(type);
+    Assert.assertEquals("Should produce 2017 - 1970 = 47", 47, (int) years.apply(date.value()));
+    Assert.assertEquals("Should produce 1970 - 1970 = 0", 0, (int) years.apply(pd.value()));
+    Assert.assertEquals("Should produce 1969 - 1970 = -1", -1, (int) years.apply(nd.value()));
+
+    Transform<Integer, Integer> months = Transforms.month(type);
+    Assert.assertEquals("Should produce 47 * 12 + 11 = 575", 575, (int) months.apply(date.value()));
+    Assert.assertEquals("Should produce 0 * 12 + 0 = 0", 0, (int) months.apply(pd.value()));
+    Assert.assertEquals("Should produce -1", -1, (int) months.apply(nd.value()));
+
+    Transform<Integer, Integer> days = Transforms.day(type);
+    Assert.assertEquals("Should produce 17501", 17501, (int) days.apply(date.value()));
+    Assert.assertEquals("Should produce 0 * 365 + 0 = 0", 0, (int) days.apply(pd.value()));
+    Assert.assertEquals("Should produce -1", -1, (int) days.apply(nd.value()));
+  }
+
+  @Test
   public void testDateToHumanString() {
     Types.DateType type = Types.DateType.get();
     Literal<Integer> date = Literal.of("2017-12-01").to(type);
@@ -42,6 +65,78 @@ public class TestDates {
     Transform<Integer, Integer> day = Transforms.day(type);
     Assert.assertEquals("Should produce the correct Human string",
         "2017-12-01", day.toHumanString(day.apply(date.value())));
+  }
+
+  @Test
+  public void testNegativeDateToHumanString() {
+    Types.DateType type = Types.DateType.get();
+    Literal<Integer> date = Literal.of("1969-12-30").to(type);
+
+    Transform<Integer, Integer> year = Transforms.year(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969", year.toHumanString(year.apply(date.value())));
+
+    Transform<Integer, Integer> month = Transforms.month(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969-12", month.toHumanString(month.apply(date.value())));
+
+    Transform<Integer, Integer> day = Transforms.day(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969-12-30", day.toHumanString(day.apply(date.value())));
+  }
+
+  @Test
+  public void testDateToHumanStringLowerBound() {
+    Types.DateType type = Types.DateType.get();
+    Literal<Integer> date = Literal.of("1970-01-01").to(type);
+
+    Transform<Integer, Integer> year = Transforms.year(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1970", year.toHumanString(year.apply(date.value())));
+
+    Transform<Integer, Integer> month = Transforms.month(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1970-01", month.toHumanString(month.apply(date.value())));
+
+    Transform<Integer, Integer> day = Transforms.day(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1970-01-01", day.toHumanString(day.apply(date.value())));
+  }
+
+  @Test
+  public void testNegativeDateToHumanStringLowerBound() {
+    Types.DateType type = Types.DateType.get();
+    Literal<Integer> date = Literal.of("1969-01-01").to(type);
+
+    Transform<Integer, Integer> year = Transforms.year(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969", year.toHumanString(year.apply(date.value())));
+
+    Transform<Integer, Integer> month = Transforms.month(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969-01", month.toHumanString(month.apply(date.value())));
+
+    Transform<Integer, Integer> day = Transforms.day(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969-01-01", day.toHumanString(day.apply(date.value())));
+  }
+
+  @Test
+  public void testNegativeDateToHumanStringUpperBound() {
+    Types.DateType type = Types.DateType.get();
+    Literal<Integer> date = Literal.of("1969-12-31").to(type);
+
+    Transform<Integer, Integer> year = Transforms.year(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969", year.toHumanString(year.apply(date.value())));
+
+    Transform<Integer, Integer> month = Transforms.month(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969-12", month.toHumanString(month.apply(date.value())));
+
+    Transform<Integer, Integer> day = Transforms.day(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969-12-31", day.toHumanString(day.apply(date.value())));
   }
 
   @Test

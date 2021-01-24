@@ -21,14 +21,17 @@ package org.apache.iceberg.transforms;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.Set;
 import org.apache.iceberg.expressions.BoundLiteralPredicate;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundSetPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 import static org.apache.iceberg.expressions.Expressions.predicate;
 
@@ -253,5 +256,146 @@ class ProjectionUtil {
                                                  Transform<S, T> transform) {
     return predicate(predicate.op(), fieldName,
         Iterables.transform(predicate.asSetPredicate().literalSet(), transform::apply));
+  }
+
+  /**
+   * Fixes an inclusive projection to account for incorrectly transformed values.
+   * <p>
+   * A bug in 0.10.0 and earlier caused negative values to be incorrectly transformed by date and timestamp transforms
+   * to 1 larger than the correct value. For example, day(1969-12-31 10:00:00) produced 0 instead of -1. To read data
+   * written by versions with this bug, this method adjusts the inclusive projection. The current inclusive projection
+   * is correct, so this modifies the "correct" projection when needed. For example, < day(1969-12-31 10:00:00) will
+   * produce <= -1 (= 1969-12-31) and is adjusted to <= 0 (= 1969-01-01) because the incorrect transformed value was 0.
+   */
+  static UnboundPredicate<Integer> fixInclusiveTimeProjection(UnboundPredicate<Integer> projected) {
+    if (projected == null) {
+      return projected;
+    }
+
+    // adjust the predicate for values that were 1 larger than the correct transformed value
+    switch (projected.op()) {
+      case LT:
+        if (projected.literal().value() < 0) {
+          return Expressions.lessThan(projected.term(), projected.literal().value() + 1);
+        }
+
+        return projected;
+
+      case LT_EQ:
+        if (projected.literal().value() < 0) {
+          return Expressions.lessThanOrEqual(projected.term(), projected.literal().value() + 1);
+        }
+
+        return projected;
+
+      case GT:
+      case GT_EQ:
+        // incorrect projected values are already greater than the bound for GT, GT_EQ
+        return projected;
+
+      case EQ:
+        if (projected.literal().value() < 0) {
+          // match either the incorrect value (projectedValue + 1) or the correct value (projectedValue)
+          return Expressions.in(projected.term(), projected.literal().value(), projected.literal().value() + 1);
+        }
+
+        return projected;
+
+      case IN:
+        Set<Integer> fixedSet = Sets.newHashSet();
+        boolean hasNegativeValue = false;
+        for (Literal<Integer> lit : projected.literals()) {
+          Integer value = lit.value();
+          fixedSet.add(value);
+          if (value < 0) {
+            hasNegativeValue = true;
+            fixedSet.add(value + 1);
+          }
+        }
+
+        if (hasNegativeValue) {
+          return Expressions.in(projected.term(), fixedSet);
+        }
+
+        return projected;
+
+      case NOT_IN:
+      case NOT_EQ:
+        // there is no inclusive projection for NOT_EQ and NOT_IN
+        return null;
+
+      default:
+        return projected;
+    }
+  }
+
+  /**
+   * Fixes a strict projection to account for incorrectly transformed values.
+   * <p>
+   * A bug in 0.10.0 and earlier caused negative values to be incorrectly transformed by date and timestamp transforms
+   * to 1 larger than the correct value. For example, day(1969-12-31 10:00:00) produced 0 instead of -1. To read data
+   * written by versions with this bug, this method adjusts the strict projection.
+   */
+  static UnboundPredicate<Integer> fixStrictTimeProjection(UnboundPredicate<Integer> projected) {
+    if (projected == null) {
+      return null;
+    }
+
+    switch (projected.op()) {
+      case LT:
+      case LT_EQ:
+        // the correct bound is a correct strict projection for the incorrectly transformed values.
+        return projected;
+
+      case GT:
+        // GT and GT_EQ need to be adjusted because values that do not match the predicate may have been transformed
+        // into partition values that match the projected predicate. For example, >= month(1969-11-31) is > -2, but
+        // 1969-10-31 was previously transformed to month -2 instead of -3. This must use the more strict value.
+        if (projected.literal().value() <= 0) {
+          return Expressions.greaterThan(projected.term(), projected.literal().value() + 1);
+        }
+
+        return projected;
+
+      case GT_EQ:
+        if (projected.literal().value() <= 0) {
+          return Expressions.greaterThanOrEqual(projected.term(), projected.literal().value() + 1);
+        }
+
+        return projected;
+
+      case EQ:
+      case IN:
+        // there is no strict projection for EQ and IN
+        return null;
+
+      case NOT_EQ:
+        if (projected.literal().value() < 0) {
+          return Expressions.notIn(projected.term(), projected.literal().value(), projected.literal().value() + 1);
+        }
+
+        return projected;
+
+      case NOT_IN:
+        Set<Integer> fixedSet = Sets.newHashSet();
+        boolean hasNegativeValue = false;
+        for (Literal<Integer> lit : projected.literals()) {
+          Integer value = lit.value();
+          fixedSet.add(value);
+          if (value < 0) {
+            hasNegativeValue = true;
+            fixedSet.add(value + 1);
+          }
+        }
+
+        if (hasNegativeValue) {
+          return Expressions.notIn(projected.term(), fixedSet);
+        }
+
+        return projected;
+
+      default:
+        return null;
+    }
   }
 }

@@ -33,8 +33,7 @@ import org.apache.spark.sql.vectorized.ColumnarBatch
 
 abstract class DynamicFileFilterExecBase(
     scanExec: SparkPlan,
-    fileFilterExec: SparkPlan,
-    @transient filterable: SupportsFileFilter) extends BinaryExecNode {
+    fileFilterExec: SparkPlan) extends BinaryExecNode {
 
   @transient
   override lazy val references: AttributeSet = AttributeSet(fileFilterExec.output)
@@ -58,7 +57,7 @@ case class DynamicFileFilterExec(
     scanExec: SparkPlan,
     fileFilterExec: SparkPlan,
     @transient filterable: SupportsFileFilter)
-  extends DynamicFileFilterExecBase(scanExec, fileFilterExec, filterable) {
+  extends DynamicFileFilterExecBase(scanExec, fileFilterExec) {
 
   override protected def doPrepare(): Unit = {
     val rows = fileFilterExec.executeCollect()
@@ -67,21 +66,21 @@ case class DynamicFileFilterExec(
   }
 }
 
-case class DynamicFileFilterWithCountCheckExec(
+case class DynamicFileFilterWithCardinalityCheckExec(
     scanExec: SparkPlan,
     fileFilterExec: SparkPlan,
     @transient filterable: SupportsFileFilter,
-    filesAccumulator: SetAccumulator[String],
-    @transient targetTableName: String)
-  extends DynamicFileFilterExecBase(scanExec, fileFilterExec, filterable)  {
+    filesAccumulator: SetAccumulator[String])
+  extends DynamicFileFilterExecBase(scanExec, fileFilterExec)  {
 
   override protected def doPrepare(): Unit = {
     val rows = fileFilterExec.executeCollect()
-    if (rows.size > 0) {
-      val msg =
-        s"""The same row of target table `$targetTableName` was identified more than
-           | once for an update, delete or insert operation of the MERGE statement.""".stripMargin
-      throw new SparkException(msg)
+    if (rows.length > 0) {
+      throw new SparkException(
+        "The ON search condition of the MERGE statement matched a single row from " +
+        "the target table with multiple rows of the source table. This could result " +
+        "in the target row being operated on more than once with an update or delete operation " +
+        "and is not allowed.")
     }
     val matchedFileLocations = filesAccumulator.value
     filterable.filterFiles(matchedFileLocations)

@@ -21,8 +21,8 @@ package org.apache.spark.sql.catalyst.optimizer
 
 import org.apache.iceberg.DistributionMode
 import org.apache.iceberg.TableProperties
-import org.apache.iceberg.TableProperties.MERGE_WRITE_CARDINALITY_CHECK
-import org.apache.iceberg.TableProperties.MERGE_WRITE_CARDINALITY_CHECK_DEFAULT
+import org.apache.iceberg.TableProperties.MERGE_CARDINALITY_CHECK_ENABLED
+import org.apache.iceberg.TableProperties.MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT
 import org.apache.iceberg.spark.Spark3Util.toClusteredDistribution
 import org.apache.iceberg.spark.Spark3Util.toOrderedDistribution
 import org.apache.iceberg.spark.source.SparkTable
@@ -57,11 +57,11 @@ import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.Sort
 import org.apache.spark.sql.catalyst.plans.logical.UpdateAction
 import org.apache.spark.sql.catalyst.rules.Rule
+import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 import org.apache.spark.sql.catalyst.utils.RewriteRowLevelOperationHelper
 import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.iceberg.write.MergeBuilder
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
-import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
 import org.apache.spark.sql.types.BooleanType
 
 case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper  {
@@ -76,8 +76,8 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
 
   override def apply(plan: LogicalPlan): LogicalPlan = {
     plan resolveOperators {
-      case MergeIntoTable(target: DataSourceV2Relation, source: LogicalPlan, cond, matchedActions, notMatchedActions)
-          if matchedActions.isEmpty =>
+      case MergeIntoTable(target: DataSourceV2Relation, source, cond, matchedActions, notMatchedActions)
+          if matchedActions.isEmpty && isIcebergRelation(target) =>
 
         val targetTableScan = buildSimpleScanPlan(target, cond)
 
@@ -101,10 +101,10 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
 
         AppendData.byPosition(target, writePlan, Map.empty)
 
-      case MergeIntoTable(target: DataSourceV2Relation, source: LogicalPlan, cond, matchedActions, notMatchedActions)
-          if notMatchedActions.isEmpty =>
+      case MergeIntoTable(target: DataSourceV2Relation, source, cond, matchedActions, notMatchedActions)
+          if notMatchedActions.isEmpty && isIcebergRelation(target) =>
 
-        val (mergeBuilder, targetTableScan) = buildDynamicFilterTargetScan(target, source, cond, matchedActions)
+        val mergeBuilder = target.table.asMergeable.newMergeBuilder("merge", newWriteInfo(target.schema))
 
         // rewrite the matched actions to ensure there is always an action to produce the output row
         val (matchedConditions, matchedOutputs) = rewriteMatchedActions(matchedActions, target.output)
@@ -113,6 +113,7 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
         // keep all unmatched target rows that must be preserved.
         val sourceTableProj = source.output ++ Seq(Alias(TRUE_LITERAL, ROW_FROM_SOURCE)())
         val newSourceTableScan = Project(sourceTableProj, source)
+        val targetTableScan = buildDynamicFilterTargetScan(mergeBuilder, target, source, cond, matchedActions)
         val joinPlan = Join(newSourceTableScan, targetTableScan, RightOuter, Some(cond), JoinHint.NONE)
 
         val mergeParams = MergeIntoParams(
@@ -131,18 +132,20 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
 
         ReplaceData(target, batchWrite, writePlan)
 
-      case MergeIntoTable(target: DataSourceV2Relation, source: LogicalPlan, cond, matchedActions, notMatchedActions) =>
+      case MergeIntoTable(target: DataSourceV2Relation, source, cond, matchedActions, notMatchedActions)
+          if isIcebergRelation(target) =>
 
-        val (mergeBuilder, targetTableScan) = buildDynamicFilterTargetScan(target, source, cond, matchedActions)
+        val mergeBuilder = target.table.asMergeable.newMergeBuilder("merge", newWriteInfo(target.schema))
 
         // rewrite the matched actions to ensure there is always an action to produce the output row
         val (matchedConditions, matchedOutputs) = rewriteMatchedActions(matchedActions, target.output)
 
         // use a full outer join because there are both matched and not matched actions
         val sourceTableProj = source.output ++ Seq(Alias(TRUE_LITERAL, ROW_FROM_SOURCE)())
+        val newSourceTableScan = Project(sourceTableProj, source)
+        val targetTableScan = buildDynamicFilterTargetScan(mergeBuilder, target, source, cond, matchedActions)
         val targetTableProj = targetTableScan.output ++ Seq(Alias(TRUE_LITERAL, ROW_FROM_TARGET)())
         val newTargetTableScan = Project(targetTableProj, targetTableScan)
-        val newSourceTableScan = Project(sourceTableProj, source)
         val joinPlan = Join(newSourceTableScan, newTargetTableScan, FullOuter, Some(cond), JoinHint.NONE)
 
         val mergeParams = MergeIntoParams(
@@ -179,19 +182,17 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
   }
 
   private def buildDynamicFilterTargetScan(
+      mergeBuilder: MergeBuilder,
       target: DataSourceV2Relation,
       source: LogicalPlan,
       cond: Expression,
-      matchedActions: Seq[MergeAction]): (MergeBuilder, LogicalPlan) = {
+      matchedActions: Seq[MergeAction]): LogicalPlan = {
     // Construct the plan to prune target based on join condition between source and target.
-    val mergeBuilder = target.table.asMergeable.newMergeBuilder("merge", newWriteInfo(target.schema))
-    val matchingRowsPlanBuilder = (rel: DataSourceV2ScanRelation) =>
-      Join(source, rel, Inner, Some(cond), JoinHint.NONE)
-    val runCountCheck = isCardinalityCheckEnabled(target.table) && isCardinalityCheckNeeded(matchedActions)
-    val targetTableScan = buildDynamicFilterScanPlan(
-      spark, target.table, target.output, mergeBuilder, cond, matchingRowsPlanBuilder, runCountCheck)
-
-    (mergeBuilder, targetTableScan)
+    val table = target.table
+    val output = target.output
+    val matchingRowsPlanBuilder = rel => Join(source, rel, Inner, Some(cond), JoinHint.NONE)
+    val runCardinalityCheck = isCardinalityCheckEnabled(table) && isCardinalityCheckNeeded(matchedActions)
+    buildDynamicFilterScanPlan(spark, table, output, mergeBuilder, cond, matchingRowsPlanBuilder, runCardinalityCheck)
   }
 
   private def rewriteMatchedActions(
@@ -216,8 +217,10 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
   }
 
   private def isCardinalityCheckEnabled(table: Table): Boolean = {
-    PropertyUtil.propertyAsBoolean(table.properties(),
-      MERGE_WRITE_CARDINALITY_CHECK, MERGE_WRITE_CARDINALITY_CHECK_DEFAULT)
+    PropertyUtil.propertyAsBoolean(
+      table.properties(),
+      MERGE_CARDINALITY_CHECK_ENABLED,
+      MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT)
   }
 
   private def isCardinalityCheckNeeded(actions: Seq[MergeAction]): Boolean = {
@@ -233,12 +236,19 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
   def buildWritePlan(
      childPlan: LogicalPlan,
      table: Table): LogicalPlan = {
+    val defaultDistributionMode = table match {
+      case iceberg: SparkTable if !iceberg.table.sortOrder.isUnsorted =>
+        TableProperties.WRITE_DISTRIBUTION_MODE_RANGE
+      case _ =>
+        TableProperties.WRITE_DISTRIBUTION_MODE_DEFAULT
+    }
+
     table match {
       case iceTable: SparkTable =>
         val numShufflePartitions = spark.sessionState.conf.numShufflePartitions
         val table = iceTable.table()
         val distributionMode: String = table.properties
-          .getOrDefault(TableProperties.WRITE_DISTRIBUTION_MODE, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE)
+          .getOrDefault(TableProperties.WRITE_DISTRIBUTION_MODE, defaultDistributionMode)
         val order = toCatalyst(toOrderedDistribution(table.spec(), table.sortOrder(), true), childPlan)
         DistributionMode.fromName(distributionMode) match {
           case DistributionMode.NONE =>

@@ -32,7 +32,7 @@ import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.mr.InputFormatConfig;
-import org.apache.iceberg.mr.SerializationUtil;
+import org.apache.iceberg.util.SerializationUtil;
 
 // Since this class extends `mapreduce.InputSplit and implements `mapred.InputSplit`, it can be returned by both MR v1
 // and v2 file formats.

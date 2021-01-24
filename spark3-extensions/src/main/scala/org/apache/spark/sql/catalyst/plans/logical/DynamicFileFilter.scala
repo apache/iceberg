@@ -42,12 +42,11 @@ case class DynamicFileFilter(
   }
 }
 
-case class DynamicFileFilterWithCountCheck(
+case class DynamicFileFilterWithCardinalityCheck(
     scanPlan: LogicalPlan,
     fileFilterPlan: LogicalPlan,
     filterable: SupportsFileFilter,
-    filesAccumulator: SetAccumulator[String],
-    targetTableName: String) extends BinaryNode {
+    filesAccumulator: SetAccumulator[String]) extends BinaryNode {
 
   @transient
   override lazy val references: AttributeSet = AttributeSet(fileFilterPlan.output)
@@ -57,6 +56,6 @@ case class DynamicFileFilterWithCountCheck(
   override def output: Seq[Attribute] = scanPlan.output
 
   override def simpleString(maxFields: Int): String = {
-    s"DynamicFileFilterWithCountCheck${truncatedString(output, "[", ", ", "]", maxFields)}"
+    s"DynamicFileFilterWithCardinalityCheck${truncatedString(output, "[", ", ", "]", maxFields)}"
   }
 }

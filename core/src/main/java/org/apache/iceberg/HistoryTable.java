@@ -75,6 +75,16 @@ public class HistoryTable extends BaseMetadataTable {
     return HISTORY_SCHEMA;
   }
 
+  @Override
+  String metadataLocation() {
+    return ops.current().metadataFileLocation();
+  }
+
+  @Override
+  MetadataTableType metadataTableType() {
+    return MetadataTableType.HISTORY;
+  }
+
   private DataTask task(TableScan scan) {
     return StaticDataTask.of(
         ops.io().newInputFile(ops.current().metadataFileLocation()),

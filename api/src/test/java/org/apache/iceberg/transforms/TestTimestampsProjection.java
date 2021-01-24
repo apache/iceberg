@@ -74,14 +74,14 @@ public class TestTimestampsProjection {
                                           Expression.Operation expectedOp) {
 
     Expression projection = Projections.strict(spec).project(filter);
-    Assert.assertEquals(projection.op(), expectedOp);
+    Assert.assertEquals(expectedOp, projection.op());
   }
 
   public void assertProjectionInclusiveValue(PartitionSpec spec, UnboundPredicate<?> filter,
                                              Expression.Operation expectedOp) {
 
     Expression projection = Projections.inclusive(spec).project(filter);
-    Assert.assertEquals(projection.op(), expectedOp);
+    Assert.assertEquals(expectedOp, projection.op());
   }
 
   public void assertProjectionInclusive(PartitionSpec spec, UnboundPredicate<?> filter,
@@ -89,7 +89,7 @@ public class TestTimestampsProjection {
     Expression projection = Projections.inclusive(spec).project(filter);
     UnboundPredicate<?> predicate = assertAndUnwrapUnbound(projection);
 
-    Assert.assertEquals(predicate.op(), expectedOp);
+    Assert.assertEquals(expectedOp, predicate.op());
 
     Assert.assertNotEquals("Inclusive projection never runs for NOT_IN", Expression.Operation.NOT_IN, predicate.op());
 
@@ -107,6 +107,42 @@ public class TestTimestampsProjection {
   }
 
   @Test
+  public void testDayStrictEpoch() {
+    Long date = (long) Literal.of("1970-01-01T00:00:00.00000").to(TYPE).value();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("timestamp").build();
+
+    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT, "1970-01-01");
+    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT, "1970-01-01");
+    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "1970-01-02");
+    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "1970-01-01");
+    assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_EQ, "1970-01-01");
+    assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
+
+    Long anotherDate = (long) Literal.of("1970-01-02T00:00:00.00000").to(TYPE).value();
+    assertProjectionStrict(spec, notIn("timestamp", date, anotherDate),
+        Expression.Operation.NOT_IN, "[1970-01-01, 1970-01-02]");
+    assertProjectionStrictValue(spec, in("timestamp", date, anotherDate), Expression.Operation.FALSE);
+  }
+
+  @Test
+  public void testDayInclusiveEpoch() {
+    Long date = (long) Literal.of("1970-01-01T00:00:00.00000").to(TYPE).value();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("timestamp").build();
+
+    assertProjectionInclusive(spec, lessThan("timestamp", date), Expression.Operation.LT_EQ, "1970-01-01");
+    assertProjectionInclusive(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT_EQ, "1970-01-01");
+    assertProjectionInclusive(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "1970-01-01");
+    assertProjectionInclusive(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "1970-01-01");
+    assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.EQ, "1970-01-01");
+    assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
+
+    Long anotherDate = (long) Literal.of("1970-01-02T00:00:00.00000").to(TYPE).value();
+    assertProjectionInclusive(spec, in("timestamp", date, anotherDate),
+        Expression.Operation.IN, "[1970-01-01, 1970-01-02]");
+    assertProjectionInclusiveValue(spec, notIn("timestamp", date, anotherDate), Expression.Operation.TRUE);
+  }
+
+  @Test
   public void testMonthStrictLowerBound() {
     Long date = (long) Literal.of("2017-12-01T00:00:00.00000").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).month("timestamp").build();
@@ -121,6 +157,24 @@ public class TestTimestampsProjection {
     Long anotherDate = (long) Literal.of("2017-12-02T00:00:00.00000").to(TYPE).value();
     assertProjectionStrict(spec, notIn("timestamp", anotherDate, date),
         Expression.Operation.NOT_IN, "[2017-12, 2017-12]");
+    assertProjectionStrictValue(spec, in("timestamp", anotherDate, date), Expression.Operation.FALSE);
+  }
+
+  @Test
+  public void testNegativeMonthStrictLowerBound() {
+    Long date = (long) Literal.of("1969-01-01T00:00:00.00000").to(TYPE).value();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).month("timestamp").build();
+
+    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT, "1969-01");
+    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT, "1969-01");
+    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "1969-02");
+    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "1969-01");
+    assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_IN, "[1969-01, 1969-02]");
+    assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
+
+    Long anotherDate = (long) Literal.of("1969-03-01T00:00:00.00000").to(TYPE).value();
+    assertProjectionStrict(spec, notIn("timestamp", anotherDate, date),
+        Expression.Operation.NOT_IN, "[1969-01, 1969-02, 1969-03, 1969-04]");
     assertProjectionStrictValue(spec, in("timestamp", anotherDate, date), Expression.Operation.FALSE);
   }
 
@@ -143,6 +197,24 @@ public class TestTimestampsProjection {
   }
 
   @Test
+  public void testNegativeMonthStrictUpperBound() {
+    Long date = (long) Literal.of("1969-12-31T23:59:59.999999").to(TYPE).value();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).month("timestamp").build();
+
+    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT, "1969-12");
+    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT, "1970-01");
+    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "1970-01");
+    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "1970-01");
+    assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_IN, "[1969-12, 1970-01]");
+    assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
+
+    Long anotherDate = (long) Literal.of("1970-02-01T00:00:00.00000").to(TYPE).value();
+    assertProjectionStrict(spec, notIn("timestamp", anotherDate, date),
+        Expression.Operation.NOT_IN, "[1969-12, 1970-01, 1970-02]");
+    assertProjectionStrictValue(spec, in("timestamp", anotherDate, date), Expression.Operation.FALSE);
+  }
+
+  @Test
   public void testMonthInclusiveLowerBound() {
     Long date = (long) Literal.of("2017-12-01T00:00:00.00000").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).month("timestamp").build();
@@ -157,6 +229,24 @@ public class TestTimestampsProjection {
     Long anotherDate = (long) Literal.of("2017-12-02T00:00:00.00000").to(TYPE).value();
     assertProjectionInclusive(spec, in("timestamp", date, anotherDate),
         Expression.Operation.IN, "[2017-12, 2017-12]");
+    assertProjectionInclusiveValue(spec, notIn("timestamp", date, anotherDate), Expression.Operation.TRUE);
+  }
+
+  @Test
+  public void testNegativeMonthInclusiveLowerBound() {
+    Long date = (long) Literal.of("1969-01-01T00:00:00.00000").to(TYPE).value();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).month("timestamp").build();
+
+    assertProjectionInclusive(spec, lessThan("timestamp", date), Expression.Operation.LT_EQ, "1969-01");
+    assertProjectionInclusive(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT_EQ, "1969-02");
+    assertProjectionInclusive(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "1969-01");
+    assertProjectionInclusive(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "1969-01");
+    assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.IN, "[1969-01, 1969-02]");
+    assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
+
+    Long anotherDate = (long) Literal.of("1969-03-01T00:00:00.00000").to(TYPE).value();
+    assertProjectionInclusive(spec, in("timestamp", date, anotherDate),
+        Expression.Operation.IN, "[1969-01, 1969-02, 1969-03, 1969-04]");
     assertProjectionInclusiveValue(spec, notIn("timestamp", date, anotherDate), Expression.Operation.TRUE);
   }
 
@@ -179,6 +269,24 @@ public class TestTimestampsProjection {
   }
 
   @Test
+  public void testNegativeMonthInclusiveUpperBound() {
+    Long date = (long) Literal.of("1969-12-31T23:59:59.999999").to(TYPE).value();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).month("timestamp").build();
+
+    assertProjectionInclusive(spec, lessThan("timestamp", date), Expression.Operation.LT_EQ, "1970-01");
+    assertProjectionInclusive(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT_EQ, "1970-01");
+    assertProjectionInclusive(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "1970-01");
+    assertProjectionInclusive(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "1969-12");
+    assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.IN, "[1969-12, 1970-01]");
+    assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
+
+    Long anotherDate = (long) Literal.of("1970-01-01T00:00:00.00000").to(TYPE).value();
+    assertProjectionInclusive(spec, in("timestamp", date, anotherDate),
+        Expression.Operation.IN, "[1969-12, 1970-01]");
+    assertProjectionInclusiveValue(spec, notIn("timestamp", date, anotherDate), Expression.Operation.TRUE);
+  }
+
+  @Test
   public void testDayStrictLowerBound() {
     Long date = (long) Literal.of("2017-12-01T00:00:00.00000").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("timestamp").build();
@@ -193,6 +301,24 @@ public class TestTimestampsProjection {
     Long anotherDate = (long) Literal.of("2017-12-02T00:00:00.00000").to(TYPE).value();
     assertProjectionStrict(spec, notIn("timestamp", date, anotherDate),
         Expression.Operation.NOT_IN, "[2017-12-01, 2017-12-02]");
+    assertProjectionStrictValue(spec, in("timestamp", date, anotherDate), Expression.Operation.FALSE);
+  }
+
+  @Test
+  public void testNegativeDayStrictLowerBound() {
+    Long date = (long) Literal.of("1969-01-01T00:00:00.00000").to(TYPE).value();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("timestamp").build();
+
+    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT, "1969-01-01");
+    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT, "1969-01-01");
+    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "1969-01-02");
+    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "1969-01-01");
+    assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_IN, "[1969-01-01, 1969-01-02]");
+    assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
+
+    Long anotherDate = (long) Literal.of("1969-01-02T00:00:00.00000").to(TYPE).value();
+    assertProjectionStrict(spec, notIn("timestamp", date, anotherDate),
+        Expression.Operation.NOT_IN, "[1969-01-01, 1969-01-02, 1969-01-03]");
     assertProjectionStrictValue(spec, in("timestamp", date, anotherDate), Expression.Operation.FALSE);
   }
 
@@ -215,6 +341,24 @@ public class TestTimestampsProjection {
   }
 
   @Test
+  public void testNegativeDayStrictUpperBound() {
+    Long date = (long) Literal.of("1969-12-31T23:59:59.999999").to(TYPE).value();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("timestamp").build();
+
+    assertProjectionStrict(spec, lessThan("timestamp", date), Expression.Operation.LT, "1969-12-31");
+    assertProjectionStrict(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT, "1970-01-01");
+    assertProjectionStrict(spec, greaterThan("timestamp", date), Expression.Operation.GT, "1970-01-01");
+    assertProjectionStrict(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT, "1970-01-01");
+    assertProjectionStrict(spec, notEqual("timestamp", date), Expression.Operation.NOT_IN, "[1969-12-31, 1970-01-01]");
+    assertProjectionStrictValue(spec, equal("timestamp", date), Expression.Operation.FALSE);
+
+    Long anotherDate = (long) Literal.of("1970-01-01T00:00:00.00000").to(TYPE).value();
+    assertProjectionStrict(spec, notIn("timestamp", date, anotherDate),
+        Expression.Operation.NOT_IN, "[1969-12-31, 1970-01-01]");
+    assertProjectionStrictValue(spec, in("timestamp", date, anotherDate), Expression.Operation.FALSE);
+  }
+
+  @Test
   public void testDayInclusiveLowerBound() {
     Long date = (long) Literal.of("2017-12-01T00:00:00.00000").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("timestamp").build();
@@ -233,6 +377,24 @@ public class TestTimestampsProjection {
   }
 
   @Test
+  public void testNegativeDayInclusiveLowerBound() {
+    Long date = (long) Literal.of("1969-01-01T00:00:00.00000").to(TYPE).value();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("timestamp").build();
+
+    assertProjectionInclusive(spec, lessThan("timestamp", date), Expression.Operation.LT_EQ, "1969-01-01");
+    assertProjectionInclusive(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT_EQ, "1969-01-02");
+    assertProjectionInclusive(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "1969-01-01");
+    assertProjectionInclusive(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "1969-01-01");
+    assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.IN, "[1969-01-01, 1969-01-02]");
+    assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
+
+    Long anotherDate = (long) Literal.of("1969-01-02T00:00:00.00000").to(TYPE).value();
+    assertProjectionInclusive(spec, in("timestamp", date, anotherDate),
+        Expression.Operation.IN, "[1969-01-01, 1969-01-02, 1969-01-03]");
+    assertProjectionInclusiveValue(spec, notIn("timestamp", date, anotherDate), Expression.Operation.TRUE);
+  }
+
+  @Test
   public void testDayInclusiveUpperBound() {
     Long date = (long) Literal.of("2017-12-01T23:59:59.999999").to(TYPE).value();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("timestamp").build();
@@ -247,6 +409,24 @@ public class TestTimestampsProjection {
     Long anotherDate = (long) Literal.of("2017-12-02T00:00:00.00000").to(TYPE).value();
     assertProjectionInclusive(spec, in("timestamp", date, anotherDate),
         Expression.Operation.IN, "[2017-12-01, 2017-12-02]");
+    assertProjectionInclusiveValue(spec, notIn("timestamp", date, anotherDate), Expression.Operation.TRUE);
+  }
+
+  @Test
+  public void testNegativeDayInclusiveUpperBound() {
+    Long date = (long) Literal.of("1969-12-31T23:59:59.999999").to(TYPE).value();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).day("timestamp").build();
+
+    assertProjectionInclusive(spec, lessThan("timestamp", date), Expression.Operation.LT_EQ, "1970-01-01");
+    assertProjectionInclusive(spec, lessThanOrEqual("timestamp", date), Expression.Operation.LT_EQ, "1970-01-01");
+    assertProjectionInclusive(spec, greaterThan("timestamp", date), Expression.Operation.GT_EQ, "1970-01-01");
+    assertProjectionInclusive(spec, greaterThanOrEqual("timestamp", date), Expression.Operation.GT_EQ, "1969-12-31");
+    assertProjectionInclusive(spec, equal("timestamp", date), Expression.Operation.IN, "[1969-12-31, 1970-01-01]");
+    assertProjectionInclusiveValue(spec, notEqual("timestamp", date), Expression.Operation.TRUE);
+
+    Long anotherDate = (long) Literal.of("1970-01-01T00:00:00.00000").to(TYPE).value();
+    assertProjectionInclusive(spec, in("timestamp", date, anotherDate),
+        Expression.Operation.IN, "[1969-12-31, 1970-01-01]");
     assertProjectionInclusiveValue(spec, notIn("timestamp", date, anotherDate), Expression.Operation.TRUE);
   }
 
