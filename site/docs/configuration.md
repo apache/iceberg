@@ -78,6 +78,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.metadata.metrics.default     | truncate(16)       | Default metrics mode for all columns in the table; none, counts, truncate(length), or full |
 | write.metadata.metrics.column.col1 | (not set)          | Metrics mode for column 'col1' to allow per-column tuning; none, counts, truncate(length), or full |
 | write.target-file-size-bytes       | Long.MAX_VALUE     | Controls the size of files generated to target about this many bytes |
+| write.distribution-mode            | none               | Defines distribution of write data: __none__: don't shuffle rows; __hash__: hash distribute by partition key ; __range__: range distribute by partition key or sort key if table has an SortOrder |
 | write.wap.enabled                  | false              | Enables write-audit-publish writes |
 | write.summary.partition-limit      | 0                  | Includes partition-level summary stats in snapshot summaries if the changed partition count is less than this limit |
 | write.metadata.delete-after-commit.enabled | false      | Controls whether to delete the oldest version metadata files after commit |
