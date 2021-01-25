@@ -47,12 +47,13 @@ public class TestIcebergUUIDObjectInspector {
     Assert.assertNull(oi.getPrimitiveWritableObject(null));
     Assert.assertNull(oi.convert(null));
 
-    String uuid = UUID.randomUUID().toString();
-    Text text = new Text(uuid);
+    UUID uuid = UUID.randomUUID();
+    String uuidStr = uuid.toString();
+    Text text = new Text(uuidStr);
 
-    Assert.assertEquals(uuid, oi.getPrimitiveJavaObject(text));
-    Assert.assertEquals(text, oi.getPrimitiveWritableObject(uuid));
-    Assert.assertEquals(uuid, oi.convert(text));
+    Assert.assertEquals(uuidStr, oi.getPrimitiveJavaObject(text));
+    Assert.assertEquals(text, oi.getPrimitiveWritableObject(uuidStr));
+    Assert.assertEquals(uuid, oi.convert(uuidStr));
 
     Text copy = (Text) oi.copyObject(text);
 
