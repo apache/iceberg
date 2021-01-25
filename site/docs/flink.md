@@ -305,23 +305,27 @@ Iceberg support streaming or batch read in Java API now.
 
 ### Batch Read
 
+This example will read all records from iceberg table and then print to the stdout console in flink batch job:
+
 ```java
 StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
 TableLoader tableLoader = TableLoader.fromHadooptable("hdfs://nn:8020/warehouse/path");
-DataStream<RowData> stream = FlinkSource.forRowData()
+DataStream<RowData> batch = FlinkSource.forRowData()
      .env(env)
      .tableLoader(loader)
      .streaming(false)
      .build();
 
 // Print all records to stdout.
-stream.print();
+batch.print();
 
 // Submit and execute this batch read job.
 env.execute("Test Iceberg Batch Read");
 ```
 
 ### Streaming read
+
+This example will read incremental records which start from snapshot-id '3821550127947089987' and print to stdout console in flink streaming job:
 
 ```java
 StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
@@ -336,7 +340,7 @@ DataStream<RowData> stream = FlinkSource.forRowData()
 // Print all records to stdout.
 stream.print();
 
-// Submit and execute this batch read job.
+// Submit and execute this streaming read job.
 env.execute("Test Iceberg Batch Read");
 ```
 
