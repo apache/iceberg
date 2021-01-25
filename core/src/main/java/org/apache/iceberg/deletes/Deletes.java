@@ -77,6 +77,16 @@ public class Deletes {
     return filter.filter(rows);
   }
 
+  public static <T> CloseableIterable<T> match(CloseableIterable<T> rows, Function<T, StructLike> rowToDeleteKey,
+                                               StructLikeSet deleteSet) {
+    if (deleteSet.isEmpty()) {
+      return rows;
+    }
+
+    EqualitySetDeleteMatcher<T> equalityFilter = new EqualitySetDeleteMatcher<>(rowToDeleteKey, deleteSet);
+    return equalityFilter.filter(rows);
+  }
+
   public static StructLikeSet toEqualitySet(CloseableIterable<StructLike> eqDeletes, Types.StructType eqType) {
     try (CloseableIterable<StructLike> deletes = eqDeletes) {
       StructLikeSet deleteSet = StructLikeSet.create(eqType);
@@ -140,6 +150,22 @@ public class Deletes {
     @Override
     protected boolean shouldKeep(T row) {
       return !deletes.contains(extractEqStruct.apply(row));
+    }
+  }
+
+  private static class EqualitySetDeleteMatcher<T> extends Filter<T> {
+    private final StructLikeSet deletes;
+    private final Function<T, StructLike> extractEqStruct;
+
+    protected EqualitySetDeleteMatcher(Function<T, StructLike> extractEq,
+                                      StructLikeSet deletes) {
+      this.extractEqStruct = extractEq;
+      this.deletes = deletes;
+    }
+
+    @Override
+    protected boolean shouldKeep(T row) {
+      return deletes.contains(extractEqStruct.apply(row));
     }
   }
 

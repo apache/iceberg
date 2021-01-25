@@ -37,7 +37,7 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.CharSequenceWrapper;
 
-class SortedPosDeleteWriter<T> implements Closeable {
+public class SortedPosDeleteWriter<T> implements Closeable {
   private static final long DEFAULT_RECORDS_NUM_THRESHOLD = 100_000L;
 
   private final Map<CharSequenceWrapper, List<PosRow<T>>> posDeletes = Maps.newHashMap();
@@ -65,10 +65,10 @@ class SortedPosDeleteWriter<T> implements Closeable {
     this.recordsNumThreshold = recordsNumThreshold;
   }
 
-  SortedPosDeleteWriter(FileAppenderFactory<T> appenderFactory,
-                        OutputFileFactory fileFactory,
-                        FileFormat format,
-                        PartitionKey partition) {
+  public SortedPosDeleteWriter(FileAppenderFactory<T> appenderFactory,
+                               OutputFileFactory fileFactory,
+                               FileFormat format,
+                               PartitionKey partition) {
     this(appenderFactory, fileFactory, format, partition, DEFAULT_RECORDS_NUM_THRESHOLD);
   }
 

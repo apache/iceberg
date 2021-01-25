@@ -110,7 +110,44 @@ public abstract class DeleteFilter<T> {
     return applyEqDeletes(applyPosDeletes(records));
   }
 
-  private CloseableIterable<T> applyEqDeletes(CloseableIterable<T> records) {
+  public CloseableIterable<T> matchEqDeletes(CloseableIterable<T> records) {
+    if (eqDeletes.isEmpty()) {
+      return records;
+    }
+
+    Multimap<Set<Integer>, DeleteFile> filesByDeleteIds = Multimaps.newMultimap(Maps.newHashMap(), Lists::newArrayList);
+    for (DeleteFile delete : eqDeletes) {
+      filesByDeleteIds.put(Sets.newHashSet(delete.equalityFieldIds()), delete);
+    }
+
+    CloseableIterable<T> remainRecords = records;
+    CloseableIterable<T> matchedRecords = CloseableIterable.empty();
+    for (Map.Entry<Set<Integer>, Collection<DeleteFile>> entry : filesByDeleteIds.asMap().entrySet()) {
+      Set<Integer> ids = entry.getKey();
+      Iterable<DeleteFile> deletes = entry.getValue();
+
+      Schema deleteSchema = TypeUtil.select(requiredSchema, ids);
+
+      // a projection to select and reorder fields of the file schema to match the delete rows
+      StructProjection projectRow = StructProjection.create(requiredSchema, deleteSchema);
+
+      Iterable<CloseableIterable<Record>> deleteRecords = Iterables.transform(deletes,
+          delete -> openDeletes(delete, deleteSchema));
+      StructLikeSet deleteSet = Deletes.toEqualitySet(
+          // copy the delete records because they will be held in a set
+          CloseableIterable.transform(CloseableIterable.concat(deleteRecords), Record::copy),
+          deleteSchema.asStruct());
+
+      matchedRecords = CloseableIterable.concat(Lists.newArrayList(matchedRecords, Deletes.match(remainRecords,
+          record -> projectRow.wrap(asStructLike(record)), deleteSet)));
+      remainRecords = Deletes.filter(remainRecords,
+          record -> projectRow.wrap(asStructLike(record)), deleteSet);
+    }
+
+    return matchedRecords;
+  }
+
+  protected CloseableIterable<T> applyEqDeletes(CloseableIterable<T> records) {
     if (eqDeletes.isEmpty()) {
       return records;
     }
