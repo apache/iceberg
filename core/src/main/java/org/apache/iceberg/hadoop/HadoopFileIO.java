@@ -58,7 +58,8 @@ public class HadoopFileIO implements FileIO {
   @Override
   public void deleteFile(String path) {
     Path toDelete = new Path(path);
-    try (FileSystem fs = Util.getFs(toDelete, hadoopConf.get())) {
+    FileSystem fs = Util.getFs(toDelete, hadoopConf.get());
+    try {
       fs.delete(toDelete, false /* not recursive */);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to delete file: %s", path);
