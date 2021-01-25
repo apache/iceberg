@@ -155,7 +155,7 @@ public class CatalogUtil {
       ctor = DynConstructors.builder(Catalog.class).impl(impl).buildChecked();
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(String.format(
-          "Cannot initialize Catalog, missing no-arg constructor: %s", impl), e);
+          "Cannot initialize Catalog implementation %s: %s", impl, e.getMessage()), e);
     }
 
     Catalog catalog;
