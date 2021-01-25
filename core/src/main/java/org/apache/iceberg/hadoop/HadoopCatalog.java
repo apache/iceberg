@@ -173,8 +173,9 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   private boolean shouldSuppressPermissionError(IOException ioException) {
     if (suppressPermissionError) {
-      return ioException instanceof AccessDeniedException
-              || (ioException.getMessage() != null && ioException.getMessage().contains("AuthorizationPermissionMismatch"));
+      return ioException instanceof AccessDeniedException ||
+              (ioException.getMessage() != null &&
+                      ioException.getMessage().contains("AuthorizationPermissionMismatch"));
     }
     return false;
   }
@@ -226,13 +227,13 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
       }
       RemoteIterator<FileStatus> it = fs.listStatusIterator(nsPath);
       while (it.hasNext()) {
-        FileStatus s = it.next();
-        if (!s.isDirectory()) {
+        FileStatus status = it.next();
+        if (!status.isDirectory()) {
           // Ignore the path which is not a directory.
           continue;
         }
 
-        Path path = s.getPath();
+        Path path = status.getPath();
         if (isTableDir(path)) {
           TableIdentifier tblIdent = TableIdentifier.of(namespace, path.getName());
           tblIdents.add(tblIdent);
