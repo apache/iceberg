@@ -79,10 +79,7 @@ public class TestCatalogs {
   public void testLoadTableFromCatalog() throws IOException {
     String defaultCatalogName = "default";
     String warehouseLocation = temp.newFolder("hadoop", "warehouse").toString();
-    conf.set(String.format(InputFormatConfig.CATALOG_WAREHOUSE_TEMPLATE, defaultCatalogName), warehouseLocation);
-    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, defaultCatalogName), Catalogs.CUSTOM);
-    conf.set(String.format(InputFormatConfig.CATALOG_CLASS_TEMPLATE, defaultCatalogName),
-            CustomHadoopCatalog.class.getName());
+    setCustomCatalogProperties(defaultCatalogName, warehouseLocation);
 
     AssertHelpers.assertThrows(
             "Should complain about table identifier not set", IllegalArgumentException.class,
@@ -145,10 +142,7 @@ public class TestCatalogs {
     String defaultCatalogName = "default";
     String warehouseLocation = temp.newFolder("hadoop", "warehouse").toString();
 
-    conf.set(String.format(InputFormatConfig.CATALOG_WAREHOUSE_TEMPLATE, defaultCatalogName), warehouseLocation);
-    conf.set(String.format(InputFormatConfig.CATALOG_CLASS_TEMPLATE, defaultCatalogName),
-            CustomHadoopCatalog.class.getName());
-    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, defaultCatalogName), Catalogs.CUSTOM);
+    setCustomCatalogProperties(defaultCatalogName, warehouseLocation);
 
     Properties missingSchema = new Properties();
     missingSchema.put("name", identifier.toString());
@@ -297,5 +291,11 @@ public class TestCatalogs {
     public Catalog load(Configuration conf) {
       return new CustomHadoopCatalog(conf);
     }
+  }
+
+  private void setCustomCatalogProperties(String catalogName, String warehouseLocation) {
+    conf.set(String.format(InputFormatConfig.CATALOG_WAREHOUSE_TEMPLATE, catalogName), warehouseLocation);
+    conf.set(String.format(InputFormatConfig.CATALOG_CLASS_TEMPLATE, catalogName), CustomHadoopCatalog.class.getName());
+    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName), Catalogs.CUSTOM);
   }
 }

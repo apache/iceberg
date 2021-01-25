@@ -198,36 +198,14 @@ public final class Catalogs {
    */
   public static boolean hiveCatalog(Configuration conf, Properties props) {
     String catalogName = props.getProperty(InputFormatConfig.TABLE_CATALOG);
-    if (catalogName != null) {
-      return HIVE.equalsIgnoreCase(conf.get(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName)));
-    } else {
-      if (HIVE.equalsIgnoreCase(conf.get(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, DEFAULT_CATALOG)))) {
-        return true;
-      } else {
-        return HIVE.equalsIgnoreCase(conf.get(InputFormatConfig.CATALOG));
-      }
-    }
+    return HIVE.equalsIgnoreCase(getCatalogType(conf, catalogName));
   }
 
   @VisibleForTesting
   static Optional<Catalog> loadCatalog(Configuration conf, String catalogName) {
-    String catalogType;
     String name = catalogName == null ? DEFAULT_CATALOG : catalogName;
-    catalogType = conf.get(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, name));
-
-    // keep both catalog configuration methods for seamless transition
-    if (catalogType != null) {
-      // new logic
-      LOG.debug("Using catalog configuration from table properties.");
-      return loadCatalog(conf, name, catalogType);
-    } else {
-      // old logic
-      // use catalog {@link InputFormatConfig.CATALOG} stored in global hive config if table specific catalog
-      // configuration or default catalog definition is missing
-      LOG.debug("Using catalog configuration from global configuration.");
-      catalogType = conf.get(InputFormatConfig.CATALOG);
-      return loadCatalog(conf, name, catalogType);
-    }
+    String catalogType = getCatalogType(conf, name);
+    return loadCatalog(conf, name, catalogType);
   }
 
   private static Optional<Catalog> loadCatalog(Configuration conf, String catalogName, String catalogType) {
@@ -241,8 +219,7 @@ public final class Catalogs {
     switch (catalogType.toLowerCase()) {
       case HADOOP:
         if (properties.containsKey(CatalogProperties.WAREHOUSE_LOCATION)) {
-          catalog = CatalogUtil.loadCatalog(HadoopCatalog.class.getName(), catalogName,
-                  getCatalogProperties(conf, catalogName), conf);
+          catalog = CatalogUtil.loadCatalog(HadoopCatalog.class.getName(), catalogName, properties, conf);
         } else {
           String warehouseLocation = conf.get(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION);
           catalog = (warehouseLocation != null) ? new HadoopCatalog(conf, warehouseLocation) : new HadoopCatalog(conf);
@@ -286,5 +263,18 @@ public final class Catalogs {
       }
     });
     return properties;
+  }
+
+  private static String getCatalogType(Configuration conf, String catalogName) {
+    String name = catalogName == null ? DEFAULT_CATALOG : catalogName;
+    String catalogType = conf.get(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, name));
+    // keep both catalog configuration methods for seamless transition
+    if (catalogType != null) {
+      LOG.debug("Using catalog configuration from table properties.");
+      return catalogType;
+    } else {
+      LOG.debug("Using catalog configuration from global configuration.");
+      return conf.get(InputFormatConfig.CATALOG);
+    }
   }
 }
