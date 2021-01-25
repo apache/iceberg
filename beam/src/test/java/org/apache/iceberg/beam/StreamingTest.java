@@ -84,7 +84,7 @@ public class StreamingTest extends BaseTest {
         .withTableIdentifier(name)
         .withHiveMetastoreUrl(hiveMetastoreUrl)
         .conf(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name())
-        .build(records);
+        .build(windowed);
 
     pipeline.run(options).waitUntilFinish();
   }
