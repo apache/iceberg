@@ -78,7 +78,7 @@ public class ContinuousIcebergEnumerator extends AbstractIcebergEnumerator {
 
   @Override
   public IcebergEnumeratorState snapshotState() throws Exception {
-    return new IcebergEnumeratorState(lastEnumeratedSnapshotId, assigner.snapshotState());
+    return new IcebergEnumeratorState(lastEnumeratedSnapshotId, assigner.state());
   }
 
   private SplitPlanningResult discoverSplits() {

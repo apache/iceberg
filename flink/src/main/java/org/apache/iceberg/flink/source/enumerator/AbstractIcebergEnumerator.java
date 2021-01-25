@@ -98,7 +98,7 @@ abstract class AbstractIcebergEnumerator implements
       final IcebergSourceEvents.SplitRequestEvent splitRequestEvent =
           (IcebergSourceEvents.SplitRequestEvent) sourceEvent;
       LOG.error("Received request split event from subtask {}", subtaskId);
-      assigner.onCompletedSplits(splitRequestEvent.finishedSplitIds(), subtaskId);
+      assigner.onCompletedSplits(splitRequestEvent.finishedSplitIds());
       readersAwaitingSplit.put(subtaskId, splitRequestEvent.requesterHostname());
       assignSplits();
     } else {
@@ -110,7 +110,7 @@ abstract class AbstractIcebergEnumerator implements
   public void addSplitsBack(List<IcebergSourceSplit> splits, int subtaskId) {
     LOG.info("Add {} splits back to the pool for failed subtask {}: {}",
         splits.size(), subtaskId, splits);
-    assigner.onUnassignedSplits(splits, subtaskId);
+    assigner.onUnassignedSplits(splits);
     assignSplits();
   }
 

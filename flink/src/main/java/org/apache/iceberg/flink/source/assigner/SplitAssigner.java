@@ -62,20 +62,20 @@ public interface SplitAssigner extends AutoCloseable {
   /**
    *   Forward addSplitsBack event (for failed reader) to assigner
    */
-  void onUnassignedSplits(Collection<IcebergSourceSplit> splits, int subtaskId);
+  void onUnassignedSplits(Collection<IcebergSourceSplit> splits);
 
   /**
    * Some assigner (like event time alignment) may rack in-progress splits
    * to advance watermark upon completed splits
    */
-  default void onCompletedSplits(Collection<String> completedSplitIds, int subtaskId) {
+  default void onCompletedSplits(Collection<String> completedSplitIds) {
   }
 
   /**
    * Get assigner state for checkpointing.
    * This is a super-set API that works for all currently imagined assigners.
    */
-  Map<IcebergSourceSplit, IcebergSourceSplitStatus> snapshotState();
+  Map<IcebergSourceSplit, IcebergSourceSplitStatus> state();
 
   /**
    * Enumerator can get a notification via CompletableFuture

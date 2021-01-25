@@ -46,6 +46,6 @@ public class StaticIcebergEnumerator extends AbstractIcebergEnumerator {
 
   @Override
   public IcebergEnumeratorState snapshotState() {
-    return new IcebergEnumeratorState(Optional.empty(), assigner.snapshotState());
+    return new IcebergEnumeratorState(Optional.empty(), assigner.state());
   }
 }

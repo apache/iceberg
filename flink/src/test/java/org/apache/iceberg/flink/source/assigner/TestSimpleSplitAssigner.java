@@ -46,7 +46,7 @@ public class TestSimpleSplitAssigner {
 
     assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
     assertSnapshot(assigner, 1);
-    assigner.onUnassignedSplits(SplitHelpers.createMockedSplits(1), 0);
+    assigner.onUnassignedSplits(SplitHelpers.createMockedSplits(1));
     assertSnapshot(assigner, 2);
 
     assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
@@ -64,7 +64,7 @@ public class TestSimpleSplitAssigner {
     assertGetNext(assigner, GetSplitResult.Status.UNAVAILABLE);
 
     assertAvailableFuture(assigner, 1, () -> assigner.onDiscoveredSplits(SplitHelpers.createMockedSplits(1)));
-    assertAvailableFuture(assigner, 1, () -> assigner.onUnassignedSplits(SplitHelpers.createMockedSplits(1), 0));
+    assertAvailableFuture(assigner, 1, () -> assigner.onUnassignedSplits(SplitHelpers.createMockedSplits(1)));
 
     assigner.onDiscoveredSplits(SplitHelpers.createMockedSplits(2));
     assertSnapshot(assigner, 2);
@@ -112,7 +112,7 @@ public class TestSimpleSplitAssigner {
   }
 
   private void assertSnapshot(SimpleSplitAssigner assigner, int splitCount) {
-    final Map<IcebergSourceSplit, IcebergSourceSplitStatus> stateBeforeGet = assigner.snapshotState();
+    final Map<IcebergSourceSplit, IcebergSourceSplitStatus> stateBeforeGet = assigner.state();
     Assert.assertEquals(splitCount, stateBeforeGet.size());
   }
 }

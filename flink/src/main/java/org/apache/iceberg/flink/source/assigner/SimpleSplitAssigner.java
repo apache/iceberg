@@ -69,7 +69,7 @@ public class SimpleSplitAssigner implements SplitAssigner {
   }
 
   @Override
-  public void onUnassignedSplits(Collection<IcebergSourceSplit> splits, int subtaskId) {
+  public void onUnassignedSplits(Collection<IcebergSourceSplit> splits) {
     pendingSplits.addAll(splits);
     completeAvailableFuturesIfNeeded();
   }
@@ -78,7 +78,7 @@ public class SimpleSplitAssigner implements SplitAssigner {
    * Simple assigner only tracks unassigned splits
    */
   @Override
-  public Map<IcebergSourceSplit, IcebergSourceSplitStatus> snapshotState() {
+  public Map<IcebergSourceSplit, IcebergSourceSplitStatus> state() {
     return pendingSplits.stream()
         .collect(Collectors.toMap(
             split -> split,
