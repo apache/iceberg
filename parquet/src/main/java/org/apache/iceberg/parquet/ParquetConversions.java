@@ -30,12 +30,12 @@ import org.apache.iceberg.types.Type;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.PrimitiveType;
 
-class ParquetConversions {
+public class ParquetConversions {
   private ParquetConversions() {
   }
 
   @SuppressWarnings("unchecked")
-  static <T> Literal<T> fromParquetPrimitive(Type type, PrimitiveType parquetType, Object value) {
+  public static <T> Literal<T> fromParquetPrimitive(Type type, PrimitiveType parquetType, Object value) {
     switch (type.typeId()) {
       case BOOLEAN:
         return (Literal<T>) Literal.of((Boolean) value);
@@ -68,7 +68,7 @@ class ParquetConversions {
     }
   }
 
-  static Function<Object, Object> converterFromParquet(PrimitiveType type) {
+  public static Function<Object, Object> converterFromParquet(PrimitiveType type) {
     if (type.getOriginalType() != null) {
       switch (type.getOriginalType()) {
         case UTF8:
