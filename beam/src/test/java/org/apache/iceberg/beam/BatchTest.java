@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.beam;
 
-import java.util.HashMap;
-import java.util.Map;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.AvroCoder;
@@ -57,9 +55,6 @@ public class BatchTest extends BaseTest {
 
     p.getCoderRegistry().registerCoderForClass(GenericRecord.class, AvroCoder.of(avroSchema));
 
-    Map<String, String> properties = new HashMap<>();
-    properties.put(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name());
-
     PCollection<String> lines = p.apply(Create.of(SENTENCES)).setCoder(StringUtf8Coder.of());
 
     PCollection<GenericRecord> records = lines.apply(ParDo.of(new StringToGenericRecord(stringSchema)));
@@ -67,7 +62,12 @@ public class BatchTest extends BaseTest {
     org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
     TableIdentifier name = TableIdentifier.of("default", "test_batch_" + fileFormat.name());
 
-    IcebergIO.write(name, icebergSchema, hiveMetastoreUrl, records, properties);
+    new IcebergIO.Builder()
+        .withSchema(icebergSchema)
+        .withTableIdentifier(name)
+        .withHiveMetastoreUrl(hiveMetastoreUrl)
+        .conf(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name())
+        .build(records);
 
     p.run();
   }

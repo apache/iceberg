@@ -80,11 +80,15 @@ public class FileWriter extends DoFn<GenericRecord, DataFile> {
 
   @StartBundle
   public void startBundle(StartBundleContext sbc) {
+    Configuration conf = new Configuration();
+    for (String key : this.properties.keySet()) {
+      conf.set(key, this.properties.get(key));
+    }
     catalog = new HiveCatalog(
         HiveCatalog.DEFAULT_NAME,
         this.hiveMetastoreUrl,
         1,
-        new Configuration()
+        conf
     );
     Table table = HiveCatalogHelper.loadOrCreateTable(
         catalog,

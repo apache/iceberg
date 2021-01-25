@@ -26,6 +26,7 @@ import org.apache.beam.sdk.coders.SerializableCoder;
 import org.apache.beam.sdk.transforms.Combine;
 import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.values.PCollection;
+import org.apache.beam.vendor.guava.v26_0_jre.com.google.common.collect.Maps;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -36,11 +37,50 @@ public class IcebergIO {
   private IcebergIO() {
   }
 
-  public static PCollection<Snapshot> write(
+  public static final class Builder {
+    private TableIdentifier tableIdentifier;
+    private Schema schema;
+    private String hiveMetaStoreUrl;
+
+    private final Map<String, String> properties = Maps.newHashMap();
+
+    public Builder withTableIdentifier(TableIdentifier newTableIdentifier) {
+      this.tableIdentifier = newTableIdentifier;
+      return this;
+    }
+
+    public Builder withSchema(Schema newSchema) {
+      this.schema = newSchema;
+      return this;
+    }
+
+    public Builder withHiveMetastoreUrl(String newHiveMetaStoreUrl) {
+      assert hiveMetaStoreUrl.startsWith("thrift://");
+      this.hiveMetaStoreUrl = newHiveMetaStoreUrl;
+      return this;
+    }
+
+    public Builder conf(String key, String value) {
+      this.properties.put(key, value);
+      return this;
+    }
+
+    public PCollection<Snapshot> build(PCollection<GenericRecord> avroRecords) {
+      return IcebergIO.write(
+          avroRecords,
+          this.tableIdentifier,
+          this.schema,
+          this.hiveMetaStoreUrl,
+          this.properties
+      );
+    }
+  }
+
+  private static PCollection<Snapshot> write(
+      PCollection<GenericRecord> avroRecords,
       TableIdentifier table,
       Schema schema,
       String hiveMetastoreUrl,
-      PCollection<GenericRecord> avroRecords,
       Map<String, String> properties
   ) {
     // We take the filenames that are emitted by the FileIO
@@ -50,7 +90,7 @@ public class IcebergIO {
 
     // We use a combiner, to combine all the files to a single commit in
     // the Iceberg log
-    final IcebergDataFileCommitter combiner = new IcebergDataFileCommitter(table, schema, hiveMetastoreUrl);
+    final IcebergDataFileCommitter combiner = new IcebergDataFileCommitter(table, hiveMetastoreUrl, properties);
     final Combine.Globally<DataFile, Snapshot> combined = Combine.globally(combiner).withoutDefaults();
 
     // We return the latest snapshot, which can be used to notify downstream consumers.

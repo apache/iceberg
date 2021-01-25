@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.beam;
 
-import java.util.HashMap;
-import java.util.Map;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.coders.AvroCoder;
 import org.apache.beam.sdk.coders.StringUtf8Coder;
@@ -81,10 +79,12 @@ public class StreamingTest extends BaseTest {
 
     PCollection<GenericRecord> windowed = records.apply(Window.into(FixedWindows.of(WINDOW_DURATION)));
 
-    Map<String, String> properties = new HashMap<>();
-    properties.put(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name());
-
-    IcebergIO.write(name, icebergSchema, hiveMetastoreUrl, windowed, properties);
+    new IcebergIO.Builder()
+        .withSchema(icebergSchema)
+        .withTableIdentifier(name)
+        .withHiveMetastoreUrl(hiveMetastoreUrl)
+        .conf(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name())
+        .build(records);
 
     pipeline.run(options).waitUntilFinish();
   }

@@ -22,11 +22,11 @@ package org.apache.iceberg.beam;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import org.apache.beam.sdk.transforms.Combine;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -34,13 +34,13 @@ import org.apache.iceberg.hive.HiveCatalog;
 
 class IcebergDataFileCommitter extends Combine.CombineFn<DataFile, List<DataFile>, Snapshot> {
   private final TableIdentifier tableIdentifier;
-  private final Schema schema;
   private final String hiveMetastoreUrl;
+  private final Map<String, String> properties;
 
-  IcebergDataFileCommitter(TableIdentifier table, Schema schema, String hiveMetastoreUrl) {
+  IcebergDataFileCommitter(TableIdentifier table, String hiveMetastoreUrl, Map<String, String> properties) {
     this.tableIdentifier = table;
-    this.schema = schema;
     this.hiveMetastoreUrl = hiveMetastoreUrl;
+    this.properties = properties;
   }
 
   @Override
@@ -70,11 +70,15 @@ class IcebergDataFileCommitter extends Combine.CombineFn<DataFile, List<DataFile
 
   @Override
   public Snapshot extractOutput(List<DataFile> datafiles) {
+    Configuration conf = new Configuration();
+    for (String key : this.properties.keySet()) {
+      conf.set(key, this.properties.get(key));
+    }
     try (HiveCatalog catalog = new HiveCatalog(
         HiveCatalog.DEFAULT_NAME,
         this.hiveMetastoreUrl,
         1,
-        new Configuration()
+        conf
     )) {
       Table table = catalog.loadTable(tableIdentifier);
       if (!datafiles.isEmpty()) {
