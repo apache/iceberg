@@ -34,7 +34,8 @@ we only integrate iceberg with apache flink 1.11.x .
 | [DataStream read](#reading-with-datastream)                            | ✔️ ️               |                                                        |
 | [DataStream append](#appending-data)                                   | ✔️ ️               |                                                        |
 | [DataStream overwrite](#overwrite-data)                                | ✔️ ️               |                                                        |
-| [Metadata tables](#inspecting-tables)                                  |    ️               |                                                        |
+| [Metadata tables](#inspecting-tables)                                  |    ️               | Support Java API but does not support Flink SQL        |
+| [Rewrite files action](#rewrite-files-action)                          | ✔️ ️               |                                                        |
 
 ## Preparation
 
@@ -344,7 +345,7 @@ stream.print();
 env.execute("Test Iceberg Batch Read");
 ```
 
-There are other options that we could set by Java API, please see the [FlinkSource#Builder](https://github.com/apache/iceberg/blob/master/flink/src/main/java/org/apache/iceberg/flink/source/FlinkSource.java#L72).
+There are other options that we could set by Java API, please see the [FlinkSource#Builder](./javadoc/master/org/apache/iceberg/flink/source/FlinkSource.html).
 
 ## Writing with DataStream
 
@@ -395,6 +396,22 @@ env.execute("Test Iceberg DataStream");
 ## Inspecting tables.
 
 Iceberg does not support inspecting table in flink sql now, we need to use [iceberg's Java API](./api.md) to read iceberg's meta data to get those table information.
+
+## Rewrite files action.
+
+Iceberg provides API to rewrite small files into large files by submitting flink batch job.
+
+```java
+import org.apache.iceberg.flink.actions.Actions;
+
+TableLoader tableLoader = TableLoader.fromHadooptable("hdfs://nn:8020/warehouse/path");
+Table table = tableLoader.loadTable();
+RewriteDataFilesActionResult result = Actions.forTable(table)
+        .rewriteDataFiles()
+        .execute();
+```
+
+For more doc about options of the rewrite files action, please see [RewriteDataFilesAction](./javadoc/master/org/apache/iceberg/flink/actions/RewriteDataFilesAction.html)
 
 ## Future improvement.
 
