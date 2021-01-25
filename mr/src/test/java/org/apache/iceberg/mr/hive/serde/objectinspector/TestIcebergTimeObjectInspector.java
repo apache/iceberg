@@ -48,12 +48,13 @@ public class TestIcebergTimeObjectInspector {
     Assert.assertNull(oi.getPrimitiveWritableObject(null));
     Assert.assertNull(oi.convert(null));
 
-    String time = LocalTime.now().toString();
+    LocalTime localTime = LocalTime.now();
+    String time = localTime.toString();
     Text text = new Text(time);
 
     Assert.assertEquals(time, oi.getPrimitiveJavaObject(text));
     Assert.assertEquals(text, oi.getPrimitiveWritableObject(time));
-    Assert.assertEquals(time, oi.convert(text));
+    Assert.assertEquals(localTime, oi.convert(time));
 
     Text copy = (Text) oi.copyObject(text);
 
