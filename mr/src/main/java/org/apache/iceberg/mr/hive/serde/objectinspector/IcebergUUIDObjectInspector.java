@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
+import java.util.UUID;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
@@ -49,8 +50,8 @@ public class IcebergUUIDObjectInspector extends AbstractPrimitiveJavaObjectInspe
   }
 
   @Override
-  public String convert(Object o) {
-    return o == null ? null : o.toString();
+  public UUID convert(Object o) {
+    return o == null ? null : UUID.fromString(o.toString());
   }
 
   @Override
