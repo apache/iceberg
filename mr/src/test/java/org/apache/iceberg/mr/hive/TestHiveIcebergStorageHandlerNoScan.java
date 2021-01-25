@@ -476,8 +476,8 @@ public class TestHiveIcebergStorageHandlerNoScan {
     for (int i = 0; i < icebergTable.schema().columns().size(); i++) {
       Types.NestedField field = icebergTable.schema().columns().get(i);
       Assert.assertNull(field.doc());
-      Assert.assertArrayEquals(new Object[]{field.name(), HiveSchemaUtil.convert(field.type()).getTypeName(),
-              "from deserializer"}, rows.get(i));
+      Assert.assertArrayEquals(new Object[] {field.name(), HiveSchemaUtil.convert(field.type()).getTypeName(),
+          "from deserializer"}, rows.get(i));
     }
   }
 
