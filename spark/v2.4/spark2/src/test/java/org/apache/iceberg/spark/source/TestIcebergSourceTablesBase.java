@@ -1337,7 +1337,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Dataset<Row> resultDf3 = spark.read()
         .format("iceberg")
         .option("snapshot-id", snapshot1.snapshotId())
-        .schema("id INT, data STRING")
         .load(loadLocation(tableIdentifier));
     List<Row> actualRecords3 = resultDf3.orderBy("id")
         .collectAsList();
