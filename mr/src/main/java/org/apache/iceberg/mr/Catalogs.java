@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 <<<<<<< HEAD
 =======
@@ -46,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -232,8 +234,8 @@ public final class Catalogs {
         LOG.info("Loaded Hive Metastore catalog {}", catalog);
         return Optional.of(catalog);
       case CUSTOM:
-        if (properties.containsKey(CatalogProperties.CLASS)) {
-          String catalogLoaderClass = properties.get(CatalogProperties.CLASS);
+        if (properties.containsKey(CatalogProperties.CATALOG_IMPL)) {
+          String catalogLoaderClass = properties.get(CatalogProperties.CATALOG_IMPL);
           catalog = CatalogUtil.loadCatalog(catalogLoaderClass, catalogName, properties, conf);
           LOG.info("Loaded catalog {} using {}", catalog, catalogLoaderClass);
           return Optional.of(catalog);
@@ -255,14 +257,9 @@ public final class Catalogs {
   }
 
   private static Map<String, String> getCatalogProperties(Configuration conf, String catalogName) {
-    Map<String, String> properties = new HashMap<>();
-    conf.iterator().forEachRemaining(e -> {
-      String keyPrefix = InputFormatConfig.CATALOG_CONFIG_PREFIX + catalogName;
-      if (e.getKey().startsWith(keyPrefix)) {
-        properties.put(e.getKey().substring(keyPrefix.length() + 1), e.getValue());
-      }
-    });
-    return properties;
+    String keyPrefix = InputFormatConfig.CATALOG_CONFIG_PREFIX + catalogName;
+    return Streams.stream(conf.iterator()).filter(e -> e.getKey().startsWith(keyPrefix))
+            .collect(Collectors.toMap(e -> e.getKey().substring(keyPrefix.length() + 1), Map.Entry::getValue));
   }
 
   private static String getCatalogType(Configuration conf, String catalogName) {

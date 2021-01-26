@@ -76,7 +76,7 @@ public class InputFormatConfig {
   public static final String CATALOG_CONFIG_PREFIX = "iceberg.catalog.";
   public static final String CATALOG_TYPE_TEMPLATE = CATALOG_CONFIG_PREFIX + "%s.type";
   public static final String CATALOG_WAREHOUSE_TEMPLATE = CATALOG_CONFIG_PREFIX + "%s.warehouse";
-  public static final String CATALOG_CLASS_TEMPLATE = CATALOG_CONFIG_PREFIX + "%s.class";
+  public static final String CATALOG_CLASS_TEMPLATE = CATALOG_CONFIG_PREFIX + "%s.catalog-impl";
 
   public enum InMemoryDataModel {
     PIG,
