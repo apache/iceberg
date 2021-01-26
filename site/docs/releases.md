@@ -67,7 +67,7 @@ High-level features:
     * DELETE FROM (experimental)
     * ALTER TABLE ... ADD/DROP PARTITION
     * ALTER TABLE ... WRITE ORDERED BY
-    * invoke stored procedures using CALL
+    * Invoke stored procedures using CALL
 * **Flink** now supports streaming reads, CDC writes (experimental), and filter pushdown
 * **AWS module** is added to support better integration with AWS, with [AWS Glue catalog](https://aws.amazon.com/glue/) support and dedicated S3 FileIO implementation
 * **Nessie module** is added to support integration with [project Nessie](https://projectnessie.org/)
@@ -76,24 +76,19 @@ Important bug fixes:
 
 * [\#2091](https://github.com/apache/iceberg/pull/2091) fixes Parquet vectorized reads when column types are promoted
 * [\#1991](https://github.com/apache/iceberg/pull/1991) fixes Avro schema conversions to preserve field docs
-* [\#1981](https://github.com/apache/iceberg/pull/1981) fixes date and timestamp transforms
-* [\#1962](https://github.com/apache/iceberg/pull/1962) fixes Parquet vectorized position reader
-* [\#1811](https://github.com/apache/iceberg/pull/1811) makes refreshing Spark cache optional
+* [\#1981](https://github.com/apache/iceberg/pull/1981) fixes bug that date and timestamp transforms were producing incorrect values for negative dates and times
 * [\#1798](https://github.com/apache/iceberg/pull/1798) fixes read failure when encountering duplicate entries of data files
 * [\#1785](https://github.com/apache/iceberg/pull/1785) fixes invalidation of metadata tables in CachingCatalog
-* [\#1784](https://github.com/apache/iceberg/pull/1784) fixes resolving of SparkSession table's metadata tables
 
 Other notable changes:
 
-* NaN counter is added to format v2 metrics
+* NaN counts are now supported in metadata
 * Shared catalog properties are added in core library to standardize catalog level configurations
-* Spark and Flink now supports dynamically loading customized `Catalog` and `FileIO` implementations
-* Spark now supports loading tables with file paths via HadoopTables
+* Spark and Flink now support dynamically loading customized `Catalog` and `FileIO` implementations
 * Spark 2 now supports loading tables from other catalogs, like Spark 3
 * Spark 3 now supports catalog names in DataFrameReader when using Iceberg as a format
-* Hive now supports INSERT INTO, case insensitive query, projection pushdown, create DDL with schema and auto type conversion
+* Hive (experimental) now supports INSERT INTO, case insensitive query, projection pushdown, create DDL with schema and auto type conversion
 * ORC now supports reading tinyint, smallint, char, varchar types
-* Hadoop catalog now supports role-based access of table listing
 
 ## Past releases
 
@@ -105,6 +100,7 @@ Other notable changes:
 * [0.10.0 Spark 2.4 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime/0.10.0/iceberg-spark-runtime-0.10.0.jar)
 * [0.10.0 Flink runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime/0.10.0/iceberg-flink-runtime-0.10.0.jar)
 * [0.10.0 Hive runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime/0.10.0/iceberg-hive-runtime-0.10.0.jar)
+* A more exhaustive list of changes is available under the [0.10.0 release milestone](https://github.com/apache/iceberg/milestone/10?closed=1).
 
 ### 0.9.1
 
