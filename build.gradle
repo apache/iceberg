@@ -514,6 +514,9 @@ project(':iceberg-mr') {
     compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
 
+    compileOnly "org.apache.calcite:calcite-core"
+    compileOnly "org.apache.calcite:calcite-druid"
+
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
