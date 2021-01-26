@@ -38,7 +38,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -84,6 +86,7 @@ class S3OutputStream extends PositionOutputStream {
 
   private long pos = 0;
   private boolean closed = false;
+  private AtomicReference<Throwable> asyncError = new AtomicReference<>();
 
   @SuppressWarnings("StaticAssignmentInConstructor")
   S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties) throws IOException {
@@ -126,6 +129,8 @@ class S3OutputStream extends PositionOutputStream {
 
   @Override
   public void write(int b) throws IOException {
+    checkAsyncError();
+
     if (stream.getCount() >= multiPartSize) {
       newStream();
       uploadParts();
@@ -143,6 +148,8 @@ class S3OutputStream extends PositionOutputStream {
 
   @Override
   public void write(byte[] b, int off, int len) throws IOException {
+    checkAsyncError();
+
     int remaining = len;
     int relativeOffset = off;
 
@@ -167,6 +174,17 @@ class S3OutputStream extends PositionOutputStream {
     if (multipartUploadId == null && pos >= multiPartThresholdSize) {
       initializeMultiPartUpload();
       uploadParts();
+    }
+  }
+
+  @Nullable
+  Throwable getAsyncError() {
+    return asyncError.get();
+  }
+
+  private void checkAsyncError() {
+    if (asyncError.get() != null) {
+      throw new IllegalStateException("Writes are blocked due to async error: " + location, asyncError.get());
     }
   }
 
@@ -246,6 +264,8 @@ class S3OutputStream extends PositionOutputStream {
             }
 
             if (thrown != null) {
+              // record the first async error
+              asyncError.compareAndSet(null, thrown);
               LOG.error("Failed to upload part: {}", uploadRequest, thrown);
               abortUpload();
             }
@@ -280,11 +300,12 @@ class S3OutputStream extends PositionOutputStream {
         .run(s3::completeMultipartUpload);
   }
 
-  private void abortUpload() {
+  private synchronized void abortUpload() {
     if (multipartUploadId != null) {
       try {
         s3.abortMultipartUpload(AbortMultipartUploadRequest.builder()
             .bucket(location.bucket()).key(location.key()).uploadId(multipartUploadId).build());
+        multipartUploadId = null;
       } finally {
         cleanUpStagingFiles();
       }
@@ -299,6 +320,7 @@ class S3OutputStream extends PositionOutputStream {
   }
 
   private void completeUploads() {
+    checkAsyncError();
     if (multipartUploadId == null) {
       long contentLength = stagingFiles.stream().mapToLong(File::length).sum();
       InputStream contentStream = new BufferedInputStream(stagingFiles.stream()

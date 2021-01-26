@@ -29,6 +29,7 @@ import java.util.UUID;
 import java.util.stream.Stream;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -131,6 +132,53 @@ public class S3OutputStreamTest {
     } catch (Exception e) {
       verify(s3mock).abortMultipartUpload((AbortMultipartUploadRequest) any());
     }
+  }
+
+  @Test(expected = IllegalStateException.class)
+  public void testFailWriteIntAfterAsyncError() throws Exception {
+    doThrow(new RuntimeException()).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
+    S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties);
+    stream.write(randomData(10 * 1024 * 1024));
+    final long startTs = System.currentTimeMillis();
+    while (stream.getAsyncError() == null && System.currentTimeMillis() - startTs <= 1000) {
+      Thread.sleep(1);
+    }
+    Assert.assertNotNull(stream.getAsyncError());
+    try {
+      stream.write(1);
+    } finally {
+      stream.close();
+    }
+  }
+
+  @Test(expected = IllegalStateException.class)
+  public void testFailWriteArrayAfterAsyncError() throws Exception {
+    doThrow(new RuntimeException()).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
+    S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties);
+    stream.write(randomData(10 * 1024 * 1024));
+    final long startTs = System.currentTimeMillis();
+    while (stream.getAsyncError() == null && System.currentTimeMillis() - startTs <= 1000) {
+      Thread.sleep(1);
+    }
+    Assert.assertNotNull(stream.getAsyncError());
+    try {
+      stream.write(new byte[16]);
+    } finally {
+      stream.close();
+    }
+  }
+
+  @Test(expected = IllegalStateException.class)
+  public void testFailCloseAfterAsyncError() throws Exception {
+    doThrow(new RuntimeException()).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
+    S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties);
+    stream.write(randomData(10 * 1024 * 1024));
+    final long startTs = System.currentTimeMillis();
+    while (stream.getAsyncError() == null && System.currentTimeMillis() - startTs <= 1000) {
+      Thread.sleep(1);
+    }
+    Assert.assertNotNull(stream.getAsyncError());
+    stream.close();
   }
 
   @Test
