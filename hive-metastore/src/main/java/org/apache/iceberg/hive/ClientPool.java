@@ -54,7 +54,7 @@ public abstract class ClientPool<C, E extends Exception> implements Closeable {
       return action.run(client);
 
     } catch (Exception exc) {
-      if (failureDetection(exc)) {
+      if (isConnectionException(exc)) {
         try {
           client = reconnect(client);
         } catch (Exception ignored) {
@@ -76,7 +76,7 @@ public abstract class ClientPool<C, E extends Exception> implements Closeable {
 
   protected abstract C reconnect(C client);
 
-  protected boolean failureDetection(Exception exc) {
+  protected boolean isConnectionException(Exception exc) {
     return reconnectExc.isInstance(exc);
   }
 

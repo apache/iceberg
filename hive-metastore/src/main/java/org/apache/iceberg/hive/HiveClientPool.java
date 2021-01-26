@@ -84,9 +84,9 @@ public class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> 
   }
 
   @Override
-  protected boolean failureDetection(Exception e) {
-    if (super.failureDetection(e) || (e != null && e instanceof MetaException &&
-            e.getMessage().contains("Got exception: org.apache.thrift.transport.TTransportException"))) {
+  protected boolean isConnectionException(Exception e) {
+    if (super.isConnectionException(e) || (e != null && e instanceof MetaException &&
+        e.getMessage().contains("Got exception: org.apache.thrift.transport.TTransportException"))) {
       return true;
     }
     return false;
