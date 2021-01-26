@@ -343,7 +343,6 @@ public class TestHiveIcebergStorageHandlerWithEngine {
         fileFormat, ImmutableList.of());
     testTables.createTable(shell, "orders", ORDER_SCHEMA, fileFormat, ORDER_RECORDS);
 
-    shell.setHiveSessionValue("hive.vectorized.execution.enabled", false);
     shell.executeStatement(
         "INSERT INTO customers (customer_id, last_name) SELECT distinct(customer_id), 'test' FROM orders");
 
