@@ -553,6 +553,40 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     HiveIcebergTestUtils.validateData(table, records, 0);
   }
 
+  @Test
+  public void testIdentityPartitionedWrite() throws IOException {
+    Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
+
+    PartitionSpec spec = PartitionSpec.builderFor(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA)
+        .identity("customer_id")
+        .build();
+
+    TableIdentifier identifier = TableIdentifier.of("default", "partitioned_customers");
+
+    shell.executeStatement("CREATE EXTERNAL TABLE " + identifier +
+        " STORED BY '" + HiveIcebergStorageHandler.class.getName() + "' " +
+        testTables.locationForCreateTableSQL(identifier) +
+        "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" +
+        SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA) + "', " +
+        "'" + InputFormatConfig.PARTITION_SPEC + "'='" +
+        PartitionSpecParser.toJson(spec) + "', " +
+        "'" + InputFormatConfig.WRITE_FILE_FORMAT + "'='" + fileFormat + "')");
+
+    List<Record> records = TestHelper.generateRandomRecords(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, 4, 0L);
+
+    StringBuilder query = new StringBuilder().append("INSERT INTO " + identifier + " VALUES ");
+    records.forEach(record -> query.append("(")
+        .append(record.get(0)).append(",'")
+        .append(record.get(1)).append("','")
+        .append(record.get(2)).append("'),"));
+    query.setLength(query.length() - 1);
+
+    shell.executeStatement(query.toString());
+
+    Table table = testTables.loadTable(identifier);
+    HiveIcebergTestUtils.validateData(table, records, 0);
+  }
+
   private void testComplexTypeWrite(Schema schema, List<Record> records) throws IOException {
     String tableName = "complex_table";
     Table table = testTables.createTable(shell, "complex_table", schema, fileFormat, ImmutableList.of());
