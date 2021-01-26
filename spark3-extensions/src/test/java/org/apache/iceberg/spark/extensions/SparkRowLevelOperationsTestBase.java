@@ -30,6 +30,8 @@ import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.Assert;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -110,8 +112,21 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   }
 
   protected void createAndInitTable(String schema) {
+    createAndInitTable(schema, null);
+  }
+
+  protected void createAndInitTable(String schema, String jsonData) {
     sql("CREATE TABLE %s (%s) USING iceberg", tableName, schema);
     initTable();
+
+    if (jsonData != null) {
+      try {
+        Dataset<Row> ds = toDS(schema, jsonData);
+        ds.writeTo(tableName).append();
+      } catch (NoSuchTableException e) {
+        throw new RuntimeException("Failed to write data", e);
+      }
+    }
   }
 
   protected void createOrReplaceView(String name, String jsonData) {
@@ -119,15 +134,20 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   }
 
   protected void createOrReplaceView(String name, String schema, String jsonData) {
+    Dataset<Row> ds = toDS(schema, jsonData);
+    ds.createOrReplaceTempView(name);
+  }
+
+  private Dataset<Row> toDS(String schema, String jsonData) {
     List<String> jsonRows = Arrays.stream(jsonData.split("\n"))
         .filter(str -> str.trim().length() > 0)
         .collect(Collectors.toList());
     Dataset<String> jsonDS = spark.createDataset(jsonRows, Encoders.STRING());
 
     if (schema != null) {
-      spark.read().schema(schema).json(jsonDS).createOrReplaceTempView(name);
+      return spark.read().schema(schema).json(jsonDS);
     } else {
-      spark.read().json(jsonDS).createOrReplaceTempView(name);
+      return spark.read().json(jsonDS);
     }
   }
 }
