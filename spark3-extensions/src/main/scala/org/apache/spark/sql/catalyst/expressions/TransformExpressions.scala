@@ -20,11 +20,14 @@
 package org.apache.spark.sql.catalyst.expressions
 
 import java.nio.ByteBuffer
+import java.nio.CharBuffer
+import java.nio.charset.StandardCharsets
 import org.apache.iceberg.spark.SparkSchemaUtil
 import org.apache.iceberg.transforms.Transform
 import org.apache.iceberg.transforms.Transforms
 import org.apache.iceberg.types.Type
 import org.apache.iceberg.types.Types
+import org.apache.iceberg.util.ByteBuffers
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.codegen.CodegenFallback
 import org.apache.spark.sql.types.AbstractDataType
@@ -125,20 +128,18 @@ case class IcebergTruncateTransform(child: Expression, width: Int) extends Icebe
 
   @transient lazy val truncateFunc: Any => Any = child.dataType match {
     case _: DecimalType =>
-      val t = Transforms.truncate[Any](icebergInputType, width)
-      d: Any =>  Decimal.apply(t(d.asInstanceOf[Decimal].toJavaBigDecimal).asInstanceOf[java.math.BigDecimal])
+      val t = Transforms.truncate[java.math.BigDecimal](icebergInputType, width)
+      d: Any => Decimal.apply(t(d.asInstanceOf[Decimal].toJavaBigDecimal))
     case _: StringType =>
-      val t = Transforms.truncate[String](Types.StringType.get(), width)
-      s: Any => UTF8String.fromString(t(s.toString))
-    case _: BinaryType =>
-      val t = Transforms.truncate[ByteBuffer](Types.BinaryType.get(), width)
+      val t = Transforms.truncate[CharSequence](icebergInputType, width)
       s: Any => {
-        val res: ByteBuffer = t(ByteBuffer.wrap(s.asInstanceOf[Array[Byte]]))
-        val returnValue: Array[Byte] = new Array[Byte](res.limit())
-        res.rewind();
-        res.get(returnValue);
-        returnValue
+        val charSequence = t(StandardCharsets.UTF_8.decode(ByteBuffer.wrap(s.asInstanceOf[UTF8String].getBytes)))
+        val bb = StandardCharsets.UTF_8.encode(CharBuffer.wrap(charSequence));
+        UTF8String.fromBytes(ByteBuffers.toByteArray(bb))
       }
+    case _: BinaryType =>
+      val t = Transforms.truncate[ByteBuffer](icebergInputType, width)
+      s: Any => ByteBuffers.toByteArray(t(ByteBuffer.wrap(s.asInstanceOf[Array[Byte]])))
     case _ =>
       val t = Transforms.truncate[Any](icebergInputType, width)
       a: Any => t(a)
