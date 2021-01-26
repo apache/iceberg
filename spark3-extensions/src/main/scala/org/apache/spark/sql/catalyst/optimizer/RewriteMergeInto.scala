@@ -59,7 +59,6 @@ import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.BooleanType
 
 case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper  {
-
   private val ROW_FROM_SOURCE = "_row_from_source_"
   private val ROW_FROM_TARGET = "_row_from_target_"
   private val TRUE_LITERAL = Literal(true, BooleanType)
