@@ -104,7 +104,7 @@ Other notable changes:
 High-level features:
 
 * **Format v2 support** for building row-level operations (`MERGE INTO`) in processing engines
-  * Note: format v2 is not yet finalized and does not have a forward-compatibility guarantee
+    * Note: format v2 is not yet finalized and does not have a forward-compatibility guarantee
 * **Flink integration** for writing to Iceberg tables and reading from Iceberg tables (reading supports batch mode only)
 * **Hive integration** for reading from Iceberg tables, with filter pushdown (experimental; configuration may change)
 
