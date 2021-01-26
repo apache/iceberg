@@ -20,6 +20,9 @@
 package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -310,6 +313,36 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     HiveIcebergTestUtils.validateData(table, new ArrayList<>(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS), 0);
   }
 
+  @Test
+  public void testInsertSupportedTypes() throws IOException {
+    Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
+    for (int i = 0; i < SUPPORTED_TYPES.size(); i++) {
+      Type type = SUPPORTED_TYPES.get(i);
+      // TODO: remove this filter when issue #1881 is resolved
+      if (type == Types.UUIDType.get() && fileFormat == FileFormat.PARQUET) {
+        continue;
+      }
+      // TODO: remove this filter when we figure out how we could test binary types
+      if (type.equals(Types.BinaryType.get()) || type.equals(Types.FixedType.ofLength(5))) {
+        continue;
+      }
+      String tableName = type.typeId().toString().toLowerCase() + "_table_" + i;
+      String columnName = type.typeId().toString().toLowerCase() + "_column";
+
+      Schema schema = new Schema(required(1, "id", Types.LongType.get()), required(2, columnName, type));
+      List<Record> expected = TestHelper.generateRandomRecords(schema, 5, 0L);
+
+      Table table = testTables.createTable(shell, tableName, schema, fileFormat, ImmutableList.of());
+      StringBuilder query = new StringBuilder("INSERT INTO ").append(tableName).append(" VALUES")
+              .append(expected.stream()
+                      .map(r -> String.format("(%s,%s)", r.get(0),
+                              getStringValueForInsert(r.get(1), type)))
+                      .collect(Collectors.joining(",")));
+      shell.executeStatement(query.toString());
+      HiveIcebergTestUtils.validateData(table, expected, 0);
+    }
+  }
+
   /**
    * Testing map only inserts.
    * @throws IOException If there is an underlying IOException
@@ -578,5 +611,19 @@ public class TestHiveIcebergStorageHandlerWithEngine {
       throw new RuntimeException("Unsupported type in complex query build.");
     }
     return query;
+  }
+
+  private String getStringValueForInsert(Object value, Type type) {
+    String template = "\'%s\'";
+    if (type.equals(Types.TimestampType.withoutZone())) {
+      return String.format(template, Timestamp.valueOf((LocalDateTime) value).toString());
+    } else if (type.equals(Types.TimestampType.withZone())) {
+      return String.format(template, Timestamp.from(((OffsetDateTime) value).toInstant()).toString());
+    } else if (type.equals(Types.BooleanType.get())) {
+      // in hive2 boolean type values must not be surrounded in apostrophes. Otherwise the value is translated to true.
+      return value.toString();
+    } else {
+      return String.format(template, value.toString());
+    }
   }
 }

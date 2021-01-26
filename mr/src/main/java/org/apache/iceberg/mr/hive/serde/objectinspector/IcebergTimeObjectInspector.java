@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
+import java.time.LocalTime;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
@@ -49,8 +50,8 @@ public class IcebergTimeObjectInspector extends AbstractPrimitiveJavaObjectInspe
   }
 
   @Override
-  public Object convert(Object o) {
-    return o == null ? null : o.toString();
+  public LocalTime convert(Object o) {
+    return o == null ? null : LocalTime.parse((String) o);
   }
 
   @Override
