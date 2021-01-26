@@ -54,6 +54,8 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
 import org.apache.spark.sql.execution.datasources.v2.PushDownUtils
 import org.apache.spark.sql.sources
+import org.apache.spark.sql.types.DataType
+import org.apache.spark.sql.types.IntegerType
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
@@ -171,7 +173,7 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
     // Group by the rows by row id while collecting the files that need to be over written via accumulator.
     val aggPlan = Aggregate(Seq(fileAttr, rowPosAttr), Seq(aggSumCol), projectPlan)
     val sumAttr = findOutputAttr(aggPlan.output, SUM_ROW_ID_ALIAS_NAME)
-    val havingExpr = GreaterThan(sumAttr, Literal(1L))
+    val havingExpr = GreaterThan(sumAttr, catalyst.expressions.Literal(1L))
     // Identifies ambiguous row in the target.
     Filter(havingExpr, aggPlan)
   }

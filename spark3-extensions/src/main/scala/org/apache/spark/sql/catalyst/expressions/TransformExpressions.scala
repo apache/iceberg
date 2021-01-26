@@ -28,6 +28,7 @@ import org.apache.iceberg.types.Types
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.codegen.CodegenFallback
 import org.apache.spark.sql.types.AbstractDataType
+import org.apache.spark.sql.types.BinaryType
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.sql.types.Decimal
 import org.apache.spark.sql.types.DecimalType
@@ -35,8 +36,6 @@ import org.apache.spark.sql.types.IntegerType
 import org.apache.spark.sql.types.StringType
 import org.apache.spark.sql.types.TimestampType
 import org.apache.spark.unsafe.types.UTF8String
-
-// TODO : Implement truncate expression.
 
 abstract class IcebergTransformExpression
   extends Expression with CodegenFallback with NullIntolerant {
@@ -118,4 +117,39 @@ case class IcebergBucketTransform(numBuckets: Int, child: Expression) extends Ic
   }
 
   override def dataType: DataType = IntegerType
+}
+
+case class IcebergTruncateTransform(child: Expression, width: Int) extends IcebergTransformExpression {
+
+  override def children: Seq[Expression] = child :: Nil
+
+  @transient lazy val truncateFunc: Any => Any = child.dataType match {
+    case _: DecimalType =>
+      val t = Transforms.truncate[Any](icebergInputType, width)
+      d: Any =>  Decimal.apply(t(d.asInstanceOf[Decimal].toJavaBigDecimal).asInstanceOf[java.math.BigDecimal])
+    case _: StringType =>
+      val t = Transforms.truncate[String](Types.StringType.get(), width)
+      s: Any => UTF8String.fromString(t(s.toString))
+    case _: BinaryType =>
+      val t = Transforms.truncate[ByteBuffer](Types.BinaryType.get(), width)
+      s: Any => {
+        val res: ByteBuffer = t(ByteBuffer.wrap(s.asInstanceOf[Array[Byte]]))
+        val returnValue: Array[Byte] = new Array[Byte](res.limit())
+        res.rewind();
+        res.get(returnValue);
+        returnValue
+      }
+    case _ =>
+      val t = Transforms.truncate[Any](icebergInputType, width)
+      a: Any => t(a)
+  }
+
+  override def eval(input: InternalRow): Any = child.eval(input) match {
+    case null =>
+      null
+    case value =>
+      truncateFunc(value)
+  }
+
+  override def dataType: DataType = child.dataType
 }

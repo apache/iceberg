@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark.extensions;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -30,9 +31,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.SparkException;
+import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.expressions.IcebergTruncateTransform;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -399,6 +402,55 @@ public class TestMergeIntoTable extends SparkRowLevelOperationsTestBase {
              ImmutableList.of(row(1, "emp-id-1"), row(2, "emp-id-2")),
              sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", targetName));
     });
+  }
+
+  @Test
+  public void testTruncateExpressionInMerge() {
+    writeModes.forEach(mode -> {
+      removeTables();
+      sql("CREATE TABLE %s (id INT, dep STRING) USING iceberg", targetName);
+      sql("ALTER TABLE %s ADD PARTITION FIELD truncate(id, 2)", targetName);
+      initTable(targetName);
+      setDistributionMode(targetName, mode);
+      createAndInitSourceTable(sourceName);
+      append(targetName, new Employee(101, "id-101"), new Employee(601, "id-601"));
+      append(sourceName, new Employee(201, "id-201"), new Employee(101, "id-101"), new Employee(601, "id-601"));
+      String sqlText = "MERGE INTO %s AS target \n" +
+              "USING %s AS source \n" +
+              "ON target.id = source.id \n" +
+              "WHEN MATCHED AND target.id = 101 THEN UPDATE SET * \n" +
+              "WHEN MATCHED AND target.id = 601 THEN DELETE \n" +
+              "WHEN NOT MATCHED AND source.id = 201 THEN INSERT * ";
+
+      sql(sqlText, targetName, sourceName);
+      assertEquals("Should have expected rows",
+             ImmutableList.of(row(101, "id-101"), row(201, "id-201")),
+             sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", targetName));
+    });
+  }
+
+  @Test
+  public void testTruncateExpressions() {
+    removeTables();
+    sql("DROP VIEW IF EXISTS EMP");
+    String viewText = "CREATE TEMPORARY VIEW EMP AS SELECT * FROM VALUES " +
+        "(101, 10001, 10.65, '101-Employee', CAST('1234' AS BINARY)) " +
+        "AS EMP(int_c, long_c, dec_c, str_c, binary_c)";
+    sql(viewText);
+    sql("CREATE TABLE %s (int_c INT, long_c LONG, dec_c DECIMAL(4, 2), str_c STRING," +
+        " binary_c BINARY) USING iceberg", targetName);
+    sql("INSERT INTO %s SELECT * FROM EMP", targetName);
+    Dataset df = spark.sql("SELECT * FROM " + targetName);
+    df.select(new Column(new IcebergTruncateTransform(df.col("int_c").expr(), 2)).as("int_c"),
+      new Column(new IcebergTruncateTransform(df.col("long_c").expr(), 2)).as("long_c"),
+      new Column(new IcebergTruncateTransform(df.col("dec_c").expr(), 50)).as("dec_c"),
+      new Column(new IcebergTruncateTransform(df.col("str_c").expr(), 2)).as("str_c"),
+      new Column(new IcebergTruncateTransform(df.col("binary_c").expr(), 2)).as("binary_c")
+    ).createOrReplaceTempView("v1");
+    spark.sql("SELECT int_c, long_c, dec_c, str_c, CAST(binary_c AS STRING) FROM v1").show(false);
+    assertEquals("Should have expected rows",
+           ImmutableList.of(row(100, 10000L, new BigDecimal("10.50"), "10", "12")),
+           sql("SELECT int_c, long_c, dec_c, str_c, CAST(binary_c AS STRING) FROM v1"));
   }
 
   @Test
