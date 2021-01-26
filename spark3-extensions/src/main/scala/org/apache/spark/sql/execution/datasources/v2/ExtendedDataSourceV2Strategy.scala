@@ -25,6 +25,7 @@ import org.apache.iceberg.spark.SparkSessionCatalog
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.Strategy
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.analysis.NamedRelation
 import org.apache.spark.sql.catalyst.expressions.And
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
@@ -81,8 +82,8 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
       val batchExec = ExtendedBatchScanExec(output, scan)
       withProjectAndFilter(project, filters, batchExec, !batchExec.supportsColumnar) :: Nil
 
-    case ReplaceData(_, batchWrite, query) =>
-      ReplaceDataExec(batchWrite, planLater(query)) :: Nil
+    case ReplaceData(relation, batchWrite, query) =>
+      ReplaceDataExec(batchWrite, refreshCache(relation), planLater(query)) :: Nil
 
     case MergeInto(mergeIntoParams, output, child) =>
       MergeIntoExec(mergeIntoParams, output, planLater(child)) :: Nil
@@ -111,6 +112,10 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
     } else {
       withFilter
     }
+  }
+
+  private def refreshCache(r: NamedRelation)(): Unit = {
+    spark.sharedState.cacheManager.recacheByPlan(spark, r)
   }
 
   private object IcebergCatalogAndIdentifier {
