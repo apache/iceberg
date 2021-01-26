@@ -55,16 +55,13 @@ import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.iceberg.distributions.OrderedDistribution
 import org.apache.spark.sql.connector.iceberg.write.MergeBuilder
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
+import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implicits
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.BooleanType
 
 case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper  {
-  private val ROW_FROM_SOURCE = "_row_from_source_"
-  private val ROW_FROM_TARGET = "_row_from_target_"
-  private val TRUE_LITERAL = Literal(true, BooleanType)
-  private val FALSE_LITERAL = Literal(false, BooleanType)
-
-  import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implicits._
+  import ExtendedDataSourceV2Implicits._
+  import RewriteMergeInto._
 
   private val conf: SQLConf = spark.sessionState.conf
   override val resolver: Resolver = conf.resolver
@@ -245,3 +242,9 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
   }
 }
 
+object RewriteMergeInto {
+  private final val ROW_FROM_SOURCE = "_row_from_source_"
+  private final val ROW_FROM_TARGET = "_row_from_target_"
+  private final val TRUE_LITERAL = Literal(true, BooleanType)
+  private final val FALSE_LITERAL = Literal(false, BooleanType)
+}

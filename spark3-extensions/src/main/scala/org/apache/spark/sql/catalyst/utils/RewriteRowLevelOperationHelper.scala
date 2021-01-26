@@ -49,6 +49,7 @@ import org.apache.spark.sql.connector.read.ScanBuilder
 import org.apache.spark.sql.connector.write.LogicalWriteInfo
 import org.apache.spark.sql.connector.write.LogicalWriteInfoImpl
 import org.apache.spark.sql.execution.datasources.DataSourceStrategy
+import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Implicits
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
 import org.apache.spark.sql.execution.datasources.v2.PushDownUtils
@@ -56,17 +57,10 @@ import org.apache.spark.sql.sources
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
-
 trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
 
-  import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Implicits._
-
-  protected val FILE_NAME_COL = "_file"
-  protected val ROW_POS_COL = "_pos"
-  // `internal.metrics` prefix ensures the accumulator state is not tracked by Spark UI
-  protected val AFFECTED_FILES_ACC_NAME = "internal.metrics.merge.affectedFiles"
-  protected val AFFECTED_FILES_ACC_ALIAS_NAME = "_affectedFiles_"
-  protected val SUM_ROW_ID_ALIAS_NAME = "_sum_"
+  import DataSourceV2Implicits._
+  import RewriteRowLevelOperationHelper._
 
   def resolver: Resolver
 
@@ -201,4 +195,14 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
       }
     }
   }
+}
+
+object RewriteRowLevelOperationHelper {
+  final val FILE_NAME_COL = "_file"
+  final val ROW_POS_COL = "_pos"
+
+  // `internal.metrics` prefix ensures the accumulator state is not tracked by Spark UI
+  private final val AFFECTED_FILES_ACC_NAME = "internal.metrics.merge.affectedFiles"
+  private final val AFFECTED_FILES_ACC_ALIAS_NAME = "_affectedFiles_"
+  private final val SUM_ROW_ID_ALIAS_NAME = "_sum_"
 }
