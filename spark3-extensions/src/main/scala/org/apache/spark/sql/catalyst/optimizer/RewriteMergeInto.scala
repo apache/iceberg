@@ -60,7 +60,6 @@ import org.apache.spark.sql.types.BooleanType
 
 case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper  {
 
-  import org.apache.spark.sql.catalyst.utils.IcebergImplicits._
   import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implicits._
 
   private val ROW_FROM_SOURCE = "_row_from_source_"
@@ -231,7 +230,7 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
   }
 
   private def buildWritePlan(childPlan: LogicalPlan, table: Table): LogicalPlan = {
-    val icebergTable = table.asIcebergTable
+    val icebergTable = Spark3Util.toIcebergTable(table)
     val distribution = Spark3Util.buildRequiredDistribution(icebergTable)
     val ordering = Spark3Util.buildRequiredOrdering(distribution, icebergTable)
     // range partitioning in Spark triggers a skew estimation job prior to shuffling

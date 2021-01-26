@@ -45,6 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
 import org.apache.iceberg.transforms.SortOrderVisitor;
 import org.apache.iceberg.types.Type;
@@ -227,6 +228,12 @@ public class Spark3Util {
     }
   }
 
+  public static org.apache.iceberg.Table toIcebergTable(Table table) {
+    Preconditions.checkArgument(table instanceof SparkTable, "Table %s is not an Iceberg table", table);
+    SparkTable sparkTable = (SparkTable) table;
+    return sparkTable.table();
+  }
+
   /**
    * Converts a PartitionSpec to Spark transforms.
    *
@@ -281,19 +288,23 @@ public class Spark3Util {
   }
 
   public static Distribution buildRequiredDistribution(org.apache.iceberg.Table table) {
-    if (table.spec().isUnpartitioned() && table.sortOrder().isUnsorted()) {
-      return Distributions.unspecified();
-    }
-
     DistributionMode distributionMode = getDistributionMode(table);
     switch (distributionMode) {
       case NONE:
         return Distributions.unspecified();
       case HASH:
-        return Distributions.clustered(toTransforms(table.spec()));
+        if (table.spec().isUnpartitioned()) {
+          return Distributions.unspecified();
+        } else {
+          return Distributions.clustered(toTransforms(table.spec()));
+        }
       case RANGE:
-        org.apache.iceberg.SortOrder requiredSortOrder = SortOrderUtil.buildSortOrder(table);
-        return Distributions.ordered(convert(requiredSortOrder));
+        if (table.spec().isUnpartitioned() && table.sortOrder().isUnsorted()) {
+          return Distributions.unspecified();
+        } else {
+          org.apache.iceberg.SortOrder requiredSortOrder = SortOrderUtil.buildSortOrder(table);
+          return Distributions.ordered(convert(requiredSortOrder));
+        }
       default:
         throw new IllegalArgumentException("Unsupported distribution mode: " + distributionMode);
     }
