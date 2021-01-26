@@ -17,13 +17,13 @@
 
 ## Downloads
 
-The latest version of Iceberg is [0.10.0](https://github.com/apache/iceberg/releases/tag/apache-iceberg-0.10.0).
+The latest version of Iceberg is [0.11.0](https://github.com/apache/iceberg/releases/tag/apache-iceberg-0.11.0).
 
-* [0.10.0 source tar.gz](https://www.apache.org/dyn/closer.cgi/iceberg/apache-iceberg-0.10.0/apache-iceberg-0.10.0.tar.gz) -- [signature](https://downloads.apache.org/iceberg/apache-iceberg-0.10.0/apache-iceberg-0.10.0.tar.gz.asc) -- [sha512](https://downloads.apache.org/iceberg/apache-iceberg-0.10.0/apache-iceberg-0.10.0.tar.gz.sha512)
-* [0.10.0 Spark 3.0 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark3-runtime/0.10.0/iceberg-spark3-runtime-0.10.0.jar)
-* [0.10.0 Spark 2.4 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime/0.10.0/iceberg-spark-runtime-0.10.0.jar)
-* [0.10.0 Flink runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime/0.10.0/iceberg-flink-runtime-0.10.0.jar)
-* [0.10.0 Hive runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime/0.10.0/iceberg-hive-runtime-0.10.0.jar)
+* [0.11.0 source tar.gz](https://www.apache.org/dyn/closer.cgi/iceberg/apache-iceberg-0.11.0/apache-iceberg-0.11.0.tar.gz) -- [signature](https://downloads.apache.org/iceberg/apache-iceberg-0.11.0/apache-iceberg-0.11.0.tar.gz.asc) -- [sha512](https://downloads.apache.org/iceberg/apache-iceberg-0.11.0/apache-iceberg-0.11.0.tar.gz.sha512)
+* [0.11.0 Spark 3.0 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark3-runtime/0.11.0/iceberg-spark3-runtime-0.11.0.jar)
+* [0.11.0 Spark 2.4 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime/0.11.0/iceberg-spark-runtime-0.11.0.jar)
+* [0.11.0 Flink runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime/0.11.0/iceberg-flink-runtime-0.11.0.jar)
+* [0.11.0 Hive runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime/0.11.0/iceberg-hive-runtime-0.11.0.jar)
 
 To use Iceberg in Spark, download the runtime Jar and add it to the jars folder of your Spark install. Use iceberg-spark3-runtime for Spark 3, and iceberg-spark-runtime for Spark 2.4.
 
@@ -35,7 +35,7 @@ To add a dependency on Iceberg in Gradle, add the following to `build.gradle`:
 
 ```
 dependencies {
-  compile 'org.apache.iceberg:iceberg-core:0.10.0'
+  compile 'org.apache.iceberg:iceberg-core:0.11.0'
 }
 ```
 
@@ -51,13 +51,55 @@ To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:
   <dependency>
     <groupId>org.apache.iceberg</groupId>
     <artifactId>iceberg-core</artifactId>
-    <version>0.10.0</version>
+    <version>0.11.0</version>
   </dependency>
   ...
 </dependencies>
 ```
 
-## 0.10.0 release notes
+## 0.11.0 release notes
+
+High-level features:
+
+* **Core API** now supports partition spec and sort order evolution
+* **Spark 3** now supports the following SQL extensions:
+    * MERGE INTO (experimental)
+    * DELETE FROM (experimental)
+    * ALTER TABLE ... ADD/DROP PARTITION
+    * ALTER TABLE ... WRITE ORDERED BY
+    * Invoke stored procedures using CALL
+* **Flink** now supports streaming reads, CDC writes (experimental), and filter pushdown
+* **AWS module** is added to support better integration with AWS, with [AWS Glue catalog](https://aws.amazon.com/glue/) support and dedicated S3 FileIO implementation
+* **Nessie module** is added to support integration with [project Nessie](https://projectnessie.org/)
+
+Important bug fixes:
+
+* [\#2091](https://github.com/apache/iceberg/pull/2091) fixes Parquet vectorized reads when column types are promoted
+* [\#1991](https://github.com/apache/iceberg/pull/1991) fixes Avro schema conversions to preserve field docs
+* [\#1981](https://github.com/apache/iceberg/pull/1981) fixes bug that date and timestamp transforms were producing incorrect values for negative dates and times
+* [\#1798](https://github.com/apache/iceberg/pull/1798) fixes read failure when encountering duplicate entries of data files
+* [\#1785](https://github.com/apache/iceberg/pull/1785) fixes invalidation of metadata tables in CachingCatalog
+
+Other notable changes:
+
+* NaN counts are now supported in metadata
+* Shared catalog properties are added in core library to standardize catalog level configurations
+* Spark and Flink now support dynamically loading customized `Catalog` and `FileIO` implementations
+* Spark 2 now supports loading tables from other catalogs, like Spark 3
+* Spark 3 now supports catalog names in DataFrameReader when using Iceberg as a format
+* Hive (experimental) now supports INSERT INTO, case insensitive query, projection pushdown, create DDL with schema and auto type conversion
+* ORC now supports reading tinyint, smallint, char, varchar types
+
+## Past releases
+
+### 0.10.0
+
+* Git tag: [0.10.0](https://github.com/apache/iceberg/releases/tag/apache-iceberg-0.10.0)
+* [0.10.0 source tar.gz](https://www.apache.org/dyn/closer.cgi/iceberg/apache-iceberg-0.10.0/apache-iceberg-0.10.0.tar.gz) -- [signature](https://downloads.apache.org/iceberg/apache-iceberg-0.10.0/apache-iceberg-0.10.0.tar.gz.asc) -- [sha512](https://downloads.apache.org/iceberg/apache-iceberg-0.10.0/apache-iceberg-0.10.0.tar.gz.sha512)
+* [0.10.0 Spark 3.0 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark3-runtime/0.10.0/iceberg-spark3-runtime-0.10.0.jar)
+* [0.10.0 Spark 2.4 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime/0.10.0/iceberg-spark-runtime-0.10.0.jar)
+* [0.10.0 Flink runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime/0.10.0/iceberg-flink-runtime-0.10.0.jar)
+* [0.10.0 Hive runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime/0.10.0/iceberg-hive-runtime-0.10.0.jar)
 
 High-level features:
 
@@ -87,8 +129,6 @@ Other notable changes:
 
 
 A more exhaustive list of changes is available under the [0.10.0 release milestone](https://github.com/apache/iceberg/milestone/10?closed=1).
-
-## Past releases
 
 ### 0.9.1
 
