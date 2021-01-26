@@ -175,9 +175,10 @@ object DistributionAndOrderingUtils {
 
   private object TruncateTransform {
     def unapply(transform: Transform): Option[(FieldReference, Int)] = transform match {
-      case at @ ApplyTransform(name, _) if name.equalsIgnoreCase("truncate")  =>
-        at.args match {
+      case at @ ApplyTransform(name, _) if name.equalsIgnoreCase("truncate")  => at.args match {
         case Seq(nf: NamedReference, Lit(value: Int, IntegerType)) =>
+          Some(FieldReference(nf.fieldNames()), value)
+        case Seq(Lit(value: Int, IntegerType), nf: NamedReference) =>
           Some(FieldReference(nf.fieldNames()), value)
         case _ =>
           None
