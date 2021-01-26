@@ -100,7 +100,35 @@ Other notable changes:
 * [0.10.0 Spark 2.4 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime/0.10.0/iceberg-spark-runtime-0.10.0.jar)
 * [0.10.0 Flink runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime/0.10.0/iceberg-flink-runtime-0.10.0.jar)
 * [0.10.0 Hive runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime/0.10.0/iceberg-hive-runtime-0.10.0.jar)
-* A more exhaustive list of changes is available under the [0.10.0 release milestone](https://github.com/apache/iceberg/milestone/10?closed=1).
+
+High-level features:
+
+* **Format v2 support** for building row-level operations (`MERGE INTO`) in processing engines
+  * Note: format v2 is not yet finalized and does not have a forward-compatibility guarantee
+* **Flink integration** for writing to Iceberg tables and reading from Iceberg tables (reading supports batch mode only)
+* **Hive integration** for reading from Iceberg tables, with filter pushdown (experimental; configuration may change)
+
+Important bug fixes:
+
+* [\#1706](https://github.com/apache/iceberg/pull/1706) fixes non-vectorized ORC reads in Spark that incorrectly skipped rows
+* [\#1536](https://github.com/apache/iceberg/pull/1536) fixes ORC conversion of `notIn` and `notEqual` to match null values
+* [\#1722](https://github.com/apache/iceberg/pull/1722) fixes `Expressions.notNull` returning an `isNull` predicate; API only, method was not used by processing engines
+* [\#1736](https://github.com/apache/iceberg/pull/1736) fixes `IllegalArgumentException` in vectorized Spark reads with negative decimal values
+* [\#1666](https://github.com/apache/iceberg/pull/1666) fixes file lengths returned by the ORC writer, using compressed size rather than uncompressed size
+* [\#1674](https://github.com/apache/iceberg/pull/1674) removes catalog expiration in HiveCatalogs
+* [\#1545](https://github.com/apache/iceberg/pull/1545) automatically refreshes tables in Spark when not caching table instances
+
+Other notable changes:
+
+* The `iceberg-hive` module has been renamed to `iceberg-hive-metastore` to avoid confusion
+* Spark 3 is based on 3.0.1 that includes the fix for [SPARK-32168](https://issues.apache.org/jira/browse/SPARK-32168)
+* Hadoop tables will recover from version hint corruption
+* Tables can be configured with a required sort order
+* Data file locations can be customized with a dynamically loaded `LocationProvider`
+* ORC file imports can apply a name mapping for stats
+
+
+A more exhaustive list of changes is available under the [0.10.0 release milestone](https://github.com/apache/iceberg/milestone/10?closed=1).
 
 ### 0.9.1
 
