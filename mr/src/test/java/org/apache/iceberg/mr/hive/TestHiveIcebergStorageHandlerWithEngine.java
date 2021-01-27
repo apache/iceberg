@@ -20,9 +20,6 @@
 package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -30,16 +27,11 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hive.HiveSchemaUtil;
-import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Type;
@@ -327,19 +319,14 @@ public class TestHiveIcebergStorageHandlerWithEngine {
       if (type.equals(Types.BinaryType.get()) || type.equals(Types.FixedType.ofLength(5))) {
         continue;
       }
-      String tableName = type.typeId().toString().toLowerCase() + "_table_" + i;
       String columnName = type.typeId().toString().toLowerCase() + "_column";
 
       Schema schema = new Schema(required(1, "id", Types.LongType.get()), required(2, columnName, type));
       List<Record> expected = TestHelper.generateRandomRecords(schema, 5, 0L);
 
-      Table table = testTables.createTable(shell, tableName, schema, fileFormat, ImmutableList.of());
-      StringBuilder query = new StringBuilder("INSERT INTO ").append(tableName).append(" VALUES")
-              .append(expected.stream()
-                      .map(r -> String.format("(%s,%s)", r.get(0),
-                              getStringValueForInsert(r.get(1), type)))
-                      .collect(Collectors.joining(",")));
-      shell.executeStatement(query.toString());
+      Table table = testTables.createTable(shell, type.typeId().toString().toLowerCase() + "_table_" + i,
+          schema, PartitionSpec.unpartitioned(), fileFormat, expected);
+
       HiveIcebergTestUtils.validateData(table, expected, 0);
     }
   }
@@ -527,29 +514,44 @@ public class TestHiveIcebergStorageHandlerWithEngine {
         .bucket("customer_id", 3)
         .build();
 
-    TableIdentifier identifier = TableIdentifier.of("default", "partitioned_customers");
+    List<Record> records = TestHelper.generateRandomRecords(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, 4, 0L);
 
-    shell.executeStatement("CREATE EXTERNAL TABLE " + identifier +
-        " STORED BY '" + HiveIcebergStorageHandler.class.getName() + "' " +
-        testTables.locationForCreateTableSQL(identifier) +
-        "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" +
-        SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA) + "', " +
-        "'" + InputFormatConfig.PARTITION_SPEC + "'='" +
-        PartitionSpecParser.toJson(spec) + "', " +
-        "'" + TableProperties.DEFAULT_FILE_FORMAT + "'='" + fileFormat + "')");
+    Table table = testTables.createTable(shell, "partitioned_customers",
+        HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, spec, fileFormat, records);
+
+    HiveIcebergTestUtils.validateData(table, records, 0);
+  }
+
+  @Test
+  public void testIdentityPartitionedWrite() throws IOException {
+    Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
+
+    PartitionSpec spec = PartitionSpec.builderFor(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA)
+        .identity("customer_id")
+        .build();
 
     List<Record> records = TestHelper.generateRandomRecords(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, 4, 0L);
 
-    StringBuilder query = new StringBuilder().append("INSERT INTO " + identifier + " VALUES ");
-    records.forEach(record -> query.append("(")
-        .append(record.get(0)).append(",'")
-        .append(record.get(1)).append("','")
-        .append(record.get(2)).append("'),"));
-    query.setLength(query.length() - 1);
+    Table table = testTables.createTable(shell, "partitioned_customers",
+        HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, spec, fileFormat, records);
 
-    shell.executeStatement(query.toString());
+    HiveIcebergTestUtils.validateData(table, records, 0);
+  }
 
-    Table table = testTables.loadTable(identifier);
+  @Test
+  public void testMultilevelIdentityPartitionedWrite() throws IOException {
+    Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
+
+    PartitionSpec spec = PartitionSpec.builderFor(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA)
+        .identity("customer_id")
+        .identity("last_name")
+        .build();
+
+    List<Record> records = TestHelper.generateRandomRecords(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, 4, 0L);
+
+    Table table = testTables.createTable(shell, "partitioned_customers",
+        HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, spec, fileFormat, records);
+
     HiveIcebergTestUtils.validateData(table, records, 0);
   }
 
@@ -612,19 +614,5 @@ public class TestHiveIcebergStorageHandlerWithEngine {
       throw new RuntimeException("Unsupported type in complex query build.");
     }
     return query;
-  }
-
-  private String getStringValueForInsert(Object value, Type type) {
-    String template = "\'%s\'";
-    if (type.equals(Types.TimestampType.withoutZone())) {
-      return String.format(template, Timestamp.valueOf((LocalDateTime) value).toString());
-    } else if (type.equals(Types.TimestampType.withZone())) {
-      return String.format(template, Timestamp.from(((OffsetDateTime) value).toInstant()).toString());
-    } else if (type.equals(Types.BooleanType.get())) {
-      // in hive2 boolean type values must not be surrounded in apostrophes. Otherwise the value is translated to true.
-      return value.toString();
-    } else {
-      return String.format(template, value.toString());
-    }
   }
 }
