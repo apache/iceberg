@@ -19,18 +19,18 @@
 
 ## Using Iceberg in Spark 3
 
-The latest version of Iceberg is [0.10.0](./releases.md).
+The latest version of Iceberg is [0.11.0](./releases.md).
 
 To use Iceberg in a Spark shell, use the `--packages` option:
 
 ```sh
-spark-shell --packages org.apache.iceberg:iceberg-spark3-runtime:0.10.0
+spark-shell --packages org.apache.iceberg:iceberg-spark3-runtime:0.11.0
 ```
 
 !!! Note
     If you want to include Iceberg in your Spark installation, add the [`iceberg-spark3-runtime` Jar][spark-runtime-jar] to Spark's `jars` folder.
 
-[spark-runtime-jar]: https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark3-runtime/0.10.0/iceberg-spark3-runtime-0.10.0.jar
+[spark-runtime-jar]: https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark3-runtime/0.11.0/iceberg-spark3-runtime-0.11.0.jar
 
 ### Adding catalogs
 
@@ -39,7 +39,8 @@ Iceberg comes with [catalogs](./spark.md#configuring-catalogs) that enable SQL c
 This command creates a path-based catalog named `local` for tables under `$PWD/warehouse` and adds support for Iceberg tables to Spark's built-in catalog:
 
 ```sh
-spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:0.10.0 \
+spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:0.11.0 \
+    --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
     --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog \
     --conf spark.sql.catalog.spark_catalog.type=hive \
     --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
@@ -70,6 +71,14 @@ Once your table is created, insert data using [`INSERT INTO`](./spark.md#insert-
 ```sql
 INSERT INTO local.db.table VALUES (1, 'a'), (2, 'b'), (3, 'c');
 INSERT INTO local.db.table SELECT id, data FROM source WHERE length(data) = 1;
+```
+
+Iceberg also adds row-level SQL updates to Spark, [`MERGE INTO`](./spark.md#merge-into) and [`DELETE FROM`](./spark.md#delete-from):
+
+```sql
+MERGE INTO local.db.target t USING (SELECT * FROM updates) u ON t.id = u.id
+WHEN MATCHED THEN SET t.count = t.count + u.count
+WHEN NOT MATCHED THEN INSERT *
 ```
 
 Iceberg supports writing DataFrames using the new [v2 DataFrame write API](./spark.md#writing-with-dataframes):
