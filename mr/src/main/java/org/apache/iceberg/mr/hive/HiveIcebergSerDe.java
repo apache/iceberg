@@ -20,7 +20,6 @@
 package org.apache.iceberg.mr.hive;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -30,7 +29,6 @@ import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.AbstractSerDe;
-import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.SerDeStats;
 import org.apache.hadoop.hive.serde2.SerDeUtils;
@@ -40,12 +38,14 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.hadoop.io.Writable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hive.HiveSchemaUtil;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.mr.mapred.Container;
+import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -89,21 +89,9 @@ public class HiveIcebergSerDe extends AbstractSerDe {
     }
 
     configuration.setBoolean(InputFormatConfig.CASE_SENSITIVE, false);
-    String[] selectedColumns = ColumnProjectionUtils.getReadColumnNames(configuration);
-    // When same table is joined multiple times, it is possible some selected columns are duplicated,
-    // in this case wrong recordStructField position leads wrong value or ArrayIndexOutOfBoundException
-    String[] distinctSelectedColumns = Arrays.stream(selectedColumns).distinct().toArray(String[]::new);
-    Schema projectedSchema = distinctSelectedColumns.length > 0 ?
-            tableSchema.caseInsensitiveSelect(distinctSelectedColumns) : tableSchema;
-    // the input split mapper handles does not belong to this table
-    // it is necessary to ensure projectedSchema equals to tableSchema,
-    // or we cannot find selectOperator's column from inspector
-    if (projectedSchema.columns().size() != distinctSelectedColumns.length) {
-      projectedSchema = tableSchema;
-    }
 
     try {
-      this.inspector = IcebergObjectInspector.create(projectedSchema);
+      this.inspector = IcebergObjectInspector.create(tableSchema);
     } catch (Exception e) {
       throw new SerDeException(e);
     }
@@ -145,7 +133,18 @@ public class HiveIcebergSerDe extends AbstractSerDe {
 
   @Override
   public Object deserialize(Writable writable) {
-    return ((Container<?>) writable).get();
+    Record record = (Record) ((Container<?>) writable).get();
+    return populateNullFieldWithTableSchema(record);
+  }
+
+  private Record populateNullFieldWithTableSchema(Record record) {
+    Record newRecord = GenericRecord.create(tableSchema);
+    List<Types.NestedField> selectedFields = record.struct().fields();
+    for (Types.NestedField field : selectedFields) {
+      String fieldName = field.name();
+      newRecord.setField(fieldName, record.getField(fieldName));
+    }
+    return newRecord;
   }
 
   @Override

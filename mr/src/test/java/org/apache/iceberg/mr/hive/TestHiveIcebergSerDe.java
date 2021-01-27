@@ -25,9 +25,11 @@ import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.mr.mapred.Container;
 import org.apache.iceberg.types.Types;
@@ -65,8 +67,15 @@ public class TestHiveIcebergSerDe {
   }
 
   @Test
-  public void testDeserialize() {
+  public void testDeserialize() throws SerDeException {
     HiveIcebergSerDe serDe = new HiveIcebergSerDe();
+
+    Configuration conf = new Configuration();
+
+    Properties properties = new Properties();
+    properties.setProperty(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(schema));
+
+    serDe.initialize(conf, properties);
 
     Record record = RandomGenericData.generate(schema, 1, 0).get(0);
     Container<Record> container = new Container<>();

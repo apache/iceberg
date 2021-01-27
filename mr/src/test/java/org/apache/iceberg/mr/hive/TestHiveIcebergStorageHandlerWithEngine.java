@@ -171,12 +171,12 @@ public class TestHiveIcebergStorageHandlerWithEngine {
 
     // Adding the ORDER BY clause will cause Hive to spawn a local MR job this time.
     List<Object[]> descRows =
-        shell.executeStatement("SELECT first_name, customer_id FROM default.customers ORDER BY customer_id DESC");
+        shell.executeStatement("SELECT last_name, customer_id FROM default.customers ORDER BY customer_id DESC");
 
     Assert.assertEquals(3, descRows.size());
-    Assert.assertArrayEquals(new Object[] {"Trudy", 2L}, descRows.get(0));
-    Assert.assertArrayEquals(new Object[] {"Bob", 1L}, descRows.get(1));
-    Assert.assertArrayEquals(new Object[] {"Alice", 0L}, descRows.get(2));
+    Assert.assertArrayEquals(new Object[] {"Pink", 2L}, descRows.get(0));
+    Assert.assertArrayEquals(new Object[] {"Green", 1L}, descRows.get(1));
+    Assert.assertArrayEquals(new Object[] {"Brown", 0L}, descRows.get(2));
   }
 
   @Test
