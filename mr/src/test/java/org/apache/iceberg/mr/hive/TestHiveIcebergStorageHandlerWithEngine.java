@@ -34,6 +34,7 @@ import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -535,7 +536,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
         SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA) + "', " +
         "'" + InputFormatConfig.PARTITION_SPEC + "'='" +
         PartitionSpecParser.toJson(spec) + "', " +
-        "'" + InputFormatConfig.WRITE_FILE_FORMAT + "'='" + fileFormat + "')");
+        "'" + TableProperties.DEFAULT_FILE_FORMAT + "'='" + fileFormat + "')");
 
     List<Record> records = TestHelper.generateRandomRecords(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, 4, 0L);
 
