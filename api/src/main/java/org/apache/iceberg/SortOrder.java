@@ -257,15 +257,15 @@ public class SortOrder implements Serializable {
     }
 
     public SortOrder build() {
-      if (orderId != null && orderId == 0 && fields.size() != 0) {
-        throw new IllegalArgumentException("Sort order ID 0 is reserved for unsorted order");
-      }
-      if (fields.size() == 0 && orderId != null && orderId != 0) {
-        throw new IllegalArgumentException("Unsorted order ID must be 0");
+      if (fields.isEmpty()) {
+        if (orderId != null && orderId != 0) {
+          throw new IllegalArgumentException("Unsorted order ID must be 0");
+        }
+        return SortOrder.unsorted();
       }
 
-      if (fields.isEmpty()) {
-        return SortOrder.unsorted();
+      if (orderId != null && orderId == 0) {
+        throw new IllegalArgumentException("Sort order ID 0 is reserved for unsorted order");
       }
 
       // default ID to 1 as 0 is reserved for unsorted order
