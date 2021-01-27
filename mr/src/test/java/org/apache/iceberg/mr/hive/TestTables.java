@@ -149,7 +149,7 @@ abstract class TestTables {
   }
 
   /**
-   * Creates an non partitioned Hive test table using Hive SQL. The table will be in the 'default' database.
+   * Creates a partitioned Hive test table using Hive SQL. The table will be in the 'default' database.
    * The table will be populated with the provided List of {@link Record}s using a Hive insert statement.
    * @param shell The HiveShell used for Hive table creation
    * @param tableName The name of the test table
