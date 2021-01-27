@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.hadoop.hive.ql.exec.mr.ExecMapper;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -155,6 +156,11 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     // HiveServer2 thread pools are using thread local Hive -> HMSClient objects. These are not cleaned up when the
     // HiveServer2 is stopped. Only Finalizer closes the HMS connections.
     System.gc();
+    // Mixing mr and tez jobs within the same JVM can cause problems. Mr jobs set the ExecMapper status to done=false
+    // at the beginning and to done=true at the end. However, tez jobs also rely on this value to see if they should
+    // proceed, but they do not reset it to done=false at the beginning. Therefore, without calling this after each test
+    // case, any tez job that follows a completed mr job will erroneously read done=true and will not proceed.
+    ExecMapper.setDone(false);
   }
 
   @Test
