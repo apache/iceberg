@@ -41,116 +41,7 @@ When passing arguments by position, only the ending arguments may be omitted if 
 CALL catalog_name.system.procedure_name(arg_1, arg_2, ... arg_n)
 ```
 
-## Maintenance Procedures
-
-Many [maintenance actions](maintenance.md) can be performed using Iceberg stored procedures.
-
-### `expire_snapshots`
-
-Each write/update/delete/upsert/compaction in Iceberg produces a new snapshot while keeping the old data and metadata
-around for snapshot isolation and time travel. The `expire_snapshots` procedure can be used to remove older snapshots
-and their files which are no longer needed.
-
-This procedure will remove old snapshots and data files which are uniquely required by those old snapshots. This means
-the `expire_snapshots` procedure will never remove files which are still required by a non-expired snapshot.
-
-#### Usage
-
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to update |
-| `older_than`  | ️   | timestamp | Timestamp before which snapshots will be removed (Default: 5 days ago) |
-| `retain_last` |    | int       | Number of ancestor snapshots to preserve regardless of `older_than` (defaults to 1) |
-
-#### Output
-
-| Output Name | Type | Description |
-| ------------|------|-------------|
-| `deleted_data_files_count` | long | Number of data files deleted by this operation |
-| `deleted_manifest_files_count` | long | Number of manifest files deleted by this operation |
-| `deleted_manifest_lists_count` | long | Number of manifest List files deleted by this operation |
-
-#### Examples
-
-Remove snapshots older than 10 days ago, but retain the last 100 snapshots:
-
-```sql
-CALL hive_prod.system.expire_snapshots('db.sample', date_sub(current_date(), 10), 100)
-```
-
-Erase all snapshots older than the current timestamp but retain the last 5 snapshots:
-
-```sql
-CALL hive_prod.system.expire_snapshots(table => 'db.sample', older_than => now(), retain_last => 5)
-```
-
-### `remove_orphan_files`
-
-Used to remove files which are not referenced in any metadata files of an Iceberg table and can thus be considered "orphaned".
-
-#### Usage
-
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to clean |
-| `older_than`  | ️   | timestamp | Remove orphan files created before this timestamp (Defaults to 3 days ago) |
-| `location`    |    | string    | Directory to look for files in (defaults to the table's location) |
-| `dry_run`     |    | boolean   | When true, don't actually remove files (defaults to false) |
-
-#### Output
-
-| Output Name | Type | Description |
-| ------------|------|-------------|
-| `orphan_file_location` | String | The path to each file determined to be an orphan by this command |
-
-#### Examples
-
-List all the files that are candidates for removal by performing a dry run of the `remove_orphan_files` command on this table without actually removing them:
-```sql
-CALL catalog_name.system.remove_orphan_files(table => 'db.sample', dry_run => true)
-```
-
-Remove any files in the `tablelocation/data` folder which are not known to the table `db.sample`.
-```sql
-CALL catalog_name.system.remove_orphan_files(table => 'db.sample', location => 'tablelocation/data')
-```
-
-### `rewrite_manifests`
-
-Rewrite manifests for a table to optimize scan planning.
-
-Data files in manifests are sorted by fields in the partition spec. This procedure runs in parallel using a Spark job.
-
-See the [`RewriteManifestsAction` Javadoc](./javadoc/master/org/apache/iceberg/actions/RewriteManifestsAction.html)
-to see more configuration options.
-
-**Note** this procedure invalidates all cached Spark plans that reference the affected table.
-
-#### Usage
-
-| Argument Name | Required? | Type | Description |
-|---------------|-----------|------|-------------|
-| `table`       | ✔️  | string | Name of the table to update |
-| `use_caching` | ️   | boolean | Use Spark caching during operation (defaults to true) |
-
-#### Output
-
-| Output Name | Type | Description |
-| ------------|------|-------------|
-| `rewritten_manifests_count` | int | Number of manifests which were re-written by this command |
-| `added_mainfests_count`     | int | Number of new manifest files which were written by this command |
-
-#### Examples
-
-Rewrite the manifests in table `db.sample` and align manifest files with table partitioning.
-```sql
-CALL catalog_name.system.rewrite_manifests('db.sample')
-```
-
-Rewrite the manifests in table `db.sample` and disable the use of Spark caching. This could be done to avoid memory issues on executors.
-```sql
-CALL catalog_name.system.rewrite_manifests('db.sample', false)
-```
+## Snapshot management
 
 ### `rollback_to_snapshot`
 
@@ -274,7 +165,119 @@ Cherry-pick snapshot 1 with named args
 CALL catalog_name.system.cherrypick_snapshot(snapshot_id => 1, table => 'my_table' )
 ```
 
-## Table migration procedures
+
+## Metadata management
+
+Many [maintenance actions](maintenance.md) can be performed using Iceberg stored procedures.
+
+### `expire_snapshots`
+
+Each write/update/delete/upsert/compaction in Iceberg produces a new snapshot while keeping the old data and metadata
+around for snapshot isolation and time travel. The `expire_snapshots` procedure can be used to remove older snapshots
+and their files which are no longer needed.
+
+This procedure will remove old snapshots and data files which are uniquely required by those old snapshots. This means
+the `expire_snapshots` procedure will never remove files which are still required by a non-expired snapshot.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table`       | ✔️  | string | Name of the table to update |
+| `older_than`  | ️   | timestamp | Timestamp before which snapshots will be removed (Default: 5 days ago) |
+| `retain_last` |    | int       | Number of ancestor snapshots to preserve regardless of `older_than` (defaults to 1) |
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| `deleted_data_files_count` | long | Number of data files deleted by this operation |
+| `deleted_manifest_files_count` | long | Number of manifest files deleted by this operation |
+| `deleted_manifest_lists_count` | long | Number of manifest List files deleted by this operation |
+
+#### Examples
+
+Remove snapshots older than 10 days ago, but retain the last 100 snapshots:
+
+```sql
+CALL hive_prod.system.expire_snapshots('db.sample', date_sub(current_date(), 10), 100)
+```
+
+Erase all snapshots older than the current timestamp but retain the last 5 snapshots:
+
+```sql
+CALL hive_prod.system.expire_snapshots(table => 'db.sample', older_than => now(), retain_last => 5)
+```
+
+### `remove_orphan_files`
+
+Used to remove files which are not referenced in any metadata files of an Iceberg table and can thus be considered "orphaned".
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table`       | ✔️  | string | Name of the table to clean |
+| `older_than`  | ️   | timestamp | Remove orphan files created before this timestamp (Defaults to 3 days ago) |
+| `location`    |    | string    | Directory to look for files in (defaults to the table's location) |
+| `dry_run`     |    | boolean   | When true, don't actually remove files (defaults to false) |
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| `orphan_file_location` | String | The path to each file determined to be an orphan by this command |
+
+#### Examples
+
+List all the files that are candidates for removal by performing a dry run of the `remove_orphan_files` command on this table without actually removing them:
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', dry_run => true)
+```
+
+Remove any files in the `tablelocation/data` folder which are not known to the table `db.sample`.
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', location => 'tablelocation/data')
+```
+
+### `rewrite_manifests`
+
+Rewrite manifests for a table to optimize scan planning.
+
+Data files in manifests are sorted by fields in the partition spec. This procedure runs in parallel using a Spark job.
+
+See the [`RewriteManifestsAction` Javadoc](./javadoc/master/org/apache/iceberg/actions/RewriteManifestsAction.html)
+to see more configuration options.
+
+**Note** this procedure invalidates all cached Spark plans that reference the affected table.
+
+#### Usage
+
+| Argument Name | Required? | Type | Description |
+|---------------|-----------|------|-------------|
+| `table`       | ✔️  | string | Name of the table to update |
+| `use_caching` | ️   | boolean | Use Spark caching during operation (defaults to true) |
+
+#### Output
+
+| Output Name | Type | Description |
+| ------------|------|-------------|
+| `rewritten_manifests_count` | int | Number of manifests which were re-written by this command |
+| `added_mainfests_count`     | int | Number of new manifest files which were written by this command |
+
+#### Examples
+
+Rewrite the manifests in table `db.sample` and align manifest files with table partitioning.
+```sql
+CALL catalog_name.system.rewrite_manifests('db.sample')
+```
+
+Rewrite the manifests in table `db.sample` and disable the use of Spark caching. This could be done to avoid memory issues on executors.
+```sql
+CALL catalog_name.system.rewrite_manifests('db.sample', false)
+```
+
+## Table migration
 
 The `snapshot` and `migrate` procedures help test and migrate existing Hive or Spark tables to Iceberg.
 
