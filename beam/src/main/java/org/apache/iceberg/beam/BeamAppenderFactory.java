@@ -42,7 +42,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 
-public class BeamAppenderFactory implements FileAppenderFactory<GenericRecord> {
+public class BeamAppenderFactory<T extends GenericRecord> implements FileAppenderFactory<T> {
   private final Schema schema;
   private final Map<String, String> properties;
   private final PartitionSpec spec;
@@ -54,7 +54,7 @@ public class BeamAppenderFactory implements FileAppenderFactory<GenericRecord> {
   }
 
   @Override
-  public FileAppender<GenericRecord> newAppender(OutputFile file, FileFormat fileFormat) {
+  public FileAppender<T> newAppender(OutputFile file, FileFormat fileFormat) {
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(properties);
     try {
       switch (fileFormat) {
@@ -94,19 +94,19 @@ public class BeamAppenderFactory implements FileAppenderFactory<GenericRecord> {
   }
 
   @Override
-  public DataWriter<GenericRecord> newDataWriter(EncryptedOutputFile file, FileFormat format, StructLike partition) {
+  public DataWriter<T> newDataWriter(EncryptedOutputFile file, FileFormat format, StructLike partition) {
     return new DataWriter<>(newAppender(file.encryptingOutputFile(), format), format,
         file.encryptingOutputFile().location(), spec, partition, file.keyMetadata());
   }
 
   @Override
-  public EqualityDeleteWriter<GenericRecord> newEqDeleteWriter(EncryptedOutputFile file, FileFormat format,
+  public EqualityDeleteWriter<T> newEqDeleteWriter(EncryptedOutputFile file, FileFormat format,
                                  StructLike partition) {
     return null;
   }
 
   @Override
-  public PositionDeleteWriter<GenericRecord> newPosDeleteWriter(EncryptedOutputFile file, FileFormat format,
+  public PositionDeleteWriter<T> newPosDeleteWriter(EncryptedOutputFile file, FileFormat format,
                                   StructLike partition) {
     return null;
   }

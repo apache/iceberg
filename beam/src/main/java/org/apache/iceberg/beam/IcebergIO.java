@@ -55,7 +55,7 @@ public class IcebergIO {
     }
 
     public Builder withHiveMetastoreUrl(String newHiveMetaStoreUrl) {
-      assert hiveMetaStoreUrl.startsWith("thrift://");
+      assert newHiveMetaStoreUrl.startsWith("thrift://");
       this.hiveMetaStoreUrl = newHiveMetaStoreUrl;
       return this;
     }
@@ -65,7 +65,7 @@ public class IcebergIO {
       return this;
     }
 
-    public PCollection<Snapshot> build(PCollection<GenericRecord> avroRecords) {
+    public <T extends GenericRecord> PCollection<Snapshot> build(PCollection<T> avroRecords) {
       return IcebergIO.write(
           avroRecords,
           this.tableIdentifier,
@@ -76,8 +76,8 @@ public class IcebergIO {
     }
   }
 
-  private static PCollection<Snapshot> write(
-      PCollection<GenericRecord> avroRecords,
+  private static <T extends GenericRecord> PCollection<Snapshot> write(
+      PCollection<T> avroRecords,
       TableIdentifier table,
       Schema schema,
       String hiveMetastoreUrl,
@@ -85,7 +85,7 @@ public class IcebergIO {
   ) {
     // We take the filenames that are emitted by the FileIO
     final PCollection<DataFile> dataFiles = avroRecords
-        .apply(ParDo.of(new FileWriter(table, schema, PartitionSpec.unpartitioned(), hiveMetastoreUrl, properties)))
+        .apply(ParDo.of(new FileWriter<>(table, schema, PartitionSpec.unpartitioned(), hiveMetastoreUrl, properties)))
         .setCoder(SerializableCoder.of(DataFile.class));
 
     // We use a combiner, to combine all the files to a single commit in

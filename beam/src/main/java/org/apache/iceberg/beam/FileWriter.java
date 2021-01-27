@@ -46,7 +46,7 @@ import org.joda.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class FileWriter extends DoFn<GenericRecord, DataFile> {
+public class FileWriter<T extends GenericRecord> extends DoFn<T, DataFile> {
   private static final Logger LOG = LoggerFactory.getLogger(FileWriter.class);
 
   private final PartitionSpec spec;
@@ -61,7 +61,7 @@ public class FileWriter extends DoFn<GenericRecord, DataFile> {
   private HiveCatalog catalog;
   private FileFormat fileFormat;
 
-  private transient TaskWriter<GenericRecord> writer;
+  private transient TaskWriter<T> writer;
   private transient BoundedWindow lastSeenWindow;
 
   public FileWriter(
@@ -115,17 +115,17 @@ public class FileWriter extends DoFn<GenericRecord, DataFile> {
       int partitionId = (int) context.pane().getIndex();
       long taskId = context.pane().getIndex();
 
-      BeamAppenderFactory appenderFactory = new BeamAppenderFactory(schema, properties, spec);
+      BeamAppenderFactory<T> appenderFactory = new BeamAppenderFactory<>(schema, properties, spec);
       OutputFileFactory fileFactory = new OutputFileFactory(
           spec, fileFormat, locations, io, encryptionManager, partitionId, taskId);
 
       if (spec.isUnpartitioned()) {
         writer = new UnpartitionedWriter<>(spec, fileFormat, appenderFactory, fileFactory, io, Long.MAX_VALUE);
       } else {
-        writer = new PartitionedWriter<GenericRecord>(
+        writer = new PartitionedWriter<T>(
             spec, fileFormat, appenderFactory, fileFactory, io, Long.MAX_VALUE) {
           @Override
-          protected PartitionKey partition(GenericRecord row) {
+          protected PartitionKey partition(T row) {
             return new PartitionKey(spec, schema);
           }
         };

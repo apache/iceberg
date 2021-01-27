@@ -55,8 +55,8 @@ public abstract class BaseTest {
   private static TestHiveMetastore metastore;
   @Rule
   public final transient TestPipeline pipeline = TestPipeline.create();
-  final String hiveMetastoreUrl = "thrift://localhost:9083/default";
-  final Schema avroSchema = new Schema.Parser().parse(stringSchema);
+  protected final String hiveMetastoreUrl = "thrift://localhost:9083/default";
+  protected final Schema avroSchema = new Schema.Parser().parse(stringSchema);
 
   @BeforeClass
   public static void startMetastore() {
