@@ -19,34 +19,47 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import java.util.Locale
+import org.apache.iceberg.DistributionMode
 import org.apache.iceberg.NullOrder
 import org.apache.iceberg.SortDirection
+import org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE
 import org.apache.iceberg.expressions.Term
 import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.connector.catalog.Identifier
-import org.apache.spark.sql.connector.catalog.TableCatalog
+import org.apache.spark.sql.connector.catalog.{Identifier, TableCatalog}
+import org.apache.spark.sql.connector.catalog.CatalogV2Implicits
 
-case class SetWriteOrderExec(
+case class SetWriteDistributionAndOrderingExec(
     catalog: TableCatalog,
     ident: Identifier,
-    sortOrder: Array[(Term, SortDirection, NullOrder)]) extends V2CommandExec {
-  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
+    distributionMode: DistributionMode,
+    ordering: Seq[(Term, SortDirection, NullOrder)]) extends V2CommandExec {
+
+  import CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil
 
   override protected def run(): Seq[InternalRow] = {
     catalog.loadTable(ident) match {
       case iceberg: SparkTable =>
-        val orderBuilder = iceberg.table.replaceSortOrder()
-        sortOrder.foreach {
+        val txn = iceberg.table.newTransaction()
+
+        val orderBuilder = txn.replaceSortOrder()
+        ordering.foreach {
           case (term, SortDirection.ASC, nullOrder) =>
             orderBuilder.asc(term, nullOrder)
           case (term, SortDirection.DESC, nullOrder) =>
             orderBuilder.desc(term, nullOrder)
         }
         orderBuilder.commit()
+
+        txn.updateProperties()
+          .set(WRITE_DISTRIBUTION_MODE, distributionMode.toString.toLowerCase(Locale.ROOT))
+          .commit()
+
+        txn.commitTransaction()
 
       case table =>
         throw new UnsupportedOperationException(s"Cannot set write order of non-Iceberg table: $table")
@@ -56,9 +69,10 @@ case class SetWriteOrderExec(
   }
 
   override def simpleString(maxFields: Int): String = {
-    val order = sortOrder.map {
+    val tableIdent = s"${catalog.name}.${ident.quoted}"
+    val orderingDesc = ordering.map {
       case (term, direction, nullOrder) => s"$term $direction $nullOrder"
     }.mkString(", ")
-    s"SetWriteOrder ${catalog.name}.${ident.quoted} $order"
+    s"SetWriteDistributionAndOrdering $tableIdent $distributionMode $orderingDesc"
   }
 }

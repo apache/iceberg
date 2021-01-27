@@ -22,10 +22,12 @@ package org.apache.spark.sql.catalyst.parser.extensions
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime.tree.TerminalNode
+import org.apache.iceberg.DistributionMode
 import org.apache.iceberg.NullOrder
 import org.apache.iceberg.SortDirection
 import org.apache.iceberg.expressions.Term
 import org.apache.iceberg.spark.Spark3Util
+import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.parser.ParseException
@@ -39,7 +41,7 @@ import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.NamedArgument
 import org.apache.spark.sql.catalyst.plans.logical.PositionalArgument
-import org.apache.spark.sql.catalyst.plans.logical.SetWriteOrder
+import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
 import org.apache.spark.sql.connector.expressions
 import org.apache.spark.sql.connector.expressions.ApplyTransform
 import org.apache.spark.sql.connector.expressions.FieldReference
@@ -79,12 +81,33 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   }
 
   /**
-   * Create a WRITE ORDERED BY logical command.
+   * Create a [[SetWriteDistributionAndOrdering]] for changing the write distribution and ordering.
    */
-  override def visitSetTableOrder(ctx: SetTableOrderContext): SetWriteOrder = withOrigin(ctx) {
-    SetWriteOrder(
-      typedVisit[Seq[String]](ctx.multipartIdentifier),
-      ctx.order.fields.asScala.map(typedVisit[(Term, SortDirection, NullOrder)]).toArray)
+  override def visitSetWriteDistributionAndOrdering(
+      ctx: SetWriteDistributionAndOrderingContext): SetWriteDistributionAndOrdering = {
+
+    val tableName = typedVisit[Seq[String]](ctx.multipartIdentifier)
+
+    val distributionSpec = ctx.writeDistributionSpec
+    val orderingSpec = ctx.writeOrderingSpec
+
+    if (distributionSpec == null && orderingSpec == null) {
+      throw new AnalysisException("Distribution and ordering spec cannot be empty at the same time")
+    }
+
+    val distributionMode = if (distributionSpec != null) {
+      DistributionMode.HASH
+    } else if (orderingSpec.UNORDERED != null || orderingSpec.LOCALLY != null) {
+      DistributionMode.NONE
+    } else {
+      DistributionMode.RANGE
+    }
+
+    val order = Option(orderingSpec)
+      .map(_.order.fields.asScala.map(typedVisit[(Term, SortDirection, NullOrder)]))
+      .getOrElse(Seq.empty)
+
+    SetWriteDistributionAndOrdering(tableName, distributionMode, order)
   }
 
   /**
