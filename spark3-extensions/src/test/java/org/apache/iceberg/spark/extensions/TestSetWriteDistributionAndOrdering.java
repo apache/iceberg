@@ -169,7 +169,7 @@ public class TestSetWriteDistributionAndOrdering extends SparkExtensionsTestBase
         .asc(bucket("id", 16))
         .asc("id")
         .build();
-    Assert.assertNotEquals("Sort order must match", expected, table.sortOrder());
+    Assert.assertEquals("Sort order must match", expected, table.sortOrder());
   }
 
   @Test
@@ -189,7 +189,7 @@ public class TestSetWriteDistributionAndOrdering extends SparkExtensionsTestBase
         .withOrderId(1)
         .asc("id")
         .build();
-    Assert.assertNotEquals("Sort order must match", expected, table.sortOrder());
+    Assert.assertEquals("Sort order must match", expected, table.sortOrder());
   }
 
   @Test
@@ -209,7 +209,7 @@ public class TestSetWriteDistributionAndOrdering extends SparkExtensionsTestBase
         .withOrderId(1)
         .asc("id")
         .build();
-    Assert.assertNotEquals("Sort order must match", expected, table.sortOrder());
+    Assert.assertEquals("Sort order must match", expected, table.sortOrder());
   }
 
   @Test
@@ -225,7 +225,7 @@ public class TestSetWriteDistributionAndOrdering extends SparkExtensionsTestBase
     String distributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
     Assert.assertEquals("Distribution mode must match", "hash", distributionMode);
 
-    Assert.assertNotEquals("Sort order must match", SortOrder.unsorted(), table.sortOrder());
+    Assert.assertEquals("Sort order must match", SortOrder.unsorted(), table.sortOrder());
   }
 
   @Test
@@ -241,6 +241,6 @@ public class TestSetWriteDistributionAndOrdering extends SparkExtensionsTestBase
     String distributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
     Assert.assertEquals("Distribution mode must match", "hash", distributionMode);
 
-    Assert.assertNotEquals("Sort order must match", SortOrder.unsorted(), table.sortOrder());
+    Assert.assertEquals("Sort order must match", SortOrder.unsorted(), table.sortOrder());
   }
 }
