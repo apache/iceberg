@@ -36,7 +36,7 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 
 ## Writing with SQL
 
-Spark 3 supports SQL `INSERT INTO` and `INSERT OVERWRITE`, as well as the new `DataFrameWriterV2` API.
+Spark 3 supports SQL `INSERT INTO`, `MERGE INTO`, and `INSERT OVERWRITE`, as well as the new `DataFrameWriterV2` API.
 
 ### `INSERT INTO`
 
@@ -72,17 +72,15 @@ WHEN ...                      -- updates
 Updates to rows in the target table are listed using `WHEN MATCHED ... THEN ...`. Multiple `MATCHED` clauses can be added with conditions that determine when each match should be applied. The first matching expression is used.
 
 ```sql
-...
 WHEN MATCHED AND s.op = 'delete' THEN DELETE
-WHEN MATCHED AND t.count IS NULL AND s.op = 'increment' THEN SET t.count = 0
-WHEN MATCHED AND s.op = 'increment' THEN SET t.count = t.count + 1
-...
+WHEN MATCHED AND t.count IS NULL AND s.op = 'increment' THEN UPDATE SET t.count = 0
+WHEN MATCHED AND s.op = 'increment' THEN UPDATE SET t.count = t.count + 1
 ```
 
 Source rows (updates) that do not match can be inserted:
 
 ```sql
-WHEN NOT MATCHED INSERT *
+WHEN NOT MATCHED THEN INSERT *
 ```
 
 Inserts also support additional conditions:
