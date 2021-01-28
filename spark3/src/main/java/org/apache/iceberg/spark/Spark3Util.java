@@ -21,18 +21,14 @@ package org.apache.iceberg.spark;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.MetadataTableType;
-import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SortField;
-import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.UpdateSchema;
@@ -49,8 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.relocated.com.google.common.collect.Multimap;
-import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
+import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
 import org.apache.iceberg.transforms.SortOrderVisitor;
 import org.apache.iceberg.types.Type;
@@ -59,6 +54,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SortOrderUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -77,6 +73,8 @@ import org.apache.spark.sql.connector.expressions.Literal;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.connector.iceberg.distributions.Distribution;
 import org.apache.spark.sql.connector.iceberg.distributions.Distributions;
+import org.apache.spark.sql.connector.iceberg.distributions.OrderedDistribution;
+import org.apache.spark.sql.connector.iceberg.expressions.SortOrder;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
@@ -84,6 +82,10 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import scala.Some;
 import scala.collection.JavaConverters;
 import scala.collection.Seq;
+
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
 
 public class Spark3Util {
 
@@ -226,6 +228,12 @@ public class Spark3Util {
     }
   }
 
+  public static org.apache.iceberg.Table toIcebergTable(Table table) {
+    Preconditions.checkArgument(table instanceof SparkTable, "Table %s is not an Iceberg table", table);
+    SparkTable sparkTable = (SparkTable) table;
+    return sparkTable.table();
+  }
+
   /**
    * Converts a PartitionSpec to Spark transforms.
    *
@@ -279,46 +287,47 @@ public class Spark3Util {
     return transforms.toArray(new Transform[0]);
   }
 
-  public static Distribution toOrderedDistribution(PartitionSpec spec, SortOrder sortOrder, boolean inferFromSpec) {
-    if (sortOrder.isUnsorted()) {
-      if (inferFromSpec) {
-        SortOrder specOrder = Partitioning.sortOrderFor(spec);
-        return Distributions.ordered(convert(specOrder));
-      }
-
-      return Distributions.unspecified();
+  public static Distribution buildRequiredDistribution(org.apache.iceberg.Table table) {
+    DistributionMode distributionMode = distributionModeFor(table);
+    switch (distributionMode) {
+      case NONE:
+        return Distributions.unspecified();
+      case HASH:
+        if (table.spec().isUnpartitioned()) {
+          return Distributions.unspecified();
+        } else {
+          return Distributions.clustered(toTransforms(table.spec()));
+        }
+      case RANGE:
+        if (table.spec().isUnpartitioned() && table.sortOrder().isUnsorted()) {
+          return Distributions.unspecified();
+        } else {
+          org.apache.iceberg.SortOrder requiredSortOrder = SortOrderUtil.buildSortOrder(table);
+          return Distributions.ordered(convert(requiredSortOrder));
+        }
+      default:
+        throw new IllegalArgumentException("Unsupported distribution mode: " + distributionMode);
     }
-
-    Schema schema = spec.schema();
-    Multimap<Integer, SortField> sortFieldIndex = Multimaps.index(sortOrder.fields(), SortField::sourceId);
-
-    // build a sort prefix of partition fields that are not already in the sort order
-    SortOrder.Builder builder = SortOrder.builderFor(schema);
-    for (PartitionField field : spec.fields()) {
-      Collection<SortField> sortFields = sortFieldIndex.get(field.sourceId());
-      boolean isSorted = sortFields.stream().anyMatch(sortField ->
-          field.transform().equals(sortField.transform()) || sortField.transform().satisfiesOrderOf(field.transform()));
-      if (!isSorted) {
-        String sourceName = schema.findColumnName(field.sourceId());
-        builder.asc(org.apache.iceberg.expressions.Expressions.transform(sourceName, field.transform()));
-      }
-    }
-
-    // add the configured sort to the partition spec prefix sort
-    SortOrderVisitor.visit(sortOrder, new CopySortOrderFields(builder));
-
-    return Distributions.ordered(convert(builder.build()));
   }
 
-  public static Distribution toClusteredDistribution(PartitionSpec spec) {
-    if (spec.isUnpartitioned()) {
-      return Distributions.unspecified();
+  public static SortOrder[] buildRequiredOrdering(Distribution distribution, org.apache.iceberg.Table table) {
+    if (distribution instanceof OrderedDistribution) {
+      OrderedDistribution orderedDistribution = (OrderedDistribution) distribution;
+      return orderedDistribution.ordering();
     } else {
-      return Distributions.clustered(toTransforms(spec));
+      org.apache.iceberg.SortOrder requiredSortOrder = SortOrderUtil.buildSortOrder(table);
+      return convert(requiredSortOrder);
     }
   }
 
-  public static OrderField[] convert(SortOrder sortOrder) {
+  public static DistributionMode distributionModeFor(org.apache.iceberg.Table table) {
+    boolean isSortedTable = !table.sortOrder().isUnsorted();
+    String defaultModeName = isSortedTable ? WRITE_DISTRIBUTION_MODE_RANGE : WRITE_DISTRIBUTION_MODE_DEFAULT;
+    String modeName = table.properties().getOrDefault(WRITE_DISTRIBUTION_MODE, defaultModeName);
+    return DistributionMode.fromName(modeName);
+  }
+
+  public static SortOrder[] convert(org.apache.iceberg.SortOrder sortOrder) {
     List<OrderField> converted = SortOrderVisitor.visit(sortOrder, new SortOrderToSpark());
     return converted.toArray(new OrderField[0]);
   }

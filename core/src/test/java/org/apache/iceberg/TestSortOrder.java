@@ -309,4 +309,10 @@ public class TestSortOrder {
         ValidationException.class, "Cannot find source column",
         () -> table.updateSchema().deleteColumn("s.id").commit());
   }
+
+  @Test
+  public void testEmptySortOrder() {
+    SortOrder order = SortOrder.builderFor(SCHEMA).build();
+    Assert.assertEquals("Order must be unsorted", SortOrder.unsorted(), order);
+  }
 }

@@ -74,10 +74,10 @@ public class HiveIcebergOutputFormat<T> implements OutputFormat<NullWritable, Co
     LocationProvider location = HiveIcebergStorageHandler.location(jc);
     EncryptionManager encryption = HiveIcebergStorageHandler.encryption(jc);
     OutputFileFactory outputFileFactory =
-        new OutputFileFactory(spec, FileFormat.PARQUET, location, io, encryption, taskAttemptID.getTaskID().getId(),
+        new OutputFileFactory(spec, fileFormat, location, io, encryption, taskAttemptID.getTaskID().getId(),
             taskAttemptID.getId(), jc.get(HiveConf.ConfVars.HIVEQUERYID.varname) + "-" + taskAttemptID.getJobID());
     HiveIcebergRecordWriter writer = new HiveIcebergRecordWriter(schema, spec, fileFormat,
-        new GenericAppenderFactory(schema), outputFileFactory, io, targetFileSize, taskAttemptID);
+        new GenericAppenderFactory(schema, spec), outputFileFactory, io, targetFileSize, taskAttemptID);
 
     return writer;
   }
