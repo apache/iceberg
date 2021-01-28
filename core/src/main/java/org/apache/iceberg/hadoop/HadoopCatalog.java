@@ -184,7 +184,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     // still a namespace.
     try {
       return fs.listStatus(metadataPath, TABLE_FILTER).length >= 1;
-    } catch (FileNotFoundException  e) {
+    } catch (FileNotFoundException e) {
       return false;
     } catch (IOException e) {
       if (shouldSuppressPermissionError(e)) {
