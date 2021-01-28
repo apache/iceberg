@@ -26,7 +26,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.stream.Stream;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.encryption.EncryptedFiles;
@@ -76,9 +75,7 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
   }
 
   InputFile getInputFile(String location) {
-    // normalize the path before looking it up in the map
-    Path path = new Path(location);
-    return inputFiles.get(path.toString());
+    return inputFiles.get(location);
   }
 
   @Override
