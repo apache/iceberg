@@ -181,6 +181,34 @@ public class TestParquetSchemaUtil {
     Assert.assertEquals("Schema must match", expectedSchema.asStruct(), actualSchema.asStruct());
   }
 
+  @Test
+  public void testSchemaConversionListByteArray() {
+    MessageType messageType = new MessageType("test",
+        list(1, "my_bytes", Repetition.OPTIONAL,
+            primitive(2, "array", PrimitiveTypeName.BINARY, Repetition.REPEATED))
+    );
+
+    Schema expectedSchema = new Schema(
+        optional(1, "my_bytes", Types.ListType.ofRequired(2, Types.BinaryType.get()))
+    );
+
+    Schema actualSchema = ParquetSchemaUtil.convertAndPrune(messageType);
+    Assert.assertEquals("Schema must match", expectedSchema.asStruct(), actualSchema.asStruct());
+  }
+
+  @Test
+  public void testSchemaConversionByteArray() {
+    MessageType messageType = new MessageType("test",
+        primitive(1, "array", PrimitiveTypeName.BINARY, Repetition.REPEATED));
+
+    Schema expectedSchema = new Schema(
+        required(1, "array", Types.BinaryType.get())
+    );
+
+    Schema actualSchema = ParquetSchemaUtil.convertAndPrune(messageType);
+    Assert.assertEquals("Schema must match", expectedSchema.asStruct(), actualSchema.asStruct());
+  }
+
   private Type primitive(Integer id, String name, PrimitiveTypeName typeName, Repetition repetition) {
     PrimitiveBuilder<PrimitiveType> builder = org.apache.parquet.schema.Types.primitive(typeName, repetition);
     if (id != null) {
