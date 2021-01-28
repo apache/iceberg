@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.beam;
 
+import java.util.Arrays;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.AvroCoder;
@@ -31,6 +32,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.beam.util.StringToGenericRecord;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.test.Cat;
 import org.junit.Test;
 
 public class BatchTest extends BaseTest {
@@ -53,7 +55,7 @@ public class BatchTest extends BaseTest {
   public void runPipeline(FileFormat fileFormat) {
     final Pipeline p = Pipeline.create(options);
 
-    p.getCoderRegistry().registerCoderForClass(GenericRecord.class, AvroCoder.of(avroSchema));
+    p.getCoderRegistry().registerCoderForClass(GenericRecord.class, AvroCoder.of(Cat.SCHEMA$));
 
     PCollection<String> lines = p.apply(Create.of(SENTENCES)).setCoder(StringUtf8Coder.of());
 
@@ -68,6 +70,48 @@ public class BatchTest extends BaseTest {
         .withHiveMetastoreUrl(hiveMetastoreUrl)
         .conf(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name())
         .build(records);
+
+    p.run();
+  }
+
+
+  @Test
+  public void testWriteFilesAvroSpecific() {
+    runPipelineSpecific(FileFormat.AVRO);
+  }
+
+  @Test
+  public void testWriteFilesParquetSpecific() {
+    runPipelineSpecific(FileFormat.PARQUET);
+  }
+
+  @Test
+  public void testWriteFilesOrcSpecific() {
+    runPipelineSpecific(FileFormat.ORC);
+  }
+
+
+  public void runPipelineSpecific(FileFormat fileFormat) {
+    final Pipeline p = Pipeline.create(options);
+
+    p.getCoderRegistry().registerCoderForClass(Cat.class, AvroCoder.of(Cat.SCHEMA$));
+
+    PCollection<Cat> cats = p.apply(Create.of(Arrays.asList(
+        Cat.newBuilder().setBreed("Ragdoll").build(),
+        Cat.newBuilder().setBreed("Oriental").build(),
+        Cat.newBuilder().setBreed("Birman").build(),
+        Cat.newBuilder().setBreed("Sphynx").build())
+    ));
+
+    org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
+    TableIdentifier name = TableIdentifier.of("default", "test_specific_batch_" + fileFormat.name());
+
+    new IcebergIO.Builder()
+        .withSchema(icebergSchema)
+        .withTableIdentifier(name)
+        .withHiveMetastoreUrl(hiveMetastoreUrl)
+        .conf(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name())
+        .build(cats);
 
     p.run();
   }

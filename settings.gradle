@@ -17,6 +17,17 @@
  * under the License.
  */
 
+pluginManagement {
+  repositories {
+    gradlePluginPortal()
+    jcenter()
+    maven {
+      name "JCenter Gradle Plugins"
+      url  "https://dl.bintray.com/gradle/gradle-plugins"
+    }
+  }
+}
+
 rootProject.name = 'iceberg'
 include 'api'
 include 'common'

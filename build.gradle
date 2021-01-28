@@ -17,6 +17,8 @@
  * under the License.
  */
 
+
+import com.commercehub.gradle.plugin.avro.GenerateAvroJavaTask
 import groovy.transform.Memoized
 
 buildscript {
@@ -37,6 +39,7 @@ buildscript {
 }
 
 plugins {
+  id "com.commercehub.gradle.plugin.avro" version "0.22.0"
   id 'nebula.dependency-recommender' version '9.0.2'
   id 'org.projectnessie' version '0.3.0'
 }
@@ -373,6 +376,19 @@ project(':iceberg-beam') {
     }
 
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
+
+    dependencies {
+      implementation "org.apache.avro:avro:1.10.1"
+    }
+
+    def generateAvro = tasks.register("generateAvro", GenerateAvroJavaTask) {
+      source("src/test/avro")
+      outputDir = file("build/generated/sources/annotationProcessor/java/test")
+    }
+
+    tasks.named("compileJava").configure {
+      source(generateAvro)
+    }
   }
 }
 
@@ -1211,4 +1227,3 @@ String getJavadocVersion() {
 apply from: 'baseline.gradle'
 apply from: 'deploy.gradle'
 apply from: 'tasks.gradle'
-

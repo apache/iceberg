@@ -42,6 +42,7 @@ public abstract class BaseTest {
           "Beam window 1 4",
           "Beam window 2 1",
           "Beam window 2 2");
+
   protected static final PipelineOptions options = TestPipeline.testingPipelineOptions();
   protected static final String stringSchema = "{\n" +
       "\t\"type\": \"record\",\n" +
