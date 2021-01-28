@@ -27,7 +27,7 @@ import org.apache.flink.table.types.logical.RowType;
 
 /**
  * This is a small util class that try to hide calls to Flink
- * @Internval or @PublicEvolve interfaces as Flink can change
+ * Internal or PublicEvolve interfaces as Flink can change
  * those APIs during minor version release.
  */
 public class FlinkCompatibilityUtil {
