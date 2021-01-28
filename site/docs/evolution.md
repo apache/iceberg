@@ -31,13 +31,13 @@ Iceberg supports the following schema evolution changes:
 * **Update** -- widen the type of a column, struct field, map key, map value, or list element
 * **Reorder** -- change the order of columns or fields in a nested struct
 
-Iceberg schema updates are metadata changes. Data files are not eagerly rewritten.
+Iceberg schema updates are **metadata changes**, so no data files need to be rewritten to perform the update.
 
 Note that map keys do not support adding or dropping struct fields that would change equality.
 
 ### Correctness
 
-Iceberg guarantees that **schema evolution changes are independent and free of side-effects**:
+Iceberg guarantees that **schema evolution changes are independent and free of side-effects**, without rewriting files:
 
 1.  Added columns never read existing values from another column.
 2.  Dropping a column or field does not change the values in any other column.
