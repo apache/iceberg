@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.util.Utf8;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.encryption.EncryptedFiles;
@@ -125,11 +126,13 @@ abstract class BaseDataReader<T> implements Closeable {
 
   protected InputFile getInputFile(FileScanTask task) {
     Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
-    return inputFiles.get(task.file().path().toString());
+    return getInputFile(task.file().path().toString());
   }
 
   protected InputFile getInputFile(String location) {
-    return inputFiles.get(location);
+    // normalize the path before looking it up in the map
+    Path path = new Path(location);
+    return inputFiles.get(path.toString());
   }
 
   protected static Object convertConstant(Type type, Object value) {
