@@ -26,18 +26,21 @@ import org.apache.spark.sql.catalyst.expressions.IcebergBucketTransform
 import org.apache.spark.sql.catalyst.expressions.IcebergDayTransform
 import org.apache.spark.sql.catalyst.expressions.IcebergHourTransform
 import org.apache.spark.sql.catalyst.expressions.IcebergMonthTransform
+import org.apache.spark.sql.catalyst.expressions.IcebergTruncateTransform
 import org.apache.spark.sql.catalyst.expressions.IcebergYearTransform
 import org.apache.spark.sql.catalyst.expressions.NamedExpression
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.RepartitionByExpression
 import org.apache.spark.sql.catalyst.plans.logical.Sort
 import org.apache.spark.sql.connector.catalog.CatalogV2Implicits
+import org.apache.spark.sql.connector.expressions.ApplyTransform
 import org.apache.spark.sql.connector.expressions.BucketTransform
 import org.apache.spark.sql.connector.expressions.DaysTransform
 import org.apache.spark.sql.connector.expressions.Expression
 import org.apache.spark.sql.connector.expressions.FieldReference
 import org.apache.spark.sql.connector.expressions.HoursTransform
 import org.apache.spark.sql.connector.expressions.IdentityTransform
+import org.apache.spark.sql.connector.expressions.Literal
 import org.apache.spark.sql.connector.expressions.MonthsTransform
 import org.apache.spark.sql.connector.expressions.NamedReference
 import org.apache.spark.sql.connector.expressions.Transform
@@ -50,6 +53,8 @@ import org.apache.spark.sql.connector.iceberg.expressions.NullOrdering
 import org.apache.spark.sql.connector.iceberg.expressions.SortDirection
 import org.apache.spark.sql.connector.iceberg.expressions.SortOrder
 import org.apache.spark.sql.internal.SQLConf
+import org.apache.spark.sql.types.DataType
+import org.apache.spark.sql.types.IntegerType
 
 object DistributionAndOrderingUtils {
 
@@ -118,6 +123,8 @@ object DistributionAndOrderingUtils {
         resolve(it.ref.fieldNames)
       case BucketTransform(numBuckets, ref) =>
         IcebergBucketTransform(numBuckets, resolve(ref.fieldNames))
+      case TruncateTransform(ref, width) =>
+        IcebergTruncateTransform(resolve(ref.fieldNames), width)
       case yt: YearsTransform =>
         IcebergYearTransform(resolve(yt.ref.fieldNames))
       case mt: MonthsTransform =>
@@ -153,6 +160,26 @@ object DistributionAndOrderingUtils {
       case bt: BucketTransform => bt.columns match {
         case Seq(nf: NamedReference) =>
           Some(bt.numBuckets.value(), FieldReference(nf.fieldNames()))
+        case _ =>
+          None
+      }
+      case _ => None
+    }
+  }
+
+  private object Lit {
+    def unapply[T](literal: Literal[T]): Some[(T, DataType)] = {
+      Some((literal.value, literal.dataType))
+    }
+  }
+
+  private object TruncateTransform {
+    def unapply(transform: Transform): Option[(FieldReference, Int)] = transform match {
+      case at @ ApplyTransform(name, _) if name.equalsIgnoreCase("truncate")  => at.args match {
+        case Seq(nf: NamedReference, Lit(value: Int, IntegerType)) =>
+          Some(FieldReference(nf.fieldNames()), value)
+        case Seq(Lit(value: Int, IntegerType), nf: NamedReference) =>
+          Some(FieldReference(nf.fieldNames()), value)
         case _ =>
           None
       }

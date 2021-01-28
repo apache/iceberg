@@ -44,6 +44,7 @@ nav:
     - About: index.md
     - Community: community.md
     - Releases: releases.md
+    - Blogs: blogs.md
     - Trademarks: trademarks.md
     - How to Release: how-to-release.md
   - Tables:
