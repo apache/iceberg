@@ -26,6 +26,7 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Factory responsible for generating unique but recognizable data file names.
@@ -84,6 +85,8 @@ public class OutputFileFactory {
   }
 
   private String generateFilename() {
+    Preconditions.checkNotNull(format, "Format shouldn't be null");
+    Preconditions.checkNotNull(operationId, "OperationID shouldn't be null");
     return format.addExtension(
         String.format("%05d-%d-%s-%05d", partitionId, taskId, operationId, fileCount.incrementAndGet()));
   }
