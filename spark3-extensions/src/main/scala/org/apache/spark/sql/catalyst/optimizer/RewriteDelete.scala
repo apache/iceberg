@@ -76,7 +76,7 @@ case class RewriteDelete(spark: SparkSession) extends Rule[LogicalPlan] with Rew
       val remainingRowsPlan = Filter(remainingRowFilter, scanPlan)
 
       val mergeWrite = mergeBuilder.asWriteBuilder.buildForBatch()
-      val writePlan = buildWritePlan(remainingRowsPlan, r.output)
+      val writePlan = buildWritePlan(remainingRowsPlan, r.table, r.output)
       ReplaceData(r, mergeWrite, writePlan)
   }
 
