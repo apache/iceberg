@@ -89,7 +89,7 @@ case class RewriteDelete(spark: SparkSession) extends Rule[LogicalPlan] with Rew
     val rowPosCol = findOutputAttr(remainingRowsPlan.output, ROW_POS_COL)
 
     val icebergTable = Spark3Util.toIcebergTable(table)
-    val distributionMode = Spark3Util.getDistributionMode(icebergTable)
+    val distributionMode = Spark3Util.distributionModeFor(icebergTable)
     val planWithDistribution = distributionMode match {
       case DistributionMode.NONE =>
         remainingRowsPlan
