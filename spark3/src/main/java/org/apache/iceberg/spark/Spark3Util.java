@@ -288,7 +288,7 @@ public class Spark3Util {
   }
 
   public static Distribution buildRequiredDistribution(org.apache.iceberg.Table table) {
-    DistributionMode distributionMode = getDistributionMode(table);
+    DistributionMode distributionMode = distributionModeFor(table);
     switch (distributionMode) {
       case NONE:
         return Distributions.unspecified();
@@ -320,7 +320,7 @@ public class Spark3Util {
     }
   }
 
-  private static DistributionMode getDistributionMode(org.apache.iceberg.Table table) {
+  public static DistributionMode distributionModeFor(org.apache.iceberg.Table table) {
     boolean isSortedTable = !table.sortOrder().isUnsorted();
     String defaultModeName = isSortedTable ? WRITE_DISTRIBUTION_MODE_RANGE : WRITE_DISTRIBUTION_MODE_DEFAULT;
     String modeName = table.properties().getOrDefault(WRITE_DISTRIBUTION_MODE, defaultModeName);
