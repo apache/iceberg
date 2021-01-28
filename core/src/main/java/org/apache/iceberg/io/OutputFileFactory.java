@@ -85,8 +85,6 @@ public class OutputFileFactory {
   }
 
   private String generateFilename() {
-    Preconditions.checkNotNull(format, "Format shouldn't be null");
-    Preconditions.checkNotNull(operationId, "OperationID shouldn't be null");
     return format.addExtension(
         String.format("%05d-%d-%s-%05d", partitionId, taskId, operationId, fileCount.incrementAndGet()));
   }

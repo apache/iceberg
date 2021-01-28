@@ -81,7 +81,7 @@ public class FileWriter<T extends GenericRecord> extends DoFn<T, DataFile> {
 
   @StartBundle
   public void startBundle(StartBundleContext sbc) {
-
+    start();
   }
 
   @ProcessElement

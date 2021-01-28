@@ -85,7 +85,10 @@ public class IcebergIO {
   ) {
     // We take the filenames that are emitted by the FileIO
     final PCollection<DataFile> dataFiles = avroRecords
-        .apply(ParDo.of(new FileWriter<>(table, schema, PartitionSpec.unpartitioned(), hiveMetastoreUrl, properties)))
+        .apply(
+            "Write DataFiles",
+            ParDo.of(new FileWriter<>(table, schema, PartitionSpec.unpartitioned(), hiveMetastoreUrl, properties))
+        )
         .setCoder(SerializableCoder.of(DataFile.class));
 
     // We use a combiner, to combine all the files to a single commit in
@@ -94,7 +97,7 @@ public class IcebergIO {
     final Combine.Globally<DataFile, Snapshot> combined = Combine.globally(combiner).withoutDefaults();
 
     // We return the latest snapshot, which can be used to notify downstream consumers.
-    return dataFiles.apply(combined);
+    return dataFiles.apply("Commit DataFiles", combined);
   }
 }
 
