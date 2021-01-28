@@ -103,11 +103,12 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       DistributionMode.RANGE
     }
 
-    val order = Option(orderingSpec)
-      .map(_.order.fields.asScala.map(typedVisit[(Term, SortDirection, NullOrder)]))
-      .getOrElse(Seq.empty)
-
-    SetWriteDistributionAndOrdering(tableName, distributionMode, order)
+    val ordering = if (orderingSpec != null && orderingSpec.order != null) {
+      orderingSpec.order.fields.asScala.map(typedVisit[(Term, SortDirection, NullOrder)])
+    } else {
+      Seq.empty
+    }
+    SetWriteDistributionAndOrdering(tableName, distributionMode, ordering)
   }
 
   /**
