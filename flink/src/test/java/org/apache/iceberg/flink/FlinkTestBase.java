@@ -21,6 +21,7 @@ package org.apache.iceberg.flink;
 
 import java.util.List;
 import java.util.stream.IntStream;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.table.api.EnvironmentSettings;
@@ -43,8 +44,7 @@ public abstract class FlinkTestBase extends TestBaseUtils {
 
   private static final int DEFAULT_PARALLELISM = 4;
 
-  private static final org.apache.flink.configuration.Configuration config =
-      new org.apache.flink.configuration.Configuration()
+  private static final Configuration config = new Configuration()
           // disable classloader check as Avro may cache class/object in the serializers.
           .set(CoreOptions.CHECK_LEAKED_CLASSLOADER, false);
 

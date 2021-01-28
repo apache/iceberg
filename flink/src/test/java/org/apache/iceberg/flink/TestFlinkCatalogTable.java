@@ -79,17 +79,14 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
   @Test
   public void testGetTable() {
-    validationCatalog.createTable(
-        TableIdentifier.of(icebergNamespace, "tl"),
-        new Schema(
-            Types.NestedField.optional(0, "id", Types.LongType.get()),
-            Types.NestedField.optional(1, "strV", Types.StringType.get())));
-    Assert.assertEquals(
-        Arrays.asList(
-            TableColumn.physical("id", DataTypes.BIGINT()),
-            TableColumn.physical("strV", DataTypes.STRING())),
-        getTableEnv().from("tl").getSchema().getTableColumns());
-    Assert.assertTrue(getTableEnv().getCatalog(catalogName).get().tableExists(ObjectPath.fromString("db.tl")));
+    sql("CREATE TABLE tl(id BIGINT, strV STRING)");
+
+    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, "tl"));
+    Schema iSchema = new Schema(
+        Types.NestedField.optional(1, "id", Types.LongType.get()),
+        Types.NestedField.optional(2, "strV", Types.StringType.get())
+    );
+    Assert.assertEquals("Should load the expected iceberg schema", iSchema.toString(), table.schema().toString());
   }
 
   @Test

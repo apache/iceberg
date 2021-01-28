@@ -58,10 +58,8 @@ public class TestFlinkScanSql extends TestFlinkScan {
   @Override
   public void before() throws IOException {
     super.before();
-    getTableEnv().executeSql(String.format(
-        "create catalog iceberg_catalog with ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
-        warehouse));
-    getTableEnv().executeSql("use catalog iceberg_catalog");
+    sql("create catalog iceberg_catalog with ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')", warehouse);
+    sql("use catalog iceberg_catalog");
     getTableEnv().getConfig().getConfiguration().set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
   }
 
@@ -97,8 +95,7 @@ public class TestFlinkScanSql extends TestFlinkScan {
       optionStr = String.format("/*+ OPTIONS(%s)*/", optionStr);
     }
 
-    String sql = String.format("select %s from t %s %s", select, optionStr, sqlFilter);
-    return executeSQL(sql);
+    return sql("select %s from t %s %s", select, optionStr, sqlFilter);
   }
 
   @Test
@@ -146,8 +143,7 @@ public class TestFlinkScanSql extends TestFlinkScan {
 
     // Make sure to generate 2 CombinedScanTasks
     long maxFileLen = Math.max(dataFile1.fileSizeInBytes(), dataFile2.fileSizeInBytes());
-    executeSQL(String
-        .format("ALTER TABLE t SET ('read.split.open-file-cost'='1', 'read.split.target-size'='%s')", maxFileLen));
+    sql("ALTER TABLE t SET ('read.split.open-file-cost'='1', 'read.split.target-size'='%s')", maxFileLen);
 
     // 2 splits (max infer is the default value 100 , max > splits num), the parallelism is splits num : 2
     parallelism = FlinkSource.forRowData().inferParallelism(flinkInputFormat, scanContext);
@@ -180,8 +176,8 @@ public class TestFlinkScanSql extends TestFlinkScan {
     Assert.assertEquals("Should produce the expected parallelism.", 1, parallelism);
   }
 
-  private List<Row> executeSQL(String sql) {
-    TableResult tableResult = getTableEnv().executeSql(sql);
+  private List<Row> sql(String query, Object... args) {
+    TableResult tableResult = getTableEnv().executeSql(String.format(query, args));
     try (CloseableIterator<Row> iter = tableResult.collect()) {
       List<Row> results = Lists.newArrayList(iter);
       return results;
