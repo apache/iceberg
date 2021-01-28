@@ -146,7 +146,7 @@ CREATE CATALOG my_catalog WITH (
 
 ### Create through YAML config
 
-Catalog can also be registered in `sql-client-defaults.yaml` before starting the SQL client. Here is an example:
+Catalogs can be registered in `sql-client-defaults.yaml` before starting the SQL client. Here is an example:
 
 ```yaml
 catalogs: 
