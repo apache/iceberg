@@ -25,7 +25,10 @@ import org.apache.avro.Schema;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.values.TimestampedValue;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.beam.util.TestHiveMetastore;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.test.Cat;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
 import org.junit.AfterClass;
@@ -33,31 +36,33 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 
 public abstract class BaseTest {
+  public static final List<FileFormat> FILEFORMATS = Arrays.asList(
+      FileFormat.AVRO,
+      FileFormat.PARQUET,
+      FileFormat.ORC
+  );
+
   protected static final Instant START_TIME = new Instant(0);
-  protected static final List<String> SENTENCES =
-      Arrays.asList(
-          "Beam window 1 1",
-          "Beam window 1 2",
-          "Beam window 1 3",
-          "Beam window 1 4",
-          "Beam window 2 1",
-          "Beam window 2 2");
+  protected static final List<Cat> specificCats = Arrays.asList(
+      Cat.newBuilder().setBreed("Ragdoll").build(),
+      Cat.newBuilder().setBreed("Oriental").build(),
+      Cat.newBuilder().setBreed("Birman").build(),
+      Cat.newBuilder().setBreed("Sphynx").build()
+  );
+  protected static final List<org.apache.avro.generic.GenericRecord> genericCats = Arrays.asList(
+      Cat.newBuilder().setBreed("Ragdoll").build(),
+      Cat.newBuilder().setBreed("Oriental").build(),
+      Cat.newBuilder().setBreed("Birman").build(),
+      Cat.newBuilder().setBreed("Sphynx").build()
+  );
 
   protected static final PipelineOptions options = TestPipeline.testingPipelineOptions();
-  protected static final String stringSchema = "{\n" +
-      "\t\"type\": \"record\",\n" +
-      "\t\"name\": \"Word\",\n" +
-      "\t\"fields\": [{\n" +
-      "\t\t\"name\": \"word\",\n" +
-      "\t\t\"type\": [\"null\", \"string\"],\n" +
-      "\t\t\"default\": null\n" +
-      "\t}]\n" +
-      "}";
+
   private static TestHiveMetastore metastore;
+
   @Rule
   public final transient TestPipeline pipeline = TestPipeline.create();
   protected final String hiveMetastoreUrl = "thrift://localhost:9083/default";
-  protected final Schema avroSchema = new Schema.Parser().parse(stringSchema);
 
   @BeforeClass
   public static void startMetastore() {
@@ -70,7 +75,7 @@ public abstract class BaseTest {
     metastore.stop();
   }
 
-  protected TimestampedValue<String> event(String word, Long timestamp) {
+  protected TimestampedValue event(Object word, Long timestamp) {
     return TimestampedValue.of(word, START_TIME.plus(new Duration(timestamp)));
   }
 }

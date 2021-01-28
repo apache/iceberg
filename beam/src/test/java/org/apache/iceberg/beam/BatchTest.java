@@ -23,14 +23,11 @@ import java.util.Arrays;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.AvroCoder;
-import org.apache.beam.sdk.coders.StringUtf8Coder;
 import org.apache.beam.sdk.transforms.Create;
-import org.apache.beam.sdk.transforms.ParDo;
 import org.apache.beam.sdk.values.PCollection;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.AvroSchemaUtil;
-import org.apache.iceberg.beam.util.StringToGenericRecord;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.test.Cat;
 import org.junit.Test;
@@ -38,18 +35,10 @@ import org.junit.Test;
 public class BatchTest extends BaseTest {
 
   @Test
-  public void testWriteFilesAvro() {
-    runPipeline(FileFormat.AVRO);
-  }
-
-  @Test
-  public void testWriteFilesParquet() {
-    runPipeline(FileFormat.PARQUET);
-  }
-
-  @Test
-  public void testWriteFilesOrc() {
-    runPipeline(FileFormat.ORC);
+  public void testWriteFiles() {
+    for (FileFormat format : FILEFORMATS) {
+      runPipeline(format);
+    }
   }
 
   public void runPipeline(FileFormat fileFormat) {
@@ -57,11 +46,9 @@ public class BatchTest extends BaseTest {
 
     p.getCoderRegistry().registerCoderForClass(GenericRecord.class, AvroCoder.of(Cat.SCHEMA$));
 
-    PCollection<String> lines = p.apply(Create.of(SENTENCES)).setCoder(StringUtf8Coder.of());
+    PCollection<GenericRecord> records = p.apply(Create.of(genericCats));
 
-    PCollection<GenericRecord> records = lines.apply(ParDo.of(new StringToGenericRecord(stringSchema)));
-
-    org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
+    org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(Cat.getClassSchema());
     TableIdentifier name = TableIdentifier.of("default", "test_batch_" + fileFormat.name());
 
     new IcebergIO.Builder()
@@ -74,36 +61,21 @@ public class BatchTest extends BaseTest {
     p.run();
   }
 
-
   @Test
-  public void testWriteFilesAvroSpecific() {
-    runPipelineSpecific(FileFormat.AVRO);
+  public void testWriteFilesSpecific() {
+    for (FileFormat format : FILEFORMATS) {
+      runPipelineSpecific(format);
+    }
   }
-
-  @Test
-  public void testWriteFilesParquetSpecific() {
-    runPipelineSpecific(FileFormat.PARQUET);
-  }
-
-  @Test
-  public void testWriteFilesOrcSpecific() {
-    runPipelineSpecific(FileFormat.ORC);
-  }
-
 
   public void runPipelineSpecific(FileFormat fileFormat) {
     final Pipeline p = Pipeline.create(options);
 
     p.getCoderRegistry().registerCoderForClass(Cat.class, AvroCoder.of(Cat.SCHEMA$));
 
-    PCollection<Cat> cats = p.apply(Create.of(Arrays.asList(
-        Cat.newBuilder().setBreed("Ragdoll").build(),
-        Cat.newBuilder().setBreed("Oriental").build(),
-        Cat.newBuilder().setBreed("Birman").build(),
-        Cat.newBuilder().setBreed("Sphynx").build())
-    ));
+    PCollection<Cat> cats = p.apply(Create.of(specificCats));
 
-    org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(avroSchema);
+    org.apache.iceberg.Schema icebergSchema = AvroSchemaUtil.toIceberg(Cat.getClassSchema());
     TableIdentifier name = TableIdentifier.of("default", "test_specific_batch_" + fileFormat.name());
 
     new IcebergIO.Builder()

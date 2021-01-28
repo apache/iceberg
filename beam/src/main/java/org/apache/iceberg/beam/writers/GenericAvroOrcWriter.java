@@ -21,6 +21,7 @@ package org.apache.iceberg.beam.writers;
 
 import java.util.List;
 import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
@@ -35,7 +36,7 @@ import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
-public class GenericAvroOrcWriter implements OrcRowWriter<GenericData.Record> {
+public class GenericAvroOrcWriter implements OrcRowWriter<GenericRecord> {
   private final OrcValueWriter writer;
 
   private GenericAvroOrcWriter(Schema expectedSchema, TypeDescription orcSchema) {
@@ -45,13 +46,13 @@ public class GenericAvroOrcWriter implements OrcRowWriter<GenericData.Record> {
     writer = OrcSchemaWithTypeVisitor.visit(expectedSchema, orcSchema, new WriteBuilder());
   }
 
-  public static OrcRowWriter<GenericData.Record> buildWriter(Schema expectedSchema, TypeDescription fileSchema) {
+  public static OrcRowWriter<GenericRecord> buildWriter(Schema expectedSchema, TypeDescription fileSchema) {
     return new GenericAvroOrcWriter(expectedSchema, fileSchema);
   }
 
   @Override
   @SuppressWarnings("unchecked")
-  public void write(GenericData.Record value, VectorizedRowBatch output) {
+  public void write(GenericRecord value, VectorizedRowBatch output) {
     Preconditions.checkArgument(writer instanceof RecordWriter, "writer must be a RecordWriter.");
 
     int row = output.size;
@@ -72,7 +73,7 @@ public class GenericAvroOrcWriter implements OrcRowWriter<GenericData.Record> {
     }
 
     @Override
-    public OrcValueWriter<GenericData.Record> record(Types.StructType iStruct, TypeDescription record,
+    public OrcValueWriter<GenericRecord> record(Types.StructType iStruct, TypeDescription record,
                              List<String> names, List<OrcValueWriter<?>> fields) {
       return new RecordWriter(fields);
     }
@@ -131,7 +132,7 @@ public class GenericAvroOrcWriter implements OrcRowWriter<GenericData.Record> {
     }
   }
 
-  private static class RecordWriter implements OrcValueWriter<GenericData.Record> {
+  private static class RecordWriter implements OrcValueWriter<GenericRecord> {
     private final List<OrcValueWriter<?>> writers;
 
     RecordWriter(List<OrcValueWriter<?>> writers) {
@@ -143,13 +144,13 @@ public class GenericAvroOrcWriter implements OrcRowWriter<GenericData.Record> {
     }
 
     @Override
-    public Class<GenericData.Record> getJavaClass() {
-      return GenericData.Record.class;
+    public Class<GenericRecord> getJavaClass() {
+      return GenericRecord.class;
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    public void nonNullWrite(int rowId, GenericData.Record data, ColumnVector output) {
+    public void nonNullWrite(int rowId, GenericRecord data, ColumnVector output) {
       StructColumnVector cv = (StructColumnVector) output;
       for (int c = 0; c < writers.size(); ++c) {
         OrcValueWriter child = writers.get(c);

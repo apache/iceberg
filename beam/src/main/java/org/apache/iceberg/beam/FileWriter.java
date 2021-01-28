@@ -42,6 +42,7 @@ import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitionedWriter;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.UnpartitionedWriter;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.joda.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -80,6 +81,29 @@ public class FileWriter<T extends GenericRecord> extends DoFn<T, DataFile> {
 
   @StartBundle
   public void startBundle(StartBundleContext sbc) {
+
+  }
+
+  @ProcessElement
+  public void processElement(ProcessContext context, BoundedWindow window) {
+    appendRecord(
+        context.element(),
+        window,
+        (int) context.pane().getIndex(),
+        context.pane().getIndex()
+    );
+  }
+
+  @FinishBundle
+  public void finishBundle(FinishBundleContext fbc) {
+    DataFile[] files = finish();
+    for (DataFile file : files) {
+      fbc.output(file, Instant.now(), lastSeenWindow);
+    }
+  }
+
+  @VisibleForTesting
+  public void start() {
     Configuration conf = new Configuration();
     for (String key : this.properties.keySet()) {
       conf.set(key, this.properties.get(key));
@@ -107,13 +131,11 @@ public class FileWriter<T extends GenericRecord> extends DoFn<T, DataFile> {
     this.fileFormat = FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
   }
 
-  @ProcessElement
-  public void processElement(ProcessContext context, BoundedWindow window) {
+  @VisibleForTesting
+  public void appendRecord(T element, BoundedWindow window, int partitionId, long taskId) {
     if (writer == null) {
       LOG.info("Setting up the writer");
       // We would rather do this in the startBundle, but we don't know the pane
-      int partitionId = (int) context.pane().getIndex();
-      long taskId = context.pane().getIndex();
 
       BeamAppenderFactory<T> appenderFactory = new BeamAppenderFactory<>(schema, properties, spec);
       OutputFileFactory fileFactory = new OutputFileFactory(
@@ -133,28 +155,24 @@ public class FileWriter<T extends GenericRecord> extends DoFn<T, DataFile> {
     }
     try {
       lastSeenWindow = window;
-      writer.write(context.element());
+      writer.write(element);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }
 
-  @FinishBundle
-  public void finishBundle(FinishBundleContext fbc) {
+  @VisibleForTesting
+  public DataFile[] finish() {
     LOG.info("Closing the writer");
     try {
       writer.close();
-      final Instant now = Instant.now();
-      for (DataFile f : writer.dataFiles()) {
-        fbc.output(f, now, lastSeenWindow);
-      }
+      return writer.dataFiles();
     } catch (IOException e) {
       throw new RuntimeException(e);
     } finally {
       writer = null;
+      catalog.close();
+      catalog = null;
     }
-
-    catalog.close();
-    catalog = null;
   }
 }

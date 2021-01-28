@@ -20,36 +20,36 @@
 package org.apache.iceberg.beam.writers;
 
 import java.util.List;
-import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.iceberg.data.parquet.BaseParquetWriter;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.parquet.schema.MessageType;
 
-public class GenericAvroParquetWriter extends BaseParquetWriter<GenericData.Record> {
+public class GenericAvroParquetWriter extends BaseParquetWriter<GenericRecord> {
   private static final GenericAvroParquetWriter INSTANCE = new GenericAvroParquetWriter();
 
   private GenericAvroParquetWriter() {
   }
 
-  public static ParquetValueWriter<GenericData.Record> buildWriter(MessageType type) {
+  public static ParquetValueWriter<GenericRecord> buildWriter(MessageType type) {
     return INSTANCE.createWriter(type);
   }
 
   @Override
-  protected ParquetValueWriters.StructWriter<GenericData.Record> createStructWriter(
+  protected ParquetValueWriters.StructWriter<GenericRecord> createStructWriter(
       List<ParquetValueWriter<?>> writers
   ) {
     return new RecordWriter(writers);
   }
 
-  private static class RecordWriter extends ParquetValueWriters.StructWriter<GenericData.Record> {
+  private static class RecordWriter extends ParquetValueWriters.StructWriter<GenericRecord> {
     private RecordWriter(List<ParquetValueWriter<?>> writers) {
       super(writers);
     }
 
     @Override
-    protected Object get(GenericData.Record struct, int index) {
+    protected Object get(GenericRecord struct, int index) {
       return struct.get(index);
     }
   }
