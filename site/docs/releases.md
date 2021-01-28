@@ -74,14 +74,21 @@ High-level features:
 
 Important bug fixes:
 
-* [\#2091](https://github.com/apache/iceberg/pull/2091) fixes Parquet vectorized reads when column types are promoted
-* [\#1991](https://github.com/apache/iceberg/pull/1991) fixes Avro schema conversions to preserve field docs
-* [\#1981](https://github.com/apache/iceberg/pull/1981) fixes bug that date and timestamp transforms were producing incorrect values for negative dates and times
-* [\#1798](https://github.com/apache/iceberg/pull/1798) fixes read failure when encountering duplicate entries of data files
-* [\#1785](https://github.com/apache/iceberg/pull/1785) fixes invalidation of metadata tables in CachingCatalog
+* [\#2091](https://github.com/apache/iceberg/pull/2091) fixes `ClassCastException` for type promotion `int` to `long` or `float` to `double` during Parquet vectorized read. Now Arrow vector is created by looking at Parquet file schema instead of Iceberg schema for `int` and `float` fields.
+* [\#2031](https://github.com/apache/iceberg/pull/2031) fixes bug in Flink that custom catalog property causes catalog initialization failure. Now Flink catalog can support arbitrary custom catalog properties.
+* [\#2011](https://github.com/apache/iceberg/pull/2011) fixes equality comparison for `BaseSnapshot`. For engines such as Beam that serialize snapshots, now snapshots can be compared through Java equality operator.
+* [\#1998](https://github.com/apache/iceberg/pull/1998) fixes bug in `HiveTableOperation` that `unlock` is not called if new metadata cannot be deleted. Now it is guaranteed that `unlock` is always called for Hive catalog users.
+* [\#1991](https://github.com/apache/iceberg/pull/1991) fixes Avro schema conversions to preserve field docs. Now field level documentation is also preserved when converting from Avro schemas to Iceberg schemas.
+* [\#1981](https://github.com/apache/iceberg/pull/1981) fixes bug that date and timestamp transforms were producing incorrect values for dates and times before 1970. Before the fix, negative values were incorrectly transformed by date and timestamp transforms to 1 larger than the correct value. For example, `day(1969-12-31 10:00:00)` produced 0 instead of -1. The fix is backwards compatible, which means predicate projection can still work with the incorrectly transformed partitions written using older versions.
+* [\#1979](https://github.com/apache/iceberg/pull/1979) fixes table listing failure in Hadoop catalog when user does not have permission to some tables. Now the tables with no permission are ignored in listing.
+* [\#1798](https://github.com/apache/iceberg/pull/1798) fixes read failure when encountering duplicate entries of data files. Spark and Flink readers can now ignore duplicated entries in data files.
+* [\#1785](https://github.com/apache/iceberg/pull/1785) fixes invalidation of metadata tables in `CachingCatalog`. When a table is dropped, all the metadata tables associated with it are also invalidated in the cache.
+* [\#1960](https://github.com/apache/iceberg/pull/1960) fixes bug that ORC writer does not read metrics config and always use the default. Now customized metrics config is respected.
+* [\#1936](https://github.com/apache/iceberg/pull/1936) fixes parallelism setting in Flink. Before, the default Flink parallelism was used which cause performance issue or resource waste. Now the parallelism is set to the number of Iceberg read splits. 
 
 Other notable changes:
 
+* PrestoSQL is renamed to [Trino](https://trino.io/)
 * NaN counts are now supported in metadata
 * Shared catalog properties are added in core library to standardize catalog level configurations
 * Spark and Flink now support dynamically loading customized `Catalog` and `FileIO` implementations
