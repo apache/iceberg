@@ -19,9 +19,11 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.iceberg.spark.source.SparkScanBuilder
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.iceberg.catalog.SupportsMerge
+import org.apache.spark.sql.connector.read.ScanBuilder
 
 // must be merged with DataSourceV2Implicits in Spark
 object ExtendedDataSourceV2Implicits {
@@ -32,6 +34,17 @@ object ExtendedDataSourceV2Implicits {
           support
         case _ =>
           throw new AnalysisException(s"Table does not support updates and deletes: ${table.name}")
+      }
+    }
+  }
+
+  implicit class ScanBuilderHelper(scanBuilder: ScanBuilder) {
+    def asIceberg: SparkScanBuilder = {
+      scanBuilder match {
+        case iceberg: SparkScanBuilder =>
+          iceberg
+        case _ =>
+          throw new AnalysisException(s"ScanBuilder is not from an Iceberg table: $scanBuilder")
       }
     }
   }
