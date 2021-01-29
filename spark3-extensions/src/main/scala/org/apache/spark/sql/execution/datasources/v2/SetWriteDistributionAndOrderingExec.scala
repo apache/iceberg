@@ -19,7 +19,6 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
-import java.util.Locale
 import org.apache.iceberg.DistributionMode
 import org.apache.iceberg.NullOrder
 import org.apache.iceberg.SortDirection
