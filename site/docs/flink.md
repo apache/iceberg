@@ -144,6 +144,18 @@ CREATE CATALOG my_catalog WITH (
 );
 ```
 
+### Create through YAML config
+
+Catalogs can be registered in `sql-client-defaults.yaml` before starting the SQL client. Here is an example:
+
+```yaml
+catalogs: 
+  - name: my_catalog
+    type: iceberg
+    catalog-type: hadoop
+    warehouse: hdfs://nn:8020/warehouse/path
+```
+
 ## DDL commands
 
 ### `CREATE DATABASE`

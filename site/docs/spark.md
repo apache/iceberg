@@ -26,7 +26,7 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 | [`CREATE TABLE`](#create-table)                | ✔️        |            |                                                |
 | [`CREATE TABLE AS`](#create-table-as-select)   | ✔️        |            |                                                |
 | [`REPLACE TABLE AS`](#replace-table-as-select) | ✔️        |            |                                                |
-| [`ALTER TABLE`](#alter-table)                  | ✔️        |            | ⚠ requires extensions enabled to update partition field and sort order |
+| [`ALTER TABLE`](#alter-table)                  | ✔️        |            | ⚠ Requires [SQL extensions](./spark-configuration.md#sql-extensions) enabled to update partition field and sort order |
 | [`DROP TABLE`](#drop-table)                    | ✔️        |            |                                                |
 | [`SELECT`](#querying-with-sql)                 | ✔️        |            |                                                |
 | [`INSERT INTO`](#insert-into)                  | ✔️        |            |                                                |
@@ -39,8 +39,6 @@ Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog impleme
 | [DataFrame overwrite](#overwriting-data)         | ✔️        | ✔️          | ⚠ Behavior changed in Spark 3.0                |
 | [DataFrame CTAS and RTAS](#creating-tables)      | ✔️        |            |                                                |
 | [Metadata tables](#inspecting-tables)            | ✔️        | ✔️          |                                                |
-
-To enable Iceberg SQL extensions, set Spark configuration `spark.sql.extensions` as `org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions`. 
 
 ## Configuring catalogs
 

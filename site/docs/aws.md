@@ -51,6 +51,8 @@ spark-sql --packages $DEPENDENCIES \
 
 As you can see, In the shell command, we use `--packages` to specify the additional AWS bundle and HTTP client dependencies with their version as `2.15.40`.
 
+For integration with other engines such as Flink, please read their engine documentation pages that explain how to load a custom catalog. 
+
 ## Glue Catalog
 
 Iceberg enables the use of [AWS Glue](https://aws.amazon.com/glue) as the `Catalog` implementation.
