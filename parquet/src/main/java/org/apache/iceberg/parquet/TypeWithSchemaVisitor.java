@@ -81,11 +81,10 @@ public class TypeWithSchemaVisitor<T> {
             visitor.fieldNames.push(repeatedElement.getName());
             try {
               T elementResult = null;
-              if (repeatedElement.isPrimitive() || repeatedElement.asGroupType().getFieldCount() > 0) {
-                Type elementField = repeatedElement.isPrimitive() ? repeatedElement :
-                    repeatedElement.asGroupType().getType(0);
-
-                elementResult = visitField(element, elementField, visitor);
+              if (repeatedElement.isPrimitive()) {
+                elementResult = visit(element != null ? element.type() : null, repeatedElement, visitor);
+              } else if (repeatedElement.asGroupType().getFieldCount() > 0) {
+                elementResult = visitField(element, repeatedElement.asGroupType().getType(0), visitor);
               }
 
               return visitor.list(list, group, elementResult);

@@ -102,7 +102,7 @@ public class TestMalformedParquetFromAvro {
     }
 
     InternalRow row = rows.get(0);
-    Assert.assertArrayEquals(row.getArray(0).toByteArray(), expectedByte);
+    Assert.assertArrayEquals(row.getArray(0).getBinary(0), expectedByte);
   }
 
 }
