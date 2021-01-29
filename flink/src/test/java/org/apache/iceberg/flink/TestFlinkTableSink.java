@@ -89,7 +89,8 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
             .useBlinkPlanner();
         if (isStreamingJob) {
           settingsBuilder.inStreamingMode();
-          StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+          StreamExecutionEnvironment env = StreamExecutionEnvironment
+              .getExecutionEnvironment(MiniClusterBase.CONFIG);
           env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
           env.enableCheckpointing(400);
           env.setMaxParallelism(2);

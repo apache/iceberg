@@ -37,7 +37,6 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.conversion.DataStructureConverter;
 import org.apache.flink.table.data.conversion.DataStructureConverters;
 import org.apache.flink.table.types.utils.TypeConversions;
-import org.apache.flink.test.util.AbstractTestBase;
 import org.apache.flink.types.Row;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
@@ -54,6 +53,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.MiniClusterBase;
 import org.apache.iceberg.flink.RowDataConverter;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -71,7 +71,7 @@ import org.junit.runners.Parameterized;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
-public abstract class TestFlinkScan extends AbstractTestBase {
+public abstract class TestFlinkScan extends MiniClusterBase {
 
   protected static final Schema SCHEMA = new Schema(
           required(1, "data", Types.StringType.get()),

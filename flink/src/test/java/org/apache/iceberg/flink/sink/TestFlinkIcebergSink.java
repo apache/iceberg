@@ -35,13 +35,13 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
-import org.apache.flink.test.util.AbstractTestBase;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.flink.MiniClusterBase;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.BoundedTestSource;
@@ -55,7 +55,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public class TestFlinkIcebergSink extends AbstractTestBase {
+public class TestFlinkIcebergSink extends MiniClusterBase {
   private static final TypeInformation<Row> ROW_TYPE_INFO = new RowTypeInfo(
       SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
   private static final DataFormatConverters.RowConverter CONVERTER = new DataFormatConverters.RowConverter(
@@ -105,7 +105,7 @@ public class TestFlinkIcebergSink extends AbstractTestBase {
     Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name());
     table = SimpleDataUtil.createTable(tablePath, props, partitioned);
 
-    env = StreamExecutionEnvironment.getExecutionEnvironment()
+    env = StreamExecutionEnvironment.getExecutionEnvironment(MiniClusterBase.CONFIG)
         .enableCheckpointing(100)
         .setParallelism(parallelism)
         .setMaxParallelism(parallelism);
