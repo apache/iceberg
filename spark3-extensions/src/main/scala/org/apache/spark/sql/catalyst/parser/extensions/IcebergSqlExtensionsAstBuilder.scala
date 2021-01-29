@@ -88,11 +88,11 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
 
     val tableName = typedVisit[Seq[String]](ctx.multipartIdentifier)
 
-    val distributionSpec = ctx.writeDistributionSpec
-    val orderingSpec = ctx.writeOrderingSpec
+    val (distributionSpec, orderingSpec) = toDistributionAndOrderingSpec(ctx.writeSpec)
 
     if (distributionSpec == null && orderingSpec == null) {
-      throw new AnalysisException("Distribution and ordering spec cannot be empty at the same time")
+      throw new AnalysisException(
+        "ALTER TABLE has no changes: missing both distribution and ordering clauses")
     }
 
     val distributionMode = if (distributionSpec != null) {
@@ -108,7 +108,25 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     } else {
       Seq.empty
     }
+
     SetWriteDistributionAndOrdering(tableName, distributionMode, ordering)
+  }
+
+  private def toDistributionAndOrderingSpec(
+      writeSpec: WriteSpecContext): (WriteDistributionSpecContext, WriteOrderingSpecContext) = {
+
+    if (writeSpec.writeDistributionSpec.size > 1) {
+      throw new AnalysisException("ALTER TABLE contains multiple distribution clauses")
+    }
+
+    if (writeSpec.writeOrderingSpec.size > 1) {
+      throw new AnalysisException("ALTER TABLE contains multiple ordering clauses")
+    }
+
+    val distributionSpec = writeSpec.writeDistributionSpec.asScala.headOption.orNull
+    val orderingSpec = writeSpec.writeOrderingSpec.asScala.headOption.orNull
+
+    (distributionSpec, orderingSpec)
   }
 
   /**

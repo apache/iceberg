@@ -35,7 +35,7 @@ case class SetWriteDistributionAndOrderingExec(
     catalog: TableCatalog,
     ident: Identifier,
     distributionMode: DistributionMode,
-    ordering: Seq[(Term, SortDirection, NullOrder)]) extends V2CommandExec {
+    sortOrder: Seq[(Term, SortDirection, NullOrder)]) extends V2CommandExec {
 
   import CatalogV2Implicits._
 
@@ -47,7 +47,7 @@ case class SetWriteDistributionAndOrderingExec(
         val txn = iceberg.table.newTransaction()
 
         val orderBuilder = txn.replaceSortOrder()
-        ordering.foreach {
+        sortOrder.foreach {
           case (term, SortDirection.ASC, nullOrder) =>
             orderBuilder.asc(term, nullOrder)
           case (term, SortDirection.DESC, nullOrder) =>
@@ -56,7 +56,7 @@ case class SetWriteDistributionAndOrderingExec(
         orderBuilder.commit()
 
         txn.updateProperties()
-          .set(WRITE_DISTRIBUTION_MODE, distributionMode.toString.toLowerCase(Locale.ROOT))
+          .set(WRITE_DISTRIBUTION_MODE, distributionMode.modeName())
           .commit()
 
         txn.commitTransaction()
@@ -70,9 +70,9 @@ case class SetWriteDistributionAndOrderingExec(
 
   override def simpleString(maxFields: Int): String = {
     val tableIdent = s"${catalog.name}.${ident.quoted}"
-    val orderingDesc = ordering.map {
+    val order = sortOrder.map {
       case (term, direction, nullOrder) => s"$term $direction $nullOrder"
     }.mkString(", ")
-    s"SetWriteDistributionAndOrdering $tableIdent $distributionMode $orderingDesc"
+    s"SetWriteDistributionAndOrdering $tableIdent $distributionMode $order"
   }
 }

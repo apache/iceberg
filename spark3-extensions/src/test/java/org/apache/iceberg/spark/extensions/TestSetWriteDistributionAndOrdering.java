@@ -243,4 +243,40 @@ public class TestSetWriteDistributionAndOrdering extends SparkExtensionsTestBase
 
     Assert.assertEquals("Sort order must match", SortOrder.unsorted(), table.sortOrder());
   }
+
+  @Test
+  public void testSetWriteDistributedAndUnorderedInverted() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, category string) USING iceberg PARTITIONED BY (category)", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertTrue("Table should start unsorted", table.sortOrder().isUnsorted());
+
+    sql("ALTER TABLE %s WRITE UNORDERED DISTRIBUTED BY PARTITION", tableName);
+
+    table.refresh();
+
+    String distributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
+    Assert.assertEquals("Distribution mode must match", "hash", distributionMode);
+
+    Assert.assertEquals("Sort order must match", SortOrder.unsorted(), table.sortOrder());
+  }
+
+  @Test
+  public void testSetWriteDistributedAndLocallyOrderedInverted() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, category string) USING iceberg PARTITIONED BY (category)", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertTrue("Table should start unsorted", table.sortOrder().isUnsorted());
+
+    sql("ALTER TABLE %s WRITE ORDERED BY id DISTRIBUTED BY PARTITION", tableName);
+
+    table.refresh();
+
+    String distributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
+    Assert.assertEquals("Distribution mode must match", "hash", distributionMode);
+
+    SortOrder expected = SortOrder.builderFor(table.schema())
+        .withOrderId(1)
+        .asc("id")
+        .build();
+    Assert.assertEquals("Sort order must match", expected, table.sortOrder());
+  }
 }

@@ -27,18 +27,18 @@ import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.CatalogV2Implicits
 
 case class SetWriteDistributionAndOrdering(
-    tableName: Seq[String],
+    table: Seq[String],
     distributionMode: DistributionMode,
-    ordering: Seq[(Term, SortDirection, NullOrder)]) extends Command {
+    sortOrder: Seq[(Term, SortDirection, NullOrder)]) extends Command {
 
   import CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil
 
   override def simpleString(maxFields: Int): String = {
-    val orderingDesc = ordering.map {
+    val order = sortOrder.map {
       case (term, direction, nullOrder) => s"$term $direction $nullOrder"
     }.mkString(", ")
-    s"SetWriteDistributionAndOrdering ${tableName.quoted} $distributionMode $orderingDesc"
+    s"SetWriteDistributionAndOrdering ${table.quoted} $distributionMode $order"
   }
 }
