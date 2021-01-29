@@ -56,6 +56,7 @@ import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -147,7 +148,11 @@ public class S3OutputStreamTest {
     try {
       stream.write(1);
     } finally {
-      stream.close();
+      try {
+        stream.close();
+      } catch (Throwable t) {
+        // swallow it
+      }
     }
   }
 
@@ -164,7 +169,11 @@ public class S3OutputStreamTest {
     try {
       stream.write(new byte[16]);
     } finally {
-      stream.close();
+      try {
+        stream.close();
+      } catch (Throwable t) {
+        // swallow it
+      }
     }
   }
 
@@ -178,7 +187,11 @@ public class S3OutputStreamTest {
       Thread.sleep(1);
     }
     Assert.assertNotNull(stream.getAsyncError());
-    stream.close();
+    try {
+      stream.close();
+    } finally {
+      verify(s3mock, never()).completeMultipartUpload((CompleteMultipartUploadRequest) any());
+    }
   }
 
   @Test
