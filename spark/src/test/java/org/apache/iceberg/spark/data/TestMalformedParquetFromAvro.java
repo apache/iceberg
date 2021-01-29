@@ -48,24 +48,16 @@ public class TestMalformedParquetFromAvro {
 
 
   @Test
-  public void testReadListByteArray() throws IOException {
-    String schema = "{\n" +
-        "   \"type\":\"record\",\n" +
-        "   \"name\":\"DbRecord\",\n" +
-        "   \"namespace\":\"com.iceberg\",\n" +
-        "   \"fields\":[\n" +
-        "      {\n" +
-        "         \"name\":\"foo\",\n" +
-        "         \"type\":[\n" +
-        "            \"null\",\n" +
-        "            {\n" +
-        "               \"type\":\"array\",\n" +
-        "               \"items\":\"bytes\"\n" +
-        "            }\n" +
-        "         ],\n" +
-        "         \"default\":null\n" +
-        "      }\n" +
-        "   ]\n" +
+  public void testWriteReadAvroBinary() throws IOException {
+    String schema = "{" +
+        "\"type\":\"record\"," +
+        "\"name\":\"DbRecord\"," +
+        "\"namespace\":\"com.iceberg\"," +
+        "\"fields\":[" +
+          "{\"name\":\"arraybytes\", " +
+            "\"type\":[ \"null\", { \"type\":\"array\", \"items\":\"bytes\"}], \"default\":null}," +
+          "{\"name\":\"topbytes\", \"type\":\"bytes\"}" +
+        "]" +
         "}";
 
     org.apache.avro.Schema.Parser parser = new org.apache.avro.Schema.Parser();
@@ -87,7 +79,8 @@ public class TestMalformedParquetFromAvro {
     byte[] expectedByte = {0x00, 0x01};
     expectedByteList.add(ByteBuffer.wrap(expectedByte));
 
-    recordBuilder.set("foo", expectedByteList);
+    recordBuilder.set("arraybytes", expectedByteList);
+    recordBuilder.set("topbytes", ByteBuffer.wrap(expectedByte));
     GenericData.Record record = recordBuilder.build();
     writer.write(record);
     writer.close();
@@ -103,6 +96,7 @@ public class TestMalformedParquetFromAvro {
 
     InternalRow row = rows.get(0);
     Assert.assertArrayEquals(row.getArray(0).getBinary(0), expectedByte);
+    Assert.assertArrayEquals(row.getBinary(1), expectedByte);
   }
 
 }
