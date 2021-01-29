@@ -71,7 +71,8 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
 
   InputFile getInputFile(FileScanTask task) {
     Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
-    return getInputFile(task.file().path().toString());
+
+    return inputFiles.get(task.file().path().toString());
   }
 
   InputFile getInputFile(String location) {
