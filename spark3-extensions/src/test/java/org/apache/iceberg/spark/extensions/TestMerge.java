@@ -48,8 +48,77 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     sql("DROP TABLE IF EXISTS source");
   }
 
-  // TODO: tests for reordering when operations succeed (both insert and update actions)
-  // TODO: tests for subqueries in conditions
+  @Test
+  public void testMergeAlignsUpdateAndInsertActions() {
+    createAndInitTable("id INT, a INT, b STRING", "{ \"id\": 1, \"a\": 2, \"b\": \"str\" }");
+    createOrReplaceView("source",
+        "{ \"id\": 1, \"c1\": -2, \"c2\": \"new_str_1\" }\n" +
+        "{ \"id\": 2, \"c1\": -20, \"c2\": \"new_str_2\" }");
+
+    sql("MERGE INTO %s t USING source " +
+        "ON t.id == source.id " +
+        "WHEN MATCHED THEN " +
+        "  UPDATE SET b = c2, a = c1, t.id = source.id " +
+        "WHEN NOT MATCHED THEN " +
+        "  INSERT (b, a, id) VALUES (c2, c1, id)", tableName);
+
+    assertEquals("Output should match",
+        ImmutableList.of(row(1, -2, "new_str_1"), row(2, -20, "new_str_2")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testMergeUpdatesNestedStructFields() {
+    createAndInitTable("id INT, s STRUCT<c1:INT,c2:STRUCT<a:ARRAY<INT>,m:MAP<STRING, STRING>>>",
+        "{ \"id\": 1, \"s\": { \"c1\": 2, \"c2\": { \"a\": [1,2], \"m\": { \"a\": \"b\"} } } } }");
+    createOrReplaceView("source", "{ \"id\": 1, \"c1\": -2 }");
+
+    // update primitive, array, map columns inside a struct
+    sql("MERGE INTO %s t USING source " +
+        "ON t.id == source.id " +
+        "WHEN MATCHED THEN " +
+        "  UPDATE SET t.s.c1 = source.c1, t.s.c2.a = array(-1, -2), t.s.c2.m = map('k', 'v')", tableName);
+
+    assertEquals("Output should match",
+        ImmutableList.of(row(1, row(-2, row(ImmutableList.of(-1, -2), ImmutableMap.of("k", "v"))))),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    // set primitive, array, map columns to NULL (proper casts should be in place)
+    sql("MERGE INTO %s t USING source " +
+        "ON t.id == source.id " +
+        "WHEN MATCHED THEN " +
+        "  UPDATE SET t.s.c1 = NULL, t.s.c2 = NULL", tableName);
+
+    assertEquals("Output should match",
+        ImmutableList.of(row(1, row(null, null))),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    // update all fields in a struct
+    sql("MERGE INTO %s t USING source " +
+        "ON t.id == source.id " +
+        "WHEN MATCHED THEN " +
+        "  UPDATE SET t.s = named_struct('c1', 100, 'c2', named_struct('a', array(1), 'm', map('x', 'y')))", tableName);
+
+    assertEquals("Output should match",
+        ImmutableList.of(row(1, row(100, row(ImmutableList.of(1), ImmutableMap.of("x", "y"))))),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testMergeWithInferredCasts() {
+    createAndInitTable("id INT, s STRING", "{ \"id\": 1, \"s\": \"value\" }");
+    createOrReplaceView("source", "{ \"id\": 1, \"c1\": -2}");
+
+    // -2 in source should be casted to "-2" in target
+    sql("MERGE INTO %s t USING source " +
+        "ON t.id == source.id " +
+        "WHEN MATCHED THEN " +
+        "  UPDATE SET t.s = source.c1", tableName);
+
+    assertEquals("Output should match",
+        ImmutableList.of(row(1, "-2")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
 
   @Test
   public void testMergeModifiesNullStruct() {

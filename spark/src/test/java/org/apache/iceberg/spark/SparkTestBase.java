@@ -110,6 +110,10 @@ public abstract class SparkTestBase {
           Object value = row.get(pos);
           if (value instanceof Row) {
             return toJava((Row) value);
+          } else if (value instanceof scala.collection.Seq) {
+            return row.getList(pos);
+          } else if (value instanceof scala.collection.Map) {
+            return row.getJavaMap(pos);
           } else {
             return value;
           }
@@ -146,11 +150,12 @@ public abstract class SparkTestBase {
     Assert.assertEquals("Number of columns should match", expectedRow.length, actualRow.length);
     for (int col = 0; col < actualRow.length; col += 1) {
       Object expectedValue = expectedRow[col];
+      Object actualValue = actualRow[col];
       if (expectedValue != null && expectedValue.getClass().isArray()) {
         String newContext = String.format("%s (nested col %d)", context, col + 1);
-        assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualRow[col]);
+        assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualValue);
       } else if (expectedValue != ANY) {
-        Assert.assertEquals(context + " contents should match", expectedValue, actualRow[col]);
+        Assert.assertEquals(context + " contents should match", expectedValue, actualValue);
       }
     }
   }
