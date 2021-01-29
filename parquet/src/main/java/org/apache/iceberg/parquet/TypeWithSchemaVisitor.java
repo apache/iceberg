@@ -63,10 +63,12 @@ public class TypeWithSchemaVisitor<T> {
             Preconditions.checkArgument(group.getFieldCount() == 1,
                 "Invalid list: does not contain single repeated field: %s", group);
 
-            GroupType repeatedElement = group.getFields().get(0).asGroupType();
+            Type repeatedElement = group.getFields().get(0);
+
             Preconditions.checkArgument(repeatedElement.isRepetition(Type.Repetition.REPEATED),
                 "Invalid list: inner group is not repeated");
-            Preconditions.checkArgument(repeatedElement.getFieldCount() <= 1,
+            Preconditions.checkArgument(repeatedElement.isPrimitive() ||
+                    repeatedElement.asGroupType().getFieldCount() <= 1,
                 "Invalid list: repeated group is not a single field: %s", group);
 
             Types.ListType list = null;
@@ -79,8 +81,11 @@ public class TypeWithSchemaVisitor<T> {
             visitor.fieldNames.push(repeatedElement.getName());
             try {
               T elementResult = null;
-              if (repeatedElement.getFieldCount() > 0) {
-                elementResult = visitField(element, repeatedElement.getType(0), visitor);
+              if (repeatedElement.isPrimitive() || repeatedElement.asGroupType().getFieldCount() > 0) {
+                Type elementField = repeatedElement.isPrimitive() ? repeatedElement :
+                    repeatedElement.asGroupType().getType(0);
+
+                elementResult = visitField(element, elementField, visitor);
               }
 
               return visitor.list(list, group, elementResult);
