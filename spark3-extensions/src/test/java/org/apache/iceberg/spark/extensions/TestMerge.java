@@ -49,8 +49,22 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   }
 
   // TODO: tests for reordering when operations succeed (both insert and update actions)
-  // TODO: tests for modifying fields in a null struct
   // TODO: tests for subqueries in conditions
+
+  @Test
+  public void testMergeModifiesNullStruct() {
+    createAndInitTable("id INT, s STRUCT<n1:INT,n2:INT>", "{ \"id\": 1, \"s\": null }");
+    createOrReplaceView("source", "{ \"id\": 1, \"n1\": -10 }");
+
+    sql("MERGE INTO %s t USING source s " +
+        "ON t.id == s.id " +
+        "WHEN MATCHED THEN " +
+        "  UPDATE SET t.s.n1 = s.n1", tableName);
+
+    assertEquals("Output should match",
+        ImmutableList.of(row(1, row(-10, null))),
+        sql("SELECT * FROM %s", tableName));
+  }
 
   @Test
   public void testMergeRefreshesRelationCache() {
