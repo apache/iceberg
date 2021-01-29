@@ -158,6 +158,7 @@ quotedIdentifier
 
 nonReserved
     : ADD | ALTER | AS | ASC | BY | CALL | DESC | DROP | FIELD | FIRST | LAST | NULLS | ORDERED | PARTITION | TABLE | WRITE
+    | DISTRIBUTED | LOCALLY | UNORDERED
     | TRUE | FALSE
     | MAP
     ;
