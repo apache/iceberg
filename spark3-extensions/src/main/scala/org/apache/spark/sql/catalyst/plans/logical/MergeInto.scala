@@ -28,8 +28,8 @@ case class MergeInto(
     child: LogicalPlan) extends UnaryNode
 
 case class MergeIntoParams(
-    isSourceRowNotPresent: Expression,
-    isTargetRowNotPresent: Expression,
+    isSourceRowPresent: Expression,
+    isTargetRowPresent: Expression,
     matchedConditions: Seq[Expression],
     matchedOutputs: Seq[Option[Seq[Expression]]],
     notMatchedConditions: Seq[Expression],
