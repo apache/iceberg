@@ -19,22 +19,26 @@
 
 package org.apache.spark.sql.catalyst.plans.logical
 
+import org.apache.iceberg.DistributionMode
 import org.apache.iceberg.NullOrder
 import org.apache.iceberg.SortDirection
 import org.apache.iceberg.expressions.Term
 import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.connector.catalog.CatalogV2Implicits
 
-case class SetWriteOrder(
+case class SetWriteDistributionAndOrdering(
     table: Seq[String],
-    sortOrder: Array[(Term, SortDirection, NullOrder)]) extends Command {
-  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
+    distributionMode: DistributionMode,
+    sortOrder: Seq[(Term, SortDirection, NullOrder)]) extends Command {
 
-  override def output: Seq[Attribute] = Nil
+  import CatalogV2Implicits._
+
+  override lazy val output: Seq[Attribute] = Nil
 
   override def simpleString(maxFields: Int): String = {
     val order = sortOrder.map {
       case (term, direction, nullOrder) => s"$term $direction $nullOrder"
     }.mkString(", ")
-    s"SetWriteOrder ${table.quoted} $order"
+    s"SetWriteDistributionAndOrdering ${table.quoted} $distributionMode $order"
   }
 }
