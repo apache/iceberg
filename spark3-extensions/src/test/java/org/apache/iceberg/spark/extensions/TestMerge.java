@@ -50,10 +50,10 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
   @Test
   public void testMergeAlignsUpdateAndInsertActions() {
-    createAndInitTable("id INT, a INT, b STRING", "{ \"id\": 1, \"a\": 2, \"b\": \"3\" }");
+    createAndInitTable("id INT, a INT, b STRING", "{ \"id\": 1, \"a\": 2, \"b\": \"str\" }");
     createOrReplaceView("source",
-        "{ \"id\": 1, \"c1\": -2, \"c2\": \"-3\" }\n" +
-        "{ \"id\": 2, \"c1\": -20, \"c2\": \"-30\" }");
+        "{ \"id\": 1, \"c1\": -2, \"c2\": \"new_str_1\" }\n" +
+        "{ \"id\": 2, \"c1\": -20, \"c2\": \"new_str_2\" }");
 
     sql("MERGE INTO %s t USING source " +
         "ON t.id == source.id " +
@@ -63,7 +63,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "  INSERT (b, a, id) VALUES (c2, c1, id)", tableName);
 
     assertEquals("Output should match",
-        ImmutableList.of(row(1, -2, "-3"), row(2, -20, "-30")),
+        ImmutableList.of(row(1, -2, "new_str_1"), row(2, -20, "new_str_2")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
@@ -71,7 +71,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   public void testMergeUpdatesNestedStructFields() {
     createAndInitTable("id INT, s STRUCT<c1:INT,c2:STRUCT<a:ARRAY<INT>,m:MAP<STRING, STRING>>>",
         "{ \"id\": 1, \"s\": { \"c1\": 2, \"c2\": { \"a\": [1,2], \"m\": { \"a\": \"b\"} } } } }");
-    createOrReplaceView("source", "{ \"id\": 1, \"c1\": -2, \"c2\": \"-3\" }");
+    createOrReplaceView("source", "{ \"id\": 1, \"c1\": -2 }");
 
     // update primitive, array, map columns inside a struct
     sql("MERGE INTO %s t USING source " +
