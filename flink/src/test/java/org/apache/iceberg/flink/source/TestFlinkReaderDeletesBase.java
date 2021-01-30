@@ -19,9 +19,8 @@
 
 package org.apache.iceberg.flink.source;
 
-import java.io.File;
 import java.util.Map;
-import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
@@ -32,7 +31,8 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.DeleteReadTests;
-import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.hive.HiveCatalog;
+import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -49,8 +49,9 @@ public abstract class TestFlinkReaderDeletesBase extends DeleteReadTests {
 
   protected static String databaseName = "default";
 
-  protected static HadoopCatalog catalog = null;
-  protected static String warehouseLocation = null;
+  protected static HiveConf hiveConf = null;
+  protected static HiveCatalog catalog = null;
+  private static TestHiveMetastore metastore = null;
 
   protected final FileFormat format;
 
@@ -68,16 +69,18 @@ public abstract class TestFlinkReaderDeletesBase extends DeleteReadTests {
   }
 
   @BeforeClass
-  public static void startMetastore() throws Exception {
-    Configuration hadoopConf = new Configuration();
-    File warehouseFile = TEMP_FOLDER.newFolder();
-    warehouseLocation = "file:" + warehouseFile;
-    catalog = new HadoopCatalog(hadoopConf, warehouseLocation);
+  public static void startMetastore() {
+    metastore = new TestHiveMetastore();
+    metastore.start();
+    hiveConf = metastore.hiveConf();
+    catalog = new HiveCatalog(hiveConf);
   }
 
   @AfterClass
-  public static void stopMetastore() throws Exception {
+  public static void stopMetastore() {
+    metastore.stop();
     catalog.close();
+    catalog = null;
   }
 
   @Override

@@ -20,14 +20,20 @@
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
+import java.util.Map;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestHelpers;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.StructLikeSet;
 
 public class TestFlinkInputFormatReaderDeletes extends TestFlinkReaderDeletesBase {
@@ -40,10 +46,14 @@ public class TestFlinkInputFormatReaderDeletes extends TestFlinkReaderDeletesBas
   protected StructLikeSet rowSet(String tableName, Table testTable, String... columns) throws IOException {
     Schema projected = testTable.schema().select(columns);
     RowType rowType = FlinkSchemaUtil.convert(projected);
-    final String tableLocation = String.format("%s/%s/%s", warehouseLocation, databaseName, tableName);
-    final TableLoader hadoopTableLoader = TableLoader.fromHadoopTable(tableLocation);
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, hiveConf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname));
+    properties.put(CatalogProperties.URI, hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname));
+    properties.put(CatalogProperties.CLIENT_POOL_SIZE,
+        Integer.toString(hiveConf.getInt("iceberg.hive.client-pool-size", 5)));
+    CatalogLoader hiveCatalogLoader = CatalogLoader.hive(catalog.name(), hiveConf, properties);
     FlinkInputFormat inputFormat = FlinkSource.forRowData()
-        .tableLoader(hadoopTableLoader)
+        .tableLoader(TableLoader.fromCatalog(hiveCatalogLoader, TableIdentifier.of("default", tableName)))
         .project(FlinkSchemaUtil.toSchema(rowType)).buildFormat();
 
     StructLikeSet set = StructLikeSet.create(projected.asStruct());
