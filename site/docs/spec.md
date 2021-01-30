@@ -218,29 +218,9 @@ Partition specs capture the transform from table data to partition values. This 
 | **`month`**       | Extract a date or timestamp month, as months from 1970-01-01 | `date`, `timestamp(tz)`                                                                                   | `int`       |
 | **`day`**         | Extract a date or timestamp day, as days from 1970-01-01     | `date`, `timestamp(tz)`                                                                                   | `date`      |
 | **`hour`**        | Extract a timestamp hour, as hours from 1970-01-01 00:00:00  | `timestamp(tz)`                                                                                           | `int`       |
-| **`void`**        | Always produces `null` (the void transform)                  | Any                                                                                                       | Source type |
+| **`void`**        | Always produces `null` (see below)                           | Any                                                                                                       | Source type |
 
 All transforms must return `null` for a `null` input value.
-
-
-#### Partition Field ID handling
-
-A partition field ID is an integer used to identify a partition field in Iceberg manifest files. 
-Field IDs are required in v2 and optional in v1.
-
-About compatibility between v1 and v2 tables:
-
-* For backward compatibility, if field ids are missing in a table metadata, the reference implementation will sequentially generate ids for each field starting at `1000` based on its position in the list of fields.
-* For forward compatibility, if field ids are not supported but present in the metadata, old versions of the reference implementation will ignore those field ids and then regenerate an auto-increment field id starting at 1000 for every partition field.
-
-While working with a v1 table, the v1 partition spec does not require consistent field IDs and then they are assigned when creating each manifest file. 
-When creating a manifest, each field of the partition spec will be assigned an ID starting at `1000`, and there is no guarantees about ID reuse across files. 
-But as long as the partition spec will not be evolved, IDs will be consistent.
-
-This has a few implications:
-* Older writers may erase partition field IDs when writing to a v1 table. This does not happen to v2 tables because writers will fail to read or write a v2 table.
-* Metadata tables need consistent field IDs across manifest files. To achieve it, for v1 tables, please evolve the partition spec according to the recommendations, 
-i.e. don't reorder or delete partition fields; replace fields with with `void` transform; add new fields to the end. Note that renames are OK and also note that this does not apply for v2 tables.
 
 
 #### Bucket Transform Details
@@ -273,6 +253,43 @@ Notes:
 
 1. The remainder, `v % W`, must be positive. For languages where `%` can produce negative values, the correct truncate function is: `v - (((v % W) + W) % W)`
 2. The width, `W`, used to truncate decimal values is applied using the scale of the decimal column to avoid additional (and potentially conflicting) parameters.
+
+
+#### Void Transform Details
+Void transform always produces a `null` value. 
+The purpose of this transform is to be a stand-in for partition transforms that are removed from a spec of v1 table.
+
+In the v1 table format, IDs for partition fields are not tracked in partition spec. 
+Instead, they are assigned starting at `1000` for each spec. 
+Because tables may have more than one spec, manifest files could have incompatible partition field structs. 
+This is not a problem for job planning because each manifest is read independently, 
+but it can break metadata tables that show a union of all manifest data files or entries.
+
+The `void` transform can be used to avoid a problem with ID assignment. 
+If a v1 table has two partition fields, `1000: categorical string, 1001: ts_day int`, 
+then removing the `categorical` partition will create a new partition spec with `1000: ts_day int`. 
+That would create a problem in the metadata tables. 
+Instead of deleting the categorical partition, it should be replaced with a `void` partition to keep the IDs aligned: `1000: always_null string, 1001: ts_day int`.
+
+
+#### Partition Field ID handling
+
+A partition field ID is an integer used to identify a partition field in Iceberg manifest files. 
+Field IDs are required in v2 and optional in v1.
+
+About compatibility between v1 and v2 tables:
+
+* For backward compatibility, if field ids are missing in a table metadata, the reference implementation will sequentially generate ids for each field starting at `1000` based on its position in the list of fields.
+* For forward compatibility, if field ids are not supported but present in the metadata, old versions of the reference implementation will ignore those field ids and then regenerate an auto-increment field id starting at 1000 for every partition field.
+
+While working with a v1 table, the v1 partition spec does not require consistent field IDs and then they are assigned when creating each manifest file. 
+When creating a manifest, each field of the partition spec will be assigned an ID starting at `1000`, and there is no guarantees about ID reuse across files. 
+But as long as the partition spec will not be evolved, IDs will be consistent.
+
+This has a few implications:
+* Older writers may erase partition field IDs when writing to a v1 table. This does not happen to v2 tables because old parsers will fail to read or write a v2 table metadata because of version mismatch and v2 table writers must write partition field IDs.
+* Metadata tables need consistent field IDs across manifest files. To achieve it, for v1 tables, please evolve the partition spec according to the recommendations, 
+i.e. don't reorder or delete partition fields; replace fields with with `void` transform; add new fields to the end. Note that renames are OK and also note that this does not apply for v2 tables because v2 table tracks and persists the last assigned partition field id across table manifests.
 
 
 ### Sorting
