@@ -31,7 +31,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
@@ -92,7 +91,7 @@ public class TableMetadataParser {
   static final String PARTITION_SPEC = "partition-spec";
   static final String PARTITION_SPECS = "partition-specs";
   static final String DEFAULT_SPEC_ID = "default-spec-id";
-  static final String LAST_ASSIGNED_FIELD_ID = "last-assigned-field-Id";
+  static final String LAST_ASSIGNED_PARTITION_ID = "last-assigned-partition-id";
   static final String DEFAULT_SORT_ORDER_ID = "default-sort-order-id";
   static final String SORT_ORDERS = "sort-orders";
   static final String PROPERTIES = "properties";
@@ -180,7 +179,7 @@ public class TableMetadataParser {
     }
     generator.writeEndArray();
 
-    generator.writeNumberField(LAST_ASSIGNED_FIELD_ID, metadata.lastAssignedFieldId());
+    generator.writeNumberField(LAST_ASSIGNED_PARTITION_ID, metadata.lastAssignedPartitionId());
 
     generator.writeNumberField(DEFAULT_SORT_ORDER_ID, metadata.defaultSortOrderId());
     generator.writeArrayFieldStart(SORT_ORDERS);
@@ -292,12 +291,11 @@ public class TableMetadataParser {
           schema, TableMetadata.INITIAL_SPEC_ID, node.get(PARTITION_SPEC)));
     }
 
-    int lastAssignedFieldId;
-    if (formatVersion > 1) {
-      lastAssignedFieldId = JsonUtil.getInt(LAST_ASSIGNED_FIELD_ID, node);
-    } else {
-      lastAssignedFieldId = Optional.ofNullable(JsonUtil.getIntOrNull(LAST_ASSIGNED_FIELD_ID, node))
-          .orElseGet(() -> specs.stream().mapToInt(PartitionSpec::lastAssignedFieldId).max().orElse(999));
+    Integer lastAssignedPartitionId = JsonUtil.getIntOrNull(LAST_ASSIGNED_PARTITION_ID, node);
+    if (lastAssignedPartitionId == null) {
+      Preconditions.checkArgument(formatVersion == 1,
+          "%s must exist in format v%s", LAST_ASSIGNED_PARTITION_ID, formatVersion);
+      lastAssignedPartitionId = specs.stream().mapToInt(PartitionSpec::lastAssignedFieldId).max().orElse(999);
     }
 
     JsonNode sortOrderArray = node.get(SORT_ORDERS);
@@ -354,7 +352,7 @@ public class TableMetadataParser {
 
     return new TableMetadata(file, formatVersion, uuid, location,
         lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs,
-        lastAssignedFieldId, defaultSortOrderId, sortOrders, properties, currentVersionId,
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentVersionId,
         snapshots, entries.build(), metadataEntries.build());
   }
 }

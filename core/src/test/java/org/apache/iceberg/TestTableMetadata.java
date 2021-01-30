@@ -128,7 +128,7 @@ public class TestTableMetadata {
     Assert.assertEquals("PartitionSpec map should match",
         expected.specs(), metadata.specs());
     Assert.assertEquals("lastAssignedFieldId across all PartitionSpecs should match",
-        expected.spec().lastAssignedFieldId(), metadata.lastAssignedFieldId());
+        expected.spec().lastAssignedFieldId(), metadata.lastAssignedPartitionId());
     Assert.assertEquals("Properties should match",
         expected.properties(), metadata.properties());
     Assert.assertEquals("Snapshot logs should match",
@@ -191,7 +191,7 @@ public class TestTableMetadata {
     Assert.assertEquals("PartitionSpec should have ID TableMetadata.INITIAL_SPEC_ID",
         TableMetadata.INITIAL_SPEC_ID, metadata.specs().get(0).specId());
     Assert.assertEquals("lastAssignedFieldId across all PartitionSpecs should match",
-        expected.spec().lastAssignedFieldId(), metadata.lastAssignedFieldId());
+        expected.spec().lastAssignedFieldId(), metadata.lastAssignedPartitionId());
     Assert.assertEquals("Properties should match",
         expected.properties(), metadata.properties());
     Assert.assertEquals("Snapshot logs should match",
@@ -483,9 +483,9 @@ public class TestTableMetadata {
 
   @Test
   public void testParserV2LastAssignedFieldIdValidation() throws Exception {
-    String unsupportedVersion = readTableMetadataInputFile("TableMetadataV2MissingLastAssignedFieldId.json");
-    AssertHelpers.assertThrows("Should reject v2 metadata without last assigned field id",
-        IllegalArgumentException.class, "Cannot parse missing int last-assigned-field-Id",
+    String unsupportedVersion = readTableMetadataInputFile("TableMetadataV2MissingLastAssignedPartitionId.json");
+    AssertHelpers.assertThrows("Should reject v2 metadata without last assigned partition id",
+        IllegalArgumentException.class, "last-assigned-partition-id must exist in format v2",
         () -> TableMetadataParser.fromJson(
             ops.io(), null, JsonUtil.mapper().readValue(unsupportedVersion, JsonNode.class))
     );
