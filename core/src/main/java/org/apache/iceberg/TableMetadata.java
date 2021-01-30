@@ -117,7 +117,7 @@ public class TableMetadata implements Serializable {
     return new TableMetadata(null, formatVersion, UUID.randomUUID().toString(), location,
         INITIAL_SEQUENCE_NUMBER, System.currentTimeMillis(),
         lastColumnId.get(), freshSchema, INITIAL_SPEC_ID, ImmutableList.of(freshSpec),
-        freshSortOrderId, ImmutableList.of(freshSortOrder),
+        freshSpec.lastAssignedFieldId(), freshSortOrderId, ImmutableList.of(freshSortOrder),
         ImmutableMap.copyOf(properties), -1, ImmutableList.of(),
         ImmutableList.of(), ImmutableList.of());
   }
@@ -222,6 +222,7 @@ public class TableMetadata implements Serializable {
   private final Schema schema;
   private final int defaultSpecId;
   private final List<PartitionSpec> specs;
+  private final int lastAssignedPartitionId;
   private final int defaultSortOrderId;
   private final List<SortOrder> sortOrders;
   private final Map<String, String> properties;
@@ -244,6 +245,7 @@ public class TableMetadata implements Serializable {
                 Schema schema,
                 int defaultSpecId,
                 List<PartitionSpec> specs,
+                int lastAssignedPartitionId,
                 int defaultSortOrderId,
                 List<SortOrder> sortOrders,
                 Map<String, String> properties,
@@ -271,6 +273,7 @@ public class TableMetadata implements Serializable {
     this.schema = schema;
     this.specs = specs;
     this.defaultSpecId = defaultSpecId;
+    this.lastAssignedPartitionId = lastAssignedPartitionId;
     this.defaultSortOrderId = defaultSortOrderId;
     this.sortOrders = sortOrders;
     this.properties = properties;
@@ -375,6 +378,10 @@ public class TableMetadata implements Serializable {
     return specsById;
   }
 
+  int lastAssignedPartitionId() {
+    return lastAssignedPartitionId;
+  }
+
   public int defaultSpecId() {
     return defaultSpecId;
   }
@@ -444,7 +451,7 @@ public class TableMetadata implements Serializable {
       return this;
     } else {
       return new TableMetadata(null, formatVersion, UUID.randomUUID().toString(), location,
-          lastSequenceNumber, lastUpdatedMillis, lastColumnId, schema, defaultSpecId, specs,
+          lastSequenceNumber, lastUpdatedMillis, lastColumnId, schema, defaultSpecId, specs, lastAssignedPartitionId,
           defaultSortOrderId, sortOrders, properties, currentSnapshotId, snapshots, snapshotLog,
           addPreviousFile(file, lastUpdatedMillis));
     }
@@ -458,8 +465,8 @@ public class TableMetadata implements Serializable {
     List<SortOrder> updatedSortOrders = Lists.transform(sortOrders, order -> updateSortOrderSchema(newSchema, order));
     return new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), newLastColumnId, newSchema, defaultSpecId, updatedSpecs,
-        defaultSortOrderId, updatedSortOrders, properties, currentSnapshotId, snapshots, snapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+        lastAssignedPartitionId, defaultSortOrderId, updatedSortOrders, properties, currentSnapshotId,
+        snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   // The caller is responsible to pass a newPartitionSpec with correct partition field IDs
@@ -493,7 +500,8 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, schema, newDefaultSpecId,
-        builder.build(), defaultSortOrderId, sortOrders, properties,
+        builder.build(), Math.max(lastAssignedPartitionId, newPartitionSpec.lastAssignedFieldId()),
+        defaultSortOrderId, sortOrders, properties,
         currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
@@ -530,7 +538,7 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs,
-        newOrderId, builder.build(), properties, currentSnapshotId, snapshots, snapshotLog,
+        lastAssignedPartitionId, newOrderId, builder.build(), properties, currentSnapshotId, snapshots, snapshotLog,
         addPreviousFile(file, lastUpdatedMillis));
   }
 
@@ -546,8 +554,8 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, formatVersion, uuid, location,
         snapshot.sequenceNumber(), snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs,
-        defaultSortOrderId, sortOrders, properties, currentSnapshotId, newSnapshots, snapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
+        newSnapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata replaceCurrentSnapshot(Snapshot snapshot) {
@@ -571,8 +579,8 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, formatVersion, uuid, location,
         snapshot.sequenceNumber(), snapshot.timestampMillis(), lastColumnId, schema, defaultSpecId, specs,
-        defaultSortOrderId, sortOrders, properties, snapshot.snapshotId(), newSnapshots, newSnapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, snapshot.snapshotId(),
+        newSnapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata removeSnapshotsIf(Predicate<Snapshot> removeIf) {
@@ -603,7 +611,7 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs,
-        defaultSortOrderId, sortOrders, properties, currentSnapshotId, filtered,
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId, filtered,
         ImmutableList.copyOf(newSnapshotLog), addPreviousFile(file, lastUpdatedMillis));
   }
 
@@ -626,8 +634,8 @@ public class TableMetadata implements Serializable {
         .build();
 
     return new TableMetadata(null, formatVersion, uuid, location,
-        lastSequenceNumber, nowMillis, lastColumnId, schema, defaultSpecId, specs, defaultSortOrderId,
-        sortOrders, properties, snapshot.snapshotId(), snapshots, newSnapshotLog,
+        lastSequenceNumber, nowMillis, lastColumnId, schema, defaultSpecId, specs, lastAssignedPartitionId,
+        defaultSortOrderId, sortOrders, properties, snapshot.snapshotId(), snapshots, newSnapshotLog,
         addPreviousFile(file, lastUpdatedMillis));
   }
 
@@ -635,8 +643,8 @@ public class TableMetadata implements Serializable {
     ValidationException.check(newProperties != null, "Cannot set properties to null");
     return new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs,
-        defaultSortOrderId, sortOrders, newProperties, currentSnapshotId, snapshots, snapshotLog,
-        addPreviousFile(file, lastUpdatedMillis, newProperties));
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, newProperties, currentSnapshotId, snapshots,
+        snapshotLog, addPreviousFile(file, lastUpdatedMillis, newProperties));
   }
 
   public TableMetadata removeSnapshotLogEntries(Set<Long> snapshotIds) {
@@ -654,8 +662,8 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs,
-        defaultSortOrderId, sortOrders, properties, currentSnapshotId, snapshots, newSnapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
+        snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   // The caller is responsible to pass a updatedPartitionSpec with correct partition field IDs
@@ -712,15 +720,16 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, formatVersion, uuid, newLocation,
         lastSequenceNumber, System.currentTimeMillis(), newLastColumnId.get(), freshSchema,
-        specId, specListBuilder.build(), orderId, sortOrdersBuilder.build(), ImmutableMap.copyOf(newProperties),
+        specId, specListBuilder.build(), Math.max(lastAssignedPartitionId, freshSpec.lastAssignedFieldId()),
+        orderId, sortOrdersBuilder.build(), ImmutableMap.copyOf(newProperties),
         -1, snapshots, ImmutableList.of(), addPreviousFile(file, lastUpdatedMillis, newProperties));
   }
 
   public TableMetadata updateLocation(String newLocation) {
     return new TableMetadata(null, formatVersion, uuid, newLocation,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs,
-        defaultSortOrderId, sortOrders, properties, currentSnapshotId, snapshots, snapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
+        snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata upgradeToFormatVersion(int newFormatVersion) {
@@ -736,8 +745,8 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, newFormatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, schema, defaultSpecId, specs,
-        defaultSortOrderId, sortOrders, properties, currentSnapshotId, snapshots, snapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
+        snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   private List<MetadataLogEntry> addPreviousFile(InputFile previousFile, long timestampMillis) {
