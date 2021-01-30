@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Stream;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
@@ -59,8 +60,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-
+import static org.mockito.Mockito.verify;ß
 
 @RunWith(MockitoJUnitRunner.class)
 public class S3OutputStreamTest {
@@ -135,7 +135,6 @@ public class S3OutputStreamTest {
     }
   }
 
-  @Test(expected = IllegalStateException.class)
   public void testFailWriteIntAfterAsyncError() throws Exception {
     doThrow(new RuntimeException()).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
     S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties);
@@ -145,18 +144,16 @@ public class S3OutputStreamTest {
       Thread.sleep(1);
     }
     Assert.assertNotNull(stream.getAsyncError());
-    try {
-      stream.write(1);
-    } finally {
-      try {
-        stream.close();
-      } catch (Throwable t) {
-        // swallow it
-      }
-    }
+    AssertHelpers.assertThrows("Write after async error should throw IllegalStateException",
+        IllegalStateException.class, () -> {
+          try {
+            stream.write(1);
+          } catch (IOException e) {
+            // swallow
+          }
+        });
   }
 
-  @Test(expected = IllegalStateException.class)
   public void testFailWriteArrayAfterAsyncError() throws Exception {
     doThrow(new RuntimeException()).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
     S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties);
@@ -166,18 +163,16 @@ public class S3OutputStreamTest {
       Thread.sleep(1);
     }
     Assert.assertNotNull(stream.getAsyncError());
-    try {
-      stream.write(new byte[16]);
-    } finally {
-      try {
-        stream.close();
-      } catch (Throwable t) {
-        // swallow it
-      }
-    }
+    AssertHelpers.assertThrows("Write after async error should throw IllegalStateException",
+        IllegalStateException.class, () -> {
+          try {
+            stream.write(new byte[16]);
+          } catch (IOException e) {
+            // swallow
+          }
+        });
   }
 
-  @Test(expected = IllegalStateException.class)
   public void testFailCloseAfterAsyncError() throws Exception {
     doThrow(new RuntimeException()).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
     S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties);
@@ -187,11 +182,15 @@ public class S3OutputStreamTest {
       Thread.sleep(1);
     }
     Assert.assertNotNull(stream.getAsyncError());
-    try {
-      stream.close();
-    } finally {
-      verify(s3mock, never()).completeMultipartUpload((CompleteMultipartUploadRequest) any());
-    }
+    AssertHelpers.assertThrows("Close after async error should throw IllegalStateException",
+        IllegalStateException.class, () -> {
+          try {
+            stream.close();
+          } catch (IOException e) {
+            // swallow
+          }
+        });
+    verify(s3mock, never()).completeMultipartUpload((CompleteMultipartUploadRequest) any());
   }
 
   @Test
@@ -230,7 +229,7 @@ public class S3OutputStreamTest {
   private byte[] readS3Data(S3URI uri) {
     ResponseBytes<GetObjectResponse> data =
         s3.getObject(GetObjectRequest.builder().bucket(uri.bucket()).key(uri.key()).build(),
-        ResponseTransformer.toBytes());
+            ResponseTransformer.toBytes());
 
     return data.asByteArray();
   }
