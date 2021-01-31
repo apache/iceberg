@@ -22,11 +22,12 @@ package org.apache.spark.sql.catalyst.optimizer
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.plans.logical.{DeleteFromTable, Filter, LogicalPlan}
 import org.apache.spark.sql.catalyst.rules.Rule
+import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 
 // a temp solution until PullupCorrelatedPredicates handles row-level operations in Spark
 object PullupCorrelatedPredicatesInRowLevelOperations extends Rule[LogicalPlan] {
   override def apply(plan: LogicalPlan): LogicalPlan = plan transform {
-    case d @ DeleteFromTable(table, Some(cond)) if SubqueryExpression.hasSubquery(cond) =>
+    case d @ DeleteFromTable(table, Some(cond)) if SubqueryExpression.hasSubquery(cond) && isIcebergRelation(table) =>
       // Spark pulls up correlated predicates only for UnaryNodes
       // DeleteFromTable does not extend UnaryNode so it is ignored in that rule
       // We have this workaround until it is fixed in Spark

@@ -466,6 +466,15 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void testDeleteOnNonIcebergTableNotSupported() throws NoSuchTableException {
+    createOrReplaceView("testtable", "{ \"c1\": -100, \"c2\": -200 }");
+
+    AssertHelpers.assertThrows("Delete is not supported for non iceberg table",
+        AnalysisException.class, "DELETE is only supported with v2 tables.",
+        () -> sql("DELETE FROM %s WHERE c1 = -100", "testtable"));
+  }
+
+  @Test
   public void testDeleteWithExistSubquery() throws NoSuchTableException {
     createAndInitUnpartitionedTable();
 
@@ -646,6 +655,41 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     executorService.shutdown();
     Assert.assertTrue("Timeout", executorService.awaitTermination(2, TimeUnit.MINUTES));
+  }
+
+  @Test
+  public void testDeleteRefreshesRelationCache() throws NoSuchTableException {
+    createAndInitPartitionedTable();
+
+    append(new Employee(1, "hr"), new Employee(3, "hr"));
+    append(new Employee(1, "hardware"), new Employee(2, "hardware"));
+
+    Dataset<Row> query = spark.sql("SELECT * FROM " + tableName + " WHERE id = 1");
+    query.createOrReplaceTempView("tmp");
+
+    spark.sql("CACHE TABLE tmp");
+
+    assertEquals("View should have correct data",
+        ImmutableList.of(row(1, "hardware"), row(1, "hr")),
+        sql("SELECT * FROM tmp ORDER BY id, dep"));
+
+    sql("DELETE FROM %s WHERE id = 1", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
+
+    Snapshot currentSnapshot = table.currentSnapshot();
+    validateSnapshot(currentSnapshot, "overwrite", "2", "2", "2");
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(2, "hardware"), row(3, "hr")),
+        sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+
+    assertEquals("Should refresh the relation cache",
+        ImmutableList.of(),
+        sql("SELECT * FROM tmp ORDER BY id, dep"));
+
+    spark.sql("UNCACHE TABLE tmp");
   }
 
   // TODO: multiple stripes for ORC

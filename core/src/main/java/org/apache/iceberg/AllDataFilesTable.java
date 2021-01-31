@@ -80,6 +80,16 @@ public class AllDataFilesTable extends BaseMetadataTable {
     }
   }
 
+  @Override
+  String metadataLocation() {
+    return ops.current().metadataFileLocation();
+  }
+
+  @Override
+  MetadataTableType metadataTableType() {
+    return MetadataTableType.ALL_DATA_FILES;
+  }
+
   public static class AllDataFilesTableScan extends BaseAllMetadataTableScan {
     private final Schema fileSchema;
 

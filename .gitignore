@@ -19,6 +19,9 @@ gradle/
 out
 gradle/wrapper/gradle-wrapper.jar
 
+# rat library install location
+lib/
+
 # web site build
 site/site
 

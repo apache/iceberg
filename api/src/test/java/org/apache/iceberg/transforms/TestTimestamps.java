@@ -27,6 +27,34 @@ import org.junit.Test;
 
 public class TestTimestamps {
   @Test
+  public void testTimestampTransform() {
+    Types.TimestampType type = Types.TimestampType.withoutZone();
+    Literal<Long> ts = Literal.of("2017-12-01T10:12:55.038194").to(type);
+    Literal<Long> pts = Literal.of("1970-01-01T00:00:01.000001").to(type);
+    Literal<Long> nts = Literal.of("1969-12-31T23:59:58.999999").to(type);
+
+    Transform<Long, Integer> years = Transforms.year(type);
+    Assert.assertEquals("Should produce 2017 - 1970 = 47", 47, (int) years.apply(ts.value()));
+    Assert.assertEquals("Should produce 1970 - 1970 = 0", 0, (int) years.apply(pts.value()));
+    Assert.assertEquals("Should produce 1969 - 1970 = -1", -1, (int) years.apply(nts.value()));
+
+    Transform<Long, Integer> months = Transforms.month(type);
+    Assert.assertEquals("Should produce 47 * 12 + 11 = 575", 575, (int) months.apply(ts.value()));
+    Assert.assertEquals("Should produce 0 * 12 + 0 = 0", 0, (int) months.apply(pts.value()));
+    Assert.assertEquals("Should produce -1", -1, (int) months.apply(nts.value()));
+
+    Transform<Long, Integer> days = Transforms.day(type);
+    Assert.assertEquals("Should produce 17501", 17501, (int) days.apply(ts.value()));
+    Assert.assertEquals("Should produce 0 * 365 + 0 = 0", 0, (int) days.apply(pts.value()));
+    Assert.assertEquals("Should produce -1", -1, (int) days.apply(nts.value()));
+
+    Transform<Long, Integer> hours = Transforms.hour(type);
+    Assert.assertEquals("Should produce 17501 * 24 + 10", 420034, (int) hours.apply(ts.value()));
+    Assert.assertEquals("Should produce 0 * 24 + 0 = 0", 0, (int) hours.apply(pts.value()));
+    Assert.assertEquals("Should produce -1", -1, (int) hours.apply(nts.value()));
+  }
+
+  @Test
   public void testTimestampWithoutZoneToHumanString() {
     Types.TimestampType type = Types.TimestampType.withoutZone();
     Literal<Long> date = Literal.of("2017-12-01T10:12:55.038194").to(type);
@@ -46,6 +74,72 @@ public class TestTimestamps {
     Transform<Long, Integer> hour = Transforms.hour(type);
     Assert.assertEquals("Should produce the correct Human string",
         "2017-12-01-10", hour.toHumanString(hour.apply(date.value())));
+  }
+
+  @Test
+  public void testNegativeTimestampWithoutZoneToHumanString() {
+    Types.TimestampType type = Types.TimestampType.withoutZone();
+    Literal<Long> date = Literal.of("1969-12-30T10:12:55.038194").to(type);
+
+    Transform<Long, Integer> year = Transforms.year(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969", year.toHumanString(year.apply(date.value())));
+
+    Transform<Long, Integer> month = Transforms.month(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969-12", month.toHumanString(month.apply(date.value())));
+
+    Transform<Long, Integer> day = Transforms.day(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969-12-30", day.toHumanString(day.apply(date.value())));
+
+    Transform<Long, Integer> hour = Transforms.hour(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969-12-30-10", hour.toHumanString(hour.apply(date.value())));
+  }
+
+  @Test
+  public void testNegativeTimestampWithoutZoneToHumanStringLowerBound() {
+    Types.TimestampType type = Types.TimestampType.withoutZone();
+    Literal<Long> date = Literal.of("1969-12-30T00:00:00.000000").to(type);
+
+    Transform<Long, Integer> year = Transforms.year(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969", year.toHumanString(year.apply(date.value())));
+
+    Transform<Long, Integer> month = Transforms.month(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969-12", month.toHumanString(month.apply(date.value())));
+
+    Transform<Long, Integer> day = Transforms.day(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969-12-30", day.toHumanString(day.apply(date.value())));
+
+    Transform<Long, Integer> hour = Transforms.hour(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969-12-30-00", hour.toHumanString(hour.apply(date.value())));
+  }
+
+  @Test
+  public void testNegativeTimestampWithoutZoneToHumanStringUpperBound() {
+    Types.TimestampType type = Types.TimestampType.withoutZone();
+    Literal<Long> date = Literal.of("1969-12-31T23:59:59.999999").to(type);
+
+    Transform<Long, Integer> year = Transforms.year(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969", year.toHumanString(year.apply(date.value())));
+
+    Transform<Long, Integer> month = Transforms.month(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969-12", month.toHumanString(month.apply(date.value())));
+
+    Transform<Long, Integer> day = Transforms.day(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969-12-31", day.toHumanString(day.apply(date.value())));
+
+    Transform<Long, Integer> hour = Transforms.hour(type);
+    Assert.assertEquals("Should produce the correct Human string",
+        "1969-12-31-23", hour.toHumanString(hour.apply(date.value())));
   }
 
   @Test

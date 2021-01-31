@@ -99,11 +99,11 @@ public interface CatalogLoader extends Serializable {
     private HiveCatalogLoader(String catalogName, Configuration conf, Map<String, String> properties) {
       this.catalogName = catalogName;
       this.hadoopConf = new SerializableConfiguration(conf);
-      this.uri = properties.get(CatalogProperties.HIVE_URI);
+      this.uri = properties.get(CatalogProperties.URI);
       this.warehouse = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
-      this.clientPoolSize = properties.containsKey(CatalogProperties.HIVE_CLIENT_POOL_SIZE) ?
-          Integer.parseInt(properties.get(CatalogProperties.HIVE_CLIENT_POOL_SIZE)) :
-          CatalogProperties.HIVE_CLIENT_POOL_SIZE_DEFAULT;
+      this.clientPoolSize = properties.containsKey(CatalogProperties.CLIENT_POOL_SIZE) ?
+          Integer.parseInt(properties.get(CatalogProperties.CLIENT_POOL_SIZE)) :
+          CatalogProperties.CLIENT_POOL_SIZE_DEFAULT;
       this.properties = Maps.newHashMap(properties);
     }
 

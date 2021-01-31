@@ -20,6 +20,7 @@
 package org.apache.iceberg.mr.hive;
 
 import java.io.Serializable;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
@@ -45,10 +46,19 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
-import org.apache.iceberg.mr.SerializationUtil;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SerializationUtil;
+
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
 public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, HiveStorageHandler {
+
+  private static final String WRITE_KEY = "HiveIcebergStorageHandler_write";
 
   private Configuration conf;
 
@@ -79,26 +89,13 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
 
   @Override
   public void configureInputJobProperties(TableDesc tableDesc, Map<String, String> map) {
-    Properties props = tableDesc.getProperties();
-    Table table = Catalogs.loadTable(conf, props);
-    String schemaJson = SchemaParser.toJson(table.schema());
-
-    map.put(InputFormatConfig.TABLE_IDENTIFIER, props.getProperty(Catalogs.NAME));
-    map.put(InputFormatConfig.TABLE_LOCATION, table.location());
-    map.put(InputFormatConfig.TABLE_SCHEMA, schemaJson);
-    if (table instanceof Serializable) {
-      map.put(InputFormatConfig.SERIALIZED_TABLE, SerializationUtil.serializeToBase64(table));
-    }
-
-    map.put(InputFormatConfig.FILE_IO, SerializationUtil.serializeToBase64(table.io()));
-    // save schema into table props as well to avoid repeatedly hitting the HMS during serde initializations
-    // this is an exception to the interface documentation, but it's a safe operation to add this property
-    props.put(InputFormatConfig.TABLE_SCHEMA, schemaJson);
+    overlayTableProperties(conf, tableDesc, map);
   }
 
   @Override
   public void configureOutputJobProperties(TableDesc tableDesc, Map<String, String> map) {
-
+    overlayTableProperties(conf, tableDesc, map);
+    map.put(WRITE_KEY, "true");
   }
 
   @Override
@@ -114,7 +111,10 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
 
   @Override
   public void configureJobConf(TableDesc tableDesc, JobConf jobConf) {
-
+    if (tableDesc != null && tableDesc.getJobProperties() != null &&
+        tableDesc.getJobProperties().get(WRITE_KEY) != null) {
+      jobConf.set("mapred.output.committer.class", HiveIcebergOutputCommitter.class.getName());
+    }
   }
 
   @Override
@@ -203,36 +203,44 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
    *   <li>- Location provider used for file generation</li>
    *   <li>- Encryption manager for encryption handling</li>
    * </ul>
-   * @param config The target configuration to store to
-   * @param table The table which we want to store to the configuration
+   * @param configuration The configuration storing the catalog information
+   * @param tableDesc The table which we want to store to the configuration
+   * @param map The map of the configuration properties which we append with the serialized data
    */
   @VisibleForTesting
-  static void put(Configuration config, Table table) {
-    // The Table contains a FileIO and the FileIO serializes the configuration so we might end up recursively
-    // serializing the objects. To avoid this unset the values for now before serializing.
-    config.unset(InputFormatConfig.SERIALIZED_TABLE);
-    config.unset(InputFormatConfig.FILE_IO);
-    config.unset(InputFormatConfig.LOCATION_PROVIDER);
-    config.unset(InputFormatConfig.ENCRYPTION_MANAGER);
-    config.unset(InputFormatConfig.TABLE_LOCATION);
-    config.unset(InputFormatConfig.TABLE_SCHEMA);
-    config.unset(InputFormatConfig.PARTITION_SPEC);
+  static void overlayTableProperties(Configuration configuration, TableDesc tableDesc, Map<String, String> map) {
+    Properties props = tableDesc.getProperties();
+    Table table = Catalogs.loadTable(configuration, props);
+    String schemaJson = SchemaParser.toJson(table.schema());
 
-    String base64Table = table instanceof Serializable ? SerializationUtil.serializeToBase64(table) : null;
-    String base64Io = SerializationUtil.serializeToBase64(table.io());
-    String base64LocationProvider = SerializationUtil.serializeToBase64(table.locationProvider());
-    String base64EncryptionManager = SerializationUtil.serializeToBase64(table.encryption());
+    Maps.fromProperties(props).entrySet().stream()
+        .filter(entry -> !map.containsKey(entry.getKey())) // map overrides tableDesc properties
+        .forEach(entry -> map.put(entry.getKey(), entry.getValue()));
 
-    if (base64Table != null) {
-      config.set(InputFormatConfig.SERIALIZED_TABLE, base64Table);
+    map.put(InputFormatConfig.TABLE_IDENTIFIER, props.getProperty(Catalogs.NAME));
+    map.put(InputFormatConfig.TABLE_LOCATION, table.location());
+    map.put(InputFormatConfig.TABLE_SCHEMA, schemaJson);
+    map.put(InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(table.spec()));
+    String formatString = PropertyUtil.propertyAsString(table.properties(), DEFAULT_FILE_FORMAT,
+        DEFAULT_FILE_FORMAT_DEFAULT);
+    map.put(InputFormatConfig.WRITE_FILE_FORMAT, formatString.toUpperCase(Locale.ENGLISH));
+    map.put(InputFormatConfig.WRITE_TARGET_FILE_SIZE,
+        table.properties().getOrDefault(WRITE_TARGET_FILE_SIZE_BYTES,
+            String.valueOf(WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT)));
+
+    if (table instanceof Serializable) {
+      map.put(InputFormatConfig.SERIALIZED_TABLE, SerializationUtil.serializeToBase64(table));
     }
 
-    config.set(InputFormatConfig.FILE_IO, base64Io);
-    config.set(InputFormatConfig.LOCATION_PROVIDER, base64LocationProvider);
-    config.set(InputFormatConfig.ENCRYPTION_MANAGER, base64EncryptionManager);
+    map.put(InputFormatConfig.FILE_IO, SerializationUtil.serializeToBase64(table.io()));
+    map.put(InputFormatConfig.LOCATION_PROVIDER, SerializationUtil.serializeToBase64(table.locationProvider()));
+    map.put(InputFormatConfig.ENCRYPTION_MANAGER, SerializationUtil.serializeToBase64(table.encryption()));
+    // We need to remove this otherwise the job.xml will be invalid as column comments are separated with '\0' and
+    // the serialization utils fail to serialize this character
+    map.remove("columns.comments");
 
-    config.set(InputFormatConfig.TABLE_LOCATION, table.location());
-    config.set(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(table.schema()));
-    config.set(InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(table.spec()));
+    // save schema into table props as well to avoid repeatedly hitting the HMS during serde initializations
+    // this is an exception to the interface documentation, but it's a safe operation to add this property
+    props.put(InputFormatConfig.TABLE_SCHEMA, schemaJson);
   }
 }

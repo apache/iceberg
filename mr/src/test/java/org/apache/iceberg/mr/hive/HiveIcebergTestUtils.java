@@ -29,12 +29,14 @@ import java.nio.file.Paths;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.type.HiveDecimal;
@@ -128,8 +130,8 @@ public class HiveIcebergTestUtils {
     record.set(9, new byte[]{0, 1, 2});
     record.set(10, ByteBuffer.wrap(new byte[]{0, 1, 2, 3}));
     record.set(11, new BigDecimal("0.0000000013"));
-    record.set(12, "11:33");
-    record.set(13, "73689599-d7fc-4dfb-b94e-106ff20284a5");
+    record.set(12, LocalTime.of(11, 33));
+    record.set(13, UUID.fromString("73689599-d7fc-4dfb-b94e-106ff20284a5"));
 
     return record;
   }
@@ -167,8 +169,8 @@ public class HiveIcebergTestUtils {
         new BytesWritable(record.get(9, byte[].class)),
         new BytesWritable(ByteBuffers.toByteArray(record.get(10, ByteBuffer.class))),
         new HiveDecimalWritable(HiveDecimal.create(record.get(11, BigDecimal.class))),
-        new Text(record.get(12, String.class)),
-        new Text(record.get(13, String.class))
+        new Text(record.get(12, LocalTime.class).toString()),
+        new Text(record.get(13, UUID.class).toString())
     );
   }
 

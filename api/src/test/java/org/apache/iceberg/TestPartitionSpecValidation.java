@@ -124,6 +124,21 @@ public class TestPartitionSpecValidation {
   }
 
   @Test
+  public void testMultipleIdentityPartitions() {
+    PartitionSpec.builderFor(SCHEMA).year("d").identity("id").identity("d").identity("s").build();
+    AssertHelpers.assertThrows("Should not allow identity(id) and identity(id)",
+        IllegalArgumentException.class, "Cannot use partition name more than once",
+        () -> PartitionSpec.builderFor(SCHEMA).identity("id").identity("id").build());
+    AssertHelpers.assertThrows("Should not allow identity(id) and identity(id, name)",
+        IllegalArgumentException.class, "Cannot add redundant partition",
+        () -> PartitionSpec.builderFor(SCHEMA).identity("id").identity("id", "test-id").build());
+    AssertHelpers.assertThrows("Should not allow identity(id) and identity(id, name)",
+        IllegalArgumentException.class, "Cannot use partition name more than once",
+        () -> PartitionSpec.builderFor(SCHEMA)
+            .identity("id", "test-id").identity("d", "test-id").build());
+  }
+
+  @Test
   public void testSettingPartitionTransformsWithCustomTargetNames() {
     Assert.assertEquals(PartitionSpec.builderFor(SCHEMA).year("ts", "custom_year")
         .build().fields().get(0).name(), "custom_year");

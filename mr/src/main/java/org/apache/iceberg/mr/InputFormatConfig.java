@@ -26,6 +26,7 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.util.SerializationUtil;
 
 public class InputFormatConfig {
 
@@ -41,6 +42,7 @@ public class InputFormatConfig {
   public static final String READ_SCHEMA = "iceberg.mr.read.schema";
   public static final String SNAPSHOT_ID = "iceberg.mr.snapshot.id";
   public static final String SPLIT_SIZE = "iceberg.mr.split.size";
+  public static final String SCHEMA_AUTO_CONVERSION = "iceberg.mr.schema.auto.conversion";
   public static final String TABLE_IDENTIFIER = "iceberg.mr.table.identifier";
   public static final String TABLE_LOCATION = "iceberg.mr.table.location";
   public static final String TABLE_SCHEMA = "iceberg.mr.table.schema";
@@ -58,6 +60,8 @@ public class InputFormatConfig {
 
   public static final String COMMIT_THREAD_POOL_SIZE = "iceberg.mr.commit.thread.pool.size";
   public static final int COMMIT_THREAD_POOL_SIZE_DEFAULT = 10;
+  public static final String WRITE_TARGET_FILE_SIZE = "iceberg.mr.write.target.file.size";
+  public static final String WRITE_FILE_FORMAT = "iceberg.mr.write.file.format";
 
   public static final String CASE_SENSITIVE = "iceberg.mr.case.sensitive";
   public static final boolean CASE_SENSITIVE_DEFAULT = true;

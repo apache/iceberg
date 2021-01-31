@@ -19,6 +19,9 @@
 
 package org.apache.spark.sql.catalyst.optimizer
 
+import org.apache.iceberg.DistributionMode
+import org.apache.iceberg.spark.Spark3Util
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.analysis.Resolver
 import org.apache.spark.sql.catalyst.expressions.Ascending
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
@@ -36,52 +39,68 @@ import org.apache.spark.sql.catalyst.plans.logical.RepartitionByExpression
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.Sort
 import org.apache.spark.sql.catalyst.rules.Rule
+import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 import org.apache.spark.sql.catalyst.utils.RewriteRowLevelOperationHelper
+import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.iceberg.catalog.ExtendedSupportsDelete
 import org.apache.spark.sql.execution.datasources.DataSourceStrategy
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
+import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implicits
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.BooleanType
 
 // TODO: should be part of early scan push down after the delete condition is optimized
-case class RewriteDelete(conf: SQLConf) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper {
+case class RewriteDelete(spark: SparkSession) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper {
 
-  import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implicits._
+  import ExtendedDataSourceV2Implicits._
+  import RewriteRowLevelOperationHelper._
 
-  override def resolver: Resolver = conf.resolver
+  override def resolver: Resolver = spark.sessionState.conf.resolver
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     // don't rewrite deletes that can be answered by passing filters to deleteWhere in SupportsDelete
-    case d @ DeleteFromTable(r: DataSourceV2Relation, Some(cond)) if isMetadataDelete(r, cond) =>
+    case d @ DeleteFromTable(r: DataSourceV2Relation, Some(cond))
+        if isMetadataDelete(r, cond) && isIcebergRelation(r) =>
       d
 
     // rewrite all operations that require reading the table to delete records
-    case DeleteFromTable(r: DataSourceV2Relation, Some(cond)) =>
+    case DeleteFromTable(r: DataSourceV2Relation, Some(cond)) if isIcebergRelation(r) =>
       // TODO: do a switch based on whether we get BatchWrite or DeltaBatchWrite
       val writeInfo = newWriteInfo(r.schema)
       val mergeBuilder = r.table.asMergeable.newMergeBuilder("delete", writeInfo)
 
       val matchingRowsPlanBuilder = scanRelation => Filter(cond, scanRelation)
-      val scanPlan = buildScanPlan(r.table, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
+      val scanPlan = buildDynamicFilterScanPlan(spark, r.table, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
 
       val remainingRowFilter = Not(EqualNullSafe(cond, Literal(true, BooleanType)))
       val remainingRowsPlan = Filter(remainingRowFilter, scanPlan)
 
       val mergeWrite = mergeBuilder.asWriteBuilder.buildForBatch()
-      val writePlan = buildWritePlan(remainingRowsPlan, r.output)
+      val writePlan = buildWritePlan(remainingRowsPlan, r.table, r.output)
       ReplaceData(r, mergeWrite, writePlan)
   }
 
   private def buildWritePlan(
       remainingRowsPlan: LogicalPlan,
+      table: Table,
       output: Seq[AttributeReference]): LogicalPlan = {
 
-    val fileNameCol = findOutputAttr(remainingRowsPlan, FILE_NAME_COL)
-    val rowPosCol = findOutputAttr(remainingRowsPlan, ROW_POS_COL)
+    val fileNameCol = findOutputAttr(remainingRowsPlan.output, FILE_NAME_COL)
+    val rowPosCol = findOutputAttr(remainingRowsPlan.output, ROW_POS_COL)
+
+    val icebergTable = Spark3Util.toIcebergTable(table)
+    val distributionMode = Spark3Util.distributionModeFor(icebergTable)
+    val planWithDistribution = distributionMode match {
+      case DistributionMode.NONE =>
+        remainingRowsPlan
+      case _ =>
+        // apply hash partitioning by file if the distribution mode is hash or range
+        val numShufflePartitions = SQLConf.get.numShufflePartitions
+        RepartitionByExpression(Seq(fileNameCol), remainingRowsPlan, numShufflePartitions)
+    }
+
     val order = Seq(SortOrder(fileNameCol, Ascending), SortOrder(rowPosCol, Ascending))
-    val numShufflePartitions = SQLConf.get.numShufflePartitions
-    val repartition = RepartitionByExpression(Seq(fileNameCol), remainingRowsPlan, numShufflePartitions)
-    val sort = Sort(order, global = false, repartition)
+    val sort = Sort(order, global = false, planWithDistribution)
     Project(output, sort)
   }
 

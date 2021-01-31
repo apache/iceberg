@@ -20,8 +20,8 @@
 package org.apache.iceberg.spark.extensions
 
 import org.apache.spark.sql.SparkSessionExtensions
-import org.apache.spark.sql.catalyst.analysis.{AlignMergeIntoTable, DeleteFromTablePredicateCheck, ProcedureArgumentCoercion, ResolveProcedures}
-import org.apache.spark.sql.catalyst.optimizer.{OptimizeConditionsInRowLevelOperations, PullupCorrelatedPredicatesInRowLevelOperations, RewriteDelete}
+import org.apache.spark.sql.catalyst.analysis.{AlignMergeIntoTable, DeleteFromTablePredicateCheck, MergeIntoTablePredicateCheck, ProcedureArgumentCoercion, ResolveProcedures}
+import org.apache.spark.sql.catalyst.optimizer.{OptimizeConditionsInRowLevelOperations, PullupCorrelatedPredicatesInRowLevelOperations, RewriteDelete, RewriteMergeInto}
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
 
@@ -36,13 +36,15 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     extensions.injectResolutionRule { _ => ProcedureArgumentCoercion }
     extensions.injectPostHocResolutionRule { spark => AlignMergeIntoTable(spark.sessionState.conf)}
     extensions.injectCheckRule { _ => DeleteFromTablePredicateCheck }
+    extensions.injectCheckRule { _ => MergeIntoTablePredicateCheck }
 
     // optimizer extensions
     // TODO: RewriteDelete should be executed after the operator optimization batch
     extensions.injectOptimizerRule { _ => OptimizeConditionsInRowLevelOperations }
     // TODO: PullupCorrelatedPredicates should handle row-level operations
     extensions.injectOptimizerRule { _ => PullupCorrelatedPredicatesInRowLevelOperations }
-    extensions.injectOptimizerRule { spark => RewriteDelete(spark.sessionState.conf) }
+    extensions.injectOptimizerRule { spark => RewriteDelete(spark) }
+    extensions.injectOptimizerRule { spark => RewriteMergeInto(spark) }
 
     // planner extensions
     extensions.injectPlannerStrategy { spark => ExtendedDataSourceV2Strategy(spark) }

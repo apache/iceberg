@@ -245,7 +245,7 @@ class FlinkOrcWriters {
       ListColumnVector cv = (ListColumnVector) output;
       cv.lengths[rowId] = data.size();
       cv.offsets[rowId] = cv.childCount;
-      cv.childCount += cv.lengths[rowId];
+      cv.childCount = (int) (cv.childCount + cv.lengths[rowId]);
       // make sure the child is big enough.
       cv.child.ensureSize(cv.childCount, true);
 
@@ -285,7 +285,7 @@ class FlinkOrcWriters {
       // record the length and start of the list elements
       cv.lengths[rowId] = data.size();
       cv.offsets[rowId] = cv.childCount;
-      cv.childCount += cv.lengths[rowId];
+      cv.childCount = (int) (cv.childCount + cv.lengths[rowId]);
       // make sure the child is big enough
       cv.keys.ensureSize(cv.childCount, true);
       cv.values.ensureSize(cv.childCount, true);

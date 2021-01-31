@@ -262,13 +262,13 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     List<TableIdentifier> tbls1 = catalog.listTables(Namespace.of("db"));
     Set<String> tblSet = Sets.newHashSet(tbls1.stream().map(t -> t.name()).iterator());
-    Assert.assertEquals(tblSet.size(), 2);
+    Assert.assertEquals(2, tblSet.size());
     Assert.assertTrue(tblSet.contains("tbl1"));
     Assert.assertTrue(tblSet.contains("tbl2"));
 
     List<TableIdentifier> tbls2 = catalog.listTables(Namespace.of("db", "ns1"));
-    Assert.assertEquals(tbls2.size(), 1);
-    Assert.assertTrue(tbls2.get(0).name().equals("tbl3"));
+    Assert.assertEquals("table identifiers", 1, tbls2.size());
+    Assert.assertEquals("table name", "tbl3", tbls2.get(0).name());
 
     AssertHelpers.assertThrows("should throw exception", NoSuchNamespaceException.class,
         "Namespace does not exist: ", () -> {
@@ -337,24 +337,24 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     List<Namespace> nsp1 = catalog.listNamespaces(Namespace.of("db"));
     Set<String> tblSet = Sets.newHashSet(nsp1.stream().map(t -> t.toString()).iterator());
-    Assert.assertEquals(tblSet.size(), 3);
+    Assert.assertEquals(3, tblSet.size());
     Assert.assertTrue(tblSet.contains("db.ns1"));
     Assert.assertTrue(tblSet.contains("db.ns2"));
     Assert.assertTrue(tblSet.contains("db.ns3"));
 
     List<Namespace> nsp2 = catalog.listNamespaces(Namespace.of("db", "ns1"));
-    Assert.assertEquals(nsp2.size(), 1);
+    Assert.assertEquals(1, nsp2.size());
     Assert.assertTrue(nsp2.get(0).toString().equals("db.ns1.ns2"));
 
     List<Namespace> nsp3 = catalog.listNamespaces();
     Set<String> tblSet2 = Sets.newHashSet(nsp3.stream().map(t -> t.toString()).iterator());
-    Assert.assertEquals(tblSet2.size(), 2);
+    Assert.assertEquals(2, tblSet2.size());
     Assert.assertTrue(tblSet2.contains("db"));
     Assert.assertTrue(tblSet2.contains("db2"));
 
     List<Namespace> nsp4 = catalog.listNamespaces();
     Set<String> tblSet3 = Sets.newHashSet(nsp4.stream().map(t -> t.toString()).iterator());
-    Assert.assertEquals(tblSet3.size(), 2);
+    Assert.assertEquals(2, tblSet3.size());
     Assert.assertTrue(tblSet3.contains("db"));
     Assert.assertTrue(tblSet3.contains("db2"));
 

@@ -25,6 +25,7 @@ import org.apache.iceberg.spark.SparkSessionCatalog
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.Strategy
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.analysis.NamedRelation
 import org.apache.spark.sql.catalyst.expressions.And
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
@@ -34,9 +35,11 @@ import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.Call
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
+import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilterWithCardinalityCheck
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.MergeInto
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
-import org.apache.spark.sql.catalyst.plans.logical.SetWriteOrder
+import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter
@@ -59,11 +62,19 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
     case DropPartitionField(IcebergCatalogAndIdentifier(catalog, ident), transform) =>
       DropPartitionFieldExec(catalog, ident, transform) :: Nil
 
-    case SetWriteOrder(IcebergCatalogAndIdentifier(catalog, ident), writeOrder) =>
-      SetWriteOrderExec(catalog, ident, writeOrder) :: Nil
+    case SetWriteDistributionAndOrdering(
+        IcebergCatalogAndIdentifier(catalog, ident), distributionMode, ordering) =>
+      SetWriteDistributionAndOrderingExec(catalog, ident, distributionMode, ordering) :: Nil
 
     case DynamicFileFilter(scanPlan, fileFilterPlan, filterable) =>
       DynamicFileFilterExec(planLater(scanPlan), planLater(fileFilterPlan), filterable) :: Nil
+
+    case DynamicFileFilterWithCardinalityCheck(scanPlan, fileFilterPlan, filterable, filesAccumulator) =>
+      DynamicFileFilterWithCardinalityCheckExec(
+        planLater(scanPlan),
+        planLater(fileFilterPlan),
+        filterable,
+        filesAccumulator) :: Nil
 
     case PhysicalOperation(project, filters, DataSourceV2ScanRelation(_, scan: SupportsFileFilter, output)) =>
       // projection and filters were already pushed down in the optimizer.
@@ -72,8 +83,11 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
       val batchExec = ExtendedBatchScanExec(output, scan)
       withProjectAndFilter(project, filters, batchExec, !batchExec.supportsColumnar) :: Nil
 
-    case ReplaceData(_, batchWrite, query) =>
-      ReplaceDataExec(batchWrite, planLater(query)) :: Nil
+    case ReplaceData(relation, batchWrite, query) =>
+      ReplaceDataExec(batchWrite, refreshCache(relation), planLater(query)) :: Nil
+
+    case MergeInto(mergeIntoParams, output, child) =>
+      MergeIntoExec(mergeIntoParams, output, planLater(child)) :: Nil
 
     case _ => Nil
   }
@@ -99,6 +113,10 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
     } else {
       withFilter
     }
+  }
+
+  private def refreshCache(r: NamedRelation)(): Unit = {
+    spark.sharedState.cacheManager.recacheByPlan(spark, r)
   }
 
   private object IcebergCatalogAndIdentifier {

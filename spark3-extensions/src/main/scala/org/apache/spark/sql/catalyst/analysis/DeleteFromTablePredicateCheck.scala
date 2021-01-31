@@ -22,12 +22,13 @@ package org.apache.spark.sql.catalyst.analysis
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.expressions.{Expression, InSubquery, Not}
 import org.apache.spark.sql.catalyst.plans.logical.{DeleteFromTable, LogicalPlan}
+import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 
 object DeleteFromTablePredicateCheck extends (LogicalPlan => Unit) {
 
   override def apply(plan: LogicalPlan): Unit = {
     plan foreach {
-      case DeleteFromTable(_, Some(condition)) if hasNullAwarePredicateWithinNot(condition) =>
+      case DeleteFromTable(r, Some(condition)) if hasNullAwarePredicateWithinNot(condition) && isIcebergRelation(r) =>
         // this limitation is present since SPARK-25154 fix is not yet available
         // we use Not(EqualsNullSafe(cond, true)) when deciding which records to keep
         // such conditions are rewritten by Spark as an existential join and currently Spark

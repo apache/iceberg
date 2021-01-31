@@ -56,6 +56,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -139,9 +140,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
       props.put(CatalogProperties.WAREHOUSE_LOCATION, warehouse);
     }
     if (uri != null) {
-      props.put(CatalogProperties.HIVE_URI, uri);
+      props.put(CatalogProperties.URI, uri);
     }
-    props.put(CatalogProperties.HIVE_CLIENT_POOL_SIZE, Integer.toString(clientPoolSize));
+    props.put(CatalogProperties.CLIENT_POOL_SIZE, Integer.toString(clientPoolSize));
 
     setConf(conf);
     initialize(name, props);
@@ -150,16 +151,16 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   @Override
   public void initialize(String inputName, Map<String, String> properties) {
     this.name = inputName;
-    if (properties.containsKey(CatalogProperties.HIVE_URI)) {
-      this.conf.set(HiveConf.ConfVars.METASTOREURIS.varname, properties.get(CatalogProperties.HIVE_URI));
+    if (properties.containsKey(CatalogProperties.URI)) {
+      this.conf.set(HiveConf.ConfVars.METASTOREURIS.varname, properties.get(CatalogProperties.URI));
     }
 
     if (properties.containsKey(CatalogProperties.WAREHOUSE_LOCATION)) {
       this.conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, properties.get(CatalogProperties.WAREHOUSE_LOCATION));
     }
 
-    int clientPoolSize = Integer.parseInt(
-        properties.getOrDefault(CatalogProperties.HIVE_CLIENT_POOL_SIZE, "5"));
+    int clientPoolSize = PropertyUtil.propertyAsInt(properties,
+        CatalogProperties.CLIENT_POOL_SIZE, CatalogProperties.CLIENT_POOL_SIZE_DEFAULT);
     this.clients = new HiveClientPool(clientPoolSize, this.conf);
     this.createStack = Thread.currentThread().getStackTrace();
     this.closed = false;

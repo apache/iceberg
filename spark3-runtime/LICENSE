@@ -587,3 +587,35 @@ Copyright: 2020 Dremio Corporation.
 Home page: https://projectnessie.org/
 License: http://www.apache.org/licenses/LICENSE-2.0
 
+--------------------------------------------------------------------------------
+
+This product includes code from Apache Spark.
+
+* vectorized reading of definition levels in BaseVectorizedParquetValuesReader.java
+* portions of the extensions parser
+* casting logic in AssignmentAlignmentSupport
+* implementation of SetAccumulator.
+
+Copyright: 2011-2018 The Apache Software Foundation
+Home page: https://spark.apache.org/
+License: https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product includes code from Delta Lake.
+
+* AssignmentAlignmentSupport is an independent development but UpdateExpressionsSupport in Delta was used as a reference.
+
+Copyright: 2020 The Delta Lake Project Authors.
+Home page: https://delta.io/
+License: https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This binary includes code from Apache Commons.
+
+* Core ArrayUtil.
+
+Copyright: 2020 The Apache Software Foundation
+Home page: https://commons.apache.org/
+License: https://www.apache.org/licenses/LICENSE-2.0

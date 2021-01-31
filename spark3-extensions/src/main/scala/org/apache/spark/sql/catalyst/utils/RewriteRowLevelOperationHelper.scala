@@ -21,14 +21,25 @@ package org.apache.spark.sql.catalyst.utils
 import java.util.UUID
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.AnalysisException
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.analysis.Resolver
+import org.apache.spark.sql.catalyst.expressions.AccumulateFiles
+import org.apache.spark.sql.catalyst.expressions.Alias
+import org.apache.spark.sql.catalyst.expressions.And
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.AttributeSet
 import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.expressions.GreaterThan
+import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
+import org.apache.spark.sql.catalyst.expressions.aggregate.AggregateExpression
+import org.apache.spark.sql.catalyst.expressions.aggregate.Complete
+import org.apache.spark.sql.catalyst.expressions.aggregate.Sum
 import org.apache.spark.sql.catalyst.plans.logical.Aggregate
 import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
+import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilterWithCardinalityCheck
+import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.connector.catalog.Table
@@ -38,49 +49,90 @@ import org.apache.spark.sql.connector.read.ScanBuilder
 import org.apache.spark.sql.connector.write.LogicalWriteInfo
 import org.apache.spark.sql.connector.write.LogicalWriteInfoImpl
 import org.apache.spark.sql.execution.datasources.DataSourceStrategy
+import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Implicits
+import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
+import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implicits
 import org.apache.spark.sql.execution.datasources.v2.PushDownUtils
 import org.apache.spark.sql.sources
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
-  protected val FILE_NAME_COL = "_file"
-  protected val ROW_POS_COL = "_pos"
+
+  import DataSourceV2Implicits._
+  import RewriteRowLevelOperationHelper._
+  import ExtendedDataSourceV2Implicits.ScanBuilderHelper
 
   def resolver: Resolver
 
-  protected def buildScanPlan(
+  protected def buildSimpleScanPlan(
+      relation: DataSourceV2Relation,
+      cond: Expression): LogicalPlan = {
+
+    val scanBuilder = relation.table.asReadable.newScanBuilder(relation.options)
+
+    pushFilters(scanBuilder, cond, relation.output)
+
+    val scan = scanBuilder.asIceberg.withMetadataColumns(FILE_NAME_COL, ROW_POS_COL).build()
+    val outputAttrs = toOutputAttrs(scan.readSchema(), relation.output)
+    val predicates = extractFilters(cond, relation.output).reduceLeftOption(And)
+    val scanRelation = DataSourceV2ScanRelation(relation.table, scan, outputAttrs)
+
+    predicates.map(Filter(_, scanRelation)).getOrElse(scanRelation)
+  }
+
+  protected def buildDynamicFilterScanPlan(
+      spark: SparkSession,
       table: Table,
       tableAttrs: Seq[AttributeReference],
       mergeBuilder: MergeBuilder,
       cond: Expression,
-      matchingRowsPlanBuilder: DataSourceV2ScanRelation => LogicalPlan): LogicalPlan = {
+      matchingRowsPlanBuilder: DataSourceV2ScanRelation => LogicalPlan,
+      runCardinalityCheck: Boolean = false): LogicalPlan = {
 
     val scanBuilder = mergeBuilder.asScanBuilder
 
     pushFilters(scanBuilder, cond, tableAttrs)
 
-    val scan = scanBuilder.build()
+    val scan = scanBuilder.asIceberg.withMetadataColumns(FILE_NAME_COL, ROW_POS_COL).build()
     val outputAttrs = toOutputAttrs(scan.readSchema(), tableAttrs)
     val scanRelation = DataSourceV2ScanRelation(table, scan, outputAttrs)
 
     scan match {
+      case filterable: SupportsFileFilter if runCardinalityCheck =>
+        val affectedFilesAcc = new SetAccumulator[String]()
+        spark.sparkContext.register(affectedFilesAcc, AFFECTED_FILES_ACC_NAME)
+
+        val matchingRowsPlan = matchingRowsPlanBuilder(scanRelation)
+        val matchingFilesPlan = buildFileFilterPlan(affectedFilesAcc, matchingRowsPlan)
+
+        DynamicFileFilterWithCardinalityCheck(
+          scanRelation,
+          matchingFilesPlan,
+          filterable,
+          affectedFilesAcc)
+
       case filterable: SupportsFileFilter =>
-        val matchingFilePlan = buildFileFilterPlan(matchingRowsPlanBuilder(scanRelation))
-        DynamicFileFilter(scanRelation, matchingFilePlan, filterable)
+        val matchingRowsPlan = matchingRowsPlanBuilder(scanRelation)
+        val matchingFilesPlan = buildFileFilterPlan(scanRelation.output, matchingRowsPlan)
+        DynamicFileFilter(scanRelation, matchingFilesPlan, filterable)
+
       case _ =>
         scanRelation
     }
+  }
+
+  private def extractFilters(cond: Expression, tableAttrs: Seq[AttributeReference]): Seq[Expression] = {
+    val tableAttrSet = AttributeSet(tableAttrs)
+    splitConjunctivePredicates(cond).filter(_.references.subsetOf(tableAttrSet))
   }
 
   private def pushFilters(
       scanBuilder: ScanBuilder,
       cond: Expression,
       tableAttrs: Seq[AttributeReference]): Unit = {
-
-    val tableAttrSet = AttributeSet(tableAttrs)
-    val predicates = splitConjunctivePredicates(cond).filter(_.references.subsetOf(tableAttrSet))
+    val predicates = extractFilters(cond, tableAttrs)
     if (predicates.nonEmpty) {
       val normalizedPredicates = DataSourceStrategy.normalizeExprs(predicates, tableAttrs)
       PushDownUtils.pushFilters(scanBuilder, normalizedPredicates)
@@ -102,15 +154,33 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
     LogicalWriteInfoImpl(queryId = uuid.toString, schema, CaseInsensitiveStringMap.empty)
   }
 
-  private def buildFileFilterPlan(matchingRowsPlan: LogicalPlan): LogicalPlan = {
-    val fileAttr = findOutputAttr(matchingRowsPlan, FILE_NAME_COL)
+  private def buildFileFilterPlan(tableAttrs: Seq[AttributeReference], matchingRowsPlan: LogicalPlan): LogicalPlan = {
+    val fileAttr = findOutputAttr(tableAttrs, FILE_NAME_COL)
     val agg = Aggregate(Seq(fileAttr), Seq(fileAttr), matchingRowsPlan)
-    Project(Seq(findOutputAttr(agg, FILE_NAME_COL)), agg)
+    Project(Seq(findOutputAttr(agg.output, FILE_NAME_COL)), agg)
   }
 
-  protected def findOutputAttr(plan: LogicalPlan, attrName: String): Attribute = {
-    plan.output.find(attr => resolver(attr.name, attrName)).getOrElse {
-      throw new AnalysisException(s"Cannot find $attrName in ${plan.output}")
+  private def buildFileFilterPlan(
+      filesAccumulator: SetAccumulator[String],
+      prunedTargetPlan: LogicalPlan): LogicalPlan = {
+    val fileAttr = findOutputAttr(prunedTargetPlan.output, FILE_NAME_COL)
+    val rowPosAttr = findOutputAttr(prunedTargetPlan.output, ROW_POS_COL)
+    val accumulatorExpr = Alias(AccumulateFiles(filesAccumulator, fileAttr), AFFECTED_FILES_ACC_ALIAS_NAME)()
+    val projectList = Seq(fileAttr, rowPosAttr, accumulatorExpr)
+    val projectPlan = Project(projectList, prunedTargetPlan)
+    val affectedFilesAttr = findOutputAttr(projectPlan.output, AFFECTED_FILES_ACC_ALIAS_NAME)
+    val aggSumCol = Alias(AggregateExpression(Sum(affectedFilesAttr), Complete, false), SUM_ROW_ID_ALIAS_NAME)()
+    // Group by the rows by row id while collecting the files that need to be over written via accumulator.
+    val aggPlan = Aggregate(Seq(fileAttr, rowPosAttr), Seq(aggSumCol), projectPlan)
+    val sumAttr = findOutputAttr(aggPlan.output, SUM_ROW_ID_ALIAS_NAME)
+    val havingExpr = GreaterThan(sumAttr, Literal(1L))
+    // Identifies ambiguous row in the target.
+    Filter(havingExpr, aggPlan)
+  }
+
+  protected def findOutputAttr(attrs: Seq[Attribute], attrName: String): Attribute = {
+    attrs.find(attr => resolver(attr.name, attrName)).getOrElse {
+      throw new AnalysisException(s"Cannot find $attrName in $attrs")
     }
   }
 
@@ -127,4 +197,14 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
       }
     }
   }
+}
+
+object RewriteRowLevelOperationHelper {
+  final val FILE_NAME_COL = "_file"
+  final val ROW_POS_COL = "_pos"
+
+  // `internal.metrics` prefix ensures the accumulator state is not tracked by Spark UI
+  private final val AFFECTED_FILES_ACC_NAME = "internal.metrics.merge.affectedFiles"
+  private final val AFFECTED_FILES_ACC_ALIAS_NAME = "_affectedFiles_"
+  private final val SUM_ROW_ID_ALIAS_NAME = "_sum_"
 }

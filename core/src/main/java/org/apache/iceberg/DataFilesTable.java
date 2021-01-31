@@ -72,6 +72,16 @@ public class DataFilesTable extends BaseMetadataTable {
     }
   }
 
+  @Override
+  String metadataLocation() {
+    return ops.current().metadataFileLocation();
+  }
+
+  @Override
+  MetadataTableType metadataTableType() {
+    return MetadataTableType.FILES;
+  }
+
   public static class FilesTableScan extends BaseTableScan {
     private final Schema fileSchema;
 

@@ -70,7 +70,7 @@ public class TestCatalogUtil {
     String name = "custom";
     AssertHelpers.assertThrows("must have no-arg constructor",
         IllegalArgumentException.class,
-        "missing no-arg constructor",
+        "NoSuchMethodException: org.apache.iceberg.TestCatalogUtil$TestCatalogBadConstructor.<init>()",
         () -> CatalogUtil.loadCatalog(TestCatalogBadConstructor.class.getName(), name, options, hadoopConf));
   }
 
@@ -87,6 +87,32 @@ public class TestCatalogUtil {
         () -> CatalogUtil.loadCatalog(TestCatalogNoInterface.class.getName(), name, options, hadoopConf));
   }
 
+  @Test
+  public void loadCustomCatalog_ConstructorErrorCatalog() {
+    Map<String, String> options = new HashMap<>();
+    options.put("key", "val");
+    Configuration hadoopConf = new Configuration();
+    String name = "custom";
+
+    String impl = TestCatalogErrorConstructor.class.getName();
+    AssertHelpers.assertThrows("must be able to initialize catalog",
+        IllegalArgumentException.class,
+        "NoClassDefFoundError: Error while initializing class",
+        () -> CatalogUtil.loadCatalog(impl, name, options, hadoopConf));
+  }
+
+  @Test
+  public void loadCustomCatalog_BadCatalogNameCatalog() {
+    Map<String, String> options = new HashMap<>();
+    options.put("key", "val");
+    Configuration hadoopConf = new Configuration();
+    String name = "custom";
+    String impl = "CatalogDoesNotExist";
+    AssertHelpers.assertThrows("catalog must exist",
+        IllegalArgumentException.class,
+        "java.lang.ClassNotFoundException: CatalogDoesNotExist",
+        () -> CatalogUtil.loadCatalog(impl, name, options, hadoopConf));
+  }
 
   @Test
   public void loadCustomFileIO_noArg() {

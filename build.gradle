@@ -1015,6 +1015,7 @@ project(':iceberg-spark3-runtime') {
 
   dependencies {
     compile project(':iceberg-spark3')
+    compile project(':iceberg-spark3-extensions')
     compile project(':iceberg-aws')
     compile 'org.apache.spark:spark-hive_2.11'
     compile(project(':iceberg-nessie')) {
@@ -1067,8 +1068,6 @@ project(':iceberg-pig') {
     compile project(':iceberg-common')
     compile project(':iceberg-core')
     compile project(':iceberg-parquet')
-
-    compile "org.apache.commons:commons-lang3"
 
     compileOnly("org.apache.pig:pig") {
       exclude group: "junit", module: "junit"

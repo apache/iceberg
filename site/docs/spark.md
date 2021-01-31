@@ -17,18 +17,23 @@
 
 # Spark
 
-Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions.
+To use Iceberg in Spark, first configure [Spark catalogs](./spark-configuration.md).
 
-| Feature support                                  | Spark 3.0| Spark 2.4  | Notes                                          |
+Iceberg uses Apache Spark's DataSourceV2 API for data source and catalog implementations. Spark DSv2 is an evolving API with different levels of support in Spark versions:
+
+| SQL feature support                              | Spark 3.0| Spark 2.4  | Notes                                          |
 |--------------------------------------------------|----------|------------|------------------------------------------------|
-| [SQL create table](#create-table)                | ✔️        |            |                                                |
-| [SQL create table as](#create-table-as-select)   | ✔️        |            |                                                |
-| [SQL replace table as](#replace-table-as-select) | ✔️        |            |                                                |
-| [SQL alter table](#alter-table)                  | ✔️        |            |                                                |
-| [SQL drop table](#drop-table)                    | ✔️        |            |                                                |
-| [SQL select](#querying-with-sql)                 | ✔️        |            |                                                |
-| [SQL insert into](#insert-into)                  | ✔️        |            |                                                |
-| [SQL insert overwrite](#insert-overwrite)        | ✔️        |            |                                                |
+| [`CREATE TABLE`](#create-table)                | ✔️        |            |                                                |
+| [`CREATE TABLE AS`](#create-table-as-select)   | ✔️        |            |                                                |
+| [`REPLACE TABLE AS`](#replace-table-as-select) | ✔️        |            |                                                |
+| [`ALTER TABLE`](#alter-table)                  | ✔️        |            | ⚠ Requires [SQL extensions](./spark-configuration.md#sql-extensions) enabled to update partition field and sort order |
+| [`DROP TABLE`](#drop-table)                    | ✔️        |            |                                                |
+| [`SELECT`](#querying-with-sql)                 | ✔️        |            |                                                |
+| [`INSERT INTO`](#insert-into)                  | ✔️        |            |                                                |
+| [`INSERT OVERWRITE`](#insert-overwrite)        | ✔️        |            |                                                |
+
+| DataFrame feature support                        | Spark 3.0| Spark 2.4  | Notes                                          |
+|--------------------------------------------------|----------|------------|------------------------------------------------|
 | [DataFrame reads](#querying-with-dataframes)     | ✔️        | ✔️          |                                                |
 | [DataFrame append](#appending-data)              | ✔️        | ✔️          |                                                |
 | [DataFrame overwrite](#overwriting-data)         | ✔️        | ✔️          | ⚠ Behavior changed in Spark 3.0                |
@@ -256,6 +261,47 @@ ALTER TABLE prod.db.sample ALTER COLUMN id COMMENT 'unique id'
 ```sql
 ALTER TABLE prod.db.sample DROP COLUMN id
 ALTER TABLE prod.db.sample DROP COLUMN point.z
+```
+
+### `ALTER TABLE ... ADD PARTITION FIELD`
+
+```sql
+ALTER TABLE prod.db.sample ADD PARTITION FIELD catalog -- identity transform
+ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id)
+ALTER TABLE prod.db.sample ADD PARTITION FIELD truncate(data, 4)
+ALTER TABLE prod.db.sample ADD PARTITION FIELD years(ts)
+-- use optional AS keyword to specify a custom name for the partition field 
+ALTER TABLE prod.db.sample ADD PARTITION FIELD bucket(16, id) AS shard
+```
+
+!!! Warning
+    Changing partitioning will change the behavior of dynamic writes, which overwrite any partition that is written to. 
+    For example, if you partition by days and move to partitioning by hours, overwrites will overwrite hourly partitions but not days anymore.
+
+
+### `ALTER TABLE ... DROP PARTITION FIELD`
+
+```sql
+ALTER TABLE prod.db.sample DROP PARTITION FIELD catalog
+ALTER TABLE prod.db.sample DROP PARTITION FIELD bucket(16, id)
+ALTER TABLE prod.db.sample DROP PARTITION FIELD truncate(data, 4)
+ALTER TABLE prod.db.sample DROP PARTITION FIELD years(ts)
+ALTER TABLE prod.db.sample DROP PARTITION FIELD shard
+```
+
+!!! Warning
+    Changing partitioning will change the behavior of dynamic writes, which overwrite any partition that is written to. 
+    For example, if you partition by days and move to partitioning by hours, overwrites will overwrite hourly partitions but not days anymore.
+
+
+### `ALTER TABLE ... WRITE ORDERED BY`
+
+```sql
+ALTER TABLE prod.db.sample WRITE ORDERED BY category, id
+-- use optional ASC/DEC keyword to specify sort order of each field (default ASC)
+ALTER TABLE prod.db.sample WRITE ORDERED BY category ASC, id DESC
+-- use optional NULLS FIRST/NULLS LAST keyword to specify null order of each field (default FIRST)
+ALTER TABLE prod.db.sample WRITE ORDERED BY category ASC NULLS LAST, id DESC NULLS FIRST
 ```
 
 ### `DROP TABLE`
@@ -756,61 +802,3 @@ spark.read.format("iceberg").load("db.table.files").show(truncate = false)
 spark.read.format("iceberg").load("hdfs://nn:8020/path/to/table#files").show(truncate = false)
 ```
 
-## Type compatibility
-
-Spark and Iceberg support different set of types. Iceberg does the type conversion automatically, but not for all combinations,
-so you may want to understand the type conversion in Iceberg in prior to design the types of columns in your tables.
-
-### Spark type to Iceberg type
-
-This type conversion table describes how Spark types are converted to the Iceberg types. The conversion applies on both creating Iceberg table and writing to Iceberg table via Spark.
-
-| Spark           | Iceberg                 | Notes |
-|-----------------|-------------------------|-------|
-| boolean         | boolean                 |       |
-| short           | integer                 |       |
-| byte            | integer                 |       |
-| integer         | integer                 |       |
-| long            | long                    |       |
-| float           | float                   |       |
-| double          | double                  |       |
-| date            | date                    |       |
-| timestamp       | timestamp with timezone |       |
-| char            | string                  |       |
-| varchar         | string                  |       |
-| string          | string                  |       |
-| binary          | binary                  |       |
-| decimal         | decimal                 |       |
-| struct          | struct                  |       |
-| array           | list                    |       |
-| map             | map                     |       |
-
-!!! Note
-    The table is based on representing conversion during creating table. In fact, broader supports are applied on write. Here're some points on write:
-    
-    * Iceberg numeric types (`integer`, `long`, `float`, `double`, `decimal`) support promotion during writes. e.g. You can write Spark types `short`, `byte`, `integer`, `long` to Iceberg type `long`.
-    * You can write to Iceberg `fixed` type using Spark `binary` type. Note that assertion on the length will be performed.
-
-### Iceberg type to Spark type
-
-This type conversion table describes how Iceberg types are converted to the Spark types. The conversion applies on reading from Iceberg table via Spark.
-
-| Iceberg                    | Spark                   | Note          |
-|----------------------------|-------------------------|---------------|
-| boolean                    | boolean                 |               |
-| integer                    | integer                 |               |
-| long                       | long                    |               |
-| float                      | float                   |               |
-| double                     | double                  |               |
-| date                       | date                    |               |
-| time                       |                         | Not supported |
-| timestamp with timezone    | timestamp               |               |
-| timestamp without timezone |                         | Not supported |
-| string                     | string                  |               |
-| uuid                       | string                  |               |
-| fixed                      | binary                  |               |
-| binary                     | binary                  |               |
-| decimal                    | decimal                 |               |
-| struct                     | struct                  |               |
-| list                       | array                   |               |
-| map                        | map                     |               |

@@ -23,18 +23,19 @@ import java.io.Closeable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.AccessDeniedException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
+import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -170,7 +171,9 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
   private boolean shouldSuppressPermissionError(IOException ioException) {
     if (suppressPermissionError) {
-      return ioException.getMessage() != null && ioException.getMessage().contains("AuthorizationPermissionMismatch");
+      return ioException instanceof AccessDeniedException ||
+              (ioException.getMessage() != null &&
+                      ioException.getMessage().contains("AuthorizationPermissionMismatch"));
     }
     return false;
   }
@@ -220,14 +223,15 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
       if (!isDirectory(nsPath)) {
         throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
       }
-
-      for (FileStatus s : fs.listStatus(nsPath)) {
-        if (!s.isDirectory()) {
+      RemoteIterator<FileStatus> it = fs.listStatusIterator(nsPath);
+      while (it.hasNext()) {
+        FileStatus status = it.next();
+        if (!status.isDirectory()) {
           // Ignore the path which is not a directory.
           continue;
         }
 
-        Path path = s.getPath();
+        Path path = status.getPath();
         if (isTableDir(path)) {
           TableIdentifier tblIdent = TableIdentifier.of(namespace, path.getName());
           tblIdents.add(tblIdent);
@@ -329,11 +333,17 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     }
 
     try {
-      return Stream.of(fs.listStatus(nsPath))
-        .map(FileStatus::getPath)
-        .filter(this::isNamespace)
-        .map(path -> append(namespace, path.getName()))
-        .collect(Collectors.toList());
+      // using the iterator listing allows for paged downloads
+      // from HDFS and prefetching from object storage.
+      List<Namespace> namespaces = new ArrayList<>();
+      RemoteIterator<FileStatus> it = fs.listStatusIterator(nsPath);
+      while (it.hasNext()) {
+        Path path = it.next().getPath();
+        if (isNamespace(path)) {
+          namespaces.add(append(namespace, path.getName()));
+        }
+      }
+      return namespaces;
     } catch (IOException ioe) {
       throw new RuntimeIOException(ioe, "Failed to list namespace under: %s", namespace);
     }

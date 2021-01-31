@@ -267,11 +267,26 @@ public class TestHelpers {
     }
 
     switch (type.typeId()) {
-      case BOOLEAN:
-      case INTEGER:
       case LONG:
-      case FLOAT:
+        Assert.assertTrue("Should be a long", actual instanceof Long);
+        if (expected instanceof Integer) {
+          Assert.assertEquals("Values didn't match", ((Number) expected).longValue(), actual);
+        } else {
+          Assert.assertEquals("Primitive value should be equal to expected", expected, actual);
+        }
+        break;
       case DOUBLE:
+        Assert.assertTrue("Should be a double", actual instanceof Double);
+        if (expected instanceof Float) {
+          Assert.assertEquals("Values didn't match", Double.doubleToLongBits(((Number) expected).doubleValue()),
+                  Double.doubleToLongBits((double) actual));
+        } else {
+          Assert.assertEquals("Primitive value should be equal to expected", expected, actual);
+        }
+        break;
+      case INTEGER:
+      case FLOAT:
+      case BOOLEAN:
       case DATE:
       case TIMESTAMP:
         Assert.assertEquals("Primitive value should be equal to expected", expected, actual);

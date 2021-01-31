@@ -62,10 +62,15 @@ public abstract class FlinkTestBase extends AbstractTestBase {
     if (tEnv == null) {
       synchronized (this) {
         if (tEnv == null) {
-          this.tEnv = TableEnvironment.create(EnvironmentSettings
+          EnvironmentSettings settings = EnvironmentSettings
               .newInstance()
               .useBlinkPlanner()
-              .inBatchMode().build());
+              .inBatchMode()
+              .build();
+
+          TableEnvironment env = TableEnvironment.create(settings);
+          env.getConfig().getConfiguration().set(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
+          tEnv = env;
         }
       }
     }
@@ -81,7 +86,7 @@ public abstract class FlinkTestBase extends AbstractTestBase {
   }
 
   protected List<Object[]> sql(String query, Object... args) {
-    TableResult tableResult = exec(String.format(query, args));
+    TableResult tableResult = exec(query, args);
 
     tableResult.getJobClient().ifPresent(c -> {
       try {

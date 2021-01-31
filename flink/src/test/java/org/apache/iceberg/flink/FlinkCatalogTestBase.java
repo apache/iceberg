@@ -101,15 +101,22 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
     }
     if (isHadoopCatalog) {
       config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hadoop");
-      config.put(CatalogProperties.WAREHOUSE_LOCATION, "file://" + hadoopWarehouse.getRoot());
     } else {
       config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hive");
-      config.put(CatalogProperties.WAREHOUSE_LOCATION, "file://" + hiveWarehouse.getRoot());
-      config.put(CatalogProperties.HIVE_URI, getURI(hiveConf));
+      config.put(CatalogProperties.URI, getURI(hiveConf));
     }
+    config.put(CatalogProperties.WAREHOUSE_LOCATION, String.format("file://%s", warehouseRoot()));
 
     this.flinkDatabase = catalogName + "." + DATABASE;
     this.icebergNamespace = Namespace.of(ArrayUtils.concat(baseNamespace.levels(), new String[] {DATABASE}));
+  }
+
+  protected String warehouseRoot() {
+    if (isHadoopCatalog) {
+      return hadoopWarehouse.getRoot().getAbsolutePath();
+    } else {
+      return hiveWarehouse.getRoot().getAbsolutePath();
+    }
   }
 
   static String getURI(HiveConf conf) {

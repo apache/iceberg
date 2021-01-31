@@ -25,7 +25,7 @@ remote_branch: asf-site
 use_directory_urls: true
 
 theme: cinder
-copyright: "Copyright 2018-2020 <a href='https://www.apache.org/'>The Apache Software Foundation</a><br />Apache Iceberg, Iceberg, Apache, the Apache feather logo, and the Apache Iceberg project logo are either registered<br />trademarks or trademarks of The Apache Software Foundation in the United States and other countries."
+copyright: "Copyright 2018-2021 <a href='https://www.apache.org/'>The Apache Software Foundation</a><br />Apache Iceberg, Iceberg, Apache, the Apache feather logo, and the Apache Iceberg project logo are either registered<br />trademarks or trademarks of The Apache Software Foundation in the United States and other countries."
 extra_css:
   - css/extra.css
 plugins:
@@ -44,6 +44,7 @@ nav:
     - About: index.md
     - Community: community.md
     - Releases: releases.md
+    - Blogs: blogs.md
     - Trademarks: trademarks.md
     - How to Release: how-to-release.md
   - Tables:
@@ -56,8 +57,12 @@ nav:
     - Reliability: reliability.md
   - Spark:
     - Getting Started: getting-started.md
-    - Spark SQL: spark.md
-    - Spark Streaming: spark-structured-streaming.md
+    - Configuration: spark-configuration.md
+    - DDL: spark-ddl.md
+    - Queries: spark-queries.md
+    - Writes: spark-writes.md
+    - Maintenance Procedures: spark-procedures.md
+    - Structured Streaming: spark-structured-streaming.md
     - Time Travel: spark#time-travel
   - Trino: https://trino.io/docs/current/connector/iceberg.html
   - Flink: flink.md

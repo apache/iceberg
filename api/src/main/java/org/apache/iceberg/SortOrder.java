@@ -187,8 +187,7 @@ public class SortOrder implements Serializable {
   public static class Builder implements SortOrderBuilder<Builder> {
     private final Schema schema;
     private final List<SortField> fields = Lists.newArrayList();
-    // default ID to 1 as 0 is reserved for unsorted order
-    private int orderId = 1;
+    private Integer orderId = null;
     private boolean caseSensitive = true;
 
     private Builder(Schema schema) {
@@ -202,6 +201,7 @@ public class SortOrder implements Serializable {
      * @param nullOrder a null order (first or last)
      * @return this for method chaining
      */
+    @Override
     public Builder asc(Term term, NullOrder nullOrder) {
       return addSortField(term, SortDirection.ASC, nullOrder);
     }
@@ -213,6 +213,7 @@ public class SortOrder implements Serializable {
      * @param nullOrder a null order (first or last)
      * @return this for method chaining
      */
+    @Override
     public Builder desc(Term term, NullOrder nullOrder) {
       return addSortField(term, SortDirection.DESC, nullOrder);
     }
@@ -256,14 +257,20 @@ public class SortOrder implements Serializable {
     }
 
     public SortOrder build() {
-      if (orderId == 0 && fields.size() != 0) {
-        throw new IllegalArgumentException("Sort order ID 0 is reserved for unsorted order");
-      }
-      if (fields.size() == 0 && orderId != 0) {
-        throw new IllegalArgumentException("Unsorted order ID must be 0");
+      if (fields.isEmpty()) {
+        if (orderId != null && orderId != 0) {
+          throw new IllegalArgumentException("Unsorted order ID must be 0");
+        }
+        return SortOrder.unsorted();
       }
 
-      SortOrder sortOrder = new SortOrder(schema, orderId, fields);
+      if (orderId != null && orderId == 0) {
+        throw new IllegalArgumentException("Sort order ID 0 is reserved for unsorted order");
+      }
+
+      // default ID to 1 as 0 is reserved for unsorted order
+      int actualOrderId = orderId != null ? orderId : 1;
+      SortOrder sortOrder = new SortOrder(schema, actualOrderId, fields);
       checkCompatibility(sortOrder, schema);
       return sortOrder;
     }
