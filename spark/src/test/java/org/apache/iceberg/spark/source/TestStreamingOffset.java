@@ -35,7 +35,7 @@ public class TestStreamingOffset {
         new StreamingOffset(System.currentTimeMillis(), 3L, false),
         new StreamingOffset(System.currentTimeMillis(), 4L, true)
     };
-    Assert.assertArrayEquals("Result StreamingOffsets should match", expected,
+    Assert.assertArrayEquals("StreamingOffsets should match", expected,
         Arrays.stream(expected).map(elem -> StreamingOffset.fromJson(elem.json())).toArray());
   }
 
