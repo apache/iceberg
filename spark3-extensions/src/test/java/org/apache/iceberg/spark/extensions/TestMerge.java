@@ -48,6 +48,56 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     sql("DROP TABLE IF EXISTS source");
   }
 
+  // TODO: add tests for multiple NOT MATCHED clauses when we move to Spark 3.1
+
+  @Test
+  public void testMergeInsertOnly() {
+    createAndInitTable("id STRING, v STRING",
+        "{ \"id\": \"a\", \"v\": \"v1\" }\n" +
+        "{ \"id\": \"b\", \"v\": \"v2\" }");
+    createOrReplaceView("source",
+        "{ \"id\": \"a\", \"v\": \"v1_1\" }\n" +
+        "{ \"id\": \"a\", \"v\": \"v1_2\" }\n" +
+        "{ \"id\": \"c\", \"v\": \"v3\" }\n" +
+        "{ \"id\": \"d\", \"v\": \"v4_1\" }\n" +
+        "{ \"id\": \"d\", \"v\": \"v4_2\" }");
+
+    sql("MERGE INTO %s t USING source " +
+        "ON t.id == source.id " +
+        "WHEN NOT MATCHED THEN " +
+        "  INSERT *", tableName);
+
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(
+        row("a", "v1"),   // kept
+        row("b", "v2"),   // kept
+        row("c", "v3"),   // new
+        row("d", "v4_1"), // new
+        row("d", "v4_2")  // new
+    );
+    assertEquals("Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void testMergeInsertOnlyWithCondition() {
+    createAndInitTable("id INTEGER, v INTEGER", "{ \"id\": 1, \"v\": 1 }");
+    createOrReplaceView("source",
+        "{ \"id\": 1, \"v\": 11, \"is_new\": true }\n" +
+        "{ \"id\": 2, \"v\": 21, \"is_new\": true }\n" +
+        "{ \"id\": 2, \"v\": 22, \"is_new\": false }");
+
+    // validate assignments are reordered to match the table attrs
+    sql("MERGE INTO %s t USING source s " +
+        "ON t.id == s.id " +
+        "WHEN NOT MATCHED AND is_new = TRUE THEN " +
+        "  INSERT (v, id) VALUES (s.v + 100, s.id)", tableName);
+
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(
+        row(1, 1),  // kept
+        row(2, 121) // new
+    );
+    assertEquals("Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
   @Test
   public void testMergeAlignsUpdateAndInsertActions() {
     createAndInitTable("id INT, a INT, b STRING", "{ \"id\": 1, \"a\": 2, \"b\": \"str\" }");
@@ -472,6 +522,21 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               "ON t.id == s.c1 " +
               "WHEN NOT MATCHED AND s.c1 IN (SELECT c2 FROM source) THEN " +
               "  INSERT (id, c) VALUES (1, null)", tableName);
+        });
+  }
+
+  @Test
+  public void testMergeWithTargetColumnsInInsertCondtions() {
+    createAndInitTable("id INT, c2 INT");
+    createOrReplaceView("source", "{ \"id\": 1, \"value\": 11 }");
+
+    AssertHelpers.assertThrows("Should complain about the target column",
+        AnalysisException.class, "cannot resolve '`c2`'",
+        () -> {
+          sql("MERGE INTO %s t USING source s " +
+              "ON t.id == s.id " +
+              "WHEN NOT MATCHED AND c2 = 1 THEN " +
+              "  INSERT (id, c2) VALUES (s.id, null)", tableName);
         });
   }
 
