@@ -19,23 +19,16 @@
 
 package org.apache.spark.sql.catalyst.optimizer
 
-import org.apache.iceberg.DistributionMode
-import org.apache.iceberg.TableProperties
 import org.apache.iceberg.TableProperties.MERGE_CARDINALITY_CHECK_ENABLED
 import org.apache.iceberg.TableProperties.MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT
-import org.apache.iceberg.spark.Spark3Util.toClusteredDistribution
-import org.apache.iceberg.spark.Spark3Util.toOrderedDistribution
-import org.apache.iceberg.spark.source.SparkTable
+import org.apache.iceberg.spark.Spark3Util
 import org.apache.iceberg.util.PropertyUtil
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.analysis.Resolver
 import org.apache.spark.sql.catalyst.expressions.Alias
-import org.apache.spark.sql.catalyst.expressions.Ascending
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.IsNull
 import org.apache.spark.sql.catalyst.expressions.Literal
-import org.apache.spark.sql.catalyst.expressions.NullsFirst
-import org.apache.spark.sql.catalyst.expressions.SortOrder
 import org.apache.spark.sql.catalyst.plans.FullOuter
 import org.apache.spark.sql.catalyst.plans.Inner
 import org.apache.spark.sql.catalyst.plans.LeftAnti
@@ -52,27 +45,26 @@ import org.apache.spark.sql.catalyst.plans.logical.MergeIntoParams
 import org.apache.spark.sql.catalyst.plans.logical.MergeIntoTable
 import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.Repartition
-import org.apache.spark.sql.catalyst.plans.logical.RepartitionByExpression
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
-import org.apache.spark.sql.catalyst.plans.logical.Sort
 import org.apache.spark.sql.catalyst.plans.logical.UpdateAction
 import org.apache.spark.sql.catalyst.rules.Rule
+import org.apache.spark.sql.catalyst.utils.DistributionAndOrderingUtils
 import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 import org.apache.spark.sql.catalyst.utils.RewriteRowLevelOperationHelper
 import org.apache.spark.sql.connector.catalog.Table
+import org.apache.spark.sql.connector.iceberg.distributions.OrderedDistribution
 import org.apache.spark.sql.connector.iceberg.write.MergeBuilder
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
+import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implicits
+import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.BooleanType
 
 case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper  {
-  private val ROW_FROM_SOURCE = "_row_from_source_"
-  private val ROW_FROM_TARGET = "_row_from_target_"
-  private val TRUE_LITERAL = Literal(true, BooleanType)
-  private val FALSE_LITERAL = Literal(false, BooleanType)
+  import ExtendedDataSourceV2Implicits._
+  import RewriteMergeInto._
 
-  import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implicits._
-
-  override def resolver: Resolver = spark.sessionState.conf.resolver
+  private val conf: SQLConf = spark.sessionState.conf
+  override val resolver: Resolver = conf.resolver
 
   override def apply(plan: LogicalPlan): LogicalPlan = {
     plan resolveOperators {
@@ -233,47 +225,26 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
     !(actions.size == 1 && hasUnconditionalDelete(actions.headOption))
   }
 
-  def buildWritePlan(
-     childPlan: LogicalPlan,
-     table: Table): LogicalPlan = {
-    val defaultDistributionMode = table match {
-      case iceberg: SparkTable if !iceberg.table.sortOrder.isUnsorted =>
-        TableProperties.WRITE_DISTRIBUTION_MODE_RANGE
-      case _ =>
-        TableProperties.WRITE_DISTRIBUTION_MODE_DEFAULT
-    }
-
-    table match {
-      case iceTable: SparkTable =>
-        val numShufflePartitions = spark.sessionState.conf.numShufflePartitions
-        val table = iceTable.table()
-        val distributionMode: String = table.properties
-          .getOrDefault(TableProperties.WRITE_DISTRIBUTION_MODE, defaultDistributionMode)
-        val order = toCatalyst(toOrderedDistribution(table.spec(), table.sortOrder(), true), childPlan)
-        DistributionMode.fromName(distributionMode) match {
-          case DistributionMode.NONE =>
-            Sort(buildSortOrder(order), global = false, childPlan)
-          case DistributionMode.HASH =>
-            val clustering = toCatalyst(toClusteredDistribution(table.spec()), childPlan)
-            val hashPartitioned = RepartitionByExpression(clustering, childPlan, numShufflePartitions)
-            Sort(buildSortOrder(order), global = false, hashPartitioned)
-          case DistributionMode.RANGE =>
-            val roundRobin = Repartition(numShufflePartitions, shuffle = true, childPlan)
-            Sort(buildSortOrder(order), global = true, roundRobin)
-        }
+  private def buildWritePlan(childPlan: LogicalPlan, table: Table): LogicalPlan = {
+    val icebergTable = Spark3Util.toIcebergTable(table)
+    val distribution = Spark3Util.buildRequiredDistribution(icebergTable)
+    val ordering = Spark3Util.buildRequiredOrdering(distribution, icebergTable)
+    // range partitioning in Spark triggers a skew estimation job prior to shuffling
+    // we insert a round-robin partitioning to avoid executing the merge join twice
+    val newChildPlan = distribution match {
+      case _: OrderedDistribution =>
+        val numShufflePartitions = conf.numShufflePartitions
+        Repartition(numShufflePartitions, shuffle = true, childPlan)
       case _ =>
         childPlan
     }
-  }
-
-  private def buildSortOrder(exprs: Seq[Expression]): Seq[SortOrder] = {
-    exprs.map { expr =>
-      expr match {
-        case e: SortOrder => e
-        case other =>
-          SortOrder(other, Ascending, NullsFirst, Set.empty)
-      }
-    }
+    DistributionAndOrderingUtils.prepareQuery(distribution, ordering, newChildPlan, conf)
   }
 }
 
+object RewriteMergeInto {
+  private final val ROW_FROM_SOURCE = "_row_from_source_"
+  private final val ROW_FROM_TARGET = "_row_from_target_"
+  private final val TRUE_LITERAL = Literal(true, BooleanType)
+  private final val FALSE_LITERAL = Literal(false, BooleanType)
+}

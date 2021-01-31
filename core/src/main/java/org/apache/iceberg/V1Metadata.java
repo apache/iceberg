@@ -62,7 +62,7 @@ class V1Metadata {
 
     @Override
     public void put(int i, Object v) {
-      throw new UnsupportedOperationException("Cannot read using IndexedManifestFile");
+      throw new UnsupportedOperationException("Cannot modify IndexedManifestFile wrapper via put");
     }
 
     @Override
@@ -243,7 +243,7 @@ class V1Metadata {
 
     @Override
     public void put(int i, Object v) {
-      throw new UnsupportedOperationException("Cannot read using IndexedManifestEntry");
+      throw new UnsupportedOperationException("Cannot modify IndexedManifestEntry wrapper via put");
     }
 
     @Override
@@ -359,7 +359,7 @@ class V1Metadata {
 
     @Override
     public void put(int i, Object v) {
-      throw new UnsupportedOperationException("Cannot read into IndexedDataFile");
+      throw new UnsupportedOperationException("Cannot modify IndexedDataFile wrapper via put");
     }
 
     @Override

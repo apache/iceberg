@@ -56,6 +56,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -158,8 +159,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
       this.conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, properties.get(CatalogProperties.WAREHOUSE_LOCATION));
     }
 
-    int clientPoolSize = Integer.parseInt(
-        properties.getOrDefault(CatalogProperties.CLIENT_POOL_SIZE, "5"));
+    int clientPoolSize = PropertyUtil.propertyAsInt(properties,
+        CatalogProperties.CLIENT_POOL_SIZE, CatalogProperties.CLIENT_POOL_SIZE_DEFAULT);
     this.clients = new HiveClientPool(clientPoolSize, this.conf);
     this.createStack = Thread.currentThread().getStackTrace();
     this.closed = false;

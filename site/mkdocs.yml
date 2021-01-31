@@ -44,6 +44,7 @@ nav:
     - About: index.md
     - Community: community.md
     - Releases: releases.md
+    - Blogs: blogs.md
     - Trademarks: trademarks.md
     - How to Release: how-to-release.md
   - Tables:
@@ -56,8 +57,12 @@ nav:
     - Reliability: reliability.md
   - Spark:
     - Getting Started: getting-started.md
-    - Spark SQL: spark.md
-    - Spark Streaming: spark-structured-streaming.md
+    - Configuration: spark-configuration.md
+    - DDL: spark-ddl.md
+    - Queries: spark-queries.md
+    - Writes: spark-writes.md
+    - Maintenance Procedures: spark-procedures.md
+    - Structured Streaming: spark-structured-streaming.md
     - Time Travel: spark#time-travel
   - Trino: https://trino.io/docs/current/connector/iceberg.html
   - Flink: flink.md
