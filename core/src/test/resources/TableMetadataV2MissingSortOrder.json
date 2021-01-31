@@ -43,7 +43,7 @@
       ]
     }
   ],
-  "last-assigned-partition-id": 1000,
+  "last-partition-id": 1000,
   "properties": {},
   "current-snapshot-id": -1,
   "snapshots": [],
