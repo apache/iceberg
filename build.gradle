@@ -439,9 +439,6 @@ project(':iceberg-hive-metastore') {
 
     compileOnly "org.apache.avro:avro"
 
-    compileOnly "org.apache.calcite:calcite-core"
-    compileOnly "org.apache.calcite:calcite-druid"
-
     compileOnly("org.apache.hive:hive-metastore") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
@@ -514,9 +511,6 @@ project(':iceberg-mr') {
     compile project(':iceberg-orc')
     compile project(':iceberg-parquet')
 
-    compileOnly "org.apache.calcite:calcite-core"
-    compileOnly "org.apache.calcite:calcite-druid"
-
     compileOnly("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
@@ -534,6 +528,9 @@ project(':iceberg-mr') {
     }
     compileOnly("org.apache.hive:hive-metastore")
     compileOnly("org.apache.hive:hive-serde")
+
+    testCompile "org.apache.calcite:calcite-core"
+    testCompile "org.apache.calcite:calcite-druid"
 
     testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
