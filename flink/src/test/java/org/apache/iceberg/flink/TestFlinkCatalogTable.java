@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.flink.table.api.DataTypes;
@@ -45,6 +46,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
@@ -52,7 +54,6 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
@@ -123,7 +124,6 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
   }
 
-  @Ignore("Enable this after upgrade flink to 1.12.0, because it starts to support 'CREATE TABLE IF NOT EXISTS")
   @Test
   public void testCreateTableIfNotExists() {
     sql("CREATE TABLE tl(id BIGINT)");
@@ -133,13 +133,23 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
     sql("DROP TABLE tl");
     AssertHelpers.assertThrows("Table 'tl' should be dropped",
-        NoSuchTableException.class, "Table does not exist: db.tl", () -> table("tl"));
+        NoSuchTableException.class,
+        "Table does not exist: " + getFullQualifiedTableName("tl"),
+        () -> table("tl"));
 
-    sql("CREATE TABLE IF NO EXISTS tl(id BIGINT)");
+    sql("CREATE TABLE IF NOT EXISTS tl(id BIGINT)");
     Assert.assertEquals(Maps.newHashMap(), table("tl").properties());
 
-    sql("CREATE TABLE IF NOT EXISTS tl(id BIGINT) WITH ('location'='/tmp/location')");
-    Assert.assertEquals("Should still be the old table.", Maps.newHashMap(), table("tl").properties());
+    final String uuid = UUID.randomUUID().toString();
+    final Map<String, String> expectedProperties = ImmutableMap.of("uuid", uuid);
+    table("tl").updateProperties()
+        .set("uuid", uuid)
+        .commit();
+    Assert.assertEquals(expectedProperties, table("tl").properties());
+
+    sql("CREATE TABLE IF NOT EXISTS tl(id BIGINT)");
+    Assert.assertEquals("Should still be the old table.",
+        expectedProperties, table("tl").properties());
   }
 
   @Test
