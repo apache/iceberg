@@ -483,9 +483,9 @@ public class TestTableMetadata {
 
   @Test
   public void testParserV2LastAssignedFieldIdValidation() throws Exception {
-    String unsupportedVersion = readTableMetadataInputFile("TableMetadataV2MissingLastAssignedPartitionId.json");
-    AssertHelpers.assertThrows("Should reject v2 metadata without last assigned partition id",
-        IllegalArgumentException.class, "last-assigned-partition-id must exist in format v2",
+    String unsupportedVersion = readTableMetadataInputFile("TableMetadataV2MissingLastPartitionId.json");
+    AssertHelpers.assertThrows("Should reject v2 metadata without last assigned partition field id",
+        IllegalArgumentException.class, "last-partition-id must exist in format v2",
         () -> TableMetadataParser.fromJson(
             ops.io(), null, JsonUtil.mapper().readValue(unsupportedVersion, JsonNode.class))
     );

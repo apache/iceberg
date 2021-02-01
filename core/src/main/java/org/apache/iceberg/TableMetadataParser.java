@@ -91,7 +91,7 @@ public class TableMetadataParser {
   static final String PARTITION_SPEC = "partition-spec";
   static final String PARTITION_SPECS = "partition-specs";
   static final String DEFAULT_SPEC_ID = "default-spec-id";
-  static final String LAST_ASSIGNED_PARTITION_ID = "last-assigned-partition-id";
+  static final String LAST_PARTITION_ID = "last-partition-id";
   static final String DEFAULT_SORT_ORDER_ID = "default-sort-order-id";
   static final String SORT_ORDERS = "sort-orders";
   static final String PROPERTIES = "properties";
@@ -179,7 +179,7 @@ public class TableMetadataParser {
     }
     generator.writeEndArray();
 
-    generator.writeNumberField(LAST_ASSIGNED_PARTITION_ID, metadata.lastAssignedPartitionId());
+    generator.writeNumberField(LAST_PARTITION_ID, metadata.lastAssignedPartitionId());
 
     generator.writeNumberField(DEFAULT_SORT_ORDER_ID, metadata.defaultSortOrderId());
     generator.writeArrayFieldStart(SORT_ORDERS);
@@ -291,10 +291,10 @@ public class TableMetadataParser {
           schema, TableMetadata.INITIAL_SPEC_ID, node.get(PARTITION_SPEC)));
     }
 
-    Integer lastAssignedPartitionId = JsonUtil.getIntOrNull(LAST_ASSIGNED_PARTITION_ID, node);
+    Integer lastAssignedPartitionId = JsonUtil.getIntOrNull(LAST_PARTITION_ID, node);
     if (lastAssignedPartitionId == null) {
       Preconditions.checkArgument(formatVersion == 1,
-          "%s must exist in format v%s", LAST_ASSIGNED_PARTITION_ID, formatVersion);
+          "%s must exist in format v%s", LAST_PARTITION_ID, formatVersion);
       lastAssignedPartitionId = specs.stream().mapToInt(PartitionSpec::lastAssignedFieldId).max().orElse(999);
     }
 
