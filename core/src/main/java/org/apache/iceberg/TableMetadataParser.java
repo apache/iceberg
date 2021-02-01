@@ -179,7 +179,7 @@ public class TableMetadataParser {
     }
     generator.writeEndArray();
 
-    generator.writeNumberField(LAST_PARTITION_ID, metadata.lastPartitionId());
+    generator.writeNumberField(LAST_PARTITION_ID, metadata.lastAssignedPartitionId());
 
     generator.writeNumberField(DEFAULT_SORT_ORDER_ID, metadata.defaultSortOrderId());
     generator.writeArrayFieldStart(SORT_ORDERS);

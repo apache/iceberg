@@ -214,7 +214,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
         .build(), table.spec());
     V2Assert.assertEquals("Should match the last assigned field id",
         999, table.spec().lastAssignedFieldId());
-    Assert.assertEquals(1000, table.ops().current().lastPartitionId());
+    Assert.assertEquals(1000, table.ops().current().lastAssignedPartitionId());
 
     table.updateSpec()
         .addField(bucket("id", 8))
@@ -230,6 +230,6 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
         .add(1, 1001, "id_bucket_8", "bucket[8]")
         .build(), table.spec());
     Assert.assertEquals(1001, table.spec().lastAssignedFieldId());
-    Assert.assertEquals(1001, table.ops().current().lastPartitionId());
+    Assert.assertEquals(1001, table.ops().current().lastAssignedPartitionId());
   }
 }

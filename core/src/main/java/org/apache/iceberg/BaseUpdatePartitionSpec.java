@@ -69,7 +69,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     this.schema = spec.schema();
     this.nameToField = indexSpecByName(spec);
     this.transformToField = indexSpecByTransform(spec);
-    this.lastAssignedPartitionId = base.lastPartitionId();
+    this.lastAssignedPartitionId = base.lastAssignedPartitionId();
 
     spec.fields().stream()
         .filter(field -> field.transform() instanceof UnknownTransform)

@@ -128,7 +128,7 @@ public class TestTableMetadata {
     Assert.assertEquals("PartitionSpec map should match",
         expected.specs(), metadata.specs());
     Assert.assertEquals("lastAssignedFieldId across all PartitionSpecs should match",
-        expected.spec().lastAssignedFieldId(), metadata.lastPartitionId());
+        expected.spec().lastAssignedFieldId(), metadata.lastAssignedPartitionId());
     Assert.assertEquals("Properties should match",
         expected.properties(), metadata.properties());
     Assert.assertEquals("Snapshot logs should match",
@@ -191,7 +191,7 @@ public class TestTableMetadata {
     Assert.assertEquals("PartitionSpec should have ID TableMetadata.INITIAL_SPEC_ID",
         TableMetadata.INITIAL_SPEC_ID, metadata.specs().get(0).specId());
     Assert.assertEquals("lastAssignedFieldId across all PartitionSpecs should match",
-        expected.spec().lastAssignedFieldId(), metadata.lastPartitionId());
+        expected.spec().lastAssignedFieldId(), metadata.lastAssignedPartitionId());
     Assert.assertEquals("Properties should match",
         expected.properties(), metadata.properties());
     Assert.assertEquals("Snapshot logs should match",
