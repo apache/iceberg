@@ -30,6 +30,7 @@ import org.apache.hadoop.hive.ql.plan.TableDesc;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.JobContextImpl;
 import org.apache.hadoop.mapred.JobID;
+import org.apache.hadoop.mapred.OutputCommitter;
 import org.apache.hadoop.mapred.TaskAttemptContextImpl;
 import org.apache.hadoop.mapred.TaskAttemptID;
 import org.apache.hadoop.mapreduce.JobStatus;
@@ -242,11 +243,12 @@ public class TestHiveIcebergOutputCommitter {
    * @param abortTasks If <code>true</code> the tasks will be aborted - needed so we can simulate no commit/no abort
    *                   situation
    * @param conf The job configuration
+   * @param committer The output committer that should be used for committing/aborting the tasks
    * @return The random generated records which were appended to the table
    * @throws IOException Propagating {@link HiveIcebergRecordWriter} exceptions
    */
   private List<Record> writeRecords(int taskNum, int attemptNum, boolean commitTasks, boolean abortTasks,
-                                    JobConf conf, HiveIcebergOutputCommitter committer) throws IOException {
+                                    JobConf conf, OutputCommitter committer) throws IOException {
     List<Record> expected = new ArrayList<>(RECORD_NUM * taskNum);
 
     FileIO io = HiveIcebergStorageHandler.io(conf);
