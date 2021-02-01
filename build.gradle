@@ -529,6 +529,9 @@ project(':iceberg-mr') {
     compileOnly("org.apache.hive:hive-metastore")
     compileOnly("org.apache.hive:hive-serde")
 
+    testCompile "org.apache.calcite:calcite-core"
+    testCompile "org.apache.calcite:calcite-druid"
+
     testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')

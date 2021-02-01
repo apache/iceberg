@@ -1,9 +1,10 @@
 org.slf4j:* = 1.7.25
 org.apache.avro:avro = 1.9.2
+org.apache.calcite:* = 1.10.0
 org.apache.flink:* = 1.11.0
 org.apache.hadoop:* = 2.7.3
-org.apache.hive:hive-metastore = 2.3.7
-org.apache.hive:hive-serde = 2.3.7
+org.apache.hive:hive-metastore = 2.3.8
+org.apache.hive:hive-serde = 2.3.8
 org.apache.orc:* = 1.6.7
 org.apache.parquet:* = 1.11.1
 org.apache.spark:spark-hive_2.11 = 2.4.7
@@ -25,8 +26,8 @@ io.quarkus:* = 1.9.1.Final
 # test deps
 junit:junit = 4.12
 org.mockito:mockito-core = 1.10.19
-org.apache.hive:hive-exec = 2.3.7
-org.apache.hive:hive-service = 2.3.7
+org.apache.hive:hive-exec = 2.3.8
+org.apache.hive:hive-service = 2.3.8
 org.apache.tez:tez-dag = 0.8.4
 org.apache.tez:tez-mapreduce = 0.8.4
 com.adobe.testing:s3mock-junit4 = 2.1.28
