@@ -58,7 +58,7 @@ import org.slf4j.LoggerFactory;
  * An Iceberg table committer for adding data files to the Iceberg tables.
  * Currently independent of the Hive ACID transactions.
  */
-public final class HiveIcebergOutputCommitter extends OutputCommitter {
+public class HiveIcebergOutputCommitter extends OutputCommitter {
   private static final String FOR_COMMIT_EXTENSION = ".forCommit";
 
   private static final Logger LOG = LoggerFactory.getLogger(HiveIcebergOutputCommitter.class);
