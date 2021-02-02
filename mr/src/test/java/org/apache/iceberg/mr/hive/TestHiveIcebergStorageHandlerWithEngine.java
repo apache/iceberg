@@ -293,7 +293,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
 
     shell.executeStatement(query.toString());
 
-    HiveIcebergTestUtils.validateData(table, new ArrayList<>(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS), 0);
+    HiveIcebergTestUtils.validateData(table, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS, 0);
   }
 
   /**
@@ -351,7 +351,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
         .add(1L, null, "test")
         .build();
 
-    HiveIcebergTestUtils.validateData(table, new ArrayList<>(expected), 0);
+    HiveIcebergTestUtils.validateData(table, expected, 0);
   }
 
   @Test
@@ -532,7 +532,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     shell.executeStatement("CREATE TABLE default." + dummyTableName + "(a int)");
     shell.executeStatement("INSERT INTO TABLE default." + dummyTableName + " VALUES(1)");
     records.forEach(r -> shell.executeStatement(insertQueryForComplexType(tableName, dummyTableName, schema, r)));
-    HiveIcebergTestUtils.validateData(table, new ArrayList<>(records), 0);
+    HiveIcebergTestUtils.validateData(table, records, 0);
   }
 
   private String insertQueryForComplexType(String tableName, String dummyTableName, Schema schema, Record record) {
