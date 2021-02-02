@@ -27,7 +27,7 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.analysis.Resolver
 import org.apache.spark.sql.catalyst.expressions.Alias
 import org.apache.spark.sql.catalyst.expressions.Expression
-import org.apache.spark.sql.catalyst.expressions.IsNull
+import org.apache.spark.sql.catalyst.expressions.IsNotNull
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.plans.FullOuter
 import org.apache.spark.sql.catalyst.plans.Inner
@@ -104,8 +104,8 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
         val joinPlan = Join(source, targetTableScan, LeftAnti, Some(cond), JoinHint.NONE)
 
         val mergeParams = MergeIntoParams(
-          isSourceRowNotPresent = FALSE_LITERAL,
-          isTargetRowNotPresent = TRUE_LITERAL,
+          isSourceRowPresent = TRUE_LITERAL,
+          isTargetRowPresent = FALSE_LITERAL,
           matchedConditions = Nil,
           matchedOutputs = Nil,
           notMatchedConditions = notMatchedActions.map(getClauseCondition),
@@ -135,8 +135,8 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
         val joinPlan = Join(newSourceTableScan, targetTableScan, RightOuter, Some(cond), JoinHint.NONE)
 
         val mergeParams = MergeIntoParams(
-          isSourceRowNotPresent = IsNull(findOutputAttr(joinPlan.output, ROW_FROM_SOURCE)),
-          isTargetRowNotPresent = FALSE_LITERAL,
+          isSourceRowPresent = IsNotNull(findOutputAttr(joinPlan.output, ROW_FROM_SOURCE)),
+          isTargetRowPresent = TRUE_LITERAL,
           matchedConditions = matchedConditions,
           matchedOutputs = matchedOutputs,
           notMatchedConditions = Nil,
@@ -167,8 +167,8 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
         val joinPlan = Join(newSourceTableScan, newTargetTableScan, FullOuter, Some(cond), JoinHint.NONE)
 
         val mergeParams = MergeIntoParams(
-          isSourceRowNotPresent = IsNull(findOutputAttr(joinPlan.output, ROW_FROM_SOURCE)),
-          isTargetRowNotPresent = IsNull(findOutputAttr(joinPlan.output, ROW_FROM_TARGET)),
+          isSourceRowPresent = IsNotNull(findOutputAttr(joinPlan.output, ROW_FROM_SOURCE)),
+          isTargetRowPresent = IsNotNull(findOutputAttr(joinPlan.output, ROW_FROM_TARGET)),
           matchedConditions = matchedConditions,
           matchedOutputs = matchedOutputs,
           notMatchedConditions = notMatchedActions.map(getClauseCondition),

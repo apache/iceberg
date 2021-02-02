@@ -80,8 +80,8 @@ case class MergeIntoExec(
      rowIterator: Iterator[InternalRow]): Iterator[InternalRow] = {
 
     val joinedAttrs = params.joinedAttributes
-    val isSourceRowNotPresentPred = generatePredicate(params.isSourceRowNotPresent, joinedAttrs)
-    val isTargetRowNotPresentPred = generatePredicate(params.isTargetRowNotPresent, joinedAttrs)
+    val isSourceRowPresentPred = generatePredicate(params.isSourceRowPresent, joinedAttrs)
+    val isTargetRowPresentPred = generatePredicate(params.isTargetRowPresent, joinedAttrs)
     val matchedPreds = params.matchedConditions.map(generatePredicate(_, joinedAttrs))
     val matchedProjs = params.matchedOutputs.map(_.map(generateProjection(_, joinedAttrs)))
     val notMatchedPreds = params.notMatchedConditions.map(generatePredicate(_, joinedAttrs))
@@ -102,9 +102,9 @@ case class MergeIntoExec(
      *    - Apply the matched actions (i.e DELETE or UPDATE actions) if match conditions are met.
      */
     def processRow(inputRow: InternalRow): InternalRow = {
-      if (isSourceRowNotPresentPred.eval(inputRow)) {
+      if (!isSourceRowPresentPred.eval(inputRow)) {
         projectTargetCols.apply(inputRow)
-      } else if (isTargetRowNotPresentPred.eval(inputRow)) {
+      } else if (!isTargetRowPresentPred.eval(inputRow)) {
         applyProjection(nonMatchedPairs, inputRow)
       } else {
         applyProjection(matchedPairs, inputRow)
