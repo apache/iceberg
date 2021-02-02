@@ -26,7 +26,6 @@ import java.util.stream.Collectors;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.DataStreamUtils;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.CombinedScanTask;
@@ -59,6 +58,7 @@ public class RowDataRewriter {
   private final boolean caseSensitive;
   private final EncryptionManager encryptionManager;
   private final TaskWriterFactory<RowData> taskWriterFactory;
+  private final String tableName;
 
   public RowDataRewriter(Table table, boolean caseSensitive, FileIO io, EncryptionManager encryptionManager) {
     this.schema = table.schema();
@@ -66,6 +66,7 @@ public class RowDataRewriter {
     this.io = io;
     this.encryptionManager = encryptionManager;
     this.nameMapping = PropertyUtil.propertyAsString(table.properties(), DEFAULT_NAME_MAPPING, null);
+    this.tableName = table.name();
 
     String formatString = PropertyUtil.propertyAsString(table.properties(), TableProperties.DEFAULT_FILE_FORMAT,
         TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
@@ -84,10 +85,10 @@ public class RowDataRewriter {
         null);
   }
 
-  public List<DataFile> rewriteDataForTasks(DataStream<CombinedScanTask> dataStream, int parallelism) {
+  public List<DataFile> rewriteDataForTasks(DataStream<CombinedScanTask> dataStream, int parallelism) throws Exception {
     RewriteMap map = new RewriteMap(schema, nameMapping, io, caseSensitive, encryptionManager, taskWriterFactory);
     DataStream<List<DataFile>> ds = dataStream.map(map).setParallelism(parallelism);
-    return Lists.newArrayList(DataStreamUtils.collect(ds)).stream().flatMap(Collection::stream)
+    return Lists.newArrayList(ds.executeAndCollect("Rewrite table :" + tableName)).stream().flatMap(Collection::stream)
         .collect(Collectors.toList());
   }
 
