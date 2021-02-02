@@ -23,7 +23,6 @@ import org.apache.iceberg.TableProperties.MERGE_CARDINALITY_CHECK_ENABLED
 import org.apache.iceberg.TableProperties.MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT
 import org.apache.iceberg.spark.Spark3Util
 import org.apache.iceberg.util.PropertyUtil
-import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.analysis.Resolver
 import org.apache.spark.sql.catalyst.expressions.Alias
