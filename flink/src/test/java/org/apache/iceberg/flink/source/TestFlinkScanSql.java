@@ -25,8 +25,10 @@ import java.util.Map;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.api.config.TableConfigOptions;
 import org.apache.flink.types.Row;
+import org.apache.flink.util.CloseableIterator;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers;
@@ -47,7 +49,7 @@ import org.junit.Test;
  */
 public class TestFlinkScanSql extends TestFlinkScan {
 
-  private TableEnvironment tEnv;
+  private volatile TableEnvironment tEnv;
 
   public TestFlinkScanSql(String fileFormat) {
     super(fileFormat);
@@ -56,12 +58,23 @@ public class TestFlinkScanSql extends TestFlinkScan {
   @Override
   public void before() throws IOException {
     super.before();
-    tEnv = TableEnvironment.create(EnvironmentSettings.newInstance().useBlinkPlanner().inBatchMode().build());
-    tEnv.executeSql(String.format(
-        "create catalog iceberg_catalog with ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
-        warehouse));
-    tEnv.executeSql("use catalog iceberg_catalog");
-    tEnv.getConfig().getConfiguration().set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
+    sql("create catalog iceberg_catalog with ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')", warehouse);
+    sql("use catalog iceberg_catalog");
+    getTableEnv().getConfig().getConfiguration().set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
+  }
+
+  private TableEnvironment getTableEnv() {
+    if (tEnv == null) {
+      synchronized (this) {
+        if (tEnv == null) {
+          this.tEnv = TableEnvironment.create(EnvironmentSettings
+              .newInstance()
+              .useBlinkPlanner()
+              .inBatchMode().build());
+        }
+      }
+    }
+    return tEnv;
   }
 
   @Override
@@ -82,8 +95,7 @@ public class TestFlinkScanSql extends TestFlinkScan {
       optionStr = String.format("/*+ OPTIONS(%s)*/", optionStr);
     }
 
-    String sql = String.format("select %s from t %s %s", select, optionStr, sqlFilter);
-    return executeSQL(sql);
+    return sql("select %s from t %s %s", select, optionStr, sqlFilter);
   }
 
   @Test
@@ -131,8 +143,7 @@ public class TestFlinkScanSql extends TestFlinkScan {
 
     // Make sure to generate 2 CombinedScanTasks
     long maxFileLen = Math.max(dataFile1.fileSizeInBytes(), dataFile2.fileSizeInBytes());
-    executeSQL(String
-        .format("ALTER TABLE t SET ('read.split.open-file-cost'='1', 'read.split.target-size'='%s')", maxFileLen));
+    sql("ALTER TABLE t SET ('read.split.open-file-cost'='1', 'read.split.target-size'='%s')", maxFileLen);
 
     // 2 splits (max infer is the default value 100 , max > splits num), the parallelism is splits num : 2
     parallelism = FlinkSource.forRowData().inferParallelism(flinkInputFormat, scanContext);
@@ -165,8 +176,14 @@ public class TestFlinkScanSql extends TestFlinkScan {
     Assert.assertEquals("Should produce the expected parallelism.", 1, parallelism);
   }
 
-  private List<Row> executeSQL(String sql) {
-    return Lists.newArrayList(tEnv.executeSql(sql).collect());
+  private List<Row> sql(String query, Object... args) {
+    TableResult tableResult = getTableEnv().executeSql(String.format(query, args));
+    try (CloseableIterator<Row> iter = tableResult.collect()) {
+      List<Row> results = Lists.newArrayList(iter);
+      return results;
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to collect table result", e);
+    }
   }
 
   private String optionToKv(String key, Object value) {

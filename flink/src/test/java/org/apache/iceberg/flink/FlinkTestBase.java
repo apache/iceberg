@@ -20,12 +20,12 @@
 package org.apache.iceberg.flink;
 
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.IntStream;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableResult;
-import org.apache.flink.test.util.AbstractTestBase;
+import org.apache.flink.test.util.MiniClusterWithClientResource;
+import org.apache.flink.test.util.TestBaseUtils;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.CloseableIterator;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -34,8 +34,17 @@ import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.rules.TemporaryFolder;
 
-public abstract class FlinkTestBase extends AbstractTestBase {
+public abstract class FlinkTestBase extends TestBaseUtils {
+
+  @ClassRule
+  public static MiniClusterWithClientResource miniClusterResource =
+      MiniClusterResource.createWithClassloaderCheckDisabled();
+
+  @ClassRule
+  public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
   private static TestHiveMetastore metastore = null;
   protected static HiveConf hiveConf = null;
@@ -87,25 +96,15 @@ public abstract class FlinkTestBase extends AbstractTestBase {
 
   protected List<Object[]> sql(String query, Object... args) {
     TableResult tableResult = exec(query, args);
-
-    tableResult.getJobClient().ifPresent(c -> {
-      try {
-        c.getJobExecutionResult(Thread.currentThread().getContextClassLoader()).get();
-      } catch (InterruptedException | ExecutionException e) {
-        throw new RuntimeException(e);
-      }
-    });
-
-    List<Object[]> results = Lists.newArrayList();
     try (CloseableIterator<Row> iter = tableResult.collect()) {
+      List<Object[]> results = Lists.newArrayList();
       while (iter.hasNext()) {
         Row row = iter.next();
         results.add(IntStream.range(0, row.getArity()).mapToObj(row::getField).toArray(Object[]::new));
       }
+      return results;
     } catch (Exception e) {
-      throw new RuntimeException(e);
+      throw new RuntimeException("Failed to collect table result", e);
     }
-
-    return results;
   }
 }

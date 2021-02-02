@@ -69,6 +69,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -456,7 +457,7 @@ public class FlinkCatalog extends AbstractCatalog {
 
     TableSchema schema = table.getSchema();
     schema.getTableColumns().forEach(column -> {
-      if (column.isGenerated()) {
+      if (!FlinkCompatibilityUtil.isPhysicalColumn(column)) {
         throw new UnsupportedOperationException("Creating table with computed columns is not supported yet.");
       }
     });
