@@ -35,13 +35,14 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
+import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.flink.MiniClusterBase;
+import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.BoundedTestSource;
@@ -50,12 +51,22 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public class TestFlinkIcebergSink extends MiniClusterBase {
+public class TestFlinkIcebergSink {
+
+  @ClassRule
+  public static final MiniClusterWithClientResource MINI_CLUSTER_RESOURCE =
+      MiniClusterResource.createWithClassloaderCheckDisabled();
+
+  @ClassRule
+  public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+
   private static final TypeInformation<Row> ROW_TYPE_INFO = new RowTypeInfo(
       SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
   private static final DataFormatConverters.RowConverter CONVERTER = new DataFormatConverters.RowConverter(
@@ -105,7 +116,7 @@ public class TestFlinkIcebergSink extends MiniClusterBase {
     Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name());
     table = SimpleDataUtil.createTable(tablePath, props, partitioned);
 
-    env = StreamExecutionEnvironment.getExecutionEnvironment(MiniClusterBase.CONFIG)
+    env = StreamExecutionEnvironment.getExecutionEnvironment(MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG)
         .enableCheckpointing(100)
         .setParallelism(parallelism)
         .setMaxParallelism(parallelism);

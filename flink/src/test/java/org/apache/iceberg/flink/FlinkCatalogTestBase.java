@@ -20,8 +20,6 @@
 package org.apache.iceberg.flink;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.util.ArrayUtils;
@@ -124,7 +122,7 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
   }
 
   protected String getFullQualifiedTableName(String tableName) {
-    final List<String> levels = new ArrayList<>(Arrays.asList(icebergNamespace.levels()));
+    final List<String> levels = Lists.newArrayList(icebergNamespace.levels());
     levels.add(tableName);
     return Joiner.on('.').join(levels);
   }

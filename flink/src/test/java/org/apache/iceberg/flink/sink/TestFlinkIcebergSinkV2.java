@@ -27,9 +27,6 @@ import java.util.Map;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
-import org.apache.flink.configuration.Configuration;
-import org.apache.flink.configuration.CoreOptions;
-import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
@@ -43,7 +40,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.flink.MiniClusterBase;
+import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestTableLoader;
 import org.apache.iceberg.flink.source.BoundedTestSource;
@@ -63,19 +60,9 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class TestFlinkIcebergSinkV2 extends TableTestBase {
 
-  private static final int DEFAULT_PARALLELISM = 4;
-
-  private static final Configuration config = new Configuration()
-      // disable classloader check as Avro may cache class/object in the serializers.
-      .set(CoreOptions.CHECK_LEAKED_CLASSLOADER, false);
-
   @ClassRule
-  public static MiniClusterWithClientResource miniClusterResource = new MiniClusterWithClientResource(
-      new MiniClusterResourceConfiguration.Builder()
-          .setNumberTaskManagers(1)
-          .setNumberSlotsPerTaskManager(DEFAULT_PARALLELISM)
-          .setConfiguration(config)
-          .build());
+  public static final MiniClusterWithClientResource MINI_CLUSTER_RESOURCE =
+      MiniClusterResource.createWithClassloaderCheckDisabled();
 
   @ClassRule
   public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
@@ -137,7 +124,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         .set(TableProperties.DEFAULT_FILE_FORMAT, format.name())
         .commit();
 
-    env = StreamExecutionEnvironment.getExecutionEnvironment(MiniClusterBase.CONFIG)
+    env = StreamExecutionEnvironment.getExecutionEnvironment(MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG)
         .enableCheckpointing(100L)
         .setParallelism(parallelism)
         .setMaxParallelism(parallelism);

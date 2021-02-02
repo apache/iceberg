@@ -27,7 +27,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.flink.table.api.DataTypes;
-import org.apache.flink.table.api.TableColumn;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.CatalogTable;
@@ -94,9 +93,8 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
   public void testRenameTable() {
     Assume.assumeFalse("HadoopCatalog does not support rename table", isHadoopCatalog);
 
-    validationCatalog.createTable(
-        TableIdentifier.of(icebergNamespace, "tl"),
-        new Schema(Types.NestedField.optional(0, "id", Types.LongType.get())));
+    final Schema tableSchema = new Schema(Types.NestedField.optional(0, "id", Types.LongType.get()));
+    validationCatalog.createTable(TableIdentifier.of(icebergNamespace, "tl"), tableSchema);
     sql("ALTER TABLE tl RENAME TO tl2");
     AssertHelpers.assertThrows(
         "Should fail if trying to get a nonexistent table",
@@ -104,9 +102,8 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         "Table `tl` was not found.",
         () -> getTableEnv().from("tl")
     );
-    Assert.assertEquals(
-        Collections.singletonList(TableColumn.physical("id", DataTypes.BIGINT())),
-        getTableEnv().from("tl2").getSchema().getTableColumns());
+    Schema actualSchema = FlinkSchemaUtil.convert(getTableEnv().from("tl2").getSchema());
+    Assert.assertEquals(tableSchema.asStruct(), actualSchema.asStruct());
   }
 
   @Test
