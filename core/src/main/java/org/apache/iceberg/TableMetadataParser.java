@@ -164,7 +164,8 @@ public class TableMetadataParser {
     generator.writeNumberField(LAST_UPDATED_MILLIS, metadata.lastUpdatedMillis());
     generator.writeNumberField(LAST_COLUMN_ID, metadata.lastColumnId());
 
-    // for older readers, continue writing the current schema as "schema"
+    // for older readers, continue writing the current schema as "schema".
+    // this is only needed for v1 because support for schemas and current-schema-id is required in v2 and later.
     if (metadata.formatVersion() == 1) {
       generator.writeFieldName(SCHEMA);
       SchemaParser.toJson(metadata.schema(), generator);

@@ -61,6 +61,7 @@ public class SchemaParser {
   static void toJson(Types.StructType struct, JsonGenerator generator) throws IOException {
     toJson(struct, null, generator);
   }
+
   static void toJson(Types.StructType struct, Integer schemaId, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
