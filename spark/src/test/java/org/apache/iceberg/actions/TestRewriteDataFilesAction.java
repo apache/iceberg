@@ -20,18 +20,28 @@
 package org.apache.iceberg.actions;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.IcebergGenerics;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.relocated.com.google.common.collect.HashMultiset;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTestBase;
@@ -309,6 +319,81 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
         .collectAsList();
 
     Assert.assertEquals("Rows must match", records, actualRecords);
+  }
+
+  @Test
+  public void testRewriteDataFilesForLargeFile() throws IOException {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> options = Maps.newHashMap();
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+    Assert.assertNull("Table must be empty", table.currentSnapshot());
+
+    List<Record> excepted = Lists.newArrayList();
+    Record baseRecord = GenericRecord.create(SCHEMA);
+
+    GenericAppenderFactory genericAppenderFactory = new GenericAppenderFactory(SCHEMA);
+    int count = 0;
+    File file = temp.newFile();
+    try (FileAppender<Record> fileAppender =
+            genericAppenderFactory.newAppender(Files.localOutput(file), FileFormat.PARQUET)) {
+      int fileSize = 20000;
+      for (; fileAppender.length() < fileSize; count++) {
+        Record record = baseRecord.copy();
+        record.setField("c1", count);
+        record.setField("c2", "foo" + count);
+        record.setField("c3", "bar" + count);
+        fileAppender.add(record);
+        excepted.add(record);
+      }
+    }
+
+    DataFile dataFile = DataFiles.builder(table.spec())
+        .withPath(file.getAbsolutePath())
+        .withFileSizeInBytes(file.length())
+        .withFormat(FileFormat.PARQUET)
+        .withRecordCount(count)
+        .build();
+
+    table.newAppend().appendFile(dataFile).commit();
+
+    List<ThreeColumnRecord> records1 = Lists.newArrayList(
+        new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"),
+        new ThreeColumnRecord(1, "DDDDDDDDDD", "DDDD")
+    );
+    writeRecords(records1);
+
+    table.refresh();
+
+    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
+    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+    Assert.assertEquals("Should have 3 data files before rewrite", 3, dataFiles.size());
+
+    Actions actions = Actions.forTable(table);
+
+    long targetSizeInBytes = file.length() - 10;
+    RewriteDataFilesActionResult result = actions
+        .rewriteDataFiles()
+        .targetSizeInBytes(targetSizeInBytes)
+        .splitOpenFileCost(1)
+        .execute();
+
+    Assert.assertEquals("Action should rewrite 4 data files", 4, result.deletedDataFiles().size());
+    Assert.assertEquals("Action should add 2 data file", 2, result.addedDataFiles().size());
+
+    records1.forEach(record -> {
+      Record recordTemp = baseRecord.copy();
+      recordTemp.setField("c1", recordTemp.getField("c1"));
+      recordTemp.setField("c2", recordTemp.getField("c2"));
+      recordTemp.setField("c3", recordTemp.getField("c3"));
+      excepted.add(recordTemp);
+    });
+
+    table.refresh();
+
+    try (CloseableIterable<Record> iterable = IcebergGenerics.read(table).build()) {
+      Assert.assertEquals("Number of rows must equals",
+              HashMultiset.create(excepted).size(), HashMultiset.create(iterable).size());
+    }
   }
 
   private void writeRecords(List<ThreeColumnRecord> records) {
