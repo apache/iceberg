@@ -75,14 +75,8 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
 
         val targetTableScan = buildSimpleScanPlan(target, cond)
 
-        val insertAction = notMatchedActions match {
-          case Seq(action: InsertAction) =>
-            action
-          case _ =>
-            throw new AnalysisException("Only insert actions are supported in NOT MATCHED clauses")
-        }
-
         // NOT MATCHED conditions may only refer to columns in source so we can push them down
+        val insertAction = notMatchedActions.head.asInstanceOf[InsertAction]
         val filteredSource = insertAction.condition match {
           case Some(insertCond) => Filter(insertCond, source)
           case None => source
