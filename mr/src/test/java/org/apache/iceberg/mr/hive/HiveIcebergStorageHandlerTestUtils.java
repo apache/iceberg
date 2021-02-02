@@ -78,7 +78,7 @@ public class HiveIcebergStorageHandlerTestUtils {
 
   static TestTables testTables(TestHiveShell shell, TestTables.TestTableType testTableType, TemporaryFolder temp)
           throws IOException {
-    return testTables(shell, testTableType, temp, Catalogs.DEFAULT_CATALOG);
+    return testTables(shell, testTableType, temp, Catalogs.ICEBERG_DEFAULT_CATALOG_NAME);
   }
 
   static TestTables testTables(TestHiveShell shell, TestTables.TestTableType testTableType, TemporaryFolder temp,

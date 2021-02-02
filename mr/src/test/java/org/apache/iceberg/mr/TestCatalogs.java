@@ -25,6 +25,7 @@ import java.util.Optional;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
@@ -32,7 +33,6 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
@@ -63,6 +63,7 @@ public class TestCatalogs {
 
   @Test
   public void testLoadTableFromLocation() throws IOException {
+    conf.set(InputFormatConfig.CATALOG, Catalogs.LOCATION);
     AssertHelpers.assertThrows(
             "Should complain about table location not set", IllegalArgumentException.class,
             "location not set", () -> Catalogs.loadTable(conf));
@@ -101,6 +102,7 @@ public class TestCatalogs {
         "Should complain about table schema not set", NullPointerException.class,
         "schema not set", () -> Catalogs.createTable(conf, missingSchema));
 
+    conf.set(InputFormatConfig.CATALOG, Catalogs.LOCATION);
     Properties missingLocation = new Properties();
     missingLocation.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(SCHEMA));
     AssertHelpers.assertThrows(
@@ -146,12 +148,14 @@ public class TestCatalogs {
 
     Properties missingSchema = new Properties();
     missingSchema.put("name", identifier.toString());
+    missingSchema.put(InputFormatConfig.CATALOG_NAME, defaultCatalogName);
     AssertHelpers.assertThrows(
         "Should complain about table schema not set", NullPointerException.class,
         "schema not set", () -> Catalogs.createTable(conf, missingSchema));
 
     Properties missingIdentifier = new Properties();
     missingIdentifier.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(SCHEMA));
+    missingIdentifier.put(InputFormatConfig.CATALOG_NAME, defaultCatalogName);
     AssertHelpers.assertThrows(
         "Should complain about table identifier not set", NullPointerException.class,
         "identifier not set", () -> Catalogs.createTable(conf, missingIdentifier));
@@ -161,6 +165,7 @@ public class TestCatalogs {
     properties.put(InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(SCHEMA));
     properties.put(InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(SPEC));
     properties.put("dummy", "test");
+    properties.put(InputFormatConfig.CATALOG_NAME, defaultCatalogName);
 
     Catalogs.createTable(conf, properties);
 
@@ -177,6 +182,7 @@ public class TestCatalogs {
 
     Properties dropProperties = new Properties();
     dropProperties.put("name", identifier.toString());
+    dropProperties.put(InputFormatConfig.CATALOG_NAME, defaultCatalogName);
     Catalogs.dropTable(conf, dropProperties);
 
     AssertHelpers.assertThrows(
@@ -186,52 +192,51 @@ public class TestCatalogs {
 
   @Test
   public void testLoadCatalog() throws IOException {
+    conf.set(InputFormatConfig.CATALOG, Catalogs.LOCATION);
     Assert.assertFalse(Catalogs.loadCatalog(conf, null).isPresent());
 
-    String nonExistentCatalog = "foo";
+    String nonExistentCatalogType = "fooType";
 
-    conf.set(InputFormatConfig.CATALOG, nonExistentCatalog);
+    conf.set(InputFormatConfig.CATALOG, nonExistentCatalogType);
     AssertHelpers.assertThrows(
-            "Should complain about catalog not supported", NoSuchNamespaceException.class,
-            "is not supported", () -> Catalogs.loadCatalog(conf, nonExistentCatalog));
+            "should complain about catalog not supported", UnsupportedOperationException.class,
+            "Unknown catalog type", () -> Catalogs.loadCatalog(conf, null));
 
-    conf.set(InputFormatConfig.CATALOG, Catalogs.HADOOP);
-    Optional<Catalog> hadoopCatalog = Catalogs.loadCatalog(conf, nonExistentCatalog);
+    conf.set(InputFormatConfig.CATALOG, CatalogUtil.ICEBERG_CATALOG_TYPE_HADOOP);
+    conf.set(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION, "/tmp/mylocation");
+    Optional<Catalog> hadoopCatalog = Catalogs.loadCatalog(conf, null);
 
     Assert.assertTrue(hadoopCatalog.isPresent());
     Assert.assertTrue(hadoopCatalog.get() instanceof HadoopCatalog);
 
-    conf.set(InputFormatConfig.CATALOG, Catalogs.HIVE);
-    Optional<Catalog> hiveCatalog = Catalogs.loadCatalog(conf, nonExistentCatalog);
+    conf.set(InputFormatConfig.CATALOG, CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE);
+    Optional<Catalog> hiveCatalog = Catalogs.loadCatalog(conf, null);
 
     Assert.assertTrue(hiveCatalog.isPresent());
     Assert.assertTrue(hiveCatalog.get() instanceof HiveCatalog);
 
-    conf.set(InputFormatConfig.CATALOG, Catalogs.CUSTOM);
-    conf.set("warehouse.location", temp.newFolder("hadoop", "warehouse").toString());
-    conf.setClass(InputFormatConfig.CATALOG_LOADER_CLASS, CustomHadoopCatalogLoader.class, CatalogLoader.class);
-    Optional<Catalog> customHadoopCatalog = Catalogs.loadCatalog(conf, nonExistentCatalog);
-
-    Assert.assertTrue(customHadoopCatalog.isPresent());
-    Assert.assertTrue(customHadoopCatalog.get() instanceof CustomHadoopCatalog);
+    conf.set(InputFormatConfig.CATALOG, Catalogs.LOCATION);
+    Assert.assertFalse(Catalogs.loadCatalog(conf, null).isPresent());
 
     // arbitrary catalog name with non existent catalog type
     String catalogName = "barCatalog";
     conf.unset(InputFormatConfig.CATALOG);
-    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName), nonExistentCatalog);
+    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName), nonExistentCatalogType);
     AssertHelpers.assertThrows(
-            "should complain about catalog not supported", NoSuchNamespaceException.class,
-            "is not supported", () -> Catalogs.loadCatalog(conf, catalogName));
+            "should complain about catalog not supported", UnsupportedOperationException.class,
+            "Unknown catalog type:", () -> Catalogs.loadCatalog(conf, catalogName));
 
     // arbitrary catalog name with hadoop catalog type and default warehouse location
-    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName), Catalogs.HADOOP);
+    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName),
+            CatalogUtil.ICEBERG_CATALOG_TYPE_HADOOP);
     hadoopCatalog = Catalogs.loadCatalog(conf, catalogName);
 
     Assert.assertTrue(hadoopCatalog.isPresent());
     Assert.assertTrue(hadoopCatalog.get() instanceof HadoopCatalog);
 
     // arbitrary catalog name with hadoop catalog type and provided warehouse location
-    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName), Catalogs.HADOOP);
+    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName),
+            CatalogUtil.ICEBERG_CATALOG_TYPE_HADOOP);
     conf.set(String.format(InputFormatConfig.CATALOG_WAREHOUSE_TEMPLATE, catalogName), "/tmp/mylocation");
     hadoopCatalog = Catalogs.loadCatalog(conf, catalogName);
 
@@ -240,29 +245,33 @@ public class TestCatalogs {
     Assert.assertEquals("HadoopCatalog{name=barCatalog, location=/tmp/mylocation}", hadoopCatalog.get().toString());
 
     // arbitrary catalog name with hive catalog type
-    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName), Catalogs.HIVE);
+    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName),
+            CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE);
     hiveCatalog = Catalogs.loadCatalog(conf, catalogName);
 
     Assert.assertTrue(hiveCatalog.isPresent());
     Assert.assertTrue(hiveCatalog.get() instanceof HiveCatalog);
 
     // arbitrary catalog name with custom catalog type without specific classloader
-    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName), Catalogs.CUSTOM);
-    conf.unset(InputFormatConfig.CATALOG_LOADER_CLASS);
-    customHadoopCatalog = Catalogs.loadCatalog(conf, catalogName);
-
-    Assert.assertFalse(customHadoopCatalog.isPresent());
+    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName), "custom");
+    AssertHelpers.assertThrows(
+            "should complain about catalog not supported", UnsupportedOperationException.class,
+            "Unknown catalog type:", () -> Catalogs.loadCatalog(conf, catalogName));
 
     // arbitrary catalog name with custom catalog type and provided classloader
-    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName), Catalogs.CUSTOM);
+    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName), "custom");
     conf.set(String.format(InputFormatConfig.CATALOG_CLASS_TEMPLATE, catalogName), CustomHadoopCatalog.class.getName());
-    customHadoopCatalog = Catalogs.loadCatalog(conf, catalogName);
+    Optional<Catalog> customHadoopCatalog = Catalogs.loadCatalog(conf, catalogName);
 
     Assert.assertTrue(customHadoopCatalog.isPresent());
     Assert.assertTrue(customHadoopCatalog.get() instanceof CustomHadoopCatalog);
 
+    // arbitrary catalog name with location catalog type
+    conf.unset(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName));
+    Assert.assertFalse(Catalogs.loadCatalog(conf, catalogName).isPresent());
+
     // default catalog configuration
-    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, "default"), Catalogs.HIVE);
+    conf.unset(InputFormatConfig.CATALOG);
     hiveCatalog = Catalogs.loadCatalog(conf, null);
 
     Assert.assertTrue(hiveCatalog.isPresent());
@@ -296,6 +305,7 @@ public class TestCatalogs {
   private void setCustomCatalogProperties(String catalogName, String warehouseLocation) {
     conf.set(String.format(InputFormatConfig.CATALOG_WAREHOUSE_TEMPLATE, catalogName), warehouseLocation);
     conf.set(String.format(InputFormatConfig.CATALOG_CLASS_TEMPLATE, catalogName), CustomHadoopCatalog.class.getName());
-    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName), Catalogs.CUSTOM);
+    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName), "custom");
+    conf.set(InputFormatConfig.CATALOG_NAME, catalogName);
   }
 }

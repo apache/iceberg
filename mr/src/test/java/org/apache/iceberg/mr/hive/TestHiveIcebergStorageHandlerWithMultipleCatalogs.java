@@ -134,7 +134,7 @@ public class TestHiveIcebergStorageHandlerWithMultipleCatalogs {
         "CREATE EXTERNAL TABLE " + identifier + " (customer_id BIGINT, first_name STRING, last_name STRING)" +
             " STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
             testTables.locationForCreateTableSQL(identifier) +
-            " TBLPROPERTIES ('" + InputFormatConfig.TABLE_CATALOG + "'='" + catalogName + "')";
+            " TBLPROPERTIES ('" + InputFormatConfig.CATALOG_NAME + "'='" + catalogName + "')";
     shell.executeStatement(createSql);
     Table icebergTable = testTables.loadTable(identifier);
     testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, fileFormat, null, records);

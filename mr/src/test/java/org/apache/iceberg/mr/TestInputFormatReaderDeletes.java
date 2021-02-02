@@ -35,6 +35,7 @@ import org.apache.iceberg.data.DeleteReadTests;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -58,6 +59,13 @@ public class TestInputFormatReaderDeletes extends DeleteReadTests {
         { "MapredIcebergInputFormat", FileFormat.AVRO },
         { "MapredIcebergInputFormat", FileFormat.ORC },
     };
+  }
+
+  @Before
+  @Override
+  public void writeTestDataFile() throws IOException {
+    conf.set(InputFormatConfig.CATALOG, Catalogs.LOCATION);
+    super.writeTestDataFile();
   }
 
   public TestInputFormatReaderDeletes(String inputFormat, FileFormat fileFormat) {

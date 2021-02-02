@@ -48,6 +48,7 @@ import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.MetastoreUtil;
+import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestCatalogs;
 import org.apache.iceberg.mr.TestHelper;
@@ -105,6 +106,21 @@ abstract class TestTables {
   public abstract String locationForCreateTableSQL(TableIdentifier identifier);
 
   /**
+   * The table properties string needed for the CREATE TABLE ... commands,
+   * like "TBLPROPERTIES('iceberg.catalog'='mycatalog')
+   * @return
+   */
+  public String propertiesForCreateTableSQL(Map<String, String> tableProperties) {
+    if (tableProperties != null && !tableProperties.isEmpty()) {
+      String props = tableProperties.entrySet().stream()
+              .map(entry -> String.format("'%s'='%s'", entry.getKey(), entry.getValue()))
+              .collect(Collectors.joining(","));
+      return " TBLPROPERTIES (" + props + ")";
+    }
+    return "";
+  }
+
+  /**
    * If an independent Hive table creation is needed for the given Catalog then this should return the Hive SQL
    * string which we have to execute. Overridden for HiveCatalog where the Hive table is immediately created
    * during the Iceberg table creation so no extra sql execution is required.
@@ -115,15 +131,9 @@ abstract class TestTables {
   public String createHiveTableSQL(TableIdentifier identifier, Map<String, String> tableProps) {
     Preconditions.checkArgument(!identifier.namespace().isEmpty(), "Namespace should not be empty");
     Preconditions.checkArgument(identifier.namespace().levels().length == 1, "Namespace should be single level");
-    String sql = String.format("CREATE TABLE %s.%s STORED BY '%s' %s", identifier.namespace(), identifier.name(),
-        HiveIcebergStorageHandler.class.getName(), locationForCreateTableSQL(identifier));
-    if (tableProps != null && !tableProps.isEmpty()) {
-      String props = tableProps.entrySet().stream()
-          .map(entry -> String.format("'%s'='%s'", entry.getKey(), entry.getValue()))
-          .collect(Collectors.joining(","));
-      sql += " TBLPROPERTIES (" + props + ")";
-    }
-    return sql;
+    return String.format("CREATE TABLE %s.%s STORED BY '%s' %s %s", identifier.namespace(), identifier.name(),
+        HiveIcebergStorageHandler.class.getName(), locationForCreateTableSQL(identifier),
+            propertiesForCreateTableSQL(tableProps));
   }
 
   /**
@@ -181,7 +191,8 @@ abstract class TestTables {
         SchemaParser.toJson(schema) + "', " +
         "'" + InputFormatConfig.PARTITION_SPEC + "'='" +
         PartitionSpecParser.toJson(spec) + "', " +
-        "'" + TableProperties.DEFAULT_FILE_FORMAT + "'='" + fileFormat + "')");
+        "'" + TableProperties.DEFAULT_FILE_FORMAT + "'='" + fileFormat + "', " +
+        "'" + InputFormatConfig.CATALOG_NAME + "'='" + Catalogs.ICEBERG_DEFAULT_CATALOG_NAME + "')");
 
     if (records != null && !records.isEmpty()) {
       StringBuilder query = new StringBuilder().append("INSERT INTO " + identifier + " VALUES ");

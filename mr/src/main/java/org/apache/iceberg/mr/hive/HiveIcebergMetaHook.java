@@ -50,7 +50,7 @@ import org.slf4j.LoggerFactory;
 public class HiveIcebergMetaHook implements HiveMetaHook {
   private static final Logger LOG = LoggerFactory.getLogger(HiveIcebergMetaHook.class);
   private static final Set<String> PARAMETERS_TO_REMOVE = ImmutableSet
-      .of(InputFormatConfig.TABLE_SCHEMA, Catalogs.LOCATION, Catalogs.NAME, InputFormatConfig.TABLE_CATALOG);
+      .of(InputFormatConfig.TABLE_SCHEMA, Catalogs.LOCATION, Catalogs.NAME);
   private static final Set<String> PROPERTIES_TO_REMOVE = ImmutableSet
       // We don't want to push down the metadata location props to Iceberg from HMS,
       // since the snapshot pointer in HMS would always be one step ahead

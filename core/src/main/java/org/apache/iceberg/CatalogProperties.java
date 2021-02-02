@@ -54,4 +54,5 @@ public class CatalogProperties {
   public static final long LOCK_ACQUIRE_TIMEOUT_MS_DEFAULT = TimeUnit.MINUTES.toMillis(3);
 
   public static final String LOCK_TABLE = "lock.table";
+
 }
