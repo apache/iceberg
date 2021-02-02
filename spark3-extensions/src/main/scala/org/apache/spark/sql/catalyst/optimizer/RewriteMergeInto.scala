@@ -35,6 +35,7 @@ import org.apache.spark.sql.catalyst.plans.LeftAnti
 import org.apache.spark.sql.catalyst.plans.RightOuter
 import org.apache.spark.sql.catalyst.plans.logical.AppendData
 import org.apache.spark.sql.catalyst.plans.logical.DeleteAction
+import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.InsertAction
 import org.apache.spark.sql.catalyst.plans.logical.Join
 import org.apache.spark.sql.catalyst.plans.logical.JoinHint
@@ -68,6 +69,31 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
 
   override def apply(plan: LogicalPlan): LogicalPlan = {
     plan resolveOperators {
+      case MergeIntoTable(target: DataSourceV2Relation, source, cond, matchedActions, notMatchedActions)
+          if matchedActions.isEmpty && notMatchedActions.size == 1 && isIcebergRelation(target) =>
+
+        val targetTableScan = buildSimpleScanPlan(target, cond)
+
+        // NOT MATCHED conditions may only refer to columns in source so we can push them down
+        val insertAction = notMatchedActions.head.asInstanceOf[InsertAction]
+        val filteredSource = insertAction.condition match {
+          case Some(insertCond) => Filter(insertCond, source)
+          case None => source
+        }
+
+        // when there are no matched actions, use a left anti join to remove any matching rows and rewrite to use
+        // append instead of replace. only unmatched source rows are passed to the merge and actions are all inserts.
+        val joinPlan = Join(filteredSource, targetTableScan, LeftAnti, Some(cond), JoinHint.NONE)
+
+        val outputExprs = insertAction.assignments.map(_.value)
+        val outputColNames = target.output.map(_.name)
+        val outputCols = outputExprs.zip(outputColNames).map { case (expr, name) => Alias(expr, name)() }
+        val mergePlan = Project(outputCols, joinPlan)
+
+        val writePlan = buildWritePlan(mergePlan, target.table)
+
+        AppendData.byPosition(target, writePlan, Map.empty)
+
       case MergeIntoTable(target: DataSourceV2Relation, source, cond, matchedActions, notMatchedActions)
           if matchedActions.isEmpty && isIcebergRelation(target) =>
 
