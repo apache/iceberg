@@ -19,17 +19,20 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
-import collection.JavaConverters._
 import org.apache.spark.SparkException
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeSet, SortOrder}
+import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.catalyst.expressions.AttributeSet
+import org.apache.spark.sql.catalyst.expressions.SortOrder
 import org.apache.spark.sql.catalyst.plans.physical
 import org.apache.spark.sql.catalyst.util.truncatedString
 import org.apache.spark.sql.catalyst.utils.SetAccumulator
 import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter
-import org.apache.spark.sql.execution.{BinaryExecNode, SparkPlan}
+import org.apache.spark.sql.execution.BinaryExecNode
+import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.vectorized.ColumnarBatch
+import scala.collection.JavaConverters._
 
 abstract class DynamicFileFilterExecBase(
     scanExec: SparkPlan,

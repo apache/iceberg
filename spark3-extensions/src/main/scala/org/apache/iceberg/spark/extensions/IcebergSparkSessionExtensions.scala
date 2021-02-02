@@ -20,8 +20,15 @@
 package org.apache.iceberg.spark.extensions
 
 import org.apache.spark.sql.SparkSessionExtensions
-import org.apache.spark.sql.catalyst.analysis.{AlignMergeIntoTable, DeleteFromTablePredicateCheck, MergeIntoTablePredicateCheck, ProcedureArgumentCoercion, ResolveProcedures}
-import org.apache.spark.sql.catalyst.optimizer.{OptimizeConditionsInRowLevelOperations, PullupCorrelatedPredicatesInRowLevelOperations, RewriteDelete, RewriteMergeInto}
+import org.apache.spark.sql.catalyst.analysis.AlignMergeIntoTable
+import org.apache.spark.sql.catalyst.analysis.DeleteFromTablePredicateCheck
+import org.apache.spark.sql.catalyst.analysis.MergeIntoTablePredicateCheck
+import org.apache.spark.sql.catalyst.analysis.ProcedureArgumentCoercion
+import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
+import org.apache.spark.sql.catalyst.optimizer.OptimizeConditionsInRowLevelOperations
+import org.apache.spark.sql.catalyst.optimizer.PullupCorrelatedPredicatesInRowLevelOperations
+import org.apache.spark.sql.catalyst.optimizer.RewriteDelete
+import org.apache.spark.sql.catalyst.optimizer.RewriteMergeInto
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
 

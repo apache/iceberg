@@ -20,12 +20,22 @@
 package org.apache.spark.sql.catalyst.analysis
 
 import java.util.Locale
-import org.apache.spark.sql.{AnalysisException, SparkSession}
-import org.apache.spark.sql.catalyst.expressions.{Expression, Literal}
-import org.apache.spark.sql.catalyst.plans.logical.{Call, CallArgument, CallStatement, LogicalPlan, NamedArgument, PositionalArgument}
+import org.apache.spark.sql.AnalysisException
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.expressions.Literal
+import org.apache.spark.sql.catalyst.plans.logical.Call
+import org.apache.spark.sql.catalyst.plans.logical.CallArgument
+import org.apache.spark.sql.catalyst.plans.logical.CallStatement
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.NamedArgument
+import org.apache.spark.sql.catalyst.plans.logical.PositionalArgument
 import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.connector.catalog.{CatalogManager, CatalogPlugin, LookupCatalog}
-import org.apache.spark.sql.connector.iceberg.catalog.{ProcedureCatalog, ProcedureParameter}
+import org.apache.spark.sql.connector.catalog.CatalogManager
+import org.apache.spark.sql.connector.catalog.CatalogPlugin
+import org.apache.spark.sql.connector.catalog.LookupCatalog
+import org.apache.spark.sql.connector.iceberg.catalog.ProcedureCatalog
+import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter
 import scala.collection.Seq
 
 case class ResolveProcedures(spark: SparkSession) extends Rule[LogicalPlan] with LookupCatalog {

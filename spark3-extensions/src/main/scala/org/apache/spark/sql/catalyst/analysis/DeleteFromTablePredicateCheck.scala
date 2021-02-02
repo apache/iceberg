@@ -20,8 +20,11 @@
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.catalyst.expressions.{Expression, InSubquery, Not}
-import org.apache.spark.sql.catalyst.plans.logical.{DeleteFromTable, LogicalPlan}
+import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.expressions.InSubquery
+import org.apache.spark.sql.catalyst.expressions.Not
+import org.apache.spark.sql.catalyst.plans.logical.DeleteFromTable
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 
 object DeleteFromTablePredicateCheck extends (LogicalPlan => Unit) {

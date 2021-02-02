@@ -23,7 +23,9 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.plans.QueryPlan
-import org.apache.spark.sql.connector.read.{InputPartition, PartitionReaderFactory, Scan}
+import org.apache.spark.sql.connector.read.InputPartition
+import org.apache.spark.sql.connector.read.PartitionReaderFactory
+import org.apache.spark.sql.connector.read.Scan
 
 // The only reason we need this class and cannot reuse BatchScanExec is because
 // BatchScanExec caches input partitions and we cannot apply file filtering before execution
