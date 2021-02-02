@@ -21,6 +21,7 @@ package org.apache.iceberg.flink;
 
 import java.util.List;
 import java.util.stream.IntStream;
+import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableResult;
@@ -78,7 +79,9 @@ public abstract class FlinkTestBase extends TestBaseUtils {
               .build();
 
           TableEnvironment env = TableEnvironment.create(settings);
-          env.getConfig().getConfiguration().set(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
+          env.getConfig().getConfiguration()
+              .set(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false)
+              .set(CoreOptions.DEFAULT_PARALLELISM, 1);
           tEnv = env;
         }
       }

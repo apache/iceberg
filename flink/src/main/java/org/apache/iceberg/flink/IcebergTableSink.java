@@ -20,37 +20,33 @@
 package org.apache.iceberg.flink;
 
 import java.util.Map;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.table.api.TableSchema;
-import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.sinks.AppendStreamTableSink;
-import org.apache.flink.table.sinks.OverwritableTableSink;
-import org.apache.flink.table.sinks.PartitionableTableSink;
-import org.apache.flink.table.sinks.TableSink;
-import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.connector.ChangelogMode;
+import org.apache.flink.table.connector.sink.DataStreamSinkProvider;
+import org.apache.flink.table.connector.sink.DynamicTableSink;
+import org.apache.flink.table.connector.sink.abilities.SupportsOverwrite;
+import org.apache.flink.table.connector.sink.abilities.SupportsPartitioning;
+import org.apache.flink.types.RowKind;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.flink.sink.FlinkSink;
 
-public class IcebergTableSink implements AppendStreamTableSink<RowData>, OverwritableTableSink, PartitionableTableSink {
-  private final boolean isBounded;
+public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning, SupportsOverwrite {
   private final TableLoader tableLoader;
   private final TableSchema tableSchema;
 
   private boolean overwrite = false;
 
-  public IcebergTableSink(boolean isBounded, TableLoader tableLoader, TableSchema tableSchema) {
-    this.isBounded = isBounded;
+  public IcebergTableSink(TableLoader tableLoader, TableSchema tableSchema) {
     this.tableLoader = tableLoader;
     this.tableSchema = tableSchema;
   }
 
   @Override
-  public DataStreamSink<?> consumeDataStream(DataStream<RowData> dataStream) {
-    Preconditions.checkState(!overwrite || isBounded, "Unbounded data stream doesn't support overwrite operation.");
+  public SinkRuntimeProvider getSinkRuntimeProvider(Context context) {
+    Preconditions
+        .checkState(!overwrite || context.isBounded(), "Unbounded data stream doesn't support overwrite operation.");
 
-    return FlinkSink.forRowData(dataStream)
+    return (DataStreamSinkProvider) dataStream -> FlinkSink.forRowData(dataStream)
         .tableLoader(tableLoader)
         .tableSchema(tableSchema)
         .overwrite(overwrite)
@@ -58,28 +54,34 @@ public class IcebergTableSink implements AppendStreamTableSink<RowData>, Overwri
   }
 
   @Override
-  public DataType getConsumedDataType() {
-    return tableSchema.toRowDataType().bridgedTo(RowData.class);
-  }
-
-  @Override
-  public TableSchema getTableSchema() {
-    return this.tableSchema;
-  }
-
-  @Override
-  public TableSink<RowData> configure(String[] fieldNames, TypeInformation<?>[] fieldTypes) {
-    // This method has been deprecated and it will be removed in future version, so left the empty implementation here.
-    return this;
-  }
-
-  @Override
-  public void setOverwrite(boolean overwrite) {
-    this.overwrite = overwrite;
-  }
-
-  @Override
-  public void setStaticPartition(Map<String, String> partitions) {
+  public void applyStaticPartition(Map<String, String> partition) {
     // The flink's PartitionFanoutWriter will handle the static partition write policy automatically.
+  }
+
+  @Override
+  public ChangelogMode getChangelogMode(ChangelogMode requestedMode) {
+    return ChangelogMode.newBuilder()
+        .addContainedKind(RowKind.INSERT)
+        .addContainedKind(RowKind.UPDATE_BEFORE)
+        .addContainedKind(RowKind.UPDATE_AFTER)
+        .addContainedKind(RowKind.DELETE)
+        .build();
+  }
+
+  @Override
+  public DynamicTableSink copy() {
+    IcebergTableSink icebergTableSink = new IcebergTableSink(tableLoader, tableSchema);
+    icebergTableSink.overwrite = overwrite;
+    return icebergTableSink;
+  }
+
+  @Override
+  public String asSummaryString() {
+    return "iceberg table sink";
+  }
+
+  @Override
+  public void applyOverwrite(boolean newOverwrite) {
+    this.overwrite = newOverwrite;
   }
 }
