@@ -138,11 +138,11 @@ class SchemaUpdate implements UpdateSchema {
       parentId = parentField.fieldId();
       Preconditions.checkArgument(!deletes.contains(parentId),
           "Cannot add to a column that will be deleted: %s", parent);
-      Preconditions.checkArgument(schema.findField(parent + "." + name) == null,
-          "Cannot add column, name already exists: %s.%s", parent, name);
+      Preconditions.checkArgument(schema.findField(parent + "." + name) == null || deletes.contains(schema.findField(parent + "." + name).fieldId()),
+          "Cannot add column, name already exists and is not being deleted: %s.%s", parent, name);
       fullName = schema.findColumnName(parentId) + "." + name;
     } else {
-      Preconditions.checkArgument(schema.findField(name) == null,
+      Preconditions.checkArgument(schema.findField(name) == null || deletes.contains(schema.findField(name).fieldId()),
           "Cannot add column, name already exists: %s", name);
       fullName = name;
     }
