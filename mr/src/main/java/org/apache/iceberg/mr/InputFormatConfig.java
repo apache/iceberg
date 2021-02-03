@@ -167,11 +167,6 @@ public class InputFormatConfig {
       return this;
     }
 
-    public ConfigBuilder catalogLoader(Class<? extends CatalogLoader> catalogLoader) {
-      conf.setClass(CATALOG_LOADER_CLASS, catalogLoader, CatalogLoader.class);
-      return this;
-    }
-
     public ConfigBuilder useHiveRows() {
       conf.set(IN_MEMORY_DATA_MODEL, InMemoryDataModel.HIVE.name());
       return this;

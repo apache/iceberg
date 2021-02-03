@@ -280,8 +280,6 @@ public class TestCatalogs {
 
   public static class CustomHadoopCatalog extends HadoopCatalog {
 
-    public static final String WAREHOUSE_LOCATION = "warehouse.location";
-
     public CustomHadoopCatalog() {
 
     }
@@ -290,16 +288,6 @@ public class TestCatalogs {
       super(conf, warehouseLocation);
     }
 
-    public CustomHadoopCatalog(Configuration conf) {
-      this(conf, conf.get(WAREHOUSE_LOCATION));
-    }
-  }
-
-  public static class CustomHadoopCatalogLoader implements CatalogLoader {
-    @Override
-    public Catalog load(Configuration conf) {
-      return new CustomHadoopCatalog(conf);
-    }
   }
 
   private void setCustomCatalogProperties(String catalogName, String warehouseLocation) {

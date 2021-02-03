@@ -346,13 +346,6 @@ public class TestIcebergInputFormats {
     }
   }
 
-  public static class HadoopCatalogLoader implements CatalogLoader {
-    @Override
-    public Catalog load(Configuration conf) {
-      return new HadoopCatalog(conf, conf.get("warehouse.location"));
-    }
-  }
-
   @Test
   public void testCustomCatalog() throws IOException {
     String warehouseLocation = temp.newFolder("hadoop_catalog").getAbsolutePath();
@@ -363,7 +356,7 @@ public class TestIcebergInputFormats {
     conf.set(String.format(InputFormatConfig.CATALOG_WAREHOUSE_TEMPLATE, Catalogs.ICEBERG_DEFAULT_CATALOG_NAME),
             warehouseLocation);
 
-    Catalog catalog = new HadoopCatalogLoader().load(conf);
+    Catalog catalog = new HadoopCatalog(conf, conf.get("warehouse.location"));
     TableIdentifier identifier = TableIdentifier.of("db", "t");
     Table table = catalog.createTable(identifier, SCHEMA, SPEC, helper.properties());
     helper.setTable(table);
@@ -372,8 +365,7 @@ public class TestIcebergInputFormats {
     expectedRecords.get(0).set(2, "2020-03-20");
     helper.appendToTable(Row.of("2020-03-20", 0), expectedRecords);
 
-    builder.catalogLoader(HadoopCatalogLoader.class)
-           .readFrom(identifier);
+    builder.readFrom(identifier);
 
     testInputFormat.create(builder.conf()).validate(expectedRecords);
   }
