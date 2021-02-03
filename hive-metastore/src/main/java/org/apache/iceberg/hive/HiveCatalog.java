@@ -74,9 +74,18 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   public HiveCatalog() {
   }
 
+  /**
+   * Hive Catalog constructor.
+   *
+   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
+   * v0.12.0
+   * @param conf Hadoop Configuration
+   */
+  @Deprecated
   public HiveCatalog(Configuration conf) {
     this.name = "hive";
-    this.clients = new HiveClientPool(conf);
+    int clientPoolSize = conf.getInt(CatalogProperties.CLIENT_POOL_SIZE, CatalogProperties.CLIENT_POOL_SIZE_DEFAULT);
+    this.clients = new HiveClientPool(clientPoolSize, conf);
     this.conf = conf;
     this.createStack = Thread.currentThread().getStackTrace();
     this.closed = false;

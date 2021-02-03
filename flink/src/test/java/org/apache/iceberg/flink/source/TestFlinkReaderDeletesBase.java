@@ -19,9 +19,11 @@
 
 package org.apache.iceberg.flink.source;
 
+import com.google.common.collect.ImmutableMap;
 import java.util.Map;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -33,6 +35,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.DeleteReadTests;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -73,7 +76,8 @@ public abstract class TestFlinkReaderDeletesBase extends DeleteReadTests {
     metastore = new TestHiveMetastore();
     metastore.start();
     hiveConf = metastore.hiveConf();
-    catalog = new HiveCatalog(hiveConf);
+    catalog = (HiveCatalog)
+        CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
   }
 
   @AfterClass
