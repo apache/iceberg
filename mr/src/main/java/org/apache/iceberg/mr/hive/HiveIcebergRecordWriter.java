@@ -58,6 +58,10 @@ class HiveIcebergRecordWriter extends PartitionedFanoutWriter<Record>
     return writers.remove(taskAttemptID);
   }
 
+  static HiveIcebergRecordWriter getWriter(TaskAttemptID taskAttemptID) {
+    return writers.get(taskAttemptID);
+  }
+
   HiveIcebergRecordWriter(Schema schema, PartitionSpec spec, FileFormat format,
       FileAppenderFactory<Record> appenderFactory, OutputFileFactory fileFactory, FileIO io, long targetFileSize,
       TaskAttemptID taskAttemptID) {
