@@ -331,6 +331,7 @@ class S3OutputStream extends PositionOutputStream {
         .suppressFailureWhenFinished()
         .onFailure((file, thrown) -> LOG.warn("Failed to delete staging file: {}", file, thrown))
         .run(File::delete);
+    stagingFiles.clear();
   }
 
   private void completeUploads() {
