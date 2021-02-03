@@ -213,7 +213,7 @@ public class HiveIcebergTestUtils {
    * Validates whether the table contains the expected records. The results should be sorted by a unique key so we do
    * not end up with flaky tests.
    * @param table The table we should read the records from
-   * @param expected The expected list of Records (The list will be sorted)
+   * @param expected The expected list of Records
    * @param sortBy The column position by which we will sort
    * @throws IOException Exceptions when reading the table data
    */
@@ -231,18 +231,20 @@ public class HiveIcebergTestUtils {
   /**
    * Validates whether the 2 sets of records are the same. The results should be sorted by a unique key so we do
    * not end up with flaky tests.
-   * @param expected The expected list of Records (The list will be sorted)
-   * @param actual The actual list of Records (The list will be sorted)
+   * @param expected The expected list of Records
+   * @param actual The actual list of Records
    * @param sortBy The column position by which we will sort
    */
   public static void validateData(List<Record> expected, List<Record> actual, int sortBy) {
+    List<Record> sortedExpected = new ArrayList<>(expected);
+    List<Record> sortedActual = new ArrayList<>(actual);
     // Sort based on the specified column
-    expected.sort(Comparator.comparingLong(record -> (Long) record.get(sortBy)));
-    actual.sort(Comparator.comparingLong(record -> (Long) record.get(sortBy)));
+    sortedExpected.sort(Comparator.comparingLong(record -> (Long) record.get(sortBy)));
+    sortedActual.sort(Comparator.comparingLong(record -> (Long) record.get(sortBy)));
 
-    Assert.assertEquals(expected.size(), actual.size());
-    for (int i = 0; i < expected.size(); ++i) {
-      assertEquals(expected.get(i), actual.get(i));
+    Assert.assertEquals(sortedExpected.size(), sortedActual.size());
+    for (int i = 0; i < sortedExpected.size(); ++i) {
+      assertEquals(sortedExpected.get(i), sortedActual.get(i));
     }
   }
 
