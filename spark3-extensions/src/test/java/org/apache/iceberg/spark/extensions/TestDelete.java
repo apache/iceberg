@@ -450,6 +450,20 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(2, "hardware")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    sql("DELETE FROM %s t WHERE " +
+        "id NOT IN (SELECT * FROM deleted_id WHERE value IS NOT NULL) AND " +
+        "EXISTS (SELECT 1 FROM FROM deleted_dep WHERE t.dep = deleted_dep.value)", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(2, "hardware")),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    sql("DELETE FROM %s t WHERE " +
+        "id NOT IN (SELECT * FROM deleted_id WHERE value IS NOT NULL) OR " +
+        "EXISTS (SELECT 1 FROM FROM deleted_dep WHERE t.dep = deleted_dep.value)", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
   }
 
   @Test
@@ -497,6 +511,13 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(2, "hardware")),
         sql("SELECT * FROM %s", tableName));
+
+    sql("DELETE FROM %s t WHERE " +
+        "EXISTS (SELECT 1 FROM deleted_id di WHERE t.id = di.value) AND " +
+        "EXISTS (SELECT 1 FROM deleted_dep dd WHERE t.dep = dd.value)", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(2, "hardware")),
+        sql("SELECT * FROM %s", tableName));
   }
 
   @Test
@@ -507,6 +528,13 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     createOrReplaceView("deleted_id", Arrays.asList(-1, -2, null), Encoders.INT());
     createOrReplaceView("deleted_dep", Arrays.asList("software", "hr"), Encoders.STRING());
+
+    sql("DELETE FROM %s t WHERE " +
+        "NOT EXISTS (SELECT 1 FROM deleted_id di WHERE t.id = di.value + 2) AND " +
+        "NOT EXISTS (SELECT 1 FROM deleted_dep dd WHERE t.dep = dd.value)", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1, "hr"), row(null, "hr")),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
     sql("DELETE FROM %s t WHERE NOT EXISTS (SELECT 1 FROM deleted_id d WHERE t.id = d.value + 2)", tableName);
     assertEquals("Should have expected rows",
