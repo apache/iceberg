@@ -47,9 +47,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     extensions.injectCheckRule { _ => MergeIntoTablePredicateCheck }
 
     // optimizer extensions
-    // TODO: RewriteDelete should be executed after the operator optimization batch
     extensions.injectOptimizerRule { _ => OptimizeConditionsInRowLevelOperations }
-    // TODO: PullupCorrelatedPredicates should handle row-level operations
     extensions.injectOptimizerRule { _ => PullupCorrelatedPredicatesInRowLevelOperations }
     extensions.injectOptimizerRule { spark => RewriteDelete(spark) }
     extensions.injectOptimizerRule { spark => RewriteUpdate(spark) }
