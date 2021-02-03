@@ -19,6 +19,7 @@
 package org.apache.spark.sql.catalyst.utils
 
 import java.util.UUID
+import org.apache.iceberg.spark.Spark3Util
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
@@ -42,7 +43,9 @@ import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilterWithCardinal
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.Project
+import org.apache.spark.sql.catalyst.plans.logical.Repartition
 import org.apache.spark.sql.connector.catalog.Table
+import org.apache.spark.sql.connector.iceberg.distributions.OrderedDistribution
 import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter
 import org.apache.spark.sql.connector.iceberg.write.MergeBuilder
 import org.apache.spark.sql.connector.read.ScanBuilder
@@ -54,6 +57,7 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implicits
 import org.apache.spark.sql.execution.datasources.v2.PushDownUtils
+import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
@@ -64,7 +68,9 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
   import RewriteRowLevelOperationHelper._
   import ExtendedDataSourceV2Implicits.ScanBuilderHelper
 
-  def resolver: Resolver
+  protected def spark: SparkSession
+  protected lazy val conf: SQLConf = spark.sessionState.conf
+  protected lazy val resolver: Resolver = conf.resolver
 
   protected def buildSimpleScanPlan(
       relation: DataSourceV2Relation,
@@ -196,6 +202,22 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
           AttributeReference(a.name, a.dataType, a.nullable, a.metadata)()
       }
     }
+  }
+
+  protected def buildWritePlan(childPlan: LogicalPlan, table: Table): LogicalPlan = {
+    val icebergTable = Spark3Util.toIcebergTable(table)
+    val distribution = Spark3Util.buildRequiredDistribution(icebergTable)
+    val ordering = Spark3Util.buildRequiredOrdering(distribution, icebergTable)
+    // range partitioning in Spark triggers a skew estimation job prior to shuffling
+    // we insert a round-robin partitioning to avoid executing the merge join twice
+    val newChildPlan = distribution match {
+      case _: OrderedDistribution =>
+        val numShufflePartitions = conf.numShufflePartitions
+        Repartition(numShufflePartitions, shuffle = true, childPlan)
+      case _ =>
+        childPlan
+    }
+    DistributionAndOrderingUtils.prepareQuery(distribution, ordering, newChildPlan, conf)
   }
 }
 

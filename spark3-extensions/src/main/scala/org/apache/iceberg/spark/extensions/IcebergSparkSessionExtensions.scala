@@ -20,7 +20,7 @@
 package org.apache.iceberg.spark.extensions
 
 import org.apache.spark.sql.SparkSessionExtensions
-import org.apache.spark.sql.catalyst.analysis.AlignMergeIntoTable
+import org.apache.spark.sql.catalyst.analysis.AlignRowLevelOperations
 import org.apache.spark.sql.catalyst.analysis.DeleteFromTablePredicateCheck
 import org.apache.spark.sql.catalyst.analysis.MergeIntoTablePredicateCheck
 import org.apache.spark.sql.catalyst.analysis.ProcedureArgumentCoercion
@@ -29,6 +29,7 @@ import org.apache.spark.sql.catalyst.optimizer.OptimizeConditionsInRowLevelOpera
 import org.apache.spark.sql.catalyst.optimizer.PullupCorrelatedPredicatesInRowLevelOperations
 import org.apache.spark.sql.catalyst.optimizer.RewriteDelete
 import org.apache.spark.sql.catalyst.optimizer.RewriteMergeInto
+import org.apache.spark.sql.catalyst.optimizer.RewriteUpdate
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
 
@@ -41,7 +42,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     // analyzer extensions
     extensions.injectResolutionRule { spark => ResolveProcedures(spark) }
     extensions.injectResolutionRule { _ => ProcedureArgumentCoercion }
-    extensions.injectPostHocResolutionRule { spark => AlignMergeIntoTable(spark.sessionState.conf)}
+    extensions.injectPostHocResolutionRule { spark => AlignRowLevelOperations(spark.sessionState.conf)}
     extensions.injectCheckRule { _ => DeleteFromTablePredicateCheck }
     extensions.injectCheckRule { _ => MergeIntoTablePredicateCheck }
 
@@ -51,6 +52,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     // TODO: PullupCorrelatedPredicates should handle row-level operations
     extensions.injectOptimizerRule { _ => PullupCorrelatedPredicatesInRowLevelOperations }
     extensions.injectOptimizerRule { spark => RewriteDelete(spark) }
+    extensions.injectOptimizerRule { spark => RewriteUpdate(spark) }
     extensions.injectOptimizerRule { spark => RewriteMergeInto(spark) }
 
     // planner extensions

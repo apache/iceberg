@@ -27,6 +27,7 @@ import org.apache.spark.sql.catalyst.plans.logical.DeleteFromTable
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LocalRelation
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.UpdateTable
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
@@ -40,6 +41,10 @@ object OptimizeConditionsInRowLevelOperations extends Rule[LogicalPlan] {
         if !SubqueryExpression.hasSubquery(cond.getOrElse(Literal.TrueLiteral)) && isIcebergRelation(table) =>
       val optimizedCond = optimizeCondition(cond.getOrElse(Literal.TrueLiteral), table)
       d.copy(condition = Some(optimizedCond))
+    case u @ UpdateTable(table, _, cond)
+        if !SubqueryExpression.hasSubquery(cond.getOrElse(Literal.TrueLiteral)) && isIcebergRelation(table) =>
+      val optimizedCond = optimizeCondition(cond.getOrElse(Literal.TrueLiteral), table)
+      u.copy(condition = Some(optimizedCond))
   }
 
   private def optimizeCondition(cond: Expression, table: LogicalPlan): Expression = {

@@ -26,13 +26,17 @@ import org.apache.spark.sql.catalyst.plans.logical.InsertAction
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.MergeIntoTable
 import org.apache.spark.sql.catalyst.plans.logical.UpdateAction
+import org.apache.spark.sql.catalyst.plans.logical.UpdateTable
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 import org.apache.spark.sql.internal.SQLConf
 
-case class AlignMergeIntoTable(conf: SQLConf) extends Rule[LogicalPlan] with AssignmentAlignmentSupport {
+case class AlignRowLevelOperations(conf: SQLConf) extends Rule[LogicalPlan] with AssignmentAlignmentSupport {
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
+    case u: UpdateTable if u.resolved && isIcebergRelation(u.table)=>
+      u.copy(assignments = alignAssignments(u.table, u.assignments))
+
     case m: MergeIntoTable if m.resolved && isIcebergRelation(m.targetTable) =>
       val alignedMatchedActions = m.matchedActions.map {
         case u @ UpdateAction(_, assignments) =>
