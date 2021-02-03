@@ -111,7 +111,7 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
   }
 
   @Override
-  public void filterFiles(Set<String> locations) {
+  public synchronized void filterFiles(Set<String> locations) {
     // invalidate cached tasks to trigger split planning again
     tasks = null;
     filteredLocations = locations;
@@ -121,7 +121,7 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
   }
 
   // should be accessible to the write
-  List<FileScanTask> files() {
+  synchronized List<FileScanTask> files() {
     if (files == null) {
       TableScan scan = table
           .newScan()
@@ -148,7 +148,7 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
   }
 
   @Override
-  protected List<CombinedScanTask> tasks() {
+  protected synchronized List<CombinedScanTask> tasks() {
     if (tasks == null) {
       CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(
           CloseableIterable.withNoopClose(files()),

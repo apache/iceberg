@@ -40,7 +40,6 @@ import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecut
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -707,10 +706,6 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   protected void createAndInitNestedColumnsTable() {
     sql("CREATE TABLE %s (id INT, complex STRUCT<c1:INT,c2:STRING>) USING iceberg", tableName);
     initTable();
-  }
-
-  protected <T> void createOrReplaceView(String name, List<T> data, Encoder<T> encoder) {
-    spark.createDataset(data, encoder).createOrReplaceTempView(name);
   }
 
   protected void append(Employee... employees) throws NoSuchTableException {

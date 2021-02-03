@@ -30,6 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -150,6 +151,10 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
   protected void createOrReplaceView(String name, String schema, String jsonData) {
     Dataset<Row> ds = toDS(schema, jsonData);
     ds.createOrReplaceTempView(name);
+  }
+
+  protected <T> void createOrReplaceView(String name, List<T> data, Encoder<T> encoder) {
+    spark.createDataset(data, encoder).createOrReplaceTempView(name);
   }
 
   private Dataset<Row> toDS(String schema, String jsonData) {
