@@ -214,7 +214,8 @@ class V1Metadata {
         DataFile.LOWER_BOUNDS,
         DataFile.UPPER_BOUNDS,
         DataFile.KEY_METADATA,
-        DataFile.SPLIT_OFFSETS
+        DataFile.SPLIT_OFFSETS,
+        DataFile.SORT_ORDER_ID
     );
   }
 
@@ -353,6 +354,8 @@ class V1Metadata {
           return wrapped.keyMetadata();
         case 13:
           return wrapped.splitOffsets();
+        case 14:
+          return wrapped.sortOrderId();
       }
       throw new IllegalArgumentException("Unknown field ordinal: " + pos);
     }
@@ -445,6 +448,11 @@ class V1Metadata {
     @Override
     public List<Long> splitOffsets() {
       return wrapped.splitOffsets();
+    }
+
+    @Override
+    public Integer sortOrderId() {
+      return wrapped.sortOrderId();
     }
 
     @Override
