@@ -23,18 +23,20 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
-import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.Encoder;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.FieldMetrics;
+import org.apache.iceberg.avro.MetricsAwareDatumWriter;
 import org.apache.iceberg.avro.ValueWriter;
 import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public class FlinkAvroWriter implements DatumWriter<RowData> {
+public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
   private final RowType rowType;
   private ValueWriter<RowData> writer = null;
 
@@ -52,6 +54,11 @@ public class FlinkAvroWriter implements DatumWriter<RowData> {
   @Override
   public void write(RowData datum, Encoder out) throws IOException {
     writer.write(datum, out);
+  }
+
+  @Override
+  public Stream<FieldMetrics> metrics() {
+    return writer.metrics();
   }
 
   private static class WriteBuilder extends AvroWithFlinkSchemaVisitor<ValueWriter<?>> {
