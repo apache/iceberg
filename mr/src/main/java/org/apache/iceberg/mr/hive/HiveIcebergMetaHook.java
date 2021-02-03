@@ -177,7 +177,7 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
           Catalogs.dropTable(conf, catalogProperties);
         } else {
           // if metadata folder has been deleted already (Hive 4 behaviour for purge=TRUE), simply return
-          if (deleteMetadata.snapshots().isEmpty() || !deleteIo.newInputFile(deleteMetadata.location()).exists()) {
+          if (!deleteIo.newInputFile(deleteMetadata.location()).exists()) {
             return;
           }
           CatalogUtil.dropTableData(deleteIo, deleteMetadata);
