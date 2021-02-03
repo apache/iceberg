@@ -47,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -322,7 +323,7 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
-  public void testRewriteDataFilesForLargeFile() throws IOException {
+  public void testRewriteDataFilesForLargeFile() throws IOException, AnalysisException {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
@@ -336,7 +337,7 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
     File file = temp.newFile();
     try (FileAppender<Record> fileAppender =
             genericAppenderFactory.newAppender(Files.localOutput(file), FileFormat.PARQUET)) {
-      int fileSize = 20000;
+      int fileSize = 10000;
       for (; fileAppender.length() < fileSize; count++) {
         Record record = baseRecord.copy();
         record.setField("c1", count);
@@ -366,7 +367,11 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
 
     CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
     List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    Assert.assertEquals("Should have 3 data files before rewrite", 3, dataFiles.size());
+    Assert.assertEquals("Should have 3 scan tasks before rewrite", 3, dataFiles.size());
+
+    spark.read().format("iceberg").load(tableLocation).createTempView("rows");
+    long originalNumRecords = spark.read().format("iceberg").load(tableLocation).count();
+    List<Object[]> originalRecords = sql("SELECT * from rows sort by c2");
 
     Actions actions = Actions.forTable(table);
 
@@ -377,23 +382,14 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
         .splitOpenFileCost(1)
         .execute();
 
-    Assert.assertEquals("Action should rewrite 4 data files", 4, result.deletedDataFiles().size());
-    Assert.assertEquals("Action should add 2 data file", 2, result.addedDataFiles().size());
+    Assert.assertEquals("Action should delete 4 data files", 4, result.deletedDataFiles().size());
+    Assert.assertEquals("Action should add 2 data files", 2, result.addedDataFiles().size());
 
-    records1.forEach(record -> {
-      Record recordTemp = baseRecord.copy();
-      recordTemp.setField("c1", recordTemp.getField("c1"));
-      recordTemp.setField("c2", recordTemp.getField("c2"));
-      recordTemp.setField("c3", recordTemp.getField("c3"));
-      excepted.add(recordTemp);
-    });
+    long postRewriteNumRecords = spark.read().format("iceberg").load(tableLocation).count();
+    List<Object[]> rewrittenRecords = sql("SELECT * from rows sort by c2");
 
-    table.refresh();
-
-    try (CloseableIterable<Record> iterable = IcebergGenerics.read(table).build()) {
-      Assert.assertEquals("Number of rows must equals",
-              HashMultiset.create(excepted).size(), HashMultiset.create(iterable).size());
-    }
+    Assert.assertEquals(originalNumRecords, postRewriteNumRecords);
+    assertEquals("Rows should be unchanged", originalRecords, rewrittenRecords);
   }
 
   private void writeRecords(List<ThreeColumnRecord> records) {
