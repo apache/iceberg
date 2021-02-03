@@ -253,7 +253,6 @@ public class TestHiveIcebergStorageHandlerLocalScan {
         testTables.locationForCreateTableSQL(identifier);
     runCreateAndReadTest(identifier, createSql, HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
         PartitionSpec.unpartitioned(), data);
-    shell.executeStatement("DROP TABLE " + identifier);
   }
 
   @Test
@@ -271,7 +270,6 @@ public class TestHiveIcebergStorageHandlerLocalScan {
          "'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
         testTables.locationForCreateTableSQL(identifier);
     runCreateAndReadTest(identifier, createSql, HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, spec, data);
-    shell.executeStatement("DROP TABLE " + identifier);
   }
 
   @Test
@@ -290,7 +288,6 @@ public class TestHiveIcebergStorageHandlerLocalScan {
         "'" + InputFormatConfig.TABLE_SCHEMA + "'='" +
         SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA) + "')";
     runCreateAndReadTest(identifier, createSql, HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, spec, data);
-    shell.executeStatement("DROP TABLE " + identifier);
   }
 
   @Test

@@ -176,11 +176,10 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
           LOG.info("Dropping with purge all the data for table {}.{}", hmsTable.getDbName(), hmsTable.getTableName());
           Catalogs.dropTable(conf, catalogProperties);
         } else {
-          // if metadata folder has been deleted already (Hive 4 behaviour for purge=TRUE), simply return
-          if (!deleteIo.newInputFile(deleteMetadata.location()).exists()) {
-            return;
+          // do nothing if metadata folder has been deleted already (Hive 4 behaviour for purge=TRUE)
+          if (deleteIo.newInputFile(deleteMetadata.location()).exists()) {
+            CatalogUtil.dropTableData(deleteIo, deleteMetadata);
           }
-          CatalogUtil.dropTableData(deleteIo, deleteMetadata);
         }
       } catch (Exception e) {
         // we want to successfully complete the Hive DROP TABLE command despite catalog-related exceptions here

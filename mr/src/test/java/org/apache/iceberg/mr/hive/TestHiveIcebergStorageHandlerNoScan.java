@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.FileSystem;
@@ -64,6 +65,8 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import static org.apache.iceberg.mr.hive.HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS;
+import static org.apache.iceberg.mr.hive.HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.junit.runners.Parameterized.Parameter;
 import static org.junit.runners.Parameterized.Parameters;
@@ -565,6 +568,53 @@ public class TestHiveIcebergStorageHandlerNoScan {
       Assert.assertEquals(hmsParams.get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP), newSnapshot);
     } else {
       Assert.assertEquals(7, hmsParams.size());
+    }
+  }
+
+  @Test
+  public void testDropTableWithAppendedData() throws IOException {
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+
+    shell.executeStatement(String.format("CREATE EXTERNAL TABLE %s STORED BY '%s' %s" +
+        "TBLPROPERTIES ('%s'='%s', '%s'='%s')",
+        identifier,
+        HiveIcebergStorageHandler.class.getName(),
+        testTables.locationForCreateTableSQL(identifier),
+        InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA),
+        InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(SPEC)));
+
+    org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
+    testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, FileFormat.PARQUET, null, CUSTOMER_RECORDS);
+
+    shell.executeStatement("DROP TABLE customers");
+  }
+
+  @Test
+  public void testDropHiveTableWithoutUnderlyingTable() throws IOException {
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+
+    if (!Catalogs.hiveCatalog(shell.getHiveConf())) {
+      // Create the Iceberg table in non-HiveCatalog
+      testTables.createIcebergTable(shell.getHiveConf(), identifier.name(), CUSTOMER_SCHEMA, FileFormat.PARQUET,
+              CUSTOMER_RECORDS);
+
+      // Create Hive table on top
+      String tableLocation = testTables.locationForCreateTableSQL(identifier);
+      shell.executeStatement(String.format("CREATE EXTERNAL TABLE %s STORED BY '%s' %s" +
+          "TBLPROPERTIES ('%s'='%s')",
+          identifier,
+          HiveIcebergStorageHandler.class.getName(),
+          tableLocation,
+          InputFormatConfig.EXTERNAL_TABLE_PURGE, "TRUE"));
+
+      // Drop the Iceberg table
+      Properties properties = new Properties();
+      properties.put(Catalogs.NAME, identifier.toString());
+      properties.put(Catalogs.LOCATION, tableLocation);
+      Catalogs.dropTable(shell.getHiveConf(), properties);
+
+      // Finally drop the Hive table as well
+      shell.executeStatement("DROP TABLE " + identifier);
     }
   }
 

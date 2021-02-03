@@ -348,8 +348,6 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     List<Record> records = new ArrayList<>(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     records.addAll(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     HiveIcebergTestUtils.validateData(table, records, 0);
-
-    shell.executeStatement("DROP TABLE customers");
   }
 
   /**
@@ -370,8 +368,6 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     List<Record> records = new ArrayList<>(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     records.addAll(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     HiveIcebergTestUtils.validateData(table, records, 0);
-
-    shell.executeStatement("DROP TABLE customers");
   }
 
   @Test
