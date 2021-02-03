@@ -317,7 +317,7 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
-  public void testRewriteDataFilesForLargeFile() throws IOException, AnalysisException {
+  public void testRewriteDataFilesForLargeFile() throws AnalysisException {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
