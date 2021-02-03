@@ -20,6 +20,8 @@
 package org.apache.iceberg.orc;
 
 import java.io.IOException;
+import java.util.stream.Stream;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 /**
@@ -35,4 +37,11 @@ public interface OrcRowWriter<T> {
    * @throws IOException if there's any IO error while writing the data value.
    */
   void write(T row, VectorizedRowBatch output) throws IOException;
+
+  /**
+   * Returns a stream of {@link FieldMetrics} that this OrcRowWriter keeps track of.
+   */
+  default Stream<FieldMetrics> metrics() {
+    return Stream.empty();
+  }
 }

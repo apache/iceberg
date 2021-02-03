@@ -628,9 +628,7 @@ public abstract class TestMetrics {
     Map<Integer, Long> nanValueCounts = metrics.nanValueCounts();
     Assert.assertEquals(valueCount, valueCounts.get(fieldId));
     Assert.assertEquals(nullValueCount, nullValueCounts.get(fieldId));
-    if (fileFormat() != FileFormat.ORC) {
-      Assert.assertEquals(nanValueCount, nanValueCounts.get(fieldId));
-    }
+    Assert.assertEquals(nanValueCount, nanValueCounts.get(fieldId));
   }
 
   protected <T> void assertBounds(int fieldId, Type type, T lowerBound, T upperBound, Metrics metrics) {

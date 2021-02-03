@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.orc;
 
+import java.util.stream.Stream;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 
 public interface OrcValueWriter<T> {
@@ -43,4 +45,11 @@ public interface OrcValueWriter<T> {
   }
 
   void nonNullWrite(int rowId, T data, ColumnVector output);
+
+  /**
+   * Returns a stream of {@link FieldMetrics} that this OrcValueWriter keeps track of.
+   */
+  default Stream<FieldMetrics> metrics() {
+    return Stream.empty();
+  }
 }

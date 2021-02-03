@@ -20,8 +20,11 @@
 package org.apache.iceberg.data.orc;
 
 import java.util.List;
+import java.util.stream.Stream;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcRowWriter;
 import org.apache.iceberg.orc.OrcSchemaWithTypeVisitor;
 import org.apache.iceberg.orc.OrcValueWriter;
@@ -79,9 +82,9 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
         case LONG:
           return GenericOrcWriters.longs();
         case FLOAT:
-          return GenericOrcWriters.floats();
+          return GenericOrcWriters.floats(ORCSchemaUtil.fieldId(primitive));
         case DOUBLE:
-          return GenericOrcWriters.doubles();
+          return GenericOrcWriters.doubles(ORCSchemaUtil.fieldId(primitive));
         case DATE:
           return GenericOrcWriters.dates();
         case TIME:
@@ -125,6 +128,11 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
     }
   }
 
+  @Override
+  public Stream<FieldMetrics> metrics() {
+    return writer.metrics();
+  }
+
   private static class RecordWriter implements OrcValueWriter<Record> {
     private final List<OrcValueWriter<?>> writers;
 
@@ -149,6 +157,11 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
         OrcValueWriter child = writers.get(c);
         child.write(rowId, data.get(c, child.getJavaClass()), cv.fields[c]);
       }
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return writers.stream().flatMap(OrcValueWriter::metrics);
     }
   }
 }

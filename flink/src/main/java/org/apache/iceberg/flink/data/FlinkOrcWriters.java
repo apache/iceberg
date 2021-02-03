@@ -23,6 +23,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.stream.Stream;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.MapData;
@@ -30,6 +31,7 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -254,6 +256,12 @@ class FlinkOrcWriters {
         elementWriter.write((int) (e + cv.offsets[rowId]), (T) value, cv.child);
       }
     }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return elementWriter.metrics();
+    }
+
   }
 
   static class MapWriter<K, V> implements OrcValueWriter<MapData> {
@@ -296,6 +304,11 @@ class FlinkOrcWriters {
         valueWriter.write(pos, (V) valueGetter.getElementOrNull(valArray, e), cv.values);
       }
     }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
+    }
   }
 
   static class StructWriter implements OrcValueWriter<RowData> {
@@ -328,6 +341,11 @@ class FlinkOrcWriters {
         OrcValueWriter writer = writers.get(c);
         writer.write(rowId, fieldGetters.get(c).getFieldOrNull(data), cv.fields[c]);
       }
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return writers.stream().flatMap(OrcValueWriter::metrics);
     }
   }
 }
