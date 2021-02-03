@@ -21,25 +21,21 @@ package org.apache.iceberg.actions;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.data.GenericAppenderFactory;
-import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTestBase;
@@ -327,53 +323,32 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
     Assert.assertNull("Table must be empty", table.currentSnapshot());
 
-    List<Record> excepted = Lists.newArrayList();
-    Record baseRecord = GenericRecord.create(SCHEMA);
+    List<ThreeColumnRecord> records1 = Lists.newArrayList();
 
-    GenericAppenderFactory genericAppenderFactory = new GenericAppenderFactory(SCHEMA);
-    int count = 0;
-    File file = temp.newFile();
-    try (FileAppender<Record> fileAppender =
-            genericAppenderFactory.newAppender(Files.localOutput(file), FileFormat.PARQUET)) {
-      int fileSize = 10000;
-      for (; fileAppender.length() < fileSize; count++) {
-        Record record = baseRecord.copy();
-        record.setField("c1", count);
-        record.setField("c2", "foo" + count);
-        record.setField("c3", "bar" + count);
-        fileAppender.add(record);
-        excepted.add(record);
-      }
-    }
+    IntStream.range(0, 2000).forEach(i -> records1.add(new ThreeColumnRecord(i, "foo" + i, "bar" + i)));
+    Dataset<Row> df = spark.createDataFrame(records1, ThreeColumnRecord.class).repartition(1);
+    writeDF(df);
 
-    DataFile dataFile = DataFiles.builder(table.spec())
-        .withPath(file.getAbsolutePath())
-        .withFileSizeInBytes(file.length())
-        .withFormat(FileFormat.PARQUET)
-        .withRecordCount(count)
-        .build();
-
-    table.newAppend().appendFile(dataFile).commit();
-
-    List<ThreeColumnRecord> records1 = Lists.newArrayList(
+    List<ThreeColumnRecord> records2 = Lists.newArrayList(
         new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"),
         new ThreeColumnRecord(1, "DDDDDDDDDD", "DDDD")
     );
-    writeRecords(records1);
+    writeRecords(records2);
 
     table.refresh();
 
     CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
     List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    Assert.assertEquals("Should have 3 scan tasks before rewrite", 3, dataFiles.size());
+    DataFile maxSizeFile = Collections.max(dataFiles, Comparator.comparingLong(DataFile::fileSizeInBytes));
+    Assert.assertEquals("Should have 3 files before rewrite", 3, dataFiles.size());
 
-    spark.read().format("iceberg").load(tableLocation).createTempView("rows");
+    spark.read().format("iceberg").load(tableLocation).createTempView("origin");
     long originalNumRecords = spark.read().format("iceberg").load(tableLocation).count();
-    List<Object[]> originalRecords = sql("SELECT * from rows sort by c2");
+    List<Object[]> originalRecords = sql("SELECT * from origin sort by c2");
 
     Actions actions = Actions.forTable(table);
 
-    long targetSizeInBytes = file.length() - 10;
+    long targetSizeInBytes = maxSizeFile.fileSizeInBytes() - 10;
     RewriteDataFilesActionResult result = actions
         .rewriteDataFiles()
         .targetSizeInBytes(targetSizeInBytes)
@@ -383,8 +358,9 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
     Assert.assertEquals("Action should delete 4 data files", 4, result.deletedDataFiles().size());
     Assert.assertEquals("Action should add 2 data files", 2, result.addedDataFiles().size());
 
+    spark.read().format("iceberg").load(tableLocation).createTempView("postRewrite");
     long postRewriteNumRecords = spark.read().format("iceberg").load(tableLocation).count();
-    List<Object[]> rewrittenRecords = sql("SELECT * from rows sort by c2");
+    List<Object[]> rewrittenRecords = sql("SELECT * from postRewrite sort by c2");
 
     Assert.assertEquals(originalNumRecords, postRewriteNumRecords);
     assertEquals("Rows should be unchanged", originalRecords, rewrittenRecords);
