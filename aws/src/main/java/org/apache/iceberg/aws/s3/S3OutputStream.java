@@ -184,6 +184,7 @@ class S3OutputStream extends PositionOutputStream {
 
   private void checkAsyncError() {
     if (asyncError.get() != null) {
+      abortUpload();
       throw new IllegalStateException("Writes are blocked due to async error: " + location, asyncError.get());
     }
   }
@@ -300,15 +301,28 @@ class S3OutputStream extends PositionOutputStream {
         .run(s3::completeMultipartUpload);
   }
 
-  private synchronized void abortUpload() {
-    if (multipartUploadId != null) {
-      try {
-        s3.abortMultipartUpload(AbortMultipartUploadRequest.builder()
-            .bucket(location.bucket()).key(location.key()).uploadId(multipartUploadId).build());
-        multipartUploadId = null;
-      } finally {
-        cleanUpStagingFiles();
+  /**
+   * According to the Javadoc of {@link S3Client#abortMultipartUpload(AbortMultipartUploadRequest)},
+   * if any part uploads are currently in progress, those part uploads might or might not succeed.
+   * As a result, it might be necessary to abort a given multipart upload multiple times
+   * in order to completely free all storage consumed by all parts. That means:
+   * (1) We shouldn't set multipartUploadId to null after calling
+   * {@link S3Client#abortMultipartUpload(AbortMultipartUploadRequest)}.
+   * (2) This method doesn't need to be synchronized.
+   */
+  private void abortUpload() {
+    try {
+      if (multipartUploadId != null) {
+        try {
+          s3.abortMultipartUpload(AbortMultipartUploadRequest.builder()
+              .bucket(location.bucket()).key(location.key()).uploadId(multipartUploadId).build());
+        } catch (Exception e) {
+          LOG.warn("Failed to abort multipart upload: location = {}, multipartUploadId = {}",
+              location, multipartUploadId, e);
+        }
       }
+    } finally {
+      cleanUpStagingFiles();
     }
   }
 

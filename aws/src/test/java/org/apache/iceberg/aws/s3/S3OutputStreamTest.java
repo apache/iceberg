@@ -135,61 +135,28 @@ public class S3OutputStreamTest {
     }
   }
 
-  public void testFailWriteIntAfterAsyncError() throws Exception {
-    doThrow(new RuntimeException()).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
+  @Test
+  public void testFailWriteByteAfterAsyncError() throws Exception {
     S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties);
-    stream.write(randomData(10 * 1024 * 1024));
-    final long startTs = System.currentTimeMillis();
-    while (stream.getAsyncError() == null && System.currentTimeMillis() - startTs <= 1000) {
-      Thread.sleep(1);
-    }
-    Assert.assertNotNull(stream.getAsyncError());
-    AssertHelpers.assertThrows("Write after async error should throw IllegalStateException",
-        IllegalStateException.class, () -> {
-          try {
-            stream.write(1);
-          } catch (IOException e) {
-            // swallow
-          }
-        });
+    testFailFastAfterMultiPartUploadAsyncError(stream,
+        "Write byte after async error should throw IllegalStateException",
+        () -> stream.write(1));
   }
 
-  public void testFailWriteArrayAfterAsyncError() throws Exception {
-    doThrow(new RuntimeException()).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
+  @Test
+  public void testFailWriteByteArrayAfterAsyncError() throws Exception {
     S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties);
-    stream.write(randomData(10 * 1024 * 1024));
-    final long startTs = System.currentTimeMillis();
-    while (stream.getAsyncError() == null && System.currentTimeMillis() - startTs <= 1000) {
-      Thread.sleep(1);
-    }
-    Assert.assertNotNull(stream.getAsyncError());
-    AssertHelpers.assertThrows("Write after async error should throw IllegalStateException",
-        IllegalStateException.class, () -> {
-          try {
-            stream.write(new byte[16]);
-          } catch (IOException e) {
-            // swallow
-          }
-        });
+    testFailFastAfterMultiPartUploadAsyncError(stream,
+        "Write byte array after async error should throw IllegalStateException",
+        () -> stream.write(new byte[16]));
   }
 
+  @Test
   public void testFailCloseAfterAsyncError() throws Exception {
-    doThrow(new RuntimeException()).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
     S3OutputStream stream = new S3OutputStream(s3mock, randomURI(), properties);
-    stream.write(randomData(10 * 1024 * 1024));
-    final long startTs = System.currentTimeMillis();
-    while (stream.getAsyncError() == null && System.currentTimeMillis() - startTs <= 1000) {
-      Thread.sleep(1);
-    }
-    Assert.assertNotNull(stream.getAsyncError());
-    AssertHelpers.assertThrows("Close after async error should throw IllegalStateException",
-        IllegalStateException.class, () -> {
-          try {
-            stream.close();
-          } catch (IOException e) {
-            // swallow
-          }
-        });
+    testFailFastAfterMultiPartUploadAsyncError(stream,
+        "Close after async error should throw IllegalStateException",
+        () -> stream.close());
     verify(s3mock, never()).completeMultipartUpload((CompleteMultipartUploadRequest) any());
   }
 
@@ -198,6 +165,29 @@ public class S3OutputStreamTest {
     S3OutputStream stream = new S3OutputStream(s3, randomURI(), properties);
     stream.close();
     stream.close();
+  }
+
+  @FunctionalInterface
+  interface CheckedFunction {
+    void apply() throws IOException;
+  }
+
+  private void testFailFastAfterMultiPartUploadAsyncError(
+      S3OutputStream stream, String assertMessage, CheckedFunction action) throws Exception {
+    doThrow(new RuntimeException()).when(s3mock).uploadPart((UploadPartRequest) any(), (RequestBody) any());
+    stream.write(randomData(10 * 1024 * 1024));
+    final long startTs = System.currentTimeMillis();
+    while (stream.getAsyncError() == null && System.currentTimeMillis() - startTs <= 1000) {
+      Thread.sleep(1);
+    }
+    Assert.assertNotNull(stream.getAsyncError());
+    AssertHelpers.assertThrows(assertMessage, IllegalStateException.class, () -> {
+      try {
+        action.apply();
+      } catch (IOException e) {
+        throw new UncheckedIOException("Caught checked IOException", e);
+      }
+    });
   }
 
   private void writeAndVerify(S3Client client, S3URI uri, byte [] data, boolean arrayWrite) {
