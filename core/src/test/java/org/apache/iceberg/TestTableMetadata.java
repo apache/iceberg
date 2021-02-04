@@ -657,7 +657,7 @@ public class TestTableMetadata {
     Assert.assertEquals("Should have expected versioned schemas",
         ImmutableList.of(versionedSchema), freshTable.schemas());
     Assert.assertEquals("Should have expected schema upon return",
-        schema, freshTable.schema());
+        schema.asStruct(), freshTable.schema().asStruct());
     Assert.assertEquals("Should return expected last column id", 1, freshTable.lastColumnId());
 
     // update schema
@@ -701,7 +701,7 @@ public class TestTableMetadata {
     Assert.assertEquals("Should have expected versioned schemas",
         ImmutableList.of(versionedSchema, new VersionedSchema(1, schema2)), revertSchemaTable.schemas());
     Assert.assertEquals("Should have expected schema upon return",
-        schema, revertSchemaTable.schema());
+        schema.asStruct(), revertSchemaTable.schema().asStruct());
     Assert.assertEquals("Should return expected last column id",
         3, revertSchemaTable.lastColumnId());
 

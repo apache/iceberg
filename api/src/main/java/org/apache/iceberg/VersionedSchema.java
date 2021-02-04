@@ -52,7 +52,8 @@ public class VersionedSchema implements Serializable {
 
     VersionedSchema that = (VersionedSchema) other;
     return schemaId == that.schemaId &&
-        Objects.equals(schema, that.schema);
+        schema != null && that.schema != null &&
+        Objects.equals(schema.asStruct(), that.schema.asStruct());
   }
 
   @Override

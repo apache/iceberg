@@ -481,7 +481,7 @@ public class TableMetadata implements Serializable {
     // if the schema already exists, use its id; otherwise use the highest id + 1
     int newSchemaId = currentSchemaId;
     for (VersionedSchema schema : schemas) {
-      if (schema.schema().equals(newSchema)) {
+      if (schema.schema().asStruct().equals(newSchema.asStruct())) {
         newSchemaId = schema.schemaId();
         break;
       } else if (schema.schemaId() >= newSchemaId) {
