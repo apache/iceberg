@@ -111,7 +111,7 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
   }
 
   @Override
-  public synchronized void filterFiles(Set<String> locations) {
+  public void filterFiles(Set<String> locations) {
     // invalidate cached tasks to trigger split planning again
     tasks = null;
     filteredLocations = locations;

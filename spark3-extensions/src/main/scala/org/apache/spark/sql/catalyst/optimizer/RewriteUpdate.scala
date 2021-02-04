@@ -61,15 +61,13 @@ case class RewriteUpdate(spark: SparkSession) extends Rule[LogicalPlan] with Rew
       val matchingRowsPlanBuilder = scanRelation => Filter(cond, scanRelation)
       val scanPlan = buildDynamicFilterScanPlan(spark, r.table, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
       val underlyingScanPlan = scanPlan match {
-        case DynamicFileFilter(plan, _, _) => plan
-        case _ => scanPlan
+        case DynamicFileFilter(plan, _, _) => plan.clone()
+        case _ => scanPlan.clone()
       }
 
       // build a plan for records that match the cond and should be updated
       val matchedRowsPlan = Filter(cond, scanPlan)
       val updatedRowsPlan = buildUpdateProjection(r, matchedRowsPlan, assignments)
-
-      // TODO: Is it ok to use the same scan relation? Shall we clone it and reuse only Scan?
 
       // build a plan for records that did not match the cond but had to be copied over
       val remainingRowFilter = Not(EqualNullSafe(cond, Literal(true, BooleanType)))

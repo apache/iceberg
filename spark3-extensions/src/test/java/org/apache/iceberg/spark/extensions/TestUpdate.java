@@ -590,6 +590,26 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void testUpdateWithSelfSubquery() {
+    createAndInitTable("id INT, dep STRING");
+
+    append(tableName,
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" +
+        "{ \"id\": 2, \"dep\": \"hr\" }");
+
+    sql("UPDATE %s SET dep = 'x' WHERE id IN (SELECT id + 1 FROM %s)", tableName, tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1, "hr"), row(2, "x")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    sql("UPDATE %s SET dep = 'y' WHERE " +
+        "id = (SELECT count(*) FROM (SELECT DISTINCT id FROM %s) AS t)", tableName, tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1, "hr"), row(2, "y")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
   public void testUpdateWithMultiColumnInSubquery() {
     createAndInitTable("id INT, dep STRING");
 
@@ -643,7 +663,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     createOrReplaceView("updated_id", Arrays.asList(-1, -2, null), Encoders.INT());
 
     AssertHelpers.assertThrows("Should complain about NOT IN subquery",
-        AnalysisException.class, "Null-aware predicate sub-queries are not currently supported",
+        AnalysisException.class, "Null-aware predicate subqueries are not currently supported",
         () -> sql("UPDATE %s SET id = -1 WHERE id NOT IN (SELECT * FROM updated_id)", tableName));
   }
 
@@ -664,12 +684,15 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
-    sql("UPDATE %s t SET dep = 'x', id = -1 WHERE EXISTS (SELECT 1 FROM updated_id u WHERE t.id = u.value + 2)", tableName);
+    sql("UPDATE %s t SET dep = 'x', id = -1 WHERE " +
+        "EXISTS (SELECT 1 FROM updated_id u WHERE t.id = u.value + 2)", tableName);
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-1, "x"), row(2, "hardware"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
-    sql("UPDATE %s t SET id = -2 WHERE EXISTS (SELECT 1 FROM updated_id u WHERE t.id = u.value) OR t.id IS NULL", tableName);
+    sql("UPDATE %s t SET id = -2 WHERE " +
+        "EXISTS (SELECT 1 FROM updated_id u WHERE t.id = u.value) OR " +
+        "t.id IS NULL", tableName);
     assertEquals("Should have expected rows",
         ImmutableList.of(row(-2, "hr"), row(-2, "x"), row(2, "hardware")),
         sql("SELECT * FROM %s ORDER BY id, dep", tableName));

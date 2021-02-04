@@ -460,7 +460,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createOrReplaceView("deleted_id", Arrays.asList(-1, -2, null), Encoders.INT());
 
     AssertHelpers.assertThrows("Should complain about NOT IN subquery",
-        AnalysisException.class, "Null-aware predicate sub-queries are not currently supported",
+        AnalysisException.class, "Null-aware predicate subqueries are not currently supported",
         () -> sql("DELETE FROM %s WHERE id NOT IN (SELECT * FROM deleted_id)", tableName));
   }
 
