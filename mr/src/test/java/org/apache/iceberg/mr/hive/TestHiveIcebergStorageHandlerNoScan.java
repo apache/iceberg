@@ -66,8 +66,6 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.mr.hive.HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS;
-import static org.apache.iceberg.mr.hive.HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.junit.runners.Parameterized.Parameter;
 import static org.junit.runners.Parameterized.Parameters;
@@ -576,10 +574,12 @@ public class TestHiveIcebergStorageHandlerNoScan {
   public void testDropTableWithAppendedData() throws IOException {
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
 
-    testTables.createTable(shell, identifier.name(), CUSTOMER_SCHEMA, SPEC, FileFormat.PARQUET, ImmutableList.of());
+    testTables.createTable(shell, identifier.name(), HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, SPEC,
+        FileFormat.PARQUET, ImmutableList.of());
 
     org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
-    testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, FileFormat.PARQUET, null, CUSTOMER_RECORDS);
+    testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, FileFormat.PARQUET, null,
+        HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
 
     shell.executeStatement("DROP TABLE customers");
   }
@@ -590,8 +590,9 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
     if (!Catalogs.hiveCatalog(shell.getHiveConf())) {
       // Create the Iceberg table in non-HiveCatalog
-      testTables.createIcebergTable(shell.getHiveConf(), identifier.name(), CUSTOMER_SCHEMA, FileFormat.PARQUET,
-              CUSTOMER_RECORDS);
+      testTables.createIcebergTable(shell.getHiveConf(), identifier.name(),
+          HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, FileFormat.PARQUET,
+          HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
 
       // Create Hive table on top
       String tableLocation = testTables.locationForCreateTableSQL(identifier);
