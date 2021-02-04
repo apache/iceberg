@@ -174,8 +174,8 @@ public class TableMetadataParser {
     // write the current schema ID and schema list
     generator.writeNumberField(CURRENT_SCHEMA_ID, metadata.currentSchemaId());
     generator.writeArrayFieldStart(SCHEMAS);
-    for (VersionedSchema schema : metadata.schemas()) {
-      SchemaParser.toJson(schema, generator);
+    for (Schema schema : metadata.schemas()) {
+      SchemaParser.toJsonWithVersion(schema, generator);
     }
     generator.writeEndArray();
 
@@ -278,9 +278,9 @@ public class TableMetadataParser {
     }
     int lastAssignedColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
 
-    List<VersionedSchema> schemas;
+    List<Schema> schemas;
     int currentSchemaId;
-    VersionedSchema versionedSchema = null;
+    Schema schema = null;
 
     JsonNode schemaArray = node.get(SCHEMAS);
     if (schemaArray != null) {
@@ -290,16 +290,16 @@ public class TableMetadataParser {
       currentSchemaId = JsonUtil.getInt(CURRENT_SCHEMA_ID, node);
 
       // parse the schema array
-      ImmutableList.Builder<VersionedSchema> builder = ImmutableList.builder();
+      ImmutableList.Builder<Schema> builder = ImmutableList.builder();
       for (JsonNode schemaNode : schemaArray) {
-        VersionedSchema current = SchemaParser.versionedSchemaFromJson(schemaNode);
+        Schema current = SchemaParser.fromJsonWithId(schemaNode);
         if (current.schemaId() == currentSchemaId) {
-          versionedSchema = current;
+          schema = current;
         }
         builder.add(current);
       }
 
-      Preconditions.checkArgument(versionedSchema != null,
+      Preconditions.checkArgument(schema != null,
           "Cannot find schema with %s=%s from %s", CURRENT_SCHEMA_ID, currentSchemaId, SCHEMAS);
 
       schemas = builder.build();
@@ -309,11 +309,9 @@ public class TableMetadataParser {
           "%s must exist in format v%s", SCHEMAS, formatVersion);
 
       currentSchemaId = TableMetadata.INITIAL_SCHEMA_ID;
-      versionedSchema = new VersionedSchema(currentSchemaId, SchemaParser.fromJson(node.get(SCHEMA)));
-      schemas = ImmutableList.of(versionedSchema);
+      schema = SchemaParser.fromJsonWithId(currentSchemaId, node.get(SCHEMA));
+      schemas = ImmutableList.of(schema);
     }
-
-    Schema schema = versionedSchema.schema();
 
     JsonNode specArray = node.get(PARTITION_SPECS);
     List<PartitionSpec> specs;

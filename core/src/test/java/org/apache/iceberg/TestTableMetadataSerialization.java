@@ -23,6 +23,8 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.util.List;
+import java.util.stream.IntStream;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
@@ -68,7 +70,7 @@ public class TestTableMetadataSerialization extends TableTestBase {
     Assert.assertEquals("Last updated should match", meta.lastUpdatedMillis(), result.lastUpdatedMillis());
     Assert.assertEquals("Last column id", meta.lastColumnId(), result.lastColumnId());
     Assert.assertEquals("Schema should match", meta.schema().asStruct(), result.schema().asStruct());
-    Assert.assertEquals("Schemas should match", meta.schemas(), result.schemas());
+    assertSameSchemaList(meta.schemas(), result.schemas());
     Assert.assertEquals("Current schema id should match", meta.currentSchemaId(), result.currentSchemaId());
     Assert.assertEquals("Spec should match", meta.defaultSpecId(), result.defaultSpecId());
     Assert.assertEquals("Spec list should match", meta.specs(), result.specs());
@@ -79,5 +81,22 @@ public class TestTableMetadataSerialization extends TableTestBase {
         Lists.transform(meta.snapshots(), Snapshot::snapshotId),
         Lists.transform(result.snapshots(), Snapshot::snapshotId));
     Assert.assertEquals("History should match", meta.snapshotLog(), result.snapshotLog());
+  }
+
+  private void assertSameSchemaList(List<Schema> list1, List<Schema> list2) {
+    if (list1.size() != list2.size()) {
+      Assert.fail("Should have same number of schemas in both lists");
+    }
+
+    IntStream.range(0, list1.size()).forEach(
+        index -> {
+          Schema schema1 = list1.get(index);
+          Schema schema2 = list2.get(index);
+          Assert.assertEquals("Should have matching schema id",
+              schema1.schemaId(), schema2.schemaId());
+          Assert.assertEquals("Should have matching schema struct",
+              schema1.asStruct(), schema2.asStruct());
+        }
+    );
   }
 }

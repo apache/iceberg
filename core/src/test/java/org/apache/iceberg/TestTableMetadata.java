@@ -34,6 +34,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.UUID;
+import java.util.stream.IntStream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -63,13 +64,11 @@ import static org.apache.iceberg.TableMetadataParser.SNAPSHOTS;
 public class TestTableMetadata {
   private static final String TEST_LOCATION = "s3://bucket/test/location";
 
-  private static final Schema TEST_SCHEMA = new Schema(
+  private static final Schema TEST_SCHEMA = new Schema(7,
       Types.NestedField.required(1, "x", Types.LongType.get()),
       Types.NestedField.required(2, "y", Types.LongType.get(), "comment"),
       Types.NestedField.required(3, "z", Types.LongType.get())
   );
-
-  private static final VersionedSchema TEST_VERSIONED_SCHEMA = new VersionedSchema(7, TEST_SCHEMA);
 
   private static final long SEQ_NO = 34;
   private static final int LAST_ASSIGNED_COLUMN_ID = 3;
@@ -102,14 +101,13 @@ public class TestTableMetadata {
         .add(new SnapshotLogEntry(currentSnapshot.timestampMillis(), currentSnapshot.snapshotId()))
         .build();
 
-    VersionedSchema versionedSchema = new VersionedSchema(6, new Schema(
-        Types.NestedField.required(10, "x", Types.StringType.get())
-    ));
+    Schema schema = new Schema(6,
+        Types.NestedField.required(10, "x", Types.StringType.get()));
 
 
     TableMetadata expected = new TableMetadata(null, 2, UUID.randomUUID().toString(), TEST_LOCATION,
         SEQ_NO, System.currentTimeMillis(), 3,
-        7, ImmutableList.of(TEST_VERSIONED_SCHEMA, versionedSchema),
+        7, ImmutableList.of(TEST_SCHEMA, schema),
         5, ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
 
         3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
@@ -131,8 +129,7 @@ public class TestTableMetadata {
         expected.lastColumnId(), metadata.lastColumnId());
     Assert.assertEquals("Current schema id should match",
         expected.currentSchemaId(), metadata.currentSchemaId());
-    Assert.assertEquals("Schemas should match",
-        expected.schemas(), metadata.schemas());
+    assertSameSchemaList(expected.schemas(), metadata.schemas());
     Assert.assertEquals("Partition spec should match",
         expected.spec().toString(), metadata.spec().toString());
     Assert.assertEquals("Default spec ID should match",
@@ -162,7 +159,7 @@ public class TestTableMetadata {
   public void testBackwardCompat() throws Exception {
     PartitionSpec spec = PartitionSpec.builderFor(TEST_SCHEMA).identity("x").withSpecId(6).build();
     SortOrder sortOrder = SortOrder.unsorted();
-    VersionedSchema versionedSchema = new VersionedSchema(TableMetadata.INITIAL_SCHEMA_ID, TEST_SCHEMA);
+    Schema schema = new Schema(TableMetadata.INITIAL_SCHEMA_ID, TEST_SCHEMA.columns());
 
     long previousSnapshotId = System.currentTimeMillis() - new Random(1234).nextInt(3600);
     Snapshot previousSnapshot = new BaseSnapshot(
@@ -175,7 +172,7 @@ public class TestTableMetadata {
 
     TableMetadata expected = new TableMetadata(null, 1, null, TEST_LOCATION,
         0, System.currentTimeMillis(), 3, TableMetadata.INITIAL_SCHEMA_ID,
-        ImmutableList.of(versionedSchema), 6, ImmutableList.of(spec), spec.lastAssignedFieldId(),
+        ImmutableList.of(schema), 6, ImmutableList.of(spec), spec.lastAssignedFieldId(),
         TableMetadata.INITIAL_SORT_ORDER_ID, ImmutableList.of(sortOrder), ImmutableMap.of("property", "value"),
         currentSnapshotId, Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of(), ImmutableList.of());
 
@@ -194,10 +191,10 @@ public class TestTableMetadata {
         expected.lastColumnId(), metadata.lastColumnId());
     Assert.assertEquals("Current schema ID should be default to TableMetadata.INITIAL_SCHEMA_ID",
         TableMetadata.INITIAL_SCHEMA_ID, metadata.currentSchemaId());
-    Assert.assertEquals("Schemas should contain the schema",
+    Assert.assertEquals("Schemas size should match",
         1, metadata.schemas().size());
     Assert.assertEquals("Schemas should contain the schema",
-        metadata.schemas().get(0), versionedSchema);
+        metadata.schemas().get(0).asStruct(), schema.asStruct());
     Assert.assertEquals("Partition spec should be the default",
         expected.spec().toString(), metadata.spec().toString());
     Assert.assertEquals("Default spec ID should default to TableMetadata.INITIAL_SPEC_ID",
@@ -293,7 +290,7 @@ public class TestTableMetadata {
 
     TableMetadata base = new TableMetadata(null, 1, UUID.randomUUID().toString(), TEST_LOCATION,
         0, System.currentTimeMillis(), 3,
-        7, ImmutableList.of(TEST_VERSIONED_SCHEMA), 5, ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
+        7, ImmutableList.of(TEST_SCHEMA), 5, ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
         3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
@@ -329,7 +326,7 @@ public class TestTableMetadata {
 
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
         TEST_LOCATION, 0, currentTimestamp - 80, 3,
-        7, ImmutableList.of(TEST_VERSIONED_SCHEMA), 5, ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
+        7, ImmutableList.of(TEST_SCHEMA), 5, ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
         3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
@@ -375,7 +372,7 @@ public class TestTableMetadata {
 
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
         TEST_LOCATION, 0, currentTimestamp - 50, 3,
-        7, ImmutableList.of(TEST_VERSIONED_SCHEMA), 5,
+        7, ImmutableList.of(TEST_SCHEMA), 5,
         ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(), 3, ImmutableList.of(SORT_ORDER_3),
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
@@ -426,7 +423,7 @@ public class TestTableMetadata {
         "/tmp/000006-" + UUID.randomUUID().toString() + ".metadata.json");
 
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
-        TEST_LOCATION, 0, currentTimestamp - 50, 3, 7, ImmutableList.of(TEST_VERSIONED_SCHEMA), 2,
+        TEST_LOCATION, 0, currentTimestamp - 50, 3, 7, ImmutableList.of(TEST_SCHEMA), 2,
         ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
         TableMetadata.INITIAL_SORT_ORDER_ID, ImmutableList.of(SortOrder.unsorted()),
         ImmutableMap.of("property", "value"), currentSnapshotId,
@@ -454,7 +451,7 @@ public class TestTableMetadata {
     AssertHelpers.assertThrows("Should reject v2 metadata without a UUID",
         IllegalArgumentException.class, "UUID is required in format v2",
         () -> new TableMetadata(null, 2, null, TEST_LOCATION, SEQ_NO, System.currentTimeMillis(),
-            LAST_ASSIGNED_COLUMN_ID, 7, ImmutableList.of(TEST_VERSIONED_SCHEMA),
+            LAST_ASSIGNED_COLUMN_ID, 7, ImmutableList.of(TEST_SCHEMA),
             SPEC_5.specId(), ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
             3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of(), -1L,
             ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
@@ -468,7 +465,7 @@ public class TestTableMetadata {
         IllegalArgumentException.class, "Unsupported format version: v" + unsupportedVersion,
         () -> new TableMetadata(null, unsupportedVersion, null, TEST_LOCATION, SEQ_NO,
             System.currentTimeMillis(), LAST_ASSIGNED_COLUMN_ID,
-            7, ImmutableList.of(TEST_VERSIONED_SCHEMA), SPEC_5.specId(), ImmutableList.of(SPEC_5),
+            7, ImmutableList.of(TEST_SCHEMA), SPEC_5.specId(), ImmutableList.of(SPEC_5),
             SPEC_5.lastAssignedFieldId(), 3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of(), -1L,
             ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
     );
@@ -646,16 +643,14 @@ public class TestTableMetadata {
 
   @Test
   public void testUpdateSchema() {
-    Schema schema = new Schema(
+    Schema schema = new Schema(0,
         Types.NestedField.required(1, "y", Types.LongType.get(), "comment")
     );
-    VersionedSchema versionedSchema = new VersionedSchema(0, schema);
     TableMetadata freshTable = TableMetadata.newTableMetadata(
         schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
     Assert.assertEquals("Should use TableMetadata.INITIAL_SCHEMA_ID for current schema id",
         TableMetadata.INITIAL_SCHEMA_ID, freshTable.currentSchemaId());
-    Assert.assertEquals("Should have expected versioned schemas",
-        ImmutableList.of(versionedSchema), freshTable.schemas());
+    assertSameSchemaList(ImmutableList.of(schema), freshTable.schemas());
     Assert.assertEquals("Should have expected schema upon return",
         schema.asStruct(), freshTable.schema().asStruct());
     Assert.assertEquals("Should return expected last column id", 1, freshTable.lastColumnId());
@@ -668,10 +663,10 @@ public class TestTableMetadata {
     TableMetadata twoSchemasTable = freshTable.updateSchema(schema2, 2);
     Assert.assertEquals("Should have current schema id as 1",
         1, twoSchemasTable.currentSchemaId());
-    Assert.assertEquals("Should have expected versioned schemas",
-        ImmutableList.of(versionedSchema, new VersionedSchema(1, schema2)), twoSchemasTable.schemas());
+    assertSameSchemaList(ImmutableList.of(schema, new Schema(1, schema2.columns())),
+        twoSchemasTable.schemas());
     Assert.assertEquals("Should have expected schema upon return",
-        schema2, twoSchemasTable.schema());
+        schema2.asStruct(), twoSchemasTable.schema().asStruct());
     Assert.assertEquals("Should return expected last column id", 2, twoSchemasTable.lastColumnId());
 
     // update schema with the the same schema and last column ID as current shouldn't cause change
@@ -687,10 +682,10 @@ public class TestTableMetadata {
     TableMetadata differentColumnIdTable = sameSchemaTable.updateSchema(sameSchema2, 3);
     Assert.assertEquals("Should have current schema id as 1",
         1, differentColumnIdTable.currentSchemaId());
-    Assert.assertEquals("Should have expected versioned schemas",
-        ImmutableList.of(versionedSchema, new VersionedSchema(1, schema2)), differentColumnIdTable.schemas());
+    assertSameSchemaList(ImmutableList.of(schema, new Schema(1, schema2.columns())),
+        differentColumnIdTable.schemas());
     Assert.assertEquals("Should have expected schema upon return",
-        schema2, differentColumnIdTable.schema());
+        schema2.asStruct(), differentColumnIdTable.schema().asStruct());
     Assert.assertEquals("Should return expected last column id",
         3, differentColumnIdTable.lastColumnId());
 
@@ -698,8 +693,8 @@ public class TestTableMetadata {
     TableMetadata revertSchemaTable = differentColumnIdTable.updateSchema(schema, 3);
     Assert.assertEquals("Should have current schema id as 0",
         0, revertSchemaTable.currentSchemaId());
-    Assert.assertEquals("Should have expected versioned schemas",
-        ImmutableList.of(versionedSchema, new VersionedSchema(1, schema2)), revertSchemaTable.schemas());
+    assertSameSchemaList(ImmutableList.of(schema, new Schema(1, schema2.columns())),
+        revertSchemaTable.schemas());
     Assert.assertEquals("Should have expected schema upon return",
         schema.asStruct(), revertSchemaTable.schema().asStruct());
     Assert.assertEquals("Should return expected last column id",
@@ -714,13 +709,29 @@ public class TestTableMetadata {
     TableMetadata threeSchemaTable = revertSchemaTable.updateSchema(schema3, 3);
     Assert.assertEquals("Should have current schema id as 2",
         2, threeSchemaTable.currentSchemaId());
-    Assert.assertEquals("Should have expected versioned schemas",
-        ImmutableList.of(versionedSchema,
-            new VersionedSchema(1, schema2),
-            new VersionedSchema(2, schema3)), threeSchemaTable.schemas());
+    assertSameSchemaList(ImmutableList.of(schema,
+            new Schema(1, schema2.columns()),
+            new Schema(2, schema3.columns())), threeSchemaTable.schemas());
     Assert.assertEquals("Should have expected schema upon return",
-        schema3, threeSchemaTable.schema());
+        schema3.asStruct(), threeSchemaTable.schema().asStruct());
     Assert.assertEquals("Should return expected last column id",
         3, threeSchemaTable.lastColumnId());
+  }
+
+  private void assertSameSchemaList(List<Schema> list1, List<Schema> list2) {
+    if (list1.size() != list2.size()) {
+      Assert.fail("Should have same number of schemas in both lists");
+    }
+
+    IntStream.range(0, list1.size()).forEach(
+        index -> {
+          Schema schema1 = list1.get(index);
+          Schema schema2 = list2.get(index);
+          Assert.assertEquals("Should have matching schema id",
+              schema1.schemaId(), schema2.schemaId());
+          Assert.assertEquals("Should have matching schema struct",
+              schema1.asStruct(), schema2.asStruct());
+        }
+    );
   }
 }

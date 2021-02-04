@@ -91,8 +91,7 @@ public class TableMetadata implements Serializable {
                                         int formatVersion) {
     // reassign all column ids to ensure consistency
     AtomicInteger lastColumnId = new AtomicInteger(0);
-    Schema freshSchema = TypeUtil.assignFreshIds(schema, lastColumnId::incrementAndGet);
-    VersionedSchema versionedSchema = new VersionedSchema(INITIAL_SCHEMA_ID, freshSchema);
+    Schema freshSchema = TypeUtil.assignFreshIds(INITIAL_SCHEMA_ID, schema, lastColumnId::incrementAndGet);
 
     // rebuild the partition spec using the new column ids
     PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(freshSchema)
@@ -118,7 +117,7 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, formatVersion, UUID.randomUUID().toString(), location,
         INITIAL_SEQUENCE_NUMBER, System.currentTimeMillis(),
-        lastColumnId.get(), versionedSchema.schemaId(), ImmutableList.of(versionedSchema),
+        lastColumnId.get(), freshSchema.schemaId(), ImmutableList.of(freshSchema),
         INITIAL_SPEC_ID, ImmutableList.of(freshSpec), freshSpec.lastAssignedFieldId(),
         freshSortOrderId, ImmutableList.of(freshSortOrder),
         ImmutableMap.copyOf(properties), -1, ImmutableList.of(),
@@ -223,7 +222,7 @@ public class TableMetadata implements Serializable {
   private final long lastUpdatedMillis;
   private final int lastColumnId;
   private final int currentSchemaId;
-  private final List<VersionedSchema> schemas;
+  private final List<Schema> schemas;
   private final int defaultSpecId;
   private final List<PartitionSpec> specs;
   private final int lastAssignedPartitionId;
@@ -233,7 +232,7 @@ public class TableMetadata implements Serializable {
   private final long currentSnapshotId;
   private final List<Snapshot> snapshots;
   private final Map<Long, Snapshot> snapshotsById;
-  private final Map<Integer, VersionedSchema> schemasById;
+  private final Map<Integer, Schema> schemasById;
   private final Map<Integer, PartitionSpec> specsById;
   private final Map<Integer, SortOrder> sortOrdersById;
   private final List<HistoryEntry> snapshotLog;
@@ -248,7 +247,7 @@ public class TableMetadata implements Serializable {
                 long lastUpdatedMillis,
                 int lastColumnId,
                 int currentSchemaId,
-                List<VersionedSchema> schemas,
+                List<Schema> schemas,
                 int defaultSpecId,
                 List<PartitionSpec> specs,
                 int lastAssignedPartitionId,
@@ -367,14 +366,14 @@ public class TableMetadata implements Serializable {
   }
 
   public Schema schema() {
-    return schemasById.get(currentSchemaId).schema();
+    return schemasById.get(currentSchemaId);
   }
 
-  public List<VersionedSchema> schemas() {
+  public List<Schema> schemas() {
     return schemas;
   }
 
-  public Map<Integer, VersionedSchema> schemasById() {
+  public Map<Integer, Schema> schemasById() {
     return schemasById;
   }
 
@@ -480,8 +479,8 @@ public class TableMetadata implements Serializable {
   private int reuseOrCreateNewSchemaId(Schema newSchema) {
     // if the schema already exists, use its id; otherwise use the highest id + 1
     int newSchemaId = currentSchemaId;
-    for (VersionedSchema schema : schemas) {
-      if (schema.schema().asStruct().equals(newSchema.asStruct())) {
+    for (Schema schema : schemas) {
+      if (schema.asStruct().equals(newSchema.asStruct())) {
         newSchemaId = schema.schemaId();
         break;
       } else if (schema.schemaId() >= newSchemaId) {
@@ -504,10 +503,10 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    ImmutableList.Builder<VersionedSchema> builder = ImmutableList.<VersionedSchema>builder()
+    ImmutableList.Builder<Schema> builder = ImmutableList.<Schema>builder()
         .addAll(schemas);
     if (!schemasById.containsKey(newSchemaId)) {
-      builder.add(new VersionedSchema(newSchemaId, newSchema));
+      builder.add(new Schema(newSchemaId, newSchema.columns()));
     }
 
     return new TableMetadata(null, formatVersion, uuid, location,
@@ -773,10 +772,10 @@ public class TableMetadata implements Serializable {
 
     // determine the next schema id
     int freshSchemaId = reuseOrCreateNewSchemaId(freshSchema);
-    ImmutableList.Builder<VersionedSchema> schemasBuilder = ImmutableList.<VersionedSchema>builder().addAll(schemas);
+    ImmutableList.Builder<Schema> schemasBuilder = ImmutableList.<Schema>builder().addAll(schemas);
 
     if (!schemasById.containsKey(freshSchemaId)) {
-      schemasBuilder.add(new VersionedSchema(freshSchemaId, freshSchema));
+      schemasBuilder.add(new Schema(freshSchemaId, freshSchema.columns()));
     }
 
     return new TableMetadata(null, formatVersion, uuid, newLocation,
@@ -904,9 +903,9 @@ public class TableMetadata implements Serializable {
     return builder.build();
   }
 
-  private Map<Integer, VersionedSchema> indexSchemas() {
-    ImmutableMap.Builder<Integer, VersionedSchema> builder = ImmutableMap.builder();
-    for (VersionedSchema schema : schemas) {
+  private Map<Integer, Schema> indexSchemas() {
+    ImmutableMap.Builder<Integer, Schema> builder = ImmutableMap.builder();
+    for (Schema schema : schemas) {
       builder.put(schema.schemaId(), schema);
     }
     return builder.build();

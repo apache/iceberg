@@ -143,8 +143,8 @@ public class SchemaParser {
     }
   }
 
-  public static void toJson(VersionedSchema schema, JsonGenerator generator) throws IOException {
-    toJson(schema.schema().asStruct(), schema.schemaId(), generator);
+  public static void toJsonWithVersion(Schema schema, JsonGenerator generator) throws IOException {
+    toJson(schema.asStruct(), schema.schemaId(), generator);
   }
 
   public static void toJson(Schema schema, JsonGenerator generator) throws IOException {
@@ -267,7 +267,14 @@ public class SchemaParser {
     });
   }
 
-  public static VersionedSchema versionedSchemaFromJson(JsonNode json) {
-    return new VersionedSchema(JsonUtil.getInt(SCHEMA_ID, json), fromJson(json));
+  public static Schema fromJsonWithId(int schemaId, JsonNode json) {
+    Type type  = typeFromJson(json);
+    Preconditions.checkArgument(type.isNestedType() && type.asNestedType().isStructType(),
+        "Cannot create schema, not a struct type: %s", type);
+    return new Schema(schemaId, type.asNestedType().asStructType().fields());
+  }
+
+  public static Schema fromJsonWithId(JsonNode json) {
+    return fromJsonWithId(JsonUtil.getInt(SCHEMA_ID, json), json);
   }
 }

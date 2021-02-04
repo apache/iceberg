@@ -158,6 +158,21 @@ public class TypeUtil {
   }
 
   /**
+   * Assigns fresh ids from the {@link NextID nextId function} for all fields in a schema.
+   *
+   * @param schemaId an ID assigned to this schema
+   * @param schema a schema
+   * @param nextId an id assignment function
+   * @return a structurally identical schema with new ids assigned by the nextId function
+   */
+  public static Schema assignFreshIds(int schemaId, Schema schema, NextID nextId) {
+    return new Schema(schemaId, TypeUtil
+        .visit(schema.asStruct(), new AssignFreshIds(nextId))
+        .asNestedType()
+        .fields());
+  }
+
+  /**
    * Assigns ids to match a given schema, and fresh ids from the {@link NextID nextId function} for all other fields.
    *
    * @param schema a schema
