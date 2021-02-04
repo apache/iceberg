@@ -50,6 +50,7 @@ public class SparkProcedures {
     mapBuilder.put("expire_snapshots", ExpireSnapshotsProcedure::builder);
     mapBuilder.put("migrate", MigrateTableProcedure::builder);
     mapBuilder.put("snapshot", SnapshotTableProcedure::builder);
+    mapBuilder.put("add_files", AddFilesProcedure::builder);
     return mapBuilder.build();
   }
 
