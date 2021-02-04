@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.plan.TableDesc;
 import org.apache.hadoop.mapred.JobConf;
@@ -66,6 +67,7 @@ public class TestHiveIcebergOutputCommitter {
   private static final int RECORD_NUM = 5;
   private static final String QUERY_ID = "query_id";
   private static final JobID JOB_ID = new JobID("test", 0);
+  private static final AtomicInteger JOB_ID_COUNTER = new AtomicInteger(0);
   private static final TaskAttemptID MAP_TASK_ID =
       new TaskAttemptID(JOB_ID.getJtIdentifier(), JOB_ID.getId(), TaskType.MAP, 0, 0);
   private static final TaskAttemptID REDUCE_TASK_ID =
@@ -197,8 +199,9 @@ public class TestHiveIcebergOutputCommitter {
 
     Table table = table(temp.getRoot().getPath(), false);
     JobConf conf = jobConf(table, 1);
+    JobID jobId = new JobID(JOB_ID.getJtIdentifier(), JOB_ID_COUNTER.getAndIncrement());
     try {
-      writeRecords(1, 0, true, false, conf, failingCommitter);
+      writeRecords(1, 0, true, false, conf, failingCommitter, jobId);
       Assert.fail();
     } catch (RuntimeException e) {
       Assert.assertTrue(e.getMessage().contains(exceptionMessage));
@@ -244,11 +247,12 @@ public class TestHiveIcebergOutputCommitter {
    *                   situation
    * @param conf The job configuration
    * @param committer The output committer that should be used for committing/aborting the tasks
+   * @param jobId The jobID that should be used for the write task
    * @return The random generated records which were appended to the table
    * @throws IOException Propagating {@link HiveIcebergRecordWriter} exceptions
    */
   private List<Record> writeRecords(int taskNum, int attemptNum, boolean commitTasks, boolean abortTasks,
-                                    JobConf conf, OutputCommitter committer) throws IOException {
+                                    JobConf conf, OutputCommitter committer, JobID jobId) throws IOException {
     List<Record> expected = new ArrayList<>(RECORD_NUM * taskNum);
 
     FileIO io = HiveIcebergStorageHandler.io(conf);
@@ -259,10 +263,10 @@ public class TestHiveIcebergOutputCommitter {
 
     for (int i = 0; i < taskNum; ++i) {
       List<Record> records = TestHelper.generateRandomRecords(schema, RECORD_NUM, i + attemptNum);
-      TaskAttemptID taskId = new TaskAttemptID(JOB_ID.getJtIdentifier(), JOB_ID.getId(), TaskType.MAP, i, attemptNum);
+      TaskAttemptID taskId = new TaskAttemptID(jobId.getJtIdentifier(), jobId.getId(), TaskType.MAP, i, attemptNum);
       OutputFileFactory outputFileFactory =
           new OutputFileFactory(spec, FileFormat.PARQUET, location, io, encryption, taskId.getTaskID().getId(),
-              attemptNum, QUERY_ID + "-" + JOB_ID);
+              attemptNum, QUERY_ID + "-" + jobId);
       HiveIcebergRecordWriter testWriter = new HiveIcebergRecordWriter(schema, spec, FileFormat.PARQUET,
           new GenericAppenderFactory(schema), outputFileFactory, io, TARGET_FILE_SIZE, taskId);
 
@@ -287,6 +291,6 @@ public class TestHiveIcebergOutputCommitter {
 
   private List<Record> writeRecords(int taskNum, int attemptNum, boolean commitTasks, boolean abortTasks,
                                     JobConf conf) throws IOException {
-    return writeRecords(taskNum, attemptNum, commitTasks, abortTasks, conf, new HiveIcebergOutputCommitter());
+    return writeRecords(taskNum, attemptNum, commitTasks, abortTasks, conf, new HiveIcebergOutputCommitter(), JOB_ID);
   }
 }
