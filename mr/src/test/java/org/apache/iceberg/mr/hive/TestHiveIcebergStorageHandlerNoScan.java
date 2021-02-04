@@ -58,6 +58,7 @@ import org.apache.thrift.TException;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -586,28 +587,27 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
   @Test
   public void testDropHiveTableWithoutUnderlyingTable() throws IOException {
+    Assume.assumeFalse("Not relevant for HiveCatalog", Catalogs.hiveCatalog(shell.getHiveConf()));
+
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    // Create the Iceberg table in non-HiveCatalog
+    testTables.createIcebergTable(shell.getHiveConf(), identifier.name(),
+        HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, FileFormat.PARQUET,
+        HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
 
-    if (!Catalogs.hiveCatalog(shell.getHiveConf())) {
-      // Create the Iceberg table in non-HiveCatalog
-      testTables.createIcebergTable(shell.getHiveConf(), identifier.name(),
-          HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, FileFormat.PARQUET,
-          HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
+    // Create Hive table on top
+    String tableLocation = testTables.locationForCreateTableSQL(identifier);
+    shell.executeStatement(testTables.createHiveTableSQL(identifier,
+        ImmutableMap.of(InputFormatConfig.EXTERNAL_TABLE_PURGE, "TRUE")));
 
-      // Create Hive table on top
-      String tableLocation = testTables.locationForCreateTableSQL(identifier);
-      shell.executeStatement(testTables.createHiveTableSQL(identifier,
-          ImmutableMap.of(InputFormatConfig.EXTERNAL_TABLE_PURGE, "TRUE")));
+    // Drop the Iceberg table
+    Properties properties = new Properties();
+    properties.put(Catalogs.NAME, identifier.toString());
+    properties.put(Catalogs.LOCATION, tableLocation);
+    Catalogs.dropTable(shell.getHiveConf(), properties);
 
-      // Drop the Iceberg table
-      Properties properties = new Properties();
-      properties.put(Catalogs.NAME, identifier.toString());
-      properties.put(Catalogs.LOCATION, tableLocation);
-      Catalogs.dropTable(shell.getHiveConf(), properties);
-
-      // Finally drop the Hive table as well
-      shell.executeStatement("DROP TABLE " + identifier);
-    }
+    // Finally drop the Hive table as well
+    shell.executeStatement("DROP TABLE " + identifier);
   }
 
   private String getCurrentSnapshotForHiveCatalogTable(org.apache.iceberg.Table icebergTable) {
