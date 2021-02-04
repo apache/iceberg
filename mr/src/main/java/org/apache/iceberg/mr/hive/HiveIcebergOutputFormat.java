@@ -45,8 +45,6 @@ import org.apache.iceberg.mr.mapred.Container;
 public class HiveIcebergOutputFormat<T> implements OutputFormat<NullWritable, Container<Record>>,
     HiveOutputFormat<NullWritable, Container<Record>> {
 
-  private static final String TASK_ATTEMPT_ID_KEY = "mapred.task.id";
-
   @Override
   public FileSinkOperator.RecordWriter getHiveRecordWriter(JobConf jc, Path finalOutPath, Class valueClass,
       boolean isCompressed, Properties tableAndSerDeProperties, Progressable progress) {
@@ -65,7 +63,7 @@ public class HiveIcebergOutputFormat<T> implements OutputFormat<NullWritable, Co
   }
 
   private static HiveIcebergRecordWriter writer(JobConf jc) {
-    TaskAttemptID taskAttemptID = TaskAttemptID.forName(jc.get(TASK_ATTEMPT_ID_KEY));
+    TaskAttemptID taskAttemptID = TezUtil.taskAttemptWrapper(jc);
     Schema schema = HiveIcebergStorageHandler.schema(jc);
     PartitionSpec spec = HiveIcebergStorageHandler.spec(jc);
     FileFormat fileFormat = FileFormat.valueOf(jc.get(InputFormatConfig.WRITE_FILE_FORMAT));

@@ -205,7 +205,7 @@ public class TestHiveIcebergOutputCommitter {
     }
 
     Assert.assertEquals(1, argumentCaptor.getAllValues().size());
-    TaskAttemptID capturedId = argumentCaptor.getValue().getTaskAttemptID();
+    TaskAttemptID capturedId = TezUtil.taskAttemptWrapper(argumentCaptor.getValue().getTaskAttemptID());
     // writer is still in the map after commitTask failure
     Assert.assertNotNull(getWriter(capturedId));
     failingCommitter.abortTask(new TaskAttemptContextImpl(conf, capturedId));
@@ -264,7 +264,8 @@ public class TestHiveIcebergOutputCommitter {
           new OutputFileFactory(spec, FileFormat.PARQUET, location, io, encryption, taskId.getTaskID().getId(),
               attemptNum, QUERY_ID + "-" + JOB_ID);
       HiveIcebergRecordWriter testWriter = new HiveIcebergRecordWriter(schema, spec, FileFormat.PARQUET,
-          new GenericAppenderFactory(schema), outputFileFactory, io, TARGET_FILE_SIZE, taskId);
+          new GenericAppenderFactory(schema), outputFileFactory, io, TARGET_FILE_SIZE,
+          TezUtil.taskAttemptWrapper(taskId));
 
       Container<Record> container = new Container<>();
 
