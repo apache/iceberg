@@ -21,10 +21,9 @@ package org.apache.iceberg.spark.extensions
 
 import org.apache.spark.sql.SparkSessionExtensions
 import org.apache.spark.sql.catalyst.analysis.AlignRowLevelOperations
-import org.apache.spark.sql.catalyst.analysis.DeleteFromTablePredicateCheck
-import org.apache.spark.sql.catalyst.analysis.MergeIntoTablePredicateCheck
 import org.apache.spark.sql.catalyst.analysis.ProcedureArgumentCoercion
 import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
+import org.apache.spark.sql.catalyst.analysis.RowLevelOperationsPredicateCheck
 import org.apache.spark.sql.catalyst.optimizer.OptimizeConditionsInRowLevelOperations
 import org.apache.spark.sql.catalyst.optimizer.PullupCorrelatedPredicatesInRowLevelOperations
 import org.apache.spark.sql.catalyst.optimizer.RewriteDelete
@@ -43,8 +42,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     extensions.injectResolutionRule { spark => ResolveProcedures(spark) }
     extensions.injectResolutionRule { _ => ProcedureArgumentCoercion }
     extensions.injectPostHocResolutionRule { spark => AlignRowLevelOperations(spark.sessionState.conf)}
-    extensions.injectCheckRule { _ => DeleteFromTablePredicateCheck }
-    extensions.injectCheckRule { _ => MergeIntoTablePredicateCheck }
+    extensions.injectCheckRule { _ => RowLevelOperationsPredicateCheck }
 
     // optimizer extensions
     extensions.injectOptimizerRule { _ => OptimizeConditionsInRowLevelOperations }

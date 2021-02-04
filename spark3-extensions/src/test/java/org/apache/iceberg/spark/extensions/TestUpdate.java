@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -71,6 +72,9 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
   @After
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+    sql("DROP TABLE IF EXISTS updated_id");
+    sql("DROP TABLE IF EXISTS updated_dep");
+    sql("DROP TABLE IF EXISTS deleted_employee");
   }
 
   @Test
@@ -517,6 +521,281 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM tmp ORDER BY id, dep"));
 
     spark.sql("UNCACHE TABLE tmp");
+  }
+
+  @Test
+  public void testUpdateWithInSubquery() {
+    createAndInitTable("id INT, dep STRING");
+
+    append(tableName,
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" +
+        "{ \"id\": 2, \"dep\": \"hardware\" }\n" +
+        "{ \"id\": null, \"dep\": \"hr\" }");
+
+    createOrReplaceView("updated_id", Arrays.asList(0, 1, null), Encoders.INT());
+    createOrReplaceView("updated_dep", Arrays.asList("software", "hr"), Encoders.STRING());
+
+    sql("UPDATE %s SET id = -1 WHERE " +
+        "id IN (SELECT * FROM updated_id) AND " +
+        "dep IN (SELECT * from updated_dep)", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(-1, "hr"), row(2, "hardware"), row(null, "hr")),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    sql("UPDATE %s SET id = 5 WHERE id IS NULL OR id IN (SELECT value + 1 FROM updated_id)", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(-1, "hr"), row(5, "hardware"), row(5, "hr")),
+        sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+
+    append(tableName,
+        "{ \"id\": null, \"dep\": \"hr\" }\n" +
+        "{ \"id\": 2, \"dep\": \"hr\" }");
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(-1, "hr"), row(2, "hr"), row(5, "hardware"), row(5, "hr"), row(null, "hr")),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST, dep", tableName));
+
+    sql("UPDATE %s SET id = 10 WHERE id IN (SELECT value + 2 FROM updated_id) AND dep = 'hr'", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(-1, "hr"), row(5, "hardware"), row(5, "hr"), row(10, "hr"), row(null, "hr")),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST, dep", tableName));
+  }
+
+  @Test
+  public void testUpdateWithInSubqueryAndDynamicFileFiltering() {
+    createAndInitTable("id INT, dep STRING");
+    sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
+
+    sql("ALTER TABLE %s WRITE DISTRIBUTED BY PARTITION", tableName);
+
+    append(tableName,
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" +
+        "{ \"id\": 3, \"dep\": \"hr\" }");
+    append(tableName,
+        "{ \"id\": 1, \"dep\": \"hardware\" }\n" +
+        "{ \"id\": 2, \"dep\": \"hardware\" }");
+
+    createOrReplaceView("updated_id", Arrays.asList(-1, 2), Encoders.INT());
+
+    sql("UPDATE %s SET id = -1 WHERE id IN (SELECT * FROM updated_id)", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
+
+    Snapshot currentSnapshot = table.currentSnapshot();
+    validateSnapshot(currentSnapshot, "overwrite", "1", "1", "1");
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(-1, "hardware"), row(1, "hardware"), row(1, "hr"), row(3, "hr")),
+        sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+  }
+
+  @Test
+  public void testUpdateWithSelfSubquery() {
+    createAndInitTable("id INT, dep STRING");
+
+    append(tableName,
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" +
+        "{ \"id\": 2, \"dep\": \"hr\" }");
+
+    sql("UPDATE %s SET dep = 'x' WHERE id IN (SELECT id + 1 FROM %s)", tableName, tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1, "hr"), row(2, "x")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    sql("UPDATE %s SET dep = 'y' WHERE " +
+        "id = (SELECT count(*) FROM (SELECT DISTINCT id FROM %s) AS t)", tableName, tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1, "hr"), row(2, "y")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    sql("UPDATE %s SET id = (SELECT id - 2 FROM %s WHERE id = 1)", tableName, tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(-1, "hr"), row(-1, "y")),
+        sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+  }
+
+  @Test
+  public void testUpdateWithMultiColumnInSubquery() {
+    createAndInitTable("id INT, dep STRING");
+
+    append(tableName,
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" +
+        "{ \"id\": 2, \"dep\": \"hardware\" }\n" +
+        "{ \"id\": null, \"dep\": \"hr\" }");
+
+    List<Employee> deletedEmployees = Arrays.asList(new Employee(null, "hr"), new Employee(1, "hr"));
+    createOrReplaceView("deleted_employee", deletedEmployees, Encoders.bean(Employee.class));
+
+    sql("UPDATE %s SET dep = 'x', id = -1 WHERE (id, dep) IN (SELECT id, dep FROM deleted_employee)", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(-1, "x"), row(2, "hardware"), row(null, "hr")),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+  }
+
+  @Ignore // TODO: not supported since SPARK-25154 fix is not yet available
+  public void testUpdateWithNotInSubquery() {
+    createAndInitTable("id INT, dep STRING");
+
+    append(tableName,
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" +
+        "{ \"id\": 2, \"dep\": \"hardware\" }\n" +
+        "{ \"id\": null, \"dep\": \"hr\" }");
+
+    createOrReplaceView("updated_id", Arrays.asList(-1, -2, null), Encoders.INT());
+    createOrReplaceView("updated_dep", Arrays.asList("software", "hr"), Encoders.STRING());
+
+    // the file filter subquery (nested loop lef-anti join) returns 0 records
+    sql("UPDATE %s SET id = -1 WHERE id NOT IN (SELECT * FROM updated_id)", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    sql("UPDATE %s SET id = -1 WHERE id NOT IN (SELECT * FROM updated_id WHERE value IS NOT NULL)", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(-1, "hr"), row(-1, "hardware"), row(null, "hr")),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST, dep", tableName));
+
+    sql("UPDATE %s SET id = 5 WHERE id NOT IN (SELECT * FROM updated_id) OR dep IN ('software', 'hr')", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(-1, "hardware"), row(5, "hr"), row(5, "hr")),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST, dep", tableName));
+  }
+
+  @Test
+  public void testUpdateWithNotInSubqueryNotSupported() {
+    createAndInitTable("id INT, dep STRING");
+
+    createOrReplaceView("updated_id", Arrays.asList(-1, -2, null), Encoders.INT());
+
+    AssertHelpers.assertThrows("Should complain about NOT IN subquery",
+        AnalysisException.class, "Null-aware predicate subqueries are not currently supported",
+        () -> sql("UPDATE %s SET id = -1 WHERE id NOT IN (SELECT * FROM updated_id)", tableName));
+  }
+
+  @Test
+  public void testUpdateWithExistSubquery() {
+    createAndInitTable("id INT, dep STRING");
+
+    append(tableName,
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" +
+        "{ \"id\": 2, \"dep\": \"hardware\" }\n" +
+        "{ \"id\": null, \"dep\": \"hr\" }");
+
+    createOrReplaceView("updated_id", Arrays.asList(-1, -2, null), Encoders.INT());
+    createOrReplaceView("updated_dep", Arrays.asList("hr", null), Encoders.STRING());
+
+    sql("UPDATE %s t SET id = -1 WHERE EXISTS (SELECT 1 FROM updated_id u WHERE t.id = u.value)", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1, "hr"), row(2, "hardware"), row(null, "hr")),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    sql("UPDATE %s t SET dep = 'x', id = -1 WHERE " +
+        "EXISTS (SELECT 1 FROM updated_id u WHERE t.id = u.value + 2)", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(-1, "x"), row(2, "hardware"), row(null, "hr")),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    sql("UPDATE %s t SET id = -2 WHERE " +
+        "EXISTS (SELECT 1 FROM updated_id u WHERE t.id = u.value) OR " +
+        "t.id IS NULL", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(-2, "hr"), row(-2, "x"), row(2, "hardware")),
+        sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+
+    sql("UPDATE %s t SET id = 1 WHERE " +
+        "EXISTS (SELECT 1 FROM updated_id ui WHERE t.id = ui.value) AND " +
+        "EXISTS (SELECT 1 FROM updated_dep ud WHERE t.dep = ud.value)", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(-2, "x"), row(1, "hr"), row(2, "hardware")),
+        sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+  }
+
+  @Test
+  public void testUpdateWithNotExistsSubquery() {
+    createAndInitTable("id INT, dep STRING");
+
+    append(tableName,
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" +
+        "{ \"id\": 2, \"dep\": \"hardware\" }\n" +
+        "{ \"id\": null, \"dep\": \"hr\" }");
+
+    createOrReplaceView("updated_id", Arrays.asList(-1, -2, null), Encoders.INT());
+    createOrReplaceView("updated_dep", Arrays.asList("hr", "software"), Encoders.STRING());
+
+    sql("UPDATE %s t SET id = -1 WHERE NOT EXISTS (SELECT 1 FROM updated_id u WHERE t.id = u.value + 2)", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(-1, "hardware"), row(-1, "hr"), row(1, "hr")),
+        sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+
+    sql("UPDATE %s t SET id = 5 WHERE " +
+        "NOT EXISTS (SELECT 1 FROM updated_id u WHERE t.id = u.value) OR " +
+        "t.id = 1", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(-1, "hardware"), row(-1, "hr"), row(5, "hr")),
+        sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+
+    sql("UPDATE %s t SET id = 10 WHERE " +
+        "NOT EXISTS (SELECT 1 FROM updated_id ui WHERE t.id = ui.value) AND " +
+        "EXISTS (SELECT 1 FROM updated_dep ud WHERE t.dep = ud.value)", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(-1, "hardware"), row(-1, "hr"), row(10, "hr")),
+        sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+  }
+
+  @Test
+  public void testUpdateWithScalarSubquery() {
+    createAndInitTable("id INT, dep STRING");
+
+    append(tableName,
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" +
+        "{ \"id\": 2, \"dep\": \"hardware\" }\n" +
+        "{ \"id\": null, \"dep\": \"hr\" }");
+
+    createOrReplaceView("updated_id", Arrays.asList(1, 100, null), Encoders.INT());
+
+    sql("UPDATE %s SET id = -1 WHERE id <= (SELECT min(value) FROM updated_id)", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(-1, "hr"), row(2, "hardware"), row(null, "hr")),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+  }
+
+  @Test
+  public void testUpdateThatRequiresGroupingBeforeWrite() {
+    createAndInitTable("id INT, dep STRING");
+    sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
+
+    append(tableName,
+        "{ \"id\": 0, \"dep\": \"hr\" }\n" +
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" +
+        "{ \"id\": 2, \"dep\": \"hr\" }");
+
+    append(tableName,
+        "{ \"id\": 0, \"dep\": \"ops\" }\n" +
+        "{ \"id\": 1, \"dep\": \"ops\" }\n" +
+        "{ \"id\": 2, \"dep\": \"ops\" }");
+
+    append(tableName,
+        "{ \"id\": 0, \"dep\": \"hr\" }\n" +
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" +
+        "{ \"id\": 2, \"dep\": \"hr\" }");
+
+    append(tableName,
+        "{ \"id\": 0, \"dep\": \"ops\" }\n" +
+        "{ \"id\": 1, \"dep\": \"ops\" }\n" +
+        "{ \"id\": 2, \"dep\": \"ops\" }");
+
+    createOrReplaceView("updated_id", Arrays.asList(1, 100), Encoders.INT());
+
+    String originalNumOfShufflePartitions = spark.conf().get("spark.sql.shuffle.partitions");
+    try {
+      // set the num of shuffle partitions to 1 to ensure we have only 1 writing task
+      spark.conf().set("spark.sql.shuffle.partitions", "1");
+
+      sql("UPDATE %s t SET id = -1 WHERE id IN (SELECT * FROM updated_id)", tableName);
+      Assert.assertEquals("Should have expected num of rows", 12L, spark.table(tableName).count());
+    } finally {
+      spark.conf().set("spark.sql.shuffle.partitions", originalNumOfShufflePartitions);
+    }
   }
 
   @Test
