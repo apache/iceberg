@@ -607,6 +607,11 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(1, "hr"), row(2, "y")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    sql("UPDATE %s SET id = (SELECT id - 2 FROM %s WHERE id = 1)", tableName, tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(-1, "hr"), row(-1, "y")),
+        sql("SELECT * FROM %s ORDER BY id, dep", tableName));
   }
 
   @Test
