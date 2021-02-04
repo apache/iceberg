@@ -75,7 +75,7 @@ public class GenericPartitionFieldSummary
   }
 
   public GenericPartitionFieldSummary(boolean containsNull, boolean containsNaN, ByteBuffer lowerBound,
-                               ByteBuffer upperBound) {
+                                      ByteBuffer upperBound) {
     this.avroSchema = AVRO_SCHEMA;
     this.containsNull = containsNull;
     this.containsNaN = containsNaN;
@@ -86,8 +86,7 @@ public class GenericPartitionFieldSummary
 
   // for testing backward compatibility only
   @VisibleForTesting
-  GenericPartitionFieldSummary(boolean containsNull, ByteBuffer lowerBound,
-                                      ByteBuffer upperBound) {
+  GenericPartitionFieldSummary(boolean containsNull, ByteBuffer lowerBound, ByteBuffer upperBound) {
     this.avroSchema = AVRO_SCHEMA;
     this.containsNull = containsNull;
     this.lowerBound = ByteBuffers.toByteArray(lowerBound);

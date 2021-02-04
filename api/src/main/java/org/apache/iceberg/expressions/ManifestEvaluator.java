@@ -155,15 +155,6 @@ public class ManifestEvaluator {
       return ROWS_MIGHT_MATCH;
     }
 
-    private boolean allValuesAreNull(PartitionFieldSummary summary) {
-      // Before introducing containsNaN field, containsNull encodes whether at least one partition value is null,
-      // lowerBound is null if all partition values are null.
-      // After introducing containsNaN field, containsNaN must be false to ensure all values are null since bounds
-      // don't include NaN anymore.
-      return summary.containsNull() && summary.lowerBound() == null &&
-          (summary.containsNaN() == null || !summary.containsNaN());
-    }
-
     @Override
     public <T> Boolean notNaN(BoundReference<T> ref) {
       PartitionFieldSummary fieldSummary = stats.get(Accessors.toPosition(ref.accessor()));
@@ -346,6 +337,13 @@ public class ManifestEvaluator {
       }
 
       return ROWS_MIGHT_MATCH;
+    }
+
+    private boolean allValuesAreNull(PartitionFieldSummary summary) {
+      // containsNull encodes whether at least one partition value is null, lowerBound is null if all partition values
+      // are null; in case bounds don't include NaN value, containsNaN needs to be checked against.
+      return summary.containsNull() && summary.lowerBound() == null &&
+          summary.containsNaN() != null && !summary.containsNaN();
     }
   }
 }

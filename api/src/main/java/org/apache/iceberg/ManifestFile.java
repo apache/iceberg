@@ -201,7 +201,7 @@ public interface ManifestFile {
     boolean containsNull();
 
     /**
-     * Returns true if at least one data file in the manifest has a nan value for the field.
+     * Returns true if at least one data file in the manifest has a NaN value for the field.
      * Null if this information doesn't exist.
      * <p>
      * Default to return null to ensure backward compatibility.
