@@ -76,8 +76,8 @@ public abstract class TestSparkReaderDeletes extends DeleteReadTests {
         .enableHiveSupport()
         .getOrCreate();
 
-    catalog = (HiveCatalog) CatalogUtil.loadCatalog(HiveCatalog.class.getName(),
-        "hive", ImmutableMap.of(), hiveConf);
+    catalog = (HiveCatalog)
+        CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
 
     try {
       catalog.createNamespace(Namespace.of("default"));

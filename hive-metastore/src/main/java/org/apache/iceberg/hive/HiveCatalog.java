@@ -21,7 +21,6 @@ package org.apache.iceberg.hive;
 
 import java.io.Closeable;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -78,7 +77,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
    * Hive Catalog constructor.
    *
    * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
-   * v0.12.0
+   * v0.13.0
    * @param conf Hadoop Configuration
    */
   @Deprecated
@@ -90,71 +89,6 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     this.createStack = Thread.currentThread().getStackTrace();
     this.closed = false;
     this.fileIO = new HadoopFileIO(conf);
-  }
-
-  /**
-   * Hive Catalog constructor.
-   *
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
-   * v0.12.0
-   * @param name catalog name
-   * @param uri Hive metastore uri
-   * @param clientPoolSize size of client pool
-   * @param conf Hadoop Configuration
-   */
-  @Deprecated
-  public HiveCatalog(String name, String uri, int clientPoolSize, Configuration conf) {
-    this(name, uri, null, clientPoolSize, conf);
-  }
-
-  /**
-   * Hive Catalog constructor.
-   *
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
-   * v0.12.0
-   * @param name catalog name
-   * @param uri Hive metastore uri
-   * @param warehouse location of Hive warehouse
-   * @param clientPoolSize size of client pool
-   * @param conf Hadoop Configuration
-   */
-  @Deprecated
-  public HiveCatalog(String name, String uri, String warehouse, int clientPoolSize, Configuration conf) {
-    this(name, uri, warehouse, clientPoolSize, conf, Maps.newHashMap());
-  }
-
-  /**
-   * Hive Catalog constructor.
-   *
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
-   * v0.12.0
-   * @param name catalog name
-   * @param uri Hive metastore uri
-   * @param warehouse location of Hive warehouse
-   * @param clientPoolSize size of client pool
-   * @param conf Hadoop Configuration
-   * @param properties extra Hive configuration properties
-   */
-  @Deprecated
-  public HiveCatalog(
-      String name,
-      String uri,
-      String warehouse,
-      int clientPoolSize,
-      Configuration conf,
-      Map<String, String> properties) {
-
-    Map<String, String> props = new HashMap<>(properties);
-    if (warehouse != null) {
-      props.put(CatalogProperties.WAREHOUSE_LOCATION, warehouse);
-    }
-    if (uri != null) {
-      props.put(CatalogProperties.URI, uri);
-    }
-    props.put(CatalogProperties.CLIENT_POOL_SIZE, Integer.toString(clientPoolSize));
-
-    setConf(conf);
-    initialize(name, props);
   }
 
   @Override

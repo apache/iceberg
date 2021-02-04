@@ -36,7 +36,7 @@ public final class HiveCatalogs {
   public static HiveCatalog loadCatalog(Configuration conf) {
     // metastore URI can be null in local mode
     String metastoreUri = conf.get(HiveConf.ConfVars.METASTOREURIS.varname, "");
-    return CATALOG_CACHE.get(metastoreUri, uri -> (HiveCatalog) CatalogUtil.loadCatalog(HiveCatalog.class.getName(),
-        "hive", ImmutableMap.of(), conf));
+    return CATALOG_CACHE.get(metastoreUri, uri -> (HiveCatalog)
+        CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), conf));
   }
 }

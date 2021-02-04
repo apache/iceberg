@@ -59,8 +59,8 @@ public abstract class FlinkTestBase extends TestBaseUtils {
     FlinkTestBase.metastore = new TestHiveMetastore();
     metastore.start();
     FlinkTestBase.hiveConf = metastore.hiveConf();
-    FlinkTestBase.catalog = (HiveCatalog) CatalogUtil.loadCatalog(HiveCatalog.class.getName(),
-        "hive", ImmutableMap.of(), hiveConf);
+    FlinkTestBase.catalog = (HiveCatalog)
+        CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
   }
 
   @AfterClass

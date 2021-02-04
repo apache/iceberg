@@ -64,8 +64,8 @@ public abstract class SparkTestBase {
         .enableHiveSupport()
         .getOrCreate();
 
-    SparkTestBase.catalog = (HiveCatalog) CatalogUtil.loadCatalog(HiveCatalog.class.getName(),
-        "hive", ImmutableMap.of(), hiveConf);
+    SparkTestBase.catalog = (HiveCatalog)
+        CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
 
     try {
       catalog.createNamespace(Namespace.of("default"));

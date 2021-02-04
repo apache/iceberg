@@ -54,7 +54,7 @@ public abstract class SparkExtensionsTestBase extends SparkCatalogTestBase {
         .enableHiveSupport()
         .getOrCreate();
 
-    SparkTestBase.catalog = (HiveCatalog) CatalogUtil.loadCatalog(HiveCatalog.class.getName(),
-        "hive", ImmutableMap.of(), hiveConf);
+    SparkTestBase.catalog = (HiveCatalog)
+        CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
   }
 }
