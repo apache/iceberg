@@ -50,8 +50,14 @@ public class TestClientPool {
     clients = null;
   }
 
-  @Test(expected = MetaException.class)
+  @Test(expected = RuntimeException.class)
   public void testNewClientFailure() throws Exception {
+    Mockito.doThrow(new RuntimeException()).when(clients).newClient();
+    clients.run(Object :: toString);
+  }
+
+  @Test(expected = MetaException.class)
+  public void testGetTablesFailure() throws Exception {
     HiveMetaStoreClient hmsClient = Mockito.mock(HiveMetaStoreClient.class);
     Mockito.doReturn(hmsClient).when(clients).newClient();
     Mockito.doThrow(new MetaException("Another meta exception"))
