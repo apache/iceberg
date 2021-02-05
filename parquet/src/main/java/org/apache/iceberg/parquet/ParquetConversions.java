@@ -68,6 +68,21 @@ class ParquetConversions {
     }
   }
 
+  static Function<Object, Object> converterFromParquet(PrimitiveType parquetType, Type icebergType) {
+    Function<Object, Object> fromParquet = converterFromParquet(parquetType);
+    if (icebergType != null) {
+      if (icebergType.typeId() == Type.TypeID.LONG &&
+          parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32) {
+        return value -> ((Integer) fromParquet.apply(value)).longValue();
+      } else if (icebergType.typeId() == Type.TypeID.DOUBLE &&
+          parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FLOAT) {
+        return value -> ((Float) fromParquet.apply(value)).doubleValue();
+      }
+    }
+
+    return fromParquet;
+  }
+
   static Function<Object, Object> converterFromParquet(PrimitiveType type) {
     if (type.getOriginalType() != null) {
       switch (type.getOriginalType()) {
