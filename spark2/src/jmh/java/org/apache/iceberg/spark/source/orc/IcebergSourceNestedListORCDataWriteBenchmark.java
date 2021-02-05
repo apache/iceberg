@@ -91,17 +91,13 @@ public class IcebergSourceNestedListORCDataWriteBenchmark extends IcebergSourceN
   @Benchmark
   @Threads(1)
   public void writeFileSource2000() {
-    Map<String, String> conf = Maps.newHashMap();
-    conf.put(SQLConf.PARQUET_COMPRESSION().key(), "gzip");
-    withSQLConf(conf, () -> benchmarkData(2000).write().mode(SaveMode.Append).orc(dataLocation()));
+    benchmarkData(2000).write().mode(SaveMode.Append).orc(dataLocation());
   }
 
   @Benchmark
   @Threads(1)
   public void writeFileSource20000() {
-    Map<String, String> conf = Maps.newHashMap();
-    conf.put(SQLConf.PARQUET_COMPRESSION().key(), "gzip");
-    withSQLConf(conf, () -> benchmarkData(20000).write().mode(SaveMode.Append).orc(dataLocation()));
+    benchmarkData(20000).write().mode(SaveMode.Append).orc(dataLocation());
   }
 
   private Dataset<Row> benchmarkData(int numRows) {
