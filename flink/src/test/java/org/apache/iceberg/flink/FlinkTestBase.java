@@ -47,7 +47,7 @@ public abstract class FlinkTestBase extends TestBaseUtils {
   @ClassRule
   public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
-  private static TestHiveMetastore metastore = null;
+  protected static TestHiveMetastore metastore = null;
   protected static HiveConf hiveConf = null;
   protected static HiveCatalog catalog = null;
 
