@@ -27,6 +27,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
@@ -59,47 +60,36 @@ public class IcebergSourceNestedListORCDataWriteBenchmark extends IcebergSourceN
     cleanupFiles();
   }
 
+  @Param({"2000", "20000"})
+  private int numRows;
+
   @Benchmark
   @Threads(1)
-  public void writeIceberg2000() {
+  public void writeIceberg() {
     String tableLocation = table().location();
-    benchmarkData(2000).write().format("iceberg").option("write-format", "orc")
+    benchmarkData().write().format("iceberg").option("write-format", "orc")
         .mode(SaveMode.Append).save(tableLocation);
   }
 
   @Benchmark
   @Threads(1)
-  public void writeIceberg20000() {
-    String tableLocation = table().location();
-    benchmarkData(20000).write().format("iceberg").option("write-format", "orc")
-        .mode(SaveMode.Append).save(tableLocation);
-  }
-
-  @Benchmark
-  @Threads(1)
-  public void writeIceberg20000DictionaryOff() {
+  public void writeIcebergDictionaryOff() {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put("orc.dictionary.key.threshold", "0");
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
-      benchmarkData(20000).write().format("iceberg").option("write-format", "orc")
+      benchmarkData().write().format("iceberg").option("write-format", "orc")
           .mode(SaveMode.Append).save(tableLocation);
     });
   }
 
   @Benchmark
   @Threads(1)
-  public void writeFileSource2000() {
-    benchmarkData(2000).write().mode(SaveMode.Append).orc(dataLocation());
+  public void writeFileSource() {
+    benchmarkData().write().mode(SaveMode.Append).orc(dataLocation());
   }
 
-  @Benchmark
-  @Threads(1)
-  public void writeFileSource20000() {
-    benchmarkData(20000).write().mode(SaveMode.Append).orc(dataLocation());
-  }
-
-  private Dataset<Row> benchmarkData(int numRows) {
+  private Dataset<Row> benchmarkData() {
     return spark().range(numRows)
         .withColumn("outerlist", array_repeat(struct(
             expr("array_repeat(CAST(id AS string), 1000) AS innerlist")),
