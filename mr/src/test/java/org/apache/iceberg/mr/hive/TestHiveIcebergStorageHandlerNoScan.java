@@ -222,7 +222,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
         " last_name STRING COMMENT 'This is last name')" +
         " STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
         testTables.locationForCreateTableSQL(identifier) +
-        testTables.propertiesForCreateTableSQL(ImmutableMap.of(InputFormatConfig.CATALOG_NAME, testTables.catalog));
+        testTables.propertiesForCreateTableSQL(ImmutableMap.of());
     shell.executeStatement(createSql);
 
     Table icebergTable = testTables.loadTable(identifier);
@@ -336,8 +336,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
           shell.executeStatement("CREATE EXTERNAL TABLE withShell2 " +
               "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
               testTables.locationForCreateTableSQL(identifier) +
-              testTables.propertiesForCreateTableSQL(ImmutableMap.of(InputFormatConfig.CATALOG_NAME,
-                      testTables.catalog)));
+              testTables.propertiesForCreateTableSQL(ImmutableMap.of()));
         }
     );
 
@@ -378,7 +377,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
       shell.executeStatement("CREATE EXTERNAL TABLE customers " +
           "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
           testTables.locationForCreateTableSQL(TableIdentifier.of("default", "customers")) +
-          testTables.propertiesForCreateTableSQL(ImmutableMap.of(InputFormatConfig.CATALOG_NAME, testTables.catalog)));
+          testTables.propertiesForCreateTableSQL(ImmutableMap.of()));
     }
   }
 
@@ -412,7 +411,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
         "<street_number: INT, street_name: STRING, street_type: STRING>, country: STRING, postal_code: STRING >) " +
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
         testTables.locationForCreateTableSQL(identifier) +
-        testTables.propertiesForCreateTableSQL(ImmutableMap.of(InputFormatConfig.CATALOG_NAME, testTables.catalog)));
+        testTables.propertiesForCreateTableSQL(ImmutableMap.of()));
 
     // Check the Iceberg table data
     org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
@@ -441,7 +440,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
         "t_string STRING, t_timestamp TIMESTAMP, t_date DATE, t_decimal DECIMAL(3,2)) " +
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
         testTables.locationForCreateTableSQL(identifier) +
-        testTables.propertiesForCreateTableSQL(ImmutableMap.of(InputFormatConfig.CATALOG_NAME, testTables.catalog)));
+        testTables.propertiesForCreateTableSQL(ImmutableMap.of()));
 
     // Check the Iceberg table data
     org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
@@ -465,8 +464,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
                 "(not_supported " + notSupportedType + ") " +
                 "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
                 testTables.locationForCreateTableSQL(identifier) +
-                testTables.propertiesForCreateTableSQL(ImmutableMap.of(
-                        InputFormatConfig.CATALOG_NAME, testTables.catalog)));
+                testTables.propertiesForCreateTableSQL(ImmutableMap.of()));
           }
       );
     }
@@ -488,8 +486,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
       shell.executeStatement("CREATE EXTERNAL TABLE not_supported_types (not_supported " + notSupportedType + ") " +
               "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
               testTables.locationForCreateTableSQL(identifier) +
-              testTables.propertiesForCreateTableSQL(ImmutableMap.of(
-                      InputFormatConfig.CATALOG_NAME, testTables.catalog)));
+              testTables.propertiesForCreateTableSQL(ImmutableMap.of()));
 
       org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
       Assert.assertEquals(notSupportedTypes.get(notSupportedType), icebergTable.schema().columns().get(0).type());
@@ -505,7 +502,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
         "t_string STRING COMMENT 'string column') " +
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
         testTables.locationForCreateTableSQL(identifier) +
-        testTables.propertiesForCreateTableSQL(ImmutableMap.of(InputFormatConfig.CATALOG_NAME, testTables.catalog)));
+        testTables.propertiesForCreateTableSQL(ImmutableMap.of()));
     org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
 
     List<Object[]> rows = shell.executeStatement("DESCRIBE default.comment_table");
@@ -525,8 +522,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
             "t_string STRING) " +
             "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
             testTables.locationForCreateTableSQL(identifier) +
-            testTables.propertiesForCreateTableSQL(ImmutableMap.of(
-                    InputFormatConfig.CATALOG_NAME, testTables.catalog)));
+            testTables.propertiesForCreateTableSQL(ImmutableMap.of()));
     org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
 
     List<Object[]> rows = shell.executeStatement("DESCRIBE default.without_comment_table");

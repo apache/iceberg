@@ -37,13 +37,10 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.hive.HiveCatalogs;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Class for catalog resolution and accessing the common functions for {@link Catalog} API.
@@ -56,7 +53,6 @@ import org.slf4j.LoggerFactory;
  * </ol>
  */
 public final class Catalogs {
-  private static final Logger LOG = LoggerFactory.getLogger(Catalogs.class);
 
   public static final String ICEBERG_DEFAULT_CATALOG_NAME = "default_iceberg";
   public static final String ICEBERG_HADOOP_TABLE_NAME = "location_based_table";
@@ -209,12 +205,10 @@ public final class Catalogs {
     String name = catalogName == null ? ICEBERG_DEFAULT_CATALOG_NAME : catalogName;
 
     switch (catalogType.toLowerCase()) {
-      case CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE:
-        return Optional.of(HiveCatalogs.loadCatalog(conf));
       case NO_CATALOG_TYPE:
         return Optional.empty();
       default:
-        return Optional.of(CatalogUtil.buildIcebergCatalog(catalogName,
+        return Optional.of(CatalogUtil.buildIcebergCatalog(name,
                 getCatalogProperties(conf, name, catalogType), conf));
     }
   }

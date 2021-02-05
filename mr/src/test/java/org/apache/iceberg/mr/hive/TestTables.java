@@ -26,6 +26,7 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -111,13 +112,12 @@ abstract class TestTables {
    * @return
    */
   public String propertiesForCreateTableSQL(Map<String, String> tableProperties) {
-    if (tableProperties != null && !tableProperties.isEmpty()) {
-      String props = tableProperties.entrySet().stream()
-              .map(entry -> String.format("'%s'='%s'", entry.getKey(), entry.getValue()))
-              .collect(Collectors.joining(","));
-      return " TBLPROPERTIES (" + props + ")";
-    }
-    return "";
+    Map<String, String> properties = new HashMap<>(tableProperties);
+    properties.putIfAbsent(InputFormatConfig.CATALOG_NAME, catalog);
+    String props = properties.entrySet().stream()
+            .map(entry -> String.format("'%s'='%s'", entry.getKey(), entry.getValue()))
+            .collect(Collectors.joining(","));
+    return " TBLPROPERTIES (" + props + ")";
   }
 
   /**
