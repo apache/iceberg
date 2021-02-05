@@ -17,32 +17,22 @@
  * under the License.
  */
 
-package org.apache.iceberg.aws.s3;
+package org.apache.iceberg.aliyun.oss;
 
+import com.aliyun.oss.OSS;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
-import software.amazon.awssdk.services.s3.S3Client;
 
-public class S3OutputFile extends BaseS3File implements OutputFile {
-  public S3OutputFile(S3Client client, S3URI uri) {
-    this(client, uri, new AwsProperties());
+public class OSSOutputFile extends BaseOSSFile implements OutputFile {
+  public OSSOutputFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
+    super(client, uri, aliyunProperties);
   }
 
-  public S3OutputFile(S3Client client, S3URI uri, AwsProperties awsProperties) {
-    super(client, uri, awsProperties);
-  }
-
-  /**
-   * Create an output stream for the specified location if the target object
-   * does not exist in S3 at the time of invocation.
-   *
-   * @return output stream
-   */
   @Override
   public PositionOutputStream create() {
     if (!exists()) {
@@ -55,7 +45,7 @@ public class S3OutputFile extends BaseS3File implements OutputFile {
   @Override
   public PositionOutputStream createOrOverwrite() {
     try {
-      return new S3OutputStream(client(), uri(), awsProperties());
+      return new OSSOutputStream(client(), uri(), aliyunProperties());
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create output stream for location: " + uri(), e);
     }
@@ -63,6 +53,6 @@ public class S3OutputFile extends BaseS3File implements OutputFile {
 
   @Override
   public InputFile toInputFile() {
-    return new S3InputFile(client(), uri(), awsProperties());
+    return new OSSInputFile(client(), uri(), aliyunProperties());
   }
 }
