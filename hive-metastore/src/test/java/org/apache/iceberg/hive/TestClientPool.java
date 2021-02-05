@@ -77,9 +77,14 @@ public class TestClientPool {
     Assert.assertEquals(Lists.newArrayList("db1", "db2"),
       clients.run(client -> client.getAllDatabases()));
 
+    //assert && verify
+    Mockito.verify(clients).reconnect(hmsClient);
+
     // The return is OK, because the client pool uses a new client
     Assert.assertEquals(response,
       clients.run(client -> client.getAllFunctions()));
+
+    Mockito.verify(clients, Mockito.times(1)).reconnect(hmsClient);
   }
 
   @Test(expected = MetaException.class)
