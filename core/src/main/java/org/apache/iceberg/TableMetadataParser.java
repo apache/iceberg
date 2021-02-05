@@ -175,7 +175,7 @@ public class TableMetadataParser {
     generator.writeNumberField(CURRENT_SCHEMA_ID, metadata.currentSchemaId());
     generator.writeArrayFieldStart(SCHEMAS);
     for (Schema schema : metadata.schemas()) {
-      SchemaParser.toJsonWithVersion(schema, generator);
+      SchemaParser.toJsonWithId(schema, generator);
     }
     generator.writeEndArray();
 

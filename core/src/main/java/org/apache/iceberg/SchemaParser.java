@@ -143,7 +143,7 @@ public class SchemaParser {
     }
   }
 
-  public static void toJsonWithVersion(Schema schema, JsonGenerator generator) throws IOException {
+  public static void toJsonWithId(Schema schema, JsonGenerator generator) throws IOException {
     toJson(schema.asStruct(), schema.schemaId(), generator);
   }
 
