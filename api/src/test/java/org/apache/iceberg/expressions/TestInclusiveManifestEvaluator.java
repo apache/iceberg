@@ -115,6 +115,9 @@ public class TestInclusiveManifestEvaluator {
   @Test
   public void testAllNulls() {
     boolean shouldRead = ManifestEvaluator.forRowFilter(notNull("all_nulls_missing_nan"), SPEC, true).eval(FILE);
+    Assert.assertFalse("Should skip: all nulls column with non-floating type contains all null", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(notNull("all_nulls_missing_nan_float"), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: no NaN information may indicate presence of NaN value", shouldRead);
 
     shouldRead = ManifestEvaluator.forRowFilter(notNull("some_nulls"), SPEC, true).eval(FILE);

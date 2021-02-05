@@ -32,6 +32,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
 
@@ -133,7 +134,7 @@ public class ManifestEvaluator {
     public <T> Boolean notNull(BoundReference<T> ref) {
       int pos = Accessors.toPosition(ref.accessor());
 
-      if (allValuesAreNull(stats.get(pos))) {
+      if (allValuesAreNull(stats.get(pos), ref.type().typeId())) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -148,7 +149,7 @@ public class ManifestEvaluator {
         return ROWS_CANNOT_MATCH;
       }
 
-      if (allValuesAreNull(stats.get(pos))) {
+      if (allValuesAreNull(stats.get(pos), ref.type().typeId())) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -339,11 +340,17 @@ public class ManifestEvaluator {
       return ROWS_MIGHT_MATCH;
     }
 
-    private boolean allValuesAreNull(PartitionFieldSummary summary) {
-      // containsNull encodes whether at least one partition value is null, lowerBound is null if all partition values
-      // are null; in case bounds don't include NaN value, containsNaN needs to be checked against.
-      return summary.containsNull() && summary.lowerBound() == null &&
-          summary.containsNaN() != null && !summary.containsNaN();
+    private boolean allValuesAreNull(PartitionFieldSummary summary, Type.TypeID typeId) {
+      // containsNull encodes whether at least one partition value is null,
+      // lowerBound is null if all partition values are null
+      boolean allNull = summary.containsNull() && summary.lowerBound() == null;
+
+      if (allNull && (Type.TypeID.DOUBLE.equals(typeId) || Type.TypeID.FLOAT.equals(typeId))) {
+        // floating point types may include NaN values, which we check separately.
+        // In case bounds don't include NaN value, containsNaN needs to be checked against.
+        allNull = summary.containsNaN() != null && !summary.containsNaN();
+      }
+      return allNull;
     }
   }
 }
