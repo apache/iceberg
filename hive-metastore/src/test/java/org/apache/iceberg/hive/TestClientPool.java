@@ -21,7 +21,11 @@ package org.apache.iceberg.hive;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
-import org.apache.hadoop.hive.metastore.api.*;
+import org.apache.hadoop.hive.metastore.api.Function;
+import org.apache.hadoop.hive.metastore.api.FunctionType;
+import org.apache.hadoop.hive.metastore.api.GetAllFunctionsResponse;
+import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.After;
 import org.junit.Assert;
@@ -70,19 +74,17 @@ public class TestClientPool {
     Mockito.doReturn(Lists.newArrayList("db1", "db2")).when(newClient).getAllDatabases();
     GetAllFunctionsResponse response = new GetAllFunctionsResponse();
     response.addToFunctions(
-      new Function("concat", "db1", "classname", "root", PrincipalType.USER, 100, FunctionType.JAVA, null));
-    Mockito.doReturn(response)
-      .when(newClient).getAllFunctions();
+        new Function("concat", "db1", "classname", "root", PrincipalType.USER, 100, FunctionType.JAVA, null));
+    Mockito.doReturn(response).when(newClient).getAllFunctions();
     // The return is OK when the reconnect method is called.
     Assert.assertEquals(Lists.newArrayList("db1", "db2"),
-      clients.run(client -> client.getAllDatabases()));
+        clients.run(client -> client.getAllDatabases()));
 
-    //assert && verify
+    // Verify that the method is called.
     Mockito.verify(clients).reconnect(hmsClient);
 
-    // The return is OK, because the client pool uses a new client
-    Assert.assertEquals(response,
-      clients.run(client -> client.getAllFunctions()));
+    // The return is OK, because the client pool uses a new client.
+    Assert.assertEquals(response, clients.run(client -> client.getAllFunctions()));
 
     Mockito.verify(clients, Mockito.times(1)).reconnect(hmsClient);
   }
