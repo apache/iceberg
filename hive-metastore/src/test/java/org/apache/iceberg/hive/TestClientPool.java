@@ -27,6 +27,7 @@ import org.apache.hadoop.hive.metastore.api.GetAllFunctionsResponse;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.thrift.transport.TTransportException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -49,11 +50,13 @@ public class TestClientPool {
     clients = null;
   }
 
-  @Test(expected = RuntimeException.class)
+  @Test(expected = MetaException.class)
   public void testNewClientFailure() throws Exception {
-    try (MockClientPool pool = new MockClientPool(2, Exception.class)) {
-      pool.run(Object::toString);
-    }
+    HiveMetaStoreClient hmsClient = Mockito.mock(HiveMetaStoreClient.class);
+    Mockito.doReturn(hmsClient).when(clients).newClient();
+    Mockito.doThrow(new MetaException("Another meta exception"))
+      .when(hmsClient).getTables(Mockito.anyString(), Mockito.anyString());
+    clients.run(client -> client.getTables("default", "t"));
   }
 
   @Test
@@ -65,17 +68,12 @@ public class TestClientPool {
     // Throwing an exception may trigger the client to reconnect.
     String metaMessage = "Got exception: org.apache.thrift.transport.TTransportException";
     Mockito.doThrow(new MetaException(metaMessage)).when(hmsClient).getAllDatabases();
-    Mockito.doThrow(new MetaException(metaMessage)).when(hmsClient).getAllFunctions();
 
     // Create a new client when the reconnect method is called.
     HiveMetaStoreClient newClient = Mockito.mock(HiveMetaStoreClient.class);
     Mockito.doReturn(newClient).when(clients).reconnect(hmsClient);
 
     Mockito.doReturn(Lists.newArrayList("db1", "db2")).when(newClient).getAllDatabases();
-    GetAllFunctionsResponse response = new GetAllFunctionsResponse();
-    response.addToFunctions(
-        new Function("concat", "db1", "classname", "root", PrincipalType.USER, 100, FunctionType.JAVA, null));
-    Mockito.doReturn(response).when(newClient).getAllFunctions();
     // The return is OK when the reconnect method is called.
     Assert.assertEquals(Lists.newArrayList("db1", "db2"),
         clients.run(client -> client.getAllDatabases()));
@@ -83,40 +81,20 @@ public class TestClientPool {
     // Verify that the method is called.
     Mockito.verify(clients).reconnect(hmsClient);
 
+    // Create a new client when getAllFunctions() failed.
+    HiveMetaStoreClient newClient2 = Mockito.mock(HiveMetaStoreClient.class);
+    Mockito.doReturn(newClient2).when(clients).reconnect(newClient);
+    Mockito.doThrow(new TTransportException()).when(newClient).getAllFunctions();
+
+    GetAllFunctionsResponse response = new GetAllFunctionsResponse();
+    response.addToFunctions(
+        new Function("concat", "db1", "classname", "root", PrincipalType.USER, 100, FunctionType.JAVA, null));
+    Mockito.doReturn(response).when(newClient2).getAllFunctions();
+
     // The return is OK, because the client pool uses a new client.
     Assert.assertEquals(response, clients.run(client -> client.getAllFunctions()));
 
-    Mockito.verify(clients, Mockito.times(1)).reconnect(hmsClient);
-  }
-
-  @Test(expected = MetaException.class)
-  public void testConnectionFailure() throws Exception {
-    HiveMetaStoreClient hmsClient = Mockito.mock(HiveMetaStoreClient.class);
-    Mockito.doReturn(hmsClient).when(clients).newClient();
-    Mockito.doThrow(new MetaException("Another meta exception"))
-      .when(hmsClient).getTables(Mockito.anyString(), Mockito.anyString());
-    clients.run(client -> client.getTables("default", "t"));
-  }
-
-  private static class MockClientPool extends ClientPool<Object, Exception> {
-
-    MockClientPool(int poolSize, Class<? extends Exception> reconnectExc) {
-      super(poolSize, reconnectExc);
-    }
-
-    @Override
-    protected Object newClient() {
-      throw new RuntimeException();
-    }
-
-    @Override
-    protected Object reconnect(Object client) {
-      return null;
-    }
-
-    @Override
-    protected void close(Object client) {
-
-    }
+    Mockito.verify(clients).reconnect(newClient);
+    Mockito.verify(clients, Mockito.never()).reconnect(newClient2);
   }
 }
