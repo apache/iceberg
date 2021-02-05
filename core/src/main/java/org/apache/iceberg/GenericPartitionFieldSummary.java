@@ -28,6 +28,7 @@ import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData.SchemaConstructable;
 import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
@@ -41,6 +42,7 @@ public class GenericPartitionFieldSummary
 
   // data fields
   private boolean containsNull = false;
+  private Boolean containsNaN = null;
   private byte[] lowerBound = null;
   private byte[] upperBound = null;
 
@@ -72,8 +74,19 @@ public class GenericPartitionFieldSummary
     }
   }
 
-  public GenericPartitionFieldSummary(boolean containsNull, ByteBuffer lowerBound,
+  public GenericPartitionFieldSummary(boolean containsNull, boolean containsNaN, ByteBuffer lowerBound,
                                       ByteBuffer upperBound) {
+    this.avroSchema = AVRO_SCHEMA;
+    this.containsNull = containsNull;
+    this.containsNaN = containsNaN;
+    this.lowerBound = ByteBuffers.toByteArray(lowerBound);
+    this.upperBound = ByteBuffers.toByteArray(upperBound);
+    this.fromProjectionPos = null;
+  }
+
+  // for testing backward compatibility only
+  @VisibleForTesting
+  GenericPartitionFieldSummary(boolean containsNull, ByteBuffer lowerBound, ByteBuffer upperBound) {
     this.avroSchema = AVRO_SCHEMA;
     this.containsNull = containsNull;
     this.lowerBound = ByteBuffers.toByteArray(lowerBound);
@@ -89,6 +102,7 @@ public class GenericPartitionFieldSummary
   private GenericPartitionFieldSummary(GenericPartitionFieldSummary toCopy) {
     this.avroSchema = toCopy.avroSchema;
     this.containsNull = toCopy.containsNull;
+    this.containsNaN = toCopy.containsNaN;
     this.lowerBound = toCopy.lowerBound == null ? null : Arrays.copyOf(toCopy.lowerBound, toCopy.lowerBound.length);
     this.upperBound = toCopy.upperBound == null ? null : Arrays.copyOf(toCopy.upperBound, toCopy.upperBound.length);
     this.fromProjectionPos = toCopy.fromProjectionPos;
@@ -103,6 +117,11 @@ public class GenericPartitionFieldSummary
   @Override
   public boolean containsNull() {
     return containsNull;
+  }
+
+  @Override
+  public Boolean containsNaN() {
+    return containsNaN;
   }
 
   @Override
@@ -136,8 +155,10 @@ public class GenericPartitionFieldSummary
       case 0:
         return containsNull;
       case 1:
-        return lowerBound();
+        return containsNaN;
       case 2:
+        return lowerBound();
+      case 3:
         return upperBound();
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -157,9 +178,12 @@ public class GenericPartitionFieldSummary
         this.containsNull = (Boolean) value;
         return;
       case 1:
-        this.lowerBound = ByteBuffers.toByteArray((ByteBuffer) value);
+        this.containsNaN = (Boolean) value;
         return;
       case 2:
+        this.lowerBound = ByteBuffers.toByteArray((ByteBuffer) value);
+        return;
+      case 3:
         this.upperBound = ByteBuffers.toByteArray((ByteBuffer) value);
         return;
       default:
@@ -186,6 +210,7 @@ public class GenericPartitionFieldSummary
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("contains_null", containsNull)
+        .add("contains_nan", containsNaN)
         .add("lower_bound", lowerBound)
         .add("upper_bound", upperBound)
         .toString();

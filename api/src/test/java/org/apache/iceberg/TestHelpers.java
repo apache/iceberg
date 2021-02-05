@@ -150,11 +150,17 @@ public class TestHelpers {
 
   public static class TestFieldSummary implements ManifestFile.PartitionFieldSummary {
     private final boolean containsNull;
+    private final Boolean containsNaN;
     private final ByteBuffer lowerBound;
     private final ByteBuffer upperBound;
 
     public TestFieldSummary(boolean containsNull, ByteBuffer lowerBound, ByteBuffer upperBound) {
+      this(containsNull, null, lowerBound, upperBound);
+    }
+
+    public TestFieldSummary(boolean containsNull, Boolean containsNaN, ByteBuffer lowerBound, ByteBuffer upperBound) {
       this.containsNull = containsNull;
+      this.containsNaN = containsNaN;
       this.lowerBound = lowerBound;
       this.upperBound = upperBound;
     }
@@ -162,6 +168,11 @@ public class TestHelpers {
     @Override
     public boolean containsNull() {
       return containsNull;
+    }
+
+    @Override
+    public Boolean containsNaN() {
+      return containsNaN;
     }
 
     @Override

@@ -55,13 +55,14 @@ public interface ManifestFile {
       "Deleted rows count");
   Types.StructType PARTITION_SUMMARY_TYPE = Types.StructType.of(
       required(509, "contains_null", Types.BooleanType.get(), "True if any file has a null partition value"),
+      optional(518, "contains_nan", Types.BooleanType.get(), "True if any file has a nan partition value"),
       optional(510, "lower_bound", Types.BinaryType.get(), "Partition lower bound for all files"),
       optional(511, "upper_bound", Types.BinaryType.get(), "Partition upper bound for all files")
   );
   Types.NestedField PARTITION_SUMMARIES = optional(507, "partitions",
       Types.ListType.ofRequired(508, PARTITION_SUMMARY_TYPE),
       "Summary for each partition");
-  // next ID to assign: 518
+  // next ID to assign: 519
 
   Schema SCHEMA = new Schema(
       PATH, LENGTH, SPEC_ID, MANIFEST_CONTENT,
@@ -198,6 +199,16 @@ public interface ManifestFile {
      * Returns true if at least one data file in the manifest has a null value for the field.
      */
     boolean containsNull();
+
+    /**
+     * Returns true if at least one data file in the manifest has a NaN value for the field.
+     * Null if this information doesn't exist.
+     * <p>
+     * Default to return null to ensure backward compatibility.
+     */
+    default Boolean containsNaN() {
+      return null;
+    }
 
     /**
      * Returns a ByteBuffer that contains a serialized bound lower than all values of the field.
