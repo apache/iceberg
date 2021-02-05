@@ -410,7 +410,7 @@ public class ValueWriters {
 
     @Override
     public Stream<FieldMetrics> metrics() {
-      if (AvroSchemaUtil.isMetricSupportedType(type)) {
+      if (AvroSchemaUtil.supportsMetrics(type)) {
         return mergeNullCountIntoMetric();
       } else {
         return valueWriter.metrics();
@@ -420,7 +420,7 @@ public class ValueWriters {
     private Stream<FieldMetrics> mergeNullCountIntoMetric() {
       List<FieldMetrics> fieldMetricsFromWriter = valueWriter.metrics().collect(Collectors.toList());
       Preconditions.checkState(fieldMetricsFromWriter.size() == 1,
-          "Optional field for type % shouldn't vend more than one field metrics", type);
+          "Optional %s writer should not produce metrics for more than one field", type);
 
       FieldMetrics metrics = fieldMetricsFromWriter.get(0);
       return Stream.of(

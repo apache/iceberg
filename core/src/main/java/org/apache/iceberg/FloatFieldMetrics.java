@@ -26,7 +26,7 @@ package org.apache.iceberg;
  * This wrapper ensures that metrics not being updated by those writers will not be incorrectly used, by throwing
  * exceptions when they are accessed.
  */
-public class FloatFieldMetrics extends FieldMetrics<Object> {
+public class FloatFieldMetrics extends FieldMetrics<Number> {
 
   /**
    * Constructor for creating a FieldMetrics with only NaN counter.
@@ -49,12 +49,12 @@ public class FloatFieldMetrics extends FieldMetrics<Object> {
   }
 
   @Override
-  public Object lowerBound() {
+  public Number lowerBound() {
     throw new IllegalStateException("Shouldn't access this method, as this metric is tracked in file statistics. ");
   }
 
   @Override
-  public Object upperBound() {
+  public Number upperBound() {
     throw new IllegalStateException("Shouldn't access this method, as this metric is tracked in file statistics. ");
   }
 }
