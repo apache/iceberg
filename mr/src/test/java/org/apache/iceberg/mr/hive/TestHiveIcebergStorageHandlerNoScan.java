@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.FileSystem;
@@ -48,6 +49,7 @@ import org.apache.iceberg.hive.HiveSchemaUtil;
 import org.apache.iceberg.hive.MetastoreUtil;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Type;
@@ -56,6 +58,7 @@ import org.apache.thrift.TException;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -566,6 +569,45 @@ public class TestHiveIcebergStorageHandlerNoScan {
     } else {
       Assert.assertEquals(7, hmsParams.size());
     }
+  }
+
+  @Test
+  public void testDropTableWithAppendedData() throws IOException {
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+
+    testTables.createTable(shell, identifier.name(), HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, SPEC,
+        FileFormat.PARQUET, ImmutableList.of());
+
+    org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
+    testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, FileFormat.PARQUET, null,
+        HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
+
+    shell.executeStatement("DROP TABLE customers");
+  }
+
+  @Test
+  public void testDropHiveTableWithoutUnderlyingTable() throws IOException {
+    Assume.assumeFalse("Not relevant for HiveCatalog", Catalogs.hiveCatalog(shell.getHiveConf()));
+
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    // Create the Iceberg table in non-HiveCatalog
+    testTables.createIcebergTable(shell.getHiveConf(), identifier.name(),
+        HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, FileFormat.PARQUET,
+        HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
+
+    // Create Hive table on top
+    String tableLocation = testTables.locationForCreateTableSQL(identifier);
+    shell.executeStatement(testTables.createHiveTableSQL(identifier,
+        ImmutableMap.of(InputFormatConfig.EXTERNAL_TABLE_PURGE, "TRUE")));
+
+    // Drop the Iceberg table
+    Properties properties = new Properties();
+    properties.put(Catalogs.NAME, identifier.toString());
+    properties.put(Catalogs.LOCATION, tableLocation);
+    Catalogs.dropTable(shell.getHiveConf(), properties);
+
+    // Finally drop the Hive table as well
+    shell.executeStatement("DROP TABLE " + identifier);
   }
 
   private String getCurrentSnapshotForHiveCatalogTable(org.apache.iceberg.Table icebergTable) {

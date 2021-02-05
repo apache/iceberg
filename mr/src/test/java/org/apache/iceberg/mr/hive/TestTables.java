@@ -106,13 +106,21 @@ abstract class TestTables {
    * string which we have to execute. Overridden for HiveCatalog where the Hive table is immediately created
    * during the Iceberg table creation so no extra sql execution is required.
    * @param identifier The table identifier (the namespace should be non-empty and single level)
+   * @param tableProps Optional map of table properties
    * @return The SQL string - which should be executed, null - if it is not needed.
    */
-  public String createHiveTableSQL(TableIdentifier identifier) {
+  public String createHiveTableSQL(TableIdentifier identifier, Map<String, String> tableProps) {
     Preconditions.checkArgument(!identifier.namespace().isEmpty(), "Namespace should not be empty");
     Preconditions.checkArgument(identifier.namespace().levels().length == 1, "Namespace should be single level");
-    return String.format("CREATE TABLE %s.%s STORED BY '%s' %s", identifier.namespace(), identifier.name(),
+    String sql = String.format("CREATE TABLE %s.%s STORED BY '%s' %s", identifier.namespace(), identifier.name(),
         HiveIcebergStorageHandler.class.getName(), locationForCreateTableSQL(identifier));
+    if (tableProps != null && !tableProps.isEmpty()) {
+      String props = tableProps.entrySet().stream()
+          .map(entry -> String.format("'%s'='%s'", entry.getKey(), entry.getValue()))
+          .collect(Collectors.joining(","));
+      sql += " TBLPROPERTIES (" + props + ")";
+    }
+    return sql;
   }
 
   /**
@@ -140,7 +148,7 @@ abstract class TestTables {
   public Table createTable(TestHiveShell shell, String tableName, Schema schema, FileFormat fileFormat,
       List<Record> records) throws IOException {
     Table table = createIcebergTable(shell.getHiveConf(), tableName, schema, fileFormat, records);
-    String createHiveSQL = createHiveTableSQL(TableIdentifier.of("default", tableName));
+    String createHiveSQL = createHiveTableSQL(TableIdentifier.of("default", tableName), ImmutableMap.of());
     if (createHiveSQL != null) {
       shell.executeStatement(createHiveSQL);
     }
@@ -172,18 +180,20 @@ abstract class TestTables {
         PartitionSpecParser.toJson(spec) + "', " +
         "'" + TableProperties.DEFAULT_FILE_FORMAT + "'='" + fileFormat + "')");
 
-    StringBuilder query = new StringBuilder().append("INSERT INTO " + identifier + " VALUES ");
+    if (records != null && !records.isEmpty()) {
+      StringBuilder query = new StringBuilder().append("INSERT INTO " + identifier + " VALUES ");
 
-    records.forEach(record -> {
-      query.append("(");
-      query.append(record.struct().fields().stream()
-          .map(field -> getStringValueForInsert(record.getField(field.name()), field.type()))
-          .collect(Collectors.joining(",")));
-      query.append("),");
-    });
-    query.setLength(query.length() - 1);
+      records.forEach(record -> {
+        query.append("(");
+        query.append(record.struct().fields().stream()
+                .map(field -> getStringValueForInsert(record.getField(field.name()), field.type()))
+                .collect(Collectors.joining(",")));
+        query.append("),");
+      });
+      query.setLength(query.length() - 1);
 
-    shell.executeStatement(query.toString());
+      shell.executeStatement(query.toString());
+    }
 
     return loadTable(identifier);
   }
@@ -386,7 +396,7 @@ abstract class TestTables {
     }
 
     @Override
-    public String createHiveTableSQL(TableIdentifier identifier) {
+    public String createHiveTableSQL(TableIdentifier identifier, Map<String, String> tblProps) {
       return null;
     }
   }
