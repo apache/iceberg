@@ -88,9 +88,7 @@ public class TestClientPool {
     Mockito.doReturn(hmsClient).when(clients).newClient();
     Mockito.doThrow(new MetaException("Another meta exception"))
       .when(hmsClient).getTables(Mockito.anyString(), Mockito.anyString());
-    Assert.assertEquals(Lists.newArrayList("t1", "t2"),
-      clients.run(client -> client.getTables("default", "t"))
-    );
+    clients.run(client -> client.getTables("default", "t"));
   }
 
   private static class MockClientPool extends ClientPool<Object, Exception> {
