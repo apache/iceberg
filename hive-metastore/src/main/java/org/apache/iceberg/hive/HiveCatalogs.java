@@ -21,7 +21,6 @@ package org.apache.iceberg.hive;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogUtil;
@@ -44,12 +43,5 @@ public final class HiveCatalogs {
     String metastoreUri = conf.get(HiveConf.ConfVars.METASTOREURIS.varname, "");
     return CATALOG_CACHE.get(metastoreUri, uri -> (HiveCatalog)
         CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), conf));
-  }
-
-  public static HiveCatalog loadCatalog(String catalogName, Map<String, String> properties, Configuration conf) {
-    // metastore URI can be null in local mode
-    String metastoreUri = conf.get(HiveConf.ConfVars.METASTOREURIS.varname, "");
-    return CATALOG_CACHE.get(metastoreUri,
-        uri -> (HiveCatalog) CatalogUtil.buildIcebergCatalog(catalogName, properties, conf));
   }
 }

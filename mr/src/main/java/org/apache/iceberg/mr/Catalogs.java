@@ -207,15 +207,15 @@ public final class Catalogs {
       throw new NoSuchNamespaceException("Catalog definition for %s is not found.", catalogName);
     }
     String name = catalogName == null ? ICEBERG_DEFAULT_CATALOG_NAME : catalogName;
-    Map<String, String> catalogProperties = getCatalogProperties(conf, name, catalogType);
 
     switch (catalogType.toLowerCase()) {
       case CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE:
-        return Optional.of(HiveCatalogs.loadCatalog(name, catalogProperties, conf));
+        return Optional.of(HiveCatalogs.loadCatalog(conf));
       case NO_CATALOG_TYPE:
         return Optional.empty();
       default:
-        return Optional.of(CatalogUtil.buildIcebergCatalog(catalogName, catalogProperties, conf));
+        return Optional.of(CatalogUtil.buildIcebergCatalog(catalogName,
+                getCatalogProperties(conf, name, catalogType), conf));
     }
   }
 
