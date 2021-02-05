@@ -157,20 +157,22 @@ public class ReplaceDeleteAction extends
         )
         .collect(Collectors.toList());
 
-    JavaRDD<Pair<StructLike, CombinedScanTask>> taskRDD = sparkContext.parallelize(combinedScanTasks,
-        combinedScanTasks.size());
-    Broadcast<FileIO> io = sparkContext.broadcast(fileIO());
-    Broadcast<EncryptionManager> encryption = sparkContext.broadcast(encryptionManager());
+    if (!combinedScanTasks.isEmpty()) {
+      JavaRDD<Pair<StructLike, CombinedScanTask>> taskRDD = sparkContext.parallelize(combinedScanTasks,
+          combinedScanTasks.size());
+      Broadcast<FileIO> io = sparkContext.broadcast(fileIO());
+      Broadcast<EncryptionManager> encryption = sparkContext.broadcast(encryptionManager());
 
-    DeleteRewriter deleteRewriter = new DeleteRewriter(table, caseSensitive, io, encryption);
-    List<DeleteFile> posDeletes = deleteRewriter.toPosDeletes(taskRDD);
+      DeleteRewriter deleteRewriter = new DeleteRewriter(table, caseSensitive, io, encryption);
+      List<DeleteFile> posDeletes = deleteRewriter.toPosDeletes(taskRDD);
 
-    if (!eqDeletes.isEmpty() && !posDeletes.isEmpty()) {
-      rewriteDeletes(eqDeletes, posDeletes);
-      return new DeleteRewriteActionResult(eqDeletes, posDeletes);
-    } else {
-      return new DeleteRewriteActionResult(Collections.emptyList(), Collections.emptyList());
+      if (!eqDeletes.isEmpty() && !posDeletes.isEmpty()) {
+        rewriteDeletes(eqDeletes, posDeletes);
+        return new DeleteRewriteActionResult(eqDeletes, posDeletes);
+      }
     }
+
+    return new DeleteRewriteActionResult(Collections.emptyList(), Collections.emptyList());
   }
 
   protected EncryptionManager encryptionManager() {

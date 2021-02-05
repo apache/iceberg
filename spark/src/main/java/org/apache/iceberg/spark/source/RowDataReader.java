@@ -232,6 +232,5 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     protected InputFile getInputFile(String location) {
       return RowDataReader.this.getInputFile(location);
     }
-
   }
 }
