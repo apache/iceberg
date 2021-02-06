@@ -143,7 +143,7 @@ class SchemaUpdate implements UpdateSchema {
       fullName = schema.findColumnName(parentId) + "." + name;
     } else {
       Preconditions.checkArgument(schema.findField(name) == null || deletes.contains(schema.findField(name).fieldId()),
-          "Cannot add column, name already exists: %s", name);
+          "Cannot add column, name already exists and is not being deleted: %s", name);
       fullName = name;
     }
 

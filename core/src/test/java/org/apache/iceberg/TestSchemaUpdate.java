@@ -488,13 +488,13 @@ public class TestSchemaUpdate {
   @Test
   public void testAddAlreadyExists() {
     AssertHelpers.assertThrows("Should reject column name that already exists",
-        IllegalArgumentException.class, "already exists: preferences.feature1", () -> {
+        IllegalArgumentException.class, "already exists and is not being deleted: preferences.feature1", () -> {
           UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
           update.addColumn("preferences", "feature1", Types.BooleanType.get());
         }
     );
     AssertHelpers.assertThrows("Should reject column name that already exists",
-        IllegalArgumentException.class, "already exists: preferences", () -> {
+        IllegalArgumentException.class, "already exists and is not being deleted: preferences", () -> {
           UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
           update.addColumn("preferences", Types.BooleanType.get());
         }
