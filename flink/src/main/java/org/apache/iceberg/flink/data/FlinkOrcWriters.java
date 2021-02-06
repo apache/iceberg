@@ -249,7 +249,7 @@ class FlinkOrcWriters {
       cv.offsets[rowId] = cv.childCount;
       cv.childCount = (int) (cv.childCount + cv.lengths[rowId]);
       // make sure the child is big enough.
-      cv.child.ensureSize(cv.childCount, true);
+      growColumnVector(cv.child, cv.childCount);
 
       for (int e = 0; e < cv.lengths[rowId]; ++e) {
         Object value = elementGetter.getElementOrNull(data, e);
@@ -295,8 +295,8 @@ class FlinkOrcWriters {
       cv.offsets[rowId] = cv.childCount;
       cv.childCount = (int) (cv.childCount + cv.lengths[rowId]);
       // make sure the child is big enough
-      cv.keys.ensureSize(cv.childCount, true);
-      cv.values.ensureSize(cv.childCount, true);
+      growColumnVector(cv.keys, cv.childCount);
+      growColumnVector(cv.values, cv.childCount);
       // Add each element
       for (int e = 0; e < cv.lengths[rowId]; ++e) {
         int pos = (int) (e + cv.offsets[rowId]);
@@ -346,6 +346,13 @@ class FlinkOrcWriters {
     @Override
     public Stream<FieldMetrics> metrics() {
       return writers.stream().flatMap(OrcValueWriter::metrics);
+    }
+  }
+
+  private static void growColumnVector(ColumnVector cv, int requestedSize) {
+    if (cv.isNull.length < requestedSize) {
+      // Use growth factor of 3 to avoid frequent array allocations
+      cv.ensureSize(requestedSize * 3, true);
     }
   }
 }
