@@ -57,7 +57,7 @@ public class Actions {
    * Migrate an exist hive table into iceberg table
    *
    * @param flinkHiveCatalog    the HiveCatalog of flink, we get hive table info from this
-   * @param hiveSourceDbName    source hive database name
+   * @param hiveSourceDatabaseName    source hive database name
    * @param hiveSourceTableName source hive table name
    * @param icebergCatalog      target iceberg catalog
    * @param baseNamespace       target iceberg Namespace
@@ -65,21 +65,21 @@ public class Actions {
    * @param icebergTableName    target iceberg table name
    * @return the MigrateAction
    */
-  public static MigrateAction migrateHive2Iceberg(HiveCatalog flinkHiveCatalog, String hiveSourceDbName,
+  public static MigrateAction migrateHive2Iceberg(HiveCatalog flinkHiveCatalog, String hiveSourceDatabaseName,
                                                   String hiveSourceTableName, Catalog icebergCatalog,
                                                   Namespace baseNamespace,
                                                   String icebergDbName, String icebergTableName) {
     return migrateHive2Iceberg(StreamExecutionEnvironment.getExecutionEnvironment(), flinkHiveCatalog,
-        hiveSourceDbName,
+        hiveSourceDatabaseName,
         hiveSourceTableName, icebergCatalog, baseNamespace,
         icebergDbName, icebergTableName);
   }
 
   public static MigrateAction migrateHive2Iceberg(StreamExecutionEnvironment env, HiveCatalog flinkHiveCatalog,
-                                                  String hiveSourceDbName, String hiveSourceTableName,
+                                                  String hiveSourceDatabaseName, String hiveSourceTableName,
                                                   Catalog icebergCatalog, Namespace baseNamespace,
                                                   String icebergDbName, String icebergTableName) {
-    return new MigrateAction(env, flinkHiveCatalog, hiveSourceDbName, hiveSourceTableName, icebergCatalog,
+    return new MigrateAction(env, flinkHiveCatalog, hiveSourceDatabaseName, hiveSourceTableName, icebergCatalog,
         baseNamespace == null ? Namespace.empty() : baseNamespace,
         icebergDbName, icebergTableName);
   }
