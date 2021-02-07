@@ -26,8 +26,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.runtime.util.HadoopUtils;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -36,6 +35,7 @@ import org.apache.flink.table.catalog.CatalogPartitionSpec;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.hive.HiveCatalog;
+import org.apache.flink.util.ArrayUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -47,6 +47,9 @@ import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionField;
@@ -60,8 +63,12 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.FlinkCatalogFactory;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hive.HiveSchemaUtil;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.OrcMetrics;
@@ -70,51 +77,48 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.parquet.hadoop.ParquetFileReader;
-import org.apache.parquet.hadoop.metadata.ParquetMetadata;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.iceberg.util.Tasks;
 
-public class MigrateAction implements Action<Integer> {
-  private static final Logger LOG = LoggerFactory.getLogger(MigrateAction.class);
+public class MigrateAction implements Action<List<ManifestFile>> {
 
   private static final String PATQUET_INPUT_FORMAT = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat";
   private static final String ORC_INPUT_FORMAT = "org.apache.hadoop.hive.ql.io.orc.OrcInputFormat";
   private static final String AVRO_INPUT_FORMAT = "org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat";
   private static final PathFilter HIDDEN_PATH_FILTER =
       p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
+  private static final String ICEBERG_METADATA_FOLDER = "metadata";
 
   private final StreamExecutionEnvironment env;
   private final HiveCatalog flinkHiveCatalog; // the HiveCatalog of flink
-  private final String hiveSourceDbName;
+  private final String hiveSourceDatabaseName;
   private final String hiveSourceTableName;
   private final Catalog icebergCatalog;
   private final Namespace baseNamespace;
-  private final String icebergDbName;
+  private final String icebergDatabaseName;
   private final String icebergTableName;
   private int maxParallelism;
 
-  public MigrateAction(StreamExecutionEnvironment env, HiveCatalog flinkHiveCatalog, String hiveSourceDbName,
+  public MigrateAction(StreamExecutionEnvironment env, HiveCatalog flinkHiveCatalog, String hiveSourceDatabaseName,
                        String hiveSourceTableName, Catalog icebergCatalog, Namespace baseNamespace,
-                       String icebergDbName,
+                       String icebergDatabaseName,
                        String icebergTableName) {
     this.env = env;
     this.flinkHiveCatalog = flinkHiveCatalog;
-    this.hiveSourceDbName = hiveSourceDbName;
+    this.hiveSourceDatabaseName = hiveSourceDatabaseName;
     this.hiveSourceTableName = hiveSourceTableName;
     this.icebergCatalog = icebergCatalog;
     this.baseNamespace = baseNamespace;
-    this.icebergDbName = icebergDbName;
+    this.icebergDatabaseName = icebergDatabaseName;
     this.icebergTableName = icebergTableName;
     this.maxParallelism = env.getParallelism();
   }
 
   @Override
-  public Integer execute() {
-    // hive source table
-    ObjectPath tableSource = new ObjectPath(hiveSourceDbName, hiveSourceTableName);
-    org.apache.hadoop.hive.metastore.api.Table hiveTable;
+  public List<ManifestFile> execute() {
     flinkHiveCatalog.open();
+    // hive source table
+    ObjectPath tableSource = new ObjectPath(hiveSourceDatabaseName, hiveSourceTableName);
+    org.apache.hadoop.hive.metastore.api.Table hiveTable;
     try {
       hiveTable = flinkHiveCatalog.getHiveTable(tableSource);
     } catch (TableNotExistException e) {
@@ -127,6 +131,63 @@ public class MigrateAction implements Action<Integer> {
     Schema icebergSchema = HiveSchemaUtil.convert(fieldSchemaList);
     PartitionSpec spec = toPartitionSpec(partitionList, icebergSchema);
 
+    FileFormat fileFormat = getHiveFileFormat(hiveTable);
+
+    TableIdentifier identifier = TableIdentifier.of(toNamespace(), icebergTableName);
+    String hiveLocation = hiveTable.getSd().getLocation();
+
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name());
+    if (!baseNamespace.isEmpty()) {
+      properties.put(FlinkCatalogFactory.BASE_NAMESPACE, baseNamespace.toString());
+    }
+
+    Table icebergTable;
+    if (icebergCatalog instanceof HadoopCatalog) {
+      icebergTable = icebergCatalog.createTable(identifier, icebergSchema, spec, properties);
+    } else {
+      icebergTable = icebergCatalog.createTable(identifier, icebergSchema, spec, hiveLocation, properties);
+    }
+
+    String metadataLocation = getMetadataLocation(icebergTable);
+
+    String nameMapping =
+        PropertyUtil.propertyAsString(icebergTable.properties(), TableProperties.DEFAULT_NAME_MAPPING, null);
+    MetricsConfig metricsConfig = MetricsConfig.fromProperties(icebergTable.properties());
+
+    List<ManifestFile> manifestFiles = null;
+    try {
+      if (spec.isUnpartitioned()) {
+        manifestFiles =
+            migrateUnpartitionedTable(spec, fileFormat, hiveLocation, icebergTable, nameMapping, metricsConfig,
+                metadataLocation);
+      } else {
+        manifestFiles =
+            migratePartitionedTable(spec, tableSource, nameMapping, fileFormat, metricsConfig, icebergTable.name(),
+                metadataLocation);
+
+      }
+    } catch (Exception e) {
+      deleteManifests(icebergTable.io(), manifestFiles);
+      throw new RuntimeException("Migrate", e);
+    }
+
+    AppendFiles append = icebergTable.newAppend();
+    manifestFiles.forEach(append::appendManifest);
+    append.commit();
+
+    flinkHiveCatalog.close();
+    return manifestFiles;
+  }
+
+  private void deleteManifests(FileIO io, List<ManifestFile> manifests) {
+    Tasks.foreach(manifests)
+        .noRetry()
+        .suppressFailureWhenFinished()
+        .run(item -> io.deleteFile(item.path()));
+  }
+
+  private FileFormat getHiveFileFormat(org.apache.hadoop.hive.metastore.api.Table hiveTable) {
     String hiveFormat = hiveTable.getSd().getInputFormat();
     FileFormat fileFormat;
     switch (hiveFormat) {
@@ -146,66 +207,34 @@ public class MigrateAction implements Action<Integer> {
         throw new UnsupportedOperationException("Unsupported file format");
     }
 
-    TableIdentifier identifier = TableIdentifier.of(toNamespace(baseNamespace), icebergTableName);
-    String hiveLocation = hiveTable.getSd().getLocation();
-
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name());
-    if (!baseNamespace.isEmpty()) {
-      properties.put(FlinkCatalogFactory.BASE_NAMESPACE, baseNamespace.toString());
-    }
-
-    Table icebergTable;
-    if (icebergCatalog instanceof HadoopCatalog) {
-      icebergTable = icebergCatalog.createTable(identifier, icebergSchema, spec, properties);
-    } else {
-      icebergTable = icebergCatalog.createTable(identifier, icebergSchema, spec, hiveLocation, properties);
-    }
-
-    String nameMapping =
-        PropertyUtil.propertyAsString(icebergTable.properties(), TableProperties.DEFAULT_NAME_MAPPING, null);
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(icebergTable.properties());
-
-    List<DataFile> files = null;
-    if (spec.isUnpartitioned()) {
-      MigrateMap migrateMap = new MigrateMap(spec, nameMapping, fileFormat, metricsConfig);
-      DataStream<PartitionAndLocation> dataStream =
-          env.fromElements(new PartitionAndLocation(hiveLocation, Maps.newHashMap()));
-      DataStream<List<DataFile>> ds = dataStream.map(migrateMap);
-      try {
-        files = Lists.newArrayList(ds.executeAndCollect("migrate table :" + icebergTable.name())).stream()
-            .flatMap(Collection::stream).collect(Collectors.toList());
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-    } else {
-      try {
-        files = importPartitions(spec, tableSource, nameMapping, fileFormat, metricsConfig, icebergTable.name());
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-    }
-
-    AppendFiles append = icebergTable.newAppend();
-    files.forEach(append::appendFile);
-    append.commit();
-    return files.size();
+    return fileFormat;
   }
 
-  private Namespace toNamespace(Namespace namespace) {
-    if (namespace.isEmpty()) {
-      return Namespace.of(icebergDbName);
-    } else {
-      String[] namespaces = new String[baseNamespace.levels().length + 1];
-      System.arraycopy(baseNamespace.levels(), 0, namespaces, 0, baseNamespace.levels().length);
-      namespaces[baseNamespace.levels().length] = icebergDbName;
-      return Namespace.of(namespaces);
-    }
+  private String getMetadataLocation(Table table) {
+    return table.properties()
+        .getOrDefault(TableProperties.WRITE_METADATA_LOCATION, table.location() + "/" + ICEBERG_METADATA_FOLDER);
   }
 
-  private List<DataFile> importPartitions(PartitionSpec spec, ObjectPath tableSource,
-                                          String nameMapping, FileFormat fileFormat,
-                                          MetricsConfig metricsConfig, String hiveTableName)
+  private List<ManifestFile> migrateUnpartitionedTable(PartitionSpec spec, FileFormat fileFormat, String hiveLocation,
+                                                       Table icebergTable, String nameMapping,
+                                                       MetricsConfig metricsConfig, String metadataLocation)
+      throws Exception {
+    MigrateMapper migrateMapper = new MigrateMapper(spec, nameMapping, fileFormat, metricsConfig, metadataLocation);
+    DataStream<PartitionAndLocation> dataStream =
+        env.fromElements(new PartitionAndLocation(hiveLocation, Maps.newHashMap()));
+    DataStream<List<ManifestFile>> ds = dataStream.map(migrateMapper);
+    return Lists.newArrayList(ds.executeAndCollect("migrate table :" + icebergTable.name())).stream()
+        .flatMap(Collection::stream).collect(Collectors.toList());
+  }
+
+  private Namespace toNamespace() {
+    return Namespace.of(ArrayUtils.concat(baseNamespace.levels(), new String[] {icebergDatabaseName}));
+  }
+
+  private List<ManifestFile> migratePartitionedTable(PartitionSpec spec, ObjectPath tableSource,
+                                                     String nameMapping, FileFormat fileFormat,
+                                                     MetricsConfig metricsConfig, String hiveTableName,
+                                                     String metadataLocation)
       throws Exception {
     List<CatalogPartitionSpec> partitionSpecs = flinkHiveCatalog.listPartitions(tableSource);
     List<PartitionAndLocation> inputs = Lists.newArrayList();
@@ -220,35 +249,38 @@ public class MigrateAction implements Action<Integer> {
     int parallelism = Math.min(size, maxParallelism);
 
     DataStream<PartitionAndLocation> dataStream = env.fromCollection(inputs);
-    MigrateMap migrateMap = new MigrateMap(spec, nameMapping, fileFormat, metricsConfig);
-    DataStream<List<DataFile>> ds = dataStream.map(migrateMap).setParallelism(parallelism);
+    MigrateMapper migrateMapper = new MigrateMapper(spec, nameMapping, fileFormat, metricsConfig, metadataLocation);
+    DataStream<List<ManifestFile>> ds = dataStream.map(migrateMapper).setParallelism(parallelism);
     return Lists.newArrayList(ds.executeAndCollect("migrate table :" + hiveTableName)).stream()
         .flatMap(Collection::stream).collect(Collectors.toList());
   }
 
-  private static class MigrateMap implements MapFunction<PartitionAndLocation, List<DataFile>> {
+  private static class MigrateMapper extends RichMapFunction<PartitionAndLocation, List<ManifestFile>> {
     private final PartitionSpec spec;
     private final String nameMappingString;
     private final FileFormat fileFormat;
     private final MetricsConfig metricsConfig;
+    private final String metadataLocation;
 
-    MigrateMap(PartitionSpec spec, String nameMapping, FileFormat fileFormat, MetricsConfig metricsConfig) {
+    MigrateMapper(PartitionSpec spec, String nameMapping, FileFormat fileFormat, MetricsConfig metricsConfig,
+                  String metadataLocation) {
       this.spec = spec;
       this.nameMappingString = nameMapping;
       this.fileFormat = fileFormat;
       this.metricsConfig = metricsConfig;
+      this.metadataLocation = metadataLocation;
     }
 
     @Override
-    public List<DataFile> map(PartitionAndLocation map) {
-      Map<String, String> partitions = map.getMap();
-      String location = map.getLocation();
+    public List<ManifestFile> map(PartitionAndLocation partitionAndLocation) {
+      Map<String, String> partitions = partitionAndLocation.getPartitionSpec();
+      String location = partitionAndLocation.getLocation();
       Configuration conf = HadoopUtils.getHadoopConfiguration(GlobalConfiguration.loadConfiguration());
       NameMapping nameMapping = nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
       List<DataFile> files;
       switch (fileFormat) {
         case PARQUET:
-          files = listParquetPartition(partitions, location, spec, conf, metricsConfig, nameMapping);
+          files = listParquetPartition(partitions, location, spec, conf, metricsConfig);
           break;
 
         case ORC:
@@ -259,7 +291,31 @@ public class MigrateAction implements Action<Integer> {
           throw new UnsupportedOperationException("Unsupported file format");
       }
 
-      return files;
+      return buildManifest(conf, spec, metadataLocation, files);
+    }
+
+    private List<ManifestFile> buildManifest(Configuration conf, PartitionSpec partitionSpec,
+                                             String basePath, List<DataFile> dataFiles) {
+      if (dataFiles.size() > 0) {
+        FileIO io = new HadoopFileIO(conf);
+        int subTaskId = getRuntimeContext().getIndexOfThisSubtask();
+        int attemptId = getRuntimeContext().getAttemptNumber();
+        String suffix = String.format("%d-task-%d-manifest", subTaskId, attemptId);
+        Path location = new Path(basePath, suffix);
+        String outputPath = FileFormat.AVRO.addExtension(location.toString());
+        OutputFile outputFile = io.newOutputFile(outputPath);
+        ManifestWriter<DataFile> writer = ManifestFiles.write(partitionSpec, outputFile);
+        try (ManifestWriter<DataFile> writerRef = writer) {
+          dataFiles.forEach(writerRef::add);
+        } catch (IOException e) {
+          throw new UncheckedIOException("Unable to close the manifest writer", e);
+        }
+
+        ManifestFile manifestFile = writer.toManifestFile();
+        return Lists.newArrayList(manifestFile);
+      } else {
+        return Lists.newArrayList();
+      }
     }
 
     private List<DataFile> listOrcPartition(Map<String, String> partitionPath, String partitionUri,
@@ -281,7 +337,7 @@ public class MigrateAction implements Action<Integer> {
 
               return DataFiles.builder(partitionSpec)
                   .withPath(stat.getPath().toString())
-                  .withFormat(FileFormat.ORC.name())
+                  .withFormat(FileFormat.ORC)
                   .withFileSizeInBytes(stat.getLen())
                   .withMetrics(metrics)
                   .withPartitionPath(partitionKey)
@@ -295,7 +351,7 @@ public class MigrateAction implements Action<Integer> {
 
     private static List<DataFile> listParquetPartition(Map<String, String> partitionPath, String partitionUri,
                                                        PartitionSpec spec, Configuration conf,
-                                                       MetricsConfig metricsSpec, NameMapping mapping) {
+                                                       MetricsConfig metricsSpec) {
       try {
         Path partition = new Path(partitionUri);
         FileSystem fs = partition.getFileSystem(conf);
@@ -303,14 +359,8 @@ public class MigrateAction implements Action<Integer> {
         return Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
             .filter(FileStatus::isFile)
             .map(stat -> {
-              Metrics metrics;
-              try {
-                ParquetMetadata metadata = ParquetFileReader.readFooter(conf, stat);
-                metrics = ParquetUtil.footerMetrics(metadata, Stream.empty(), metricsSpec, mapping);
-              } catch (IOException e) {
-                throw new UncheckedIOException(
-                    String.format("Unable to read the footer of the parquet file: %s", stat.getPath()), e);
-              }
+              InputFile inputFile = HadoopInputFile.fromPath(stat.getPath(), conf);
+              Metrics metrics = ParquetUtil.fileMetrics(inputFile, metricsSpec);
 
               String partitionKey = spec.fields().stream()
                   .map(PartitionField::name)
@@ -319,7 +369,7 @@ public class MigrateAction implements Action<Integer> {
 
               return DataFiles.builder(spec)
                   .withPath(stat.getPath().toString())
-                  .withFormat(FileFormat.PARQUET.name())
+                  .withFormat(FileFormat.PARQUET)
                   .withFileSizeInBytes(stat.getLen())
                   .withMetrics(metrics)
                   .withPartitionPath(partitionKey)
@@ -334,11 +384,11 @@ public class MigrateAction implements Action<Integer> {
 
   public static class PartitionAndLocation implements java.io.Serializable {
     private String location;
-    private Map<String, String> map;
+    private Map<String, String> partitionSpec;
 
-    public PartitionAndLocation(String location, Map<String, String> map) {
+    public PartitionAndLocation(String location, Map<String, String> partitionSpec) {
       this.location = location;
-      this.map = map;
+      this.partitionSpec = partitionSpec;
     }
 
     public String getLocation() {
@@ -349,12 +399,12 @@ public class MigrateAction implements Action<Integer> {
       this.location = location;
     }
 
-    public Map<String, String> getMap() {
-      return map;
+    public Map<String, String> getPartitionSpec() {
+      return partitionSpec;
     }
 
-    public void setMap(Map<String, String> map) {
-      this.map = map;
+    public void setPartitionSpec(Map<String, String> partitionSpec) {
+      this.partitionSpec = partitionSpec;
     }
   }
 

@@ -36,6 +36,7 @@ import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.data.GenericAppenderFactory;
@@ -52,9 +53,7 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -68,17 +67,19 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
 
   private final FileFormat format;
   private static HiveMetaStoreClient metastoreClient;
-  private HiveCatalog flinkHiveCatalog;
+  private static HiveCatalog flinkHiveCatalog;
   private StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
   private StreamTableEnvironment tEnv;
 
   @BeforeClass
   public static void createHiveDB() {
     try {
-      TestMigrateAction.metastoreClient = new HiveMetaStoreClient(hiveConf);
+      metastoreClient = new HiveMetaStoreClient(hiveConf);
       String dbPath = metastore.getDatabasePath(SOURCE_HIVE_DB_NAME);
       Database db = new Database(SOURCE_HIVE_DB_NAME, "description", dbPath, Maps.newHashMap());
       metastoreClient.createDatabase(db);
+
+      flinkHiveCatalog = new HiveCatalog(SOURCE_HIVE_CATALOG_NAME, SOURCE_HIVE_DB_NAME, hiveConf, "2.3.6");
     } catch (TException e) {
       throw new RuntimeException(e);
     }
@@ -88,13 +89,11 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
   public static void dropHiveDB() {
     try {
       metastoreClient.dropDatabase(SOURCE_HIVE_DB_NAME);
+      metastoreClient.close();
     } catch (TException e) {
       throw new RuntimeException(e);
     }
   }
-
-  @Rule
-  public TemporaryFolder tempFolder = new TemporaryFolder();
 
   @Before
   public void before() {
@@ -102,8 +101,8 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
     exec("USE CATALOG %s", catalogName);
     exec("CREATE DATABASE IF NOT EXISTS %s", DATABASE);
 
-    flinkHiveCatalog = new HiveCatalog(SOURCE_HIVE_CATALOG_NAME, SOURCE_HIVE_DB_NAME, hiveConf, "2.3.6");
     getTableEnv().registerCatalog(SOURCE_HIVE_CATALOG_NAME, flinkHiveCatalog);
+
     exec("USE CATALOG %s", SOURCE_HIVE_CATALOG_NAME);
     exec("USE %s", SOURCE_HIVE_DB_NAME);
   }
@@ -121,6 +120,7 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
     } catch (TException e) {
       throw new RuntimeException(e);
     }
+
     exec("DROP CATALOG IF EXISTS %s", SOURCE_HIVE_CATALOG_NAME);
   }
 
@@ -129,12 +129,11 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
     if (tEnv == null) {
       synchronized (this) {
         if (tEnv == null) {
-          env.setParallelism(1);
-          env.enableCheckpointing(100);
           this.tEnv = StreamTableEnvironment.create(env);
         }
       }
     }
+
     return tEnv;
   }
 
@@ -148,6 +147,7 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
         parameters.add(new Object[] {catalogName, baseNamespace, format});
       }
     }
+
     return parameters;
   }
 
@@ -182,10 +182,10 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
       }
     }
 
-    int migrateFileCount =
+    List<ManifestFile> manifestFiles =
         Actions.migrateHive2Iceberg(env, flinkHiveCatalog, SOURCE_HIVE_DB_NAME, SOURCE_HIVE_TABLE_NAME,
             validationCatalog, baseNamespace, DATABASE, TABLE_NAME_UNPARTITIONED).execute();
-    Assert.assertEquals("Should produce the expected file count.", 1, migrateFileCount);
+    Assert.assertEquals("Should produce the expected manifestFiles count.", 1, manifestFiles.size());
 
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
@@ -195,49 +195,81 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
   }
 
   @Test
-  public void testMigratePartition() throws IOException, TException {
+  public void testMigratePartition() throws IOException, TException, TableNotExistException {
     getTableEnv().getConfig().setSqlDialect(SqlDialect.HIVE);
     sql("CREATE TABLE %s (id INT, data STRING) PARTITIONED BY (p STRING) STORED AS %s", SOURCE_HIVE_TABLE_NAME,
         format.name());
-
-    Partition hivePartition = createHivePartition(format);
     getTableEnv().getConfig().setSqlDialect(SqlDialect.DEFAULT);
-
-    metastoreClient.add_partition(hivePartition);
-
-    Partition partition = metastoreClient.getPartition(SOURCE_HIVE_DB_NAME, SOURCE_HIVE_TABLE_NAME, "p=iceberg");
-    String location = partition.getSd().getLocation();
-
-    Schema schema = new Schema(
-        Types.NestedField.required(1, "id", Types.IntegerType.get()),
-        Types.NestedField.optional(2, "data", Types.StringType.get()));
-    GenericAppenderFactory genericAppenderFactory = new GenericAppenderFactory(schema);
-
-    URL url = new URL(location + File.separator + "test." + format.name());
-    File dataFile = new File(url.getPath());
+    String hiveLocation = flinkHiveCatalog.getHiveTable(new ObjectPath(SOURCE_HIVE_DB_NAME, SOURCE_HIVE_TABLE_NAME))
+        .getSd().getLocation();
 
     List<Object[]> expected = Lists.newArrayList();
-    try (FileAppender<Record> fileAppender = genericAppenderFactory.newAppender(Files.localOutput(dataFile), format)) {
-      for (int i = 0; i < 10; i++) {
-        Record record = SimpleDataUtil.createRecord(i, "iceberg" + i);
-        fileAppender.add(record);
-        expected.add(new Object[] {i, "iceberg" + i, "iceberg"});
+    String[] partitions = new String[] {"iceberg", "flink"};
+    for (String partitionValue : partitions) {
+      String partitionPath = hiveLocation + "/p=" + partitionValue;
+
+      Partition hivePartition = createHivePartition(format, partitionPath, partitionValue);
+      metastoreClient.add_partition(hivePartition);
+
+      Partition partition =
+          metastoreClient.getPartition(SOURCE_HIVE_DB_NAME, SOURCE_HIVE_TABLE_NAME, "p=" + partitionValue);
+      String location = partition.getSd().getLocation();
+
+      Schema schema = new Schema(
+          Types.NestedField.required(1, "id", Types.IntegerType.get()),
+          Types.NestedField.optional(2, "data", Types.StringType.get()));
+      GenericAppenderFactory genericAppenderFactory = new GenericAppenderFactory(schema);
+
+      URL url = new URL(location + File.separator + "test." + format.name());
+      File dataFile = new File(url.getPath());
+
+      try (
+          FileAppender<Record> fileAppender = genericAppenderFactory.newAppender(Files.localOutput(dataFile), format)) {
+        for (int i = 0; i < 10; i++) {
+          Record record = SimpleDataUtil.createRecord(i, "iceberg" + i);
+          fileAppender.add(record);
+          expected.add(new Object[] {i, "iceberg" + i, partitionValue});
+        }
       }
     }
 
-    int migrateFileCount =
+    List<ManifestFile> manifestFiles =
         Actions.migrateHive2Iceberg(env, flinkHiveCatalog, SOURCE_HIVE_DB_NAME, SOURCE_HIVE_TABLE_NAME,
             validationCatalog, baseNamespace, DATABASE, TABLE_NAME_UNPARTITIONED).execute();
-    Assert.assertEquals("Should produce the expected file count.", 1, migrateFileCount);
+    Assert.assertEquals("Should produce the expected manifestFiles count.", 2, manifestFiles.size());
 
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
     List<Object[]> list = sql("SELECT * FROM %s", TABLE_NAME_UNPARTITIONED);
-    Assert.assertEquals("Should produce the expected records count.", 10, list.size());
+    Assert.assertEquals("Should produce the expected records count.", 20, list.size());
+    sortList(list);
+    sortList(expected);
     Assert.assertArrayEquals("Should produce the expected records.", expected.toArray(), list.toArray());
   }
 
-  private Partition createHivePartition(FileFormat fileFormat) throws IOException {
+  private void sortList(List<Object[]> list) {
+    list.sort((o1, o2) -> {
+      for (int i = 0; i < o1.length; i++) {
+        if (o1[i] instanceof String && o2[i] instanceof String) {
+          String s1 = (String) o1[i];
+          String s2 = (String) o2[i];
+          if (!s1.equals(s2)) {
+            return s1.compareTo(s2);
+          }
+        } else if (o1[i] instanceof Integer && o2[i] instanceof Integer) {
+          int i1 = (int) o1[i];
+          int i2 = (int) o2[i];
+          if (i1 != i2) {
+            return i1 - i2;
+          }
+        }
+      }
+
+      return 0;
+    });
+  }
+
+  private Partition createHivePartition(FileFormat fileFormat, String hivePartitionPath, String partitionValue) {
     SerDeInfo serDeInfo =
         new SerDeInfo(null, "org.apache.hadoop.hive.serde2.thrift.ThriftDeserializer", Maps.newHashMap());
 
@@ -258,12 +290,12 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
         throw new UnsupportedOperationException("Unsupported file format :" + fileFormat);
     }
 
-    StorageDescriptor sd = new StorageDescriptor(Lists.newArrayList(), tempFolder.newFolder().getAbsolutePath(),
+    StorageDescriptor sd = new StorageDescriptor(Lists.newArrayList(), hivePartitionPath,
         inputFormat, outputFormat,
         false, -1, serDeInfo, Lists.newArrayList(), Lists.newArrayList(), Maps.newHashMap());
 
     Partition hivePartition = new Partition(
-        Lists.newArrayList("iceberg"),
+        Lists.newArrayList(partitionValue),
         SOURCE_HIVE_DB_NAME,
         SOURCE_HIVE_TABLE_NAME,
         0,
