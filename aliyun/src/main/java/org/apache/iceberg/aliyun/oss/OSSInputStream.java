@@ -20,6 +20,7 @@
 package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
+import com.aliyun.oss.model.GetObjectRequest;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
@@ -125,8 +126,10 @@ class OSSInputStream extends SeekableInputStream {
 
   private void openStream() throws IOException {
     closeStream();
-    stream = client.getObject(uri.bucket(), uri.key())
-        .getObjectContent();
+
+    GetObjectRequest request = new GetObjectRequest(uri.bucket(), uri.key())
+        .withRange(pos, -1);
+    stream = client.getObject(request).getObjectContent();
   }
 
   private void closeStream() throws IOException {

@@ -40,7 +40,6 @@ public class OSSFileIO implements FileIO {
 
   private SerializableSupplier<OSS> oss;
   private AliyunProperties aliyunProperties;
-  private AliyunClientFactory aliyunClientFactory;
   private transient OSS client;
 
   /**
@@ -49,6 +48,18 @@ public class OSSFileIO implements FileIO {
    * All fields are initialized by calling {@link OSSFileIO#initialize(Map)} later.
    */
   public OSSFileIO() {
+  }
+
+  /**
+   * Constructor with custom oss supplier and default aliyun properties.
+   * <p>
+   * Calling {@link OSSFileIO#initialize(Map)} will overwrite information set in this constructor.
+   *
+   * @param oss oss supplier
+   */
+  public OSSFileIO(SerializableSupplier<OSS> oss) {
+    this.oss = oss;
+    this.aliyunProperties = new AliyunProperties();
   }
 
   @Override
@@ -79,9 +90,9 @@ public class OSSFileIO implements FileIO {
     this.aliyunProperties = new AliyunProperties(properties);
 
     // TODO Should we load class dynamically ?
-    this.aliyunClientFactory = new DefaultAliyunClientFactory();
-    this.aliyunClientFactory.initialize(properties);
+    AliyunClientFactory factory = new DefaultAliyunClientFactory();
+    factory.initialize(properties);
 
-    this.oss = aliyunClientFactory::oss;
+    this.oss = factory::oss;
   }
 }

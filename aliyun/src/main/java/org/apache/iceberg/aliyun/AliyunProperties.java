@@ -21,6 +21,7 @@ package org.apache.iceberg.aliyun;
 
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class AliyunProperties {
@@ -90,6 +91,10 @@ public class AliyunProperties {
   private final long ossMultiPartSize;
   private final String ossStagingDirectory;
   private final long ossMultipartThresholdSize;
+
+  public AliyunProperties() {
+    this(ImmutableMap.of());
+  }
 
   public AliyunProperties(Map<String, String> properties) {
     Preconditions.checkNotNull(properties, "Aliyun properties should not be null");

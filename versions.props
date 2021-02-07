@@ -31,4 +31,6 @@ org.apache.hive:hive-exec = 2.3.8
 org.apache.hive:hive-service = 2.3.8
 org.apache.tez:tez-dag = 0.8.4
 org.apache.tez:tez-mapreduce = 0.8.4
+org.springframework:* = 5.1.10.RELEASE
+org.springframework.boot:* = 2.1.9.RELEASE
 com.adobe.testing:s3mock-junit4 = 2.1.28
