@@ -136,15 +136,16 @@ class SchemaUpdate implements UpdateSchema {
           parentField.type().isNestedType() && parentField.type().asNestedType().isStructType(),
           "Cannot add to non-struct column: %s: %s", parent, parentField.type());
       parentId = parentField.fieldId();
+      Types.NestedField currentField = schema.findField(parent + "." + name);
       Preconditions.checkArgument(!deletes.contains(parentId),
           "Cannot add to a column that will be deleted: %s", parent);
-      Preconditions.checkArgument(schema.findField(parent + "." + name) == null ||
-                      deletes.contains(schema.findField(parent + "." + name).fieldId()),
-          "Cannot add column, name already exists and is not being deleted: %s.%s", parent, name);
+      Preconditions.checkArgument(currentField == null || deletes.contains(currentField.fieldId()),
+          "Cannot add column, name already exists: %s.%s", parent, name);
       fullName = schema.findColumnName(parentId) + "." + name;
     } else {
-      Preconditions.checkArgument(schema.findField(name) == null || deletes.contains(schema.findField(name).fieldId()),
-          "Cannot add column, name already exists and is not being deleted: %s", name);
+      Types.NestedField currentField = schema.findField(name);
+      Preconditions.checkArgument(currentField == null || deletes.contains(currentField.fieldId()),
+          "Cannot add column, name already exists: %s", name);
       fullName = name;
     }
 
