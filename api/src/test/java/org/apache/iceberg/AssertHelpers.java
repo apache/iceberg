@@ -141,7 +141,7 @@ public class AssertHelpers {
   }
 
   /**
-   * A convenience method to assert the cause of thrown exception.
+   * A convenience method to check if an Avro field is empty.
    * @param record The record to read from
    * @param field The name of the field
    */
