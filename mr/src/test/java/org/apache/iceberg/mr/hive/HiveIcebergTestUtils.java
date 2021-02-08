@@ -263,6 +263,7 @@ public class HiveIcebergTestUtils {
         .collect(Collectors.toList());
 
     Assert.assertEquals(dataFileNum, dataFiles.size());
-    Assert.assertFalse(new File(HiveIcebergOutputCommitter.generateJobLocation(conf, jobId)).exists());
+    Assert.assertFalse(
+        new File(HiveIcebergOutputCommitter.generateJobLocation(table.location(), conf, jobId)).exists());
   }
 }

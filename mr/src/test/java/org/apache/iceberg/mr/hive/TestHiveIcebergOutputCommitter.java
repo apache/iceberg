@@ -47,10 +47,12 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.mr.Catalogs;
+import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.mr.mapred.Container;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SerializationUtil;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -58,7 +60,7 @@ import org.junit.rules.TemporaryFolder;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-import static org.apache.iceberg.mr.hive.HiveIcebergRecordWriter.getWriter;
+import static org.apache.iceberg.mr.hive.HiveIcebergRecordWriter.getWriters;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestHiveIcebergOutputCommitter {
@@ -207,10 +209,10 @@ public class TestHiveIcebergOutputCommitter {
     Assert.assertEquals(1, argumentCaptor.getAllValues().size());
     TaskAttemptID capturedId = TezUtil.taskAttemptWrapper(argumentCaptor.getValue().getTaskAttemptID());
     // writer is still in the map after commitTask failure
-    Assert.assertNotNull(getWriter(capturedId));
+    Assert.assertNotNull(getWriters(capturedId));
     failingCommitter.abortTask(new TaskAttemptContextImpl(conf, capturedId));
     // abortTask succeeds and removes writer
-    Assert.assertNull(getWriter(capturedId));
+    Assert.assertNull(getWriters(capturedId));
   }
 
   private Table table(String location, boolean partitioned) {
@@ -223,6 +225,9 @@ public class TestHiveIcebergOutputCommitter {
     conf.setNumMapTasks(taskNum);
     conf.setNumReduceTasks(0);
     conf.set(HiveConf.ConfVars.HIVEQUERYID.varname, QUERY_ID);
+    Map<String, String> outputs = Maps.newHashMap();
+    outputs.put(table.location(), table.name());
+    conf.set(InputFormatConfig.OUTPUT_TABLES, SerializationUtil.serializeToBase64(outputs));
 
     Map<String, String> propMap = Maps.newHashMap();
     TableDesc tableDesc = new TableDesc();
@@ -266,7 +271,7 @@ public class TestHiveIcebergOutputCommitter {
               attemptNum, QUERY_ID + "-" + JOB_ID);
       HiveIcebergRecordWriter testWriter = new HiveIcebergRecordWriter(schema, spec, FileFormat.PARQUET,
           new GenericAppenderFactory(schema), outputFileFactory, io, TARGET_FILE_SIZE,
-          TezUtil.taskAttemptWrapper(taskId));
+          TezUtil.taskAttemptWrapper(taskId), conf.get(Catalogs.LOCATION));
 
       Container<Record> container = new Container<>();
 

@@ -41,6 +41,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.mapred.Container;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -79,8 +80,9 @@ public class HiveIcebergOutputFormat<T> implements OutputFormat<NullWritable, Co
     OutputFileFactory outputFileFactory =
         new OutputFileFactory(spec, fileFormat, location, io, encryption, taskAttemptID.getTaskID().getId(),
             taskAttemptID.getId(), jc.get(HiveConf.ConfVars.HIVEQUERYID.varname) + "-" + taskAttemptID.getJobID());
+    String targetLocation = jc.get(Catalogs.LOCATION);
     HiveIcebergRecordWriter writer = new HiveIcebergRecordWriter(schema, spec, fileFormat,
-        new GenericAppenderFactory(schema, spec), outputFileFactory, io, targetFileSize, taskAttemptID);
+        new GenericAppenderFactory(schema, spec), outputFileFactory, io, targetFileSize, taskAttemptID, targetLocation);
 
     return writer;
   }
