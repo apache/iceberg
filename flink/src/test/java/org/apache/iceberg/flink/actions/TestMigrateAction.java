@@ -29,6 +29,7 @@ import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.hive.HiveCatalog;
+import org.apache.flink.types.Row;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.Partition;
@@ -40,9 +41,11 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkCatalogTestBase;
 import org.apache.iceberg.flink.SimpleDataUtil;
+import org.apache.iceberg.flink.source.TestFlinkScan;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -60,9 +63,9 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class TestMigrateAction extends FlinkCatalogTestBase {
 
-  private static final String TABLE_NAME_UNPARTITIONED = "test_table_unpartitioned";
+  private static final String TARGET_ICEBERG_TABLE_NAME = "test_iceberg_table";
   private static final String SOURCE_HIVE_CATALOG_NAME = "myhive";
-  private static final String SOURCE_HIVE_DB_NAME = "test_hive_db";
+  private static final String SOURCE_HIVE_DATABASE_NAME = "test_hive_db";
   private static final String SOURCE_HIVE_TABLE_NAME = "test_hive_table";
 
   private final FileFormat format;
@@ -75,11 +78,11 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
   public static void createHiveDB() {
     try {
       metastoreClient = new HiveMetaStoreClient(hiveConf);
-      String dbPath = metastore.getDatabasePath(SOURCE_HIVE_DB_NAME);
-      Database db = new Database(SOURCE_HIVE_DB_NAME, "description", dbPath, Maps.newHashMap());
+      String dbPath = metastore.getDatabasePath(SOURCE_HIVE_DATABASE_NAME);
+      Database db = new Database(SOURCE_HIVE_DATABASE_NAME, "description", dbPath, Maps.newHashMap());
       metastoreClient.createDatabase(db);
 
-      flinkHiveCatalog = new HiveCatalog(SOURCE_HIVE_CATALOG_NAME, SOURCE_HIVE_DB_NAME, hiveConf, "2.3.6");
+      flinkHiveCatalog = new HiveCatalog(SOURCE_HIVE_CATALOG_NAME, SOURCE_HIVE_DATABASE_NAME, hiveConf, "2.3.6");
     } catch (TException e) {
       throw new RuntimeException(e);
     }
@@ -88,7 +91,7 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
   @AfterClass
   public static void dropHiveDB() {
     try {
-      metastoreClient.dropDatabase(SOURCE_HIVE_DB_NAME);
+      metastoreClient.dropDatabase(SOURCE_HIVE_DATABASE_NAME);
       metastoreClient.close();
     } catch (TException e) {
       throw new RuntimeException(e);
@@ -104,19 +107,19 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
     getTableEnv().registerCatalog(SOURCE_HIVE_CATALOG_NAME, flinkHiveCatalog);
 
     exec("USE CATALOG %s", SOURCE_HIVE_CATALOG_NAME);
-    exec("USE %s", SOURCE_HIVE_DB_NAME);
+    exec("USE %s", SOURCE_HIVE_DATABASE_NAME);
   }
 
   @After
   public void clean() {
     // drop iceberg db and table
-    exec("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE_NAME_UNPARTITIONED);
+    exec("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TARGET_ICEBERG_TABLE_NAME);
     exec("DROP DATABASE IF EXISTS %s", flinkDatabase);
     super.clean();
 
-    // drop hive db and table
+    // drop hive table
     try {
-      metastoreClient.dropTable(SOURCE_HIVE_DB_NAME, SOURCE_HIVE_TABLE_NAME);
+      metastoreClient.dropTable(SOURCE_HIVE_DATABASE_NAME, SOURCE_HIVE_TABLE_NAME);
     } catch (TException e) {
       throw new RuntimeException(e);
     }
@@ -162,8 +165,9 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
     sql("CREATE TABLE %s (id INT, data STRING) stored as %s", SOURCE_HIVE_TABLE_NAME, format.name());
     getTableEnv().getConfig().setSqlDialect(SqlDialect.DEFAULT);
 
-    String location = flinkHiveCatalog.getHiveTable(new ObjectPath(SOURCE_HIVE_DB_NAME, SOURCE_HIVE_TABLE_NAME)).getSd()
-        .getLocation();
+    String location =
+        flinkHiveCatalog.getHiveTable(new ObjectPath(SOURCE_HIVE_DATABASE_NAME, SOURCE_HIVE_TABLE_NAME)).getSd()
+            .getLocation();
 
     Schema schema = new Schema(
         Types.NestedField.required(1, "id", Types.IntegerType.get()),
@@ -183,13 +187,13 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
     }
 
     List<ManifestFile> manifestFiles =
-        Actions.migrateHive2Iceberg(env, flinkHiveCatalog, SOURCE_HIVE_DB_NAME, SOURCE_HIVE_TABLE_NAME,
-            validationCatalog, baseNamespace, DATABASE, TABLE_NAME_UNPARTITIONED).execute();
+        Actions.migrateHive2Iceberg(env, flinkHiveCatalog, SOURCE_HIVE_DATABASE_NAME, SOURCE_HIVE_TABLE_NAME,
+            validationCatalog, baseNamespace, DATABASE, TARGET_ICEBERG_TABLE_NAME).execute();
     Assert.assertEquals("Should produce the expected manifestFiles count.", 1, manifestFiles.size());
 
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
-    List<Object[]> list = sql("SELECT * FROM %s", TABLE_NAME_UNPARTITIONED);
+    List<Object[]> list = sql("SELECT * FROM %s", TARGET_ICEBERG_TABLE_NAME);
     Assert.assertEquals("Should produce the expected records count.", 10, list.size());
     Assert.assertArrayEquals("Should produce the expected records.", expected.toArray(), list.toArray());
   }
@@ -200,11 +204,18 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
     sql("CREATE TABLE %s (id INT, data STRING) PARTITIONED BY (p STRING) STORED AS %s", SOURCE_HIVE_TABLE_NAME,
         format.name());
     getTableEnv().getConfig().setSqlDialect(SqlDialect.DEFAULT);
-    String hiveLocation = flinkHiveCatalog.getHiveTable(new ObjectPath(SOURCE_HIVE_DB_NAME, SOURCE_HIVE_TABLE_NAME))
-        .getSd().getLocation();
+    String hiveLocation =
+        flinkHiveCatalog.getHiveTable(new ObjectPath(SOURCE_HIVE_DATABASE_NAME, SOURCE_HIVE_TABLE_NAME))
+            .getSd().getLocation();
 
-    List<Object[]> expected = Lists.newArrayList();
+    List<Record> expected = Lists.newArrayList();
     String[] partitions = new String[] {"iceberg", "flink"};
+
+    Schema icebergSchema = new Schema(
+        Types.NestedField.required(1, "id", Types.IntegerType.get()),
+        Types.NestedField.optional(2, "data", Types.StringType.get()),
+        Types.NestedField.optional(3, "p", Types.StringType.get()));
+
     for (String partitionValue : partitions) {
       String partitionPath = hiveLocation + "/p=" + partitionValue;
 
@@ -212,7 +223,7 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
       metastoreClient.add_partition(hivePartition);
 
       Partition partition =
-          metastoreClient.getPartition(SOURCE_HIVE_DB_NAME, SOURCE_HIVE_TABLE_NAME, "p=" + partitionValue);
+          metastoreClient.getPartition(SOURCE_HIVE_DATABASE_NAME, SOURCE_HIVE_TABLE_NAME, "p=" + partitionValue);
       String location = partition.getSd().getLocation();
 
       Schema schema = new Schema(
@@ -222,51 +233,31 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
 
       URL url = new URL(location + File.separator + "test." + format.name());
       File dataFile = new File(url.getPath());
-
       try (
           FileAppender<Record> fileAppender = genericAppenderFactory.newAppender(Files.localOutput(dataFile), format)) {
         for (int i = 0; i < 10; i++) {
           Record record = SimpleDataUtil.createRecord(i, "iceberg" + i);
           fileAppender.add(record);
-          expected.add(new Object[] {i, "iceberg" + i, partitionValue});
+
+          GenericRecord genericRecord = GenericRecord.create(icebergSchema);
+          genericRecord.set(0, i);
+          genericRecord.set(1, "iceberg" + i);
+          genericRecord.set(2, partitionValue);
+          expected.add(genericRecord);
         }
       }
     }
 
     List<ManifestFile> manifestFiles =
-        Actions.migrateHive2Iceberg(env, flinkHiveCatalog, SOURCE_HIVE_DB_NAME, SOURCE_HIVE_TABLE_NAME,
-            validationCatalog, baseNamespace, DATABASE, TABLE_NAME_UNPARTITIONED).execute();
+        Actions.migrateHive2Iceberg(env, flinkHiveCatalog, SOURCE_HIVE_DATABASE_NAME, SOURCE_HIVE_TABLE_NAME,
+            validationCatalog, baseNamespace, DATABASE, TARGET_ICEBERG_TABLE_NAME).execute();
     Assert.assertEquals("Should produce the expected manifestFiles count.", 2, manifestFiles.size());
 
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
-    List<Object[]> list = sql("SELECT * FROM %s", TABLE_NAME_UNPARTITIONED);
-    Assert.assertEquals("Should produce the expected records count.", 20, list.size());
-    sortList(list);
-    sortList(expected);
-    Assert.assertArrayEquals("Should produce the expected records.", expected.toArray(), list.toArray());
-  }
-
-  private void sortList(List<Object[]> list) {
-    list.sort((o1, o2) -> {
-      for (int i = 0; i < o1.length; i++) {
-        if (o1[i] instanceof String && o2[i] instanceof String) {
-          String s1 = (String) o1[i];
-          String s2 = (String) o2[i];
-          if (!s1.equals(s2)) {
-            return s1.compareTo(s2);
-          }
-        } else if (o1[i] instanceof Integer && o2[i] instanceof Integer) {
-          int i1 = (int) o1[i];
-          int i2 = (int) o2[i];
-          if (i1 != i2) {
-            return i1 - i2;
-          }
-        }
-      }
-
-      return 0;
-    });
+    List<Row> results = executeSql("SELECT * FROM %s", TARGET_ICEBERG_TABLE_NAME);
+    Assert.assertEquals("Should produce the expected records count.", 20, results.size());
+    TestFlinkScan.assertRecords(results, expected, icebergSchema);
   }
 
   private Partition createHivePartition(FileFormat fileFormat, String hivePartitionPath, String partitionValue) {
@@ -296,7 +287,7 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
 
     Partition hivePartition = new Partition(
         Lists.newArrayList(partitionValue),
-        SOURCE_HIVE_DB_NAME,
+        SOURCE_HIVE_DATABASE_NAME,
         SOURCE_HIVE_TABLE_NAME,
         0,
         0,

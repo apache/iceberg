@@ -103,4 +103,14 @@ public abstract class FlinkTestBase extends TestBaseUtils {
       throw new RuntimeException("Failed to collect table result", e);
     }
   }
+
+  protected List<Row> executeSql(String query, Object... args) {
+    TableResult tableResult = exec(query, args);
+    try (CloseableIterator<Row> iter = tableResult.collect()) {
+      List<Row> results = Lists.newArrayList(iter);
+      return results;
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to collect table result", e);
+    }
+  }
 }

@@ -44,6 +44,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.MiniClusterResource;
+import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
@@ -304,7 +305,7 @@ public abstract class TestFlinkScan {
       appender.appendToTable(partition, Collections.singletonList(record));
     }
 
-    TestHelpers.assertRecords(run(), records, typesSchema);
+    SimpleDataUtil.assertRecords(run(), records, typesSchema);
   }
 
   private static void assertRows(List<Row> results, Row... expected) {

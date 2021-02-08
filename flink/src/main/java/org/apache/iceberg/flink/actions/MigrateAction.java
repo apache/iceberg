@@ -22,7 +22,6 @@ package org.apache.iceberg.flink.actions;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -78,12 +77,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class MigrateAction implements Action<List<ManifestFile>> {
+  private static final Logger LOGGER = LoggerFactory.getLogger(MigrateAction.class);
 
   private static final String PATQUET_INPUT_FORMAT = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat";
   private static final String ORC_INPUT_FORMAT = "org.apache.hadoop.hive.ql.io.orc.OrcInputFormat";
-  private static final String AVRO_INPUT_FORMAT = "org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat";
   private static final PathFilter HIDDEN_PATH_FILTER =
       p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
   private static final String ICEBERG_METADATA_FOLDER = "metadata";
@@ -165,18 +166,19 @@ public class MigrateAction implements Action<List<ManifestFile>> {
         manifestFiles =
             migratePartitionedTable(spec, tableSource, nameMapping, fileFormat, metricsConfig, icebergTable.name(),
                 metadataLocation);
-
       }
+
+      AppendFiles append = icebergTable.newAppend();
+      manifestFiles.forEach(append::appendManifest);
+      append.commit();
     } catch (Exception e) {
+      LOGGER.error("Migrate hive table to iceberg table failed.", e);
       deleteManifests(icebergTable.io(), manifestFiles);
-      throw new RuntimeException("Migrate", e);
+      throw new RuntimeException("Failed to migrate hive table", e);
+    } finally {
+      flinkHiveCatalog.close();
     }
 
-    AppendFiles append = icebergTable.newAppend();
-    manifestFiles.forEach(append::appendManifest);
-    append.commit();
-
-    flinkHiveCatalog.close();
     return manifestFiles;
   }
 
@@ -199,10 +201,6 @@ public class MigrateAction implements Action<List<ManifestFile>> {
         fileFormat = FileFormat.ORC;
         break;
 
-      case AVRO_INPUT_FORMAT:
-        fileFormat = FileFormat.AVRO;
-        break;
-
       default:
         throw new UnsupportedOperationException("Unsupported file format");
     }
@@ -222,9 +220,9 @@ public class MigrateAction implements Action<List<ManifestFile>> {
     MigrateMapper migrateMapper = new MigrateMapper(spec, nameMapping, fileFormat, metricsConfig, metadataLocation);
     DataStream<PartitionAndLocation> dataStream =
         env.fromElements(new PartitionAndLocation(hiveLocation, Maps.newHashMap()));
-    DataStream<List<ManifestFile>> ds = dataStream.map(migrateMapper);
+    DataStream<ManifestFile> ds = dataStream.map(migrateMapper);
     return Lists.newArrayList(ds.executeAndCollect("migrate table :" + icebergTable.name())).stream()
-        .flatMap(Collection::stream).collect(Collectors.toList());
+        .collect(Collectors.toList());
   }
 
   private Namespace toNamespace() {
@@ -250,12 +248,12 @@ public class MigrateAction implements Action<List<ManifestFile>> {
 
     DataStream<PartitionAndLocation> dataStream = env.fromCollection(inputs);
     MigrateMapper migrateMapper = new MigrateMapper(spec, nameMapping, fileFormat, metricsConfig, metadataLocation);
-    DataStream<List<ManifestFile>> ds = dataStream.map(migrateMapper).setParallelism(parallelism);
+    DataStream<ManifestFile> ds = dataStream.map(migrateMapper).setParallelism(parallelism);
     return Lists.newArrayList(ds.executeAndCollect("migrate table :" + hiveTableName)).stream()
-        .flatMap(Collection::stream).collect(Collectors.toList());
+        .collect(Collectors.toList());
   }
 
-  private static class MigrateMapper extends RichMapFunction<PartitionAndLocation, List<ManifestFile>> {
+  private static class MigrateMapper extends RichMapFunction<PartitionAndLocation, ManifestFile> {
     private final PartitionSpec spec;
     private final String nameMappingString;
     private final FileFormat fileFormat;
@@ -272,7 +270,7 @@ public class MigrateAction implements Action<List<ManifestFile>> {
     }
 
     @Override
-    public List<ManifestFile> map(PartitionAndLocation partitionAndLocation) {
+    public ManifestFile map(PartitionAndLocation partitionAndLocation) {
       Map<String, String> partitions = partitionAndLocation.getPartitionSpec();
       String location = partitionAndLocation.getLocation();
       Configuration conf = HadoopUtils.getHadoopConfiguration(GlobalConfiguration.loadConfiguration());
@@ -294,27 +292,26 @@ public class MigrateAction implements Action<List<ManifestFile>> {
       return buildManifest(conf, spec, metadataLocation, files);
     }
 
-    private List<ManifestFile> buildManifest(Configuration conf, PartitionSpec partitionSpec,
-                                             String basePath, List<DataFile> dataFiles) {
+    private ManifestFile buildManifest(Configuration conf, PartitionSpec partitionSpec,
+                                       String basePath, List<DataFile> dataFiles) {
       if (dataFiles.size() > 0) {
         FileIO io = new HadoopFileIO(conf);
         int subTaskId = getRuntimeContext().getIndexOfThisSubtask();
         int attemptId = getRuntimeContext().getAttemptNumber();
-        String suffix = String.format("%d-task-%d-manifest", subTaskId, attemptId);
+        String suffix = String.format("manifest-%d-%d", subTaskId, attemptId);
         Path location = new Path(basePath, suffix);
         String outputPath = FileFormat.AVRO.addExtension(location.toString());
         OutputFile outputFile = io.newOutputFile(outputPath);
         ManifestWriter<DataFile> writer = ManifestFiles.write(partitionSpec, outputFile);
-        try (ManifestWriter<DataFile> writerRef = writer) {
-          dataFiles.forEach(writerRef::add);
+        try (ManifestWriter<DataFile> manifestWriter = writer) {
+          dataFiles.forEach(manifestWriter::add);
         } catch (IOException e) {
           throw new UncheckedIOException("Unable to close the manifest writer", e);
         }
 
-        ManifestFile manifestFile = writer.toManifestFile();
-        return Lists.newArrayList(manifestFile);
+        return writer.toManifestFile();
       } else {
-        return Lists.newArrayList();
+        return null;
       }
     }
 
@@ -413,6 +410,7 @@ public class MigrateAction implements Action<List<ManifestFile>> {
     for (FieldSchema partitionKey : partitionKeys) {
       builder = builder.identity(partitionKey.getName());
     }
+
     return builder.build();
   }
 
