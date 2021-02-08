@@ -90,10 +90,10 @@ public class TestMalformedParquetFromAvro {
 
     List<InternalRow> rows;
     try (CloseableIterable<InternalRow> reader =
-             Parquet.read(Files.localInput(testFile))
-                 .project(icebergSchema)
-                 .createReaderFunc(type -> SparkParquetReaders.buildReader(icebergSchema, type))
-                 .build()) {
+        Parquet.read(Files.localInput(testFile))
+          .project(icebergSchema)
+          .createReaderFunc(type -> SparkParquetReaders.buildReader(icebergSchema, type))
+          .build()) {
       rows = Lists.newArrayList(reader);
     }
 

@@ -67,8 +67,8 @@ public class TypeWithSchemaVisitor<T> {
 
             Preconditions.checkArgument(repeatedElement.isRepetition(Type.Repetition.REPEATED),
                 "Invalid list: inner group is not repeated");
-            Preconditions.checkArgument(repeatedElement.isPrimitive() ||
-                    repeatedElement.asGroupType().getFieldCount() <= 1,
+            Preconditions.checkArgument(
+                repeatedElement.isPrimitive() || repeatedElement.asGroupType().getFieldCount() <= 1,
                 "Invalid list: repeated group is not a single field: %s", group);
 
             Types.ListType list = null;
