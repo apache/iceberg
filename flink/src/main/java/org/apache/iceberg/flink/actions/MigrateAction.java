@@ -160,12 +160,10 @@ public class MigrateAction implements Action<List<ManifestFile>> {
     try {
       if (spec.isUnpartitioned()) {
         manifestFiles =
-            migrateUnpartitionedTable(spec, fileFormat, hiveLocation, icebergTable, nameMapping, metricsConfig,
-                metadataLocation);
+            migrateUnpartitionedTable(spec, fileFormat, hiveLocation, nameMapping, metricsConfig, metadataLocation);
       } else {
         manifestFiles =
-            migratePartitionedTable(spec, tableSource, nameMapping, fileFormat, metricsConfig, icebergTable.name(),
-                metadataLocation);
+            migratePartitionedTable(spec, tableSource, nameMapping, fileFormat, metricsConfig, metadataLocation);
       }
 
       AppendFiles append = icebergTable.newAppend();
@@ -214,14 +212,14 @@ public class MigrateAction implements Action<List<ManifestFile>> {
   }
 
   private List<ManifestFile> migrateUnpartitionedTable(PartitionSpec spec, FileFormat fileFormat, String hiveLocation,
-                                                       Table icebergTable, String nameMapping,
-                                                       MetricsConfig metricsConfig, String metadataLocation)
+                                                       String nameMapping, MetricsConfig metricsConfig,
+                                                       String metadataLocation)
       throws Exception {
     MigrateMapper migrateMapper = new MigrateMapper(spec, nameMapping, fileFormat, metricsConfig, metadataLocation);
     DataStream<PartitionAndLocation> dataStream =
         env.fromElements(new PartitionAndLocation(hiveLocation, Maps.newHashMap()));
     DataStream<ManifestFile> ds = dataStream.map(migrateMapper);
-    return Lists.newArrayList(ds.executeAndCollect("migrate table :" + icebergTable.name())).stream()
+    return Lists.newArrayList(ds.executeAndCollect("migrate table :" + hiveSourceTableName)).stream()
         .collect(Collectors.toList());
   }
 
@@ -231,8 +229,7 @@ public class MigrateAction implements Action<List<ManifestFile>> {
 
   private List<ManifestFile> migratePartitionedTable(PartitionSpec spec, ObjectPath tableSource,
                                                      String nameMapping, FileFormat fileFormat,
-                                                     MetricsConfig metricsConfig, String hiveTableName,
-                                                     String metadataLocation)
+                                                     MetricsConfig metricsConfig, String metadataLocation)
       throws Exception {
     List<CatalogPartitionSpec> partitionSpecs = flinkHiveCatalog.listPartitions(tableSource);
     List<PartitionAndLocation> inputs = Lists.newArrayList();
@@ -249,7 +246,7 @@ public class MigrateAction implements Action<List<ManifestFile>> {
     DataStream<PartitionAndLocation> dataStream = env.fromCollection(inputs);
     MigrateMapper migrateMapper = new MigrateMapper(spec, nameMapping, fileFormat, metricsConfig, metadataLocation);
     DataStream<ManifestFile> ds = dataStream.map(migrateMapper).setParallelism(parallelism);
-    return Lists.newArrayList(ds.executeAndCollect("migrate table :" + hiveTableName)).stream()
+    return Lists.newArrayList(ds.executeAndCollect("migrate table :" + hiveSourceTableName)).stream()
         .collect(Collectors.toList());
   }
 

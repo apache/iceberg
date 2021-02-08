@@ -60,6 +60,16 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+/**
+ * A test class to migrate hive table to iceberg table.
+ * <p>
+ * Iceberg orc use orc-core-nohive, flink use orc-core, they will have some conflicts, so I can not use sql to write
+ * data into hive tables.
+ * <p>
+ * We closed the org.apache.flink.table.catalog.hive.HiveCatalog in the MigrateAction, so we use metastoreClient to drop
+ * the hive table and database when job finished in the method {@link TestMigrateAction#clean} and {@link
+ * TestMigrateAction#dropHiveDB}, if we use sql to do the drop, it will throw a NullPointerException.
+ */
 @RunWith(Parameterized.class)
 public class TestMigrateAction extends FlinkCatalogTestBase {
 
