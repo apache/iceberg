@@ -17,22 +17,23 @@
  * under the License.
  */
 
-package org.apache.iceberg.aliyun;
+package org.apache.iceberg.aliyun.oss.mock;
 
-import com.aliyun.oss.OSS;
-import java.util.Map;
+public class Range {
 
-public class AliyunClientFactories {
+  private final long start;
+  private final long end;
 
-  static class DefaultAliyunClientFactory implements AliyunClientFactory {
+  public Range(long start, long end) {
+    this.start = start;
+    this.end = end;
+  }
 
-    @Override
-    public OSS oss() {
-      return null;
-    }
+  public long start() {
+    return start;
+  }
 
-    @Override
-    public void initialize(Map<String, String> properties) {
-    }
+  public long end() {
+    return end;
   }
 }

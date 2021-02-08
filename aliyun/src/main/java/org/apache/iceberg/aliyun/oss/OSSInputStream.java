@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 
 class OSSInputStream extends SeekableInputStream {
   private static final Logger LOG = LoggerFactory.getLogger(OSSInputStream.class);
+  private static final int SKIP_SIZE = 1024 * 1024;
 
   private final StackTraceElement[] createStack;
   private final OSS client;
@@ -42,8 +43,6 @@ class OSSInputStream extends SeekableInputStream {
   private long pos = 0;
   private long next = 0;
   private boolean closed = false;
-
-  private final int skipSize = 1024 * 1024;
 
   OSSInputStream(OSS client, OSSURI uri) {
     this.client = client;
@@ -105,7 +104,7 @@ class OSSInputStream extends SeekableInputStream {
     if ((stream != null) && (next > pos)) {
       // seeking forwards
       long skip = next - pos;
-      if (skip <= Math.max(stream.available(), skipSize)) {
+      if (skip <= Math.max(stream.available(), SKIP_SIZE)) {
         // already buffered or seek is small enough
         LOG.debug("Read-through seek for {} to offset {}", uri, next);
         try {

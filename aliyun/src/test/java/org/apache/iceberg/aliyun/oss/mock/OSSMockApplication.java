@@ -19,9 +19,9 @@
 
 package org.apache.iceberg.aliyun.oss.mock;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -71,8 +71,8 @@ public class OSSMockApplication {
     Banner.Mode bannerMode = Banner.Mode.CONSOLE;
 
     if (Boolean.parseBoolean(String.valueOf(properties.remove("silent")))) {
-      // defaults.put("logging.level.root", "WARN");
-      // bannerMode = Banner.Mode.OFF;
+      defaults.put("logging.level.root", "WARN");
+      bannerMode = Banner.Mode.OFF;
     }
 
     final ConfigurableApplicationContext ctx =
@@ -97,8 +97,7 @@ public class OSSMockApplication {
 
     @Override
     public void configureContentNegotiation(final ContentNegotiationConfigurer configurer) {
-      configurer
-          .defaultContentType(MediaType.APPLICATION_FORM_URLENCODED, MediaType.APPLICATION_XML);
+      configurer.defaultContentType(MediaType.APPLICATION_FORM_URLENCODED, MediaType.APPLICATION_XML);
       configurer.favorPathExtension(false);
       configurer.mediaType("xml", MediaType.TEXT_XML);
     }
@@ -110,13 +109,12 @@ public class OSSMockApplication {
      */
     @Bean
     public MappingJackson2XmlHttpMessageConverter getMessageConverter() {
-      final List<MediaType> mediaTypes = new ArrayList<>();
+      List<MediaType> mediaTypes = Lists.newArrayList();
       mediaTypes.add(MediaType.APPLICATION_XML);
       mediaTypes.add(MediaType.APPLICATION_FORM_URLENCODED);
       mediaTypes.add(MediaType.APPLICATION_OCTET_STREAM);
 
-      final MappingJackson2XmlHttpMessageConverter xmlConverter =
-          new MappingJackson2XmlHttpMessageConverter();
+      final MappingJackson2XmlHttpMessageConverter xmlConverter = new MappingJackson2XmlHttpMessageConverter();
       xmlConverter.setSupportedMediaTypes(mediaTypes);
 
       return xmlConverter;

@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.aliyun.oss.mock;
 
+import com.aliyun.oss.OSSErrorCode;
 import com.aliyun.oss.model.Bucket;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
@@ -33,7 +34,6 @@ import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -51,8 +51,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class LocalStore {
   private static final Logger LOG = LoggerFactory.getLogger(LocalStore.class);
-
-  private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'.000Z'");
 
   private static final String DATA_FILE = ".DATA";
   private static final String META_FILE = ".META";
@@ -97,7 +95,8 @@ public class LocalStore {
 
     File dir = new File(root, bucket.getName());
     if (Objects.requireNonNull(dir.listFiles()).length > 0) {
-      throw new LocalOSSController.OssException(409, "BucketNotEmpty", "The bucket you tried to delete is not empty. ");
+      throw new LocalOSSController.OssException(409, OSSErrorCode.BUCKET_NOT_EMPTY,
+          "The bucket you tried to delete is not empty. ");
     }
 
     FileUtils.deleteDirectory(dir);
@@ -114,7 +113,10 @@ public class LocalStore {
 
     File dataFile = new File(bucketDir, fileName + DATA_FILE);
     if (dataFile.exists()) {
-      throw new LocalOSSController.OssException(409, "FileAlreadyExists", "The file already exists.");
+      throw new LocalOSSController.OssException(409, OSSErrorCode.OBJECT_ALREADY_EXISTS, "The file already exists.");
+    } else {
+      dataFile.getParentFile().mkdirs();
+      dataFile.createNewFile();
     }
 
     inputStreamToFile(dataStream, dataFile);
@@ -164,7 +166,7 @@ public class LocalStore {
 
     File dataFile = new File(bucketDir, filename + DATA_FILE);
     if (!dataFile.exists()) {
-      throw new LocalOSSController.OssException(404, "NoSuchKey", "The specify key does not exist.");
+      throw new LocalOSSController.OssException(404, OSSErrorCode.NO_SUCH_KEY, "The specify key does not exist.");
     }
 
     Files.copy(dataFile.toPath(), out);

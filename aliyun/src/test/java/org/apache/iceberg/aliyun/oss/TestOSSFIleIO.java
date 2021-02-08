@@ -35,6 +35,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.iceberg.util.SerializationUtil;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -53,6 +54,11 @@ public class TestOSSFIleIO {
   public void before() {
     ossFileIO = new OSSFileIO(oss);
     oss.get().createBucket("bucket");
+  }
+
+  @After
+  public void after() {
+    oss.get().deleteBucket("bucket");
   }
 
   @Test

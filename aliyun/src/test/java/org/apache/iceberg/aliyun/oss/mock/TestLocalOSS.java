@@ -20,6 +20,7 @@
 package org.apache.iceberg.aliyun.oss.mock;
 
 import com.aliyun.oss.OSS;
+import com.aliyun.oss.OSSErrorCode;
 import com.aliyun.oss.OSSException;
 import com.aliyun.oss.model.PutObjectResult;
 import java.io.ByteArrayInputStream;
@@ -43,7 +44,7 @@ public class TestLocalOSS {
   public void testBuckets() {
     oss.createBucket("bucket");
     Assert.assertTrue(doesBucketExist("bucket"));
-    assertThrows(() -> oss.createBucket("bucket"), "BucketAlreadyExists");
+    assertThrows(() -> oss.createBucket("bucket"), OSSErrorCode.BUCKET_ALREADY_EXISTS);
 
     oss.deleteBucket("bucket");
     Assert.assertFalse(doesBucketExist("bucket"));
@@ -59,7 +60,7 @@ public class TestLocalOSS {
   public void testDeleteBucket() {
     oss.createBucket("bucket");
 
-    assertThrows(() -> oss.deleteBucket("non-existing"), "NoSuchBucket");
+    assertThrows(() -> oss.deleteBucket("non-existing"), OSSErrorCode.NO_SUCH_BUCKET);
 
     byte[] bytes = new byte[2000];
     random.nextBytes(bytes);
@@ -70,10 +71,10 @@ public class TestLocalOSS {
     input.reset();
     oss.putObject("bucket", "object2", input);
 
-    assertThrows(() -> oss.deleteBucket("bucket"), "BucketNotEmpty");
+    assertThrows(() -> oss.deleteBucket("bucket"), OSSErrorCode.BUCKET_NOT_EMPTY);
 
     oss.deleteObject("bucket", "object1");
-    assertThrows(() -> oss.deleteBucket("bucket"), "BucketNotEmpty");
+    assertThrows(() -> oss.deleteBucket("bucket"), OSSErrorCode.BUCKET_NOT_EMPTY);
 
     oss.deleteObject("bucket", "object2");
     oss.deleteBucket("bucket");
@@ -85,7 +86,7 @@ public class TestLocalOSS {
     byte[] bytes = new byte[4 * 1024];
     random.nextBytes(bytes);
 
-    assertThrows(() -> oss.putObject("bucket", "object", new ByteArrayInputStream(bytes)), "NoSuchBucket");
+    assertThrows(() -> oss.putObject("bucket", "object", new ByteArrayInputStream(bytes)), OSSErrorCode.NO_SUCH_BUCKET);
 
     oss.createBucket("bucket");
     try {
@@ -98,8 +99,8 @@ public class TestLocalOSS {
   }
 
   @Test
-  public void testDoesObjectExist() throws IOException {
-    assertThrows(() -> oss.doesObjectExist("bucket", "key"), "NoSuchBucket");
+  public void testDoesObjectExist() {
+    Assert.assertFalse(oss.doesObjectExist("bucket", "key"));
 
     oss.createBucket("bucket");
     try {
@@ -119,11 +120,11 @@ public class TestLocalOSS {
 
   @Test
   public void testGetObject() throws IOException {
-    assertThrows(() -> oss.getObject("bucket", "key"), "NoSuchBucket");
+    assertThrows(() -> oss.getObject("bucket", "key"), OSSErrorCode.NO_SUCH_BUCKET);
 
     oss.createBucket("bucket");
     try {
-      assertThrows(() -> oss.getObject("bucket", "key"), "NoSuchKey");
+      assertThrows(() -> oss.getObject("bucket", "key"), OSSErrorCode.NO_SUCH_KEY);
 
       byte[] bytes = new byte[2000];
       random.nextBytes(bytes);
@@ -146,7 +147,7 @@ public class TestLocalOSS {
       oss.deleteBucket(bucketName);
       return false;
     } catch (OSSException e) {
-      if (Objects.equals(e.getErrorCode(), "BucketAlreadyExists")) {
+      if (Objects.equals(e.getErrorCode(), OSSErrorCode.BUCKET_ALREADY_EXISTS)) {
         return true;
       }
       throw e;

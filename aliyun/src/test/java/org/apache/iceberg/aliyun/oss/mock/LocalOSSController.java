@@ -19,10 +19,12 @@
 
 package org.apache.iceberg.aliyun.oss.mock;
 
+import com.aliyun.oss.OSSErrorCode;
 import com.aliyun.oss.model.Bucket;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonRootName;
 import java.io.IOException;
+import java.io.OutputStream;
 import javax.servlet.ServletInputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -57,7 +59,7 @@ public class LocalOSSController {
   @RequestMapping(value = "/{bucketName}", method = RequestMethod.PUT, produces = "application/xml")
   public void putBucket(@PathVariable String bucketName) throws IOException {
     if (localStore.getBucket(bucketName) != null) {
-      throw new OssException(409, "BucketAlreadyExists", bucketName + " already exists.");
+      throw new OssException(409, OSSErrorCode.BUCKET_ALREADY_EXISTS, bucketName + " already exists.");
     }
 
     localStore.createBucket(bucketName);
@@ -101,36 +103,48 @@ public class LocalOSSController {
     localStore.deleteObject(bucketName, filenameFrom(bucketName, request));
   }
 
-  @RequestMapping(value = "/{bucketName:.*}/{objectName:.*}?objectMeta", method = RequestMethod.GET)
-  public ResponseEntity<String> getObjectMeta(@PathVariable String bucketName,
-                                              @PathVariable String objectName,
-                                              @RequestParam(required = false) String versionId) {
+  @RequestMapping(value = "/{bucketName:.+}/**", method = RequestMethod.HEAD)
+  public ResponseEntity<String> getObjectMeta(@PathVariable String bucketName, HttpServletRequest request) {
     verifyBucketExistence(bucketName);
 
+    String filename = filenameFrom(bucketName, request);
+    ObjectMetadata metadata;
     try {
-      ObjectMetadata metadata = localStore.getObjectMetadata(bucketName, objectName);
-
-      HttpHeaders headers = new HttpHeaders();
-      headers.setETag("\"" + metadata.getContentMD5() + "\"");
-      headers.setLastModified(metadata.getLastModificationDate());
-
-      return new ResponseEntity<>(headers, OK);
-    } catch (Exception e) {
-      LOG.error("Failed to get object metadata - bucket: {} - object: {}", bucketName, objectName, e);
+      metadata = localStore.getObjectMetadata(bucketName, filename);
+    } catch (IOException e) {
+      LOG.error("Failed to get object metadata - bucket: {} - object: {}", bucketName, filename, e);
       return new ResponseEntity<>(e.getMessage(), INTERNAL_SERVER_ERROR);
     }
+
+    if (metadata == null) {
+      throw new LocalOSSController.OssException(404, OSSErrorCode.NO_SUCH_KEY,
+          "The specify oss key does not exists.");
+    }
+
+    HttpHeaders headers = new HttpHeaders();
+    headers.setETag("\"" + metadata.getContentMD5() + "\"");
+    headers.setLastModified(metadata.getLastModificationDate());
+    headers.setContentLength(metadata.getContentLength());
+
+    return new ResponseEntity<>(headers, OK);
   }
 
   @RequestMapping(value = "/{bucketName:.+}/**", method = RequestMethod.GET, produces = "application/xml")
   public void getObject(@PathVariable String bucketName,
-                        @RequestHeader(value = "Range", required = false) Models.Range range,
+                        @RequestHeader(value = "Range", required = false) Range range,
                         HttpServletRequest request,
-                        HttpServletResponse response) throws IOException {
+                        HttpServletResponse response) {
     verifyBucketExistence(bucketName);
 
     // TODO implement the range parameters.
     String filename = filenameFrom(bucketName, request);
-    localStore.getObject(bucketName, filename, response.getOutputStream());
+
+    try (OutputStream outputStream = response.getOutputStream()) {
+      localStore.getObject(bucketName, filename, outputStream);
+    } catch (Exception e) {
+      LOG.error("Failed to get object: ", e);
+      throw new OssException(500, OSSErrorCode.INTERNAL_ERROR, "Failed to get object.");
+    }
   }
 
   @RequestMapping(value = "/{bucketName:.+}/**", params = "uploads",
@@ -170,7 +184,7 @@ public class LocalOSSController {
   private void verifyBucketExistence(String bucketName) {
     Bucket bucket = localStore.getBucket(bucketName);
     if (bucket == null) {
-      throw new OssException(404, "NoSuchBucket", "The specified bucket does not exist. ");
+      throw new OssException(404, OSSErrorCode.NO_SUCH_BUCKET, "The specified bucket does not exist. ");
     }
   }
 
