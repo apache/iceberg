@@ -27,6 +27,7 @@ import java.util.Random;
 import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.aliyun.oss.mock.OSSMockRule;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -46,6 +47,12 @@ public class TestOSSInputStream {
   @Before
   public void before() {
     oss.createBucket("bucket");
+  }
+
+  @After
+  public void after() throws IOException {
+    OSS_MOCK_RULE.deleteObjects();
+    oss.deleteBucket("bucket");
   }
 
   @Test

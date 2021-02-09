@@ -57,14 +57,14 @@ public class TestOSSFIleIO {
   }
 
   @After
-  public void after() {
-    // TODO support removing all existing objects firstly in LocalOSSController.
+  public void after() throws IOException {
+    OSS_MOCK_RULE.deleteObjects();
     oss.get().deleteBucket("bucket");
   }
 
   @Test
   public void newInputFile() throws IOException {
-    String location = "oss://bucket/file.txt";
+    String location = "oss://bucket/path/to/file.txt";
     byte[] expected = new byte[1024 * 1024];
     random.nextBytes(expected);
 

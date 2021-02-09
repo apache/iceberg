@@ -21,13 +21,21 @@ package org.apache.iceberg.aliyun.oss.mock;
 
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Map;
+import org.apache.commons.io.FileUtils;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class OSSMockRule implements TestRule {
+  private static final Logger LOG = LoggerFactory.getLogger(OSSMockRule.class);
 
   private final Map<String, Object> properties;
 
@@ -49,6 +57,24 @@ public class OSSMockRule implements TestRule {
     String endpoint = String.format("http://localhost:%s", properties.getOrDefault(OSSMockApplication.PROP_HTTP_PORT,
         OSSMockApplication.PORT_HTTP_PORT_DEFAULT));
     return new OSSClientBuilder().build(endpoint, "foo", "bar");
+  }
+
+  public File rootDir() {
+    Object rootDir = properties.get(OSSMockApplication.PROP_ROOT_DIR);
+    Preconditions.checkNotNull(rootDir, "Root directory cannot be null");
+    return new File(rootDir.toString());
+  }
+
+  public void deleteObjects() throws IOException {
+    Files.walk(rootDir().toPath())
+        .filter(p -> p.toFile().isFile())
+        .forEach(p -> {
+          try {
+            Files.delete(p);
+          } catch (IOException e) {
+            // delete this files quietly.
+          }
+        });
   }
 
   @Override
@@ -89,7 +115,29 @@ public class OSSMockRule implements TestRule {
     }
 
     public OSSMockRule build() {
+      if (props.get(OSSMockApplication.PROP_ROOT_DIR) == null) {
+        withRootDir(createRootDir().getAbsolutePath());
+      }
+
       return new OSSMockRule(props);
+    }
+
+    private File createRootDir() {
+      String rootDir = (String) props.get(OSSMockApplication.PROP_ROOT_DIR);
+
+      File root;
+      if (rootDir == null || rootDir.isEmpty()) {
+        root = new File(FileUtils.getTempDirectory(), "oss-mock-file-store" + System.currentTimeMillis());
+      } else {
+        root = new File(rootDir);
+      }
+
+      root.deleteOnExit();
+      root.mkdir();
+
+      LOG.info("Root directory of local OSS store is {}", root);
+
+      return root;
     }
   }
 }

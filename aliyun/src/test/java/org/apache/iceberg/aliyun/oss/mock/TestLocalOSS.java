@@ -25,10 +25,13 @@ import com.aliyun.oss.OSSException;
 import com.aliyun.oss.model.PutObjectResult;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Objects;
 import java.util.Random;
 import org.apache.commons.io.IOUtils;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 
@@ -40,9 +43,19 @@ public class TestLocalOSS {
   private final OSS oss = OSS_MOCK_RULE.createOSSClient();
   private final Random random = new Random(1);
 
+  @Before
+  public void before() {
+    oss.createBucket("bucket");
+  }
+
+  @After
+  public void after() throws IOException {
+    OSS_MOCK_RULE.deleteObjects();
+    oss.deleteBucket("bucket");
+  }
+
   @Test
   public void testBuckets() {
-    oss.createBucket("bucket");
     Assert.assertTrue(doesBucketExist("bucket"));
     assertThrows(() -> oss.createBucket("bucket"), OSSErrorCode.BUCKET_ALREADY_EXISTS);
 
@@ -51,9 +64,6 @@ public class TestLocalOSS {
 
     oss.createBucket("bucket");
     Assert.assertTrue(doesBucketExist("bucket"));
-
-    oss.deleteBucket("bucket");
-    Assert.assertFalse(doesBucketExist("bucket"));
   }
 
   @Test
@@ -64,12 +74,10 @@ public class TestLocalOSS {
 
     byte[] bytes = new byte[2000];
     random.nextBytes(bytes);
-    ByteArrayInputStream input = new ByteArrayInputStream(bytes);
 
-    oss.putObject("bucket", "object1", input);
+    oss.putObject("bucket", "object1", wrap(bytes));
 
-    input.reset();
-    oss.putObject("bucket", "object2", input);
+    oss.putObject("bucket", "object2", wrap(bytes));
 
     assertThrows(() -> oss.deleteBucket("bucket"), OSSErrorCode.BUCKET_NOT_EMPTY);
 
@@ -86,12 +94,12 @@ public class TestLocalOSS {
     byte[] bytes = new byte[4 * 1024];
     random.nextBytes(bytes);
 
-    assertThrows(() -> oss.putObject("bucket", "object", new ByteArrayInputStream(bytes)), OSSErrorCode.NO_SUCH_BUCKET);
+    assertThrows(() -> oss.putObject("bucket", "object", wrap(bytes)), OSSErrorCode.NO_SUCH_BUCKET);
 
     oss.createBucket("bucket");
     try {
-      PutObjectResult result = oss.putObject("bucket", "object", new ByteArrayInputStream(bytes));
-      Assert.assertEquals(LocalStore.md5sum(new ByteArrayInputStream(bytes)), result.getETag());
+      PutObjectResult result = oss.putObject("bucket", "object", wrap(bytes));
+      Assert.assertEquals(LocalStore.md5sum(wrap(bytes)), result.getETag());
     } finally {
       oss.deleteObject("bucket", "object");
       oss.deleteBucket("bucket");
@@ -108,8 +116,7 @@ public class TestLocalOSS {
 
       byte[] bytes = new byte[4 * 1024];
       random.nextBytes(bytes);
-      ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
-      oss.putObject("bucket", "key", inputStream);
+      oss.putObject("bucket", "key", wrap(bytes));
 
       Assert.assertTrue(oss.doesObjectExist("bucket", "key"));
       oss.deleteObject("bucket", "key");
@@ -139,6 +146,14 @@ public class TestLocalOSS {
     } finally {
       oss.deleteBucket("bucket");
     }
+  }
+
+  private InputStream wrap(byte[] data) {
+    return new ByteArrayInputStream(data);
+  }
+
+  private InputStream wrap(byte[] data, int off, int len) {
+    return new ByteArrayInputStream(data, off, len);
   }
 
   private boolean doesBucketExist(String bucketName) {

@@ -36,7 +36,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.directory.api.util.Hex;
@@ -60,14 +59,11 @@ public class LocalStore {
   private final ObjectMapper objectMapper = new ObjectMapper();
 
   public LocalStore(@Value("${" + OSSMockApplication.PROP_ROOT_DIR + ":}") String rootDir) {
-    if (rootDir == null || rootDir.isEmpty()) {
-      this.root = new File(FileUtils.getTempDirectory(), "oss-mock-file-store" + System.currentTimeMillis());
-    } else {
-      this.root = new File(rootDir);
-    }
+    Preconditions.checkNotNull(rootDir, "Root directory cannot be null");
+    this.root = new File(rootDir);
 
     root.deleteOnExit();
-    root.mkdir();
+    root.mkdirs();
 
     LOG.info("Root directory of local OSS store is {}", root);
   }
@@ -76,10 +72,6 @@ public class LocalStore {
   public void createBucket(String bucketName) throws IOException {
     File newBucket = new File(root, bucketName);
     FileUtils.forceMkdir(newBucket);
-  }
-
-  public List<Bucket> listBucket() {
-    return findBucketsByFilter(path -> Files.isDirectory(path));
   }
 
   public Bucket getBucket(String bucketName) {
@@ -94,7 +86,7 @@ public class LocalStore {
     Preconditions.checkNotNull(bucket, "Bucket %s shouldn't be null.", bucketName);
 
     File dir = new File(root, bucket.getName());
-    if (Objects.requireNonNull(dir.listFiles()).length > 0) {
+    if (Files.walk(dir.toPath()).anyMatch(p -> p.toFile().isFile())) {
       throw new LocalOSSController.OssException(409, OSSErrorCode.BUCKET_NOT_EMPTY,
           "The bucket you tried to delete is not empty. ");
     }
