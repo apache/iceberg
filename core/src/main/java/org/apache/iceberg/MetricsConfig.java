@@ -46,6 +46,14 @@ public class MetricsConfig implements Serializable {
     return spec;
   }
 
+  public static void resolveMetricsColumns(Map<String, String> props, Schema schema) {
+    props.keySet().stream()
+        .filter(key -> key.startsWith(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX))
+        .forEach(key -> {
+          String columnAlias = key.replaceFirst(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX, "");
+
+  }
+
   public static MetricsConfig fromProperties(Map<String, String> props) {
     MetricsConfig spec = new MetricsConfig();
     String defaultModeAsString = props.getOrDefault(DEFAULT_WRITE_METRICS_MODE, DEFAULT_WRITE_METRICS_MODE_DEFAULT);
