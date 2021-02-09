@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 import org.apache.commons.io.IOUtils;
-import org.apache.iceberg.aliyun.oss.mock.OSSMockRule;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.junit.After;
 import org.junit.Before;
@@ -39,25 +38,25 @@ import static org.junit.Assert.assertEquals;
 public class TestOSSInputStream {
 
   @ClassRule
-  public static final OSSMockRule OSS_MOCK_RULE = OSSMockRule.builder().silent().build();
+  public static final OSSTestRule OSS_TEST_RULE = OSSTestRule.initialize();
 
-  private final OSS oss = OSS_MOCK_RULE.createOSSClient();
+  private final OSS oss = OSS_TEST_RULE.createOSSClient();
+  private final String bucketName = OSS_TEST_RULE.testingBucketName();
   private final Random random = new Random(1);
 
   @Before
   public void before() {
-    oss.createBucket("bucket");
+    OSS_TEST_RULE.setUpBucket(bucketName);
   }
 
   @After
-  public void after() throws IOException {
-    OSS_MOCK_RULE.deleteObjects();
-    oss.deleteBucket("bucket");
+  public void after() {
+    OSS_TEST_RULE.tearDownBucket(bucketName);
   }
 
   @Test
   public void testRead() throws Exception {
-    OSSURI uri = new OSSURI("oss://bucket/path/to/read.dat");
+    OSSURI uri = new OSSURI(String.format("oss://%s/path/to/read.dat", bucketName));
     int dataSize = 1024 * 1024 * 10;
     byte[] data = randomData(dataSize);
 
@@ -112,7 +111,7 @@ public class TestOSSInputStream {
 
   @Test
   public void testClose() throws Exception {
-    OSSURI uri = new OSSURI("oss://bucket/path/to/closed.dat");
+    OSSURI uri = new OSSURI(String.format("oss://%s/path/to/closed.dat", bucketName));
     SeekableInputStream closed = new OSSInputStream(oss, uri);
     closed.close();
     assertThrows("Cannot seek the input stream after closed.", IllegalStateException.class, () -> {
@@ -123,7 +122,7 @@ public class TestOSSInputStream {
 
   @Test
   public void testSeek() throws Exception {
-    OSSURI uri = new OSSURI("oss://bucket/path/to/seek.dat");
+    OSSURI uri = new OSSURI(String.format("oss://%s/path/to/seek.dat", bucketName));
     byte[] expected = randomData(1024 * 1024);
 
     writeOSSData(uri, expected);

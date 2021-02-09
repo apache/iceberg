@@ -23,18 +23,17 @@ import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.Map;
 import org.apache.commons.io.FileUtils;
+import org.apache.iceberg.aliyun.oss.OSSTestRule;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.junit.rules.TestRule;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class OSSMockRule implements TestRule {
+public class OSSMockRule implements OSSTestRule {
   private static final Logger LOG = LoggerFactory.getLogger(OSSMockRule.class);
 
   private final Map<String, Object> properties;
@@ -45,51 +44,51 @@ public class OSSMockRule implements TestRule {
     this.properties = properties;
   }
 
-  private void start() {
+  @Override
+  public void start() {
     ossMockApp = OSSMockApplication.start(properties);
   }
 
-  private void stop() {
+  @Override
+  public void stop() {
     ossMockApp.stop();
   }
 
+  @Override
   public OSS createOSSClient() {
     String endpoint = String.format("http://localhost:%s", properties.getOrDefault(OSSMockApplication.PROP_HTTP_PORT,
         OSSMockApplication.PORT_HTTP_PORT_DEFAULT));
     return new OSSClientBuilder().build(endpoint, "foo", "bar");
   }
 
-  public File rootDir() {
+  private File rootDir() {
     Object rootDir = properties.get(OSSMockApplication.PROP_ROOT_DIR);
     Preconditions.checkNotNull(rootDir, "Root directory cannot be null");
     return new File(rootDir.toString());
   }
 
-  public void deleteObjects() throws IOException {
-    Files.walk(rootDir().toPath())
-        .filter(p -> p.toFile().isFile())
-        .forEach(p -> {
-          try {
-            Files.delete(p);
-          } catch (IOException e) {
-            // delete this files quietly.
-          }
-        });
+  @Override
+  public void setUpBucket(String bucket) {
+    createOSSClient().createBucket(bucket);
   }
 
   @Override
-  public Statement apply(Statement base, Description description) {
-    return new Statement() {
-      @Override
-      public void evaluate() throws Throwable {
-        start();
-        try {
-          base.evaluate();
-        } finally {
-          stop();
-        }
-      }
-    };
+  public void tearDownBucket(String bucket) {
+    try {
+      Files.walk(rootDir().toPath())
+          .filter(p -> p.toFile().isFile())
+          .forEach(p -> {
+            try {
+              Files.delete(p);
+            } catch (IOException e) {
+              // delete this files quietly.
+            }
+          });
+
+      createOSSClient().deleteBucket(bucket);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   public static Builder builder() {

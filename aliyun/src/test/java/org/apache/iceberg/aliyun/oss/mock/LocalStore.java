@@ -155,10 +155,6 @@ public class LocalStore {
     return objectMapper.readValue(metaFile, ObjectMetadata.class);
   }
 
-  public void abortMultipartUpload(String bucketName, String filename, String uploadId) {
-    // TODO
-  }
-
   static String md5sum(String filepath) throws IOException {
     try (InputStream is = new FileInputStream(filepath)) {
       return md5sum(is);

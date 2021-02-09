@@ -136,9 +136,6 @@ public class LocalOSSController {
   @SuppressWarnings("checkstyle:AnnotationUseStyle")
   @RequestMapping(
       value = "/{bucketName:.+}/**",
-      headers = {
-          "Range"
-      },
       method = RequestMethod.GET,
       produces = "application/xml")
   public void getObject(@PathVariable String bucketName,
@@ -197,6 +194,7 @@ public class LocalOSSController {
   @RequestMapping(value = "/{bucketName:.+}/**", params = "uploads",
       method = RequestMethod.POST, produces = "application/xml")
   public void initializeMultiPartUpload(@PathVariable String bucketName, HttpServletRequest request) {
+    // TODO
   }
 
   @RequestMapping(
@@ -214,6 +212,7 @@ public class LocalOSSController {
   @RequestMapping(value = "/{bucketName:.+}/**", params = {"uploadId"},
       method = RequestMethod.POST, produces = "application/xml")
   public void completeMultiPartUpload(@PathVariable String bucketName, @RequestParam String uploadId) {
+    // TODO
   }
 
   @SuppressWarnings("checkstyle:AnnotationUseStyle")
@@ -222,10 +221,7 @@ public class LocalOSSController {
   public void abortMultipartUploads(@PathVariable String bucketName,
                                     @RequestParam String uploadId,
                                     HttpServletRequest request) {
-    verifyBucketExistence(bucketName);
-
-    String filename = filenameFrom(bucketName, request);
-    localStore.abortMultipartUpload(bucketName, filename, uploadId);
+    // TODO
   }
 
   private void verifyBucketExistence(String bucketName) {
@@ -245,7 +241,7 @@ public class LocalOSSController {
 
     @ExceptionHandler
     public ResponseEntity<ErrorResponse> handleOSSException(Exception exception) {
-      OssException ex = null;
+      OssException ex;
       if (exception instanceof OssException) {
         ex = (OssException) exception;
       } else {

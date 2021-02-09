@@ -30,7 +30,6 @@ import java.net.URISyntaxException;
 import java.util.Random;
 import java.util.UUID;
 import org.apache.commons.io.IOUtils;
-import org.apache.iceberg.aliyun.oss.mock.OSSMockRule;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -44,8 +43,9 @@ import org.junit.Test;
 public class TestOSSFIleIO {
 
   @ClassRule
-  public static final OSSMockRule OSS_MOCK_RULE = OSSMockRule.builder().silent().build();
-  private final SerializableSupplier<OSS> oss = OSS_MOCK_RULE::createOSSClient;
+  public static final OSSTestRule OSS_TEST_RULE = OSSTestRule.initialize();
+  private final SerializableSupplier<OSS> oss = OSS_TEST_RULE::createOSSClient;
+  private final String bucketName = OSS_TEST_RULE.testingBucketName();
   private final Random random = new Random(1);
 
   private OSSFileIO ossFileIO;
@@ -53,18 +53,18 @@ public class TestOSSFIleIO {
   @Before
   public void before() {
     ossFileIO = new OSSFileIO(oss);
-    oss.get().createBucket("bucket");
+
+    OSS_TEST_RULE.setUpBucket(bucketName);
   }
 
   @After
-  public void after() throws IOException {
-    OSS_MOCK_RULE.deleteObjects();
-    oss.get().deleteBucket("bucket");
+  public void after() {
+    OSS_TEST_RULE.tearDownBucket(bucketName);
   }
 
   @Test
   public void newInputFile() throws IOException {
-    String location = "oss://bucket/path/to/file.txt";
+    String location = String.format("oss://%s/path/to/file.txt", bucketName);
     byte[] expected = new byte[1024 * 1024];
     random.nextBytes(expected);
 
