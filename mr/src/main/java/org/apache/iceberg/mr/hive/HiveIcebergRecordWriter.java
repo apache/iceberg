@@ -50,7 +50,7 @@ class HiveIcebergRecordWriter extends PartitionedFanoutWriter<Record>
   private final PartitionKey currentKey;
   private final FileIO io;
 
-  // <TaskAttemptId, HiveIcebergRecordWriter> map to store the active writers
+  // <TaskAttemptId, <TABLE_NAME, HiveIcebergRecordWriter>> map to store the active writers
   // Stored in concurrent map, since some executor engines can share containers
   private static final Map<TaskAttemptID, Map<String, HiveIcebergRecordWriter>> writers = Maps.newConcurrentMap();
 
@@ -64,12 +64,12 @@ class HiveIcebergRecordWriter extends PartitionedFanoutWriter<Record>
 
   HiveIcebergRecordWriter(Schema schema, PartitionSpec spec, FileFormat format,
       FileAppenderFactory<Record> appenderFactory, OutputFileFactory fileFactory, FileIO io, long targetFileSize,
-      TaskAttemptID taskAttemptID, String location) {
+      TaskAttemptID taskAttemptID, String tableName) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
     this.io = io;
     this.currentKey = new PartitionKey(spec, schema);
     writers.putIfAbsent(taskAttemptID, Maps.newConcurrentMap());
-    writers.get(taskAttemptID).put(location, this);
+    writers.get(taskAttemptID).put(tableName, this);
   }
 
   @Override

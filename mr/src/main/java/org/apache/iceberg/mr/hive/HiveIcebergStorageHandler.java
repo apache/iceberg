@@ -112,8 +112,8 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
       String tables = jobConf.get(InputFormatConfig.OUTPUT_TABLES);
       Map<String, String> outputs =
           tables == null ? Maps.newHashMap() : SerializationUtil.deserializeFromBase64(tables);
-      outputs.put((String) tableDesc.getProperties().get(Catalogs.LOCATION),
-          (String) tableDesc.getProperties().get(Catalogs.NAME));
+      outputs.put((String) tableDesc.getProperties().get(Catalogs.NAME),
+          (String) tableDesc.getProperties().get(Catalogs.LOCATION));
       jobConf.set(InputFormatConfig.OUTPUT_TABLES, SerializationUtil.serializeToBase64(outputs));
     }
   }
