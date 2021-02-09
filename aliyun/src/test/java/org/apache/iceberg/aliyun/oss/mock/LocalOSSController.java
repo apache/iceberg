@@ -23,11 +23,14 @@ import com.aliyun.oss.OSSErrorCode;
 import com.aliyun.oss.model.Bucket;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonRootName;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import javax.servlet.ServletInputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.input.BoundedInputStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,6 +50,8 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 
 import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 import static org.springframework.http.HttpStatus.OK;
+import static org.springframework.http.HttpStatus.PARTIAL_CONTENT;
+import static org.springframework.http.HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE;
 
 @RestController
 public class LocalOSSController {
@@ -75,7 +80,6 @@ public class LocalOSSController {
   @RequestMapping(value = "/{bucketName:.+}/**", method = RequestMethod.PUT)
   public ResponseEntity<String> putObject(@PathVariable String bucketName, HttpServletRequest request) {
     verifyBucketExistence(bucketName);
-
     String filename = filenameFrom(bucketName, request);
     try (ServletInputStream inputStream = request.getInputStream()) {
       ObjectMetadata metadata = localStore.putObject(bucketName,
@@ -129,21 +133,64 @@ public class LocalOSSController {
     return new ResponseEntity<>(headers, OK);
   }
 
-  @RequestMapping(value = "/{bucketName:.+}/**", method = RequestMethod.GET, produces = "application/xml")
+  @SuppressWarnings("checkstyle:AnnotationUseStyle")
+  @RequestMapping(
+      value = "/{bucketName:.+}/**",
+      headers = {
+          "Range"
+      },
+      method = RequestMethod.GET,
+      produces = "application/xml")
   public void getObject(@PathVariable String bucketName,
                         @RequestHeader(value = "Range", required = false) Range range,
                         HttpServletRequest request,
-                        HttpServletResponse response) {
+                        HttpServletResponse response) throws IOException {
     verifyBucketExistence(bucketName);
 
-    // TODO implement the range parameters.
     String filename = filenameFrom(bucketName, request);
+    ObjectMetadata metadata = localStore.getObjectMetadata(bucketName, filename);
+    if (metadata == null) {
+      throw new OssException(404, OSSErrorCode.NO_SUCH_KEY, "The specify key does not exist.");
+    }
 
-    try (OutputStream outputStream = response.getOutputStream()) {
-      localStore.getObject(bucketName, filename, outputStream);
-    } catch (Exception e) {
-      LOG.error("Failed to get object: ", e);
-      throw new OssException(500, OSSErrorCode.INTERNAL_ERROR, "Failed to get object.");
+    if (range != null) {
+      long fileSize = metadata.getContentLength();
+      long bytesToRead = Math.min(fileSize - 1, range.end()) - range.start() + 1;
+
+      if (bytesToRead < 0 || fileSize < range.start()) {
+        response.setStatus(REQUESTED_RANGE_NOT_SATISFIABLE.value());
+        response.flushBuffer();
+        return;
+      }
+
+      response.setStatus(PARTIAL_CONTENT.value());
+      response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
+      response.setHeader(HttpHeaders.CONTENT_RANGE, String.format("bytes %s-%s/%s",
+          range.start(), bytesToRead + range.start() + 1, metadata.getContentLength()));
+      response.setHeader(HttpHeaders.ETAG, "\"" + metadata.getContentMD5() + "\"");
+      response.setDateHeader(HttpHeaders.LAST_MODIFIED, metadata.getLastModificationDate());
+      response.setContentType(metadata.getContentType());
+      response.setContentLengthLong(bytesToRead);
+
+      try (OutputStream outputStream = response.getOutputStream()) {
+        try (FileInputStream fis = new FileInputStream(metadata.getDataFile())) {
+          fis.skip(range.start());
+          IOUtils.copy(new BoundedInputStream(fis, bytesToRead), outputStream);
+        }
+      }
+
+    } else {
+      response.setHeader(HttpHeaders.ACCEPT_RANGES, "bytes");
+      response.setHeader(HttpHeaders.ETAG, "\"" + metadata.getContentMD5() + "\"");
+      response.setDateHeader(HttpHeaders.LAST_MODIFIED, metadata.getLastModificationDate());
+      response.setContentType(metadata.getContentType());
+      response.setContentLengthLong(metadata.getContentLength());
+
+      try (OutputStream outputStream = response.getOutputStream()) {
+        try (FileInputStream fis = new FileInputStream(metadata.getDataFile())) {
+          IOUtils.copy(fis, outputStream);
+        }
+      }
     }
   }
 
@@ -197,7 +244,15 @@ public class LocalOSSController {
   public static class OSSMockExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler
-    public ResponseEntity<ErrorResponse> handleOSSException(OssException ex) {
+    public ResponseEntity<ErrorResponse> handleOSSException(Exception exception) {
+      OssException ex = null;
+      if (exception instanceof OssException) {
+        ex = (OssException) exception;
+      } else {
+        LOG.warn("Failed to handle the exception: ", exception);
+        throw new RuntimeException(exception);
+      }
+
       LOG.info("Responding with status {} - {}, {}", ex.status, ex.code, ex.message);
 
       ErrorResponse errorResponse = new ErrorResponse();

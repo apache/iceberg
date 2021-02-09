@@ -39,7 +39,7 @@ class OSSInputStream extends SeekableInputStream {
   private final OSS client;
   private final OSSURI uri;
 
-  private InputStream stream;
+  private InputStream stream = null;
   private long pos = 0;
   private long next = 0;
   private boolean closed = false;

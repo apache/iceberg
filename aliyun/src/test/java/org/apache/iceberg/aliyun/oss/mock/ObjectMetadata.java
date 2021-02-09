@@ -36,6 +36,10 @@ public class ObjectMetadata {
 
   private Map<String, String> userMetaData;
 
+  private String dataFile;
+
+  private String metaFile;
+
   public long getContentLength() {
     return contentLength;
   }
@@ -82,5 +86,21 @@ public class ObjectMetadata {
 
   public void setUserMetaData(Map<String, String> userMetaData) {
     this.userMetaData = userMetaData;
+  }
+
+  public String getDataFile() {
+    return dataFile;
+  }
+
+  public void setDataFile(String dataFile) {
+    this.dataFile = dataFile;
+  }
+
+  public String getMetaFile() {
+    return metaFile;
+  }
+
+  public void setMetaFile(String metaFile) {
+    this.metaFile = metaFile;
   }
 }

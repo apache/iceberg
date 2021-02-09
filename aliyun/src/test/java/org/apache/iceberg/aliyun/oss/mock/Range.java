@@ -36,4 +36,9 @@ public class Range {
   public long end() {
     return end;
   }
+
+  @Override
+  public String toString() {
+    return String.format("%d-%d", start, end);
+  }
 }

@@ -112,6 +112,7 @@ public class LocalStore {
     assert bucketDir.exists() || bucketDir.mkdirs();
 
     File dataFile = new File(bucketDir, fileName + DATA_FILE);
+    File metaFile = new File(bucketDir, fileName + META_FILE);
     if (dataFile.exists()) {
       throw new LocalOSSController.OssException(409, OSSErrorCode.OBJECT_ALREADY_EXISTS, "The file already exists.");
     } else {
@@ -126,13 +127,15 @@ public class LocalStore {
     metadata.setContentMD5(md5sum(dataFile.getAbsolutePath()));
     metadata.setContentType(contentType != null ? contentType : MediaType.APPLICATION_OCTET_STREAM_VALUE);
     metadata.setContentEncoding(contentEncoding);
+    metadata.setDataFile(dataFile.getAbsolutePath());
+    metadata.setMetaFile(metaFile.getAbsolutePath());
 
     BasicFileAttributes attributes = Files.readAttributes(dataFile.toPath(), BasicFileAttributes.class);
     metadata.setLastModificationDate(attributes.lastModifiedTime().toMillis());
 
     metadata.setUserMetaData(userMetaData);
 
-    objectMapper.writeValue(new File(bucketDir, fileName + META_FILE), metadata);
+    objectMapper.writeValue(metaFile, metadata);
 
     return metadata;
   }
@@ -158,18 +161,6 @@ public class LocalStore {
 
     File metaFile = new File(bucketDir, filename + META_FILE);
     return objectMapper.readValue(metaFile, ObjectMetadata.class);
-  }
-
-  public void getObject(String bucketName, String filename, OutputStream out) throws IOException {
-    File bucketDir = new File(root, bucketName);
-    assert bucketDir.exists();
-
-    File dataFile = new File(bucketDir, filename + DATA_FILE);
-    if (!dataFile.exists()) {
-      throw new LocalOSSController.OssException(404, OSSErrorCode.NO_SUCH_KEY, "The specify key does not exist.");
-    }
-
-    Files.copy(dataFile.toPath(), out);
   }
 
   public void abortMultipartUpload(String bucketName, String filename, String uploadId) {

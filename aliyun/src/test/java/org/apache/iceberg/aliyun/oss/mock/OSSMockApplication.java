@@ -21,6 +21,9 @@ package org.apache.iceberg.aliyun.oss.mock;
 
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,8 +37,10 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.convert.converter.Converter;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.xml.MappingJackson2XmlHttpMessageConverter;
+import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.config.annotation.ContentNegotiationConfigurer;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -102,6 +107,11 @@ public class OSSMockApplication {
       configurer.mediaType("xml", MediaType.TEXT_XML);
     }
 
+    @Bean
+    Converter<String, Range> rangeConverter() {
+      return new RangeConverter();
+    }
+
     /**
      * Creates an HttpMessageConverter for XML.
      *
@@ -118,6 +128,48 @@ public class OSSMockApplication {
       xmlConverter.setSupportedMediaTypes(mediaTypes);
 
       return xmlConverter;
+    }
+  }
+
+  private static class RangeConverter implements Converter<String, Range> {
+
+    private static final Pattern REQUESTED_RANGE_PATTERN = Pattern.compile("^bytes=((\\d*)\\-(\\d*))((,\\d*-\\d*)*)");
+
+    @Override
+    public Range convert(String rangeString) {
+      Preconditions.checkNotNull(rangeString, "Range value should not be null.");
+
+      final Range range;
+
+      // parsing a range specification of format: "bytes=start-end" - multiple ranges not supported
+      final Matcher matcher = REQUESTED_RANGE_PATTERN.matcher(rangeString.trim());
+      if (matcher.matches()) {
+        final String rangeStart = matcher.group(2);
+        final String rangeEnd = matcher.group(3);
+
+        range =
+            new Range(rangeStart == null ? 0L : Long.parseLong(rangeStart),
+                StringUtils.isEmpty(rangeEnd) ? Long.MAX_VALUE : Long.parseLong(rangeEnd));
+
+        if (matcher.groupCount() == 5 && !"".equals(matcher.group(4))) {
+          throw new IllegalArgumentException(
+              "Unsupported range specification. Only single range specifications allowed");
+        }
+        if (range.start() < 0) {
+          throw new IllegalArgumentException(
+              "Unsupported range specification. A start byte must be supplied");
+        }
+
+        if (range.end() != -1 && range.end() < range.start()) {
+          throw new IllegalArgumentException(
+              "Range header is malformed. End byte is smaller than start byte.");
+        }
+      } else {
+        throw new IllegalArgumentException(
+            "Range header is malformed. Only bytes supported as range type.");
+      }
+
+      return range;
     }
   }
 }
