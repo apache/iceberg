@@ -163,7 +163,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
 
     Map<String, String> outputs = SerializationUtil.deserializeFromBase64(jobConf.get(InputFormatConfig.OUTPUT_TABLES));
 
-    ExecutorService fileReaderExecutor = fileReaderExecutor(jobConf);
+    ExecutorService fileExecutor = fileExecutor(jobConf);
     ExecutorService tableExecutor = tableExecutor(jobConf, outputs.size());
     try {
       // Commits the changes for the output tables in parallel
@@ -171,9 +171,9 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
           .throwFailureWhenFinished()
           .stopOnFailure()
           .executeWith(tableExecutor)
-          .run(entry -> commitTable(io, fileReaderExecutor, jobContext, entry.getKey(), entry.getValue()));
+          .run(entry -> commitTable(io, fileExecutor, jobContext, entry.getKey(), entry.getValue()));
     } finally {
-      fileReaderExecutor.shutdown();
+      fileExecutor.shutdown();
       if (tableExecutor != null) {
         tableExecutor.shutdown();
       }
@@ -201,30 +201,31 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
 
     FileIO io = HiveIcebergStorageHandler.table(jobContext.getJobConf()).io();
 
-    ExecutorService fileReaderExecutor = fileReaderExecutor(jobConf);
+    ExecutorService fileExecutor = fileExecutor(jobConf);
     ExecutorService tableExecutor = tableExecutor(jobConf, outputs.size());
     try {
       // Cleans up the changes for the output tables in parallel
       Tasks.foreach(outputs.entrySet())
           .suppressFailureWhenFinished()
           .executeWith(tableExecutor)
-          .onFailure((entry, exc) -> LOG.debug("Failed cleanup table {} on abort job", entry.getKey(), exc))
+          .onFailure((entry, exc) -> LOG.warn("Failed cleanup table {} on abort job", entry.getKey(), exc))
           .run(entry -> {
             LOG.info("Cleaning job for table {}", jobContext.getJobID(), entry.getKey());
 
-            List<DataFile> dataFiles = dataFiles(fileReaderExecutor, entry.getValue(), jobContext, io, false);
+            List<DataFile> dataFiles = dataFiles(fileExecutor, entry.getValue(), jobContext, io, false);
 
             // Check if we have files already committed and remove data files if there are any
             if (dataFiles.size() > 0) {
               Tasks.foreach(dataFiles)
                   .retry(3)
                   .suppressFailureWhenFinished()
+                  .executeWith(fileExecutor)
                   .onFailure((file, exc) -> LOG.debug("Failed to remove data file {} on abort job", file.path(), exc))
                   .run(file -> io.deleteFile(file.path().toString()));
             }
           });
     } finally {
-      fileReaderExecutor.shutdown();
+      fileExecutor.shutdown();
       if (tableExecutor != null) {
         tableExecutor.shutdown();
       }
@@ -305,7 +306,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
    * @param conf The configuration containing the pool size
    * @return The generated executor service
    */
-  private static ExecutorService fileReaderExecutor(Configuration conf) {
+  private static ExecutorService fileExecutor(Configuration conf) {
     int size = conf.getInt(InputFormatConfig.COMMIT_FILE_THREAD_POOL_SIZE,
         InputFormatConfig.COMMIT_FILE_THREAD_POOL_SIZE_DEFAULT);
     return Executors.newFixedThreadPool(
@@ -320,12 +321,13 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
   /**
    * Executor service for parallel handling of table manipulation. Could return null, if no parallelism is possible.
    * @param conf The configuration containing the pool size
+   * @param maxThreadNum The number of requests we want to handle (might be decreased further by configuration)
    * @return The generated executor service, or null if executor is not needed.
    */
-  private static ExecutorService tableExecutor(Configuration conf, int outputSize) {
+  private static ExecutorService tableExecutor(Configuration conf, int maxThreadNum) {
     int size = conf.getInt(InputFormatConfig.COMMIT_TABLE_THREAD_POOL_SIZE,
         InputFormatConfig.COMMIT_TABLE_THREAD_POOL_SIZE_DEFAULT);
-    size = Math.max(outputSize, size);
+    size = Math.min(maxThreadNum, size);
     if (size > 1) {
       return Executors.newFixedThreadPool(
           size,
