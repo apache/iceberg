@@ -19,50 +19,31 @@
 
 package org.apache.iceberg.aliyun.oss;
 
-import com.aliyun.oss.OSS;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.io.SeekableInputStream;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 import static org.apache.iceberg.AssertHelpers.assertThrows;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
-public class TestOSSInputStream {
+public class TestOSSInputStream extends OSSTestBase {
 
-  @ClassRule
-  public static final OSSTestRule OSS_TEST_RULE = OSSTestRule.initialize();
-
-  private final OSS oss = OSS_TEST_RULE.createOSSClient();
-  private final String bucketName = OSS_TEST_RULE.testingBucketName();
   private final Random random = new Random(1);
-
-  @Before
-  public void before() {
-    OSS_TEST_RULE.setUpBucket(bucketName);
-  }
-
-  @After
-  public void after() {
-    OSS_TEST_RULE.tearDownBucket(bucketName);
-  }
 
   @Test
   public void testRead() throws Exception {
-    OSSURI uri = new OSSURI(String.format("oss://%s/path/to/read.dat", bucketName));
+    OSSURI uri = new OSSURI(location("read.dat"));
     int dataSize = 1024 * 1024 * 10;
     byte[] data = randomData(dataSize);
 
     writeOSSData(uri, data);
 
-    try (SeekableInputStream in = new OSSInputStream(oss, uri)) {
+    try (SeekableInputStream in = new OSSInputStream(oss().get(), uri)) {
       int readSize = 1024;
 
       readAndCheck(in, in.getPos(), readSize, data, false);
@@ -111,8 +92,8 @@ public class TestOSSInputStream {
 
   @Test
   public void testClose() throws Exception {
-    OSSURI uri = new OSSURI(String.format("oss://%s/path/to/closed.dat", bucketName));
-    SeekableInputStream closed = new OSSInputStream(oss, uri);
+    OSSURI uri = new OSSURI(location("closed.dat"));
+    SeekableInputStream closed = new OSSInputStream(oss().get(), uri);
     closed.close();
     assertThrows("Cannot seek the input stream after closed.", IllegalStateException.class, () -> {
       closed.seek(0);
@@ -122,12 +103,12 @@ public class TestOSSInputStream {
 
   @Test
   public void testSeek() throws Exception {
-    OSSURI uri = new OSSURI(String.format("oss://%s/path/to/seek.dat", bucketName));
+    OSSURI uri = new OSSURI(location("seek.dat"));
     byte[] expected = randomData(1024 * 1024);
 
     writeOSSData(uri, expected);
 
-    try (SeekableInputStream in = new OSSInputStream(oss, uri)) {
+    try (SeekableInputStream in = new OSSInputStream(oss().get(), uri)) {
       in.seek(expected.length / 2);
 
       byte[] actual = new byte[expected.length / 2];
@@ -143,6 +124,6 @@ public class TestOSSInputStream {
   }
 
   private void writeOSSData(OSSURI uri, byte[] data) {
-    oss.putObject(uri.bucket(), uri.key(), new ByteArrayInputStream(data));
+    oss().get().putObject(uri.bucket(), uri.key(), new ByteArrayInputStream(data));
   }
 }

@@ -34,44 +34,22 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.iceberg.util.SerializationUtil;
-import org.junit.After;
 import org.junit.Assert;
-import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Test;
 
-public class TestOSSFIleIO {
-
-  @ClassRule
-  public static final OSSTestRule OSS_TEST_RULE = OSSTestRule.initialize();
-  private final SerializableSupplier<OSS> oss = OSS_TEST_RULE::createOSSClient;
-  private final String bucketName = OSS_TEST_RULE.testingBucketName();
+public class TestOSSFIleIO extends OSSTestBase {
   private final Random random = new Random(1);
-
-  private OSSFileIO ossFileIO;
-
-  @Before
-  public void before() {
-    ossFileIO = new OSSFileIO(oss);
-
-    OSS_TEST_RULE.setUpBucket(bucketName);
-  }
-
-  @After
-  public void after() {
-    OSS_TEST_RULE.tearDownBucket(bucketName);
-  }
 
   @Test
   public void newInputFile() throws IOException {
-    String location = String.format("oss://%s/path/to/file.txt", bucketName);
+    String location = location("key.txt");
     byte[] expected = new byte[1024 * 1024];
     random.nextBytes(expected);
 
-    InputFile in = ossFileIO.newInputFile(location);
+    InputFile in = fileIO().newInputFile(location);
     Assert.assertFalse(in.exists());
 
-    OutputFile out = ossFileIO.newOutputFile(location);
+    OutputFile out = fileIO().newOutputFile(location);
     try (OutputStream os = out.createOrOverwrite()) {
       IOUtils.write(expected, os);
     }
@@ -84,8 +62,8 @@ public class TestOSSFIleIO {
     }
     Assert.assertArrayEquals(expected, actual);
 
-    ossFileIO.deleteFile(in);
-    Assert.assertFalse(ossFileIO.newInputFile(location).exists());
+    fileIO().deleteFile(in);
+    Assert.assertFalse(fileIO().newInputFile(location).exists());
   }
 
   @Test

@@ -26,9 +26,12 @@ import org.apache.iceberg.common.DynConstructors;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
 public interface OSSTestRule extends TestRule {
+  Logger LOG = LoggerFactory.getLogger(OSSTestRule.class);
   String OSS_TEST_RULE_CLASS_IMPL = "OSS_TEST_RULE_CLASS_IMPL";
 
   void start();
@@ -37,9 +40,11 @@ public interface OSSTestRule extends TestRule {
 
   OSS createOSSClient();
 
-  default String testingBucketName() {
+  default String testBucketName() {
     return String.format("oss-testing-bucket-%s", UUID.randomUUID().toString().replace("-", ""));
   }
+
+  String keyPrefix();
 
   void setUpBucket(String bucket);
 
@@ -62,6 +67,8 @@ public interface OSSTestRule extends TestRule {
 
   static OSSTestRule initialize() {
     String implClass = System.getenv(OSSIntegrationTestRule.OSS_TEST_RULE_CLASS_IMPL);
+
+    LOG.info("The initializing OSSTestRule implementation is: {}", implClass);
 
     OSSTestRule testRule;
     if (!StringUtils.isEmpty(implClass)) {

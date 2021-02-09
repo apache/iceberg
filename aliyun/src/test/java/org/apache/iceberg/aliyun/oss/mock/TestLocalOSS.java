@@ -40,10 +40,10 @@ import org.junit.Test;
 public class TestLocalOSS {
 
   @ClassRule
-  public static final OSSTestRule OSS_TEST_RULE = OSSTestRule.initialize();
+  public static final OSSTestRule OSS_TEST_RULE = OSSMockRule.builder().silent().build();
 
   private final OSS oss = OSS_TEST_RULE.createOSSClient();
-  private final String bucketName = OSS_TEST_RULE.testingBucketName();
+  private final String bucketName = OSS_TEST_RULE.testBucketName();
   private final Random random = new Random(1);
 
   @Before
@@ -70,7 +70,7 @@ public class TestLocalOSS {
 
   @Test
   public void testDeleteBucket() {
-    String bucketNotExist = String.format("bucket-not-existing-%s", UUID.randomUUID().toString().replace("-", ""));
+    String bucketNotExist = String.format("bucket-not-existing-%s", UUID.randomUUID());
     assertThrows(() -> oss.deleteBucket(bucketNotExist), OSSErrorCode.NO_SUCH_BUCKET);
 
     byte[] bytes = new byte[2000];
@@ -97,7 +97,7 @@ public class TestLocalOSS {
     byte[] bytes = new byte[4 * 1024];
     random.nextBytes(bytes);
 
-    String bucketNotExist = String.format("bucket-not-existing-%s", UUID.randomUUID().toString().replace("-", ""));
+    String bucketNotExist = String.format("bucket-not-existing-%s", UUID.randomUUID());
     assertThrows(() -> oss.putObject(bucketNotExist, "object", wrap(bytes)), OSSErrorCode.NO_SUCH_BUCKET);
 
     PutObjectResult result = oss.putObject(bucketName, "object", wrap(bytes));
@@ -120,7 +120,7 @@ public class TestLocalOSS {
 
   @Test
   public void testGetObject() throws IOException {
-    String bucketNotExist = String.format("bucket-not-existing-%s", UUID.randomUUID().toString().replace("-", ""));
+    String bucketNotExist = String.format("bucket-not-existing-%s", UUID.randomUUID());
     assertThrows(() -> oss.getObject(bucketNotExist, "key"), OSSErrorCode.NO_SUCH_BUCKET);
 
     assertThrows(() -> oss.getObject(bucketName, "key"), OSSErrorCode.NO_SUCH_KEY);

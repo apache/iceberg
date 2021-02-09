@@ -61,6 +61,11 @@ public class OSSMockRule implements OSSTestRule {
     return new OSSClientBuilder().build(endpoint, "foo", "bar");
   }
 
+  @Override
+  public String keyPrefix() {
+    return "mock-objects/";
+  }
+
   private File rootDir() {
     Object rootDir = properties.get(OSSMockApplication.PROP_ROOT_DIR);
     Preconditions.checkNotNull(rootDir, "Root directory cannot be null");

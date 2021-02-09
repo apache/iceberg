@@ -21,8 +21,10 @@ package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
+import com.aliyun.oss.model.ListObjectsV2Request;
+import com.aliyun.oss.model.ListObjectsV2Result;
 import com.aliyun.oss.model.OSSObjectSummary;
-import com.aliyun.oss.model.ObjectListing;
+import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -32,7 +34,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * export OSS_TEST_ENDPOINT=${your-oss-endpoint}
  * export OSS_TEST_ACCESS_KEY=${your-oss-access-key}
  * export OSS_TEST_ACCESS_SECRET=${your-oss-access-secret}
- * export OSS_TEST_BUCKET=${your-oss-bucket-name}
+ * export OSS_TEST_BUCKET_NAME=${your-oss-bucket-name}
+ * export OSS_TEST_KEY_PREFIX=${your-oss-object-key-prefix}
  * </pre>
  */
 public class OSSIntegrationTestRule implements OSSTestRule {
@@ -41,11 +44,13 @@ public class OSSIntegrationTestRule implements OSSTestRule {
   private static final String OSS_TEST_ACCESS_KEY = "OSS_TEST_ACCESS_KEY";
   private static final String OSS_TEST_ACCESS_SECRET = "OSS_TEST_ACCESS_SECRET";
   private static final String OSS_TEST_BUCKET_NAME = "OSS_TEST_BUCKET_NAME";
+  private static final String OSS_TEST_KEY_PREFIX = "OSS_TEST_KEY_PREFIX";
 
   private String endpoint;
   private String accessKey;
   private String accessSecret;
   private String testBucketName;
+  private String keyPrefix;
 
   private OSS lazyClient = null;
 
@@ -62,6 +67,11 @@ public class OSSIntegrationTestRule implements OSSTestRule {
 
     testBucketName = System.getenv(OSS_TEST_BUCKET_NAME);
     Preconditions.checkNotNull(testBucketName, "Does not set '%s' environment variable", OSS_TEST_BUCKET_NAME);
+
+    keyPrefix = System.getenv(OSS_TEST_KEY_PREFIX);
+    if (keyPrefix == null) {
+      keyPrefix = String.format("iceberg-oss-testing-%s", UUID.randomUUID().toString());
+    }
   }
 
   @Override
@@ -82,7 +92,7 @@ public class OSSIntegrationTestRule implements OSSTestRule {
   }
 
   @Override
-  public String testingBucketName() {
+  public String testBucketName() {
     return testBucketName;
   }
 
@@ -96,21 +106,33 @@ public class OSSIntegrationTestRule implements OSSTestRule {
   }
 
   @Override
-  public void setUpBucket(String bucket) {
-    Preconditions.checkArgument(client().doesBucketExist(bucket),
-        "Bucket %s already exist, please choose another bucket name.", bucket);
-
-    client().createBucket(bucket);
+  public String keyPrefix() {
+    return keyPrefix;
   }
 
+  @Override
+  public void setUpBucket(String bucket) {
+    Preconditions.checkArgument(client().doesBucketExist(bucket),
+        "Bucket %s does not exist, please create it firstly.", bucket);
+  }
 
   @Override
   public void tearDownBucket(String bucket) {
-    ObjectListing list = client().listObjects(bucket);
-    for (OSSObjectSummary summary : list.getObjectSummaries()) {
-      client().deleteObject(bucket, summary.getKey());
-    }
+    final int maxKeys = 200;
+    String nextContinuationToken = null;
+    ListObjectsV2Result result;
 
-    client().deleteBucket(bucket);
+    do {
+      ListObjectsV2Request request = new ListObjectsV2Request(bucket).withMaxKeys(maxKeys);
+      request.setPrefix(keyPrefix);
+      request.setContinuationToken(nextContinuationToken);
+
+      result = client().listObjectsV2(request);
+      for (OSSObjectSummary s : result.getObjectSummaries()) {
+        client().deleteObject(bucket, s.getKey());
+      }
+
+      nextContinuationToken = result.getNextContinuationToken();
+    } while (result.isTruncated());
   }
 }
