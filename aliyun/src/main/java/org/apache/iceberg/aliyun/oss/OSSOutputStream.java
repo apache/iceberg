@@ -24,7 +24,9 @@ import com.aliyun.oss.model.AbortMultipartUploadRequest;
 import com.aliyun.oss.model.CompleteMultipartUploadRequest;
 import com.aliyun.oss.model.InitiateMultipartUploadRequest;
 import com.aliyun.oss.model.InitiateMultipartUploadResult;
+import com.aliyun.oss.model.ObjectMetadata;
 import com.aliyun.oss.model.PartETag;
+import com.aliyun.oss.model.PutObjectRequest;
 import com.aliyun.oss.model.UploadPartRequest;
 import com.aliyun.oss.model.UploadPartResult;
 import java.io.BufferedInputStream;
@@ -270,12 +272,19 @@ public class OSSOutputStream extends PositionOutputStream {
 
   private void completeUploads() {
     if (multipartUploadId == null) {
+      long contentLength = stagingFiles.stream().mapToLong(File::length).sum();
+      LOG.debug("Uploading {} staging files to oss, total byte size is: {}", stagingFiles.size(), contentLength);
+
       InputStream contentStream = new BufferedInputStream(stagingFiles.stream()
           .map(OSSOutputStream::uncheckedInputStream)
           .reduce(SequenceInputStream::new)
           .orElseGet(() -> new ByteArrayInputStream(new byte[0])));
 
-      client.putObject(uri.bucket(), uri.key(), contentStream);
+      ObjectMetadata metadata = new ObjectMetadata();
+      metadata.setContentLength(contentLength);
+
+      PutObjectRequest request = new PutObjectRequest(uri.bucket(), uri.key(), contentStream, metadata);
+      client.putObject(request);
     } else {
       uploadParts();
       completeMultiPartUpload();
