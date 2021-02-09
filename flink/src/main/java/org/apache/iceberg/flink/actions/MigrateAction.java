@@ -25,7 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.apache.flink.api.common.functions.RichMapFunction;
+import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.runtime.util.HadoopUtils;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -35,6 +35,7 @@ import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.hive.HiveCatalog;
 import org.apache.flink.util.ArrayUtils;
+import org.apache.flink.util.Collector;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -218,7 +219,7 @@ public class MigrateAction implements Action<List<ManifestFile>> {
     MigrateMapper migrateMapper = new MigrateMapper(spec, nameMapping, fileFormat, metricsConfig, metadataLocation);
     DataStream<PartitionAndLocation> dataStream =
         env.fromElements(new PartitionAndLocation(hiveLocation, Maps.newHashMap()));
-    DataStream<ManifestFile> ds = dataStream.map(migrateMapper);
+    DataStream<ManifestFile> ds = dataStream.flatMap(migrateMapper);
     return Lists.newArrayList(ds.executeAndCollect("migrate table :" + hiveSourceTableName)).stream()
         .collect(Collectors.toList());
   }
@@ -245,12 +246,12 @@ public class MigrateAction implements Action<List<ManifestFile>> {
 
     DataStream<PartitionAndLocation> dataStream = env.fromCollection(inputs);
     MigrateMapper migrateMapper = new MigrateMapper(spec, nameMapping, fileFormat, metricsConfig, metadataLocation);
-    DataStream<ManifestFile> ds = dataStream.map(migrateMapper).setParallelism(parallelism);
+    DataStream<ManifestFile> ds = dataStream.flatMap(migrateMapper).setParallelism(parallelism);
     return Lists.newArrayList(ds.executeAndCollect("migrate table :" + hiveSourceTableName)).stream()
         .collect(Collectors.toList());
   }
 
-  private static class MigrateMapper extends RichMapFunction<PartitionAndLocation, ManifestFile> {
+  private static class MigrateMapper extends RichFlatMapFunction<PartitionAndLocation, ManifestFile> {
     private final PartitionSpec spec;
     private final String nameMappingString;
     private final FileFormat fileFormat;
@@ -267,7 +268,7 @@ public class MigrateAction implements Action<List<ManifestFile>> {
     }
 
     @Override
-    public ManifestFile map(PartitionAndLocation partitionAndLocation) {
+    public void flatMap(PartitionAndLocation partitionAndLocation, Collector<ManifestFile> out) {
       Map<String, String> partitions = partitionAndLocation.getPartitionSpec();
       String location = partitionAndLocation.getLocation();
       Configuration conf = HadoopUtils.getHadoopConfiguration(GlobalConfiguration.loadConfiguration());
@@ -286,7 +287,10 @@ public class MigrateAction implements Action<List<ManifestFile>> {
           throw new UnsupportedOperationException("Unsupported file format");
       }
 
-      return buildManifest(conf, spec, metadataLocation, files);
+      ManifestFile manifestFile = buildManifest(conf, spec, metadataLocation, files);
+      if (manifestFile != null) {
+        out.collect(manifestFile);
+      }
     }
 
     private ManifestFile buildManifest(Configuration conf, PartitionSpec partitionSpec,

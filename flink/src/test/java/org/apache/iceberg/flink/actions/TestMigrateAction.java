@@ -170,6 +170,23 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
   }
 
   @Test
+  public void testMigrateUnpartitionWithoutFile() {
+    getTableEnv().getConfig().setSqlDialect(SqlDialect.HIVE);
+    sql("CREATE TABLE %s (id INT, data STRING) stored as %s", SOURCE_HIVE_TABLE_NAME, format.name());
+    getTableEnv().getConfig().setSqlDialect(SqlDialect.DEFAULT);
+
+    List<ManifestFile> manifestFiles =
+        Actions.migrateHive2Iceberg(env, flinkHiveCatalog, SOURCE_HIVE_DATABASE_NAME, SOURCE_HIVE_TABLE_NAME,
+            validationCatalog, baseNamespace, DATABASE, TARGET_ICEBERG_TABLE_NAME).execute();
+    Assert.assertEquals("Should produce the expected manifestFiles count.", 0, manifestFiles.size());
+
+    sql("USE CATALOG %s", catalogName);
+    sql("USE %s", DATABASE);
+    List<Object[]> list = sql("SELECT * FROM %s", TARGET_ICEBERG_TABLE_NAME);
+    Assert.assertEquals("Should produce the expected records count.", 0, list.size());
+  }
+
+  @Test
   public void testMigrateUnpartition() throws IOException, TableNotExistException {
     getTableEnv().getConfig().setSqlDialect(SqlDialect.HIVE);
     sql("CREATE TABLE %s (id INT, data STRING) stored as %s", SOURCE_HIVE_TABLE_NAME, format.name());
@@ -209,10 +226,31 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
   }
 
   @Test
+  public void testMigratePartitionWithoutFile() {
+    getTableEnv().getConfig().setSqlDialect(SqlDialect.HIVE);
+    sql("CREATE TABLE %s (id INT, data STRING) PARTITIONED BY (p STRING) STORED AS %s", SOURCE_HIVE_TABLE_NAME,
+        format.name());
+    sql("ALTER TABLE %s ADD PARTITION (p='flink')", SOURCE_HIVE_TABLE_NAME);
+    sql("ALTER TABLE %s ADD PARTITION (p='iceberg')", SOURCE_HIVE_TABLE_NAME);
+    getTableEnv().getConfig().setSqlDialect(SqlDialect.DEFAULT);
+
+    List<ManifestFile> manifestFiles =
+        Actions.migrateHive2Iceberg(env, flinkHiveCatalog, SOURCE_HIVE_DATABASE_NAME, SOURCE_HIVE_TABLE_NAME,
+            validationCatalog, baseNamespace, DATABASE, TARGET_ICEBERG_TABLE_NAME).execute();
+    Assert.assertEquals("Should produce the expected manifestFiles count.", 0, manifestFiles.size());
+
+    sql("USE CATALOG %s", catalogName);
+    sql("USE %s", DATABASE);
+    List<Row> results = executeSql("SELECT * FROM %s", TARGET_ICEBERG_TABLE_NAME);
+    Assert.assertEquals("Should produce the expected records count.", 0, results.size());
+  }
+
+  @Test
   public void testMigratePartition() throws IOException, TException, TableNotExistException {
     getTableEnv().getConfig().setSqlDialect(SqlDialect.HIVE);
     sql("CREATE TABLE %s (id INT, data STRING) PARTITIONED BY (p STRING) STORED AS %s", SOURCE_HIVE_TABLE_NAME,
         format.name());
+    sql("ALTER TABLE %s ADD PARTITION (p='hello')", SOURCE_HIVE_TABLE_NAME);
     getTableEnv().getConfig().setSqlDialect(SqlDialect.DEFAULT);
     String hiveLocation =
         flinkHiveCatalog.getHiveTable(new ObjectPath(SOURCE_HIVE_DATABASE_NAME, SOURCE_HIVE_TABLE_NAME))
