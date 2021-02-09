@@ -55,8 +55,10 @@ public class InputFormatConfig {
   public static final String EXTERNAL_TABLE_PURGE = "external.table.purge";
 
   public static final String OUTPUT_TABLES = "iceberg.mr.output.tables";
-  public static final String COMMIT_THREAD_POOL_SIZE = "iceberg.mr.commit.thread.pool.size";
-  public static final int COMMIT_THREAD_POOL_SIZE_DEFAULT = 10;
+  public static final String COMMIT_TABLE_THREAD_POOL_SIZE = "iceberg.mr.commit.table.thread.pool.size";
+  public static final int COMMIT_TABLE_THREAD_POOL_SIZE_DEFAULT = 10;
+  public static final String COMMIT_FILE_THREAD_POOL_SIZE = "iceberg.mr.commit.file.thread.pool.size";
+  public static final int COMMIT_FILE_THREAD_POOL_SIZE_DEFAULT = 10;
   public static final String WRITE_TARGET_FILE_SIZE = "iceberg.mr.write.target.file.size";
 
   public static final String CASE_SENSITIVE = "iceberg.mr.case.sensitive";
