@@ -220,7 +220,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
                   .retry(3)
                   .suppressFailureWhenFinished()
                   .executeWith(fileExecutor)
-                  .onFailure((file, exc) -> LOG.debug("Failed to remove data file {} on abort job", file.path(), exc))
+                  .onFailure((file, exc) -> LOG.warn("Failed to remove data file {} on abort job", file.path(), exc))
                   .run(file -> io.deleteFile(file.path().toString()));
             }
           });
