@@ -502,6 +502,61 @@ public class TestSchemaUpdate {
   }
 
   @Test
+  public void testDeleteThenAdd() {
+    Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
+    Schema expected = new Schema(optional(2, "id", Types.IntegerType.get()));
+
+    Schema updated = new SchemaUpdate(schema, 1)
+        .deleteColumn("id")
+        .addColumn("id", optional(2, "id", Types.IntegerType.get()).type())
+        .apply();
+
+    Assert.assertEquals("Should match with added fields", expected.asStruct(), updated.asStruct());
+  }
+
+  @Test
+  public void testDeleteThenAddNested() {
+    Schema expectedNested = new Schema(
+        required(1, "id", Types.IntegerType.get()),
+        optional(2, "data", Types.StringType.get()),
+        optional(3, "preferences", Types.StructType.of(
+            optional(9, "feature2", Types.BooleanType.get()),
+            optional(24, "feature1", Types.BooleanType.get())
+        ), "struct of named boolean options"),
+        required(4, "locations", Types.MapType.ofRequired(10, 11,
+            Types.StructType.of(
+                    required(20, "address", Types.StringType.get()),
+                    required(21, "city", Types.StringType.get()),
+                    required(22, "state", Types.StringType.get()),
+                    required(23, "zip", Types.IntegerType.get())
+            ),
+            Types.StructType.of(
+                    required(12, "lat", Types.FloatType.get()),
+                    required(13, "long", Types.FloatType.get())
+            )), "map of address to coordinate"),
+        optional(5, "points", Types.ListType.ofOptional(14,
+            Types.StructType.of(
+                    required(15, "x", Types.LongType.get()),
+                    required(16, "y", Types.LongType.get())
+            )), "2-D cartesian points"),
+        required(6, "doubles", Types.ListType.ofRequired(17,
+            Types.DoubleType.get()
+        )),
+        optional(7, "properties", Types.MapType.ofOptional(18, 19,
+            Types.StringType.get(),
+            Types.StringType.get()
+        ), "string map of properties")
+    );
+
+    Schema updatedNested = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+        .deleteColumn("preferences.feature1")
+        .addColumn("preferences", "feature1", Types.BooleanType.get())
+        .apply();
+
+    Assert.assertEquals("Should match with added fields", expectedNested.asStruct(), updatedNested.asStruct());
+  }
+
+  @Test
   public void testDeleteMissingColumn() {
     AssertHelpers.assertThrows("Should reject delete missing column",
         IllegalArgumentException.class, "missing column: col", () -> {
