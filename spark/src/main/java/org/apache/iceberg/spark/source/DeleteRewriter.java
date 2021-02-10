@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -42,6 +43,7 @@ import org.apache.iceberg.io.SortedPosDeleteWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.TaskContext;
@@ -95,8 +97,11 @@ public class DeleteRewriter implements Serializable {
     int partitionId = context.partitionId();
     long taskId = context.taskAttemptId();
 
-    DeleteRowReader deleteRowReader = new DeleteRowReader(
-        task.second(), schema, nameMapping, io.value(), encryptionManager.value(), caseSensitive);
+    Schema metaSchema = new Schema(MetadataColumns.FILE_PATH, MetadataColumns.ROW_POSITION);
+    Schema expectedSchema = TypeUtil.join(metaSchema, schema);
+
+    DeleteRowReader deleteRowReader = new DeleteRowReader(task.second(), schema, expectedSchema, nameMapping,
+        io.value(), encryptionManager.value(), caseSensitive);
 
     StructType structType = SparkSchemaUtil.convert(schema);
     SparkAppenderFactory appenderFactory = new SparkAppenderFactory(properties, schema, structType, spec);

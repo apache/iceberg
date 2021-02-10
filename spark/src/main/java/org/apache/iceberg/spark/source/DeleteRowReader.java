@@ -23,7 +23,6 @@ import java.util.Map;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.DeleteFilter;
@@ -32,7 +31,6 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -41,13 +39,12 @@ public class DeleteRowReader extends RowDataReader {
   private final Schema tableSchema;
   private final Schema expectedSchema;
 
-  public DeleteRowReader(CombinedScanTask task, Schema schema, String nameMapping, FileIO io,
-                         EncryptionManager encryptionManager, boolean caseSensitive) {
+  public DeleteRowReader(CombinedScanTask task, Schema schema, Schema expectedSchema, String nameMapping,
+                         FileIO io, EncryptionManager encryptionManager, boolean caseSensitive) {
     super(task, schema, schema, nameMapping, io, encryptionManager,
         caseSensitive);
     this.tableSchema = schema;
-    Schema metaSchema = new Schema(MetadataColumns.FILE_PATH, MetadataColumns.ROW_POSITION);
-    this.expectedSchema = TypeUtil.join(metaSchema, schema);
+    this.expectedSchema = expectedSchema;
   }
 
   @Override

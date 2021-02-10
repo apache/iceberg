@@ -59,17 +59,17 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
   }
 
   @Override
-  public RewriteFiles rewriteDeletes(Set<DeleteFile> eqDeletes, Set<DeleteFile> posDelete) {
-    Preconditions.checkArgument(eqDeletes != null && !eqDeletes.isEmpty(),
+  public RewriteFiles rewriteDeletes(Set<DeleteFile> deletesToDelete, Set<DeleteFile> deletesToAdd) {
+    Preconditions.checkArgument(deletesToDelete != null && !deletesToDelete.isEmpty(),
         "Files to delete cannot be null or empty");
-    Preconditions.checkArgument(posDelete != null && !posDelete.isEmpty(),
+    Preconditions.checkArgument(deletesToAdd != null && !deletesToAdd.isEmpty(),
         "Files to add can not be null or empty");
 
-    for (DeleteFile toDelete : eqDeletes) {
+    for (DeleteFile toDelete : deletesToDelete) {
       delete(toDelete);
     }
 
-    for (DeleteFile toAdd : posDelete) {
+    for (DeleteFile toAdd : deletesToAdd) {
       add(toAdd);
     }
 
