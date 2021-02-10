@@ -498,6 +498,7 @@ Table metadata consists of the following fields:
 | _required_ |            | **`partition-spec`**| The table’s current partition spec, stored as only fields. Note that this is used by writers to partition data, but is not used when reading because reads use the specs stored in manifest files. (**Deprecated**: use `partition-specs` and `default-spec-id`instead ) |
 | _optional_ | _required_ | **`partition-specs`**| A list of partition specs, stored as full partition spec objects. |
 | _optional_ | _required_ | **`default-spec-id`**| ID of the “current” spec that writers should use by default. |
+| _optional_ | _required_ | **`last-partition-id`**| An integer; the highest assigned partition field ID across all partition specs for the table. This is used to ensure partition fields are always assigned an unused ID when evolving specs. |
 | _optional_ | _optional_ | **`properties`**| A string to string map of table properties. This is used to control settings that affect reading and writing and is not intended to be used for arbitrary metadata. For example, `commit.retry.num-retries` is used to control the number of commit retries. |
 | _optional_ | _optional_ | **`current-snapshot-id`**| `long` ID of the current table snapshot. |
 | _optional_ | _optional_ | **`snapshots`**| A list of valid snapshots. Valid snapshots are snapshots for which all data files exist in the file system. A data file must not be deleted from the file system until the last snapshot in which it was listed is garbage collected. |
@@ -894,6 +895,7 @@ Table metadata is serialized as a JSON object according to the following table. 
 |**`partition-spec`**|`JSON partition fields (list)`|`See above, read partition-specs instead`|
 |**`partition-specs`**|`JSON partition specs (list of objects)`|`See above`|
 |**`default-spec-id`**|`JSON int`|`0`|
+|**`last-partition-id`**|`JSON int`|`1000`|
 |**`properties`**|`JSON object: {`<br />&nbsp;&nbsp;`"<key>": "<val>",`<br />&nbsp;&nbsp;`...`<br />`}`|`{`<br />&nbsp;&nbsp;`"write.format.default": "avro",`<br />&nbsp;&nbsp;`"commit.retry.num-retries": "4"`<br />`}`|
 |**`current-snapshot-id`**|`JSON long`|`3051729675574597004`|
 |**`snapshots`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": <operation>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`... },`<br />&nbsp;&nbsp;`"manifest-list": "<location>"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 3051729675574597004,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": "append"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`"manifest-list": "s3://b/wh/.../s1.avro"`<br />`} ]`|
@@ -948,6 +950,7 @@ Writing v2 metadata:
 * Table metadata now requires field `table-uuid`.
 * Table metadata now requires field `partition-specs`.
 * Table metadata now requires field `default-spec-id`.
+* Table metadata now requires field `last-partition-id`.
 * Table metadata field `partition-spec` is no longer required and may be omitted.
 * Snapshot added required field field `sequence-number`.
 * Snapshot now requires field `manifest-list`.
