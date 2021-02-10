@@ -103,6 +103,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
     try {
       // Generates commit files for the target tables in parallel
       Tasks.foreach(outputs.entrySet())
+          .retry(3)
           .stopOnFailure()
           .throwFailureWhenFinished()
           .executeWith(tableExecutor)
