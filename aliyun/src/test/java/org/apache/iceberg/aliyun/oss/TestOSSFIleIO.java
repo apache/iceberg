@@ -30,15 +30,24 @@ import java.net.URISyntaxException;
 import java.util.Random;
 import java.util.UUID;
 import org.apache.commons.io.IOUtils;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.aliyun.AliyunProperties;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.iceberg.util.SerializationUtil;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class TestOSSFIleIO extends OSSTestBase {
+  private static final String OSS_IMPL_CLASS = OSSFileIO.class.getName();
+
   private final Random random = new Random(1);
+  private final Configuration conf = new Configuration();
 
   @Test
   public void newInputFile() throws IOException {
@@ -64,6 +73,57 @@ public class TestOSSFIleIO extends OSSTestBase {
 
     fileIO().deleteFile(in);
     Assert.assertFalse(fileIO().newInputFile(location).exists());
+  }
+
+  @Test
+  public void testLoadFileIO() {
+    FileIO fileIO = CatalogUtil.loadFileIO(OSS_IMPL_CLASS, ImmutableMap.of(), conf);
+    Assert.assertTrue("Should be OSSFileIO", fileIO instanceof OSSFileIO);
+
+    byte[] data = SerializationUtil.serializeToBytes(fileIO);
+    FileIO expectedFileIO = SerializationUtil.deserializeFromBytes(data);
+    Assert.assertTrue("The deserialized FileIO should be OSSFileIO", expectedFileIO instanceof OSSFileIO);
+  }
+
+  @Test
+  public void testInitializeAliyunProps() {
+    AssertHelpers.assertThrows("Invalid argument " + AliyunProperties.OSS_MULTIPART_UPLOAD_THREADS,
+        IllegalArgumentException.class,
+        () -> CatalogUtil.loadFileIO(OSS_IMPL_CLASS,
+            ImmutableMap.of(AliyunProperties.OSS_MULTIPART_UPLOAD_THREADS, Integer.toString(-1)),
+            conf)
+    );
+
+    AssertHelpers.assertThrows("Invalid argument " + AliyunProperties.OSS_MULTIPART_SIZE,
+        IllegalArgumentException.class,
+        () -> CatalogUtil.loadFileIO(OSS_IMPL_CLASS,
+            ImmutableMap.of(AliyunProperties.OSS_MULTIPART_SIZE, Integer.toString(99 * 1024)),
+            conf)
+    );
+
+    AssertHelpers.assertThrows("Invalid argument " + AliyunProperties.OSS_MULTIPART_SIZE,
+        IllegalArgumentException.class,
+        () -> CatalogUtil.loadFileIO(OSS_IMPL_CLASS,
+            ImmutableMap.of(AliyunProperties.OSS_MULTIPART_SIZE, Long.toString(5 * 1024 * 1024 * 1024L + 1)),
+            conf)
+    );
+
+    AssertHelpers.assertThrows("Invalid argument " + AliyunProperties.OSS_MULTIPART_THRESHOLD_SIZE_DEFAULT,
+        IllegalArgumentException.class,
+        () -> CatalogUtil.loadFileIO(OSS_IMPL_CLASS,
+            ImmutableMap.of(AliyunProperties.OSS_MULTIPART_THRESHOLD_SIZE, Integer.toString(0)),
+            conf)
+    );
+
+    AssertHelpers.assertThrows("Invalid argument " + AliyunProperties.OSS_MULTIPART_THRESHOLD_SIZE_DEFAULT,
+        IllegalArgumentException.class,
+        () -> CatalogUtil.loadFileIO(OSS_IMPL_CLASS,
+            ImmutableMap.of(
+                AliyunProperties.OSS_MULTIPART_THRESHOLD_SIZE, Integer.toString(99 * 1024),
+                AliyunProperties.OSS_MULTIPART_SIZE, Integer.toString(100 * 1024)
+            ),
+            conf)
+    );
   }
 
   @Test

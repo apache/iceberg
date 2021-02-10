@@ -19,12 +19,13 @@
 
 package org.apache.iceberg.aliyun;
 
+import java.io.Serializable;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.PropertyUtil;
 
-public class AliyunProperties {
+public class AliyunProperties implements Serializable {
 
   /**
    * The domain name used to access OSS. OSS uses HTTP Restful APIs to provide services. Different regions are accessed
@@ -107,6 +108,7 @@ public class AliyunProperties {
     // OSS multipart upload threads.
     this.ossMultipartUploadThreads = PropertyUtil.propertyAsInt(properties, OSS_MULTIPART_UPLOAD_THREADS,
         Runtime.getRuntime().availableProcessors());
+    Preconditions.checkArgument(ossMultipartUploadThreads > 0, "%s must be positive.", OSS_MULTIPART_THRESHOLD_SIZE);
 
     // OOS multiple part size.
     try {
@@ -130,6 +132,8 @@ public class AliyunProperties {
         OSS_MULTIPART_THRESHOLD_SIZE, OSS_MULTIPART_THRESHOLD_SIZE_DEFAULT);
     Preconditions.checkArgument(ossMultipartThresholdSize > 0,
         "%s must be positive, the recommend value is 5GB.", OSS_MULTIPART_THRESHOLD_SIZE);
+    Preconditions.checkArgument(ossMultipartThresholdSize >= ossMultiPartSize,
+        "%s must be not less than %s (value: %s)", OSS_MULTIPART_THRESHOLD_SIZE, OSS_MULTIPART_SIZE, ossMultiPartSize);
   }
 
   public String ossEndpoint() {
