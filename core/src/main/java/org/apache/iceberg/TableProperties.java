@@ -127,7 +127,7 @@ public class TableProperties {
   public static final String WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT = "false";
 
   public static final String WRITE_TARGET_FILE_SIZE_BYTES = "write.target-file-size-bytes";
-  public static final long WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT = Long.MAX_VALUE;
+  public static final long WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT = 536870912; // 512 MB
 
   public static final String SPARK_WRITE_PARTITIONED_FANOUT_ENABLED = "write.spark.fanout.enabled";
   public static final boolean SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT = false;
