@@ -17,11 +17,18 @@
 # under the License.
 #
 
+import itertools
+import logging
+from multiprocessing import cpu_count
+from multiprocessing.dummy import Pool
 
 from hmsclient import hmsclient
-from iceberg.core import BaseMetastoreTables
+from iceberg.core import BaseMetastoreTables, ManifestReader
+from iceberg.core.filesystem import FileSystemInputFile, get_fs
+from iceberg.core.util import WORKER_THREAD_POOL_SIZE_PROP
+from iceberg.hive import HiveTableOperations
 
-from .hive_table_operations import HiveTableOperations
+_logger = logging.getLogger(__name__)
 
 
 class HiveTables(BaseMetastoreTables):
@@ -34,8 +41,45 @@ class HiveTables(BaseMetastoreTables):
     def new_table_ops(self, conf, database, table):
         return HiveTableOperations(conf, self.get_client(), database, table)
 
-    def drop(self, database, table):
-        raise RuntimeError("Not yet implemented")
+    def drop(self, database, table, purge=False):
+        ops = self.new_table_ops(self.conf, database, table)
+        metadata = ops.current()
+
+        with self.get_client() as open_client:
+            _logger.info("Deleting {database}.{table} from Hive Metastore".format(database=database, table=table))
+            open_client.drop_table(database, table, deleteData=False)
+
+        manifest_lists_to_delete = []
+        manifests_to_delete = itertools.chain()
+
+        if purge:
+            if metadata is not None:
+                for s in metadata.snapshots:
+                    manifests_to_delete = itertools.chain(manifests_to_delete, s.manifests)
+                    if s.manifest_location is not None:
+                        manifest_lists_to_delete.append(s.manifest_location())
+
+        # Make a copy, as it is drained as we explore the manifest to list files.
+        (manifests, manifests_to_delete) = itertools.tee(manifests_to_delete)
+
+        with Pool(self.conf.get(WORKER_THREAD_POOL_SIZE_PROP,
+                                cpu_count())) as delete_pool:
+            delete_pool.map(self.__delete_file, self.__get_files(manifests))
+            delete_pool.map(self.__delete_file, (m.manifest_path for m in manifests_to_delete))
+            delete_pool.map(self.__delete_file, manifest_lists_to_delete)
+            delete_pool.map(self.__delete_file, [ops.current_metadata_location])
+
+    def __get_files(self, manifests):
+        return itertools.chain.from_iterable((self.__get_data_files_by_manifest(m) for m in manifests))
+
+    def __get_data_files_by_manifest(self, manifest):
+        file = FileSystemInputFile.from_location(manifest.manifest_path, self.conf)
+        reader = ManifestReader.read(file)
+        return (i.path() for i in reader.iterator())
+
+    def __delete_file(self, path):
+        _logger.info("Deleting file: {path}".format(path=path))
+        get_fs(path, self.conf).delete(path)
 
     def get_client(self):
         from urllib.parse import urlparse

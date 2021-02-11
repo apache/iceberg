@@ -157,3 +157,21 @@ def test_create_tables(client, current_call, base_scan_schema, base_scan_partiti
     current_call.return_value = tbl[0].args[0].parameters['metadata_location']
 
     tables.load("test.test_123")
+
+
+@mock.patch("iceberg.hive.HiveTableOperations.refresh_from_metadata_location")
+@mock.patch("iceberg.hive.HiveTables.delete_file")
+@mock.patch("iceberg.hive.HiveTableOperations.current")
+@mock.patch("iceberg.hive.HiveTables.get_client")
+def test_drop_tables(client, metadata, delete_file, refresh_call, tmpdir):
+
+    parameters = {"table_type": "ICEBERG",
+                  "partition_spec": [],
+                  "metadata_location": "s3://path/to/iceberg.metadata.json"}
+
+    client.return_value.__enter__.return_value.get_table.return_value = MockHMSTable(parameters)
+    conf = {"hive.metastore.uris": 'thrift://hms:port',
+            "hive.metastore.warehouse.dir": tmpdir}
+    tables = HiveTables(conf)
+    tables.drop("test", "test_123", purge=False)
+    client.return_value.__enter__.return_value.drop_table.assert_called_with("test", "test_123", deleteData=False)
