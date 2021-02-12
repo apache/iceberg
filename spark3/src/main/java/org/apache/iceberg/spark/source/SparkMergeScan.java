@@ -121,7 +121,7 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
   }
 
   // should be accessible to the write
-  synchronized List<FileScanTask> files() {
+  protected synchronized List<FileScanTask> files() {
     if (files == null) {
       TableScan scan = table
           .newScan()

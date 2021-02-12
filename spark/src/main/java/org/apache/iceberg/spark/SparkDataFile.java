@@ -53,13 +53,15 @@ public class SparkDataFile implements DataFile {
   private final Type keyMetadataType;
 
   private final SparkStructLike wrappedPartition;
+  private final Types.StructType partitionStruct;
   private Row wrapped;
 
   public SparkDataFile(Types.StructType type, StructType sparkType) {
     this.lowerBoundsType = type.fieldType("lower_bounds");
     this.upperBoundsType = type.fieldType("upper_bounds");
     this.keyMetadataType = type.fieldType("key_metadata");
-    this.wrappedPartition = new SparkStructLike(type.fieldType("partition").asStructType());
+    this.partitionStruct = type.fieldType("partition").asStructType();
+    this.wrappedPartition = new SparkStructLike(partitionStruct);
 
     Map<String, Integer> positions = Maps.newHashMap();
     type.fields().forEach(field -> {
@@ -81,6 +83,33 @@ public class SparkDataFile implements DataFile {
     keyMetadataPosition = positions.get("key_metadata");
     splitOffsetsPosition = positions.get("split_offsets");
     sortOrderIdPosition = positions.get("sort_order_id");
+  }
+
+  private SparkDataFile(SparkDataFile other) {
+    this.lowerBoundsType = other.lowerBoundsType;
+    this.upperBoundsType = other.upperBoundsType;
+    this.keyMetadataType = other.keyMetadataType;
+    this.wrappedPartition = new SparkStructLike(other.partitionStruct);
+    this.filePathPosition = other.filePathPosition;
+    this.fileFormatPosition = other.fileFormatPosition;
+    this.partitionPosition = other.partitionPosition;
+    this.recordCountPosition = other.recordCountPosition;
+    this.fileSizeInBytesPosition = other.fileSizeInBytesPosition;
+    this.columnSizesPosition = other.columnSizesPosition;
+    this.valueCountsPosition = other.valueCountsPosition;
+    this.nullValueCountsPosition = other.nullValueCountsPosition;
+    this.lowerBoundsPosition = other.lowerBoundsPosition;
+    this.upperBoundsPosition = other.upperBoundsPosition;
+    this.keyMetadataPosition = other.keyMetadataPosition;
+    this.splitOffsetsPosition = other.splitOffsetsPosition;
+    this.nanValueCountsPosition = other.nanValueCountsPosition;
+    this.sortOrderIdPosition = other.sortOrderIdPosition;
+    this.partitionStruct = other.partitionStruct;
+    this.wrap(other.wrapped.copy());
+  }
+
+  public Row unwrap() {
+    return this.wrapped;
   }
 
   public SparkDataFile wrap(Row row) {
@@ -166,7 +195,7 @@ public class SparkDataFile implements DataFile {
 
   @Override
   public DataFile copy() {
-    throw new UnsupportedOperationException("Not implemented: copy");
+    return new SparkDataFile(this);
   }
 
   @Override

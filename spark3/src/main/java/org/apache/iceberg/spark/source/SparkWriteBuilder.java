@@ -47,7 +47,7 @@ import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, SupportsOverwrite {
+public class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, SupportsOverwrite {
 
   private final SparkSession spark;
   private final Table table;
@@ -65,7 +65,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   // lazy variables
   private JavaSparkContext lazySparkContext = null;
 
-  SparkWriteBuilder(SparkSession spark, Table table, LogicalWriteInfo info) {
+  public SparkWriteBuilder(SparkSession spark, Table table, LogicalWriteInfo info) {
     this.spark = spark;
     this.table = table;
     this.writeInfo = info;

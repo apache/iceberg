@@ -67,4 +67,8 @@ public interface ActionsProvider {
   default ExpireSnapshots expireSnapshots(Table table) {
     throw new UnsupportedOperationException(this.getClass().getName() + " does not implement expireSnapshots");
   }
+
+  default CompactDataFiles compactDataFiles(Table table) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement compactDataFiles");
+  }
 }
