@@ -30,11 +30,11 @@ import org.apache.flink.table.factories.DynamicTableSinkFactory;
 import org.apache.flink.table.factories.DynamicTableSourceFactory;
 import org.apache.flink.table.utils.TableSchemaUtils;
 
-public class FlinkTableFactory implements DynamicTableSinkFactory, DynamicTableSourceFactory {
+public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, DynamicTableSourceFactory {
   public static final String IDENTIFIER = "iceberg";
   private final FlinkCatalog catalog;
 
-  public FlinkTableFactory(FlinkCatalog catalog) {
+  public FlinkDynamicTableFactory(FlinkCatalog catalog) {
     this.catalog = catalog;
   }
 

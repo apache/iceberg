@@ -550,7 +550,7 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public Optional<Factory> getFactory() {
-    return Optional.of(new FlinkTableFactory(this));
+    return Optional.of(new FlinkDynamicTableFactory(this));
   }
 
   CatalogLoader getCatalogLoader() {
