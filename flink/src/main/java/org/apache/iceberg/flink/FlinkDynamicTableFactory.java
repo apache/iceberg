@@ -31,7 +31,6 @@ import org.apache.flink.table.factories.DynamicTableSourceFactory;
 import org.apache.flink.table.utils.TableSchemaUtils;
 
 public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, DynamicTableSourceFactory {
-  public static final String IDENTIFIER = "iceberg";
   private final FlinkCatalog catalog;
 
   public FlinkDynamicTableFactory(FlinkCatalog catalog) {
@@ -67,7 +66,7 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
 
   @Override
   public String factoryIdentifier() {
-    return IDENTIFIER;
+    throw new UnsupportedOperationException("Iceberg Table Factory can not be loaded from Java SPI");
   }
 
   private TableLoader createTableLoader(ObjectPath objectPath) {
