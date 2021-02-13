@@ -884,4 +884,12 @@ public class TestDictionaryRowGroupFilter {
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
     Assert.assertFalse("Should not read: notIn on no nulls column (empty string is within the set)", shouldRead);
   }
+
+  @Test
+  public void testTypePromotion() {
+    Schema promotedSchema = new Schema(required(1, "id", LongType.get()));
+    boolean shouldRead = new ParquetDictionaryRowGroupFilter(promotedSchema, equal("id", INT_MIN_VALUE + 1), true)
+        .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    Assert.assertTrue("Should succeed with promoted schema", shouldRead);
+  }
 }
