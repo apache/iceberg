@@ -47,7 +47,7 @@ case class RewriteUpdate(spark: SparkSession) extends Rule[LogicalPlan] with Rew
   import ExtendedDataSourceV2Implicits._
 
   // TODO: can we do any better for no-op updates? when conditions evaluate to false/true?
-  override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
+  override def apply(plan: LogicalPlan): LogicalPlan = plan transform {
     case UpdateTable(r: DataSourceV2Relation, assignments, Some(cond))
         if isIcebergRelation(r) && SubqueryExpression.hasSubquery(cond) =>
 
