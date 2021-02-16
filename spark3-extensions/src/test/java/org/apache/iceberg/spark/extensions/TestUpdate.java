@@ -799,6 +799,24 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void testUpdateWithVectorization() {
+    createAndInitTable("id INT, dep STRING");
+
+    append(tableName,
+        "{ \"id\": 0, \"dep\": \"hr\" }\n" +
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" +
+        "{ \"id\": 2, \"dep\": \"hr\" }");
+
+    withSQLConf(ImmutableMap.of("spark.sql.iceberg.vectorization.enabled", "true"), () -> {
+      sql("UPDATE %s t SET id = -1", tableName);
+
+      assertEquals("Should have expected rows",
+          ImmutableList.of(row(-1, "hr"), row(-1, "hr"), row(-1, "hr")),
+          sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+    });
+  }
+
+  @Test
   public void testUpdateWithInvalidUpdates() {
     createAndInitTable("id INT, a ARRAY<STRUCT<c1:INT,c2:INT>>, m MAP<STRING,STRING>");
 
