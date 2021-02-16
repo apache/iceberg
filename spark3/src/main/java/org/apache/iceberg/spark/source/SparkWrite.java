@@ -540,6 +540,7 @@ class SparkWrite {
 
     @Override
     public DataWriter<InternalRow> createWriter(int partitionId, long taskId, long epochId) {
+<<<<<<< HEAD
       Table table = tableBroadcast.value();
 
       OutputFileFactory fileFactory = OutputFileFactory.builderFor(table, partitionId, taskId).format(format).build();
@@ -548,6 +549,14 @@ class SparkWrite {
       PartitionSpec spec = table.spec();
       FileIO io = table.io();
 
+=======
+      OutputFileFactory fileFactory = new OutputFileFactory(
+          spec, format, locations, io.value(), encryptionManager.value(), partitionId, taskId);
+      SparkAppenderFactory appenderFactory = SparkAppenderFactory.builderFor(
+          properties, writeSchema, dsSchema)
+          .partitionSpec(spec)
+          .sortOrder(sortOrder).build();
+>>>>>>> Create SparkAppenderFactory builder, avoid argument explosion
       if (spec.isUnpartitioned()) {
         return new Unpartitioned3Writer(spec, format, appenderFactory, fileFactory, io, targetFileSize);
       } else if (partitionedFanoutEnabled) {
