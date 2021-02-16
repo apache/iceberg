@@ -37,15 +37,13 @@ public class SortOrderUtil {
   }
 
   public static SortOrder buildSortOrder(Table table) {
-    return buildSortOrder(table.spec(), table.sortOrder());
+    return buildSortOrder(table.schema(), table.spec(), table.sortOrder());
   }
 
-  public static SortOrder buildSortOrder(PartitionSpec spec, SortOrder sortOrder) {
+  public static SortOrder buildSortOrder(Schema schema, PartitionSpec spec, SortOrder sortOrder) {
     if (sortOrder.isUnsorted() && spec.isUnpartitioned()) {
       return SortOrder.unsorted();
     }
-
-    Schema schema = spec.schema();
 
     Multimap<Integer, SortField> sortFieldIndex = Multimaps.index(sortOrder.fields(), SortField::sourceId);
 
