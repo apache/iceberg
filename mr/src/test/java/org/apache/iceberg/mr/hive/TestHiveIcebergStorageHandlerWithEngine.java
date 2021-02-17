@@ -396,6 +396,25 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   }
 
   @Test
+  public void testInsertFromHiveTableWithSameColumnNames() throws IOException {
+    Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
+
+    shell.executeStatement(
+        "CREATE TABLE hive_customers(customer_id bigint, first_name string) PARTITIONED BY (last_name string)");
+    shell.executeStatement(
+        "INSERT INTO hive_customers VALUES (0, 'Alice', 'Brown'), (1, 'Bob', 'Green'), (2, 'Trudy', 'Pink')");
+
+    PartitionSpec spec = PartitionSpec.builderFor(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA)
+        .identity("last_name").build();
+    Table table = testTables.createTable(shell, "customers", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
+        spec, fileFormat, ImmutableList.of());
+
+    shell.executeStatement("INSERT INTO customers SELECT * FROM hive_customers");
+
+    HiveIcebergTestUtils.validateData(table, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS, 0);
+  }
+
+  @Test
   public void testWriteArrayOfPrimitivesInTable() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
     Schema schema = new Schema(required(1, "id", Types.LongType.get()),
