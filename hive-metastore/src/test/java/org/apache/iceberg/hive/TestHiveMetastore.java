@@ -56,7 +56,7 @@ import static java.nio.file.attribute.PosixFilePermissions.fromString;
 public class TestHiveMetastore {
 
   private static final String DEFAULT_DATABASE_NAME = "default";
-  private static final int DEFAULT_POOL_SIZE = 10;
+  private static final int DEFAULT_POOL_SIZE = 5;
 
   // create the metastore handlers based on whether we're working with Hive2 or Hive3 dependencies
   // we need to do this because there is a breaking API change between Hive2 and Hive3
