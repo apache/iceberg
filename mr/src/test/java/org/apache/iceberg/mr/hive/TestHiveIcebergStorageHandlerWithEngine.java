@@ -408,7 +408,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     Table table = testTables.createTable(shell, "target_customers",
         HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, spec, fileFormat, ImmutableList.of());
 
-    // Below select from hive_customers should produce: "hive.io.file.readcolumn.names=customer_id,last_name".
+    // Below select from source table should produce: "hive.io.file.readcolumn.names=customer_id,last_name".
     // Inserting into the target table should not fail because first_name is not selected from the source table
     shell.executeStatement("INSERT INTO target_customers SELECT customer_id, 'Sam', last_name FROM source_customers");
 
