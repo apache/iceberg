@@ -35,6 +35,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hive.HiveSchemaUtil;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
@@ -396,22 +397,28 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   }
 
   @Test
-  public void testInsertFromHiveTableWithSameColumnNames() throws IOException {
+  public void testInsertUsingSourceTableWithSharedColumnsNames() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
 
-    shell.executeStatement(
-        "CREATE TABLE hive_customers(customer_id bigint, first_name string) PARTITIONED BY (last_name string)");
-    shell.executeStatement(
-        "INSERT INTO hive_customers VALUES (0, 'Alice', 'Brown'), (1, 'Bob', 'Green'), (2, 'Trudy', 'Pink')");
-
+    List<Record> records = HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS;
     PartitionSpec spec = PartitionSpec.builderFor(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA)
         .identity("last_name").build();
-    Table table = testTables.createTable(shell, "customers", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
-        spec, fileFormat, ImmutableList.of());
+    testTables.createTable(shell, "source_customers", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
+        spec, fileFormat, records);
+    Table table = testTables.createTable(shell, "target_customers",
+        HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, spec, fileFormat, ImmutableList.of());
 
-    shell.executeStatement("INSERT INTO customers SELECT * FROM hive_customers");
+    // Below select from hive_customers should produce: "hive.io.file.readcolumn.names=customer_id,last_name".
+    // Inserting into the target table should not fail because first_name is not selected from the source table
+    shell.executeStatement("INSERT INTO target_customers SELECT customer_id, 'Sam', last_name FROM source_customers");
 
-    HiveIcebergTestUtils.validateData(table, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS, 0);
+    List<Record> expected = Lists.newArrayListWithExpectedSize(records.size());
+    records.forEach(r -> {
+      Record copy = r.copy();
+      copy.setField("first_name", "Sam");
+      expected.add(copy);
+    });
+    HiveIcebergTestUtils.validateData(table, expected, 0);
   }
 
   @Test
