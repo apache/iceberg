@@ -118,7 +118,7 @@ public class TableMetadata implements Serializable {
     return new TableMetadata(null, formatVersion, UUID.randomUUID().toString(), location,
         INITIAL_SEQUENCE_NUMBER, System.currentTimeMillis(),
         lastColumnId.get(), freshSchema.schemaId(), ImmutableList.of(freshSchema),
-        INITIAL_SPEC_ID, ImmutableList.of(freshSpec), freshSpec.lastAssignedFieldId(),
+        freshSpec.specId(), ImmutableList.of(freshSpec), freshSpec.lastAssignedFieldId(),
         freshSortOrderId, ImmutableList.of(freshSortOrder),
         ImmutableMap.copyOf(properties), -1, ImmutableList.of(),
         ImmutableList.of(), ImmutableList.of());
@@ -476,20 +476,6 @@ public class TableMetadata implements Serializable {
     }
   }
 
-  private int reuseOrCreateNewSchemaId(Schema newSchema) {
-    // if the schema already exists, use its id; otherwise use the highest id + 1
-    int newSchemaId = currentSchemaId;
-    for (Schema schema : schemas) {
-      if (schema.asStruct().equals(newSchema.asStruct())) {
-        newSchemaId = schema.schemaId();
-        break;
-      } else if (schema.schemaId() >= newSchemaId) {
-        newSchemaId = schema.schemaId() + 1;
-      }
-    }
-    return newSchemaId;
-  }
-
   public TableMetadata updateSchema(Schema newSchema, int newLastColumnId) {
     PartitionSpec.checkCompatibility(spec(), newSchema);
     SortOrder.checkCompatibility(sortOrder(), newSchema);
@@ -503,8 +489,7 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    ImmutableList.Builder<Schema> builder = ImmutableList.<Schema>builder()
-        .addAll(schemas);
+    ImmutableList.Builder<Schema> builder = ImmutableList.<Schema>builder().addAll(schemas);
     if (!schemasById.containsKey(newSchemaId)) {
       builder.add(new Schema(newSchemaId, newSchema.columns()));
     }
@@ -550,8 +535,8 @@ public class TableMetadata implements Serializable {
     return new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, newDefaultSpecId,
         builder.build(), Math.max(lastAssignedPartitionId, newPartitionSpec.lastAssignedFieldId()),
-        defaultSortOrderId, sortOrders, properties, currentSnapshotId, snapshots, snapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+        defaultSortOrderId, sortOrders, properties,
+        currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata replaceSortOrder(SortOrder newOrder) {
@@ -714,8 +699,8 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId, snapshots,
-        newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
+        snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   // The caller is responsible to pass a updatedPartitionSpec with correct partition field IDs
@@ -788,8 +773,8 @@ public class TableMetadata implements Serializable {
   public TableMetadata updateLocation(String newLocation) {
     return new TableMetadata(null, formatVersion, uuid, newLocation,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId, snapshots, snapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
+        snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   public TableMetadata upgradeToFormatVersion(int newFormatVersion) {
@@ -805,8 +790,8 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, newFormatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId, snapshots, snapshotLog,
-        addPreviousFile(file, lastUpdatedMillis));
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
+        snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
   private List<MetadataLogEntry> addPreviousFile(InputFile previousFile, long timestampMillis) {
@@ -925,5 +910,19 @@ public class TableMetadata implements Serializable {
       builder.put(sortOrder.orderId(), sortOrder);
     }
     return builder.build();
+  }
+
+  private int reuseOrCreateNewSchemaId(Schema newSchema) {
+    // if the schema already exists, use its id; otherwise use the highest id + 1
+    int newSchemaId = currentSchemaId;
+    for (Schema schema : schemas) {
+      if (schema.asStruct().equals(newSchema.asStruct())) {
+        newSchemaId = schema.schemaId();
+        break;
+      } else if (schema.schemaId() >= newSchemaId) {
+        newSchemaId = schema.schemaId() + 1;
+      }
+    }
+    return newSchemaId;
   }
 }

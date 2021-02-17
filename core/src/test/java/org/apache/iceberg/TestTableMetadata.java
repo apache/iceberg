@@ -34,7 +34,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.UUID;
-import java.util.stream.IntStream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -60,6 +59,7 @@ import static org.apache.iceberg.TableMetadataParser.PARTITION_SPEC;
 import static org.apache.iceberg.TableMetadataParser.PROPERTIES;
 import static org.apache.iceberg.TableMetadataParser.SCHEMA;
 import static org.apache.iceberg.TableMetadataParser.SNAPSHOTS;
+import static org.apache.iceberg.TestHelpers.assertSameSchemaList;
 
 public class TestTableMetadata {
   private static final String TEST_LOCATION = "s3://bucket/test/location";
@@ -103,7 +103,6 @@ public class TestTableMetadata {
 
     Schema schema = new Schema(6,
         Types.NestedField.required(10, "x", Types.StringType.get()));
-
 
     TableMetadata expected = new TableMetadata(null, 2, UUID.randomUUID().toString(), TEST_LOCATION,
         SEQ_NO, System.currentTimeMillis(), 3,
@@ -716,22 +715,5 @@ public class TestTableMetadata {
         schema3.asStruct(), threeSchemaTable.schema().asStruct());
     Assert.assertEquals("Should return expected last column id",
         3, threeSchemaTable.lastColumnId());
-  }
-
-  private void assertSameSchemaList(List<Schema> list1, List<Schema> list2) {
-    if (list1.size() != list2.size()) {
-      Assert.fail("Should have same number of schemas in both lists");
-    }
-
-    IntStream.range(0, list1.size()).forEach(
-        index -> {
-          Schema schema1 = list1.get(index);
-          Schema schema2 = list2.get(index);
-          Assert.assertEquals("Should have matching schema id",
-              schema1.schemaId(), schema2.schemaId());
-          Assert.assertEquals("Should have matching schema struct",
-              schema1.asStruct(), schema2.asStruct());
-        }
-    );
   }
 }

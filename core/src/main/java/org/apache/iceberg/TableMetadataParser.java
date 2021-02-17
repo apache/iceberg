@@ -175,7 +175,7 @@ public class TableMetadataParser {
     generator.writeNumberField(CURRENT_SCHEMA_ID, metadata.currentSchemaId());
     generator.writeArrayFieldStart(SCHEMAS);
     for (Schema schema : metadata.schemas()) {
-      SchemaParser.toJsonWithId(schema, generator);
+      SchemaParser.toJson(schema, generator);
     }
     generator.writeEndArray();
 
@@ -292,7 +292,7 @@ public class TableMetadataParser {
       // parse the schema array
       ImmutableList.Builder<Schema> builder = ImmutableList.builder();
       for (JsonNode schemaNode : schemaArray) {
-        Schema current = SchemaParser.fromJsonWithId(schemaNode);
+        Schema current = SchemaParser.fromJson(schemaNode);
         if (current.schemaId() == currentSchemaId) {
           schema = current;
         }
@@ -308,8 +308,8 @@ public class TableMetadataParser {
       Preconditions.checkArgument(formatVersion == 1,
           "%s must exist in format v%s", SCHEMAS, formatVersion);
 
-      currentSchemaId = TableMetadata.INITIAL_SCHEMA_ID;
-      schema = SchemaParser.fromJsonWithId(currentSchemaId, node.get(SCHEMA));
+      schema = SchemaParser.fromJson(node.get(SCHEMA));
+      currentSchemaId = schema.schemaId();
       schemas = ImmutableList.of(schema);
     }
 
@@ -401,7 +401,7 @@ public class TableMetadataParser {
 
     return new TableMetadata(file, formatVersion, uuid, location,
         lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentVersionId, snapshots,
-        entries.build(), metadataEntries.build());
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentVersionId,
+        snapshots, entries.build(), metadataEntries.build());
   }
 }

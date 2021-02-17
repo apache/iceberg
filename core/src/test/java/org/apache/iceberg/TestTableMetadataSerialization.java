@@ -23,13 +23,13 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.util.List;
-import java.util.stream.IntStream;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+
+import static org.apache.iceberg.TestHelpers.assertSameSchemaList;
 
 @RunWith(Parameterized.class)
 public class TestTableMetadataSerialization extends TableTestBase {
@@ -81,22 +81,5 @@ public class TestTableMetadataSerialization extends TableTestBase {
         Lists.transform(meta.snapshots(), Snapshot::snapshotId),
         Lists.transform(result.snapshots(), Snapshot::snapshotId));
     Assert.assertEquals("History should match", meta.snapshotLog(), result.snapshotLog());
-  }
-
-  private void assertSameSchemaList(List<Schema> list1, List<Schema> list2) {
-    if (list1.size() != list2.size()) {
-      Assert.fail("Should have same number of schemas in both lists");
-    }
-
-    IntStream.range(0, list1.size()).forEach(
-        index -> {
-          Schema schema1 = list1.get(index);
-          Schema schema2 = list2.get(index);
-          Assert.assertEquals("Should have matching schema id",
-              schema1.schemaId(), schema2.schemaId());
-          Assert.assertEquals("Should have matching schema struct",
-              schema1.asStruct(), schema2.asStruct());
-        }
-    );
   }
 }

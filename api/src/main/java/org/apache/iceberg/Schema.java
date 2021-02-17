@@ -47,6 +47,7 @@ import org.apache.iceberg.types.Types.StructType;
 public class Schema implements Serializable {
   private static final Joiner NEWLINE = Joiner.on('\n');
   private static final String ALL_COLUMNS = "*";
+  private static final int DEFAULT_SCHEMA_ID = 0;
 
   private final StructType struct;
   private final int schemaId;
@@ -58,7 +59,7 @@ public class Schema implements Serializable {
   private transient Map<Integer, String> idToName = null;
 
   public Schema(List<NestedField> columns, Map<String, Integer> aliases) {
-    this.schemaId = 0;
+    this.schemaId = DEFAULT_SCHEMA_ID;
     this.struct = StructType.of(columns);
     this.aliasToId = aliases != null ? ImmutableBiMap.copyOf(aliases) : null;
 
@@ -67,7 +68,7 @@ public class Schema implements Serializable {
   }
 
   public Schema(List<NestedField> columns) {
-    this(0, columns);
+    this(DEFAULT_SCHEMA_ID, columns);
   }
 
   public Schema(int schemaId, List<NestedField> columns) {
@@ -77,7 +78,7 @@ public class Schema implements Serializable {
   }
 
   public Schema(NestedField... columns) {
-    this(0, Arrays.asList(columns));
+    this(DEFAULT_SCHEMA_ID, Arrays.asList(columns));
   }
 
   public Schema(int schemaId, NestedField... columns) {
