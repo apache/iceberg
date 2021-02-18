@@ -23,11 +23,11 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
@@ -189,11 +189,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       }
 
       // get Iceberg props that have been removed
-      List<String> removedProps = Collections.emptyList();
+      Set<String> removedProps = Collections.emptySet();
       if (base != null) {
         removedProps = base.properties().keySet().stream()
             .filter(key -> !metadata.properties().containsKey(key))
-            .collect(Collectors.toList());
+            .collect(Collectors.toSet());
       }
 
       setHmsTableParameters(newMetadataLocation, tbl, metadata.properties(), removedProps, hiveEngineEnabled);
@@ -268,7 +268,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   }
 
   private void setHmsTableParameters(String newMetadataLocation, Table tbl, Map<String, String> icebergTableProps,
-      List<String> obsoleteProps, boolean hiveEngineEnabled) {
+      Set<String> obsoleteProps, boolean hiveEngineEnabled) {
     Map<String, String> parameters = tbl.getParameters();
 
     if (parameters == null) {
