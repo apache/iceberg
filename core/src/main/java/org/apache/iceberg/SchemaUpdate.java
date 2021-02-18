@@ -378,11 +378,6 @@ class SchemaUpdate implements UpdateSchema {
   public Schema apply() {
     Schema newSchema = applyChanges(schema, deletes, updates, adds, moves, identifierFieldNames);
 
-    // Validate the metrics if we have existing properties.
-    if (base != null && base.properties() != null) {
-      MetricsConfig.fromProperties(base.properties()).validateReferencedColumns(newSchema);
-    }
-
     return newSchema;
   }
 
@@ -399,11 +394,12 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private TableMetadata applyChangesToMapping(TableMetadata metadata) {
-    String mappingJson = metadata.property(TableProperties.DEFAULT_NAME_MAPPING, null);
-    if (mappingJson != null) {
+    String existingMappingJson = metadata.property(TableProperties.DEFAULT_NAME_MAPPING, null);
+    TableMetadata ret = metadata;
+    if (existingMappingJson != null) {
       try {
         // parse and update the mapping
-        NameMapping mapping = NameMappingParser.fromJson(mappingJson);
+        NameMapping mapping = NameMappingParser.fromJson(existingMappingJson);
         NameMapping updated = MappingUtil.update(mapping, updates, adds);
 
         // replace the table property
@@ -411,15 +407,30 @@ class SchemaUpdate implements UpdateSchema {
         updatedProperties.putAll(metadata.properties());
         updatedProperties.put(TableProperties.DEFAULT_NAME_MAPPING, NameMappingParser.toJson(updated));
 
-        return metadata.replaceProperties(updatedProperties);
+        ret = metadata.replaceProperties(updatedProperties);
 
       } catch (RuntimeException e) {
         // log the error, but do not fail the update
-        LOG.warn("Failed to update external schema mapping: {}", mappingJson, e);
+        LOG.warn("Failed to update external schema mapping: {}", existingMappingJson, e);
       }
     }
 
-    return metadata;
+    // Transform the metrics if they exist
+    if (base != null && base.properties() != null) {
+      Schema newSchema = metadata.schema();
+      List<String> deletedColumns = deletes.stream()
+          .map(i -> schema.findColumnName(i))
+          .collect(Collectors.toList());
+      Map<String, String> renamedColumns = updates.keySet().stream()
+          .filter(i -> !schema.findColumnName(i).equals(newSchema.findColumnName(i)))
+          .collect(
+            Collectors.toMap(i -> schema.findColumnName(i), i -> newSchema.findColumnName(i)));
+      Map<String, String> updatedProperties = MetricsConfig.updateProperties(
+          ret.properties(), deletedColumns, renamedColumns);
+      ret = ret.replaceProperties(updatedProperties);
+    }
+
+    return ret;
   }
 
   private static Schema applyChanges(Schema schema, List<Integer> deletes,

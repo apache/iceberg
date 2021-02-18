@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -46,12 +47,33 @@ public class MetricsConfig implements Serializable {
     return spec;
   }
 
-  public static void resolveMetricsColumns(Map<String, String> props, Schema schema) {
-    props.keySet().stream()
-        .filter(key -> key.startsWith(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX))
-        .forEach(key -> {
+  public static Map<String, String> updateProperties(Map<String, String> props, List<String> deletes,
+                                                     Map<String, String> renames) {
+    if (!props.keySet().stream().anyMatch(key -> key.startsWith(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX))) {
+      return props;
+    } else {
+      Map<String, String> updatedProperties = Maps.newHashMap();
+      // Put all of the non metrics columns we aren't modifying
+      props.keySet().stream().forEach(key -> {
+        if (key.startsWith(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX)) {
           String columnAlias = key.replaceFirst(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX, "");
-
+          if (deletes.contains(columnAlias)) {
+            // Drop the key by not copying it
+          } else if (renames.get(columnAlias) != null) {
+            // The name has changed.
+            String newKey = TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + renames.get(columnAlias);
+            updatedProperties.put(newKey, props.get(key));
+          } else {
+            // We didn't modify it in a way we care about
+            updatedProperties.put(key, props.get(key));
+          }
+        } else {
+          // Not a metric property
+          updatedProperties.put(key, props.get(key));
+        }
+      });
+      return updatedProperties;
+    }
   }
 
   public static MetricsConfig fromProperties(Map<String, String> props) {
@@ -94,5 +116,9 @@ public class MetricsConfig implements Serializable {
 
   public MetricsMode columnMode(String columnAlias) {
     return columnModes.getOrDefault(columnAlias, defaultMode);
+  }
+
+  public boolean allDefault() {
+    return columnModes.isEmpty();
   }
 }
