@@ -88,18 +88,24 @@ public class HiveIcebergSerDe extends AbstractSerDe {
       }
     }
 
-    configuration.setBoolean(InputFormatConfig.CASE_SENSITIVE, false);
-    String[] selectedColumns = ColumnProjectionUtils.getReadColumnNames(configuration);
-    // When same table is joined multiple times, it is possible some selected columns are duplicated,
-    // in this case wrong recordStructField position leads wrong value or ArrayIndexOutOfBoundException
-    String[] distinctSelectedColumns = Arrays.stream(selectedColumns).distinct().toArray(String[]::new);
-    Schema projectedSchema = distinctSelectedColumns.length > 0 ?
-            tableSchema.caseInsensitiveSelect(distinctSelectedColumns) : tableSchema;
-    // the input split mapper handles does not belong to this table
-    // it is necessary to ensure projectedSchema equals to tableSchema,
-    // or we cannot find selectOperator's column from inspector
-    if (projectedSchema.columns().size() != distinctSelectedColumns.length) {
+    Schema projectedSchema;
+    if (serDeProperties.get(HiveIcebergStorageHandler.WRITE_KEY) != null) {
+      // when writing out data, we should not do projection pushdown
       projectedSchema = tableSchema;
+    } else {
+      configuration.setBoolean(InputFormatConfig.CASE_SENSITIVE, false);
+      String[] selectedColumns = ColumnProjectionUtils.getReadColumnNames(configuration);
+      // When same table is joined multiple times, it is possible some selected columns are duplicated,
+      // in this case wrong recordStructField position leads wrong value or ArrayIndexOutOfBoundException
+      String[] distinctSelectedColumns = Arrays.stream(selectedColumns).distinct().toArray(String[]::new);
+      projectedSchema = distinctSelectedColumns.length > 0 ?
+              tableSchema.caseInsensitiveSelect(distinctSelectedColumns) : tableSchema;
+      // the input split mapper handles does not belong to this table
+      // it is necessary to ensure projectedSchema equals to tableSchema,
+      // or we cannot find selectOperator's column from inspector
+      if (projectedSchema.columns().size() != distinctSelectedColumns.length) {
+        projectedSchema = tableSchema;
+      }
     }
 
     try {

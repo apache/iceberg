@@ -58,7 +58,7 @@ import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DE
 
 public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, HiveStorageHandler {
 
-  private static final String WRITE_KEY = "HiveIcebergStorageHandler_write";
+  static final String WRITE_KEY = "HiveIcebergStorageHandler_write";
 
   private Configuration conf;
 
@@ -95,7 +95,10 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   @Override
   public void configureOutputJobProperties(TableDesc tableDesc, Map<String, String> map) {
     overlayTableProperties(conf, tableDesc, map);
-    map.put(WRITE_KEY, "true");
+    // Putting the key into the table props and not the map, so that projection pushdown can be determined on a
+    // table-level and skipped only for output tables in HiveIcebergSerde. Properties from the map will be present in
+    // the serde config for all tables in the query, not just the output tables, so we can't rely on that in the serde.
+    tableDesc.getProperties().put(WRITE_KEY, "true");
   }
 
   @Override
@@ -111,8 +114,8 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
 
   @Override
   public void configureJobConf(TableDesc tableDesc, JobConf jobConf) {
-    if (tableDesc != null && tableDesc.getJobProperties() != null &&
-        tableDesc.getJobProperties().get(WRITE_KEY) != null) {
+    if (tableDesc != null && tableDesc.getProperties() != null &&
+        tableDesc.getProperties().get(WRITE_KEY) != null) {
       jobConf.set("mapred.output.committer.class", HiveIcebergOutputCommitter.class.getName());
     }
   }

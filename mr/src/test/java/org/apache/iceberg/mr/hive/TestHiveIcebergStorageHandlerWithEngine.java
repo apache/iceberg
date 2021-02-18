@@ -35,6 +35,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hive.HiveSchemaUtil;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
@@ -392,6 +393,31 @@ public class TestHiveIcebergStorageHandlerWithEngine {
         .add(1L, null, "test")
         .build();
 
+    HiveIcebergTestUtils.validateData(table, expected, 0);
+  }
+
+  @Test
+  public void testInsertUsingSourceTableWithSharedColumnsNames() throws IOException {
+    Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
+
+    List<Record> records = HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS;
+    PartitionSpec spec = PartitionSpec.builderFor(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA)
+        .identity("last_name").build();
+    testTables.createTable(shell, "source_customers", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
+        spec, fileFormat, records);
+    Table table = testTables.createTable(shell, "target_customers",
+        HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, spec, fileFormat, ImmutableList.of());
+
+    // Below select from source table should produce: "hive.io.file.readcolumn.names=customer_id,last_name".
+    // Inserting into the target table should not fail because first_name is not selected from the source table
+    shell.executeStatement("INSERT INTO target_customers SELECT customer_id, 'Sam', last_name FROM source_customers");
+
+    List<Record> expected = Lists.newArrayListWithExpectedSize(records.size());
+    records.forEach(r -> {
+      Record copy = r.copy();
+      copy.setField("first_name", "Sam");
+      expected.add(copy);
+    });
     HiveIcebergTestUtils.validateData(table, expected, 0);
   }
 
