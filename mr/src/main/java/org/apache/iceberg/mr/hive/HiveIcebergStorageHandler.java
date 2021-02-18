@@ -95,7 +95,11 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   @Override
   public void configureOutputJobProperties(TableDesc tableDesc, Map<String, String> map) {
     overlayTableProperties(conf, tableDesc, map);
-    // Putting the key into the table props and not the map, so that projection pushdown can be determined on a
+    // For Tez, setting the committer here is enough to make sure it'll be part of the jobConf
+    map.put("mapred.output.committer.class", HiveIcebergOutputCommitter.class.getName());
+    // For MR, the jobConf is set only in configureJobConf, so we're setting the write key here to detect it over there
+    map.put(WRITE_KEY, "true");
+    // Putting the key into the table props as well, so that projection pushdown can be determined on a
     // table-level and skipped only for output tables in HiveIcebergSerde. Properties from the map will be present in
     // the serde config for all tables in the query, not just the output tables, so we can't rely on that in the serde.
     tableDesc.getProperties().put(WRITE_KEY, "true");
