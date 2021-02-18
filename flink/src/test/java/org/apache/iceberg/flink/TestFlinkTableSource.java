@@ -22,7 +22,10 @@ package org.apache.iceberg.flink;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import org.apache.flink.configuration.CoreOptions;
+import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.SqlParserException;
+import org.apache.flink.table.api.TableEnvironment;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.events.Listeners;
@@ -43,6 +46,7 @@ public class TestFlinkTableSource extends FlinkTestBase {
   private final FileFormat format = FileFormat.AVRO;
   private static String warehouse;
 
+  private TableEnvironment tEnv;
   private int scanEventCount = 0;
   private ScanEvent lastScanEvent = null;
 
@@ -52,6 +56,28 @@ public class TestFlinkTableSource extends FlinkTestBase {
       scanEventCount += 1;
       lastScanEvent = event;
     }, ScanEvent.class);
+  }
+
+  @Override
+  protected TableEnvironment getTableEnv() {
+    if (tEnv == null) {
+      synchronized (this) {
+        if (tEnv == null) {
+          EnvironmentSettings settings = EnvironmentSettings
+              .newInstance()
+              .useBlinkPlanner()
+              .inBatchMode()
+              .build();
+
+          TableEnvironment env = TableEnvironment.create(settings);
+          env.getConfig().getConfiguration()
+              .set(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false)
+              .set(CoreOptions.DEFAULT_PARALLELISM, 1);
+          tEnv = env;
+        }
+      }
+    }
+    return tEnv;
   }
 
   @BeforeClass

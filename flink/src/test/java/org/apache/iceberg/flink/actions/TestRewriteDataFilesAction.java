@@ -280,7 +280,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
       Assert.assertEquals("Residuals must be ignored", Expressions.alwaysTrue(), task.residual());
     }
     List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    Assert.assertEquals("Should have 2 data files before rewrite", 2, dataFiles.size());
+    Assert.assertEquals("Should have 8 data files before rewrite", 8, dataFiles.size());
 
     Actions actions = Actions.forTable(icebergTableUnPartitioned);
 
@@ -288,7 +288,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
         .rewriteDataFiles()
         .filter(Expressions.equal("data", "0"))
         .execute();
-    Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
+    Assert.assertEquals("Action should rewrite 8 data files", 8, result.deletedDataFiles().size());
     Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
 
     // Assert the table records as expected.
