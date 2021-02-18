@@ -40,7 +40,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.PathFilter;
+import org.apache.hadoop.hive.common.FileUtils;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.iceberg.AppendFiles;
@@ -84,10 +84,9 @@ import org.slf4j.LoggerFactory;
 public class MigrateAction implements Action<List<ManifestFile>> {
   private static final Logger LOGGER = LoggerFactory.getLogger(MigrateAction.class);
 
-  private static final String PATQUET_INPUT_FORMAT = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat";
+  private static final String PARQUET_INPUT_FORMAT = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat";
   private static final String ORC_INPUT_FORMAT = "org.apache.hadoop.hive.ql.io.orc.OrcInputFormat";
-  private static final PathFilter HIDDEN_PATH_FILTER =
-      p -> !p.getName().startsWith("_") && !p.getName().startsWith(".");
+
   private static final String ICEBERG_METADATA_FOLDER = "metadata";
 
   private final StreamExecutionEnvironment env;
@@ -131,11 +130,12 @@ public class MigrateAction implements Action<List<ManifestFile>> {
     List<FieldSchema> partitionList = hiveTable.getPartitionKeys();
     fieldSchemaList.addAll(partitionList);
     Schema icebergSchema = HiveSchemaUtil.convert(fieldSchemaList);
-    PartitionSpec spec = toPartitionSpec(partitionList, icebergSchema);
+    PartitionSpec spec = HiveSchemaUtil.spec(icebergSchema, partitionList);
 
     FileFormat fileFormat = getHiveFileFormat(hiveTable);
 
-    TableIdentifier identifier = TableIdentifier.of(toNamespace(), icebergTableName);
+    Namespace namespace = Namespace.of(ArrayUtils.concat(baseNamespace.levels(), new String[] {icebergDatabaseName}));
+    TableIdentifier identifier = TableIdentifier.of(namespace, icebergTableName);
     String hiveLocation = hiveTable.getSd().getLocation();
 
     Map<String, String> properties = Maps.newHashMap();
@@ -173,7 +173,6 @@ public class MigrateAction implements Action<List<ManifestFile>> {
     } catch (Exception e) {
       LOGGER.error("Migrate hive table to iceberg table failed.", e);
       deleteManifests(icebergTable.io(), manifestFiles);
-      throw new RuntimeException("Failed to migrate hive table", e);
     } finally {
       flinkHiveCatalog.close();
     }
@@ -181,18 +180,18 @@ public class MigrateAction implements Action<List<ManifestFile>> {
     return manifestFiles;
   }
 
-  private void deleteManifests(FileIO io, List<ManifestFile> manifests) {
+  private static void deleteManifests(FileIO io, List<ManifestFile> manifests) {
     Tasks.foreach(manifests)
         .noRetry()
         .suppressFailureWhenFinished()
         .run(item -> io.deleteFile(item.path()));
   }
 
-  private FileFormat getHiveFileFormat(org.apache.hadoop.hive.metastore.api.Table hiveTable) {
+  private static FileFormat getHiveFileFormat(org.apache.hadoop.hive.metastore.api.Table hiveTable) {
     String hiveFormat = hiveTable.getSd().getInputFormat();
     FileFormat fileFormat;
     switch (hiveFormat) {
-      case PATQUET_INPUT_FORMAT:
+      case PARQUET_INPUT_FORMAT:
         fileFormat = FileFormat.PARQUET;
         break;
 
@@ -214,18 +213,12 @@ public class MigrateAction implements Action<List<ManifestFile>> {
 
   private List<ManifestFile> migrateUnpartitionedTable(PartitionSpec spec, FileFormat fileFormat, String hiveLocation,
                                                        String nameMapping, MetricsConfig metricsConfig,
-                                                       String metadataLocation)
-      throws Exception {
+                                                       String metadataLocation) throws Exception {
     MigrateMapper migrateMapper = new MigrateMapper(spec, nameMapping, fileFormat, metricsConfig, metadataLocation);
     DataStream<PartitionAndLocation> dataStream =
         env.fromElements(new PartitionAndLocation(hiveLocation, Maps.newHashMap()));
     DataStream<ManifestFile> ds = dataStream.flatMap(migrateMapper);
-    return Lists.newArrayList(ds.executeAndCollect("migrate table :" + hiveSourceTableName)).stream()
-        .collect(Collectors.toList());
-  }
-
-  private Namespace toNamespace() {
-    return Namespace.of(ArrayUtils.concat(baseNamespace.levels(), new String[] {icebergDatabaseName}));
+    return Lists.newArrayList(ds.executeAndCollect("migrate table :" + hiveSourceTableName));
   }
 
   private List<ManifestFile> migratePartitionedTable(PartitionSpec spec, ObjectPath tableSource,
@@ -247,8 +240,7 @@ public class MigrateAction implements Action<List<ManifestFile>> {
     DataStream<PartitionAndLocation> dataStream = env.fromCollection(inputs);
     MigrateMapper migrateMapper = new MigrateMapper(spec, nameMapping, fileFormat, metricsConfig, metadataLocation);
     DataStream<ManifestFile> ds = dataStream.flatMap(migrateMapper).setParallelism(parallelism);
-    return Lists.newArrayList(ds.executeAndCollect("migrate table :" + hiveSourceTableName)).stream()
-        .collect(Collectors.toList());
+    return Lists.newArrayList(ds.executeAndCollect("migrate table :" + hiveSourceTableName));
   }
 
   private static class MigrateMapper extends RichFlatMapFunction<PartitionAndLocation, ManifestFile> {
@@ -323,7 +315,7 @@ public class MigrateAction implements Action<List<ManifestFile>> {
         Path partition = new Path(partitionUri);
         FileSystem fs = partition.getFileSystem(conf);
 
-        return Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
+        return Arrays.stream(fs.listStatus(partition, FileUtils.HIDDEN_FILES_PATH_FILTER))
             .filter(FileStatus::isFile)
             .map(stat -> {
               Metrics metrics = OrcMetrics.fromInputFile(HadoopInputFile.fromPath(stat.getPath(), conf),
@@ -354,7 +346,7 @@ public class MigrateAction implements Action<List<ManifestFile>> {
         Path partition = new Path(partitionUri);
         FileSystem fs = partition.getFileSystem(conf);
 
-        return Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
+        return Arrays.stream(fs.listStatus(partition, FileUtils.HIDDEN_FILES_PATH_FILTER))
             .filter(FileStatus::isFile)
             .map(stat -> {
               InputFile inputFile = HadoopInputFile.fromPath(stat.getPath(), conf);
@@ -404,15 +396,6 @@ public class MigrateAction implements Action<List<ManifestFile>> {
     public void setPartitionSpec(Map<String, String> partitionSpec) {
       this.partitionSpec = partitionSpec;
     }
-  }
-
-  private PartitionSpec toPartitionSpec(List<FieldSchema> partitionKeys, Schema icebergSchema) {
-    PartitionSpec.Builder builder = PartitionSpec.builderFor(icebergSchema);
-    for (FieldSchema partitionKey : partitionKeys) {
-      builder = builder.identity(partitionKey.getName());
-    }
-
-    return builder.build();
   }
 
   public MigrateAction maxParallelism(int parallelism) {
