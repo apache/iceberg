@@ -569,6 +569,21 @@ public class TestHiveIcebergStorageHandlerNoScan {
     } else {
       Assert.assertEquals(7, hmsParams.size());
     }
+
+    // Remove some Iceberg props and see if they're removed from HMS table props as well
+    if (Catalogs.hiveCatalog(shell.getHiveConf())) {
+      icebergTable.updateProperties()
+          .remove("custom_property")
+          .remove("new_prop_1")
+          .commit();
+      hmsParams = shell.metastore().getTable("default", "customers").getParameters()
+          .entrySet().stream()
+          .filter(e -> !IGNORED_PARAMS.contains(e.getKey()))
+          .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+      Assert.assertFalse(hmsParams.containsKey("custom_property"));
+      Assert.assertFalse(hmsParams.containsKey("new_prop_1"));
+      Assert.assertTrue(hmsParams.containsKey("new_prop_2"));
+    }
   }
 
   @Test
