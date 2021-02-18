@@ -24,7 +24,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
-class OSSURI {
+public class OSSURI {
   private static final String SCHEMA_DELIM = "://";
   private static final String PATH_DELIM = "/";
   private static final String QUERY_DELIM = "\\?";
@@ -43,7 +43,7 @@ class OSSURI {
    *
    * @param location fully qualified URI.
    */
-  OSSURI(String location) {
+  public OSSURI(String location) {
     Preconditions.checkNotNull(location, "OSS location cannot be null.");
 
     this.location = location;

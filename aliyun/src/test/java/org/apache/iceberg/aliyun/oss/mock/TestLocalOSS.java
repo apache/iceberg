@@ -22,20 +22,33 @@ package org.apache.iceberg.aliyun.oss.mock;
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSErrorCode;
 import com.aliyun.oss.OSSException;
+import com.aliyun.oss.model.AbortMultipartUploadRequest;
+import com.aliyun.oss.model.CompleteMultipartUploadRequest;
+import com.aliyun.oss.model.CompleteMultipartUploadResult;
+import com.aliyun.oss.model.InitiateMultipartUploadRequest;
+import com.aliyun.oss.model.InitiateMultipartUploadResult;
+import com.aliyun.oss.model.PartETag;
 import com.aliyun.oss.model.PutObjectResult;
+import com.aliyun.oss.model.UploadPartRequest;
+import com.aliyun.oss.model.UploadPartResult;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import java.util.UUID;
 import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.aliyun.oss.OSSTestRule;
+import org.apache.iceberg.aliyun.oss.OSSURI;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.springframework.util.StringUtils;
 
 public class TestLocalOSS {
 
@@ -44,6 +57,7 @@ public class TestLocalOSS {
 
   private final OSS oss = OSS_TEST_RULE.createOSSClient();
   private final String bucketName = OSS_TEST_RULE.testBucketName();
+  private final String keyPrefix = OSS_TEST_RULE.keyPrefix();
   private final Random random = new Random(1);
 
   @Before
@@ -135,6 +149,82 @@ public class TestLocalOSS {
 
     Assert.assertArrayEquals(bytes, actual);
     oss.deleteObject(bucketName, "key");
+  }
+
+  @Test
+  public void testMultiUpload() throws Exception {
+    OSSURI uri = new OSSURI(location("normal-multi-upload-key.dat"));
+
+    // Step.1 Initialize the multi-upload request.
+    InitiateMultipartUploadRequest request = new InitiateMultipartUploadRequest(uri.bucket(), uri.key());
+    InitiateMultipartUploadResult result = oss.initiateMultipartUpload(request);
+    Assert.assertEquals(bucketName, result.getBucketName());
+    Assert.assertEquals(uri.key(), result.getKey());
+
+    String uploadId = result.getUploadId();
+    Assert.assertFalse(StringUtils.isEmpty(uploadId));
+
+    // Step.2 Upload multi parts.
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    List<PartETag> completedPartEtags = Lists.newArrayList();
+    byte[] data = new byte[100 * 1024];
+    for (int i = 1; i <= 10; i++) {
+      random.nextBytes(data);
+      completedPartEtags.add(uploadPart(uri, uploadId, i, data));
+      out.write(data);
+    }
+
+    // Step.3 Complete the uploading.
+    CompleteMultipartUploadRequest completeRequest = new CompleteMultipartUploadRequest(uri.bucket(), uri.key(),
+        uploadId, completedPartEtags);
+    CompleteMultipartUploadResult completeResult = oss.completeMultipartUpload(completeRequest);
+    Assert.assertEquals(LocalStore.md5sum(wrap(out.toByteArray())), completeResult.getETag());
+  }
+
+  @Test
+  public void testAbortMultiUpload() throws Exception {
+    OSSURI uri = new OSSURI(location("abort-multi-upload-key.dat"));
+
+    // Step.1 Initialize the multi-upload request.
+    InitiateMultipartUploadRequest request = new InitiateMultipartUploadRequest(uri.bucket(), uri.key());
+    InitiateMultipartUploadResult result = oss.initiateMultipartUpload(request);
+    Assert.assertEquals(bucketName, result.getBucketName());
+    Assert.assertEquals(uri.key(), result.getKey());
+
+    String uploadId = result.getUploadId();
+    Assert.assertFalse(StringUtils.isEmpty(uploadId));
+
+    // Step.2 Upload multi parts.
+    List<PartETag> completedPartEtags = Lists.newArrayList();
+    byte[] data = new byte[100 * 1024];
+    for (int i = 1; i <= 10; i++) {
+      random.nextBytes(data);
+      completedPartEtags.add(uploadPart(uri, uploadId, i, data));
+    }
+
+    // Step.3 Abort the uploading.
+    AbortMultipartUploadRequest abortRequest = new AbortMultipartUploadRequest(uri.bucket(), uri.key(), uploadId);
+    oss.abortMultipartUpload(abortRequest);
+
+    // Step.4 Check the existence of the object.
+    random.nextBytes(data);
+    PutObjectResult putObjectResult = oss.putObject(bucketName, "object", wrap(data));
+    Assert.assertEquals(LocalStore.md5sum(wrap(data)), putObjectResult.getETag());
+  }
+
+  private PartETag uploadPart(OSSURI uri, String uploadId, int partNumber, byte[] data) {
+    UploadPartRequest request = new UploadPartRequest(uri.bucket(), uri.key(), uploadId, partNumber,
+        wrap(data), data.length);
+
+    UploadPartResult result = oss.uploadPart(request);
+    Assert.assertEquals(result.getPartNumber(), partNumber);
+    Assert.assertEquals(result.getPartSize(), data.length);
+
+    return result.getPartETag();
+  }
+
+  private String location(String key) {
+    return String.format("oss://%s/%s%s", bucketName, keyPrefix, key);
   }
 
   private InputStream wrap(byte[] data) {

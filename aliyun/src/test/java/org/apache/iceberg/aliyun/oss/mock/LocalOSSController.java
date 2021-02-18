@@ -21,11 +21,16 @@ package org.apache.iceberg.aliyun.oss.mock;
 
 import com.aliyun.oss.OSSErrorCode;
 import com.aliyun.oss.model.Bucket;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonRootName;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Date;
+import java.util.List;
+import java.util.UUID;
 import javax.servlet.ServletInputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -36,11 +41,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -191,37 +198,80 @@ public class LocalOSSController {
     }
   }
 
-  @RequestMapping(value = "/{bucketName:.+}/**", params = "uploads",
-      method = RequestMethod.POST, produces = "application/xml")
-  public void initializeMultiPartUpload(@PathVariable String bucketName, HttpServletRequest request) {
-    // TODO
+  @RequestMapping(
+      value = "/{bucketName:.+}/**",
+      params = "uploads",
+      method = RequestMethod.POST,
+      produces = "application/xml")
+  public InitiateMultipartUploadResult initializeMultiPartUpload(@PathVariable String bucketName,
+                                                                 HttpServletRequest request) {
+    verifyBucketExistence(bucketName);
+
+    String filename = filenameFrom(bucketName, request);
+    String uploadId = UUID.randomUUID().toString();
+
+    localStore.prepareMultipartUpload(bucketName, filename, uploadId);
+    return new InitiateMultipartUploadResult(bucketName, filename, uploadId);
   }
 
   @RequestMapping(
       value = "/{bucketName:.+}/**",
       params = {"uploadId", "partNumber"},
       method = RequestMethod.PUT)
-  public void uploadPart(@PathVariable String bucketName,
-                         @RequestParam String uploadId,
-                         @RequestParam String partNumber) {
+  public ResponseEntity<String> uploadPart(@PathVariable String bucketName,
+                                           @RequestParam String uploadId,
+                                           @RequestParam String partNumber,
+                                           HttpServletRequest request)
+      throws IOException {
     verifyBucketExistence(bucketName);
-    // TODO
+    verifyPartNumberLimits(partNumber);
+
+    String etag = localStore.putPart(bucketName, uploadId, partNumber, request.getInputStream());
+
+    HttpHeaders responseHeaders = new HttpHeaders();
+    responseHeaders.setETag(String.format("\"%s\"", etag));
+
+    return new ResponseEntity<>(responseHeaders, OK);
   }
 
   @SuppressWarnings("checkstyle:AnnotationUseStyle")
-  @RequestMapping(value = "/{bucketName:.+}/**", params = {"uploadId"},
-      method = RequestMethod.POST, produces = "application/xml")
-  public void completeMultiPartUpload(@PathVariable String bucketName, @RequestParam String uploadId) {
-    // TODO
+  @RequestMapping(
+      value = "/{bucketName:.+}/**",
+      params = {"uploadId"},
+      method = RequestMethod.POST,
+      produces = "application/xml")
+  public ResponseEntity<CompleteMultipartUploadResult> completeMultiPartUpload(@PathVariable String bucketName,
+                                                                               @RequestParam String uploadId,
+                                                                               @RequestBody
+                                                                                   CompleteMultipartUploadRequest
+                                                                                   requestBody,
+                                                                               HttpServletRequest request)
+      throws IOException {
+    verifyBucketExistence(bucketName);
+
+    String filename = filenameFrom(bucketName, request);
+    verifyMultiParts(requestBody.parts);
+
+    String eTag = localStore.completeMultipartUpload(bucketName, filename, uploadId, requestBody.parts);
+    return new ResponseEntity<>(
+        new CompleteMultipartUploadResult(request.getRequestURL().toString(), bucketName, filename, eTag),
+        new HttpHeaders(), OK
+    );
   }
 
   @SuppressWarnings("checkstyle:AnnotationUseStyle")
-  @RequestMapping(value = "/{bucketName:.+}/**", params = {"uploadId"},
-      method = RequestMethod.DELETE, produces = "application/xml")
+  @RequestMapping(
+      value = "/{bucketName:.+}/**",
+      params = {"uploadId"},
+      method = RequestMethod.DELETE,
+      produces = "application/xml")
   public void abortMultipartUploads(@PathVariable String bucketName,
                                     @RequestParam String uploadId,
                                     HttpServletRequest request) {
-    // TODO
+    verifyBucketExistence(bucketName);
+
+    String filename = filenameFrom(bucketName, request);
+    localStore.abortMultipartUpload(bucketName, filename, uploadId);
   }
 
   private void verifyBucketExistence(String bucketName) {
@@ -234,6 +284,32 @@ public class LocalOSSController {
   private static String filenameFrom(@PathVariable String bucketName, HttpServletRequest request) {
     String requestUri = request.getRequestURI();
     return requestUri.substring(requestUri.indexOf(bucketName) + bucketName.length() + 1);
+  }
+
+  private void verifyPartNumberLimits(String partNumberString) {
+    boolean isValid;
+    try {
+      int partNumber = Integer.parseInt(partNumberString);
+      isValid = partNumber >= 1 && partNumber <= 10000;
+    } catch (NumberFormatException e) {
+      isValid = false;
+    }
+
+    if (!isValid) {
+      throw new OssException(HttpStatus.BAD_REQUEST.value(), "InvalidArgument",
+          "Part number must be an integer between 1 and 10000, inclusive");
+    }
+  }
+
+  private void verifyMultiParts(List<Part> parts) {
+    int prevPartNumber = 0;
+    for (Part part : parts) {
+      if (part.partNumber < prevPartNumber) {
+        throw new OssException(HttpStatus.BAD_REQUEST.value(), "InvalidPartOrder",
+            "The list of parts was not in ascending order. The parts list must be specified in " +
+                "order by part number.");
+      }
+    }
   }
 
   @ControllerAdvice
@@ -301,6 +377,75 @@ public class LocalOSSController {
 
     public void setMessage(String message) {
       this.message = message;
+    }
+  }
+
+  @JsonRootName("InitiateMultipartUploadResult")
+  public static class InitiateMultipartUploadResult {
+
+    @JsonProperty("Bucket")
+    private final String bucketName;
+
+    @JsonProperty("Key")
+    private final String fileName;
+
+    @JsonProperty("UploadId")
+    private final String uploadId;
+
+    public InitiateMultipartUploadResult(String bucketName,
+                                         String fileName,
+                                         String uploadId) {
+      this.bucketName = bucketName;
+      this.fileName = fileName;
+      this.uploadId = uploadId;
+    }
+  }
+
+  @JsonRootName("Part")
+  public static class Part {
+
+    @JsonProperty("PartNumber")
+    Integer partNumber;
+
+    @JsonProperty("LastModified")
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSZ")
+    Date lastModified;
+
+    @JsonProperty("ETag")
+    String etag;
+
+    @JsonProperty("Size")
+    Long size;
+  }
+
+  @JsonRootName("CompleteMultipartUpload")
+  public static class CompleteMultipartUploadRequest {
+
+    @JsonProperty("Part")
+    @JacksonXmlElementWrapper(useWrapping = false)
+    private List<Part> parts;
+  }
+
+  @JsonRootName("CompleteMultipartUploadResult")
+  public class CompleteMultipartUploadResult {
+
+    @JsonProperty("Location")
+    private final String location;
+
+    @JsonProperty("Bucket")
+    private final String bucket;
+
+    @JsonProperty("Key")
+    private final String key;
+
+    @JsonProperty("ETag")
+    private final String etag;
+
+    public CompleteMultipartUploadResult(String location, String bucket, String key, String etag) {
+      this.location = location;
+      this.bucket = bucket;
+      this.key = key;
+      this.etag = etag;
     }
   }
 }
