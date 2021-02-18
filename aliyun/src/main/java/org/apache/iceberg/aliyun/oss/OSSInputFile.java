@@ -24,9 +24,9 @@ import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 
-public class OSSInputFile extends BaseOSSFile implements InputFile {
+class OSSInputFile extends BaseOSSFile implements InputFile {
 
-  public OSSInputFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
+  OSSInputFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
     super(client, uri, aliyunProperties);
   }
 
@@ -38,5 +38,10 @@ public class OSSInputFile extends BaseOSSFile implements InputFile {
   @Override
   public SeekableInputStream newStream() {
     return new OSSInputStream(client(), uri());
+  }
+
+  @Override
+  public boolean exists() {
+    return doesObjectExists();
   }
 }

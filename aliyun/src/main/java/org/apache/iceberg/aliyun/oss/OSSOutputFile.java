@@ -28,14 +28,14 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
 
-public class OSSOutputFile extends BaseOSSFile implements OutputFile {
-  public OSSOutputFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
+class OSSOutputFile extends BaseOSSFile implements OutputFile {
+  OSSOutputFile(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
     super(client, uri, aliyunProperties);
   }
 
   @Override
   public PositionOutputStream create() {
-    if (!exists()) {
+    if (!doesObjectExists()) {
       return createOrOverwrite();
     } else {
       throw new AlreadyExistsException("Location already exists: %s", uri());

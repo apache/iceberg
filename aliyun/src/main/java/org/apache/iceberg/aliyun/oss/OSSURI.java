@@ -24,7 +24,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
-public class OSSURI {
+class OSSURI {
   private static final String SCHEMA_DELIM = "://";
   private static final String PATH_DELIM = "/";
   private static final String QUERY_DELIM = "\\?";
@@ -37,13 +37,13 @@ public class OSSURI {
 
   /**
    * Creates a new OSSURI based on the bucket and key parsed from the location as defined in:
-   * https://www.alibabacloud.com/help/doc-detail/31827.htm?spm=a2c63.p38356.879954.4.59e0385aW76P7V#section-yxy-jmt-tdb
+   * https://www.alibabacloud.com/help/doc-detail/31827.htm
    * <p>
    * Supported access styles are Virtual Hosted addresses and oss://... URIs.
    *
    * @param location fully qualified URI.
    */
-  public OSSURI(String location) {
+  OSSURI(String location) {
     Preconditions.checkNotNull(location, "OSS location cannot be null.");
 
     this.location = location;

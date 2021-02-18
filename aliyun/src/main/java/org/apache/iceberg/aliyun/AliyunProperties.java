@@ -31,7 +31,7 @@ public class AliyunProperties implements Serializable {
    * The domain name used to access OSS. OSS uses HTTP Restful APIs to provide services. Different regions are accessed
    * by using different endpoints. For the same region, access over the internal network or over the Internet also uses
    * different endpoints. For more information, see:
-   * https://www.alibabacloud.com/help/doc-detail/31837.htm?spm=a2c63.p38356.879954.7.5dcb7d9186qY48#concept-zt4-cvy-5db
+   * https://www.alibabacloud.com/help/doc-detail/31837.htm
    */
   public static final String OSS_ENDPOINT = "oss.endpoint";
 
@@ -40,7 +40,7 @@ public class AliyunProperties implements Serializable {
    * encryption and verify the identity of a requester. The AccessKey ID is used to identify a user.
    * <p>
    * For more information about how to obtain an AccessKey pair, see:
-   * https://www.alibabacloud.com/help/doc-detail/53045.htm?spm=a2c63.p38356.879954.8.5dcb7d9186qY48#task968
+   * https://www.alibabacloud.com/help/doc-detail/53045.htm
    */
   public static final String OSS_ACCESS_KEY_ID = "oss.access.key.id";
 
@@ -50,7 +50,7 @@ public class AliyunProperties implements Serializable {
    * signature string.
    * <p>
    * For more information about how to obtain an AccessKey pair, see:
-   * https://www.alibabacloud.com/help/doc-detail/53045.htm?spm=a2c63.p38356.879954.8.5dcb7d9186qY48#task968
+   * https://www.alibabacloud.com/help/doc-detail/53045.htm
    */
   public static final String OSS_ACCESS_KEY_SECRET = "oss.access.key.secret";
 
@@ -65,8 +65,7 @@ public class AliyunProperties implements Serializable {
    * the part size must be at least 100KB. To ensure performance of the reader and writer, the part size must be less
    * than 5GB.
    * <p>
-   * For more details, please see:
-   * https://www.alibabacloud.com/help/doc-detail/31850.htm?spm=a2c63.p38356.879954.4.32e32e46UtlrBP#concept-wzs-2gb-5db
+   * For more details, please see: https://www.alibabacloud.com/help/doc-detail/31850.htm
    */
   public static final String OSS_MULTIPART_SIZE = "oss.multipart.part-size-bytes";
   public static final long OSS_MULTIPART_SIZE_DEFAULT = 100 * 1024;

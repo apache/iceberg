@@ -63,7 +63,7 @@ import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class OSSOutputStream extends PositionOutputStream {
+class OSSOutputStream extends PositionOutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(OSSOutputStream.class);
 
   private static volatile ExecutorService executorService;
@@ -86,7 +86,7 @@ public class OSSOutputStream extends PositionOutputStream {
   private long pos = 0;
   private boolean closed = false;
 
-  public OSSOutputStream(OSS client, OSSURI uri, AliyunProperties aliyunProperties) throws IOException {
+  OSSOutputStream(OSS client, OSSURI uri, AliyunProperties aliyunProperties) throws IOException {
     this.client = client;
     this.uri = uri;
     this.aliyunProperties = aliyunProperties;

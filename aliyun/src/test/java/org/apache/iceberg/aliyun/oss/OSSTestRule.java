@@ -32,22 +32,52 @@ import org.springframework.util.StringUtils;
 
 public interface OSSTestRule extends TestRule {
   Logger LOG = LoggerFactory.getLogger(OSSTestRule.class);
+  UUID RANDOM_UUID = java.util.UUID.randomUUID();
+
   String OSS_TEST_RULE_CLASS_IMPL = "OSS_TEST_RULE_CLASS_IMPL";
 
+  /**
+   * Start the Aliyun Object storage services application that the OSS client could connect to.
+   */
   void start();
 
+  /**
+   * Stop the Aliyun object storage services.
+   */
   void stop();
 
+  /**
+   * Returns an newly created {@link OSS} client.
+   */
   OSS createOSSClient();
 
+  /**
+   * Returns a specific bucket name for testing purpose.
+   */
   default String testBucketName() {
-    return String.format("oss-testing-bucket-%s", UUID.randomUUID().toString().replace("-", ""));
+    return String.format("oss-testing-bucket-%s", RANDOM_UUID);
   }
 
+  /**
+   * Returns the common key prefix for those newly created objects in test cases. For example, we set the test bucket
+   * to be 'oss-testing-bucket' and the key prefix to be 'iceberg-objects/', then the produced objects in test cases
+   * will be:
+   * <pre>
+   *   oss://oss-testing-bucket/iceberg-objects/a.dat
+   *   oss://oss-testing-bucket/iceberg-objects/b.dat
+   *   ...
+   * </pre>
+   */
   String keyPrefix();
 
+  /**
+   * Preparation work of bucket for the test case, for example we need to check the existence of specific bucket.
+   */
   void setUpBucket(String bucket);
 
+  /**
+   * Clean all the objects that created from this test suite in the bucket.
+   */
   void tearDownBucket(String bucket);
 
   @Override

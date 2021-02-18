@@ -45,11 +45,11 @@ abstract class BaseOSSFile {
     return uri;
   }
 
-  public AliyunProperties aliyunProperties() {
+  AliyunProperties aliyunProperties() {
     return aliyunProperties;
   }
 
-  public boolean exists() {
+  boolean doesObjectExists() {
     return client.doesObjectExist(uri.bucket(), uri.key());
   }
 

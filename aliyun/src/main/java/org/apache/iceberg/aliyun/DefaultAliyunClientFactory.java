@@ -43,4 +43,9 @@ public class DefaultAliyunClientFactory implements AliyunClientFactory {
   public void initialize(Map<String, String> properties) {
     this.aliyunProperties = new AliyunProperties(properties);
   }
+
+  @Override
+  public AliyunProperties aliyunProperties() {
+    return aliyunProperties;
+  }
 }

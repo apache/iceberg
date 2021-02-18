@@ -19,5 +19,44 @@
 
 package org.apache.iceberg.aliyun;
 
+import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.junit.Test;
+
 public class TestAliyunClientFactory {
+
+  @Test
+  public void testLoad() {
+    AssertHelpers.assertThrows("Invalid argument " + AliyunProperties.OSS_MULTIPART_UPLOAD_THREADS,
+        IllegalArgumentException.class,
+        () -> AliyunClientFactory.load(
+            ImmutableMap.of(AliyunProperties.OSS_MULTIPART_UPLOAD_THREADS, Integer.toString(-1)))
+    );
+
+    AssertHelpers.assertThrows("Invalid argument " + AliyunProperties.OSS_MULTIPART_SIZE,
+        IllegalArgumentException.class,
+        () -> AliyunClientFactory.load(
+            ImmutableMap.of(AliyunProperties.OSS_MULTIPART_SIZE, Integer.toString(99 * 1024)))
+    );
+
+    AssertHelpers.assertThrows("Invalid argument " + AliyunProperties.OSS_MULTIPART_SIZE,
+        IllegalArgumentException.class,
+        () -> AliyunClientFactory.load(
+            ImmutableMap.of(AliyunProperties.OSS_MULTIPART_SIZE, Long.toString(5 * 1024 * 1024 * 1024L + 1)))
+    );
+
+    AssertHelpers.assertThrows("Invalid argument " + AliyunProperties.OSS_MULTIPART_THRESHOLD_SIZE_DEFAULT,
+        IllegalArgumentException.class,
+        () -> AliyunClientFactory.load(
+            ImmutableMap.of(AliyunProperties.OSS_MULTIPART_THRESHOLD_SIZE, Integer.toString(0)))
+    );
+
+    AssertHelpers.assertThrows("Invalid argument " + AliyunProperties.OSS_MULTIPART_THRESHOLD_SIZE_DEFAULT,
+        IllegalArgumentException.class,
+        () -> AliyunClientFactory.load(
+            ImmutableMap.of(
+                AliyunProperties.OSS_MULTIPART_THRESHOLD_SIZE, Integer.toString(99 * 1024),
+                AliyunProperties.OSS_MULTIPART_SIZE, Integer.toString(100 * 1024)
+            )));
+  }
 }

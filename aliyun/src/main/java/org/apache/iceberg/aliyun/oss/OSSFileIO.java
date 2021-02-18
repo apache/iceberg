@@ -23,7 +23,6 @@ import com.aliyun.oss.OSS;
 import java.util.Map;
 import org.apache.iceberg.aliyun.AliyunClientFactory;
 import org.apache.iceberg.aliyun.AliyunProperties;
-import org.apache.iceberg.aliyun.DefaultAliyunClientFactory;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -87,12 +86,8 @@ public class OSSFileIO implements FileIO {
 
   @Override
   public void initialize(Map<String, String> properties) {
-    this.aliyunProperties = new AliyunProperties(properties);
-
-    // TODO Should we load class dynamically ?
-    AliyunClientFactory factory = new DefaultAliyunClientFactory();
-    factory.initialize(properties);
-
+    AliyunClientFactory factory = AliyunClientFactory.load(properties);
+    this.aliyunProperties = factory.aliyunProperties();
     this.oss = factory::oss;
   }
 }

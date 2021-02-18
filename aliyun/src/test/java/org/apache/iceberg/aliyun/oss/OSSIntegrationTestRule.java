@@ -70,7 +70,7 @@ public class OSSIntegrationTestRule implements OSSTestRule {
 
     keyPrefix = System.getenv(OSS_TEST_KEY_PREFIX);
     if (keyPrefix == null) {
-      keyPrefix = String.format("iceberg-oss-testing-%s", UUID.randomUUID().toString());
+      keyPrefix = String.format("iceberg-oss-testing-%s", UUID.randomUUID());
     }
   }
 

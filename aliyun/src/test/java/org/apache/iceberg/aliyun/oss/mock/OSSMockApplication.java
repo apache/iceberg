@@ -147,9 +147,9 @@ public class OSSMockApplication {
         final String rangeStart = matcher.group(2);
         final String rangeEnd = matcher.group(3);
 
-        range =
-            new Range(rangeStart == null ? 0L : Long.parseLong(rangeStart),
-                StringUtils.isEmpty(rangeEnd) ? Long.MAX_VALUE : Long.parseLong(rangeEnd));
+        long start = StringUtils.isEmpty(rangeStart) ? 0L : Long.parseLong(rangeStart);
+        long end = StringUtils.isEmpty(rangeEnd) ? Long.MAX_VALUE : Long.parseLong(rangeEnd);
+        range = new Range(start, end);
 
         if (matcher.groupCount() == 5 && !"".equals(matcher.group(4))) {
           throw new IllegalArgumentException(

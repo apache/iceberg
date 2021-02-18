@@ -22,13 +22,13 @@ package org.apache.iceberg.aliyun;
 import com.aliyun.oss.OSS;
 import java.io.Serializable;
 import java.util.Map;
+import org.apache.iceberg.common.DynConstructors;
 
 /**
  * Interface to customize OSS clients used by Iceberg.
  * A custom factory must have a no-arg constructor, and use {@link #initialize(Map)} to initialize the factory.
  */
 public interface AliyunClientFactory extends Serializable {
-
   /**
    * Create an aliyun OSS client.
    *
@@ -42,4 +42,42 @@ public interface AliyunClientFactory extends Serializable {
    * @param properties catalog properties
    */
   void initialize(Map<String, String> properties);
+
+  /**
+   * Returns an initialized {@link AliyunProperties}
+   */
+  AliyunProperties aliyunProperties();
+
+  static AliyunClientFactory load(Map<String, String> properties) {
+    String impl = properties.getOrDefault("client.factory", DefaultAliyunClientFactory.class.getName());
+    return load(impl, properties);
+  }
+
+  /**
+   * Load an implemented {@link AliyunClientFactory} based on the class name, and initialize it.
+   *
+   * @param impl       the class name.
+   * @param properties to initialize the factory.
+   * @return an initialized {@link AliyunClientFactory}.
+   */
+  static AliyunClientFactory load(String impl, Map<String, String> properties) {
+    DynConstructors.Ctor<AliyunClientFactory> ctor;
+    try {
+      ctor = DynConstructors.builder(AliyunClientFactory.class).impl(impl).buildChecked();
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(String.format(
+          "Cannot initialize AliyunClientFactory, missing no-arg constructor: %s", impl), e);
+    }
+
+    AliyunClientFactory factory;
+    try {
+      factory = ctor.newInstance();
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          String.format("Cannot initialize AliyunClientFactory, %s does not implement AliyunClientFactory.", impl), e);
+    }
+
+    factory.initialize(properties);
+    return factory;
+  }
 }
