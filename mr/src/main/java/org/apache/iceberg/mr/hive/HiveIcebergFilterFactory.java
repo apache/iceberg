@@ -22,7 +22,6 @@ package org.apache.iceberg.mr.hive;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
-import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.hadoop.hive.ql.io.sarg.ExpressionTree;
@@ -173,14 +172,14 @@ public class HiveIcebergFilterFactory {
   }
 
   private static int daysFromDate(Date date) {
-    return DateTimeUtil.daysFromInstant(Instant.ofEpochMilli(date.getTime()));
+    return DateTimeUtil.daysFromDate(date.toLocalDate());
   }
 
   private static int daysFromTimestamp(Timestamp timestamp) {
-    return DateTimeUtil.daysFromInstant(timestamp.toInstant());
+    return DateTimeUtil.daysFromDate(timestamp.toLocalDateTime().toLocalDate());
   }
 
   private static long microsFromTimestamp(Timestamp timestamp) {
-    return DateTimeUtil.microsFromInstant(timestamp.toInstant());
+    return DateTimeUtil.microsFromTimestamp(timestamp.toLocalDateTime());
   }
 }

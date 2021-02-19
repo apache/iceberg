@@ -21,6 +21,9 @@ package org.apache.iceberg.data;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.DateTimeUtil;
 
 public class GenericRecord implements Record, StructLike {
   private static final LoadingCache<StructType, Map<String, Integer>> NAME_MAP_CACHE =
@@ -119,6 +123,12 @@ public class GenericRecord implements Record, StructLike {
     Object value = get(pos);
     if (value == null || javaClass.isInstance(value)) {
       return javaClass.cast(value);
+    } else if (value instanceof LocalDate && javaClass.equals(Integer.class)) {
+      return javaClass.cast(DateTimeUtil.daysFromDate((LocalDate) value));
+    } else if (value instanceof OffsetDateTime && javaClass.equals(Long.class)) {
+      return javaClass.cast(DateTimeUtil.microsFromTimestamptz((OffsetDateTime) value));
+    } else if (value instanceof LocalDateTime && javaClass.equals(Long.class)) {
+      return javaClass.cast(DateTimeUtil.microsFromTimestamp((LocalDateTime) value));
     } else {
       throw new IllegalStateException("Not an instance of " + javaClass.getName() + ": " + value);
     }
