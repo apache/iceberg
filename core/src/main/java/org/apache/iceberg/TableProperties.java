@@ -124,7 +124,6 @@ public class TableProperties {
   public static final boolean METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT = false;
 
   public static final String METRICS_MODE_COLUMN_CONF_PREFIX = "write.metadata.metrics.column.";
-  public static final String METRICS_MODE_COLUMN_REF_CONF_PREFIX = "write.metadata.metrics.column-ref.";
   public static final String DEFAULT_WRITE_METRICS_MODE = "write.metadata.metrics.default";
   public static final String DEFAULT_WRITE_METRICS_MODE_DEFAULT = "truncate(16)";
 
