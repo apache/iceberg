@@ -70,6 +70,7 @@ import org.apache.iceberg.hive.HiveSchemaUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.OrcMetrics;
@@ -152,6 +153,8 @@ public class MigrateAction implements Action<List<ManifestFile>> {
       icebergTable = icebergCatalog.createTable(identifier, icebergSchema, spec, hiveLocation, properties);
     }
 
+    ensureNameMappingPresent(icebergTable);
+
     String metadataLocation = getMetadataLocation(icebergTable);
 
     String nameMapping =
@@ -190,6 +193,14 @@ public class MigrateAction implements Action<List<ManifestFile>> {
     }
 
     return manifestFiles;
+  }
+
+  private void ensureNameMappingPresent(Table table) {
+    if (!table.properties().containsKey(TableProperties.DEFAULT_NAME_MAPPING)) {
+      NameMapping nameMapping = MappingUtil.create(table.schema());
+      String nameMappingJson = NameMappingParser.toJson(nameMapping);
+      table.updateProperties().set(TableProperties.DEFAULT_NAME_MAPPING, nameMappingJson).commit();
+    }
   }
 
   private static void deleteManifests(FileIO io, List<ManifestFile> manifests) {
