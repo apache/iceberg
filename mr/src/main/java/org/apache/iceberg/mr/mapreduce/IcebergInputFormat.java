@@ -49,6 +49,7 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.GenericDeleteFilter;
 import org.apache.iceberg.data.IdentityPartitionConverters;
+import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
@@ -284,8 +285,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       boolean applyResidual = !context.getConfiguration().getBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, false);
 
       if (applyResidual && residual != null && residual != Expressions.alwaysTrue()) {
+        InternalRecordWrapper wrapper = new InternalRecordWrapper(readSchema.asStruct());
         Evaluator filter = new Evaluator(readSchema.asStruct(), residual, caseSensitive);
-        return CloseableIterable.filter(iter, record -> filter.eval((StructLike) record));
+        return CloseableIterable.filter(iter, record -> filter.eval(wrapper.wrap((StructLike) record)));
       } else {
         return iter;
       }
