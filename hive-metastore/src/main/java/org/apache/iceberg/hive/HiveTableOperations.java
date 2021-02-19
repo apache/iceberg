@@ -268,7 +268,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   }
 
   private void setHmsTableParameters(String newMetadataLocation, Table tbl, Map<String, String> icebergTableProps,
-      Set<String> obsoleteProps, boolean hiveEngineEnabled) {
+                                     Set<String> obsoleteProps, boolean hiveEngineEnabled) {
     Map<String, String> parameters = tbl.getParameters();
 
     if (parameters == null) {
