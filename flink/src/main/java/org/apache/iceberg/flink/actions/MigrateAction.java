@@ -24,6 +24,7 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.configuration.GlobalConfiguration;
@@ -167,11 +168,22 @@ public class MigrateAction implements Action<List<ManifestFile>> {
             migratePartitionedTable(spec, tableSource, nameMapping, fileFormat, metricsConfig, metadataLocation);
       }
 
+      boolean snapshotIdInheritanceEnabled = PropertyUtil.propertyAsBoolean(
+          icebergTable.properties(),
+          TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED,
+          TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT);
+
       AppendFiles append = icebergTable.newAppend();
       manifestFiles.forEach(append::appendManifest);
       append.commit();
+
+      if (!snapshotIdInheritanceEnabled) {
+        // delete original manifests as they were rewritten before the commit
+        deleteManifests(icebergTable.io(), manifestFiles);
+      }
     } catch (Exception e) {
       LOGGER.error("Migrate hive table to iceberg table failed.", e);
+      icebergCatalog.dropTable(identifier);
       deleteManifests(icebergTable.io(), manifestFiles);
     } finally {
       flinkHiveCatalog.close();
@@ -291,7 +303,7 @@ public class MigrateAction implements Action<List<ManifestFile>> {
         FileIO io = new HadoopFileIO(conf);
         int subTaskId = getRuntimeContext().getIndexOfThisSubtask();
         int attemptId = getRuntimeContext().getAttemptNumber();
-        String suffix = String.format("manifest-%d-%d", subTaskId, attemptId);
+        String suffix = String.format("manifest-%d-%d-%s", subTaskId, attemptId, UUID.randomUUID());
         Path location = new Path(basePath, suffix);
         String outputPath = FileFormat.AVRO.addExtension(location.toString());
         OutputFile outputFile = io.newOutputFile(outputPath);
