@@ -27,7 +27,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
@@ -186,7 +188,15 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             baseMetadataLocation, metadataLocation, database, tableName);
       }
 
-      setHmsTableParameters(newMetadataLocation, tbl, metadata.properties(), hiveEngineEnabled);
+      // get Iceberg props that have been removed
+      Set<String> removedProps = Collections.emptySet();
+      if (base != null) {
+        removedProps = base.properties().keySet().stream()
+            .filter(key -> !metadata.properties().containsKey(key))
+            .collect(Collectors.toSet());
+      }
+
+      setHmsTableParameters(newMetadataLocation, tbl, metadata.properties(), removedProps, hiveEngineEnabled);
 
       persistTable(tbl, updateHiveTable);
       threw = false;
@@ -258,7 +268,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   }
 
   private void setHmsTableParameters(String newMetadataLocation, Table tbl, Map<String, String> icebergTableProps,
-      boolean hiveEngineEnabled) {
+                                     Set<String> obsoleteProps, boolean hiveEngineEnabled) {
     Map<String, String> parameters = tbl.getParameters();
 
     if (parameters == null) {
@@ -267,6 +277,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
     // push all Iceberg table properties into HMS
     icebergTableProps.forEach(parameters::put);
+
+    // remove any props from HMS that are no longer present in Iceberg table props
+    obsoleteProps.forEach(parameters::remove);
 
     parameters.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
     parameters.put(METADATA_LOCATION_PROP, newMetadataLocation);
