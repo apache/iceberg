@@ -53,7 +53,7 @@ case class RewriteDelete(spark: SparkSession) extends Rule[LogicalPlan] with Rew
   import ExtendedDataSourceV2Implicits._
   import RewriteRowLevelOperationHelper._
 
-  override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
+  override def apply(plan: LogicalPlan): LogicalPlan = plan transform {
     // don't rewrite deletes that can be answered by passing filters to deleteWhere in SupportsDelete
     case d @ DeleteFromTable(r: DataSourceV2Relation, Some(cond))
         if isMetadataDelete(r, cond) && isIcebergRelation(r) =>
