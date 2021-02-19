@@ -57,7 +57,7 @@ public class LocalStore {
 
   private static final String DATA_FILE = ".DATA";
   private static final String META_FILE = ".META";
-  private static final String PART_SUFFIX = ".part";
+  private static final String PART_SUFFIX = ".PART";
 
   private final File root;
 
@@ -74,20 +74,19 @@ public class LocalStore {
     LOG.info("Root directory of local OSS store is {}", root);
   }
 
-
-  public void createBucket(String bucketName) throws IOException {
+  void createBucket(String bucketName) throws IOException {
     File newBucket = new File(root, bucketName);
     FileUtils.forceMkdir(newBucket);
   }
 
-  public Bucket getBucket(String bucketName) {
+  Bucket getBucket(String bucketName) {
     List<Bucket> buckets = findBucketsByFilter(file ->
         Files.isDirectory(file) && file.getFileName().endsWith(bucketName));
 
     return buckets.size() > 0 ? buckets.get(0) : null;
   }
 
-  public void deleteBucket(String bucketName) throws IOException {
+  void deleteBucket(String bucketName) throws IOException {
     Bucket bucket = getBucket(bucketName);
     Preconditions.checkNotNull(bucket, "Bucket %s shouldn't be null.", bucketName);
 
@@ -100,12 +99,12 @@ public class LocalStore {
     FileUtils.deleteDirectory(dir);
   }
 
-  public ObjectMetadata putObject(String bucketName,
-                                  String fileName,
-                                  InputStream dataStream,
-                                  String contentType,
-                                  String contentEncoding,
-                                  Map<String, String> userMetaData) throws IOException {
+  ObjectMetadata putObject(String bucketName,
+                           String fileName,
+                           InputStream dataStream,
+                           String contentType,
+                           String contentEncoding,
+                           Map<String, String> userMetaData) throws IOException {
     File bucketDir = new File(root, bucketName);
     assert bucketDir.exists() || bucketDir.mkdirs();
 
@@ -136,7 +135,7 @@ public class LocalStore {
     return metadata;
   }
 
-  public void deleteObject(String bucketName, String filename) {
+  void deleteObject(String bucketName, String filename) {
     File bucketDir = new File(root, bucketName);
     assert bucketDir.exists();
 
@@ -146,7 +145,7 @@ public class LocalStore {
     assert !metaFile.exists() || metaFile.delete();
   }
 
-  public ObjectMetadata getObjectMetadata(String bucketName, String filename) throws IOException {
+  ObjectMetadata getObjectMetadata(String bucketName, String filename) throws IOException {
     File bucketDir = new File(root, bucketName);
     assert bucketDir.exists();
 
@@ -159,7 +158,7 @@ public class LocalStore {
     return objectMapper.readValue(metaFile, ObjectMetadata.class);
   }
 
-  MultipartUpload prepareMultipartUpload(String bucketName, String fileName, String uploadId) {
+  void prepareMultipartUpload(String bucketName, String fileName, String uploadId) {
     File bucketDir = new File(root, bucketName);
     assert bucketDir.exists();
 
@@ -167,9 +166,7 @@ public class LocalStore {
       throw new IllegalStateException("Directories for storing multipart uploads couldn't be created.");
     }
 
-    MultipartUpload upload = new MultipartUpload(bucketName, fileName, uploadId);
     uploadIdToInfo.put(uploadId, new MultipartUpload(bucketName, fileName, uploadId));
-    return upload;
   }
 
   String putPart(String bucketName,
@@ -185,8 +182,7 @@ public class LocalStore {
       throw new IllegalStateException("Initialize the multi-upload firstly.");
     }
 
-    File partFile = Paths.get(root.getAbsolutePath(), bucketName, uploadId,
-        partNumber + PART_SUFFIX).toFile();
+    File partFile = Paths.get(root.getAbsolutePath(), bucketName, uploadId, partNumber + PART_SUFFIX).toFile();
 
     inputStreamToFile(inputStream, partFile);
     return md5sum(partFile.getAbsolutePath());
@@ -246,6 +242,9 @@ public class LocalStore {
 
       objectMapper.writeValue(metaFile, metadata);
 
+      // Remove the MultiUpload out of in-memory map.
+      uploadIdToInfo.remove(uploadId);
+
       return metadata.getContentMD5();
     }
   }
@@ -272,6 +271,7 @@ public class LocalStore {
         File metaFile = new File(bucketDir, filename + META_FILE);
         FileUtils.deleteQuietly(metaFile);
 
+        uploadIdToInfo.remove(uploadId);
       } catch (IOException e) {
         throw new IllegalStateException("Could not delete multipart upload tmp data.", e);
       }
@@ -301,12 +301,10 @@ public class LocalStore {
     return new String(Hex.encodeHex(md.digest()));
   }
 
-  private static File inputStreamToFile(InputStream inputStream, File targetFile) throws IOException {
+  private static void inputStreamToFile(InputStream inputStream, File targetFile) throws IOException {
     try (OutputStream outputStream = new FileOutputStream(targetFile)) {
       IOUtils.copy(inputStream, outputStream);
     }
-
-    return targetFile;
   }
 
   private List<Bucket> findBucketsByFilter(final DirectoryStream.Filter<Path> filter) {

@@ -67,7 +67,6 @@ public class LocalOSSController {
   @Autowired
   private LocalStore localStore;
 
-
   @RequestMapping(value = "/{bucketName}", method = RequestMethod.PUT, produces = "application/xml")
   public void putBucket(@PathVariable String bucketName) throws IOException {
     if (localStore.getBucket(bucketName) != null) {
@@ -117,20 +116,7 @@ public class LocalOSSController {
   @RequestMapping(value = "/{bucketName:.+}/**", method = RequestMethod.HEAD)
   public ResponseEntity<String> getObjectMeta(@PathVariable String bucketName, HttpServletRequest request) {
     verifyBucketExistence(bucketName);
-
-    String filename = filenameFrom(bucketName, request);
-    ObjectMetadata metadata;
-    try {
-      metadata = localStore.getObjectMetadata(bucketName, filename);
-    } catch (IOException e) {
-      LOG.error("Failed to get object metadata - bucket: {} - object: {}", bucketName, filename, e);
-      return new ResponseEntity<>(e.getMessage(), INTERNAL_SERVER_ERROR);
-    }
-
-    if (metadata == null) {
-      throw new LocalOSSController.OssException(404, OSSErrorCode.NO_SUCH_KEY,
-          "The specify oss key does not exists.");
-    }
+    ObjectMetadata metadata = verifyObjectExistence(bucketName, filenameFrom(bucketName, request));
 
     HttpHeaders headers = new HttpHeaders();
     headers.setETag("\"" + metadata.getContentMD5() + "\"");
@@ -152,10 +138,7 @@ public class LocalOSSController {
     verifyBucketExistence(bucketName);
 
     String filename = filenameFrom(bucketName, request);
-    ObjectMetadata metadata = localStore.getObjectMetadata(bucketName, filename);
-    if (metadata == null) {
-      throw new OssException(404, OSSErrorCode.NO_SUCH_KEY, "The specify key does not exist.");
-    }
+    ObjectMetadata metadata = verifyObjectExistence(bucketName, filename);
 
     if (range != null) {
       long fileSize = metadata.getContentLength();
@@ -279,6 +262,21 @@ public class LocalOSSController {
     if (bucket == null) {
       throw new OssException(404, OSSErrorCode.NO_SUCH_BUCKET, "The specified bucket does not exist. ");
     }
+  }
+
+  private ObjectMetadata verifyObjectExistence(String bucketName, String filename) {
+    ObjectMetadata objectMetadata = null;
+    try {
+      objectMetadata = localStore.getObjectMetadata(bucketName, filename);
+    } catch (IOException e) {
+      LOG.error("Failed to get the object metadata, bucket: {}, object: {}.", bucketName, filename, e);
+    }
+
+    if (objectMetadata == null) {
+      throw new OssException(404, OSSErrorCode.NO_SUCH_KEY, "The specify oss key does not exists.");
+    }
+
+    return objectMetadata;
   }
 
   private static String filenameFrom(@PathVariable String bucketName, HttpServletRequest request) {

@@ -80,7 +80,6 @@ public class TestOSSOutputStream extends OSSTestBase {
       reset(ossMock);
 
       // Write file large enough to trigger multipart upload.
-      // TODO the current local oss does not support multipart upload.
       writeAndVerify(ossMock, uri, randomData(10 * 1024 * 1024), arrayWrite);
       verify(ossMock, times(1)).initiateMultipartUpload(any());
       verify(ossMock, times(2)).uploadPart(any());
