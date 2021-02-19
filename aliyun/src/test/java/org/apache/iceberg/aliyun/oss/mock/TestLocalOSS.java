@@ -244,12 +244,12 @@ public class TestLocalOSS {
     }
   }
 
-  private static void assertThrows(Runnable runnable, String errorCode) {
+  private static void assertThrows(Runnable runnable, String expectedErrorCode) {
     try {
       runnable.run();
-      Assert.fail("No exception was thrown, expected errorCode: " + errorCode);
+      Assert.fail("No exception was thrown, expected errorCode: " + expectedErrorCode);
     } catch (OSSException e) {
-      Assert.assertEquals(e.getErrorCode(), errorCode);
+      Assert.assertEquals(expectedErrorCode, e.getErrorCode());
     }
   }
 }

@@ -316,15 +316,7 @@ public class LocalOSSController {
   public static class OSSMockExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler
-    public ResponseEntity<ErrorResponse> handleOSSException(Exception exception) {
-      OssException ex;
-      if (exception instanceof OssException) {
-        ex = (OssException) exception;
-      } else {
-        LOG.warn("Failed to handle the exception: ", exception);
-        throw new RuntimeException(exception);
-      }
-
+    public ResponseEntity<ErrorResponse> handleOSSException(OssException ex) {
       LOG.info("Responding with status {} - {}, {}", ex.status, ex.code, ex.message);
 
       ErrorResponse errorResponse = new ErrorResponse();
