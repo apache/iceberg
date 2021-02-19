@@ -68,7 +68,6 @@ public class ExpireSnapshotsAction extends BaseSparkAction<ExpireSnapshotsAction
   // Creates an executor service that runs each task in the thread that invokes execute/submit.
   private static final ExecutorService DEFAULT_DELETE_EXECUTOR_SERVICE = null;
 
-  private final SparkSession spark;
   private final Table table;
   private final TableOperations ops;
   private final Consumer<String> defaultDelete = new Consumer<String>() {
@@ -87,18 +86,14 @@ public class ExpireSnapshotsAction extends BaseSparkAction<ExpireSnapshotsAction
   private boolean streamResults = false;
 
   ExpireSnapshotsAction(SparkSession spark, Table table) {
-    this.spark = spark;
+    super(spark);
+
     this.table = table;
     this.ops = ((HasTableOperations) table).operations();
 
     ValidationException.check(
         PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
         "Cannot expire snapshots: GC is disabled (deleting files may corrupt other tables)");
-  }
-
-  @Override
-  protected Table table() {
-    return table;
   }
 
   /**
@@ -223,9 +218,10 @@ public class ExpireSnapshotsAction extends BaseSparkAction<ExpireSnapshotsAction
   }
 
   private Dataset<Row> buildValidFileDF(TableMetadata metadata) {
-    return appendTypeString(buildValidDataFileDF(spark, metadata.metadataFileLocation()), DATA_FILE)
-        .union(appendTypeString(buildManifestFileDF(spark, metadata.metadataFileLocation()), MANIFEST))
-        .union(appendTypeString(buildManifestListDF(spark, metadata.metadataFileLocation()), MANIFEST_LIST));
+    Table staticTable = newStaticTable(metadata, table.io());
+    return appendTypeString(buildValidDataFileDF(staticTable), DATA_FILE)
+        .union(appendTypeString(buildManifestFileDF(staticTable), MANIFEST))
+        .union(appendTypeString(buildManifestListDF(staticTable), MANIFEST_LIST));
   }
 
   /**

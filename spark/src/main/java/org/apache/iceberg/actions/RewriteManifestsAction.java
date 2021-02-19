@@ -51,7 +51,6 @@ import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
-import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.broadcast.Broadcast;
@@ -77,12 +76,10 @@ import static org.apache.iceberg.MetadataTableType.ENTRIES;
  * for new manifests via {@link #stagingLocation}.
  */
 public class RewriteManifestsAction
-    extends BaseSnapshotUpdateAction<RewriteManifestsAction, RewriteManifestsActionResult> {
+    extends BaseSnapshotUpdateSparkAction<RewriteManifestsAction, RewriteManifestsActionResult> {
 
   private static final Logger LOG = LoggerFactory.getLogger(RewriteManifestsAction.class);
 
-  private final SparkSession spark;
-  private final JavaSparkContext sparkContext;
   private final Encoder<ManifestFile> manifestEncoder;
   private final Table table;
   private final int formatVersion;
@@ -95,8 +92,8 @@ public class RewriteManifestsAction
   private boolean useCaching = true;
 
   RewriteManifestsAction(SparkSession spark, Table table) {
-    this.spark = spark;
-    this.sparkContext = new JavaSparkContext(spark.sparkContext());
+    super(spark);
+
     this.manifestEncoder = Encoders.javaSerialization(ManifestFile.class);
     this.table = table;
     this.spec = table.spec();
@@ -118,11 +115,6 @@ public class RewriteManifestsAction
   @Override
   protected RewriteManifestsAction self() {
     return this;
-  }
-
-  @Override
-  protected Table table() {
-    return table;
   }
 
   public RewriteManifestsAction specId(int specId) {
@@ -199,11 +191,11 @@ public class RewriteManifestsAction
   }
 
   private Dataset<Row> buildManifestEntryDF(List<ManifestFile> manifests) {
-    Dataset<Row> manifestDF = spark
+    Dataset<Row> manifestDF = spark()
         .createDataset(Lists.transform(manifests, ManifestFile::path), Encoders.STRING())
         .toDF("manifest");
 
-    Dataset<Row> manifestEntryDF = BaseSparkAction.loadMetadataTable(spark, table.name(), table().location(), ENTRIES)
+    Dataset<Row> manifestEntryDF = loadMetadataTable(table, ENTRIES)
         .filter("status < 2") // select only live entries
         .selectExpr("input_file_name() as manifest", "snapshot_id", "sequence_number", "data_file");
 
@@ -214,7 +206,7 @@ public class RewriteManifestsAction
   }
 
   private List<ManifestFile> writeManifestsForUnpartitionedTable(Dataset<Row> manifestEntryDF, int numManifests) {
-    Broadcast<FileIO> io = sparkContext.broadcast(fileIO);
+    Broadcast<FileIO> io = sparkContext().broadcast(fileIO);
     StructType sparkType = (StructType) manifestEntryDF.schema().apply("data_file").dataType();
 
     // we rely only on the target number of manifests for unpartitioned tables
@@ -234,7 +226,7 @@ public class RewriteManifestsAction
       Dataset<Row> manifestEntryDF, int numManifests,
       int targetNumManifestEntries) {
 
-    Broadcast<FileIO> io = sparkContext.broadcast(fileIO);
+    Broadcast<FileIO> io = sparkContext().broadcast(fileIO);
     StructType sparkType = (StructType) manifestEntryDF.schema().apply("data_file").dataType();
 
     // we allow the actual size of manifests to be 10% higher if the estimation is not precise enough
