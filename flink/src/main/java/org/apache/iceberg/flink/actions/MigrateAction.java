@@ -83,6 +83,20 @@ import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Migrate exist hive table to iceberg table.
+ * <p>
+ * It support migrate hive table with parquet and orc format now, we can migrate it to iceberg table with {@link
+ * HadoopCatalog} and {@link HiveCatalog}.
+ * <p>
+ * The migration method is to keep the data file in the original hive table unchanged, and then create a new iceberg
+ * table, the new iceberg table use the data file of hive, and generate new metadata for the iceberg table.
+ * <p>
+ * In order to prevent data from being written to hive during the migration process so that new data cannot be migrated.
+ * so when we do the migration, we need to stop the writing hive job first, then migrate, and finally modify the logic
+ * to reading and writing iceberg table,If migrate failed, we will clean the iceberg table and metadata.If unfortunately
+ * the clean failed, you may need to manually clean the iceberg table and manifests.
+ */
 public class MigrateAction implements Action<List<ManifestFile>> {
   private static final Logger LOGGER = LoggerFactory.getLogger(MigrateAction.class);
 

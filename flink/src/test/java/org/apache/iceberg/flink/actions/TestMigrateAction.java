@@ -45,7 +45,6 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkCatalogTestBase;
 import org.apache.iceberg.flink.SimpleDataUtil;
-import org.apache.iceberg.flink.source.TestFlinkScan;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -305,7 +304,7 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
     sql("USE %s", DATABASE);
     List<Row> results = executeSql("SELECT * FROM %s", TARGET_ICEBERG_TABLE_NAME);
     Assert.assertEquals("Should produce the expected records count.", 20, results.size());
-    TestFlinkScan.assertRecords(results, expected, icebergSchema);
+    SimpleDataUtil.assertRecords(results, expected, icebergSchema);
   }
 
   private Partition createHivePartition(FileFormat fileFormat, String hivePartitionPath, String partitionValue) {
