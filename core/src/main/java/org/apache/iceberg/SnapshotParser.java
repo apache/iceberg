@@ -46,6 +46,7 @@ public class SnapshotParser {
   private static final String OPERATION = "operation";
   private static final String MANIFESTS = "manifests";
   private static final String MANIFEST_LIST = "manifest-list";
+  private static final String SCHEMA_ID = "schema-id";
 
   static void toJson(Snapshot snapshot, JsonGenerator generator)
       throws IOException {
@@ -58,6 +59,7 @@ public class SnapshotParser {
       generator.writeNumberField(PARENT_SNAPSHOT_ID, snapshot.parentId());
     }
     generator.writeNumberField(TIMESTAMP_MS, snapshot.timestampMillis());
+    generator.writeNumberField(SCHEMA_ID, snapshot.schemaId());
 
     // if there is an operation, write the summary map
     if (snapshot.operation() != null) {
@@ -119,6 +121,7 @@ public class SnapshotParser {
     }
     long timestamp = JsonUtil.getLong(TIMESTAMP_MS, node);
 
+    int schemaId = JsonUtil.getInt(SCHEMA_ID, node);
     Map<String, String> summary = null;
     String operation = null;
     if (node.has(SUMMARY)) {
@@ -142,14 +145,15 @@ public class SnapshotParser {
     if (node.has(MANIFEST_LIST)) {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
-      return new BaseSnapshot(io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary, manifestList);
+      return new BaseSnapshot(io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary, manifestList,
+          schemaId);
 
     } else {
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be
       // loaded lazily, if it is needed
       List<ManifestFile> manifests = Lists.transform(JsonUtil.getStringList(MANIFESTS, node),
           location -> new GenericManifestFile(io.newInputFile(location), 0));
-      return new BaseSnapshot(io, snapshotId, parentId, timestamp, operation, summary, manifests);
+      return new BaseSnapshot(io, snapshotId, parentId, timestamp, operation, summary, manifests, schemaId);
     }
   }
 

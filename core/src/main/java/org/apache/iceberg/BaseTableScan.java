@@ -123,8 +123,11 @@ abstract class BaseTableScan implements TableScan {
         "Cannot override snapshot, already set to id=%s", context.snapshotId());
     Preconditions.checkArgument(ops.current().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s", scanSnapshotId);
+
+    int schemaId = ops.current().snapshot(scanSnapshotId).schemaId();
+
     return newRefinedScan(
-        ops, table, schema, context.useSnapshotId(scanSnapshotId));
+        ops, table, ops.current().schemasById().get(schemaId), context.useSnapshotId(scanSnapshotId));
   }
 
   @Override

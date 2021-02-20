@@ -126,4 +126,11 @@ public interface Snapshot extends Serializable {
    * @return the location of the manifest list for this Snapshot
    */
   String manifestListLocation();
+
+  /**
+   * Return the schema id of the snapshot
+   *
+   * @return the schema id
+   */
+  int schemaId();
 }

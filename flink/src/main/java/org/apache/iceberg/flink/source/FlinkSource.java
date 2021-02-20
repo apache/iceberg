@@ -31,8 +31,10 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.config.ExecutionConfigOptions;
 import org.apache.flink.table.data.RowData;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
@@ -42,6 +44,9 @@ import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 
 public class FlinkSource {
   private FlinkSource() {
@@ -74,6 +79,7 @@ public class FlinkSource {
     private Table table;
     private TableLoader tableLoader;
     private TableSchema projectedSchema;
+    private Long scanSnapshotId;
     private ReadableConfig readableConfig = new Configuration();
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
 
@@ -108,6 +114,10 @@ public class FlinkSource {
     }
 
     public Builder properties(Map<String, String> properties) {
+      if (properties.containsKey("snapshot-id")) {
+        scanSnapshotId = Long.parseLong(properties.get("snapshot-id"));
+      }
+
       contextBuilder.fromProperties(properties);
       return this;
     }
@@ -118,6 +128,7 @@ public class FlinkSource {
     }
 
     public Builder snapshotId(Long snapshotId) {
+      scanSnapshotId = snapshotId;
       contextBuilder.useSnapshotId(snapshotId);
       return this;
     }
@@ -178,25 +189,47 @@ public class FlinkSource {
         tableLoader.open();
         try (TableLoader loader = tableLoader) {
           table = loader.loadTable();
-          icebergSchema = table.schema();
           io = table.io();
           encryption = table.encryption();
         } catch (IOException e) {
           throw new UncheckedIOException(e);
         }
       } else {
-        icebergSchema = table.schema();
         io = table.io();
         encryption = table.encryption();
+      }
+
+      if (table instanceof HasTableOperations && scanSnapshotId != null) {
+        TableMetadata tableMetadata = ((HasTableOperations) table).operations().current();
+        int schemaId = tableMetadata.snapshot(scanSnapshotId).schemaId();
+        icebergSchema = tableMetadata.schemasById().get(schemaId);
+      } else {
+        icebergSchema = table.schema();
       }
 
       if (projectedSchema == null) {
         contextBuilder.project(icebergSchema);
       } else {
-        contextBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
+        contextBuilder.project(getProjectedSchema(icebergSchema, projectedSchema));
       }
 
       return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, contextBuilder.build());
+    }
+
+    private Schema getProjectedSchema(Schema icebergSchema, TableSchema projectSchema) {
+      List<Types.NestedField> projectFields = FlinkSchemaUtil.convert(projectSchema).columns();
+
+      List<Types.NestedField> newFields = Lists.newArrayList();
+      for (Types.NestedField nestedField : projectFields) {
+        if (icebergSchema.findType(nestedField.name()) != null) {
+          newFields.add(nestedField);
+        }
+      }
+
+      // reassign ids to match the base schema
+      Schema schema = TypeUtil.reassignIds(new Schema(newFields), icebergSchema);
+      // fix types that can't be represented in Flink (UUID)
+      return FlinkSchemaUtil.fixup(schema, icebergSchema);
     }
 
     public DataStream<RowData> build() {

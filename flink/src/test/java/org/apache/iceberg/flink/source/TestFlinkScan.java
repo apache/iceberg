@@ -311,7 +311,7 @@ public abstract class TestFlinkScan {
     TestHelpers.assertRows(results, Arrays.asList(expected));
   }
 
-  private static void waitUntilAfter(long timestampMillis) {
+  protected static void waitUntilAfter(long timestampMillis) {
     long current = System.currentTimeMillis();
     while (current <= timestampMillis) {
       current = System.currentTimeMillis();

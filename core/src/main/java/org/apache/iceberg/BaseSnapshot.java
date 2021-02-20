@@ -43,6 +43,7 @@ class BaseSnapshot implements Snapshot {
   private final String manifestListLocation;
   private final String operation;
   private final Map<String, String> summary;
+  private final int schemaId;
 
   // lazily initialized
   private transient List<ManifestFile> allManifests = null;
@@ -59,7 +60,7 @@ class BaseSnapshot implements Snapshot {
                String... manifestFiles) {
     this(io, snapshotId, null, System.currentTimeMillis(), null, null,
         Lists.transform(Arrays.asList(manifestFiles),
-            path -> new GenericManifestFile(io.newInputFile(path), 0)));
+            path -> new GenericManifestFile(io.newInputFile(path), 0)), 0);
   }
 
   BaseSnapshot(FileIO io,
@@ -69,7 +70,8 @@ class BaseSnapshot implements Snapshot {
                long timestampMillis,
                String operation,
                Map<String, String> summary,
-               String manifestList) {
+               String manifestList,
+               int schemaId) {
     this.io = io;
     this.sequenceNumber = sequenceNumber;
     this.snapshotId = snapshotId;
@@ -78,6 +80,7 @@ class BaseSnapshot implements Snapshot {
     this.operation = operation;
     this.summary = summary;
     this.manifestListLocation = manifestList;
+    this.schemaId = schemaId;
   }
 
   BaseSnapshot(FileIO io,
@@ -86,8 +89,9 @@ class BaseSnapshot implements Snapshot {
                long timestampMillis,
                String operation,
                Map<String, String> summary,
-               List<ManifestFile> dataManifests) {
-    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, null);
+               List<ManifestFile> dataManifests,
+               int schemaId) {
+    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, null, schemaId);
     this.allManifests = dataManifests;
   }
 
@@ -178,6 +182,11 @@ class BaseSnapshot implements Snapshot {
   @Override
   public String manifestListLocation() {
     return manifestListLocation;
+  }
+
+  @Override
+  public int schemaId() {
+    return schemaId;
   }
 
   private void cacheChanges() {

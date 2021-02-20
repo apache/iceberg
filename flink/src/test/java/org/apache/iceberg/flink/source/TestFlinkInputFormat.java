@@ -30,10 +30,12 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericAppenderHelper;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TestHelpers;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.Test;
@@ -124,6 +126,103 @@ public class TestFlinkInputFormat extends TestFlinkSource {
     }
 
     TestHelpers.assertRows(result, expected);
+  }
+
+  @Test
+  public void testSnapshotReadsWithAddColumn() throws Exception {
+    Schema writeSchema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.optional(1, "data", Types.StringType.get())
+    );
+
+    Table table = catalog.createTable(TableIdentifier.of("default", "t"), writeSchema);
+    List<Record> writeRecords = RandomGenericData.generate(writeSchema, 2, 0L);
+    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(writeRecords);
+
+    table.refresh();
+    long snapshotId = table.currentSnapshot().snapshotId();
+    long timestampMillis = table.currentSnapshot().timestampMillis();
+    waitUntilAfter(timestampMillis);
+
+    table.updateSchema().addColumn("d", Types.IntegerType.get()).commit();
+
+    Schema writeSchema1 = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.optional(1, "data", Types.StringType.get()),
+        Types.NestedField.optional(2, "d", Types.IntegerType.get())
+    );
+
+    List<Record> writeRecords1 = RandomGenericData.generate(writeSchema1, 2, 0L);
+    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(writeRecords1);
+
+    table.refresh();
+    long snapshotId1 = table.currentSnapshot().snapshotId();
+    long timestampMillis1 = table.currentSnapshot().timestampMillis();
+    waitUntilAfter(timestampMillis1);
+
+    TestHelpers.assertRecords(
+        runWithOptions(ImmutableMap.of("snapshot-id", Long.toString(snapshotId))),
+        writeRecords, writeSchema);
+
+    for (Record record : writeRecords) {
+      GenericRecord genericRecord = GenericRecord.create(writeSchema1);
+      genericRecord.set(0, record.get(0));
+      genericRecord.set(1, record.get(1));
+      genericRecord.set(2, null);
+      writeRecords1.add(genericRecord);
+    }
+
+    TestHelpers.assertRecords(
+        runWithOptions(ImmutableMap.of("snapshot-id", Long.toString(snapshotId1))),
+        writeRecords1, writeSchema1);
+  }
+
+  @Test
+  public void testSnapshotReadsWithDeleteColumn() throws Exception {
+    Schema writeSchema = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.optional(1, "data", Types.StringType.get()),
+        Types.NestedField.optional(2, "d", Types.IntegerType.get())
+    );
+
+    Table table = catalog.createTable(TableIdentifier.of("default", "t"), writeSchema);
+    List<Record> writeRecords = RandomGenericData.generate(writeSchema, 2, 0L);
+    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(writeRecords);
+
+    table.refresh();
+    long snapshotId = table.currentSnapshot().snapshotId();
+    long timestampMillis = table.currentSnapshot().timestampMillis();
+    waitUntilAfter(timestampMillis);
+
+    table.updateSchema().deleteColumn("d").commit();
+
+    Schema writeSchema1 = new Schema(
+        Types.NestedField.required(0, "id", Types.LongType.get()),
+        Types.NestedField.optional(1, "data", Types.StringType.get())
+    );
+
+    List<Record> writeRecords1 = RandomGenericData.generate(writeSchema1, 2, 0L);
+    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(writeRecords1);
+
+    table.refresh();
+    long snapshotId1 = table.currentSnapshot().snapshotId();
+    long timestampMillis1 = table.currentSnapshot().timestampMillis();
+    waitUntilAfter(timestampMillis1);
+
+    TestHelpers.assertRecords(
+        runWithOptions(ImmutableMap.of("snapshot-id", Long.toString(snapshotId))),
+        writeRecords, writeSchema);
+
+    for (Record record : writeRecords) {
+      GenericRecord genericRecord = GenericRecord.create(writeSchema1);
+      genericRecord.set(0, record.get(0));
+      genericRecord.set(1, record.get(1));
+      writeRecords1.add(genericRecord);
+    }
+
+    TestHelpers.assertRecords(
+        runWithOptions(ImmutableMap.of("snapshot-id", Long.toString(snapshotId1))),
+        writeRecords1, writeSchema1);
   }
 
   private List<Row> runFormat(FlinkInputFormat inputFormat) throws IOException {

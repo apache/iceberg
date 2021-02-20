@@ -86,6 +86,10 @@ public class FlinkSchemaUtil {
     return FlinkFixupTypes.fixup(schema, baseSchema);
   }
 
+  public static Schema fixup(Schema schema, Schema baseSchema) {
+    return FlinkFixupTypes.fixup(schema, baseSchema);
+  }
+
   /**
    * Convert a {@link Schema} to a {@link RowType Flink type}.
    *
