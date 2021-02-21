@@ -316,11 +316,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     long lockId = lockResponse.getLockid();
 
     final long start = System.currentTimeMillis();
-    long duration = 0;
-    boolean timeout = false;
-
-    if (state.get().equals(LockState.WAITING)) {
-      try {
+    try {
+      if (state.get().equals(LockState.WAITING)) {
         // Retry count is the typical "upper bound of retries" for Tasks.run() function. In fact, the maximum number of
         // attempts the Tasks.run() would try is `retries + 1`. Here, for checking locks, we use timeout as the
         // upper bound of retries. So it is just reasonable to set a large retry count. However, if we set
@@ -348,21 +345,17 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
                 LOG.warn("Interrupted while waiting for lock.", e);
               }
             }, TException.class);
-      } catch (WaitingForLockException waitingForLockException) {
-        timeout = true;
-        duration = System.currentTimeMillis() - start;
       }
-    }
-
-    // timeout and do not have lock acquired
-    if (timeout && !state.get().equals(LockState.ACQUIRED)) {
+    } catch (WaitingForLockException waitingForLockException) {
+      // timeout and do not have lock acquired
       throw new CommitFailedException("Timed out after %s ms waiting for lock on %s.%s",
-          duration, database, tableName);
-    }
-
-    if (!state.get().equals(LockState.ACQUIRED)) {
-      throw new CommitFailedException("Could not acquire the lock on %s.%s, " +
-          "lock request ended in state %s", database, tableName, state);
+          System.currentTimeMillis() - start, database, tableName);
+    } finally {
+      if (!state.get().equals(LockState.ACQUIRED)) {
+        unlock(Optional.of(lockId));
+        throw new CommitFailedException("Could not acquire the lock on %s.%s, " +
+            "lock request ended in state %s", database, tableName, state);
+      }
     }
     return lockId;
   }
