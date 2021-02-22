@@ -353,9 +353,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     } finally {
       if (!state.get().equals(LockState.ACQUIRED)) {
         unlock(Optional.of(lockId));
-        throw new CommitFailedException("Could not acquire the lock on %s.%s, " +
-            "lock request ended in state %s", database, tableName, state);
       }
+    }
+
+    if (!state.get().equals(LockState.ACQUIRED)) {
+      throw new CommitFailedException("Could not acquire the lock on %s.%s, " +
+          "lock request ended in state %s", database, tableName, state);
     }
     return lockId;
   }
