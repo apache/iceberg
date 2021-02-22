@@ -22,6 +22,7 @@ package org.apache.iceberg.mr.hive;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -584,7 +585,39 @@ public class TestHiveIcebergStorageHandlerLocalScan {
     Assert.assertEquals(1, result.size());
     Assert.assertEquals("2020-01-21", result.get(0)[0]);
 
+    result = shell.executeStatement("SELECT * from date_test WHERE d_date > '2020-01-21'");
+    Assert.assertEquals(1, result.size());
+    Assert.assertEquals("2020-01-24", result.get(0)[0]);
+
     result = shell.executeStatement("SELECT * from date_test WHERE d_date='2020-01-20'");
+    Assert.assertEquals(0, result.size());
+  }
+
+  @Test
+  public void testTimestampQuery() throws IOException {
+    Schema timestampSchema = new Schema(optional(1, "d_ts", Types.TimestampType.withoutZone()));
+
+    List<Record> records = TestHelper.RecordsBuilder.newInstance(timestampSchema)
+        .add(LocalDateTime.of(2019, 1, 22, 9, 44, 54, 100000000))
+        .add(LocalDateTime.of(2019, 2, 22, 9, 44, 54, 200000000))
+        .build();
+
+    testTables.createTable(shell, "ts_test", timestampSchema, fileFormat, records);
+
+    List<Object[]> result = shell.executeStatement("SELECT d_ts FROM ts_test WHERE d_ts='2019-02-22 09:44:54.2'");
+    Assert.assertEquals(1, result.size());
+    Assert.assertEquals("2019-02-22 09:44:54.2", result.get(0)[0]);
+
+    result = shell.executeStatement(
+        "SELECT * FROM ts_test WHERE d_ts in ('2017-01-01 22:30:57.1', '2019-02-22 09:44:54.2')");
+    Assert.assertEquals(1, result.size());
+    Assert.assertEquals("2019-02-22 09:44:54.2", result.get(0)[0]);
+
+    result = shell.executeStatement("SELECT d_ts FROM ts_test WHERE d_ts < '2019-02-22 09:44:54.2'");
+    Assert.assertEquals(1, result.size());
+    Assert.assertEquals("2019-01-22 09:44:54.1", result.get(0)[0]);
+
+    result = shell.executeStatement("SELECT * FROM ts_test WHERE d_ts='2017-01-01 22:30:57.3'");
     Assert.assertEquals(0, result.size());
   }
 

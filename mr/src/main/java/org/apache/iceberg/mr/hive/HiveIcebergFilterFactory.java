@@ -180,6 +180,6 @@ public class HiveIcebergFilterFactory {
   }
 
   private static long microsFromTimestamp(Timestamp timestamp) {
-    return DateTimeUtil.microsFromTimestamp(timestamp.toLocalDateTime());
+    return DateTimeUtil.microsFromInstant(timestamp.toInstant());
   }
 }

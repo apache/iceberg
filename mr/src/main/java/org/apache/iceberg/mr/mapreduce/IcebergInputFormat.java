@@ -285,6 +285,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       boolean applyResidual = !context.getConfiguration().getBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, false);
 
       if (applyResidual && residual != null && residual != Expressions.alwaysTrue()) {
+        // Date and timestamp values are not the correct type for Evaluator.
+        // Wrapping to return the expected type.
         InternalRecordWrapper wrapper = new InternalRecordWrapper(readSchema.asStruct());
         Evaluator filter = new Evaluator(readSchema.asStruct(), residual, caseSensitive);
         return CloseableIterable.filter(iter, record -> filter.eval(wrapper.wrap((StructLike) record)));
