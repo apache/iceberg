@@ -40,12 +40,17 @@ import org.apache.iceberg.types.Types.StructType;
 
 /**
  * The schema of a data table.
+ * <p>
+ * Schema ID will only be populated when reading from/writing to table metadata,
+ * otherwise it will be default to 0.
  */
 public class Schema implements Serializable {
   private static final Joiner NEWLINE = Joiner.on('\n');
   private static final String ALL_COLUMNS = "*";
+  private static final int DEFAULT_SCHEMA_ID = 0;
 
   private final StructType struct;
+  private final int schemaId;
   private transient BiMap<String, Integer> aliasToId = null;
   private transient Map<Integer, NestedField> idToField = null;
   private transient Map<String, Integer> nameToId = null;
@@ -54,6 +59,7 @@ public class Schema implements Serializable {
   private transient Map<Integer, String> idToName = null;
 
   public Schema(List<NestedField> columns, Map<String, Integer> aliases) {
+    this.schemaId = DEFAULT_SCHEMA_ID;
     this.struct = StructType.of(columns);
     this.aliasToId = aliases != null ? ImmutableBiMap.copyOf(aliases) : null;
 
@@ -62,12 +68,21 @@ public class Schema implements Serializable {
   }
 
   public Schema(List<NestedField> columns) {
+    this(DEFAULT_SCHEMA_ID, columns);
+  }
+
+  public Schema(int schemaId, List<NestedField> columns) {
+    this.schemaId = schemaId;
     this.struct = StructType.of(columns);
     lazyIdToName();
   }
 
   public Schema(NestedField... columns) {
-    this(Arrays.asList(columns));
+    this(DEFAULT_SCHEMA_ID, Arrays.asList(columns));
+  }
+
+  public Schema(int schemaId, NestedField... columns) {
+    this(schemaId, Arrays.asList(columns));
   }
 
   private Map<Integer, NestedField> lazyIdToField() {
@@ -103,6 +118,16 @@ public class Schema implements Serializable {
       idToAccessor = Accessors.forSchema(this);
     }
     return idToAccessor;
+  }
+
+  /**
+   * Returns the schema ID for this schema.
+   * <p>
+   * Note that schema ID will only be populated when reading from/writing to table metadata,
+   * otherwise it will be default to 0.
+   */
+  public int schemaId() {
+    return this.schemaId;
   }
 
   /**

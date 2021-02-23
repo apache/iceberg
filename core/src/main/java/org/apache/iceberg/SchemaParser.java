@@ -39,6 +39,7 @@ public class SchemaParser {
   private SchemaParser() {
   }
 
+  private static final String SCHEMA_ID = "schema-id";
   private static final String TYPE = "type";
   private static final String STRUCT = "struct";
   private static final String LIST = "list";
@@ -57,10 +58,18 @@ public class SchemaParser {
   private static final String ELEMENT_REQUIRED = "element-required";
   private static final String VALUE_REQUIRED = "value-required";
 
-  static void toJson(Types.StructType struct, JsonGenerator generator) throws IOException {
+  private static void toJson(Types.StructType struct, JsonGenerator generator) throws IOException {
+    toJson(struct, null, generator);
+  }
+
+  private static void toJson(Types.StructType struct, Integer schemaId, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
     generator.writeStringField(TYPE, STRUCT);
+    if (schemaId != null) {
+      generator.writeNumberField(SCHEMA_ID, schemaId);
+    }
+
     generator.writeArrayFieldStart(FIELDS);
     for (Types.NestedField field : struct.fields()) {
       generator.writeStartObject();
@@ -135,7 +144,7 @@ public class SchemaParser {
   }
 
   public static void toJson(Schema schema, JsonGenerator generator) throws IOException {
-    toJson(schema.asStruct(), generator);
+    toJson(schema.asStruct(), schema.schemaId(), generator);
   }
 
   public static String toJson(Schema schema) {
@@ -237,7 +246,13 @@ public class SchemaParser {
     Type type  = typeFromJson(json);
     Preconditions.checkArgument(type.isNestedType() && type.asNestedType().isStructType(),
         "Cannot create schema, not a struct type: %s", type);
-    return new Schema(type.asNestedType().asStructType().fields());
+    Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, json);
+
+    if (schemaId == null) {
+      return new Schema(type.asNestedType().asStructType().fields());
+    } else {
+      return new Schema(schemaId, type.asNestedType().asStructType().fields());
+    }
   }
 
   private static final Cache<String, Schema> SCHEMA_CACHE = Caffeine.newBuilder()

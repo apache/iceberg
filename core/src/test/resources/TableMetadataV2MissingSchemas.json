@@ -5,10 +5,8 @@
   "last-sequence-number": 34,
   "last-updated-ms": 1602638573590,
   "last-column-id": 3,
-  "current-schema-id": 0,
-  "schemas": [{
+  "schema": {
     "type": "struct",
-    "schema-id": 0,
     "fields": [
       {
         "id": 1,
@@ -30,7 +28,7 @@
         "type": "long"
       }
     ]
-  }],
+  },
   "default-spec-id": 0,
   "partition-specs": [
     {

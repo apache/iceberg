@@ -29,6 +29,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import static org.apache.iceberg.TestHelpers.assertSameSchemaList;
+
 @RunWith(Parameterized.class)
 public class TestTableMetadataSerialization extends TableTestBase {
   @Parameterized.Parameters(name = "formatVersion = {0}")
@@ -68,6 +70,8 @@ public class TestTableMetadataSerialization extends TableTestBase {
     Assert.assertEquals("Last updated should match", meta.lastUpdatedMillis(), result.lastUpdatedMillis());
     Assert.assertEquals("Last column id", meta.lastColumnId(), result.lastColumnId());
     Assert.assertEquals("Schema should match", meta.schema().asStruct(), result.schema().asStruct());
+    assertSameSchemaList(meta.schemas(), result.schemas());
+    Assert.assertEquals("Current schema id should match", meta.currentSchemaId(), result.currentSchemaId());
     Assert.assertEquals("Spec should match", meta.defaultSpecId(), result.defaultSpecId());
     Assert.assertEquals("Spec list should match", meta.specs(), result.specs());
     Assert.assertEquals("Properties should match", meta.properties(), result.properties());
