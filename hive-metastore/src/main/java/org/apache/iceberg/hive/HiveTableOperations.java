@@ -316,6 +316,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     long lockId = lockResponse.getLockid();
 
     final long start = System.currentTimeMillis();
+    long duration = 0;
+    boolean timeout = false;
+
     try {
       if (state.get().equals(LockState.WAITING)) {
         // Retry count is the typical "upper bound of retries" for Tasks.run() function. In fact, the maximum number of
@@ -347,13 +350,18 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             }, TException.class);
       }
     } catch (WaitingForLockException waitingForLockException) {
-      // timeout and do not have lock acquired
-      throw new CommitFailedException("Timed out after %s ms waiting for lock on %s.%s",
-          System.currentTimeMillis() - start, database, tableName);
+      timeout = true;
+      duration = System.currentTimeMillis() - start;
     } finally {
       if (!state.get().equals(LockState.ACQUIRED)) {
         unlock(Optional.of(lockId));
       }
+    }
+
+    // timeout and do not have lock acquired
+    if (timeout && !state.get().equals(LockState.ACQUIRED)) {
+      throw new CommitFailedException("Timed out after %s ms waiting for lock on %s.%s",
+          duration, database, tableName);
     }
 
     if (!state.get().equals(LockState.ACQUIRED)) {
