@@ -40,7 +40,7 @@ public class SortOrderUtil {
     return buildSortOrder(table.schema(), table.spec(), table.sortOrder());
   }
 
-  public static SortOrder buildSortOrder(Schema schema, PartitionSpec spec, SortOrder sortOrder) {
+  private static SortOrder buildSortOrder(Schema schema, PartitionSpec spec, SortOrder sortOrder) {
     if (sortOrder.isUnsorted() && spec.isUnpartitioned()) {
       return SortOrder.unsorted();
     }
