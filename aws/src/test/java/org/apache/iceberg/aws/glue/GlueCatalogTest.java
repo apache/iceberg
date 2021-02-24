@@ -344,7 +344,7 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void dropNamespace_notEmpty() {
+  public void dropNamespace_notEmpty_containsIcebergTable() {
     Mockito.doReturn(GetTablesResponse.builder()
         .tableList(
             Table.builder().databaseName("db1").name("t1").parameters(
@@ -359,9 +359,27 @@ public class GlueCatalogTest {
         .when(glue).getDatabase(Mockito.any(GetDatabaseRequest.class));
     Mockito.doReturn(DeleteDatabaseResponse.builder().build())
         .when(glue).deleteDatabase(Mockito.any(DeleteDatabaseRequest.class));
-    AssertHelpers.assertThrows("namespace should not be dropped when still has table",
+    AssertHelpers.assertThrows("namespace should not be dropped when still has Iceberg table",
         NamespaceNotEmptyException.class,
-        "Cannot drop namespace",
+        "still contains Iceberg tables",
+        () -> glueCatalog.dropNamespace(Namespace.of("db1")));
+  }
+
+  @Test
+  public void dropNamespace_notEmpty_containsNonIcebergTable() {
+    Mockito.doReturn(GetTablesResponse.builder()
+        .tableList(
+            Table.builder().databaseName("db1").name("t1").build()
+        ).build())
+        .when(glue).getTables(Mockito.any(GetTablesRequest.class));
+    Mockito.doReturn(GetDatabaseResponse.builder()
+        .database(Database.builder().name("db1").build()).build())
+        .when(glue).getDatabase(Mockito.any(GetDatabaseRequest.class));
+    Mockito.doReturn(DeleteDatabaseResponse.builder().build())
+        .when(glue).deleteDatabase(Mockito.any(DeleteDatabaseRequest.class));
+    AssertHelpers.assertThrows("namespace should not be dropped when still has non-Iceberg table",
+        NamespaceNotEmptyException.class,
+        "still contains non-Iceberg tables",
         () -> glueCatalog.dropNamespace(Namespace.of("db1")));
   }
 
