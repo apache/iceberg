@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink.data;
 
 import java.io.IOException;
+import java.util.Deque;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -32,10 +33,12 @@ import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.avro.AvroWriterBuilderFieldIdUtil;
 import org.apache.iceberg.avro.MetricsAwareDatumWriter;
 import org.apache.iceberg.avro.ValueWriter;
 import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
   private final RowType rowType;
@@ -63,6 +66,8 @@ public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
   }
 
   private static class WriteBuilder extends AvroWithFlinkSchemaVisitor<ValueWriter<?>> {
+    private final Deque<Integer> fieldIds = Lists.newLinkedList();
+
     @Override
     public ValueWriter<?> record(LogicalType struct, Schema record, List<String> names, List<ValueWriter<?>> fields) {
       return FlinkValueWriters.row(fields, IntStream.range(0, names.size())
@@ -100,7 +105,9 @@ public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
 
     @Override
     public ValueWriter<?> primitive(LogicalType type, Schema primitive) {
-      int fieldId = AvroSchemaUtil.fieldId(primitive, parentSchema(), this::lastFieldName);
+      Preconditions.checkState(!fieldIds.isEmpty() && fieldIds.peek() != null,
+          "[BUG] cannot get field id for logical type %s and schema %s", type, primitive);
+      int fieldId = fieldIds.peek();
 
       org.apache.avro.LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
@@ -155,6 +162,26 @@ public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
         default:
           throw new IllegalArgumentException("Unsupported type: " + primitive);
       }
+    }
+
+    public void beforeField(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.beforeField(fieldIds, name, parentSchema);
+    }
+
+    public void afterField(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.afterField(fieldIds);
+    }
+
+    public void beforeListElement(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.beforeListElement(fieldIds, parentSchema);
+    }
+
+    public void beforeMapKey(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.beforeMapKey(fieldIds, name, parentSchema);
+    }
+
+    public void beforeMapValue(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.beforeMapValue(fieldIds, name, parentSchema);
     }
   }
 }

@@ -35,19 +35,21 @@ public abstract class AvroSchemaVisitor<T> {
             "Cannot process recursive Avro record %s", name);
 
         visitor.recordLevels.push(name);
-        visitor.parentSchemas.push(schema);
 
         List<Schema.Field> fields = schema.getFields();
         List<String> names = Lists.newArrayListWithExpectedSize(fields.size());
         List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
         for (Schema.Field field : schema.getFields()) {
           names.add(field.name());
+          visitor.beforeField(field.name(), field.schema(), schema);
+
           T result = visitWithName(field.name(), field.schema(), visitor);
+          visitor.afterField(field.name(), field.schema(), schema);
+
           results.add(result);
         }
 
         visitor.recordLevels.pop();
-        visitor.parentSchemas.pop();
 
         return visitor.record(schema, names, results);
 
@@ -64,16 +66,18 @@ public abstract class AvroSchemaVisitor<T> {
           T result = visit(schema.getElementType(), visitor);
           return visitor.array(schema, result);
         } else {
-          visitor.parentSchemas.push(schema);
+          visitor.beforeListElement("element", schema.getElementType(), schema);
           T result = visitWithName("element", schema.getElementType(), visitor);
-          visitor.parentSchemas.pop();
+          visitor.afterListElement("element", schema.getElementType(), schema);
+
           return visitor.array(schema, result);
         }
 
       case MAP:
-        visitor.parentSchemas.push(schema);
+        visitor.beforeMapValue("value", schema.getValueType(), schema);
         T result = visitWithName("value", schema.getValueType(), visitor);
-        visitor.parentSchemas.pop();
+        visitor.afterMapValue("value", schema.getValueType(), schema);
+
         return visitor.map(schema, result);
 
       default:
@@ -83,18 +87,9 @@ public abstract class AvroSchemaVisitor<T> {
 
   private Deque<String> recordLevels = Lists.newLinkedList();
   private Deque<String> fieldNames = Lists.newLinkedList();
-  private Deque<Schema> parentSchemas = Lists.newLinkedList();
 
   protected Deque<String> fieldNames() {
     return fieldNames;
-  }
-
-  protected String lastFieldName() {
-    return fieldNames.peekLast();
-  }
-
-  protected Schema parentSchema() {
-    return parentSchemas.peek();
   }
 
   private static <T> T visitWithName(String name, Schema schema, AvroSchemaVisitor<T> visitor) {
@@ -124,5 +119,27 @@ public abstract class AvroSchemaVisitor<T> {
 
   public T primitive(Schema primitive) {
     return null;
+  }
+
+  public void beforeField(String name, Schema type, Schema parentSchema) {
+  }
+
+  public void afterField(String name, Schema type, Schema parentSchema) {
+  }
+
+  public void beforeListElement(String name, Schema type, Schema parentSchema) {
+    beforeField(name, type, parentSchema);
+  }
+
+  public void afterListElement(String name, Schema type, Schema parentSchema) {
+    afterField(name, type, parentSchema);
+  }
+
+  public void beforeMapValue(String name, Schema type, Schema parentSchema) {
+    beforeField(name, type, parentSchema);
+  }
+
+  public void afterMapValue(String name, Schema type, Schema parentSchema) {
+    afterField(name, type, parentSchema);
   }
 }

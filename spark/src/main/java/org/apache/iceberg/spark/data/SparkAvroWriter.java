@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.data;
 
 import java.io.IOException;
+import java.util.Deque;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -30,10 +31,12 @@ import org.apache.avro.Schema;
 import org.apache.avro.io.Encoder;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.avro.AvroWriterBuilderFieldIdUtil;
 import org.apache.iceberg.avro.MetricsAwareDatumWriter;
 import org.apache.iceberg.avro.ValueWriter;
 import org.apache.iceberg.avro.ValueWriters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
@@ -66,6 +69,8 @@ public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
   }
 
   private static class WriteBuilder extends AvroWithSparkSchemaVisitor<ValueWriter<?>> {
+    private final Deque<Integer> fieldIds = Lists.newLinkedList();
+
     @Override
     public ValueWriter<?> record(DataType struct, Schema record, List<String> names, List<ValueWriter<?>> fields) {
       return SparkValueWriters.struct(fields, IntStream.range(0, names.size())
@@ -104,7 +109,9 @@ public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
 
     @Override
     public ValueWriter<?> primitive(DataType type, Schema primitive) {
-      int fieldId = AvroSchemaUtil.fieldId(primitive, parentSchema(), this::lastFieldName);
+      Preconditions.checkState(!fieldIds.isEmpty() && fieldIds.peek() != null,
+          "[BUG] cannot get field id for logical type %s and schema %s", type, primitive);
+      int fieldId = fieldIds.peek();
 
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
@@ -156,6 +163,26 @@ public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
         default:
           throw new IllegalArgumentException("Unsupported type: " + primitive);
       }
+    }
+
+    public void beforeField(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.beforeField(fieldIds, name, parentSchema);
+    }
+
+    public void afterField(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.afterField(fieldIds);
+    }
+
+    public void beforeListElement(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.beforeListElement(fieldIds, parentSchema);
+    }
+
+    public void beforeMapKey(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.beforeMapKey(fieldIds, name, parentSchema);
+    }
+
+    public void beforeMapValue(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.beforeMapValue(fieldIds, name, parentSchema);
     }
   }
 }

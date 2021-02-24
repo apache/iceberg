@@ -22,7 +22,6 @@ package org.apache.iceberg.avro;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
@@ -243,28 +242,6 @@ public class AvroSchemaUtil {
       return hasProperty(fromOption(schema), propertyName);
     }
     return schema.getObjectProp(propertyName) != null;
-  }
-
-  public static int fieldId(Schema currentSchema, Schema parentSchema, Supplier<String> fieldNameGetter) {
-    Preconditions.checkNotNull(parentSchema, "Detected no parent schema for schema %s", currentSchema);
-
-    switch (parentSchema.getType()) {
-      case RECORD:
-        String fieldName = fieldNameGetter.get();
-        Schema.Field field = parentSchema.getField(fieldName);
-        Preconditions.checkNotNull(field,
-            "Cannot get field id with field name %s from schema %s for current schema %s",
-            fieldName, parentSchema, currentSchema);
-
-        return getFieldId(field);
-      case ARRAY:
-        return getElementId(parentSchema);
-      case MAP:
-        return getValueId(parentSchema);
-      default:
-        throw new IllegalStateException(String.format(
-            "Cannot retrieve field ID of current schema %s from parent schema %s ", currentSchema, parentSchema));
-    }
   }
 
   public static int getKeyId(Schema schema) {

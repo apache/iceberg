@@ -113,26 +113,25 @@ public class FlinkValueWriters {
     }
   }
 
-  private static class TimeMicrosWriter extends ValueWriters.MetricsAwareTransformWriter<Integer, Long> {
+  private static class TimeMicrosWriter extends ValueWriters.StoredAsLongWriter<Integer> {
     private TimeMicrosWriter(int id) {
-      super(id, Long::compareTo, timeMills -> (long) timeMills * 1000);
+      super(id);
     }
 
     @Override
-    protected void writeVal(Long time, Encoder encoder) throws IOException {
-      encoder.writeLong(time);
+    protected long convert(Integer from) {
+      return (long) from * 1000;
     }
   }
 
-  private static class TimestampMicrosWriter extends ValueWriters.MetricsAwareTransformWriter<TimestampData, Long> {
+  private static class TimestampMicrosWriter extends ValueWriters.StoredAsLongWriter<TimestampData> {
     private TimestampMicrosWriter(int id) {
-      super(id, Long::compareTo,
-          timestampData -> timestampData.getMillisecond() * 1000 + timestampData.getNanoOfMillisecond() / 1000);
+      super(id);
     }
 
     @Override
-    protected void writeVal(Long datum, Encoder encoder) throws IOException {
-      encoder.writeLong(datum);
+    protected long convert(TimestampData timestampData) {
+      return timestampData.getMillisecond() * 1000 + timestampData.getNanoOfMillisecond() / 1000;
     }
   }
 

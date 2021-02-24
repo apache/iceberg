@@ -52,9 +52,10 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
             visitor.isStringType(keyType),
             "Invalid map: %s is not a string", keyType);
 
-        visitor.parentSchemas.push(schema);
-        T result = visitWithName("value", visitor.mapValueType(partner), schema.getValueType(), visitor);
-        visitor.parentSchemas.pop();
+        visitor.beforeMapValue("value", schema.getValueType(), schema);
+        T result = visit(visitor.mapValueType(partner), schema.getValueType(), visitor);
+        visitor.afterMapValue("value", schema.getValueType(), schema);
+
         return visitor.map(partner, schema, result);
 
       default:
@@ -72,7 +73,6 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
     List<Schema.Field> fields = record.getFields();
 
     visitor.recordLevels.push(name);
-    visitor.parentSchemas.push(record);
 
     List<String> names = Lists.newArrayListWithExpectedSize(fields.size());
     List<T> results = Lists.newArrayListWithExpectedSize(fields.size());
@@ -82,12 +82,14 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
       Schema.Field field = fields.get(i);
       Preconditions.checkArgument(AvroSchemaUtil.makeCompatibleName(fieldName).equals(field.name()),
           "Structs do not match: field %s != %s", fieldName, field.name());
-      results.add(visitWithName(field.name(), nameAndType.second(), field.schema(), visitor));
+
+      visitor.beforeField(field.name(), field.schema(), record);
+      results.add(visit(nameAndType.second(), field.schema(), visitor));
+      visitor.afterField(field.name(), field.schema(), record);
       names.add(fieldName);
     }
 
     visitor.recordLevels.pop();
-    visitor.parentSchemas.pop();
 
     return visitor.record(struct, record, names, results);
   }
@@ -115,30 +117,27 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
           AvroSchemaUtil.isKeyValueSchema(array.getElementType()),
           "Cannot visit invalid logical map type: %s", array);
       List<Schema.Field> keyValueFields = array.getElementType().getFields();
-      visitor.parentSchemas.push(array.getElementType());
 
-      result = visitor.map(type, array,
-          visitWithName("key", visitor.mapKeyType(type), keyValueFields.get(0).schema(), visitor),
-          visitWithName("value", visitor.mapValueType(type), keyValueFields.get(1).schema(), visitor));
+      Schema mapKeySchema = keyValueFields.get(0).schema();
+      visitor.beforeMapKey("key", mapKeySchema, array.getElementType());
+      T key = visit(visitor.mapKeyType(type), keyValueFields.get(0).schema(), visitor);
+      visitor.afterMapKey("key", mapKeySchema, array.getElementType());
+
+      Schema mapValueSchema = keyValueFields.get(1).schema();
+      visitor.beforeMapValue("value", mapValueSchema, array.getElementType());
+      T value = visit(visitor.mapValueType(type), keyValueFields.get(1).schema(), visitor);
+      visitor.afterMapValue("value", mapValueSchema, array.getElementType());
+
+      result = visitor.map(type, array, key, value);
     } else {
-      visitor.parentSchemas.push(array);
+      visitor.beforeListElement("element", array.getElementType(), array);
+      T element = visit(visitor.arrayElementType(type), array.getElementType(), visitor);
+      visitor.afterListElement("element", array.getElementType(), array);
 
-      result = visitor.array(type, array,
-          visitWithName("element", visitor.arrayElementType(type), array.getElementType(), visitor));
+      result = visitor.array(type, array, element);
     }
 
-    visitor.parentSchemas.pop();
     return result;
-  }
-
-  private static <P, T> T visitWithName(String name, P partner, Schema schema,
-                                        AvroWithPartnerByStructureVisitor<P, T> visitor) {
-    try {
-      visitor.fieldNames.addLast(name);
-      return visit(partner, schema, visitor);
-    } finally {
-      visitor.fieldNames.removeLast();
-    }
   }
 
   /**
@@ -187,16 +186,35 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
     return null;
   }
 
-  // ---------------------------------- Helpers ---------------------------------------------
+  // ---------------------------------- Before/After type methods --------------------------------------
 
-  private Deque<String> fieldNames = Lists.newLinkedList();
-  private Deque<Schema> parentSchemas = Lists.newLinkedList();
-
-  protected String lastFieldName() {
-    return fieldNames.peekLast();
+  public void beforeField(String name, Schema type, Schema parentSchema) {
   }
 
-  protected Schema parentSchema() {
-    return parentSchemas.peek();
+  public void afterField(String name, Schema type, Schema parentSchema) {
+  }
+
+  public void beforeListElement(String name, Schema type, Schema parentSchema) {
+    beforeField(name, type, parentSchema);
+  }
+
+  public void afterListElement(String name, Schema type, Schema parentSchema) {
+    afterField(name, type, parentSchema);
+  }
+
+  public void beforeMapKey(String name, Schema type, Schema parentSchema) {
+    beforeField(name, type, parentSchema);
+  }
+
+  public void afterMapKey(String name, Schema type, Schema parentSchema) {
+    afterField(name, type, parentSchema);
+  }
+
+  public void beforeMapValue(String name, Schema type, Schema parentSchema) {
+    beforeField(name, type, parentSchema);
+  }
+
+  public void afterMapValue(String name, Schema type, Schema parentSchema) {
+    afterField(name, type, parentSchema);
   }
 }

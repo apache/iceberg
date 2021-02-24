@@ -20,6 +20,7 @@
 package org.apache.iceberg.avro;
 
 import java.io.IOException;
+import java.util.Deque;
 import java.util.List;
 import java.util.stream.Stream;
 import org.apache.avro.LogicalType;
@@ -28,6 +29,7 @@ import org.apache.avro.Schema;
 import org.apache.avro.io.Encoder;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class GenericAvroWriter<T> implements MetricsAwareDatumWriter<T> {
   private ValueWriter<T> writer = null;
@@ -53,6 +55,8 @@ class GenericAvroWriter<T> implements MetricsAwareDatumWriter<T> {
   }
 
   private static class WriteBuilder extends AvroSchemaVisitor<ValueWriter<?>> {
+    private final Deque<Integer> fieldIds = Lists.newLinkedList();
+
     private WriteBuilder() {
     }
 
@@ -92,7 +96,9 @@ class GenericAvroWriter<T> implements MetricsAwareDatumWriter<T> {
 
     @Override
     public ValueWriter<?> primitive(Schema primitive) {
-      int fieldId = AvroSchemaUtil.fieldId(primitive, parentSchema(), this::lastFieldName);
+      Preconditions.checkState(!fieldIds.isEmpty() && fieldIds.peek() != null,
+          "[BUG] cannot get field id for primitive type %s", primitive);
+      int fieldId = fieldIds.peek();
 
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
@@ -140,6 +146,22 @@ class GenericAvroWriter<T> implements MetricsAwareDatumWriter<T> {
         default:
           throw new IllegalArgumentException("Unsupported type: " + primitive);
       }
+    }
+
+    public void beforeField(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.beforeField(fieldIds, name, parentSchema);
+    }
+
+    public void afterField(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.afterField(fieldIds);
+    }
+
+    public void beforeListElement(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.beforeListElement(fieldIds, parentSchema);
+    }
+
+    public void beforeMapValue(String name, Schema type, Schema parentSchema) {
+      AvroWriterBuilderFieldIdUtil.beforeMapValue(fieldIds, name, parentSchema);
     }
   }
 }

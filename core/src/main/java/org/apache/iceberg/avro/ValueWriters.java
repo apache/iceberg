@@ -116,7 +116,11 @@ public class ValueWriters {
   }
 
   public static <T> ValueWriter<T> option(int nullIndex, ValueWriter<T> writer, Schema.Type type) {
-    return new OptionWriter<>(nullIndex, writer, type);
+    if (AvroSchemaUtil.supportsMetrics(type)) {
+      return new MetricsOptionWriter<>(nullIndex, writer);
+    } else {
+      return new OptionWriter<>(nullIndex, writer);
+    }
   }
 
   public static <T> ValueWriter<Collection<T>> array(ValueWriter<T> elementWriter) {
@@ -140,7 +144,7 @@ public class ValueWriters {
   /**
    * NullWriter is created as a placeholder so that when building writers from schema,
    * visitor could use the existence of NullWriter for input verification when constructing optional fields.
-   * The actual writing of null values is handled by {@link OptionWriter}.
+   * The actual writing of null values is handled by {@link OptionWriter} or {@link MetricsOptionWriter}.
    */
   private static class NullWriter implements ValueWriter<Void> {
     private static final NullWriter INSTANCE = new NullWriter();
@@ -150,12 +154,12 @@ public class ValueWriters {
 
     @Override
     public void write(Void ignored, Encoder encoder) throws IOException {
-      throw new IllegalStateException("[BUG] NullWriter shouldn't be used for writing nulls for Avro");
+      encoder.writeNull();
     }
 
     @Override
     public Stream<FieldMetrics> metrics() {
-      throw new IllegalStateException("[BUG] NullWriter shouldn't be used for writing nulls for Avro");
+      return Stream.empty();
     }
   }
 
@@ -170,25 +174,25 @@ public class ValueWriters {
     }
   }
 
-  private static class ByteToIntegerWriter extends MetricsAwareTransformWriter<Byte, Integer> {
+  private static class ByteToIntegerWriter extends StoredAsIntWriter<Byte> {
     private ByteToIntegerWriter(int id) {
-      super(id, Integer::compareTo, Byte::intValue);
+      super(id);
     }
 
     @Override
-    protected void writeVal(Integer intVal, Encoder encoder) throws IOException {
-      encoder.writeInt(intVal);
+    protected int convert(Byte from) {
+      return from.intValue();
     }
   }
 
-  private static class ShortToIntegerWriter extends MetricsAwareTransformWriter<Short, Integer> {
+  private static class ShortToIntegerWriter extends StoredAsIntWriter<Short> {
     private ShortToIntegerWriter(int id) {
-      super(id, Integer::compareTo, Short::intValue);
+      super(id);
     }
 
     @Override
-    protected void writeVal(Integer intValue, Encoder encoder) throws IOException {
-      encoder.writeInt(intValue);
+    protected int convert(Short from) {
+      return from.intValue();
     }
   }
 
@@ -376,14 +380,13 @@ public class ValueWriters {
     }
   }
 
+  @SuppressWarnings("checkstyle:VisibilityModifier")
   private static class OptionWriter<T> implements ValueWriter<T> {
     private final int nullIndex;
     private final int valueIndex;
-    private final ValueWriter<T> valueWriter;
-    private final Schema.Type type;
-    private long nullValueCount;
+    protected final ValueWriter<T> valueWriter;
 
-    private OptionWriter(int nullIndex, ValueWriter<T> valueWriter, Schema.Type type) {
+    private OptionWriter(int nullIndex, ValueWriter<T> valueWriter) {
       this.nullIndex = nullIndex;
       if (nullIndex == 0) {
         this.valueIndex = 1;
@@ -393,15 +396,12 @@ public class ValueWriters {
         throw new IllegalArgumentException("Invalid option index: " + nullIndex);
       }
       this.valueWriter = valueWriter;
-      this.type = type;
-      this.nullValueCount = 0;
     }
 
     @Override
     public void write(T option, Encoder encoder) throws IOException {
       if (option == null) {
         encoder.writeIndex(nullIndex);
-        nullValueCount++;
       } else {
         encoder.writeIndex(valueIndex);
         valueWriter.write(option, encoder);
@@ -410,17 +410,32 @@ public class ValueWriters {
 
     @Override
     public Stream<FieldMetrics> metrics() {
-      if (AvroSchemaUtil.supportsMetrics(type)) {
-        return mergeNullCountIntoMetric();
-      } else {
-        return valueWriter.metrics();
+      return valueWriter.metrics();
+    }
+  }
+
+  private static class MetricsOptionWriter<T> extends OptionWriter<T> {
+    private long nullValueCount;
+
+    private MetricsOptionWriter(int nullIndex, ValueWriter<T> valueWriter) {
+      super(nullIndex, valueWriter);
+      this.nullValueCount = 0;
+    }
+
+    @Override
+    public void write(T option, Encoder encoder) throws IOException {
+      super.write(option, encoder);
+      if (option == null) {
+        nullValueCount++;
       }
     }
 
-    private Stream<FieldMetrics> mergeNullCountIntoMetric() {
+    @Override
+    public Stream<FieldMetrics> metrics() {
       List<FieldMetrics> fieldMetricsFromWriter = valueWriter.metrics().collect(Collectors.toList());
       Preconditions.checkState(fieldMetricsFromWriter.size() == 1,
-          "Optional %s writer should not produce metrics for more than one field", type);
+          "MetricsOptionWriter should not merge null metrics for more than one field. " +
+              "Current number of fields: %s", fieldMetricsFromWriter.size());
 
       FieldMetrics metrics = fieldMetricsFromWriter.get(0);
       return Stream.of(
@@ -563,25 +578,26 @@ public class ValueWriters {
   }
 
   private abstract static class FloatingPointWriter<T extends Comparable<T>>
-      extends ComparableWriter<T> {
+      extends MetricsAwareWriter<T> {
     private long nanValueCount;
 
     FloatingPointWriter(int id) {
-      super(id);
+      // pass null to comparator since we override write() method that uses comparator in this class.
+      super(id, null);
     }
 
     @Override
     public void write(T datum, Encoder encoder) throws IOException {
       valueCount++;
 
-      if (datum == null) {
-        nullValueCount++;
-      } else if (NaNUtil.isNaN(datum)) {
+      // null value should be handled by option writer, thus assume datum will not be null here.
+      if (NaNUtil.isNaN(datum)) {
         nanValueCount++;
       } else {
         if (max == null || datum.compareTo(max) > 0) {
           this.max = datum;
         }
+
         if (min == null || datum.compareTo(min) < 0) {
           this.min = datum;
         }
@@ -592,7 +608,7 @@ public class ValueWriters {
 
     @Override
     public Stream<FieldMetrics> metrics() {
-      return Stream.of(new FieldMetrics<>(id, valueCount, nullValueCount, nanValueCount, min, max));
+      return Stream.of(new FieldMetrics<>(id, valueCount, 0, nanValueCount, min, max));
     }
   }
 
@@ -632,9 +648,41 @@ public class ValueWriters {
    *
    * @param <T> Input type
    */
-  public abstract static class MetricsAwareWriter<T> extends MetricsAwareTransformWriter<T, T> {
+  @SuppressWarnings("checkstyle:VisibilityModifier")
+  public abstract static class MetricsAwareWriter<T> implements ValueWriter<T> {
+    protected final int id;
+    protected long valueCount;
+    protected T max;
+    protected T min;
+
+    private final Comparator<T> comparator;
+
     public MetricsAwareWriter(int id, Comparator<T> comparator) {
-      super(id, comparator, Function.identity());
+      this.id = id;
+      this.comparator = comparator;
+    }
+
+    @Override
+    public void write(T datum, Encoder encoder) throws IOException {
+      valueCount++;
+
+      // null value should be handled by option writer, thus assume datum will not be null here.
+      if (max == null || comparator.compare(datum, max) > 0) {
+        max = datum;
+      }
+
+      if (min == null || comparator.compare(datum, min) < 0) {
+        min = datum;
+      }
+
+      writeVal(datum, encoder);
+    }
+
+    protected abstract void writeVal(T datum, Encoder encoder) throws IOException;
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.of(new FieldMetrics<>(id, valueCount, 0, 0, min, max));
     }
 
     /**
@@ -643,71 +691,100 @@ public class ValueWriters {
      * understands to a more general type that could be transformed to binary following iceberg single-value
      * serialization spec.
      *
-     * @param func tranformation function
+     * @param func transformation function
      * @return a stream of field metrics with bounds converted by the given transformation
      */
     protected Stream<FieldMetrics> metrics(Function<T, ?> func) {
-      return Stream.of(new FieldMetrics<>(id, valueCount, nullValueCount, 0,
-          updateBound(min, func), updateBound(max, func)));
-    }
-
-    private <T3, T4> T4 updateBound(T3 bound, Function<T3, T4> func) {
-      return bound == null ? null : func.apply(bound);
+      return Stream.of(new FieldMetrics<>(id, valueCount, 0, 0,
+          min == null ? null : func.apply(min), max == null ? null : func.apply(max)));
     }
   }
 
   /**
-   * A value writer wrapper that keeps track of column statistics (metrics) during writing, and accepts a
-   * transformation in its constructor.
-   * The transformation will apply to the input data to produce the type that the underlying writer accepts.
-   * Stats will also be tracked with the type after transformation.
+   * A value writer wrapper that keeps track of column statistics (metrics) during writing.
+   * Implementations have to supply a convert() function, which will be applied to the input
+   * data to produce the integer type that the underlying writer accepts. Stats will also be
+   * tracked with int type.
    *
-   * @param <T1> Input type
-   * @param <T2> Type after transformation
+   * @param <T> Input type before conversion
    */
   @SuppressWarnings("checkstyle:VisibilityModifier")
-  public abstract static class MetricsAwareTransformWriter<T1, T2> implements ValueWriter<T1> {
+  public abstract static class StoredAsIntWriter<T> implements ValueWriter<T> {
     protected final int id;
     protected long valueCount;
-    protected long nullValueCount;
-    protected T2 max;
-    protected T2 min;
-    protected final Function<T1, T2> transformation;
+    protected Integer max;
+    protected Integer min;
 
-    private final Comparator<T2> comparator;
-
-    public MetricsAwareTransformWriter(int id, Comparator<T2> comparator, Function<T1, T2> func) {
+    public StoredAsIntWriter(int id) {
       this.id = id;
-      this.comparator = comparator;
-      this.transformation = func;
     }
+
+    protected abstract int convert(T from);
 
     @Override
-    public void write(T1 datum, Encoder encoder) throws IOException {
+    public void write(T datum, Encoder encoder) throws IOException {
       valueCount++;
-      if (datum == null) {
-        nullValueCount++;
-        writeVal(null, encoder);
 
-      } else {
-        T2 transformedDatum = transformation.apply(datum);
-        if (max == null || comparator.compare(transformedDatum, max) > 0) {
-          max = transformedDatum;
-        }
-        if (min == null || comparator.compare(transformedDatum, min) < 0) {
-          min = transformedDatum;
-        }
-        writeVal(transformedDatum, encoder);
+      // null value should be handled by option writer, thus assume datum will not be null here.
+      int value = convert(datum);
 
+      if (max == null || value > max) {
+        max = value;
       }
+      if (min == null || value < min) {
+        min = value;
+      }
+      encoder.writeInt(value);
     }
-
-    protected abstract void writeVal(T2 datum, Encoder encoder) throws IOException;
 
     @Override
     public Stream<FieldMetrics> metrics() {
-      return Stream.of(new FieldMetrics<>(id, valueCount, nullValueCount, 0, min, max));
+      return Stream.of(new FieldMetrics<>(id, valueCount, 0, 0, min, max));
     }
   }
 
+  /**
+   * A value writer wrapper that keeps track of column statistics (metrics) during writing.
+   * Implementations have to supply a convert() function, which will be applied to the input
+   * data to produce the long type that the underlying writer accepts. Stats will also be
+   * tracked with long type.
+   *
+   * @param <T> Input type before conversion
+   */
+  @SuppressWarnings("checkstyle:VisibilityModifier")
+  public abstract static class StoredAsLongWriter<T> implements ValueWriter<T> {
+    protected final int id;
+    protected long valueCount;
+    protected Long max;
+    protected Long min;
+
+    public StoredAsLongWriter(int id) {
+      this.id = id;
+    }
+
+    protected abstract long convert(T from);
+
+    @Override
+    public void write(T datum, Encoder encoder) throws IOException {
+      valueCount++;
+
+      // null value should be handled by option writer, thus assume datum will not be null here.
+      long value = convert(datum);
+
+      if (max == null || value > max) {
+        max = value;
+      }
+
+      if (min == null || value < min) {
+        min = value;
+      }
+
+      encoder.writeLong(value);
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.of(new FieldMetrics<>(id, valueCount, 0, 0, min, max));
+    }
+  }
 }
