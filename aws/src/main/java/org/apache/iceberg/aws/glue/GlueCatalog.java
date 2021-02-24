@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
+import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.TableMetadata;
@@ -176,6 +177,9 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
       nextToken = response.nextToken();
       if (response.hasTableList()) {
         results.addAll(response.tableList().stream()
+            .filter(t -> t.parameters() != null &&
+                BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.equals(
+                    t.parameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP)))
             .map(GlueToIcebergConverter::toTableId)
             .collect(Collectors.toList()));
       }
