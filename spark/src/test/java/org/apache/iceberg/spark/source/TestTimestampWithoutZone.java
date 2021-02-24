@@ -110,7 +110,7 @@ public abstract class TestTimestampWithoutZone {
 
   @Before
   public void writeUnpartitionedTable() throws IOException {
-    this.parent = temp.newFolder("TestFilteredScan");
+    this.parent = temp.newFolder("TestTimestampWithoutZone");
     this.unpartitioned = new File(parent, "unpartitioned");
     File dataFolder = new File(unpartitioned, "data");
     Assert.assertTrue("Mkdir should succeed", dataFolder.mkdirs());
