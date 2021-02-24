@@ -29,13 +29,19 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MergeableScanTask;
 import org.apache.iceberg.MockFileScanTask;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SplittableScanTask;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -134,6 +140,132 @@ public class TestTableScanUtil {
             new ChildTask3(32));
     List<ParentTask> mergedTasks = TableScanUtil.mergeTasks(tasks);
     Assert.assertEquals("Appropriate tasks should be merged", 3, mergedTasks.size());
+  }
+
+  private static final Schema TEST_SCHEMA =
+      new Schema(
+          Types.NestedField.optional(1, "c1", Types.IntegerType.get()),
+          Types.NestedField.optional(2, "c2", Types.StringType.get()),
+          Types.NestedField.optional(3, "c3", Types.StringType.get()),
+          Types.NestedField.optional(4, "c4", Types.StringType.get()));
+
+  private static final PartitionSpec SPEC1 =
+      PartitionSpec.builderFor(TEST_SCHEMA).identity("c1").identity("c2").build();
+
+  private static final PartitionSpec SPEC2 =
+      PartitionSpec.builderFor(TEST_SCHEMA).identity("c1").identity("c3").identity("c2").build();
+
+  private static final StructLike PARTITION1 = new TestStructLike(100, "a");
+  private static final StructLike PARTITION2 = new TestStructLike(200, "b");
+
+  @Test
+  public void testTaskGroupPlanningByPartition() {
+    // When all files belong to the same partition, we should combine them together as long as the
+    // total file
+    // size is <= split size
+    List<FileScanTask> tasks =
+        ImmutableList.of(
+            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION1, 64),
+            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION1, 128),
+            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION1, 64),
+            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION1, 128));
+
+    StructProjection projection =
+        StructProjection.create(SPEC1.partitionType(), SPEC1.partitionType());
+    int count = 0;
+    for (CombinedScanTask task : TableScanUtil.planTasks(tasks, 512, 10, 4, projection)) {
+      Assert.assertEquals(4, task.files().size());
+      Assert.assertEquals(64 + 128 + 64 + 128, task.sizeBytes());
+      count += 1;
+    }
+    Assert.assertEquals(1, count);
+
+    // We have 2 files from partition 1 and 2 files from partition 2, so they should be combined
+    // separately
+    tasks =
+        ImmutableList.of(
+            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION1, 64),
+            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION1, 128),
+            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION2, 64),
+            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION2, 128));
+
+    count = 0;
+    for (CombinedScanTask task : TableScanUtil.planTasks(tasks, 512, 10, 4, projection)) {
+      Assert.assertEquals(2, task.files().size());
+      Assert.assertEquals(64 + 128, task.sizeBytes());
+      count += 1;
+    }
+    Assert.assertEquals(2, count);
+
+    // Similar to the case above, but now files have different partition specs
+    tasks =
+        ImmutableList.of(
+            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION1, 64),
+            taskWithPartition(TEST_SCHEMA, SPEC2, PARTITION1, 128),
+            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION2, 64),
+            taskWithPartition(TEST_SCHEMA, SPEC2, PARTITION2, 128));
+
+    count = 0;
+    for (CombinedScanTask task : TableScanUtil.planTasks(tasks, 512, 10, 4, projection)) {
+      Assert.assertEquals(2, task.files().size());
+      Assert.assertEquals(64 + 128, task.sizeBytes());
+      count += 1;
+    }
+    Assert.assertEquals(2, count);
+
+    // Combining within partitions should also respect split size. In this case, the split size
+    // is equal to the file size, so each partition will have 2 tasks.
+    tasks =
+        ImmutableList.of(
+            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION1, 128),
+            taskWithPartition(TEST_SCHEMA, SPEC2, PARTITION1, 128),
+            taskWithPartition(TEST_SCHEMA, SPEC1, PARTITION2, 128),
+            taskWithPartition(TEST_SCHEMA, SPEC2, PARTITION2, 128));
+
+    count = 0;
+    for (CombinedScanTask task : TableScanUtil.planTasks(tasks, 128, 10, 4, projection)) {
+      Assert.assertEquals(1, task.files().size());
+      Assert.assertEquals(128, task.sizeBytes());
+      count += 1;
+    }
+    Assert.assertEquals(4, count);
+  }
+
+  private DataFile fileWithPartition(StructLike partition, long length) {
+    DataFile mockFile = Mockito.mock(DataFile.class);
+    Mockito.when(mockFile.partition()).thenReturn(partition);
+    Mockito.when(mockFile.fileSizeInBytes()).thenReturn(length);
+    return mockFile;
+  }
+
+  private FileScanTask taskWithPartition(
+      Schema schema, PartitionSpec partitionSpec, StructLike partition, long length) {
+    DataFile dataFile = fileWithPartition(partition, length);
+    return new MockFileScanTask(
+        dataFile, SchemaParser.toJson(schema), PartitionSpecParser.toJson(partitionSpec));
+  }
+
+  private static class TestStructLike implements StructLike {
+    private final Object[] values;
+
+    TestStructLike(Object... values) {
+      this.values = values;
+    }
+
+    @Override
+    public int size() {
+      return values.length;
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      return javaClass.cast(values[pos]);
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("set is not supported");
+    }
   }
 
   private interface ParentTask extends ScanTask {}

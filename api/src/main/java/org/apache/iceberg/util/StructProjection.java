@@ -90,6 +90,13 @@ public class StructProjection implements StructLike {
   private final StructProjection[] nestedProjections;
   private StructLike struct;
 
+  private StructProjection(StructProjection other) {
+    this.type = other.type;
+    this.positionMap = other.positionMap;
+    this.nestedProjections = other.nestedProjections;
+    this.struct = other.struct;
+  }
+
   private StructProjection(StructType structType, StructType projection) {
     this(structType, projection, false);
   }
@@ -169,6 +176,14 @@ public class StructProjection implements StructLike {
   public StructProjection wrap(StructLike newStruct) {
     this.struct = newStruct;
     return this;
+  }
+
+  public StructProjection copy() {
+    return new StructProjection(this);
+  }
+
+  public StructType type() {
+    return type;
   }
 
   @Override
