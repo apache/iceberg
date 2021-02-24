@@ -82,8 +82,8 @@ public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots
   /**
    * Passes an alternative executor service that will be used for manifests and data files deletion.
    * <p>
-   * If this method is not called, unnecessary manifests and data files will still be deleted using
-   * a single threaded executor service.
+   * If this method is not called, unnecessary manifests and data files will still be deleted in
+   * the current thread.
    * <p>
    * Identical to {@link org.apache.iceberg.ExpireSnapshots#executeDeleteWith(ExecutorService)}
    *

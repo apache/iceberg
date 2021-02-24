@@ -41,7 +41,7 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
   /**
    * Enables or disables case sensitive expression binding.
    * <p>
-   * If not set, defaults to
+   * If not set, defaults to false.
    *
    * @param caseSensitive caseSensitive
    * @return this for method chaining
@@ -50,6 +50,8 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
 
   /**
    * Pass a PartitionSpec id to specify which PartitionSpec should be used in DataFile rewrite
+   * <p>
+   * If not set, defaults to the table's default spec ID.
    *
    * @param specId PartitionSpec id to rewrite
    * @return this for method chaining
