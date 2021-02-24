@@ -21,8 +21,6 @@ package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -56,7 +54,6 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.junit.runners.Parameterized.Parameter;
 import static org.junit.runners.Parameterized.Parameters;
@@ -564,61 +561,6 @@ public class TestHiveIcebergStorageHandlerLocalScan {
       Assert.assertEquals(expectedInnerStruct.getField("key"), queryResult.get(0)[0]);
       Assert.assertEquals(expectedInnerStruct.getField("value"), queryResult.get(0)[1]);
     }
-  }
-
-  @Test
-  public void testDateQuery() throws IOException {
-    Schema dateSchema = new Schema(optional(1, "d_date", Types.DateType.get()));
-
-    List<Record> records = TestHelper.RecordsBuilder.newInstance(dateSchema)
-        .add(LocalDate.of(2020, 1, 21))
-        .add(LocalDate.of(2020, 1, 24))
-        .build();
-
-    testTables.createTable(shell, "date_test", dateSchema, fileFormat, records);
-
-    List<Object[]> result = shell.executeStatement("SELECT * from date_test WHERE d_date='2020-01-21'");
-    Assert.assertEquals(1, result.size());
-    Assert.assertEquals("2020-01-21", result.get(0)[0]);
-
-    result = shell.executeStatement("SELECT * from date_test WHERE d_date in ('2020-01-21', '2020-01-22')");
-    Assert.assertEquals(1, result.size());
-    Assert.assertEquals("2020-01-21", result.get(0)[0]);
-
-    result = shell.executeStatement("SELECT * from date_test WHERE d_date > '2020-01-21'");
-    Assert.assertEquals(1, result.size());
-    Assert.assertEquals("2020-01-24", result.get(0)[0]);
-
-    result = shell.executeStatement("SELECT * from date_test WHERE d_date='2020-01-20'");
-    Assert.assertEquals(0, result.size());
-  }
-
-  @Test
-  public void testTimestampQuery() throws IOException {
-    Schema timestampSchema = new Schema(optional(1, "d_ts", Types.TimestampType.withoutZone()));
-
-    List<Record> records = TestHelper.RecordsBuilder.newInstance(timestampSchema)
-        .add(LocalDateTime.of(2019, 1, 22, 9, 44, 54, 100000000))
-        .add(LocalDateTime.of(2019, 2, 22, 9, 44, 54, 200000000))
-        .build();
-
-    testTables.createTable(shell, "ts_test", timestampSchema, fileFormat, records);
-
-    List<Object[]> result = shell.executeStatement("SELECT d_ts FROM ts_test WHERE d_ts='2019-02-22 09:44:54.2'");
-    Assert.assertEquals(1, result.size());
-    Assert.assertEquals("2019-02-22 09:44:54.2", result.get(0)[0]);
-
-    result = shell.executeStatement(
-        "SELECT * FROM ts_test WHERE d_ts in ('2017-01-01 22:30:57.1', '2019-02-22 09:44:54.2')");
-    Assert.assertEquals(1, result.size());
-    Assert.assertEquals("2019-02-22 09:44:54.2", result.get(0)[0]);
-
-    result = shell.executeStatement("SELECT d_ts FROM ts_test WHERE d_ts < '2019-02-22 09:44:54.2'");
-    Assert.assertEquals(1, result.size());
-    Assert.assertEquals("2019-01-22 09:44:54.1", result.get(0)[0]);
-
-    result = shell.executeStatement("SELECT * FROM ts_test WHERE d_ts='2017-01-01 22:30:57.3'");
-    Assert.assertEquals(0, result.size());
   }
 
   private void runCreateAndReadTest(TableIdentifier identifier, String createSQL, Schema expectedSchema,
