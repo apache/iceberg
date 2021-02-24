@@ -27,9 +27,9 @@ import org.apache.iceberg.Table;
 public interface ActionsProvider {
 
   /**
-   * Instantiates an action to snapshot an existing table.
+   * Instantiates an action to snapshot an existing table as a new Iceberg table.
    */
-  default SnapshotTable snapshotTable(String sourceTableIdent, String destTableIdent) {
+  default SnapshotTable snapshotTable(String sourceTableIdent) {
     throw new UnsupportedOperationException(this.getClass().getName() + " does not implement snapshotTable");
   }
 

@@ -25,14 +25,13 @@ import org.apache.iceberg.expressions.Expression;
 /**
  * An action that rewrites data files.
  */
-public interface RewriteDataFiles extends
-    ConfigurableAction<RewriteDataFiles, RewriteDataFiles.Result>,
-    SnapshotUpdate<RewriteDataFiles, RewriteDataFiles.Result> {
-
+public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, RewriteDataFiles.Result> {
   /**
    * Pass a row filter to filter {@link DataFile}s to be rewritten.
    * <p>
    * Note that all files that may contain data matching the filter may be rewritten.
+   * <p>
+   * If not set, all files will be rewritten.
    *
    * @param expr a row filter to filter out data files
    * @return this for method chaining
@@ -41,6 +40,8 @@ public interface RewriteDataFiles extends
 
   /**
    * Enables or disables case sensitive expression binding.
+   * <p>
+   * If not set, defaults to
    *
    * @param caseSensitive caseSensitive
    * @return this for method chaining
@@ -56,12 +57,14 @@ public interface RewriteDataFiles extends
   RewriteDataFiles outputSpecId(int specId);
 
   /**
-   * Specify the target rewrite data file size in bytes
+   * Specify the target data file size in bytes.
+   * <p>
+   * If not set, defaults to the table's target file size.
    *
-   * @param targetSize size in bytes of rewrite data file
+   * @param targetSizeInBytes size in bytes of rewrite data file
    * @return this for method chaining
    */
-  RewriteDataFiles targetSizeInBytes(long targetSize);
+  RewriteDataFiles targetSizeInBytes(long targetSizeInBytes);
 
   /**
    * Specify the number of "bins" considered when trying to pack the next file split into a task. Increasing this
@@ -77,11 +80,11 @@ public interface RewriteDataFiles extends
   RewriteDataFiles splitLookback(int splitLookback);
 
   /**
-   * Specify the minimum file size to count to pack into one "bin". If the read file size is smaller than this specified
-   * threshold, Iceberg will use this value to do count.
+   * Specify the cost of opening a file that will be taken into account during packing files into
+   * bins. If the size of the file is smaller than the cost of opening, then this value will be used
+   * instead of the actual file size.
    * <p>
-   * this configuration controls the number of files to compact for each task, small value would lead to a high
-   * compaction, the default value is 4MB.
+   * If not set, defaults to the table's open file cost.
    *
    * @param splitOpenFileCost minimum file size to count to pack into one "bin".
    * @return this for method chaining
@@ -96,6 +99,7 @@ public interface RewriteDataFiles extends
      * Returns rewritten data files.
      */
     Iterable<DataFile> rewrittenDataFiles();
+
     /**
      * Returns added data files.
      */

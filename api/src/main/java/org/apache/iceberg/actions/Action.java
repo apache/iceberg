@@ -19,12 +19,40 @@
 
 package org.apache.iceberg.actions;
 
+import java.util.Map;
+
 /**
  * An action performed on a table.
  *
+ * @param <ThisT> the child Java API class, returned by method chaining
  * @param <R> the Java type of the result produced by this action
  */
-public interface Action<R> {
+public interface Action<ThisT, R> {
+  /**
+   * Configures this action with an extra option.
+   * <p>
+   * Certain actions allow users to control internal details of their execution via options.
+   *
+   * @param name an option name
+   * @param value an option value
+   * @return this for method chaining
+   */
+  default ThisT option(String name, String value) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement option");
+  }
+
+  /**
+   * Configures this action with extra options.
+   * <p>
+   * Certain actions allow users to control internal details of their execution via options.
+   *
+   * @param options a map of extra options
+   * @return this for method chaining
+   */
+  default ThisT options(Map<String, String> options) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement options");
+  }
+
   /**
    * Executes this action.
    *

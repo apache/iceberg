@@ -29,7 +29,7 @@ import org.apache.iceberg.Snapshot;
  * Similar to {@link org.apache.iceberg.ExpireSnapshots} but may use a query engine to distribute
  * parts of the work.
  */
-public interface ExpireSnapshots extends ConfigurableAction<ExpireSnapshots, ExpireSnapshots.Result> {
+public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots.Result> {
   /**
    * Expires a specific {@link Snapshot} identified by id.
    * <p>

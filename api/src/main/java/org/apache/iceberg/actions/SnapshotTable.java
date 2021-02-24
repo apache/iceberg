@@ -24,33 +24,41 @@ import java.util.Map;
 /**
  * An action that creates an independent snapshot of an existing table.
  */
-public interface SnapshotTable extends Action<SnapshotTable.Result> {
+public interface SnapshotTable extends Action<SnapshotTable, SnapshotTable.Result> {
   /**
-   * Sets the table location.
+   * Sets the table identifier for the newly created Iceberg table.
+   *
+   * @param destTableIdent the destination table identifier
+   * @return this for method chaining
+   */
+  SnapshotTable as(String destTableIdent);
+
+  /**
+   * Sets the table location for the newly created Iceberg table.
    *
    * @param location a table location
    * @return this for method chaining
    */
-  SnapshotTable withLocation(String location);
+  SnapshotTable tableLocation(String location);
 
   /**
-   * Adds additional properties to the newly created Iceberg table. Any properties with
+   * Sets table properties in the newly created Iceberg table. Any properties with
    * the same key name will be overwritten.
    *
    * @param properties a map of properties to be included
    * @return this for method chaining
    */
-  SnapshotTable withProperties(Map<String, String> properties);
+  SnapshotTable tableProperties(Map<String, String> properties);
 
   /**
-   * Adds an additional property to the newly created Iceberg table. Any properties
+   * Sets a table property in the newly created Iceberg table. Any properties
    * with the same key name will be overwritten.
    *
    * @param key   the key of the property to add
    * @param value the value of the property to add
    * @return this for method chaining
    */
-  SnapshotTable withProperty(String key, String value);
+  SnapshotTable tableProperty(String key, String value);
 
   /**
    * The action result that contains a summary of the execution.

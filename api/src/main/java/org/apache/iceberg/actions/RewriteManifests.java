@@ -25,12 +25,11 @@ import org.apache.iceberg.ManifestFile;
 /**
  * An action that rewrites manifests.
  */
-public interface RewriteManifests extends
-    ConfigurableAction<RewriteManifests, RewriteManifests.Result>,
-    SnapshotUpdate<RewriteManifests, RewriteManifests.Result> {
-
+public interface RewriteManifests extends SnapshotUpdate<RewriteManifests, RewriteManifests.Result> {
   /**
    * Rewrites manifests for a given spec id.
+   * <p>
+   * If not set, defaults to the table's default spec ID.
    *
    * @param specId a spec id
    * @return this for method chaining
@@ -39,6 +38,8 @@ public interface RewriteManifests extends
 
   /**
    * Rewrites only manifests that match the given predicate.
+   * <p>
+   * If not set, all manifests will be rewritten.
    *
    * @param predicate a predicate
    * @return this for method chaining
@@ -46,7 +47,9 @@ public interface RewriteManifests extends
   RewriteManifests rewriteIf(Predicate<ManifestFile> predicate);
 
   /**
-   * Passes a location where the manifests should be written.
+   * Passes a location where the staged manifests should be written.
+   * <p>
+   * If not set, defaults to the table's metadata location.
    *
    * @param stagingLocation a staging location
    * @return this for method chaining
@@ -61,6 +64,7 @@ public interface RewriteManifests extends
      * Returns rewritten manifests.
      */
     Iterable<ManifestFile> rewrittenManifests();
+
     /**
      * Returns added manifests.
      */

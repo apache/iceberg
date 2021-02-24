@@ -46,7 +46,7 @@ import org.apache.spark.sql.SparkSession;
 
 import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 
-abstract class BaseSparkAction<R> implements Action<R> {
+abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
   protected abstract Table table();
 

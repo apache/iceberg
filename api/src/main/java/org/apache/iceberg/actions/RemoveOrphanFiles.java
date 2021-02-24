@@ -28,7 +28,7 @@ import java.util.function.Consumer;
  * The set of actual files is built by listing the underlying storage which makes this operation
  * expensive.
  */
-public interface RemoveOrphanFiles extends Action<RemoveOrphanFiles.Result> {
+public interface RemoveOrphanFiles extends Action<RemoveOrphanFiles, RemoveOrphanFiles.Result> {
   /**
    * Passes a location which should be scanned for orphan files.
    * <p>
@@ -44,7 +44,7 @@ public interface RemoveOrphanFiles extends Action<RemoveOrphanFiles.Result> {
    * Removes orphan files only if they are older than the given timestamp.
    * <p>
    * This is a safety measure to avoid removing files that are being added to the table.
-   * For example, there may be a concurrent operation adding new files while the action searches
+   * For example, there may be a concurrent operation adding new files while this action searches
    * for orphan files. New files may not be referenced by the metadata yet but they are not orphan.
    * <p>
    * If not set, defaults to a timestamp 3 days ago.
@@ -57,10 +57,10 @@ public interface RemoveOrphanFiles extends Action<RemoveOrphanFiles.Result> {
   /**
    * Passes an alternative delete implementation that will be used for orphan files.
    * <p>
-   * This method allows to customize the delete func. For example, one may set a custom delete func
-   * and collect all orphan files into a set instead of physically removing them.
+   * This method allows users to customize the delete func. For example, one may set a custom delete
+   * func and collect all orphan files into a set instead of physically removing them.
    * <p>
-   * If not called, uses the table's {@link org.apache.iceberg.io.FileIO io} implementation.
+   * If not set, defaults to using the table's {@link org.apache.iceberg.io.FileIO io} implementation.
    *
    * @param deleteFunc a function that will be called to delete files
    * @return this for method chaining
