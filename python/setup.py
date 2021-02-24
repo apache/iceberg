@@ -15,8 +15,28 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import sys
+
 from setuptools import setup
 
+DEPENDENCIES = ['botocore==1.20.14',
+                'boto3==1.17.14',
+                'fastavro==1.3.2',
+                'hmsclient==0.1.1',
+                'mmh3==3.0.0',
+                'pyparsing==2.4.7',
+                'python-dateutil==2.8.1',
+                'pytz==2021.1',
+                'requests==2.25.1',
+                'retrying==1.3.3',
+                'pyarrow==2.0.0'
+                ]
+
+# pandas doesn't get built for 3.6 anymore, we should consider deprecating 3.6
+if sys.version_info.minor == 6 and sys.version_info.major == 3:
+    DEPENDENCIES.append('pandas==1.1.5')
+else:
+    DEPENDENCIES.append('pandas==1.2.2')
 
 setup(
     name='iceberg',
@@ -26,24 +46,7 @@ setup(
     keywords='iceberg',
     url='https://github.com/apache/iceberg/blob/master/README.md',
     python_requires='>=3.6',
-    install_requires=['botocore==1.20.14',
-                      'boto3==1.17.14',
-                      'fastavro==1.3.2',
-                      'hmsclient==0.1.1',
-                      'mmh3==3.0.0',
-                      'pyparsing==2.4.7',
-                      'python-dateutil==2.8.1',
-                      'pytz==2021.1',
-                      'requests==2.25.1',
-                      'retrying==1.3.3',
-                      'pandas==1.2.2',
-                      'pyarrow==2.0.0'
-                      ],
-    extras_require={
-        "dev": [
-            "virtualenv<20.0.0",
-        ],
-    },
+    install_requires=DEPENDENCIES,
     setup_requires=['setupmeta'],
     license="Apache License 2.0",
     classifiers=[
@@ -51,5 +54,6 @@ setup(
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
     ],
 )
