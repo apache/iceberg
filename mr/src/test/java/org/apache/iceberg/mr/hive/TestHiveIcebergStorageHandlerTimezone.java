@@ -73,8 +73,6 @@ public class TestHiveIcebergStorageHandlerTimezone {
 
   private TestTables testTables;
 
-  private TimeZone originalTz = TimeZone.getDefault();
-
   @Parameter(0)
   public String timezoneString;
 
@@ -107,7 +105,6 @@ public class TestHiveIcebergStorageHandlerTimezone {
   @After
   public void after() {
     shell.stop();
-    TimeZone.setDefault(originalTz);
   }
 
   @Test
