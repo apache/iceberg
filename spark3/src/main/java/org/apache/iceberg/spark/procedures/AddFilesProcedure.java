@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.procedures;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
@@ -54,11 +55,17 @@ import scala.runtime.BoxedUnit;
 
 public class AddFilesProcedure extends BaseProcedure {
 
+  enum Format {
+    hive,
+    orc,
+    parquet,
+    avro
+  }
+
   private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
+      ProcedureParameter.required("source_table", DataTypes.StringType),
       ProcedureParameter.required("table", DataTypes.StringType),
-      ProcedureParameter.required("path", DataTypes.StringType),
-      ProcedureParameter.required("format", DataTypes.StringType),
-      ProcedureParameter.optional("partition_value", STRING_MAP)
+      ProcedureParameter.optional("partition", STRING_MAP)
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
@@ -78,7 +85,6 @@ public class AddFilesProcedure extends BaseProcedure {
     };
   }
 
-
   @Override
   public ProcedureParameter[] parameters() {
     return PARAMETERS;
@@ -91,76 +97,59 @@ public class AddFilesProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
-    String path = args.getString(1);
-    String format =  args.getString(2);
+    String sourceTable = args.getString(0);
+    Format format = parseFormat(sourceTable);
+    Identifier tableIdent = toIdentifier(args.getString(1), PARAMETERS[1].name());
 
-    Map<String, String> partitionSpec = Maps.newHashMap();
-    if (!args.isNullAt(3)) {
-      args.getMap(3).foreach(DataTypes.StringType, DataTypes.StringType,
+    Map<String, String> partition = Maps.newHashMap();
+    if (!args.isNullAt(2)) {
+      args.getMap(2).foreach(DataTypes.StringType, DataTypes.StringType,
           (k, v) -> {
-            partitionSpec.put(k.toString(), v.toString());
+            partition.put(k.toString(), v.toString());
             return BoxedUnit.UNIT;
           });
     }
 
-    Long filesAdded = importDataToIcebergTable(tableIdent, path, format, partitionSpec);
-
+    Long filesAdded = importToIceberg(tableIdent, sourceTable, format, partition);
     return new InternalRow[]{newInternalRow(filesAdded)};
   }
 
-  private Long importDataToIcebergTable(Identifier tableIdent, String path, String format,
-                                        Map<String, String> partition) {
-    return modifyIcebergTable(tableIdent, table -> {
-      Configuration conf = spark().sessionState().newHadoopConf();
-      Path dataPath = new Path(path);
-      FileSystem fs;
-      Boolean isFile;
+  private Format parseFormat(String source) {
+    String[] parts = source.split("\\.");
+    if (parts[0].toLowerCase(Locale.ROOT).equals("orc")) {
+      return Format.orc;
+    }
+    if (parts[0].toLowerCase(Locale.ROOT).equals("parquet")) {
+      return Format.parquet;
+    }
+    return Format.hive;
+  }
 
-      try {
-        fs = dataPath.getFileSystem(conf);
-        isFile = fs.getFileStatus(dataPath).isFile();
-      } catch (IOException e) {
-        throw new RuntimeException("Unable to access add_file path", e);
-      }
-      validatePartitionSpec(table, dataPath, fs, partition);
+  private long importToIceberg(Identifier destIdent, String sourceIdent, Format format, Map<String, String> partition) {
+    return modifyIcebergTable(destIdent, table -> {
 
-      if (table.properties().get(TableProperties.DEFAULT_NAME_MAPPING) == null) {
-        // Forces Name based resolution instead of position based resolution
-        NameMapping mapping = MappingUtil.create(table.schema());
-        String mappingJson = NameMappingParser.toJson(mapping);
-        table.updateProperties()
-            .set(TableProperties.DEFAULT_NAME_MAPPING, mappingJson)
-            .commit();
-      }
+      validatePartitionSpec(table, partition);
+      applyNameMappingIfMissing(table);
 
-      if (isFile || !partition.isEmpty()) {
-        // we do a list operation on the driver to import 1 file or 1 partition
-        PartitionSpec spec = table.spec();
-        MetricsConfig metricsConfig = MetricsConfig.fromProperties(table.properties());
-        String partitionURI;
+      if (format != Format.hive) {
+        Configuration conf = spark().sessionState().newHadoopConf();
+        Path sourcePath = new Path(sourceIdent);
+        FileSystem fs;
+        Boolean isFile;
+        try {
+          fs = sourcePath.getFileSystem(conf);
+          isFile = fs.getFileStatus(sourcePath).isFile();
+        } catch (IOException e) {
+          throw new RuntimeException("Unable to access add_file path", e);
+        }
 
         if (isFile) {
-          partitionURI = dataPath.toString();
+          importFile(table, sourcePath, format, partition);
         } else {
-          partitionURI = dataPath.toString() + toPartitionPath(partition);
+          importFileTable(table, sourcePath, format, partition);
         }
-
-        List<DataFile> files = SparkTableUtil.listPartition(partition, partitionURI, format, spec, conf, metricsConfig);
-        if (files.size() == 0) {
-          throw new IllegalArgumentException(String.format("No files found for add_file command. Looking in URI %s",
-              partitionURI));
-        }
-
-        AppendFiles append = table.newAppend();
-        files.forEach(append::appendFile);
-        append.commit();
       } else {
-        // Importing multiple partitions
-        List<SparkTableUtil.SparkPartition> partitions = Spark3Util.getPartitions(spark(), dataPath, format);
-        String stagingLocation = table.properties()
-            .getOrDefault(TableProperties.WRITE_METADATA_LOCATION, table.location() + "/metadata");
-        SparkTableUtil.importSparkPartitions(spark(), partitions, table, table.spec(), stagingLocation);
+        importHiveTable(table, sourceIdent, partition);
       }
 
       Snapshot snapshot = table.currentSnapshot();
@@ -169,19 +158,95 @@ public class AddFilesProcedure extends BaseProcedure {
     });
   }
 
+  private static void applyNameMappingIfMissing(Table table) {
+    if (table.properties().get(TableProperties.DEFAULT_NAME_MAPPING) == null) {
+      // Forces Name based resolution instead of position based resolution
+      NameMapping mapping = MappingUtil.create(table.schema());
+      String mappingJson = NameMappingParser.toJson(mapping);
+      table.updateProperties()
+          .set(TableProperties.DEFAULT_NAME_MAPPING, mappingJson)
+          .commit();
+    }
+  }
+
+  private int importFile(Table table, Path file, Format format,  Map<String, String> partition) {
+    PartitionSpec spec = table.spec();
+    MetricsConfig metricsConfig = MetricsConfig.fromProperties(table.properties());
+    String partitionURI = file.toString();
+    Configuration conf = spark().sessionState().newHadoopConf();
+
+    List<DataFile> files =
+        SparkTableUtil.listPartition(partition, partitionURI, format.name(), spec, conf, metricsConfig);
+
+    if (files.isEmpty()) {
+      throw new IllegalArgumentException(
+          String.format("No file found for add_file command. Looking for a file at URI %s", partitionURI));
+    }
+
+    // Add Snapshot Summary Info?
+    AppendFiles append = table.newAppend();
+    files.forEach(append::appendFile);
+    append.commit();
+    return 1;
+  }
+
+  private void importFileTable(Table table, Path tableLocation, Format format, Map<String, String> partition) {
+    // List Partitions via Spark InMemory file search interface
+    List<SparkTableUtil.SparkPartition> partitions =
+        filterPartitions(Spark3Util.getPartitions(spark(), tableLocation, format.name()), partition);
+
+    importPartitions(table, partitions);
+  }
+
+  private void importHiveTable(Table table, String sourceTable, Map<String, String> partition) {
+    // Read partitions Spark via Catalog Interface
+    List<SparkTableUtil.SparkPartition> partitions =
+        filterPartitions(SparkTableUtil.getPartitions(spark(), sourceTable), partition);
+
+    importPartitions(table, partitions);
+  }
+
+  private void importPartitions(Table table, List<SparkTableUtil.SparkPartition> partitions) {
+    String stagingLocation = table.properties()
+        .getOrDefault(TableProperties.WRITE_METADATA_LOCATION, table.location() + "/metadata");
+    SparkTableUtil.importSparkPartitions(spark(), partitions, table, table.spec(), stagingLocation);
+  }
+
+  private List<SparkTableUtil.SparkPartition> filterPartitions(List<SparkTableUtil.SparkPartition> partitions,
+                                                               Map<String, String> partition) {
+    if (partition.isEmpty()) {
+      // No partition filter arg
+
+      if (partitions.isEmpty()) {
+        throw new IllegalArgumentException("Cannot add files, no files found in the table.");
+      }
+      return partitions;
+    } else {
+      // Partition filter arg passed
+
+      List<SparkTableUtil.SparkPartition> filteredPartitions = partitions
+          .stream().filter(p -> p.getValues().equals(partition)) // Todo Support Wildcards
+          .collect(Collectors.toList());
+
+      if (filteredPartitions.isEmpty()) {
+        throw new IllegalArgumentException(
+            String.format("No partitions found in table for add_file command. " +
+                    "Looking for a partition with the value %s",
+                partition.entrySet().stream().map(e -> e.getValue() + "=" + e.getValue())
+                    .collect(Collectors.joining(",")))
+        );
+      }
+
+      return filteredPartitions;
+    }
+  }
+
   @Override
   public String description() {
     return null;
   }
 
-  private String toPartitionPath(Map<String, String> partition) {
-    return partition.entrySet().stream()
-        .map(entry -> entry.getKey() + "=" + entry.getValue())
-        .collect(Collectors.joining("/", "/", ""));
-  }
-
-  private void validatePartitionSpec(Table table, Path path, FileSystem fs, Map<String, String> partition) {
-
+  private void validatePartitionSpec(Table table, Map<String, String> partition) {
     List<PartitionField> partitionFields = table.spec().fields();
 
     boolean tablePartitioned = !partitionFields.isEmpty();
@@ -207,18 +272,6 @@ public class AddFilesProcedure extends BaseProcedure {
             );
         }
       });
-    } else if (tablePartitioned && !partitionSpecPassed) {
-      try {
-        if (!fs.getFileStatus(path).isDirectory()) {
-          throw new IllegalArgumentException(
-            String.format(
-              "Cannot add files to target table %s which is partitioned, but no partition spec was provided " +
-              "and path '%s' is not a directory",
-                table.name(), path));
-        }
-      } catch (IOException e) {
-        throw new RuntimeException("Could not access path during add_files", e);
-      }
     } else {
       if (partitionSpecPassed) {
         throw new IllegalArgumentException(
@@ -228,5 +281,4 @@ public class AddFilesProcedure extends BaseProcedure {
       }
     }
   }
-
 }
