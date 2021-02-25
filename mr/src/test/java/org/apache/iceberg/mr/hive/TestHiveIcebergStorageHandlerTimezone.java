@@ -20,9 +20,7 @@
 package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -32,6 +30,7 @@ import org.apache.hadoop.hive.serde2.io.DateWritable;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.common.DynFields;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -51,16 +50,23 @@ import static org.junit.runners.Parameterized.Parameters;
 
 @RunWith(Parameterized.class)
 public class TestHiveIcebergStorageHandlerTimezone {
+  DynFields.StaticField<ThreadLocal<DateFormat>> dateFormat = DynFields.builder()
+      .hiddenImpl(TimestampWritable.class, "threadLocalDateFormat")
+      .defaultAlwaysNull()
+      .buildStatic();
+
+  DynFields.StaticField<ThreadLocal<TimeZone>> localTimeZone = DynFields.builder()
+      .hiddenImpl(DateWritable.class, "LOCAL_TIMEZONE")
+      .defaultAlwaysNull()
+      .buildStatic();
 
   @Parameters(name = "timezone={0}")
   public static Collection<Object[]> parameters() {
-    Collection<Object[]> testParams = ImmutableList.of(
+    return ImmutableList.of(
         new String[] {"America/New_York"},
         new String[] {"Asia/Kolkata"},
         new String[] {"UTC/Greenwich"}
     );
-
-    return testParams;
   }
 
   private TestHiveShell shell;
@@ -79,20 +85,16 @@ public class TestHiveIcebergStorageHandlerTimezone {
   public void before() throws IOException, IllegalAccessException {
     TimeZone.setDefault(TimeZone.getTimeZone(timezoneString));
 
-    try {
-      // Magic to update cached stuff for Hive where the default timezone is used
-      Field formatterField = TimestampWritable.class.getDeclaredField("threadLocalDateFormat");
-      formatterField.setAccessible(true);
-      ThreadLocal<DateFormat> formatter = (ThreadLocal<DateFormat>) formatterField.get(null);
-      formatter.set(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"));
+    // Magic to clean cached date format for Hive where the default timezone is used in the cached object
+    ThreadLocal<DateFormat> dynamicDateFormat = dateFormat.get();
+    if (dynamicDateFormat != null) {
+      dynamicDateFormat.remove();
+    }
 
-      Field localTimeZoneField = DateWritable.class.getDeclaredField("LOCAL_TIMEZONE");
-      localTimeZoneField.setAccessible(true);
-      ThreadLocal<TimeZone> localTimeZone = (ThreadLocal<TimeZone>) localTimeZoneField.get(null);
-      localTimeZone.set(TimeZone.getDefault());
-    } catch (NoSuchFieldException nse) {
-      // Hive2 has thread local cache we have to clean, so the new default timezone is used when formatting
-      // Hive3 we do not have this for Date and Timestamp
+    // Magic to clean cached local timezone for Hive where the default timezone is stored in the cached object
+    ThreadLocal<TimeZone> dynamicTimeZone = localTimeZone.get();
+    if (dynamicTimeZone != null) {
+      dynamicTimeZone.remove();
     }
 
     this.shell = HiveIcebergStorageHandlerTestUtils.shell();
