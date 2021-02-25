@@ -25,6 +25,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.TimeZone;
 import org.apache.hadoop.hive.serde2.io.DateWritable;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
@@ -36,8 +37,10 @@ import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -50,15 +53,19 @@ import static org.junit.runners.Parameterized.Parameters;
 
 @RunWith(Parameterized.class)
 public class TestHiveIcebergStorageHandlerTimezone {
-  private static final DynFields.StaticField<ThreadLocal<DateFormat>> dateFormat = DynFields.builder()
-      .hiddenImpl(TimestampWritable.class, "threadLocalDateFormat")
-      .defaultAlwaysNull()
-      .buildStatic();
+  private static final Optional<ThreadLocal<DateFormat>> dateFormat =
+      Optional.ofNullable((ThreadLocal<DateFormat>) DynFields.builder()
+          .hiddenImpl(TimestampWritable.class, "threadLocalDateFormat")
+          .defaultAlwaysNull()
+          .buildStatic()
+          .get());
 
-  private static final DynFields.StaticField<ThreadLocal<TimeZone>> localTimeZone = DynFields.builder()
-      .hiddenImpl(DateWritable.class, "LOCAL_TIMEZONE")
-      .defaultAlwaysNull()
-      .buildStatic();
+  private static final Optional<ThreadLocal<TimeZone>> localTimeZone =
+      Optional.ofNullable((ThreadLocal<TimeZone>) DynFields.builder()
+          .hiddenImpl(DateWritable.class, "LOCAL_TIMEZONE")
+          .defaultAlwaysNull()
+          .buildStatic()
+          .get());
 
   @Parameters(name = "timezone={0}")
   public static Collection<Object[]> parameters() {
@@ -69,7 +76,7 @@ public class TestHiveIcebergStorageHandlerTimezone {
     );
   }
 
-  private TestHiveShell shell;
+  private static TestHiveShell shell;
 
   private TestTables testTables;
 
@@ -79,32 +86,33 @@ public class TestHiveIcebergStorageHandlerTimezone {
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
+  @BeforeClass
+  public static void beforeClass() {
+    shell = HiveIcebergStorageHandlerTestUtils.shell();
+  }
+
+  @AfterClass
+  public static void afterClass() {
+    shell.stop();
+  }
+
   @Before
-  public void before() throws IOException, IllegalAccessException {
+  public void before() throws IOException {
     TimeZone.setDefault(TimeZone.getTimeZone(timezoneString));
 
-    // Magic to clean cached date format for Hive where the default timezone is used in the cached object
-    ThreadLocal<DateFormat> dynamicDateFormat = dateFormat.get();
-    if (dynamicDateFormat != null) {
-      dynamicDateFormat.remove();
-    }
+    // Magic to clean cached date format and local timezone for Hive where the default timezone is used/stored in the
+    // cached object
+    dateFormat.ifPresent(ThreadLocal::remove);
+    localTimeZone.ifPresent(ThreadLocal::remove);
 
-    // Magic to clean cached local timezone for Hive where the default timezone is stored in the cached object
-    ThreadLocal<TimeZone> dynamicTimeZone = localTimeZone.get();
-    if (dynamicTimeZone != null) {
-      dynamicTimeZone.remove();
-    }
-
-    this.shell = HiveIcebergStorageHandlerTestUtils.shell();
     this.testTables = HiveIcebergStorageHandlerTestUtils.testTables(shell, TestTables.TestTableType.HIVE_CATALOG, temp);
-
     // Uses spark as an engine so we can detect if we unintentionally try to use any execution engines
     HiveIcebergStorageHandlerTestUtils.init(shell, testTables, temp, "spark");
   }
 
   @After
-  public void after() {
-    shell.stop();
+  public void after() throws Exception {
+    HiveIcebergStorageHandlerTestUtils.close(shell);
   }
 
   @Test
