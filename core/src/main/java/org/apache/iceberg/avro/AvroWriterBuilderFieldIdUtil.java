@@ -44,26 +44,15 @@ public class AvroWriterBuilderFieldIdUtil {
   }
 
   public static void beforeMapKey(Deque<Integer> fieldIds, String name, Schema parentSchema) {
-    beforeLogicalMapKeyOrValue(fieldIds, name, parentSchema);
+    fieldIds.push(AvroSchemaUtil.getFieldId(parentSchema.getField(name)));
   }
 
   public static void beforeMapValue(Deque<Integer> fieldIds, String name, Schema parentSchema) {
     if (parentSchema.getType() == Schema.Type.MAP) {
       fieldIds.push(AvroSchemaUtil.getValueId(parentSchema));
     } else {
-      beforeLogicalMapKeyOrValue(fieldIds, name, parentSchema);
-    }
-  }
-
-  private static void beforeLogicalMapKeyOrValue(Deque<Integer> fieldIds, String name, Schema parentSchema) {
-    Schema.Field field = parentSchema.getField(name);
-    if (AvroSchemaUtil.hasFieldId(field)) {
-      // primitive type
+      // logical map
       fieldIds.push(AvroSchemaUtil.getFieldId(parentSchema.getField(name)));
-    } else {
-      // map value is a composed type, and thus id will be stored on record level and pushed by beforeField,
-      // thus push null here should be safe.
-      fieldIds.push(null);
     }
   }
 }

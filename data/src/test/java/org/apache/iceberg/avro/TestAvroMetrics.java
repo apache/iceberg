@@ -30,16 +30,13 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestMetrics;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.avro.DataWriter;
-import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
-public class TestAvroMetrics extends TestMetrics {
+public abstract class TestAvroMetrics extends TestMetrics {
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -59,25 +56,13 @@ public class TestAvroMetrics extends TestMetrics {
     return getMetrics(schema, MetricsConfig.getDefault(), records);
   }
 
-  private Metrics getMetrics(Schema schema, OutputFile file, Map<String, String> properties,
-                             MetricsConfig metricsConfig, Record... records) throws IOException {
-    FileAppender<Record> writer = Avro.write(file)
-        .schema(schema)
-        .setAll(properties)
-        .createWriterFunc(DataWriter::create)
-        .metricsConfig(metricsConfig)
-        .build();
-    try (FileAppender<Record> appender = writer) {
-      appender.addAll(Lists.newArrayList(records));
-    }
-    return writer.metrics();
-  }
+  protected abstract Metrics getMetrics(Schema schema, OutputFile file, Map<String, String> properties,
+                                        MetricsConfig metricsConfig, Record... records) throws IOException;
 
   @Override
   protected Metrics getMetricsForRecordsWithSmallRowGroups(Schema schema, OutputFile outputFile, Record... records) {
     throw new UnsupportedOperationException("supportsSmallRowGroups = " + supportsSmallRowGroups());
   }
-
 
   @Override
   public int splitCount(InputFile inputFile) throws IOException {

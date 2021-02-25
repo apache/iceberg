@@ -131,10 +131,16 @@ public abstract class TestMetrics {
     return false;
   }
 
+  public boolean supportTimeFields() {
+    return true;
+  }
+
   protected abstract OutputFile createOutputFile() throws IOException;
 
   @Test
   public void testMetricsForRepeatedValues() throws IOException {
+    Assume.assumeTrue("Skip test for classes that do not support time field", supportTimeFields());
+
     Record record = GenericRecord.create(SIMPLE_SCHEMA);
     record.setField("booleanCol", true);
     record.setField("intCol", 3);
@@ -169,6 +175,8 @@ public abstract class TestMetrics {
 
   @Test
   public void testMetricsForTopLevelFields() throws IOException {
+    Assume.assumeTrue("Skip test for classes that do not support time field", supportTimeFields());
+
     Record firstRecord = GenericRecord.create(SIMPLE_SCHEMA);
     firstRecord.setField("booleanCol", true);
     firstRecord.setField("intCol", 3);
@@ -343,6 +351,77 @@ public abstract class TestMetrics {
       assertBounds(6, StringType.get(), null, null, metrics);
       assertBounds(7, structType, null, null, metrics);
     }
+  }
+
+  @Test
+  public void testMetricsForComplexMapElements() throws IOException {
+    StructType keyStructType = StructType.of(
+        required(1, "leafIntCol", IntegerType.get()),
+        optional(2, "leafStringCol", StringType.get())
+    );
+    StructType valueSubStructType = StructType.of(
+        required(8, "leafLongCol", LongType.get()),
+        required(9, "leafFloatCol", FloatType.get())
+    );
+    StructType valueStructType = StructType.of(
+        required(3, "leafDoubleCol", DoubleType.get()),
+        optional(4, "leafStructCol", valueSubStructType)
+    );
+    Schema schema = new Schema(
+        optional(5, "mapCol", MapType.ofRequired(6, 7, keyStructType, valueStructType))
+    );
+
+    Record record = GenericRecord.create(schema);
+    Record keyStruct = GenericRecord.create(keyStructType);
+    keyStruct.setField("leafIntCol", 1);
+    keyStruct.setField("leafStringCol", "BBB");
+
+    Record valueSubStruct = GenericRecord.create(valueSubStructType);
+    valueSubStruct.setField("leafLongCol", 8L);
+    valueSubStruct.setField("leafFloatCol", 3.0F);
+
+    Record valueStruct = GenericRecord.create(valueStructType);
+    valueStruct.setField("leafDoubleCol", 2.0D);
+    valueStruct.setField("leafStructCol", valueSubStruct);
+
+    Map<Record, Record> map = Maps.newHashMap();
+    map.put(keyStruct, valueStruct);
+    record.setField("mapCol", map);
+
+    Metrics metrics = getMetrics(schema, record);
+    Assert.assertEquals(1L, (long) metrics.recordCount());
+
+    if (fileFormat() != FileFormat.ORC) {
+      assertCounts(1, 1L, 0L, metrics);
+      assertCounts(2, 1L, 0L, metrics);
+      assertCounts(3, 1L, 0L, 0L, metrics);
+      assertCounts(8, 1L, 0L, metrics);
+      assertCounts(9, 1L, 0L, 0L, metrics);
+    } else {
+      assertCounts(1, null, null, metrics);
+      assertCounts(2, null, null, metrics);
+      assertCounts(3, null, null, 0L, metrics);
+      assertCounts(8, null, null, metrics);
+      assertCounts(9, null, null, 0L, metrics);
+    }
+
+    if (fileFormat() == FileFormat.AVRO) {
+      assertBounds(1, IntegerType.get(), 1, 1, metrics);
+      assertBounds(2, StringType.get(), CharBuffer.wrap("BBB"), CharBuffer.wrap("BBB"), metrics);
+      assertBounds(3, DoubleType.get(), 2.0D, 2.0D, metrics);
+      assertBounds(8, LongType.get(), 8L, 8L, metrics);
+      assertBounds(9, FloatType.get(), 3.0F, 3.0F, metrics);
+    } else {
+      assertBounds(1, IntegerType.get(), null, null, metrics);
+      assertBounds(2, StringType.get(), null, null, metrics);
+      assertBounds(3, DoubleType.get(), null, null, metrics);
+      assertBounds(8, LongType.get(), null, null, metrics);
+      assertBounds(9, FloatType.get(), null, null, metrics);
+    }
+
+    assertBounds(4, valueSubStructType, null, null, metrics);
+    assertBounds(6, keyStructType, null, null, metrics);
+    assertBounds(7, valueStructType, null, null, metrics);
   }
 
   @Test
