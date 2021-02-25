@@ -136,6 +136,58 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
+  public void testRewriteDataFilesWithPredicate() {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> options = Maps.newHashMap();
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    List<ThreeColumnRecord> records1 = Lists.newArrayList(
+        new ThreeColumnRecord(1, null, "AAAA"),
+        new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB")
+    );
+    writeRecords(records1);
+
+    List<ThreeColumnRecord> records2 = Lists.newArrayList(
+        new ThreeColumnRecord(2, "CCCCCCCCCC", "CCCC"),
+        new ThreeColumnRecord(2, "DDDDDDDDDD", "DDDD"),
+        new ThreeColumnRecord(2, "EEEEEEEEEE", "EEEE"),
+        new ThreeColumnRecord(2, "FFFFFFFFFF", "FFFF")
+    );
+    writeRecords(records2);
+
+    table.refresh();
+
+    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
+    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+    Assert.assertEquals("Should have 4 data files before rewrite", 4, dataFiles.size());
+
+    Actions actions = Actions.forTable(table);
+
+    RewriteDataFilesActionResult result = actions.rewriteDataFiles()
+        .rewriteIf(dataFile -> dataFile.recordCount() == 1)
+        .execute();
+    Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
+    Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
+
+    table.refresh();
+
+    CloseableIterable<FileScanTask> tasks1 = table.newScan().planFiles();
+    List<DataFile> dataFiles1 = Lists.newArrayList(CloseableIterable.transform(tasks1, FileScanTask::file));
+    Assert.assertEquals("Should have 3 data files before rewrite", 3, dataFiles1.size());
+
+    List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
+    expectedRecords.addAll(records1);
+    expectedRecords.addAll(records2);
+
+    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
+    List<ThreeColumnRecord> actualRecords = resultDF.sort("c1", "c2")
+        .as(Encoders.bean(ThreeColumnRecord.class))
+        .collectAsList();
+
+    Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
+  }
+
+  @Test
   public void testRewriteDataFilesPartitionedTable() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
         .identity("c1")

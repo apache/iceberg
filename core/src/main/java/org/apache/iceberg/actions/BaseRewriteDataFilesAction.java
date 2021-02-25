@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
@@ -66,6 +67,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
   private long targetSizeInBytes;
   private int splitLookback;
   private long splitOpenFileCost;
+  private Predicate<DataFile> predicate = datefile -> true;
 
   protected BaseRewriteDataFilesAction(Table table) {
     this.table = table;
@@ -190,6 +192,17 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     return this;
   }
 
+  /**
+   * Rewrites only datafiles that match the given predicate.
+   *
+   * @param newPredicate a predicate
+   * @return this for method chaining
+   */
+  public BaseRewriteDataFilesAction<ThisT> rewriteIf(Predicate<DataFile> newPredicate) {
+    this.predicate = newPredicate;
+    return this;
+  }
+
   @Override
   public RewriteDataFilesActionResult execute() {
     CloseableIterable<FileScanTask> fileScanTasks = null;
@@ -209,7 +222,12 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
       }
     }
 
-    Map<StructLikeWrapper, Collection<FileScanTask>> groupedTasks = groupTasksByPartition(fileScanTasks.iterator());
+    CloseableIterable<FileScanTask> filteredFileScanTasks = CloseableIterable.filter(fileScanTasks,
+        fileScanTask -> this.predicate.test(fileScanTask.file()));
+
+    Map<StructLikeWrapper, Collection<FileScanTask>> groupedTasks = groupTasksByPartition(
+        filteredFileScanTasks.iterator());
+
     Map<StructLikeWrapper, Collection<FileScanTask>> filteredGroupedTasks = groupedTasks.entrySet().stream()
         .filter(kv -> kv.getValue().size() > 1)
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
