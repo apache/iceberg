@@ -182,7 +182,7 @@ public class HiveIcebergFilterFactory {
   // Hive uses `java.sql.Timestamp.valueOf(lit.toString());` to convert a literal to Timestamp
   // Which again uses `java.util.Date()` internally to create the object which uses the TimeZone.getDefaultRef()
   // To get back the expected timestamp we have to use the LocalDateTime which gets rid of the TimeZone misery
-  // as it uses the year/month/day/min/sec/nanos to generate the object
+  // as it uses the year/month/day/hour/min/sec/nanos to generate the object
   private static int daysFromTimestamp(Timestamp timestamp) {
     return DateTimeUtil.daysFromDate(timestamp.toLocalDateTime().toLocalDate());
   }

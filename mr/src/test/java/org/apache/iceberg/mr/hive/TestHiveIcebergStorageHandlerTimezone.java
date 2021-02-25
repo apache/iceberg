@@ -50,12 +50,12 @@ import static org.junit.runners.Parameterized.Parameters;
 
 @RunWith(Parameterized.class)
 public class TestHiveIcebergStorageHandlerTimezone {
-  DynFields.StaticField<ThreadLocal<DateFormat>> dateFormat = DynFields.builder()
+  private static final DynFields.StaticField<ThreadLocal<DateFormat>> dateFormat = DynFields.builder()
       .hiddenImpl(TimestampWritable.class, "threadLocalDateFormat")
       .defaultAlwaysNull()
       .buildStatic();
 
-  DynFields.StaticField<ThreadLocal<TimeZone>> localTimeZone = DynFields.builder()
+  private static final DynFields.StaticField<ThreadLocal<TimeZone>> localTimeZone = DynFields.builder()
       .hiddenImpl(DateWritable.class, "LOCAL_TIMEZONE")
       .defaultAlwaysNull()
       .buildStatic();
