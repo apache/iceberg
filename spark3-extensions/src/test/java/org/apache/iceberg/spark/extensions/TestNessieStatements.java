@@ -20,11 +20,13 @@
 package org.apache.iceberg.spark.extensions;
 
 import com.dremio.nessie.client.NessieClient;
+import com.dremio.nessie.error.NessieConflictException;
 import com.dremio.nessie.error.NessieNotFoundException;
+import com.dremio.nessie.model.Tag;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import org.apache.iceberg.catalog.TableIdentifier;
+import java.util.Map;
 import org.apache.iceberg.nessie.NessieCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -41,20 +43,14 @@ import org.junit.rules.TemporaryFolder;
 
 public class TestNessieStatements extends SparkTestBase {
 
-  private static NessieCatalog catalog;
-
   @ClassRule
   @Rule
   public static TemporaryFolder temp = new TemporaryFolder();
-  private static String hash;
-
-  private final TableIdentifier tableIdent = TableIdentifier.of("testnamespace", "testtable");
-  private final String catalogName = "nessie";
-  private final String tableName = catalogName + "." + tableIdent;
+  private static NessieClient client;
 
   @BeforeClass
   public static void startMetastoreAndSpark()  {
-    File tempFile = null;
+    File tempFile;
     try {
       tempFile = temp.newFolder();
     } catch (IOException e) {
@@ -62,70 +58,81 @@ public class TestNessieStatements extends SparkTestBase {
     }
     String port = System.getProperty("quarkus.http.test-port", "19120");
     String path = String.format("http://localhost:%s/api/v1", port);
+    Map<String, String> nessieParams = ImmutableMap.of("ref", "main", "url", path, "warehouse",
+        tempFile.toURI().toString());
 
-    SparkTestBase.spark = SparkSession.builder()
+    SparkSession.Builder builder = SparkSession.builder()
         .master("local[2]")
         .config("spark.testing", "true")
         .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
         .config("spark.sql.extensions", IcebergSparkSessionExtensions.class.getName())
         .config("spark.sql.shuffle.partitions", "4")
-        .config("spark.sql.catalog.nessie.url", path)
-        .config("spark.sql.catalog.nessie.ref", "main")
-        .config("spark.sql.catalog.nessie.warehouse", tempFile.toURI().toString())
         .config("spark.sql.catalog.nessie.catalog-impl", NessieCatalog.class.getName())
-        .config("spark.sql.catalog.nessie", "org.apache.iceberg.spark.SparkCatalog")
-        .enableHiveSupport()
-        .getOrCreate();
+        .config("spark.sql.catalog.nessie", "org.apache.iceberg.spark.SparkCatalog");
+    nessieParams.forEach((k, v) -> builder.config(String.format("spark.sql.catalog.nessie.%s", k), v));
 
-    catalog = new NessieCatalog();
-    catalog.setConf(hiveConf);
-    catalog.initialize("nessie", ImmutableMap.of("ref", "main",
-        "url", path, "warehouse", tempFile.toURI().toString()));
-    NessieClient client = NessieClient.none(path);
+    SparkTestBase.spark = builder.getOrCreate();
+
+    client = NessieClient.none(path);
+
+  }
+
+  @AfterClass
+  public static void stopMetastoreAndSpark() {
+    spark.stop();
+    SparkTestBase.spark = null;
+  }
+
+  @Test
+  public void testCreateBranch() {
+    String hash;
     try {
       hash = client.getTreeApi().getDefaultBranch().getHash();
     } catch (NessieNotFoundException e) {
       throw new RuntimeException(e);
     }
-  }
+    List<Object[]> result = sql("CREATE BRANCH tempBranch IN nessie");
+    assertEquals("created branch", ImmutableList.of(row("Branch", "tempBranch", hash)), result);
 
-  @AfterClass
-  public static void stopMetastoreAndSpark() {
-    if (catalog != null) {
-      catalog.close();
-    }
-    SparkTestBase.catalog = null;
-    spark.stop();
-    SparkTestBase.spark = null;
+    result = sql("CREATE TAG tempTag IN nessie");
+    assertEquals("created branch", ImmutableList.of(row("Tag", "tempTag", hash)), result);
+
+    result = sql("CREATE BRANCH tempBranch1 IN nessie AS main");
+    assertEquals("created branch", ImmutableList.of(row("Branch", "tempBranch1", hash)), result);
+
+    result = sql("CREATE TAG tempTag1 IN nessie AS main");
+    assertEquals("created branch", ImmutableList.of(row("Tag", "tempTag1", hash)), result);
+
+    String catalog = spark.sessionState().catalogManager().currentCatalog().name();
+    spark.sessionState().catalogManager().setCurrentCatalog("nessie");
+    result = sql("CREATE BRANCH tempBranch2");
+    assertEquals("created branch", ImmutableList.of(row("Branch", "tempBranch2", hash)), result);
+
+    result = sql("CREATE TAG tempTag2");
+    assertEquals("created branch", ImmutableList.of(row("Tag", "tempTag2", hash)), result);
+    spark.sessionState().catalogManager().setCurrentCatalog(catalog);
+
   }
 
   @After
-  public void removeTables() {
-    sql("DROP TABLE IF EXISTS %s", tableName);
-  }
-
-  @Test
-  public void testCreateBranch() {
-    List<Object[]> result = sql("CREATE BRANCH tempBranch IN nessie");
-    assertEquals("created branch", ImmutableList.of(new Object[]{"Branch", "tempBranch", hash}), result);
-
-    result = sql("CREATE TAG tempTag IN nessie");
-    assertEquals("created branch", ImmutableList.of(new Object[]{"Tag", "tempTag", hash}), result);
-
-    result = sql("CREATE BRANCH tempBranch1 IN nessie AS main");
-    assertEquals("created branch", ImmutableList.of(new Object[]{"Branch", "tempBranch1", hash}), result);
-
-    result = sql("CREATE TAG tempTag1 IN nessie AS main");
-    assertEquals("created branch", ImmutableList.of(new Object[]{"Tag", "tempTag1", hash}), result);
-
-    spark.sessionState().catalogManager().setCurrentCatalog("nessie");
-    result = sql("CREATE BRANCH tempBranch2");
-    assertEquals("created branch", ImmutableList.of(new Object[]{"Branch", "tempBranch2", hash}), result);
-
-    result = sql("CREATE TAG tempTag2");
-    assertEquals("created branch", ImmutableList.of(new Object[]{"Tag", "tempTag2", hash}), result);
-
-
+  public void removeBranches() {
+    String hash;
+    try {
+      hash = client.getTreeApi().getDefaultBranch().getHash();
+    } catch (NessieNotFoundException e) {
+      throw new RuntimeException(e);
+    }
+    client.getTreeApi().getAllReferences().stream().filter(r -> !r.getName().equals("main")).forEach(r -> {
+      try {
+        if (r instanceof Tag) {
+          client.getTreeApi().deleteTag(r.getName(), hash);
+        } else {
+          client.getTreeApi().deleteBranch(r.getName(), hash);
+        }
+      } catch (NessieNotFoundException | NessieConflictException e) {
+        // pass
+      }
+    });
   }
 
 
