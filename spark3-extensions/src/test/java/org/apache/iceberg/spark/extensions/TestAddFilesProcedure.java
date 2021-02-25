@@ -72,7 +72,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object importOperation = scalarSql("CALL %s.system.add_files('%s', '%s', 'parquet')",
+    Object importOperation = scalarSql("CALL %s.system.add_files('%s', 'parquet.%s')",
         catalogName, tableName, parquetDir.getAbsolutePath());
 
     Assert.assertEquals(2L, importOperation);
@@ -91,7 +91,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object importOperation = scalarSql("CALL %s.system.add_files('%s', '%s', 'parquet')",
+    Object importOperation = scalarSql("CALL %s.system.add_files('%s', 'parquet.%s')",
         catalogName, tableName, parquetDir.getAbsolutePath());
 
     Assert.assertEquals(2L, importOperation);
@@ -109,7 +109,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object importOperation = scalarSql("CALL %s.system.add_files('%s', '%s', 'parquet')",
+    Object importOperation = scalarSql("CALL %s.system.add_files('%s', 'parquet.%s')",
         catalogName, tableName, parquetDir.getAbsolutePath());
 
     Assert.assertEquals(2L, importOperation);
@@ -130,7 +130,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object importOperation = scalarSql("CALL %s.system.add_files('%s', '%s', 'parquet')",
+    Object importOperation = scalarSql("CALL %s.system.add_files('%s', 'parquet.%s')",
         catalogName, tableName, fileToAdd.getAbsolutePath());
 
     Assert.assertEquals(1L, importOperation);
@@ -149,7 +149,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object importOperation = scalarSql("CALL %s.system.add_files('%s', '%s', 'parquet')",
+    Object importOperation = scalarSql("CALL %s.system.add_files('%s', 'parquet.%s')",
         catalogName, tableName, parquetDir.getAbsolutePath());
 
     Assert.assertEquals(8L, importOperation);
@@ -168,7 +168,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object importOperation = scalarSql("CALL %s.system.add_files('%s', '%s', 'parquet', map('id', 1))",
+    Object importOperation = scalarSql("CALL %s.system.add_files('%s', 'parquet.%s', map('id', 1))",
         catalogName, tableName, parquetDir.getAbsolutePath());
 
     Assert.assertEquals(2L, importOperation);
@@ -190,7 +190,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
-    Object importOperation = scalarSql("CALL %s.system.add_files('%s', '%s', 'parquet', map('id', 1))",
+    Object importOperation = scalarSql("CALL %s.system.add_files('%s', 'parquet.%s', map('id', 1))",
         catalogName, tableName, fileToAdd.getAbsolutePath());
 
     Assert.assertEquals(1L, importOperation);
@@ -212,7 +212,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     AssertHelpers.assertThrows("Should forbid adding of partitioned data to unpartitioned table",
         IllegalArgumentException.class,
         "but a partition spec was provided",
-        () -> scalarSql("CALL %s.system.add_files('%s', '%s', 'parquet', map('id', 1))",
+        () -> scalarSql("CALL %s.system.add_files('%s', 'parquet.%s', map('id', 1))",
             catalogName, tableName, parquetDir.getAbsolutePath())
     );
   }
@@ -230,21 +230,21 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     AssertHelpers.assertThrows("Should forbid adding a single file of data to partitioned table",
         IllegalArgumentException.class,
-        "but no partition spec was provided",
-        () -> scalarSql("CALL %s.system.add_files('%s', '%s', 'parquet')",
+        "Cannot add a file to a partitioned",
+        () -> scalarSql("CALL %s.system.add_files('%s', 'parquet.%s')",
             catalogName, tableName, fileToAdd.getAbsolutePath())
     );
 
     AssertHelpers.assertThrows("Should forbid adding with a mismatching partition spec",
         IllegalArgumentException.class,
         "the number of columns in the provided partition spec",
-        () -> scalarSql("CALL %s.system.add_files('%s', '%s', 'parquet', map('x', '1', 'y', '2'))",
+        () -> scalarSql("CALL %s.system.add_files('%s', 'parquet.%s', map('x', '1', 'y', '2'))",
             catalogName, tableName, parquetDir.getAbsolutePath()));
 
     AssertHelpers.assertThrows("Should forbid adding with partition spec with incorrect columns",
         IllegalArgumentException.class,
         "refers to a column that is not partitioned",
-        () -> scalarSql("CALL %s.system.add_files('%s', '%s', 'parquet', map('dept', '2'))",
+        () -> scalarSql("CALL %s.system.add_files('%s', 'parquet.%s', map('dept', '2'))",
             catalogName, tableName, parquetDir.getAbsolutePath()));
 
   }

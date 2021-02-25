@@ -58,13 +58,12 @@ public class AddFilesProcedure extends BaseProcedure {
   enum Format {
     hive,
     orc,
-    parquet,
-    avro
+    parquet
   }
 
   private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[]{
-      ProcedureParameter.required("source_table", DataTypes.StringType),
       ProcedureParameter.required("table", DataTypes.StringType),
+      ProcedureParameter.required("source_table", DataTypes.StringType),
       ProcedureParameter.optional("partition", STRING_MAP)
   };
 
@@ -97,9 +96,10 @@ public class AddFilesProcedure extends BaseProcedure {
 
   @Override
   public InternalRow[] call(InternalRow args) {
-    String sourceTable = args.getString(0);
+    Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
+
+    String sourceTable = args.getString(1);
     Format format = parseFormat(sourceTable);
-    Identifier tableIdent = toIdentifier(args.getString(1), PARAMETERS[1].name());
 
     Map<String, String> partition = Maps.newHashMap();
     if (!args.isNullAt(2)) {
@@ -115,12 +115,15 @@ public class AddFilesProcedure extends BaseProcedure {
   }
 
   private Format parseFormat(String source) {
-    String[] parts = source.split("\\.");
-    if (parts[0].toLowerCase(Locale.ROOT).equals("orc")) {
-      return Format.orc;
-    }
-    if (parts[0].toLowerCase(Locale.ROOT).equals("parquet")) {
-      return Format.parquet;
+    String[] parts = source.split("\\.", 2);
+    if (parts.length == 2) {
+      if (parts[0].toLowerCase(Locale.ROOT).equals("orc")) {
+        return Format.orc;
+      }
+      if (parts[0].toLowerCase(Locale.ROOT).equals("parquet")) {
+        return Format.parquet;
+      }
+      return Format.hive;
     }
     return Format.hive;
   }
@@ -132,8 +135,10 @@ public class AddFilesProcedure extends BaseProcedure {
       applyNameMappingIfMissing(table);
 
       if (format != Format.hive) {
+        String[] parts = sourceIdent.split("\\.", 2);
+        Path sourcePath = new Path(parts[1]);
+
         Configuration conf = spark().sessionState().newHadoopConf();
-        Path sourcePath = new Path(sourceIdent);
         FileSystem fs;
         Boolean isFile;
         try {
@@ -170,6 +175,15 @@ public class AddFilesProcedure extends BaseProcedure {
   }
 
   private int importFile(Table table, Path file, Format format,  Map<String, String> partition) {
+    if (partition.isEmpty() && !table.spec().isUnpartitioned()) {
+      throw new IllegalArgumentException("Cannot add a file to a partitioned table without specifying the partition " +
+          "which it should be placed in");
+    }
+    if (!partition.isEmpty() && table.spec().isUnpartitioned()) {
+      throw new IllegalArgumentException("Cannot add a file to an unpartitioned table while specifying the partition " +
+          "which it should be placed in");
+    }
+
     PartitionSpec spec = table.spec();
     MetricsConfig metricsConfig = MetricsConfig.fromProperties(table.properties());
     String partitionURI = file.toString();
