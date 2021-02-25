@@ -126,6 +126,17 @@ public class ManifestFiles {
    *
    * @param manifest a {@link ManifestFile}
    * @param io a {@link FileIO}
+   * @return a {@link ManifestReader}
+   */
+  public static ManifestReader<DeleteFile> readDeleteManifest(ManifestFile manifest, FileIO io) {
+    return readDeleteManifest(manifest, io, null);
+  }
+
+  /**
+   * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
+   *
+   * @param manifest a {@link ManifestFile}
+   * @param io a {@link FileIO}
    * @param specsById a Map from spec ID to partition spec
    * @return a {@link ManifestReader}
    */
