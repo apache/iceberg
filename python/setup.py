@@ -24,20 +24,26 @@ setup(
     description='Iceberg is a new table format for storing large, slow-moving tabular data',
     keywords='iceberg',
     url='https://github.com/apache/iceberg/blob/master/README.md',
-    python_requires='>=3.6',
+    python_requires='>=3.7',
     install_requires=['botocore',
                       'boto3',
-                      'fastavro==1.3.2',
+                      'fastavro>=1.3.2<1.4.0',
                       'hmsclient==0.1.1',
                       'mmh3',
-                      'pyparsing==2.4.7',
+                      'pyparsing>=2.4.7<2.5.0',
                       'python-dateutil',
                       'pytz',
                       'requests',
                       'retrying',
                       'pandas',
-                      'pyarrow==3.0.0'
+                      'pyarrow>=3.0.0<4.0.0'
                       ],
+    extras_require={
+        "dev": [
+            "tox-travis==0.12",
+            "virtualenv<20.0.0",
+        ],
+    },
     setup_requires=['setupmeta'],
     license="Apache License 2.0",
     classifiers=[
