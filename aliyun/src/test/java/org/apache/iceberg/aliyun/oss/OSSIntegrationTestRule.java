@@ -21,9 +21,9 @@ package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
-import com.aliyun.oss.model.ListObjectsV2Request;
-import com.aliyun.oss.model.ListObjectsV2Result;
+import com.aliyun.oss.model.ListObjectsRequest;
 import com.aliyun.oss.model.OSSObjectSummary;
+import com.aliyun.oss.model.ObjectListing;
 import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -118,21 +118,13 @@ public class OSSIntegrationTestRule implements OSSTestRule {
 
   @Override
   public void tearDownBucket(String bucket) {
-    final int maxKeys = 200;
-    String nextContinuationToken = null;
-    ListObjectsV2Result result;
+    ObjectListing objectListing = client().listObjects(
+        new ListObjectsRequest(bucket)
+            .withPrefix(keyPrefix)
+    );
 
-    do {
-      ListObjectsV2Request request = new ListObjectsV2Request(bucket).withMaxKeys(maxKeys);
-      request.setPrefix(keyPrefix);
-      request.setContinuationToken(nextContinuationToken);
-
-      result = client().listObjectsV2(request);
-      for (OSSObjectSummary s : result.getObjectSummaries()) {
-        client().deleteObject(bucket, s.getKey());
-      }
-
-      nextContinuationToken = result.getNextContinuationToken();
-    } while (result.isTruncated());
+    for (OSSObjectSummary s : objectListing.getObjectSummaries()) {
+      client().deleteObject(bucket, s.getKey());
+    }
   }
 }
