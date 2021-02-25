@@ -201,6 +201,52 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
   }
 
   @Test
+  public void testBucketTable() {
+    sql("CREATE TABLE tl(id BIGINT, dt STRING) WITH ('%s'='id=bucket[8];dt=bucket[10]')",
+        FlinkTableProperties.PARTITIONS);
+    Table table = table("tl");
+
+    Schema iSchema = new Schema(
+        Types.NestedField.optional(1, "id", Types.LongType.get()),
+        Types.NestedField.optional(2, "dt", Types.StringType.get())
+    );
+    Assert.assertEquals("Should have expected partition spec", table.spec(),
+        PartitionSpec.builderFor(iSchema)
+            .withSpecId(table.spec().specId())
+            .bucket("id", 8)
+            .bucket("dt", 10)
+            .build()
+    );
+    Assert.assertEquals(Maps.newHashMap(), table.properties());
+
+    // Alter the table to new buckets.
+    sql("ALTER TABLE tl SET ('%s'='id=bucket[12]')", FlinkTableProperties.PARTITIONS);
+    table = table("tl");
+    Assert.assertEquals("Should have the expected partition spec", table.spec(),
+        PartitionSpec.builderFor(table.schema())
+            .withSpecId(table.spec().specId())
+            .alwaysNull("id", "id_bucket")
+            .alwaysNull("dt", "dt_bucket")
+            .bucket("id", 12, "id_bucket_12")
+            .build());
+    Assert.assertEquals(Maps.newHashMap(), table.properties());
+
+    // Alter the table to add new field bucket.
+    sql("ALTER TABLE tl SET ('%s'='id=bucket[1];dt=bucket[2]')", FlinkTableProperties.PARTITIONS);
+    table = table("tl");
+    Assert.assertEquals("Should have the expected partition spec", table.spec(),
+        PartitionSpec.builderFor(table.schema())
+            .withSpecId(table.spec().specId())
+            .alwaysNull("id", "id_bucket")
+            .alwaysNull("dt", "dt_bucket")
+            .alwaysNull("id", "id_bucket_12")
+            .bucket("id", 1, "id_bucket_1")
+            .bucket("dt", 2, "dt_bucket_2")
+            .build());
+    Assert.assertEquals(Maps.newHashMap(), table.properties());
+  }
+
+  @Test
   public void testLoadTransformPartitionTable() throws TableNotExistException {
     Schema schema = new Schema(Types.NestedField.optional(0, "id", Types.LongType.get()));
     validationCatalog.createTable(

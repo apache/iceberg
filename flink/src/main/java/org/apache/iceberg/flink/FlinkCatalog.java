@@ -27,6 +27,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.catalog.AbstractCatalog;
@@ -61,6 +63,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -76,6 +79,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
+
+import static org.apache.iceberg.expressions.Expressions.bucket;
 
 /**
  * A Flink Catalog implementation that wraps an Iceberg {@link Catalog}.
@@ -361,15 +367,24 @@ public class FlinkCatalog extends AbstractCatalog {
     validateFlinkTable(table);
 
     Schema icebergSchema = FlinkSchemaUtil.convert(table.getSchema());
-    PartitionSpec spec = toPartitionSpec(((CatalogTable) table).getPartitionKeys(), icebergSchema);
+    PartitionSpec.Builder specBuilder = toPartitionSpec(((CatalogTable) table).getPartitionKeys(), icebergSchema);
 
-    ImmutableMap.Builder<String, String> properties = ImmutableMap.builder();
     String location = null;
+    String partitions = null;
+    ImmutableMap.Builder<String, String> propsBuilder = ImmutableMap.builder();
     for (Map.Entry<String, String> entry : table.getOptions().entrySet()) {
       if ("location".equalsIgnoreCase(entry.getKey())) {
         location = entry.getValue();
+      } else if (FlinkTableProperties.PARTITIONS.equals(entry.getKey())) {
+        partitions = entry.getValue();
       } else {
-        properties.put(entry.getKey(), entry.getValue());
+        propsBuilder.put(entry.getKey(), entry.getValue());
+      }
+    }
+
+    if (partitions != null) {
+      for (Map.Entry<String, Integer> e : parseBucketFields(partitions).entrySet()) {
+        specBuilder.bucket(e.getKey(), e.getValue());
       }
     }
 
@@ -377,9 +392,9 @@ public class FlinkCatalog extends AbstractCatalog {
       icebergCatalog.createTable(
           toIdentifier(tablePath),
           icebergSchema,
-          spec,
+          specBuilder.build(),
           location,
-          properties.build());
+          propsBuilder.build());
     } catch (AlreadyExistsException e) {
       if (!ignoreIfExists) {
         throw new TableAlreadyExistException(getName(), tablePath, e);
@@ -419,6 +434,7 @@ public class FlinkCatalog extends AbstractCatalog {
 
     Map<String, String> oldProperties = table.getOptions();
     Map<String, String> setProperties = Maps.newHashMap();
+    Map<String, Integer> newPartitionFields = Maps.newLinkedHashMap();
 
     String setLocation = null;
     String setSnapshotId = null;
@@ -438,6 +454,8 @@ public class FlinkCatalog extends AbstractCatalog {
         setSnapshotId = value;
       } else if ("cherry-pick-snapshot-id".equalsIgnoreCase(key)) {
         pickSnapshotId = value;
+      } else if (FlinkTableProperties.PARTITIONS.equals(key)) {
+        newPartitionFields.putAll(parseBucketFields(value));
       } else {
         setProperties.put(key, value);
       }
@@ -449,7 +467,7 @@ public class FlinkCatalog extends AbstractCatalog {
       }
     });
 
-    commitChanges(icebergTable, setLocation, setSnapshotId, pickSnapshotId, setProperties);
+    commitChanges(icebergTable, setLocation, setSnapshotId, pickSnapshotId, setProperties, newPartitionFields);
   }
 
   private static void validateFlinkTable(CatalogBaseTable table) {
@@ -471,10 +489,11 @@ public class FlinkCatalog extends AbstractCatalog {
     }
   }
 
-  private static PartitionSpec toPartitionSpec(List<String> partitionKeys, Schema icebergSchema) {
+  private static PartitionSpec.Builder toPartitionSpec(List<String> partitionKeys, Schema icebergSchema) {
     PartitionSpec.Builder builder = PartitionSpec.builderFor(icebergSchema);
     partitionKeys.forEach(builder::identity);
-    return builder.build();
+
+    return builder;
   }
 
   private static List<String> toPartitionKeys(PartitionSpec spec, Schema icebergSchema) {
@@ -492,8 +511,44 @@ public class FlinkCatalog extends AbstractCatalog {
     return partitionKeys;
   }
 
+  private static Map<String, Integer> parseBucketFields(String buckets) {
+    Map<String, Integer> bucketFields = Maps.newLinkedHashMap();
+
+    for (String fieldAndBucketNum : buckets.split(";")) {
+      String[] parts = fieldAndBucketNum.trim().split("=");
+      Preconditions.checkState(2 == parts.length, "%s should be the formatted like 'id=bucket[8];data=bucket[10]'",
+          FlinkTableProperties.PARTITIONS);
+
+      String field = parts[0].trim();
+
+      Integer bucketNum = parseBucketNum(parts[1].trim());
+      Preconditions.checkNotNull(bucketNum,
+          "Can only support bucket field now in '%s'", FlinkTableProperties.PARTITIONS);
+
+      bucketFields.put(field, bucketNum);
+    }
+
+    return bucketFields;
+  }
+
+  private static Integer parseBucketNum(String transformString) {
+    Pattern bucketPattern = Pattern.compile("bucket\\[(\\d+)\\]");
+    Matcher bucketMatcher = bucketPattern.matcher(transformString);
+    if (bucketMatcher.matches()) {
+      try {
+        return Integer.parseInt(bucketMatcher.group(1));
+      } catch (NumberFormatException e) {
+        throw new RuntimeException(
+            String.format("Bucket number should be an positive integer in '%s'", FlinkTableProperties.PARTITIONS));
+      }
+    } else {
+      return null;
+    }
+  }
+
   private static void commitChanges(Table table, String setLocation, String setSnapshotId,
-                                    String pickSnapshotId, Map<String, String> setProperties) {
+                                    String pickSnapshotId, Map<String, String> setProperties,
+                                    Map<String, Integer> newBucketFields) {
     // don't allow setting the snapshot and picking a commit at the same time because order is ambiguous and choosing
     // one order leads to different results
     Preconditions.checkArgument(setSnapshotId == null || pickSnapshotId == null,
@@ -516,6 +571,30 @@ public class FlinkCatalog extends AbstractCatalog {
       transaction.updateLocation()
           .setLocation(setLocation)
           .commit();
+    }
+
+    if (newBucketFields != null && !newBucketFields.isEmpty()) {
+      UpdatePartitionSpec updatePartitionSpec = transaction.updateSpec();
+
+      // Remove the old bucket fields.
+      for (PartitionField field : table.spec().fields()) {
+        Integer bucketNum = parseBucketNum(field.transform().toString());
+        if (bucketNum != null) {
+          // The partition field is an old bucket field, let's remove this old bucket field.
+          Types.NestedField nestedField = table.schema().findField(field.sourceId());
+          Preconditions.checkNotNull(nestedField, "Could not find partition field %s in schema %s",
+              field, table.schema());
+
+          updatePartitionSpec.removeField(bucket(nestedField.name(), bucketNum));
+        }
+      }
+
+      // Add the new bucket fields.
+      for (Map.Entry<String, Integer> entry : newBucketFields.entrySet()) {
+        updatePartitionSpec.addField(bucket(entry.getKey(), entry.getValue()));
+      }
+
+      updatePartitionSpec.commit();
     }
 
     if (!setProperties.isEmpty()) {
@@ -573,7 +652,7 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public void createPartition(ObjectPath tablePath, CatalogPartitionSpec partitionSpec, CatalogPartition partition,
-      boolean ignoreIfExists) throws CatalogException {
+                              boolean ignoreIfExists) throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
@@ -585,7 +664,7 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public void alterPartition(ObjectPath tablePath, CatalogPartitionSpec partitionSpec, CatalogPartition newPartition,
-      boolean ignoreIfNotExists) throws CatalogException {
+                             boolean ignoreIfNotExists) throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
@@ -624,25 +703,27 @@ public class FlinkCatalog extends AbstractCatalog {
 
   @Override
   public void alterTableStatistics(ObjectPath tablePath, CatalogTableStatistics tableStatistics,
-      boolean ignoreIfNotExists) throws CatalogException {
+                                   boolean ignoreIfNotExists) throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
   @Override
   public void alterTableColumnStatistics(ObjectPath tablePath, CatalogColumnStatistics columnStatistics,
-      boolean ignoreIfNotExists) throws CatalogException {
+                                         boolean ignoreIfNotExists) throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
   @Override
   public void alterPartitionStatistics(ObjectPath tablePath, CatalogPartitionSpec partitionSpec,
-      CatalogTableStatistics partitionStatistics, boolean ignoreIfNotExists) throws CatalogException {
+                                       CatalogTableStatistics partitionStatistics, boolean ignoreIfNotExists)
+      throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
   @Override
   public void alterPartitionColumnStatistics(ObjectPath tablePath, CatalogPartitionSpec partitionSpec,
-      CatalogColumnStatistics columnStatistics, boolean ignoreIfNotExists) throws CatalogException {
+                                             CatalogColumnStatistics columnStatistics, boolean ignoreIfNotExists)
+      throws CatalogException {
     throw new UnsupportedOperationException();
   }
 
