@@ -34,7 +34,10 @@ import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.JobGroupInfo;
+import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.spark.SparkUtil;
+import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.broadcast.Broadcast;
@@ -62,6 +65,19 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
   protected JavaSparkContext sparkContext() {
     return sparkContext;
+  }
+
+  protected abstract R doExecute();
+
+  @Override
+  public R execute() {
+    SparkContext sparkContext = SparkSession.getActiveSession().get().sparkContext();
+    JobGroupInfo info = JobGroupUtils.getJobGroupInfo(sparkContext);
+    try {
+      return doExecute();
+    } finally {
+      JobGroupUtils.setJobGroupInfo(sparkContext, info);
+    }
   }
 
   /**

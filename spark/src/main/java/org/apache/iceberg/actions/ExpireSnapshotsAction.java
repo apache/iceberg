@@ -33,8 +33,6 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.spark.JobGroupInfo;
-import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.Column;
@@ -207,18 +205,12 @@ public class ExpireSnapshotsAction extends BaseSparkAction<ExpireSnapshotsAction
   }
 
   @Override
-  public ExpireSnapshotsActionResult execute() {
-    JobGroupInfo group = null;
-    try {
-      group = JobGroupUtils.getCallSite(spark.sparkContext());
-      spark.sparkContext().setJobGroup("EXPIRE", "EXPIRE SNAPSHOTS", false);
-      if (streamResults) {
-        return deleteFiles(expire().toLocalIterator());
-      } else {
-        return deleteFiles(expire().collectAsList().iterator());
-      }
-    } finally {
-      JobGroupUtils.setCallSite(spark.sparkContext(), group);
+  public ExpireSnapshotsActionResult doExecute() {
+    spark.sparkContext().setJobGroup("EXPIRE", "EXPIRE SNAPSHOTS", false);
+    if (streamResults) {
+      return deleteFiles(expire().toLocalIterator());
+    } else {
+      return deleteFiles(expire().collectAsList().iterator());
     }
   }
 

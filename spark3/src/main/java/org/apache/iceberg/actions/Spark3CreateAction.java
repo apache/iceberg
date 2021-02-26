@@ -35,6 +35,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.JobGroupInfo;
+import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.source.StagedSparkTable;
@@ -187,4 +189,16 @@ abstract class Spark3CreateAction implements CreateAction {
   protected abstract Map<String, String> targetTableProps();
 
   protected abstract TableCatalog checkSourceCatalog(CatalogPlugin catalog);
+
+  @Override
+  public Long execute() {
+    JobGroupInfo callSite = JobGroupUtils.getJobGroupInfo(spark().sparkContext());
+    try {
+      return doExecute();
+    } finally {
+      JobGroupUtils.setJobGroupInfo(spark().sparkContext(), callSite);
+    }
+  }
+
+  protected abstract Long doExecute();
 }

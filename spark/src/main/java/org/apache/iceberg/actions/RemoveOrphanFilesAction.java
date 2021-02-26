@@ -144,7 +144,9 @@ public class RemoveOrphanFilesAction extends BaseSparkAction<RemoveOrphanFilesAc
   }
 
   @Override
-  public List<String> execute() {
+  public List<String> doExecute() {
+
+    spark.sparkContext().setJobGroup("REMOVE", "REMOVE-ORPHAN-FILES", false);
     Dataset<Row> validDataFileDF = buildValidDataFileDF(table);
     Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table, ops);
     Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);
@@ -157,13 +159,11 @@ public class RemoveOrphanFilesAction extends BaseSparkAction<RemoveOrphanFilesAc
     List<String> orphanFiles = actualFileDF.join(validFileDF, joinCond, "leftanti")
         .as(Encoders.STRING())
         .collectAsList();
-
     Tasks.foreach(orphanFiles)
         .noRetry()
         .suppressFailureWhenFinished()
         .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
         .run(deleteFunc::accept);
-
     return orphanFiles;
   }
 
