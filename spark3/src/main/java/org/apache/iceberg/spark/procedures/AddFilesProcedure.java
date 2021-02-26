@@ -47,7 +47,6 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.catalog.CatalogTable;
-import org.apache.spark.sql.catalyst.catalog.SessionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
@@ -55,12 +54,13 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import scala.Option;
 import scala.runtime.BoxedUnit;
 
 public class AddFilesProcedure extends BaseProcedure {
 
   enum Format {
-    hive,
+    catalog,
     orc,
     parquet
   }
@@ -127,9 +127,9 @@ public class AddFilesProcedure extends BaseProcedure {
       if (parts[0].toLowerCase(Locale.ROOT).equals("parquet")) {
         return Format.parquet;
       }
-      return Format.hive;
+      return Format.catalog;
     }
-    return Format.hive;
+    return Format.catalog;
   }
 
   private long importToIceberg(Identifier destIdent, String sourceIdent, Format format, Map<String, String> partition) {
@@ -138,7 +138,7 @@ public class AddFilesProcedure extends BaseProcedure {
       validatePartitionSpec(table, partition);
       applyNameMappingIfMissing(table);
 
-      if (format != Format.hive) {
+      if (format != Format.catalog) {
         String[] parts = sourceIdent.split("\\.", 2);
         Path sourcePath = new Path(parts[1]);
 
@@ -158,7 +158,7 @@ public class AddFilesProcedure extends BaseProcedure {
           importFileTable(table, sourcePath, format, partition);
         }
       } else {
-        importHiveTable(table, sourceIdent, partition);
+        importCatalogTable(table, sourceIdent, partition);
       }
 
       Snapshot snapshot = table.currentSnapshot();
@@ -216,20 +216,22 @@ public class AddFilesProcedure extends BaseProcedure {
     importPartitions(table, partitions);
   }
 
-  private void importHiveTable(Table table, String sourceTable, Map<String, String> partition) {
-    CatalogTable hiveTable = SparkTableUtil.getCatalogTable(spark(), sourceTable);
+  private void importCatalogTable(Table table, String sourceTable, Map<String, String> partition) {
+    CatalogTable catalogTable = SparkTableUtil.getCatalogTable(spark(), sourceTable);
     List<SparkTableUtil.SparkPartition> partitions;
 
-    if (hiveTable.partitionColumnNames().isEmpty()) {
+    if (catalogTable.partitionColumnNames().isEmpty()) {
       // Unpartitioned table
       if (!partition.isEmpty()) {
         throw new IllegalArgumentException("Cannot import files from a unpartitioned Hive table when a partition " +
             "is specified");
       }
+      Option<String> format =
+          catalogTable.storage().serde().nonEmpty() ? catalogTable.storage().serde() : catalogTable.provider();
       partitions = ImmutableList.of(new SparkTableUtil.SparkPartition(
           Collections.emptyMap(),
-          hiveTable.location().toString(),
-          hiveTable.storage().serde().get()));
+          catalogTable.location().toString(),
+          catalogTable.storage().serde().get()));
 
     } else {
       // Read partitions Spark via Catalog Interface
