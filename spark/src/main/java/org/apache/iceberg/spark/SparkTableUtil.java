@@ -138,6 +138,20 @@ public class SparkTableUtil {
     return spark.createDataFrame(partitions, SparkPartition.class).toDF("partition", "uri", "format");
   }
 
+  public static CatalogTable getCatalogTable(SparkSession spark, String table) {
+    try {
+      TableIdentifier tableIdent = spark.sessionState().sqlParser().parseTableIdentifier(table);
+      SessionCatalog catalog = spark.sessionState().catalog();
+      return catalog.getTableMetadata(tableIdent);
+    } catch (ParseException e) {
+      throw SparkExceptionUtil.toUncheckedException(e, "Unable to parse table identifier: %s", table);
+    } catch (NoSuchDatabaseException e) {
+      throw SparkExceptionUtil.toUncheckedException(e, "Unknown table: %s. Database not found in catalog.", table);
+    } catch (NoSuchTableException e) {
+      throw SparkExceptionUtil.toUncheckedException(e, "Unknown table: %s. Table not found in catalog.", table);
+    }
+  }
+
   /**
    * Returns all partitions in the table.
    *

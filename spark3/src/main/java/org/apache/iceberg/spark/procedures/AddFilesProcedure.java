@@ -21,6 +21,7 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -40,10 +41,13 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.catalog.CatalogTable;
+import org.apache.spark.sql.catalyst.catalog.SessionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
@@ -158,7 +162,7 @@ public class AddFilesProcedure extends BaseProcedure {
       }
 
       Snapshot snapshot = table.currentSnapshot();
-      Long numAddedFiles = Long.parseLong(snapshot.summary().get(SnapshotSummary.ADDED_FILES_PROP));
+      long numAddedFiles = Long.parseLong(snapshot.summary().get(SnapshotSummary.ADDED_FILES_PROP));
       return numAddedFiles;
     });
   }
@@ -213,9 +217,24 @@ public class AddFilesProcedure extends BaseProcedure {
   }
 
   private void importHiveTable(Table table, String sourceTable, Map<String, String> partition) {
-    // Read partitions Spark via Catalog Interface
-    List<SparkTableUtil.SparkPartition> partitions =
-        filterPartitions(SparkTableUtil.getPartitions(spark(), sourceTable), partition);
+    CatalogTable hiveTable = SparkTableUtil.getCatalogTable(spark(), sourceTable);
+    List<SparkTableUtil.SparkPartition> partitions;
+
+    if (hiveTable.partitionColumnNames().isEmpty()) {
+      // Unpartitioned table
+      if (!partition.isEmpty()) {
+        throw new IllegalArgumentException("Cannot import files from a unpartitioned Hive table when a partition " +
+            "is specified");
+      }
+      partitions = ImmutableList.of(new SparkTableUtil.SparkPartition(
+          Collections.emptyMap(),
+          hiveTable.location().toString(),
+          hiveTable.storage().serde().get()));
+
+    } else {
+      // Read partitions Spark via Catalog Interface
+      partitions = filterPartitions(SparkTableUtil.getPartitions(spark(), sourceTable), partition);
+    }
 
     importPartitions(table, partitions);
   }
@@ -246,7 +265,7 @@ public class AddFilesProcedure extends BaseProcedure {
         throw new IllegalArgumentException(
             String.format("No partitions found in table for add_file command. " +
                     "Looking for a partition with the value %s",
-                partition.entrySet().stream().map(e -> e.getValue() + "=" + e.getValue())
+                partition.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue())
                     .collect(Collectors.joining(",")))
         );
       }
