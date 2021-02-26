@@ -159,11 +159,13 @@ public class RemoveOrphanFilesAction extends BaseSparkAction<RemoveOrphanFilesAc
     List<String> orphanFiles = actualFileDF.join(validFileDF, joinCond, "leftanti")
         .as(Encoders.STRING())
         .collectAsList();
+
     Tasks.foreach(orphanFiles)
         .noRetry()
         .suppressFailureWhenFinished()
         .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
         .run(deleteFunc::accept);
+    
     return orphanFiles;
   }
 
