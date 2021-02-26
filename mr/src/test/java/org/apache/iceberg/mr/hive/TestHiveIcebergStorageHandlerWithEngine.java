@@ -323,14 +323,16 @@ public class TestHiveIcebergStorageHandlerWithEngine {
         continue;
       }
       String columnName = type.typeId().toString().toLowerCase() + "_column";
+      String tableName = type.typeId().toString().toLowerCase() + "_table_" + i;
 
       Schema schema = new Schema(required(1, "id", Types.LongType.get()), required(2, columnName, type));
       List<Record> expected = TestHelper.generateRandomRecords(schema, 5, 0L);
 
-      Table table = testTables.createTable(shell, type.typeId().toString().toLowerCase() + "_table_" + i,
-          schema, PartitionSpec.unpartitioned(), fileFormat, expected);
+      Table table = testTables.createTable(shell, tableName, schema, PartitionSpec.unpartitioned(), fileFormat,
+          expected);
 
       HiveIcebergTestUtils.validateData(table, expected, 0);
+      HiveIcebergTestUtils.validateDataWithSql(shell, tableName, expected);
     }
   }
 
