@@ -150,11 +150,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
 
   @After
   public void after() throws Exception {
-    shell.closeSession();
-    shell.metastore().reset();
-    // HiveServer2 thread pools are using thread local Hive -> HMSClient objects. These are not cleaned up when the
-    // HiveServer2 is stopped. Only Finalizer closes the HMS connections.
-    System.gc();
+    HiveIcebergStorageHandlerTestUtils.close(shell);
   }
 
   @Test
