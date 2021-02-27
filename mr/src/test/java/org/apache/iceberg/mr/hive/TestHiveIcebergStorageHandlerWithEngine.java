@@ -152,11 +152,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
 
   @After
   public void after() throws Exception {
-    shell.closeSession();
-    shell.metastore().reset();
-    // HiveServer2 thread pools are using thread local Hive -> HMSClient objects. These are not cleaned up when the
-    // HiveServer2 is stopped. Only Finalizer closes the HMS connections.
-    System.gc();
+    HiveIcebergStorageHandlerTestUtils.close(shell);
     // Mixing mr and tez jobs within the same JVM can cause problems. Mr jobs set the ExecMapper status to done=false
     // at the beginning and to done=true at the end. However, tez jobs also rely on this value to see if they should
     // proceed, but they do not reset it to done=false at the beginning. Therefore, without calling this after each test

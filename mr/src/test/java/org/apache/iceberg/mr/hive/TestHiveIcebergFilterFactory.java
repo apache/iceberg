@@ -218,7 +218,7 @@ public class TestHiveIcebergFilterFactory {
   @Test
   public void testDateType() {
     SearchArgument.Builder builder = SearchArgumentFactory.newBuilder();
-    Date gmtDate = new Date(LocalDate.of(2015, 11, 12).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli());
+    Date gmtDate = Date.valueOf(LocalDate.of(2015, 11, 12));
     SearchArgument arg = builder.startAnd().equals("date", PredicateLeaf.Type.DATE, gmtDate).end().build();
 
     UnboundPredicate expected = Expressions.equal("date", Literal.of("2015-11-12").to(Types.DateType.get()).value());
