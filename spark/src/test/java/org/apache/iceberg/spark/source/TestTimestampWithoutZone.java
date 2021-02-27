@@ -94,8 +94,7 @@ public abstract class TestTimestampWithoutZone {
         { "parquet", false },
         { "parquet", true },
         { "avro", false },
-        { "orc", false },
-        { "orc", true }
+        { "orc", false }
     };
   }
 

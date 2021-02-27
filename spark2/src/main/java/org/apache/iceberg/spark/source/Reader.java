@@ -180,9 +180,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     // Allow reading timestamp without time zone as timestamp with time zone. Generally, this is not safe as timestamp
     // without time zone is supposed to represent wall clock time semantics, i.e. no matter the reader/writer timezone
     // 3PM should always be read as 3PM, but timestamp with time zone represents instant semantics, i.e the timestamp
-    // is adjusted so that the corresponding time in the reader timezone is displayed. However, at LinkedIn, all readers
-    // and writers are in the UTC timezone as our production machines are set to UTC. So, timestamp with/without time
-    // zone is the same.
+    // is adjusted so that the corresponding time in the reader timezone is displayed.
     // When set to false (default), we throw an exception at runtime
     // "Spark does not support timestamp without time zone fields" if reading timestamp without time zone fields
     this.readTimestampWithoutZone = options.get("read-timestamp-without-zone").map(Boolean::parseBoolean).orElse(false);
