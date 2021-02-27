@@ -67,6 +67,7 @@ import org.slf4j.LoggerFactory;
 abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(SparkBatchScan.class);
 
+
   private final Table table;
   private final boolean caseSensitive;
   private final boolean localityPreferred;
