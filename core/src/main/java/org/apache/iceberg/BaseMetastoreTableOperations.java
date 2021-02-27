@@ -289,4 +289,13 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
           .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
     }
   }
+
+  protected void setCurrentMetadata(TableMetadata currentMetadata) {
+    this.currentMetadata = currentMetadata;
+  }
+
+  protected void setShouldRefresh(boolean shouldRefresh) {
+    this.shouldRefresh = shouldRefresh;
+  }
+
 }

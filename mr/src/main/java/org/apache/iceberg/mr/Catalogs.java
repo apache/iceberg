@@ -89,6 +89,8 @@ public final class Catalogs {
    * @return an Iceberg table
    */
   public static Table loadTable(Configuration conf, Properties props) {
+    Optional.ofNullable(props.getProperty(InputFormatConfig.CATALOG))
+        .ifPresent(x -> conf.set(InputFormatConfig.CATALOG, x));
     return loadTable(conf, props.getProperty(NAME), props.getProperty(LOCATION));
   }
 

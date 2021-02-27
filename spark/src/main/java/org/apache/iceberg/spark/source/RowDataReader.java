@@ -24,6 +24,7 @@ import java.util.Map;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataTask;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
@@ -38,6 +39,8 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.ORC;
+import org.apache.iceberg.orc.OrcRowFilter;
+import org.apache.iceberg.orc.OrcRowFilterUtils;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -168,6 +171,11 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       FileScanTask task,
       Schema readSchema,
       Map<Integer, ?> idToConstant) {
+    OrcRowFilter orcRowFilter = OrcRowFilterUtils.rowFilterFromTask(task);
+    if (orcRowFilter != null) {
+      validateRowFilterRequirements(task, orcRowFilter);
+    }
+
     Schema readSchemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(readSchema,
         Sets.union(idToConstant.keySet(), MetadataColumns.metadataFieldIds()));
 
@@ -176,7 +184,8 @@ class RowDataReader extends BaseDataReader<InternalRow> {
         .split(task.start(), task.length())
         .createReaderFunc(readOrcSchema -> new SparkOrcReader(readSchema, readOrcSchema, idToConstant))
         .filter(task.residual())
-        .caseSensitive(caseSensitive);
+        .caseSensitive(caseSensitive)
+        .rowFilter(orcRowFilter);
 
     if (nameMapping != null) {
       builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
@@ -231,6 +240,18 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     @Override
     protected InputFile getInputFile(String location) {
       return RowDataReader.this.getInputFile(location);
+    }
+  }
+
+  private void validateRowFilterRequirements(FileScanTask task, OrcRowFilter filter) {
+    Preconditions.checkArgument(task.file().format() == FileFormat.ORC, "Row filter can only be applied to ORC files");
+    Preconditions.checkArgument(task.spec().fields().size() == 0,
+        "Row filter can only be applied to unpartitioned tables");
+    for (Types.NestedField column : filter.requiredSchema().columns()) {
+      Preconditions.checkArgument(tableSchema.findField(column.name()) != null,
+          "Row filter can only be applied to top level fields. %s is not a top level field", column.name());
+      Preconditions.checkArgument(column.type().isPrimitiveType(),
+          "Row filter can only be applied to primitive fields. %s is of type %s", column.name(), column.type());
     }
   }
 }
