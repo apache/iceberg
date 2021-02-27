@@ -22,7 +22,6 @@ package org.apache.iceberg.mr.hive;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
-import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.hadoop.hive.ql.io.sarg.ExpressionTree;
@@ -172,15 +171,24 @@ public class HiveIcebergFilterFactory {
     return hiveDecimalWritable.getHiveDecimal().bigDecimalValue().setScale(hiveDecimalWritable.scale());
   }
 
+  // Hive uses `java.sql.Date.valueOf(lit.toString());` to convert a literal to Date
+  // Which uses `java.util.Date()` internally to create the object and that uses the TimeZone.getDefaultRef()
+  // To get back the expected date we have to use the LocalDate which gets rid of the TimeZone misery as it uses
+  // the year/month/day to generate the object
   private static int daysFromDate(Date date) {
-    return DateTimeUtil.daysFromInstant(Instant.ofEpochMilli(date.getTime()));
+    return DateTimeUtil.daysFromDate(date.toLocalDate());
   }
 
+  // Hive uses `java.sql.Timestamp.valueOf(lit.toString());` to convert a literal to Timestamp
+  // Which again uses `java.util.Date()` internally to create the object which uses the TimeZone.getDefaultRef()
+  // To get back the expected timestamp we have to use the LocalDateTime which gets rid of the TimeZone misery
+  // as it uses the year/month/day/hour/min/sec/nanos to generate the object
   private static int daysFromTimestamp(Timestamp timestamp) {
-    return DateTimeUtil.daysFromInstant(timestamp.toInstant());
+    return DateTimeUtil.daysFromDate(timestamp.toLocalDateTime().toLocalDate());
   }
 
+  // We have to use the LocalDateTime to get the micros. See the comment above.
   private static long microsFromTimestamp(Timestamp timestamp) {
-    return DateTimeUtil.microsFromInstant(timestamp.toInstant());
+    return DateTimeUtil.microsFromTimestamp(timestamp.toLocalDateTime());
   }
 }
