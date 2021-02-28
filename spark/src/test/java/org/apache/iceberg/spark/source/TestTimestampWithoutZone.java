@@ -93,9 +93,7 @@ public abstract class TestTimestampWithoutZone {
     return new Object[][] {
         { "parquet", false },
         { "parquet", true },
-        { "avro", false },
-        { "orc", false },
-        { "orc", true }
+        { "avro", false }
     };
   }
 
