@@ -39,7 +39,7 @@ public class Transforms {
   private Transforms() {
   }
 
-  private static final Pattern HAS_WIDTH = Pattern.compile("(\\w+)\\[(\\d+)\\]");
+  public static final Pattern HAS_WIDTH = Pattern.compile("(\\w+)\\[(\\d+)\\]");
 
   public static Transform<?, ?> fromString(Type type, String transform) {
     Matcher widthMatcher = HAS_WIDTH.matcher(transform);

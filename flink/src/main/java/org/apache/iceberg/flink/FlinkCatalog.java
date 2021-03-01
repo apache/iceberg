@@ -27,8 +27,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.catalog.AbstractCatalog;
@@ -79,9 +77,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Types;
-
-import static org.apache.iceberg.expressions.Expressions.bucket;
 
 /**
  * A Flink Catalog implementation that wraps an Iceberg {@link Catalog}.
@@ -370,21 +365,14 @@ public class FlinkCatalog extends AbstractCatalog {
     PartitionSpec.Builder specBuilder = toPartitionSpec(((CatalogTable) table).getPartitionKeys(), icebergSchema);
 
     String location = null;
-    String partitions = null;
     ImmutableMap.Builder<String, String> propsBuilder = ImmutableMap.builder();
     for (Map.Entry<String, String> entry : table.getOptions().entrySet()) {
       if ("location".equalsIgnoreCase(entry.getKey())) {
         location = entry.getValue();
-      } else if (FlinkTableProperties.PARTITIONS.equals(entry.getKey())) {
-        partitions = entry.getValue();
+      } else if (PartitionUtil.isPartitionField(entry.getKey())) {
+        PartitionUtil.addPartitionField(icebergSchema, specBuilder, entry.getKey(), entry.getValue());
       } else {
         propsBuilder.put(entry.getKey(), entry.getValue());
-      }
-    }
-
-    if (partitions != null) {
-      for (Map.Entry<String, Integer> e : parseBucketFields(partitions).entrySet()) {
-        specBuilder.bucket(e.getKey(), e.getValue());
       }
     }
 
@@ -434,7 +422,7 @@ public class FlinkCatalog extends AbstractCatalog {
 
     Map<String, String> oldProperties = table.getOptions();
     Map<String, String> setProperties = Maps.newHashMap();
-    Map<String, Integer> newPartitionFields = Maps.newLinkedHashMap();
+    PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(icebergTable.schema());
 
     String setLocation = null;
     String setSnapshotId = null;
@@ -454,8 +442,8 @@ public class FlinkCatalog extends AbstractCatalog {
         setSnapshotId = value;
       } else if ("cherry-pick-snapshot-id".equalsIgnoreCase(key)) {
         pickSnapshotId = value;
-      } else if (FlinkTableProperties.PARTITIONS.equals(key)) {
-        newPartitionFields.putAll(parseBucketFields(value));
+      } else if (PartitionUtil.isPartitionField(key)) {
+        PartitionUtil.addPartitionField(icebergTable.schema(), specBuilder, key, value);
       } else {
         setProperties.put(key, value);
       }
@@ -467,7 +455,7 @@ public class FlinkCatalog extends AbstractCatalog {
       }
     });
 
-    commitChanges(icebergTable, setLocation, setSnapshotId, pickSnapshotId, setProperties, newPartitionFields);
+    commitChanges(icebergTable, setLocation, setSnapshotId, pickSnapshotId, setProperties, specBuilder.build());
   }
 
   private static void validateFlinkTable(CatalogBaseTable table) {
@@ -511,44 +499,9 @@ public class FlinkCatalog extends AbstractCatalog {
     return partitionKeys;
   }
 
-  private static Map<String, Integer> parseBucketFields(String buckets) {
-    Map<String, Integer> bucketFields = Maps.newLinkedHashMap();
-
-    for (String fieldAndBucketNum : buckets.split(";")) {
-      String[] parts = fieldAndBucketNum.trim().split("=");
-      Preconditions.checkState(2 == parts.length, "%s should be the formatted like 'id=bucket[8];data=bucket[10]'",
-          FlinkTableProperties.PARTITIONS);
-
-      String field = parts[0].trim();
-
-      Integer bucketNum = parseBucketNum(parts[1].trim());
-      Preconditions.checkNotNull(bucketNum,
-          "Can only support bucket field now in '%s'", FlinkTableProperties.PARTITIONS);
-
-      bucketFields.put(field, bucketNum);
-    }
-
-    return bucketFields;
-  }
-
-  private static Integer parseBucketNum(String transformString) {
-    Pattern bucketPattern = Pattern.compile("bucket\\[(\\d+)\\]");
-    Matcher bucketMatcher = bucketPattern.matcher(transformString);
-    if (bucketMatcher.matches()) {
-      try {
-        return Integer.parseInt(bucketMatcher.group(1));
-      } catch (NumberFormatException e) {
-        throw new RuntimeException(
-            String.format("Bucket number should be an positive integer in '%s'", FlinkTableProperties.PARTITIONS));
-      }
-    } else {
-      return null;
-    }
-  }
-
   private static void commitChanges(Table table, String setLocation, String setSnapshotId,
                                     String pickSnapshotId, Map<String, String> setProperties,
-                                    Map<String, Integer> newBucketFields) {
+                                    PartitionSpec newSpec) {
     // don't allow setting the snapshot and picking a commit at the same time because order is ambiguous and choosing
     // one order leads to different results
     Preconditions.checkArgument(setSnapshotId == null || pickSnapshotId == null,
@@ -573,25 +526,17 @@ public class FlinkCatalog extends AbstractCatalog {
           .commit();
     }
 
-    if (newBucketFields != null && !newBucketFields.isEmpty()) {
+    if (newSpec != null) {
       UpdatePartitionSpec updatePartitionSpec = transaction.updateSpec();
 
-      // Remove the old bucket fields.
-      for (PartitionField field : table.spec().fields()) {
-        Integer bucketNum = parseBucketNum(field.transform().toString());
-        if (bucketNum != null) {
-          // The partition field is an old bucket field, let's remove this old bucket field.
-          Types.NestedField nestedField = table.schema().findField(field.sourceId());
-          Preconditions.checkNotNull(nestedField, "Could not find partition field %s in schema %s",
-              field, table.schema());
-
-          updatePartitionSpec.removeField(bucket(nestedField.name(), bucketNum));
-        }
+      // Remove the old partition fields.
+      for (PartitionField oldField : table.spec().fields()) {
+        updatePartitionSpec.removeField(PartitionUtil.toIcebergTerm(oldField.name(), oldField.transform()));
       }
 
-      // Add the new bucket fields.
-      for (Map.Entry<String, Integer> entry : newBucketFields.entrySet()) {
-        updatePartitionSpec.addField(bucket(entry.getKey(), entry.getValue()));
+      // Add the new partition fields.
+      for (PartitionField newField : newSpec.fields()) {
+        updatePartitionSpec.addField(PartitionUtil.toIcebergTerm(newField.name(), newField.transform()));
       }
 
       updatePartitionSpec.commit();

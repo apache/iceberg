@@ -24,7 +24,5 @@ public class FlinkTableProperties {
   private FlinkTableProperties() {
   }
 
-  // As we flink SQL does not support create table with specified buckets, so we use the table properties to specify
-  // the bucket infos. When flink SQL support bucket clause in future, we will deprecate the two properties.
-  public static final String PARTITIONS = "flink.partitions";
+  public static final String PARTITION_BY_PREFIX = "partition.by.";
 }

@@ -202,16 +202,13 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
   @Test
   public void testBucketTable() {
-    sql("CREATE TABLE tl(id BIGINT, dt STRING) WITH ('%s'='id=bucket[8];dt=bucket[10]')",
-        FlinkTableProperties.PARTITIONS);
+    sql("CREATE TABLE tl(id BIGINT, dt STRING) WITH ('%s'='bucket[8]', '%s'='bucket[10]')",
+        PartitionUtil.partitionPropKey("id"),
+        PartitionUtil.partitionPropKey("dt"));
     Table table = table("tl");
 
-    Schema iSchema = new Schema(
-        Types.NestedField.optional(1, "id", Types.LongType.get()),
-        Types.NestedField.optional(2, "dt", Types.StringType.get())
-    );
     Assert.assertEquals("Should have expected partition spec", table.spec(),
-        PartitionSpec.builderFor(iSchema)
+        PartitionSpec.builderFor(table.schema())
             .withSpecId(table.spec().specId())
             .bucket("id", 8)
             .bucket("dt", 10)
@@ -220,7 +217,7 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals(Maps.newHashMap(), table.properties());
 
     // Alter the table to new buckets.
-    sql("ALTER TABLE tl SET ('%s'='id=bucket[12]')", FlinkTableProperties.PARTITIONS);
+    sql("ALTER TABLE tl SET ('%s'='bucket[12]')", PartitionUtil.partitionPropKey("id"));
     table = table("tl");
     Assert.assertEquals("Should have the expected partition spec", table.spec(),
         PartitionSpec.builderFor(table.schema())
@@ -232,7 +229,9 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     Assert.assertEquals(Maps.newHashMap(), table.properties());
 
     // Alter the table to add new field bucket.
-    sql("ALTER TABLE tl SET ('%s'='id=bucket[1];dt=bucket[2]')", FlinkTableProperties.PARTITIONS);
+    sql("ALTER TABLE tl SET ('%s'='bucket[1]', '%s'='bucket[2]')",
+        PartitionUtil.partitionPropKey("id"),
+        PartitionUtil.partitionPropKey("dt"));
     table = table("tl");
     Assert.assertEquals("Should have the expected partition spec", table.spec(),
         PartitionSpec.builderFor(table.schema())
