@@ -601,6 +601,62 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void testUpdatePartitionSpecForV1Table() {
+    Schema schema = new Schema(
+        Types.NestedField.required(1, "x", Types.LongType.get()),
+        Types.NestedField.required(2, "y", Types.LongType.get())
+    );
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).withSpecId(0)
+        .bucket("x", 8)
+        .build();
+    String location = "file://tmp/db/table";
+
+    TableMetadata metadata = TableMetadata.newTableMetadata(
+        schema, spec, SortOrder.unsorted(), location, ImmutableMap.of(), 1);
+    TableMetadata updated = metadata.updatePartitionSpec(spec);
+    Assert.assertEquals(spec, updated.spec());
+
+    spec = PartitionSpec.builderFor(schema).withSpecId(1)
+        .bucket("y", 8)
+        .bucket("x", 8)
+        .build();
+    updated = metadata.updatePartitionSpec(spec);
+    Assert.assertEquals(spec, updated.spec());
+  }
+
+  @Test
+  public void testUpdatePartitionSpecForV2Table() {
+    Schema schema = new Schema(
+        Types.NestedField.required(1, "x", Types.LongType.get()),
+        Types.NestedField.required(2, "y", Types.LongType.get())
+    );
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).withSpecId(0)
+        .bucket("x", 8)
+        .build();
+    String location = "file://tmp/db/table";
+
+    TableMetadata metadata = TableMetadata.newTableMetadata(
+        schema, spec, SortOrder.unsorted(), location, ImmutableMap.of(), 2);
+    TableMetadata updated = metadata.updatePartitionSpec(spec);
+    Assert.assertEquals(spec, updated.spec());
+
+    spec = PartitionSpec.builderFor(schema).withSpecId(1)
+        .bucket("y", 8)
+        .bucket("x", 8)
+        .build();
+    updated = metadata.updatePartitionSpec(spec);
+    PartitionSpec expected = PartitionSpec.builderFor(schema).withSpecId(1)
+        .add(2, 1001, "y_bucket", "bucket[8]")
+        .add(1, 1000, "x_bucket", "bucket[8]")
+        .build();
+    Assert.assertEquals(
+        "Should reassign the partition field IDs and reuse any existing IDs for equivalent fields",
+        expected, updated.spec());
+  }
+
+  @Test
   public void testSortOrder() {
     Schema schema = new Schema(
         Types.NestedField.required(10, "x", Types.StringType.get())
