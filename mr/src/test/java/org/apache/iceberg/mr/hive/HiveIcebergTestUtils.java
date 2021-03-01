@@ -297,9 +297,9 @@ public class HiveIcebergTestUtils {
       Assert.assertEquals(record.size(), row.length);
       for (int fieldId = 0; fieldId < record.size(); ++fieldId) {
         Types.NestedField field = record.struct().fields().get(fieldId);
-        // If there are enclosing quotes then remove them
-        String inserted =
-            getStringValueForInsert(record.getField(field.name()), field.type()).replaceAll("'(.*)'", "$1");
+        String inserted = getStringValueForInsert(record.getField(field.name()), field.type())
+            // If there are enclosing quotes then remove them
+            .replaceAll("'(.*)'", "$1");
         String returned = row[fieldId].toString();
         if (field.type().equals(Types.TimestampType.withZone()) && MetastoreUtil.hive3PresentOnClasspath()) {
           Timestamp timestamp = Timestamp.from(ZonedDateTime.parse(returned, TIMESTAMP_WITH_TZ_FORMATTER).toInstant());
