@@ -113,7 +113,7 @@ public class HiveIcebergTestUtils {
               PrimitiveObjectInspectorFactory.writableStringObjectInspector
           ));
 
-  public static final DateTimeFormatter timestampWithTZFormatter = new DateTimeFormatterBuilder()
+  public static final DateTimeFormatter TIMESTAMP_WITH_TZ_FORMATTER = new DateTimeFormatterBuilder()
       .appendPattern("yyyy-MM-dd HH:mm:ss")
       .appendFraction(ChronoField.MICRO_OF_SECOND, 0, 9, true)
       .appendLiteral(' ')
@@ -223,14 +223,14 @@ public class HiveIcebergTestUtils {
   }
 
   /**
-   * Validates whether the table contains the expected records. The results should be sorted by a unique key so we do
-   * not end up with flaky tests.
+   * Validates whether the table contains the expected records reading the data through the Iceberg API.
+   * The results should be sorted by a unique key so we do not end up with flaky tests.
    * @param table The table we should read the records from
    * @param expected The expected list of Records
    * @param sortBy The column position by which we will sort
    * @throws IOException Exceptions when reading the table data
    */
-  public static void validateData(Table table, List<Record> expected, int sortBy) throws IOException {
+  public static void validateDataWithIceberg(Table table, List<Record> expected, int sortBy) throws IOException {
     // Refresh the table, so we get the new data as well
     table.refresh();
     List<Record> records = new ArrayList<>(expected.size());
@@ -280,10 +280,10 @@ public class HiveIcebergTestUtils {
   }
 
   /**
-   * Lazy implementation for checking the the returned results from a SELECT statement are the same than the inserted
+   * Lazy implementation for checking that the returned results from a SELECT statement are the same than the inserted
    * values. We expect that the values are inserted using {@link #getStringValueForInsert(Object, Type)}.
    * <p>
-   * For completeness shake we might want to implement sorting when needed.
+   * For completeness sake we might want to implement sorting when needed.
    * @param shell The shell used for executing the query
    * @param tableName The name of the table to query
    * @param expected The records we inserted
@@ -297,11 +297,12 @@ public class HiveIcebergTestUtils {
       Assert.assertEquals(record.size(), row.length);
       for (int fieldId = 0; fieldId < record.size(); ++fieldId) {
         Types.NestedField field = record.struct().fields().get(fieldId);
+        // If there are enclosing quotes then remove them
         String inserted =
             getStringValueForInsert(record.getField(field.name()), field.type()).replaceAll("'(.*)'", "$1");
         String returned = row[fieldId].toString();
         if (field.type().equals(Types.TimestampType.withZone()) && MetastoreUtil.hive3PresentOnClasspath()) {
-          Timestamp timestamp = Timestamp.from(ZonedDateTime.parse(returned, timestampWithTZFormatter).toInstant());
+          Timestamp timestamp = Timestamp.from(ZonedDateTime.parse(returned, TIMESTAMP_WITH_TZ_FORMATTER).toInstant());
           returned = timestamp.toString();
         }
         Assert.assertEquals(inserted, returned);

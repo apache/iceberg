@@ -54,36 +54,37 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import static org.apache.iceberg.mr.hive.HiveIcebergTestUtils.TIMESTAMP_WITH_TZ_FORMATTER;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.junit.runners.Parameterized.Parameter;
 import static org.junit.runners.Parameterized.Parameters;
 
 @RunWith(Parameterized.class)
 public class TestHiveIcebergStorageHandlerTimezone {
-  private static final Optional<ThreadLocal<DateFormat>> dateFormat =
+  private static final Optional<ThreadLocal<DateFormat>> DATE_FORMAT =
       Optional.ofNullable((ThreadLocal<DateFormat>) DynFields.builder()
           .hiddenImpl(TimestampWritable.class, "threadLocalDateFormat")
           .defaultAlwaysNull()
           .buildStatic()
           .get());
 
-  private static final Optional<ThreadLocal<TimeZone>> localTimeZone =
+  private static final Optional<ThreadLocal<TimeZone>> LOCAL_TIMEZONE =
       Optional.ofNullable((ThreadLocal<TimeZone>) DynFields.builder()
           .hiddenImpl(DateWritable.class, "LOCAL_TIMEZONE")
           .defaultAlwaysNull()
           .buildStatic()
           .get());
 
-  private static final PrimitiveTypeInfo timestampLocalTZTypeInfo =
+  private static final PrimitiveTypeInfo TIMESTAMP_LOCAL_TZ_TYPE_INFO =
       (PrimitiveTypeInfo) DynFields.builder().hiddenImpl(TypeInfoFactory.class, "timestampLocalTZTypeInfo")
           .defaultAlwaysNull()
           .buildStatic().get();
 
-  private static final Optional<DynFields.BoundField<ZoneId>> zoneId =
-      Optional.ofNullable(timestampLocalTZTypeInfo == null ? null : DynFields.builder()
+  private static final Optional<DynFields.BoundField<ZoneId>> ZONE_ID =
+      Optional.ofNullable(TIMESTAMP_LOCAL_TZ_TYPE_INFO == null ? null : DynFields.builder()
           .hiddenImpl("org.apache.hadoop.hive.serde2.typeinfo.TimestampLocalTZTypeInfo", "timeZone")
           .defaultAlwaysNull()
-          .build(timestampLocalTZTypeInfo));
+          .build(TIMESTAMP_LOCAL_TZ_TYPE_INFO));
 
   @Parameters(name = "timezone={0}")
   public static Collection<Object[]> parameters() {
@@ -120,9 +121,9 @@ public class TestHiveIcebergStorageHandlerTimezone {
 
     // Magic to clean cached date format and local timezone for Hive where the default timezone is used/stored in the
     // cached object
-    dateFormat.ifPresent(ThreadLocal::remove);
-    localTimeZone.ifPresent(ThreadLocal::remove);
-    zoneId.ifPresent(field -> field.set(TimeZone.getDefault().toZoneId()));
+    DATE_FORMAT.ifPresent(ThreadLocal::remove);
+    LOCAL_TIMEZONE.ifPresent(ThreadLocal::remove);
+    ZONE_ID.ifPresent(field -> field.set(TimeZone.getDefault().toZoneId()));
 
     this.testTables = HiveIcebergStorageHandlerTestUtils.testTables(shell, TestTables.TestTableType.HIVE_CATALOG, temp);
     // Uses spark as an engine so we can detect if we unintentionally try to use any execution engines
@@ -214,14 +215,14 @@ public class TestHiveIcebergStorageHandlerTimezone {
       List<Object[]> result = shell.executeStatement("SELECT d_ts FROM ts_test WHERE d_ts='2019-02-22 09:44:54.2'");
       Assert.assertEquals(1, result.size());
       Assert.assertEquals(offsetDateTime2.toInstant(),
-          ZonedDateTime.parse(result.get(0)[0].toString(), HiveIcebergTestUtils.timestampWithTZFormatter).toInstant());
+          ZonedDateTime.parse(result.get(0)[0].toString(), TIMESTAMP_WITH_TZ_FORMATTER).toInstant());
 
       // Skip testing `in` as I was not able come up with the constants that would work (maybe some Hive bug?)
 
       result = shell.executeStatement("SELECT d_ts FROM ts_test WHERE d_ts < '2019-02-22 09:44:54.2'");
       Assert.assertEquals(1, result.size());
       Assert.assertEquals(offsetDateTime1.toInstant(),
-          ZonedDateTime.parse(result.get(0)[0].toString(), HiveIcebergTestUtils.timestampWithTZFormatter).toInstant());
+          ZonedDateTime.parse(result.get(0)[0].toString(), TIMESTAMP_WITH_TZ_FORMATTER).toInstant());
 
       result = shell.executeStatement("SELECT d_ts FROM ts_test WHERE d_ts='2017-01-01 22:30:57.3'");
       Assert.assertEquals(0, result.size());

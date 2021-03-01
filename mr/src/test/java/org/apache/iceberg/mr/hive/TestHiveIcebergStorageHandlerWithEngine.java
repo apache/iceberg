@@ -306,7 +306,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
 
     shell.executeStatement(query.toString());
 
-    HiveIcebergTestUtils.validateData(table, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS, 0);
+    HiveIcebergTestUtils.validateDataWithIceberg(table, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS, 0);
   }
 
   @Test
@@ -331,7 +331,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
       Table table = testTables.createTable(shell, tableName, schema, PartitionSpec.unpartitioned(), fileFormat,
           expected);
 
-      HiveIcebergTestUtils.validateData(table, expected, 0);
+      HiveIcebergTestUtils.validateDataWithIceberg(table, expected, 0);
       HiveIcebergTestUtils.validateDataWithSql(shell, tableName, expected);
     }
   }
@@ -352,7 +352,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     // Check that everything is duplicated as expected
     List<Record> records = new ArrayList<>(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     records.addAll(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
-    HiveIcebergTestUtils.validateData(table, records, 0);
+    HiveIcebergTestUtils.validateDataWithIceberg(table, records, 0);
   }
 
   /**
@@ -372,7 +372,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     // Check that everything is duplicated as expected
     List<Record> records = new ArrayList<>(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     records.addAll(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
-    HiveIcebergTestUtils.validateData(table, records, 0);
+    HiveIcebergTestUtils.validateDataWithIceberg(table, records, 0);
   }
 
   @Test
@@ -391,7 +391,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
         .add(1L, null, "test")
         .build();
 
-    HiveIcebergTestUtils.validateData(table, expected, 0);
+    HiveIcebergTestUtils.validateDataWithIceberg(table, expected, 0);
   }
 
   @Test
@@ -416,7 +416,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
       copy.setField("first_name", "Sam");
       expected.add(copy);
     });
-    HiveIcebergTestUtils.validateData(table, expected, 0);
+    HiveIcebergTestUtils.validateDataWithIceberg(table, expected, 0);
   }
 
   @Test
@@ -435,7 +435,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     shell.executeStatement("INSERT INTO target_customers SELECT a.customer_id, b.first_name, a.last_name FROM " +
             "source_customers_1 a JOIN source_customers_2 b ON a.last_name = b.last_name");
 
-    HiveIcebergTestUtils.validateData(table, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS, 0);
+    HiveIcebergTestUtils.validateDataWithIceberg(table, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS, 0);
   }
 
   @Test
@@ -587,7 +587,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     Table table = testTables.createTable(shell, "partitioned_customers",
         HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, spec, fileFormat, records);
 
-    HiveIcebergTestUtils.validateData(table, records, 0);
+    HiveIcebergTestUtils.validateDataWithIceberg(table, records, 0);
   }
 
   @Test
@@ -603,7 +603,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     Table table = testTables.createTable(shell, "partitioned_customers",
         HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, spec, fileFormat, records);
 
-    HiveIcebergTestUtils.validateData(table, records, 0);
+    HiveIcebergTestUtils.validateDataWithIceberg(table, records, 0);
   }
 
   @Test
@@ -620,7 +620,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     Table table = testTables.createTable(shell, "partitioned_customers",
         HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, spec, fileFormat, records);
 
-    HiveIcebergTestUtils.validateData(table, records, 0);
+    HiveIcebergTestUtils.validateDataWithIceberg(table, records, 0);
   }
 
   private void testComplexTypeWrite(Schema schema, List<Record> records) throws IOException {
@@ -631,7 +631,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     shell.executeStatement("CREATE TABLE default." + dummyTableName + "(a int)");
     shell.executeStatement("INSERT INTO TABLE default." + dummyTableName + " VALUES(1)");
     records.forEach(r -> shell.executeStatement(insertQueryForComplexType(tableName, dummyTableName, schema, r)));
-    HiveIcebergTestUtils.validateData(table, records, 0);
+    HiveIcebergTestUtils.validateDataWithIceberg(table, records, 0);
   }
 
   private String insertQueryForComplexType(String tableName, String dummyTableName, Schema schema, Record record) {
