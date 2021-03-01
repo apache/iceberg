@@ -21,7 +21,6 @@ package org.apache.iceberg.flink;
 
 import java.util.Locale;
 import java.util.regex.Matcher;
-import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expressions;
