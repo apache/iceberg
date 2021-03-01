@@ -239,6 +239,8 @@ project(':iceberg-data') {
     compile project(':iceberg-core')
     compileOnly project(':iceberg-parquet')
     compileOnly project(':iceberg-orc')
+    compileOnly project(':iceberg-arrow')
+
     compileOnly("org.apache.hadoop:hadoop-common") {
       exclude group: 'commons-beanutils'
       exclude group: 'org.apache.avro', module: 'avro'
@@ -250,13 +252,25 @@ project(':iceberg-data') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
+    compileOnly("org.apache.arrow:arrow-vector") {
+      exclude group: 'io.netty', module: 'netty-buffer'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
+
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
 
   test {
-    // Only for TestSplitScan as of Gradle 5.0+
-    maxHeapSize '1500m'
+    // For vectorized reads
+    // Allow unsafe memory access to avoid the costly check arrow does to check if index is within bounds
+    systemProperty("arrow.enable_unsafe_memory_access", "true")
+    // Disable expensive null check for every get(index) call.
+    // Iceberg manages nullability checks itself instead of relying on arrow.
+    systemProperty("arrow.enable_null_check_for_get", "false")
+
+    // Vectorized reads need more memory
+    maxHeapSize '2500m'
   }
 }
 

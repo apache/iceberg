@@ -47,6 +47,10 @@ public class IcebergGenerics {
       this.tableScan = table.newScan();
     }
 
+    public TableScan getTableScan() {
+      return tableScan;
+    }
+
     public ScanBuilder reuseContainers() {
       this.reuseContainers = true;
       return this;
