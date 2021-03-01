@@ -206,7 +206,7 @@ public class ExpireSnapshotsAction extends BaseSparkAction<ExpireSnapshotsAction
 
   @Override
   public ExpireSnapshotsActionResult doExecute() {
-    spark.sparkContext().setJobGroup("EXPIRE", "EXPIRE SNAPSHOTS", false);
+    spark.sparkContext().setJobGroup("EXPIRE", "EXPIRE-SNAPSHOTS", false);
     if (streamResults) {
       return deleteFiles(expire().toLocalIterator());
     } else {
