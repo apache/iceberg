@@ -98,7 +98,7 @@ public class TestPartitionSpecInfo {
 
     TableMetadata base = TestTables.readMetadata("test");
     PartitionSpec newSpec = PartitionSpec.builderFor(table.schema())
-        .bucket("data", 10)
+        .add(2, 999 + formatVersion, "data_bucket", "bucket[10]")
         .withSpecId(1)
         .build();
     table.ops().commit(base, base.updatePartitionSpec(newSpec));
