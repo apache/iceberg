@@ -280,10 +280,10 @@ public class HiveIcebergTestUtils {
   }
 
   /**
-   * Lazy implementation for checking that the returned results from a SELECT statement are the same than the inserted
-   * values. We expect that the values are inserted using {@link #getStringValueForInsert(Object, Type)}.
+   * Simplified implementation for checking that the returned results from a SELECT statement are the same than the
+   * inserted values. We expect that the values are inserted using {@link #getStringValueForInsert(Object, Type)}.
    * <p>
-   * For completeness sake we might want to implement sorting when needed.
+   * For the full implementation we might want to add sorting so the check could work for every table/query.
    * @param shell The shell used for executing the query
    * @param tableName The name of the table to query
    * @param expected The records we inserted
