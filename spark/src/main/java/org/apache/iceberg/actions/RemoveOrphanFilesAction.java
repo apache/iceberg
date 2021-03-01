@@ -165,7 +165,7 @@ public class RemoveOrphanFilesAction extends BaseSparkAction<RemoveOrphanFilesAc
         .suppressFailureWhenFinished()
         .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
         .run(deleteFunc::accept);
-    
+
     return orphanFiles;
   }
 
