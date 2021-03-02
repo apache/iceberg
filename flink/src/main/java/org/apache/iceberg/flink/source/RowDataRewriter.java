@@ -75,6 +75,11 @@ public class RowDataRewriter {
     this.taskWriterFactory = new RowDataTaskWriterFactory(
         SerializableTable.copyOf(table),
         flinkSchema,
+        table.spec(),
+        table.sortOrder(),
+        table.locationProvider(),
+        io,
+        encryptionManager,
         Long.MAX_VALUE,
         format,
         null,

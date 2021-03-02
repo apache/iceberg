@@ -237,9 +237,16 @@ public class TestTaskWriters {
   }
 
   private TaskWriter<RowData> createTaskWriter(long targetFileSize) {
+<<<<<<< HEAD
     TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(
         SerializableTable.copyOf(table), (RowType) SimpleDataUtil.FLINK_SCHEMA.toRowDataType().getLogicalType(),
         targetFileSize, format, null, false);
+=======
+    TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(),
+        (RowType) SimpleDataUtil.FLINK_SCHEMA.toRowDataType().getLogicalType(), table.spec(), table.sortOrder(),
+        table.locationProvider(), table.io(), table.encryption(),
+        targetFileSize, format, table.properties(), null);
+>>>>>>> Address review comments
     taskWriterFactory.initialize(1, 1);
     return taskWriterFactory.create();
   }
