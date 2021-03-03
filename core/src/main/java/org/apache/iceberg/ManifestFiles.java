@@ -124,24 +124,13 @@ public class ManifestFiles {
   /**
    * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
    *
-   * @param manifest a {@link ManifestFile}
-   * @param io a {@link FileIO}
-   * @return a {@link ManifestReader}
-   */
-  public static ManifestReader<DeleteFile> readDeleteManifest(ManifestFile manifest, FileIO io) {
-    return readDeleteManifest(manifest, io, null);
-  }
-
-  /**
-   * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
-   *
-   * @param manifest a {@link ManifestFile}
-   * @param io a {@link FileIO}
+   * @param manifest  a {@link ManifestFile}
+   * @param io        a {@link FileIO}
    * @param specsById a Map from spec ID to partition spec
    * @return a {@link ManifestReader}
    */
   public static ManifestReader<DeleteFile> readDeleteManifest(ManifestFile manifest, FileIO io,
-                                                              Map<Integer, PartitionSpec> specsById) {
+      Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(manifest.content() == ManifestContent.DELETES,
         "Cannot read a data manifest with a DeleteManifestReader: %s", manifest);
     InputFile file = io.newInputFile(manifest.path());
