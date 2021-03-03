@@ -421,6 +421,13 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
     List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
     Assert.assertEquals("Should have 8 data files before rewrite", 8, dataFiles.size());
 
+    Dataset<Row> beforeResultDF = spark.read().format("iceberg").load(tableLocation);
+    List<ThreeColumnRecord> beforeActualFilteredRecords = beforeResultDF.sort("c1", "c2", "c3")
+        .filter("c1 = 1 AND c2 = 'BBBBBBBBBB'")
+        .as(Encoders.bean(ThreeColumnRecord.class))
+        .collectAsList();
+    Assert.assertEquals("Rows must match", records2, beforeActualFilteredRecords);
+
     Actions actions = Actions.forTable(table);
     RewriteDataFilesActionResult result = actions
         .rewriteDataFiles()
@@ -452,19 +459,11 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
 
     Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
 
-    List<ThreeColumnRecord> expectedFilteredRecords = Lists.newArrayList(records2);
     List<ThreeColumnRecord> actualFilteredRecords = resultDF.sort("c1", "c2", "c3")
-        .filter((FilterFunction<Row>) r -> (int) r.get(0) == 1 && r.get(1).equals("BBBBBBBBBB"))
+        .filter("c1 = 1 AND c2 = 'BBBBBBBBBB'")
         .as(Encoders.bean(ThreeColumnRecord.class))
         .collectAsList();
-    Assert.assertEquals("Rows must match", expectedFilteredRecords, actualFilteredRecords);
-
-    actualFilteredRecords = resultDF.sort("c1", "c2", "c3")
-        .filter((FilterFunction<Row>) r -> r.get(1).equals("BBBBBBBBBB"))
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
-    expectedFilteredRecords.addAll(records4);
-    Assert.assertEquals("Rows must match", expectedFilteredRecords, actualFilteredRecords);
+    Assert.assertEquals("Rows must match", records2, actualFilteredRecords);
 
     List<ThreeColumnRecord> records5 = Lists.newArrayList(
         new ThreeColumnRecord(3, "CCCCCCCCCC", "FFFF"),
