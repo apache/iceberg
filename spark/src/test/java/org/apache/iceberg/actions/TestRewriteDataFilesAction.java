@@ -429,6 +429,9 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
     Assert.assertEquals("Action should rewrite 8 data files", 8, result.deletedDataFiles().size());
     Assert.assertEquals("Action should add 2 data file", 2, result.addedDataFiles().size());
 
+    Assert.assertTrue(result.deletedDataFiles().stream().allMatch(df -> df.specId() == 1));
+    Assert.assertTrue(result.addedDataFiles().stream().allMatch(df -> df.specId() == 0));
+
     table.refresh();
 
     CloseableIterable<FileScanTask> tasks2 = table.newScan().planFiles();
