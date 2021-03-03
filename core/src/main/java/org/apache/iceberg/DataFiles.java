@@ -112,6 +112,10 @@ public class DataFiles {
     return new Builder(spec);
   }
 
+  public static IndexBuilder indexBuilder(DataFile dataFile) {
+    return new IndexBuilder(dataFile);
+  }
+
   public static class Builder {
     private final PartitionSpec spec;
     private final boolean isPartitioned;
@@ -292,6 +296,63 @@ public class DataFiles {
           fileSizeInBytes, new Metrics(
               recordCount, columnSizes, valueCounts, nullValueCounts, nanValueCounts, lowerBounds, upperBounds),
           keyMetadata, splitOffsets, sortOrderId);
+    }
+  }
+
+  public static class IndexBuilder {
+    private String filePath = null;
+    private FileFormat format = null;
+    private long recordCount = -1L;
+    private long fileSizeInBytes = -1L;
+
+    public IndexBuilder(DataFile dataFile) {
+      this.filePath = dataFile.path().toString();
+      this.format = FileFormat.INDEXDATA;
+      this.recordCount = dataFile.recordCount();
+    }
+
+    public void clear() {
+      this.filePath = null;
+      this.format = null;
+      this.recordCount = -1L;
+      this.fileSizeInBytes = -1L;
+    }
+
+    public DataFiles.IndexBuilder copy(DataFile toCopy) {
+      Preconditions.checkArgument(toCopy.format() == FileFormat.INDEXDATA,
+          "Cannot copy a non Index Data File");
+      this.filePath = toCopy.path().toString();
+      this.format = toCopy.format();
+      this.recordCount = toCopy.recordCount();
+      this.fileSizeInBytes = toCopy.fileSizeInBytes();
+      return this;
+    }
+
+    public DataFiles.IndexBuilder withPath(String newFilePath) {
+      this.filePath = newFilePath;
+      return this;
+    }
+
+    public DataFiles.IndexBuilder withRecordCount(long newRecordCount) {
+      this.recordCount = newRecordCount;
+      return this;
+    }
+
+    public DataFiles.IndexBuilder withFileSizeInBytes(long newFileSizeInBytes) {
+      this.fileSizeInBytes = newFileSizeInBytes;
+      return this;
+    }
+
+    public DataFile build() {
+      Preconditions.checkArgument(filePath != null, "File path is required");
+      if (format == null) {
+        this.format = FileFormat.fromFileName(filePath);
+      }
+      Preconditions.checkArgument(format != null, "File format is required");
+      Preconditions.checkArgument(fileSizeInBytes >= 0, "File size is required");
+      Preconditions.checkArgument(recordCount >= 0, "Record count is required");
+
+      return new GenericDataFile(filePath, format, fileSizeInBytes, recordCount);
     }
   }
 
