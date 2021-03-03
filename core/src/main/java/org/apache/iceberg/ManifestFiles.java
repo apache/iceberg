@@ -130,7 +130,7 @@ public class ManifestFiles {
    * @return a {@link ManifestReader}
    */
   public static ManifestReader<DeleteFile> readDeleteManifest(ManifestFile manifest, FileIO io,
-      Map<Integer, PartitionSpec> specsById) {
+                                                              Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(manifest.content() == ManifestContent.DELETES,
         "Cannot read a data manifest with a DeleteManifestReader: %s", manifest);
     InputFile file = io.newInputFile(manifest.path());
