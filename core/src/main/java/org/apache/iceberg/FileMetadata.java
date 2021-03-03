@@ -106,11 +106,6 @@ public class FileMetadata {
       return this;
     }
 
-    public Builder ofIndexData() {
-      this.content = FileContent.INDEX_DATA;
-      return this;
-    }
-
     public Builder ofPositionDeletes() {
       this.content = FileContent.POSITION_DELETES;
       this.equalityFieldIds = null;
@@ -231,10 +226,6 @@ public class FileMetadata {
           if (sortOrderId == null) {
             sortOrderId = SortOrder.unsorted().orderId();
           }
-          break;
-
-        case INDEX_DATA:
-          // INDEX_DATA should be invalided/deleted with both position and equality deletes
           break;
         default:
           throw new IllegalStateException("Unknown content type " + content);

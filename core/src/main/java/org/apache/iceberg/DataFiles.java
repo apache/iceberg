@@ -113,7 +113,7 @@ public class DataFiles {
   }
 
   public static IndexBuilder indexBuilder(DataFile dataFile) {
-    return new IndexBuilder(dataFile);
+    return new IndexBuilder();
   }
 
   public static class Builder {
@@ -301,14 +301,12 @@ public class DataFiles {
 
   public static class IndexBuilder {
     private String filePath = null;
-    private FileFormat format = null;
+    private FileFormat format = FileFormat.INDEXDATA;
+    // recordCount == its corresponding DataFile recordCount
     private long recordCount = -1L;
     private long fileSizeInBytes = -1L;
 
-    public IndexBuilder(DataFile dataFile) {
-      this.filePath = dataFile.path().toString();
-      this.format = FileFormat.INDEXDATA;
-      this.recordCount = dataFile.recordCount();
+    public IndexBuilder() {
     }
 
     public void clear() {
@@ -328,6 +326,7 @@ public class DataFiles {
       return this;
     }
 
+    // Index file location: <DataFile Path>/index/
     public DataFiles.IndexBuilder withPath(String newFilePath) {
       this.filePath = newFilePath;
       return this;
@@ -345,9 +344,6 @@ public class DataFiles {
 
     public DataFile build() {
       Preconditions.checkArgument(filePath != null, "File path is required");
-      if (format == null) {
-        this.format = FileFormat.fromFileName(filePath);
-      }
       Preconditions.checkArgument(format != null, "File format is required");
       Preconditions.checkArgument(fileSizeInBytes >= 0, "File size is required");
       Preconditions.checkArgument(recordCount >= 0, "Record count is required");
