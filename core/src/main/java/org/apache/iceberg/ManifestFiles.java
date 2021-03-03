@@ -124,8 +124,8 @@ public class ManifestFiles {
   /**
    * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
    *
-   * @param manifest  a {@link ManifestFile}
-   * @param io        a {@link FileIO}
+   * @param manifest a {@link ManifestFile}
+   * @param io a {@link FileIO}
    * @param specsById a Map from spec ID to partition spec
    * @return a {@link ManifestReader}
    */
