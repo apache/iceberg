@@ -454,7 +454,13 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
             .filter((FilterFunction<Row>) r -> (int) r.get(0) == 1 && r.get(1).equals("BBBBBBBBBB"))
             .as(Encoders.bean(ThreeColumnRecord.class))
             .collectAsList();
+    Assert.assertEquals("Rows must match", expectedFilteredRecords, actualFilteredRecords);
 
+    actualFilteredRecords = resultDF.sort("c1", "c2", "c3")
+            .filter((FilterFunction<Row>) r -> r.get(1).equals("BBBBBBBBBB"))
+            .as(Encoders.bean(ThreeColumnRecord.class))
+            .collectAsList();
+    expectedFilteredRecords.addAll(records4);
     Assert.assertEquals("Rows must match", expectedFilteredRecords, actualFilteredRecords);
 
     List<ThreeColumnRecord> records5 = Lists.newArrayList(
