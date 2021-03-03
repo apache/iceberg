@@ -382,8 +382,8 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
   @Test
   public void testRewriteToOutputPartitionSpec() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
-            .identity("c1")
-            .build();
+        .identity("c1")
+        .build();
     Map<String, String> options = Maps.newHashMap();
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
@@ -392,26 +392,26 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
     Assert.assertEquals("Should have 2 partitions specs", 2, table.specs().size());
 
     List<ThreeColumnRecord> records1 = Lists.newArrayList(
-            new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"),
-            new ThreeColumnRecord(1, "AAAAAAAAAA", "CCCC")
+        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"),
+        new ThreeColumnRecord(1, "AAAAAAAAAA", "CCCC")
     );
     writeRecords(records1);
 
     List<ThreeColumnRecord> records2 = Lists.newArrayList(
-            new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"),
-            new ThreeColumnRecord(1, "BBBBBBBBBB", "DDDD")
+        new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"),
+        new ThreeColumnRecord(1, "BBBBBBBBBB", "DDDD")
     );
     writeRecords(records2);
 
     List<ThreeColumnRecord> records3 = Lists.newArrayList(
-            new ThreeColumnRecord(2, "AAAAAAAAAA", "EEEE"),
-            new ThreeColumnRecord(2, "AAAAAAAAAA", "GGGG")
+        new ThreeColumnRecord(2, "AAAAAAAAAA", "EEEE"),
+        new ThreeColumnRecord(2, "AAAAAAAAAA", "GGGG")
     );
     writeRecords(records3);
 
     List<ThreeColumnRecord> records4 = Lists.newArrayList(
-            new ThreeColumnRecord(2, "BBBBBBBBBB", "FFFF"),
-            new ThreeColumnRecord(2, "BBBBBBBBBB", "HHHH")
+        new ThreeColumnRecord(2, "BBBBBBBBBB", "FFFF"),
+        new ThreeColumnRecord(2, "BBBBBBBBBB", "HHHH")
     );
     writeRecords(records4);
 
@@ -423,9 +423,9 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
 
     Actions actions = Actions.forTable(table);
     RewriteDataFilesActionResult result = actions
-            .rewriteDataFiles()
-            .outputSpecId(0)
-            .execute();
+        .rewriteDataFiles()
+        .outputSpecId(0)
+        .execute();
     Assert.assertEquals("Action should rewrite 8 data files", 8, result.deletedDataFiles().size());
     Assert.assertEquals("Action should add 2 data file", 2, result.addedDataFiles().size());
 
@@ -444,34 +444,34 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
 
     Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
     List<ThreeColumnRecord> actualRecords = resultDF.sort("c1", "c2", "c3")
-            .as(Encoders.bean(ThreeColumnRecord.class))
-            .collectAsList();
+        .as(Encoders.bean(ThreeColumnRecord.class))
+        .collectAsList();
 
     Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
 
     List<ThreeColumnRecord> expectedFilteredRecords = Lists.newArrayList(records2);
     List<ThreeColumnRecord> actualFilteredRecords = resultDF.sort("c1", "c2", "c3")
-            .filter((FilterFunction<Row>) r -> (int) r.get(0) == 1 && r.get(1).equals("BBBBBBBBBB"))
-            .as(Encoders.bean(ThreeColumnRecord.class))
-            .collectAsList();
+        .filter((FilterFunction<Row>) r -> (int) r.get(0) == 1 && r.get(1).equals("BBBBBBBBBB"))
+        .as(Encoders.bean(ThreeColumnRecord.class))
+        .collectAsList();
     Assert.assertEquals("Rows must match", expectedFilteredRecords, actualFilteredRecords);
 
     actualFilteredRecords = resultDF.sort("c1", "c2", "c3")
-            .filter((FilterFunction<Row>) r -> r.get(1).equals("BBBBBBBBBB"))
-            .as(Encoders.bean(ThreeColumnRecord.class))
-            .collectAsList();
+        .filter((FilterFunction<Row>) r -> r.get(1).equals("BBBBBBBBBB"))
+        .as(Encoders.bean(ThreeColumnRecord.class))
+        .collectAsList();
     expectedFilteredRecords.addAll(records4);
     Assert.assertEquals("Rows must match", expectedFilteredRecords, actualFilteredRecords);
 
     List<ThreeColumnRecord> records5 = Lists.newArrayList(
-            new ThreeColumnRecord(3, "CCCCCCCCCC", "FFFF"),
-            new ThreeColumnRecord(3, "CCCCCCCCCC", "HHHH")
+        new ThreeColumnRecord(3, "CCCCCCCCCC", "FFFF"),
+        new ThreeColumnRecord(3, "CCCCCCCCCC", "HHHH")
     );
     writeRecords(records5);
     expectedRecords.addAll(records5);
     actualRecords = resultDF.sort("c1", "c2", "c3")
-            .as(Encoders.bean(ThreeColumnRecord.class))
-            .collectAsList();
+        .as(Encoders.bean(ThreeColumnRecord.class))
+        .collectAsList();
 
     Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
   }
