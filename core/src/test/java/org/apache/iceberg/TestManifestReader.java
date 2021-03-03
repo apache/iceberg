@@ -135,8 +135,7 @@ public class TestManifestReader extends TableTestBase {
   @Test
   public void testDeleteFilePositions() throws IOException {
     ManifestFile manifest = writeDeleteManifest(2, 1000L, FILE_A_DELETES, FILE_B_DELETES);
-    try (ManifestReader<DeleteFile> reader = ManifestFiles
-        .readDeleteManifest(manifest, FILE_IO, null)) {
+    try (ManifestReader<DeleteFile> reader = ManifestFiles.readDeleteManifest(manifest, FILE_IO, null)) {
       long expectedPos = 0L;
       for (DeleteFile file : reader) {
         Assert.assertEquals("Position should match", (Long) expectedPos, file.pos());

@@ -214,13 +214,12 @@ public class TableTestBase {
     return writer.toManifestFile();
   }
 
-  @SuppressWarnings("checkstyle:HiddenField")
-  ManifestFile writeDeleteManifest(int formatVersion, Long snapshotId, DeleteFile... deleteFiles)
+  ManifestFile writeDeleteManifest(int newFormatVersion, Long snapshotId, DeleteFile... deleteFiles)
       throws IOException {
     OutputFile manifestFile = org.apache.iceberg.Files
         .localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
     ManifestWriter<DeleteFile> writer = ManifestFiles.writeDeleteManifest(
-        formatVersion, SPEC, manifestFile, snapshotId);
+        newFormatVersion, SPEC, manifestFile, snapshotId);
     try {
       for (DeleteFile deleteFile : deleteFiles) {
         writer.add(deleteFile);
