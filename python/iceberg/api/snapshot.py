@@ -35,6 +35,10 @@ class Snapshot(object):
         raise NotImplementedError()
 
     @property
+    def manifest_location(self):
+        raise NotImplementedError()
+
+    @property
     def summary(self):
         raise NotImplementedError()
 

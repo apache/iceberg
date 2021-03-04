@@ -107,7 +107,7 @@ class BaseMetastoreTableOperations(TableOperations):
 
     def delete_file(self, path):
         from .filesystem import get_fs
-        get_fs(path, self.conf).delete(path, False)
+        get_fs(path, self.conf).delete(path)
 
     @retry(wait_incrementing_start=100, wait_exponential_multiplier=4,
            wait_exponential_max=5000, stop_max_delay=600000, stop_max_attempt_number=2)

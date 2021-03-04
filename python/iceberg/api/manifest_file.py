@@ -27,6 +27,7 @@ from .types import (BinaryType,
 
 
 class ManifestFile(object):
+
     SCHEMA = Schema(NestedField.required(500, "manifest_path", StringType.get()),
                     NestedField.required(501, "manifest_length", LongType.get()),
                     NestedField.required(502, "partition_spec_id", IntegerType.get()),

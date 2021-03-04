@@ -84,7 +84,7 @@ class BaseSnapshot(Snapshot, SnapshotIterable, CloseableGroup):
 
     @property
     def manifest_location(self):
-        return self._manifest_list.location if self._manifest_list is not None else None
+        return self._manifest_list.location() if self._manifest_list is not None else None
 
     @property
     def summary(self):
@@ -128,6 +128,6 @@ class BaseSnapshot(Snapshot, SnapshotIterable, CloseableGroup):
         return self.__repr__()
 
     def get_filtered_manifest(self, path, part_filter, row_filter, columns):
-        reader = ManifestReader.read(self.ops.new_input_file(path))
+        reader = ManifestReader.read(self._ops.new_input_file(path))
         self.add_closeable(reader)
         return reader
