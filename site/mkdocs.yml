@@ -49,12 +49,13 @@ nav:
     - How to Release: how-to-release.md
   - Tables:
     - Configuration: configuration.md
-    - Schemas: schemas.md
-    - Partitioning: partitioning.md
-    - Table evolution: evolution.md
     - Maintenance: maintenance.md
+    - Metadata: metadata.md
+    - Partitioning: partitioning.md
     - Performance: performance.md
     - Reliability: reliability.md
+    - Schemas: schemas.md
+    - Table evolution: evolution.md
   - Spark:
     - Getting Started: getting-started.md
     - Configuration: spark-configuration.md
