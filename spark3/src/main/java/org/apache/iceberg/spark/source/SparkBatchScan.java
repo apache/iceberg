@@ -39,6 +39,7 @@ import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -97,7 +98,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     // is adjusted so that the corresponding time in the reader timezone is displayed.
     // When set to false (default), we throw an exception at runtime
     // "Spark does not support timestamp without time zone fields" if reading timestamp without time zone fields
-    this.readTimestampWithoutZone = options.getBoolean("read-timestamp-without-zone", false);
+    this.readTimestampWithoutZone = options.getBoolean(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_FLAG, false);
   }
 
   protected Table table() {
@@ -132,8 +133,8 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   @Override
   public StructType readSchema() {
     if (readSchema == null) {
-      Preconditions.checkArgument(readTimestampWithoutZone || !hasTimestampWithoutZone(expectedSchema),
-              "Spark does not support timestamp without time zone fields");
+      Preconditions.checkArgument(readTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(expectedSchema),
+              SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
       this.readSchema = SparkSchemaUtil.convert(expectedSchema);
     }
     return readSchema;
