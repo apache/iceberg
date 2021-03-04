@@ -21,9 +21,11 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.util.Collections;
+import java.util.List;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -37,7 +39,7 @@ import static org.apache.iceberg.ManifestEntry.Status.EXISTING;
 public class TestRewriteFiles extends TableTestBase {
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
-    return new Object[] { 1, 2 };
+    return new Object[] {1, 2};
   }
 
   public TestRewriteFiles(int formatVersion) {
@@ -57,6 +59,13 @@ public class TestRewriteFiles extends TableTestBase {
         () -> table.newRewrite()
             .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_B))
             .commit());
+
+    AssertHelpers.assertThrows("Expected an exception",
+        ValidationException.class,
+        "Missing required files to delete: /path/to/data-a-deletes.parquet",
+        () -> table.newRewrite()
+            .rewriteFiles(RewriteFiles.FileSet.of(FILE_A_DELETES), RewriteFiles.FileSet.of(FILE_A, FILE_B_DELETES))
+            .commit());
   }
 
   @Test
@@ -69,6 +78,20 @@ public class TestRewriteFiles extends TableTestBase {
         () -> table.newRewrite()
             .rewriteFiles(Sets.newSet(FILE_A), Collections.emptySet())
             .apply());
+
+    AssertHelpers.assertThrows("Expected an exception",
+        IllegalArgumentException.class,
+        "Files to add can not be null or empty",
+        () -> table.newRewrite()
+            .rewriteFiles(RewriteFiles.FileSet.of(FILE_A_DELETES), RewriteFiles.FileSet.of())
+            .apply());
+
+    AssertHelpers.assertThrows("Expected an exception",
+        IllegalArgumentException.class,
+        "Files to add can not be null or empty",
+        () -> table.newRewrite()
+            .rewriteFiles(RewriteFiles.FileSet.of(FILE_A, FILE_A_DELETES), RewriteFiles.FileSet.of())
+            .apply());
   }
 
   @Test
@@ -80,6 +103,20 @@ public class TestRewriteFiles extends TableTestBase {
         "Files to delete cannot be null or empty",
         () -> table.newRewrite()
             .rewriteFiles(Collections.emptySet(), Sets.newSet(FILE_A))
+            .apply());
+
+    AssertHelpers.assertThrows("Expected an exception",
+        IllegalArgumentException.class,
+        "Files to delete cannot be null or empty",
+        () -> table.newRewrite()
+            .rewriteFiles(RewriteFiles.FileSet.of(), RewriteFiles.FileSet.of(FILE_A_DELETES))
+            .apply());
+
+    AssertHelpers.assertThrows("Expected an exception",
+        IllegalArgumentException.class,
+        "Files to delete cannot be null or empty",
+        () -> table.newRewrite()
+            .rewriteFiles(RewriteFiles.FileSet.of(), RewriteFiles.FileSet.of(FILE_A, FILE_A_DELETES))
             .apply());
   }
 
@@ -162,6 +199,65 @@ public class TestRewriteFiles extends TableTestBase {
 
     // We should only get the 3 manifests that this test is expected to add.
     Assert.assertEquals("Only 3 manifests should exist", 3, listManifestFiles().size());
+  }
+
+  @Test
+  public void testRewriteDataAndDeleteFiles() {
+    Assume.assumeTrue("Rewriting delete files is only supported in iceberg format v2. ", formatVersion == 2);
+    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+
+    table.newRowDelta()
+        .addRows(FILE_A)
+        .addRows(FILE_B)
+        .addRows(FILE_C)
+        .addDeletes(FILE_A_DELETES)
+        .addDeletes(FILE_B_DELETES)
+        .commit();
+
+    TableMetadata base = readMetadata();
+    Snapshot baseSnap = base.currentSnapshot();
+    long baseSnapshotId = baseSnap.snapshotId();
+    Assert.assertEquals("Should create 2 manifests for initial write", 2, baseSnap.allManifests().size());
+    List<ManifestFile> initialManifests = baseSnap.allManifests();
+
+    validateManifestEntries(initialManifests.get(0),
+        ids(baseSnapshotId, baseSnapshotId, baseSnapshotId),
+        files(FILE_A, FILE_B, FILE_C),
+        statuses(ADDED, ADDED, ADDED));
+    validateDeleteManifest(initialManifests.get(1),
+        seqs(1, 1),
+        ids(baseSnapshotId, baseSnapshotId),
+        files(FILE_A_DELETES, FILE_B_DELETES),
+        statuses(ADDED, ADDED));
+
+    // Rewrite the files.
+    Snapshot pending = table.newRewrite()
+        .rewriteFiles(RewriteFiles.FileSet.of(FILE_A, FILE_A_DELETES), RewriteFiles.FileSet.of(FILE_D))
+        .apply();
+
+    Assert.assertEquals("Should contain 3 manifest", 3, pending.allManifests().size());
+    Assert.assertFalse("Should not contain manifest from initial write",
+        pending.allManifests().containsAll(initialManifests));
+
+    long pendingId = pending.snapshotId();
+    validateManifestEntries(pending.allManifests().get(0),
+        ids(pendingId),
+        files(FILE_D),
+        statuses(ADDED));
+
+    validateManifestEntries(pending.allManifests().get(1),
+        ids(pendingId, baseSnapshotId, baseSnapshotId),
+        files(FILE_A, FILE_B, FILE_C),
+        statuses(DELETED, EXISTING, EXISTING));
+
+    validateDeleteManifest(pending.allManifests().get(2),
+        seqs(2, 1),
+        ids(pendingId, baseSnapshotId),
+        files(FILE_A_DELETES, FILE_B_DELETES),
+        statuses(DELETED, EXISTING));
+
+    // We should only get the 3 manifests that this test is expected to add.
+    Assert.assertEquals("Only 5 manifests should exist", 5, listManifestFiles().size());
   }
 
   @Test

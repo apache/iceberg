@@ -19,7 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements RewriteFiles {
@@ -41,18 +40,26 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
   }
 
   @Override
-  public RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd) {
-    Preconditions.checkArgument(filesToDelete != null && !filesToDelete.isEmpty(),
+  public RewriteFiles rewriteFiles(FileSet filesToRemove, FileSet filesToAdd) {
+    Preconditions.checkArgument(filesToRemove != null && !filesToRemove.isEmpty(),
         "Files to delete cannot be null or empty");
     Preconditions.checkArgument(filesToAdd != null && !filesToAdd.isEmpty(),
         "Files to add can not be null or empty");
 
-    for (DataFile toDelete : filesToDelete) {
-      delete(toDelete);
+    for (DataFile dataFileToRemove : filesToRemove.dataFiles()) {
+      delete(dataFileToRemove);
     }
 
-    for (DataFile toAdd : filesToAdd) {
-      add(toAdd);
+    for (DeleteFile deleteFileToRemove : filesToRemove.deleteFiles()) {
+      delete(deleteFileToRemove);
+    }
+
+    for (DataFile dataFileToAdd : filesToAdd.dataFiles()) {
+      add(dataFileToAdd);
+    }
+
+    for (DeleteFile deleteFileToAdd : filesToAdd.deleteFiles()) {
+      add(deleteFileToAdd);
     }
 
     return this;
