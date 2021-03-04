@@ -27,18 +27,14 @@ import java.util.Locale;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
+import org.apache.iceberg.*;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.data.GenericsHelpers;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -155,14 +151,14 @@ public abstract class TestTimestampWithoutZone {
 
   @Test
   public void testUnpartitionedTimestampWithoutZoneError() {
-    exception.expect(IllegalArgumentException.class);
-    exception.expectMessage("Spark does not support timestamp without time zone fields");
-
-    spark.read().format("iceberg")
-        .option("vectorization-enabled", String.valueOf(vectorized))
-        .option("read-timestamp-without-zone", "false")
-        .load(unpartitioned.toString())
-        .collectAsList();
+    AssertHelpers.assertThrows(String.format("Read operation performed on a timestamp without timezone field while " +
+                    "'%s' set to false should throw exception", SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_FLAG),
+            IllegalArgumentException.class, SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR,
+            () -> spark.read().format("iceberg")
+                    .option("vectorization-enabled", String.valueOf(vectorized))
+                    .option(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_FLAG, "false")
+                    .load(unpartitioned.toString())
+                    .collectAsList());
   }
 
   private static Record projectFlat(Schema projection, Record record) {
@@ -205,7 +201,7 @@ public abstract class TestTimestampWithoutZone {
   private static List<Row> read(String table, boolean vectorized, String select0, String... selectN) {
     Dataset<Row> dataset = spark.read().format("iceberg")
         .option("vectorization-enabled", String.valueOf(vectorized))
-        .option("read-timestamp-without-zone", "true")
+        .option(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_FLAG, "true")
         .load(table)
         .select(select0, selectN);
     return dataset.collectAsList();

@@ -51,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -180,7 +181,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     // is adjusted so that the corresponding time in the reader timezone is displayed.
     // When set to false (default), we throw an exception at runtime
     // "Spark does not support timestamp without time zone fields" if reading timestamp without time zone fields
-    this.readTimestampWithoutZone = options.get("read-timestamp-without-zone").map(Boolean::parseBoolean).orElse(false);
+    this.readTimestampWithoutZone = options.get(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_FLAG).map(Boolean::parseBoolean).orElse(false);
   }
 
   private Schema lazySchema() {
@@ -204,8 +205,8 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
   private StructType lazyType() {
     if (type == null) {
-      Preconditions.checkArgument(readTimestampWithoutZone || !hasTimestampWithoutZone(lazySchema()),
-              "Spark does not support timestamp without time zone fields");
+      Preconditions.checkArgument(readTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(lazySchema()),
+              SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
       this.type = SparkSchemaUtil.convert(lazySchema());
     }
     return type;
@@ -351,18 +352,12 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
       boolean hasNoDeleteFiles = tasks().stream().noneMatch(TableScanUtil::hasDeletes);
 
-      boolean hasTimestampWithoutZone = hasTimestampWithoutZone(lazySchema());
+      boolean hasTimestampWithoutZone = SparkUtil.hasTimestampWithoutZone(lazySchema());
 
       this.readUsingBatch = batchReadsEnabled && hasNoDeleteFiles && (allOrcFileScanTasks ||
               (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives && !hasTimestampWithoutZone));
     }
     return readUsingBatch;
-  }
-
-  private static boolean hasTimestampWithoutZone(Schema schema) {
-    return TypeUtil.find(schema, t ->
-            t.typeId().equals(Type.TypeID.TIMESTAMP) && !((Types.TimestampType) t).shouldAdjustToUTC()
-    ) != null;
   }
 
   private static void mergeIcebergHadoopConfs(
