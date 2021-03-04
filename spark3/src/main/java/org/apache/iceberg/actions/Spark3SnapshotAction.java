@@ -26,6 +26,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.StagedSparkTable;
 import org.apache.spark.sql.SparkSession;
@@ -55,7 +56,6 @@ public class Spark3SnapshotAction extends Spark3CreateAction implements Snapshot
 
   @Override
   public Long doExecute() {
-    spark().sparkContext().setJobGroup("SNAPSHOT", "SNAPSHOT", false);
     StagedSparkTable stagedTable = stageDestTable();
     Table icebergTable = stagedTable.table();
     // TODO Check table location here against source location
@@ -135,5 +135,10 @@ public class Spark3SnapshotAction extends Spark3CreateAction implements Snapshot
             " This would cause a mixing of original table created and snapshot created files.");
     this.destTableLocation = location;
     return this;
+  }
+
+  @Override
+  protected JobGroupInfo jobGroup() {
+    return new JobGroupInfo("SNAPSHOT", "SNAPSHOT-ACTION", false);
   }
 }

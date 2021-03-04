@@ -30,12 +30,13 @@ public class JobGroupUtils {
     String groupId = sc.getLocalProperty(SparkContext$.MODULE$.SPARK_JOB_GROUP_ID());
     String description = sc.getLocalProperty(SparkContext$.MODULE$.SPARK_JOB_DESCRIPTION());
     String interruptOnCancel = sc.getLocalProperty(SparkContext$.MODULE$.SPARK_JOB_INTERRUPT_ON_CANCEL());
-    return new JobGroupInfo(groupId, description, interruptOnCancel);
+    return new JobGroupInfo(groupId, description, Boolean.parseBoolean(interruptOnCancel));
   }
 
   public static void setJobGroupInfo(SparkContext sparkContext, JobGroupInfo obj) {
     sparkContext.setLocalProperty(SparkContext$.MODULE$.SPARK_JOB_DESCRIPTION(), obj.getDescription());
     sparkContext.setLocalProperty(SparkContext$.MODULE$.SPARK_JOB_GROUP_ID(), obj.getGroupId());
-    sparkContext.setLocalProperty(SparkContext$.MODULE$.SPARK_JOB_INTERRUPT_ON_CANCEL(), obj.getInterruptOnCancel());
+    sparkContext.setLocalProperty(SparkContext$.MODULE$.SPARK_JOB_INTERRUPT_ON_CANCEL(),
+            String.valueOf(obj.getInterruptOnCancel()));
   }
 }

@@ -193,6 +193,9 @@ abstract class Spark3CreateAction implements CreateAction {
   @Override
   public Long execute() {
     JobGroupInfo callSite = JobGroupUtils.getJobGroupInfo(spark().sparkContext());
+    JobGroupInfo jobGroupInfo = jobGroup();
+    spark().sparkContext().setJobGroup(jobGroupInfo.getGroupId(),
+            jobGroupInfo.getDescription(), jobGroupInfo.getInterruptOnCancel());
     try {
       return doExecute();
     } finally {
@@ -201,4 +204,6 @@ abstract class Spark3CreateAction implements CreateAction {
   }
 
   protected abstract Long doExecute();
+
+  protected abstract JobGroupInfo jobGroup();
 }

@@ -69,10 +69,15 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
   protected abstract R doExecute();
 
+  protected abstract JobGroupInfo jobGroup();
+
   @Override
   public R execute() {
     SparkContext sparkContext = SparkSession.getActiveSession().get().sparkContext();
     JobGroupInfo info = JobGroupUtils.getJobGroupInfo(sparkContext);
+    JobGroupInfo jobGroupInfo = jobGroup();
+    sparkContext.setJobGroup(jobGroupInfo.getGroupId(),
+            jobGroupInfo.getDescription(), jobGroupInfo.getInterruptOnCancel());
     try {
       return doExecute();
     } finally {

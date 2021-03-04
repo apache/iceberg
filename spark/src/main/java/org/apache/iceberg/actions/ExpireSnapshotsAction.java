@@ -33,6 +33,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.Column;
@@ -261,5 +262,10 @@ public class ExpireSnapshotsAction extends BaseSparkAction<ExpireSnapshotsAction
         });
     LOG.info("Deleted {} total files", dataFileCount.get() + manifestCount.get() + manifestListCount.get());
     return new ExpireSnapshotsActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get());
+  }
+
+  @Override
+  protected JobGroupInfo jobGroup() {
+    return new JobGroupInfo("EXPIRE", "EXPIRE-SNAPSHOTS", false);
   }
 }

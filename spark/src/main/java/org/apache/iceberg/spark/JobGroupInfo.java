@@ -26,9 +26,9 @@ package org.apache.iceberg.spark;
 public class JobGroupInfo {
   private String groupId;
   private String description;
-  private String interruptOnCancel;
+  private boolean interruptOnCancel;
 
-  JobGroupInfo(String groupId, String desc, String interruptOnCancel) {
+  public JobGroupInfo(String groupId, String desc, boolean interruptOnCancel) {
     this.groupId = groupId;
     this.description = desc;
     this.interruptOnCancel = interruptOnCancel;
@@ -42,7 +42,7 @@ public class JobGroupInfo {
     return description;
   }
 
-  public String getInterruptOnCancel() {
+  public boolean getInterruptOnCancel() {
     return interruptOnCancel;
   }
 }
