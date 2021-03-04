@@ -31,6 +31,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.Assert;
@@ -123,8 +124,29 @@ public class GlueCatalogTest {
         .when(glue).getDatabase(Mockito.any(GetDatabaseRequest.class));
     Mockito.doReturn(GetTablesResponse.builder()
         .tableList(
-            Table.builder().databaseName("db1").name("t1").build(),
-            Table.builder().databaseName("db1").name("t2").build()
+            Table.builder().databaseName("db1").name("t1").parameters(
+                ImmutableMap.of(
+                    BaseMetastoreTableOperations.TABLE_TYPE_PROP, BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE
+                )
+            ).build(),
+            Table.builder().databaseName("db1").name("t2").parameters(
+                ImmutableMap.of(
+                    "key", "val",
+                    BaseMetastoreTableOperations.TABLE_TYPE_PROP, BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE
+                )
+            ).build(),
+            Table.builder().databaseName("db1").name("t3").parameters(
+                ImmutableMap.of(
+                    "key", "val",
+                    BaseMetastoreTableOperations.TABLE_TYPE_PROP, "wrongVal"
+                )
+            ).build(),
+            Table.builder().databaseName("db1").name("t4").parameters(
+                ImmutableMap.of(
+                    "key", "val"
+                )
+            ).build(),
+            Table.builder().databaseName("db1").name("t5").parameters(null).build()
         ).build())
         .when(glue).getTables(Mockito.any(GetTablesRequest.class));
     Assert.assertEquals(
@@ -148,14 +170,23 @@ public class GlueCatalogTest {
         if (counter.decrementAndGet() > 0) {
           return GetTablesResponse.builder()
               .tableList(
-                  Table.builder().databaseName("db1").name(
-                      UUID.randomUUID().toString().replace("-", "")).build()
+                  Table.builder()
+                      .databaseName("db1")
+                      .name(UUID.randomUUID().toString().replace("-", ""))
+                      .parameters(ImmutableMap.of(
+                          BaseMetastoreTableOperations.TABLE_TYPE_PROP,
+                          BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE
+                      ))
+                      .build()
               )
               .nextToken("token")
               .build();
         } else {
           return GetTablesResponse.builder()
-              .tableList(Table.builder().databaseName("db1").name("tb1").build())
+              .tableList(Table.builder().databaseName("db1").name("tb1").parameters(ImmutableMap.of(
+                  BaseMetastoreTableOperations.TABLE_TYPE_PROP,
+                  BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE
+              )).build())
               .build();
         }
       }
@@ -313,11 +344,14 @@ public class GlueCatalogTest {
   }
 
   @Test
-  public void dropNamespace_notEmpty() {
+  public void dropNamespace_notEmpty_containsIcebergTable() {
     Mockito.doReturn(GetTablesResponse.builder()
         .tableList(
-            Table.builder().databaseName("db1").name("t1").build(),
-            Table.builder().databaseName("db1").name("t2").build()
+            Table.builder().databaseName("db1").name("t1").parameters(
+                ImmutableMap.of(
+                    BaseMetastoreTableOperations.TABLE_TYPE_PROP, BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE
+                )
+            ).build()
         ).build())
         .when(glue).getTables(Mockito.any(GetTablesRequest.class));
     Mockito.doReturn(GetDatabaseResponse.builder()
@@ -325,9 +359,27 @@ public class GlueCatalogTest {
         .when(glue).getDatabase(Mockito.any(GetDatabaseRequest.class));
     Mockito.doReturn(DeleteDatabaseResponse.builder().build())
         .when(glue).deleteDatabase(Mockito.any(DeleteDatabaseRequest.class));
-    AssertHelpers.assertThrows("namespace should not be dropped when still has table",
+    AssertHelpers.assertThrows("namespace should not be dropped when still has Iceberg table",
         NamespaceNotEmptyException.class,
-        "Cannot drop namespace",
+        "still contains Iceberg tables",
+        () -> glueCatalog.dropNamespace(Namespace.of("db1")));
+  }
+
+  @Test
+  public void dropNamespace_notEmpty_containsNonIcebergTable() {
+    Mockito.doReturn(GetTablesResponse.builder()
+        .tableList(
+            Table.builder().databaseName("db1").name("t1").build()
+        ).build())
+        .when(glue).getTables(Mockito.any(GetTablesRequest.class));
+    Mockito.doReturn(GetDatabaseResponse.builder()
+        .database(Database.builder().name("db1").build()).build())
+        .when(glue).getDatabase(Mockito.any(GetDatabaseRequest.class));
+    Mockito.doReturn(DeleteDatabaseResponse.builder().build())
+        .when(glue).deleteDatabase(Mockito.any(DeleteDatabaseRequest.class));
+    AssertHelpers.assertThrows("namespace should not be dropped when still has non-Iceberg table",
+        NamespaceNotEmptyException.class,
+        "still contains non-Iceberg tables",
         () -> glueCatalog.dropNamespace(Namespace.of("db1")));
   }
 

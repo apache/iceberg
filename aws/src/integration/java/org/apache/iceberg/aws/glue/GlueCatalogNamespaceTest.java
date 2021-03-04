@@ -21,6 +21,7 @@ package org.apache.iceberg.aws.glue;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -31,9 +32,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
+import software.amazon.awssdk.services.glue.model.CreateTableRequest;
 import software.amazon.awssdk.services.glue.model.Database;
 import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
 import software.amazon.awssdk.services.glue.model.GetDatabaseRequest;
+import software.amazon.awssdk.services.glue.model.TableInput;
 
 public class GlueCatalogNamespaceTest extends GlueTestBase {
 
@@ -131,12 +134,27 @@ public class GlueCatalogNamespaceTest extends GlueTestBase {
   }
 
   @Test
-  public void testDropNamespaceNonEmpty() {
+  public void testDropNamespaceNonEmpty_containsIcebergTable() {
     String namespace = createNamespace();
     createTable(namespace);
-    AssertHelpers.assertThrows("namespace should not be dropped when still has table",
+    AssertHelpers.assertThrows("namespace should not be dropped when still has Iceberg table",
         NamespaceNotEmptyException.class,
-        "it is not empty",
+        "still contains Iceberg tables",
+        () -> glueCatalog.dropNamespace(Namespace.of(namespace)));
+  }
+
+  @Test
+  public void testDropNamespaceNonEmpty_containsNonIcebergTable() {
+    String namespace = createNamespace();
+    glue.createTable(CreateTableRequest.builder()
+        .databaseName(namespace)
+        .tableInput(TableInput.builder()
+            .name(UUID.randomUUID().toString())
+            .build())
+        .build());
+    AssertHelpers.assertThrows("namespace should not be dropped when still has non-Iceberg table",
+        NamespaceNotEmptyException.class,
+        "still contains non-Iceberg tables",
         () -> glueCatalog.dropNamespace(Namespace.of(namespace)));
   }
 
