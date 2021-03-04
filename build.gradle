@@ -854,6 +854,7 @@ if (jdkVersion == '8') {
       compile {
         exclude group: 'org.apache.spark'
         // included in Spark
+        exclude group: 'org.antlr'
         exclude group: 'org.slf4j'
         exclude group: 'org.apache.commons'
         exclude group: 'commons-pool'
@@ -1006,6 +1007,7 @@ project(':iceberg-spark3-runtime') {
     compile {
       exclude group: 'org.apache.spark'
       // included in Spark
+      exclude group: 'org.antlr'
       exclude group: 'org.slf4j'
       exclude group: 'org.apache.commons'
       exclude group: 'commons-pool'
