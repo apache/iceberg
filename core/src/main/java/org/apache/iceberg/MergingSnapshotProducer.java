@@ -84,10 +84,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private boolean hasNewDeleteFiles = false;
 
   MergingSnapshotProducer(String tableName, TableOperations ops) {
+    this(tableName, ops, ops.current().spec());
+  }
+
+  MergingSnapshotProducer(String tableName, TableOperations ops, PartitionSpec spec) {
     super(ops);
     this.tableName = tableName;
     this.ops = ops;
-    this.spec = ops.current().spec();
+    this.spec = spec;
     long targetSizeBytes = ops.current()
         .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
     int minCountToMerge = ops.current()
@@ -106,6 +110,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   public ThisT set(String property, String value) {
     summaryBuilder.set(property, value);
     return self();
+  }
+
+  protected String tableName() {
+    return tableName;
+  }
+
+  protected TableOperations ops() {
+    return ops;
   }
 
   protected PartitionSpec writeSpec() {
