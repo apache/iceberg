@@ -21,9 +21,11 @@ package org.apache.iceberg.spark.source;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalListener;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogUtil;
@@ -31,6 +33,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.spark.SparkUtil;
@@ -40,6 +43,12 @@ import org.apache.spark.sql.SparkSession;
 
 public final class CustomCatalogs {
   private static final Cache<Pair<SparkSession, String>, Catalog> CATALOG_CACHE = Caffeine.newBuilder()
+      .expireAfterAccess(10, TimeUnit.MINUTES)
+      .removalListener((RemovalListener<Pair<SparkSession, String>, Catalog>) (key, catalog, cause) -> {
+        if (catalog instanceof HiveCatalog) {
+          ((HiveCatalog) catalog).close();
+        }
+      })
       .softValues().build();
 
   public static final String ICEBERG_DEFAULT_CATALOG = "default_catalog";
