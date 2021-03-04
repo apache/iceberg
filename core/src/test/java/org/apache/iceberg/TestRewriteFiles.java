@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -292,6 +293,57 @@ public class TestRewriteFiles extends TableTestBase {
   }
 
   @Test
+  public void testFailureWhenRewriteBothDataAndDeleteFiles() {
+    Assume.assumeTrue("Rewriting delete files is only supported in iceberg format v2. ", formatVersion == 2);
+
+    table.newRowDelta()
+        .addRows(FILE_A)
+        .addRows(FILE_B)
+        .addRows(FILE_C)
+        .addDeletes(FILE_A_DELETES)
+        .addDeletes(FILE_B_DELETES)
+        .commit();
+
+    long baseSnapshotId = readMetadata().currentSnapshot().snapshotId();
+    table.ops().failCommits(5);
+
+    RewriteFiles rewrite = table.newRewrite()
+        .rewriteFiles(RewriteFiles.FileSet.of(FILE_A, FILE_A_DELETES, FILE_B_DELETES), RewriteFiles.FileSet.of(FILE_D));
+    Snapshot pending = rewrite.apply();
+
+    Assert.assertEquals("Should produce 3 manifests", 3, pending.allManifests().size());
+    ManifestFile manifest1 = pending.allManifests().get(0);
+    ManifestFile manifest2 = pending.allManifests().get(1);
+    ManifestFile manifest3 = pending.allManifests().get(2);
+
+    validateManifestEntries(pending.allManifests().get(0),
+        ids(pending.snapshotId()),
+        files(FILE_D),
+        statuses(ADDED));
+
+    validateManifestEntries(pending.allManifests().get(1),
+        ids(pending.snapshotId(), baseSnapshotId, baseSnapshotId),
+        files(FILE_A, FILE_B, FILE_C),
+        statuses(DELETED, EXISTING, EXISTING));
+
+    validateDeleteManifest(pending.allManifests().get(2),
+        seqs(2, 2),
+        ids(pending.snapshotId(), pending.snapshotId()),
+        files(FILE_A_DELETES, FILE_B_DELETES),
+        statuses(DELETED, DELETED));
+
+    AssertHelpers.assertThrows("Should retry 4 times and throw last failure",
+        CommitFailedException.class, "Injected failure", rewrite::commit);
+
+    Assert.assertFalse("Should clean up new manifest", new File(manifest1.path()).exists());
+    Assert.assertFalse("Should clean up new manifest", new File(manifest2.path()).exists());
+    Assert.assertFalse("Should clean up new manifest", new File(manifest3.path()).exists());
+
+    // As commit failed all the manifests added with rewrite should be cleaned up
+    Assert.assertEquals("Only 2 manifest should exist", 2, listManifestFiles().size());
+  }
+
+  @Test
   public void testRecovery() {
     table.newAppend()
         .appendFile(FILE_A)
@@ -322,6 +374,61 @@ public class TestRewriteFiles extends TableTestBase {
 
     // 2 manifests added by rewrite and 1 original manifest should be found.
     Assert.assertEquals("Only 3 manifests should exist", 3, listManifestFiles().size());
+  }
+
+  @Test
+  public void testRecoverWhenRewriteBothDataAndDeleteFiles() {
+    Assume.assumeTrue("Rewriting delete files is only supported in iceberg format v2. ", formatVersion == 2);
+
+    table.newRowDelta()
+        .addRows(FILE_A)
+        .addRows(FILE_B)
+        .addRows(FILE_C)
+        .addDeletes(FILE_A_DELETES)
+        .addDeletes(FILE_B_DELETES)
+        .commit();
+
+    long baseSnapshotId = readMetadata().currentSnapshot().snapshotId();
+    table.ops().failCommits(3);
+
+    RewriteFiles rewrite = table.newRewrite()
+        .rewriteFiles(RewriteFiles.FileSet.of(FILE_A, FILE_A_DELETES, FILE_B_DELETES), RewriteFiles.FileSet.of(FILE_D));
+    Snapshot pending = rewrite.apply();
+
+    Assert.assertEquals("Should produce 3 manifests", 3, pending.allManifests().size());
+    ManifestFile manifest1 = pending.allManifests().get(0);
+    ManifestFile manifest2 = pending.allManifests().get(1);
+    ManifestFile manifest3 = pending.allManifests().get(2);
+
+    validateManifestEntries(pending.allManifests().get(0),
+        ids(pending.snapshotId()),
+        files(FILE_D),
+        statuses(ADDED));
+
+    validateManifestEntries(pending.allManifests().get(1),
+        ids(pending.snapshotId(), baseSnapshotId, baseSnapshotId),
+        files(FILE_A, FILE_B, FILE_C),
+        statuses(DELETED, EXISTING, EXISTING));
+
+    validateDeleteManifest(pending.allManifests().get(2),
+        seqs(2, 2),
+        ids(pending.snapshotId(), pending.snapshotId()),
+        files(FILE_A_DELETES, FILE_B_DELETES),
+        statuses(DELETED, DELETED));
+
+    rewrite.commit();
+
+    Assert.assertTrue("Should reuse new manifest", new File(manifest1.path()).exists());
+    Assert.assertTrue("Should reuse new manifest", new File(manifest2.path()).exists());
+    Assert.assertTrue("Should reuse new manifest", new File(manifest3.path()).exists());
+
+    TableMetadata metadata = readMetadata();
+    List<ManifestFile> committedManifests = Lists.newArrayList(manifest1, manifest2, manifest3);
+    Assert.assertTrue("Should committed the manifests",
+        metadata.currentSnapshot().allManifests().containsAll(committedManifests));
+
+    // As commit success all the manifests added with rewrite should be available.
+    Assert.assertEquals("Only 5 manifest should exist", 5, listManifestFiles().size());
   }
 
   @Test
