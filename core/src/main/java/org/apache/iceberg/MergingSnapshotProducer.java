@@ -179,7 +179,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * Add a data file to the new snapshot.
    */
   protected void add(DataFile file) {
-    addedFilesSummary.addedFile(spec, file);
+    addedFilesSummary.addedFile(writeSpec(), file);
     hasNewFiles = true;
     newFiles.add(file);
   }
@@ -188,7 +188,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * Add a delete file to the new snapshot.
    */
   protected void add(DeleteFile file) {
-    addedFilesSummary.addedFile(spec, file);
+    addedFilesSummary.addedFile(writeSpec(), file);
     hasNewDeleteFiles = true;
     newDeleteFiles.add(file);
   }
@@ -444,7 +444,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     if (cachedNewManifest == null) {
       try {
-        ManifestWriter<DataFile> writer = newManifestWriter(spec);
+        ManifestWriter<DataFile> writer = newManifestWriter(writeSpec());
         try {
           writer.addAll(newFiles);
         } finally {
@@ -477,7 +477,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     if (cachedNewDeleteManifest == null) {
       try {
-        ManifestWriter<DeleteFile> writer = newDeleteManifestWriter(spec);
+        ManifestWriter<DeleteFile> writer = newDeleteManifestWriter(writeSpec());
         try {
           writer.addAll(newDeleteFiles);
         } finally {
