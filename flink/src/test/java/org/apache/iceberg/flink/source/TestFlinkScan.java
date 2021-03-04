@@ -219,14 +219,10 @@ public abstract class TestFlinkScan {
     helper.appendToTable(RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L));
 
     TestHelpers.assertRecords(
-        runWithOptions(ImmutableMap.<String, String>builder()
-            .put("snapshot-id", Long.toString(snapshotId))
-            .build()),
+        runWithOptions(ImmutableMap.of("snapshot-id", Long.toString(snapshotId))),
         expectedRecords, TestFixtures.SCHEMA);
     TestHelpers.assertRecords(
-        runWithOptions(ImmutableMap.<String, String>builder()
-            .put("as-of-timestamp", Long.toString(timestampMillis))
-            .build()),
+        runWithOptions(ImmutableMap.of("as-of-timestamp", Long.toString(timestampMillis))),
         expectedRecords, TestFixtures.SCHEMA);
   }
 
