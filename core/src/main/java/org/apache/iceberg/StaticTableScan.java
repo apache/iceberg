@@ -38,8 +38,8 @@ class StaticTableScan extends BaseTableScan {
   }
 
   @Override
-  protected long targetSplitSize(TableOperations ops) {
-    return ops.current().propertyAsLong(
+  public long targetSplitSize() {
+    return tableOps().current().propertyAsLong(
         TableProperties.METADATA_SPLIT_SIZE, TableProperties.METADATA_SPLIT_SIZE_DEFAULT);
   }
 
