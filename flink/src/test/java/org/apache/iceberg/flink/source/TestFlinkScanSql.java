@@ -40,6 +40,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.FlinkTableOptions;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
@@ -47,7 +48,7 @@ import org.junit.Test;
 /**
  * Test Flink SELECT SQLs.
  */
-public class TestFlinkScanSql extends TestFlinkScan {
+public class TestFlinkScanSql extends TestFlinkSource {
 
   private volatile TableEnvironment tEnv;
 
@@ -100,9 +101,9 @@ public class TestFlinkScanSql extends TestFlinkScan {
 
   @Test
   public void testResiduals() throws Exception {
-    Table table = catalog.createTable(TableIdentifier.of("default", "t"), SCHEMA, SPEC);
+    Table table = catalog.createTable(TableIdentifier.of("default", "t"), TestFixtures.SCHEMA, TestFixtures.SPEC);
 
-    List<Record> writeRecords = RandomGenericData.generate(SCHEMA, 2, 0L);
+    List<Record> writeRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
     writeRecords.get(0).set(1, 123L);
     writeRecords.get(0).set(2, "2020-03-20");
     writeRecords.get(1).set(1, 456L);
@@ -115,16 +116,17 @@ public class TestFlinkScanSql extends TestFlinkScan {
 
     DataFile dataFile1 = helper.writeFile(TestHelpers.Row.of("2020-03-20", 0), writeRecords);
     DataFile dataFile2 = helper.writeFile(TestHelpers.Row.of("2020-03-21", 0),
-        RandomGenericData.generate(SCHEMA, 2, 0L));
+        RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L));
     helper.appendToTable(dataFile1, dataFile2);
 
     Expression filter = Expressions.and(Expressions.equal("dt", "2020-03-20"), Expressions.equal("id", 123));
-    assertRecords(runWithFilter(filter, "where dt='2020-03-20' and id=123"), expectedRecords, SCHEMA);
+    org.apache.iceberg.flink.TestHelpers.assertRecords(runWithFilter(
+        filter, "where dt='2020-03-20' and id=123"), expectedRecords, TestFixtures.SCHEMA);
   }
 
   @Test
   public void testInferedParallelism() throws IOException {
-    Table table = catalog.createTable(TableIdentifier.of("default", "t"), SCHEMA, SPEC);
+    Table table = catalog.createTable(TableIdentifier.of("default", "t"), TestFixtures.SCHEMA, TestFixtures.SPEC);
 
     TableLoader tableLoader = TableLoader.fromHadoopTable(table.location());
     FlinkInputFormat flinkInputFormat = FlinkSource.forRowData().tableLoader(tableLoader).table(table).buildFormat();
@@ -136,9 +138,9 @@ public class TestFlinkScanSql extends TestFlinkScan {
 
     GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER);
     DataFile dataFile1 = helper.writeFile(TestHelpers.Row.of("2020-03-20", 0),
-        RandomGenericData.generate(SCHEMA, 2, 0L));
+        RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L));
     DataFile dataFile2 = helper.writeFile(TestHelpers.Row.of("2020-03-21", 0),
-        RandomGenericData.generate(SCHEMA, 2, 0L));
+        RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L));
     helper.appendToTable(dataFile1, dataFile2);
 
     // Make sure to generate 2 CombinedScanTasks
