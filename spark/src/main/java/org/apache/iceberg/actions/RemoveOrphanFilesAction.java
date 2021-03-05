@@ -111,6 +111,11 @@ public class RemoveOrphanFilesAction extends BaseSparkAction<RemoveOrphanFilesAc
         "Cannot remove orphan files: GC is disabled (deleting files may corrupt other tables)");
   }
 
+  @Override
+  protected RemoveOrphanFilesAction self() {
+    return this;
+  }
+
   /**
    * Removes orphan files in the given location.
    *
