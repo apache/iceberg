@@ -31,7 +31,7 @@ The goal is that the python library will provide a functional, performant subset
 | Plan Scan for Snapshot  |    X  |    X   |
 | Update Current Snapshot |    X  |        |
 | Set Table Properties    |    X  |        |
-| Create Table            |    X  |        |
+| Create Table            |    X  |    X   |
 | Drop Table              |    X  |        |
 | Alter Table             |    X  |        |
 

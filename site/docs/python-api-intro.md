@@ -19,6 +19,36 @@
 
 Much of the python api conforms to the java api. You can get more info about the java api [here](https://iceberg.apache.org/api/).
 
+## Catalog
+
+The Catalog interface, like java provides search and management operations for tables.
+
+To create a catalog:
+
+``` python
+from iceberg.hive import HiveTables
+
+# instantiate Hive Tables
+conf = {"hive.metastore.uris": 'thrift://{hms_host}:{hms_port}'}
+tables = HiveTables(conf)
+```
+
+and to create a table from a catalog:
+
+``` python
+from iceberg.api.schema import Schema\
+from iceberg.api.types import TimestampType, DoubleType, StringType, NestedField
+from iceberg.api.partition_spec import PartitionSpecBuilder
+
+schema = Schema(NestedField.optional(1, "DateTime", TimestampType.with_timezone()),
+                NestedField.optional(2, "Bid", DoubleType.get()),
+                NestedField.optional(3, "Ask", DoubleType.get()),
+                NestedField.optional(4, "symbol", StringType.get()))
+partition_spec = PartitionSpecBuilder(schema).add(1, 1000, "DateTime_day", "day").build()
+
+tables.create(schema, "test.test_123", partition)
+```
+
 
 ## Tables
 

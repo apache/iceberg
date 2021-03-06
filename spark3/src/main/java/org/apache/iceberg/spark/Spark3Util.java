@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DistributionMode;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -57,6 +58,7 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SortOrderUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
@@ -474,15 +476,33 @@ public class Spark3Util {
     return false;
   }
 
-  public static boolean isVectorizationEnabled(Map<String, String> properties, CaseInsensitiveStringMap readOptions) {
-    String batchReadsSessionConf = SparkSession.active().conf()
-        .get("spark.sql.iceberg.vectorization.enabled", null);
-    if (batchReadsSessionConf != null) {
-      return Boolean.valueOf(batchReadsSessionConf);
+  public static boolean isVectorizationEnabled(FileFormat fileFormat,
+                                               Map<String, String> properties,
+                                               RuntimeConfig sessionConf,
+                                               CaseInsensitiveStringMap readOptions) {
+
+    String readOptionValue = readOptions.get(SparkReadOptions.VECTORIZATION_ENABLED);
+    if (readOptionValue != null) {
+      return Boolean.parseBoolean(readOptionValue);
     }
-    return readOptions.getBoolean(SparkReadOptions.VECTORIZATION_ENABLED,
-        PropertyUtil.propertyAsBoolean(properties,
-            TableProperties.PARQUET_VECTORIZATION_ENABLED, TableProperties.PARQUET_VECTORIZATION_ENABLED_DEFAULT));
+
+    String sessionConfValue = sessionConf.get("spark.sql.iceberg.vectorization.enabled", null);
+    if (sessionConfValue != null) {
+      return Boolean.parseBoolean(sessionConfValue);
+    }
+
+    switch (fileFormat) {
+      case PARQUET:
+        return PropertyUtil.propertyAsBoolean(
+            properties,
+            TableProperties.PARQUET_VECTORIZATION_ENABLED,
+            TableProperties.PARQUET_VECTORIZATION_ENABLED_DEFAULT);
+      case ORC:
+        // TODO: add a table property to enable/disable ORC vectorized reads
+        return false;
+      default:
+        return false;
+    }
   }
 
   public static int batchSize(Map<String, String> properties, CaseInsensitiveStringMap readOptions) {

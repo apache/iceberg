@@ -35,8 +35,8 @@ class Literals(object):
     EPOCH = datetime.datetime.utcfromtimestamp(0)
     EPOCH_DAY = EPOCH.date()
 
-    @staticmethod  # noqa: C901
-    def from_(value):
+    @staticmethod
+    def from_(value):  # noqa: C901
         if value is None:
             raise RuntimeError("Cannot create an expression literal from None")
         if isinstance(value, bool):
@@ -77,8 +77,8 @@ class Literal(object):
     JAVA_MAX_FLOAT = 3.4028235E38
     JAVA_MIN_FLOAT = -3.4028235E38
 
-    @staticmethod  # noqa: C901
-    def of(value):
+    @staticmethod
+    def of(value):  # noqa: C901
 
         if isinstance(value, bool):
             return BooleanLiteral(value)

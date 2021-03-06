@@ -23,6 +23,7 @@ import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
@@ -47,6 +48,8 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.RuntimeConfig;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
@@ -71,8 +74,8 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private final List<Expression> filterExpressions;
   private final Broadcast<FileIO> io;
   private final Broadcast<EncryptionManager> encryptionManager;
-  private final boolean batchReadsEnabled;
   private final int batchSize;
+  private final CaseInsensitiveStringMap options;
   private final boolean readTimestampWithoutZone;
 
   // lazy variables
@@ -88,8 +91,8 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     this.expectedSchema = expectedSchema;
     this.filterExpressions = filters != null ? filters : Collections.emptyList();
     this.localityPreferred = Spark3Util.isLocalityEnabled(io.value(), table.location(), options);
-    this.batchReadsEnabled = Spark3Util.isVectorizationEnabled(table.properties(), options);
     this.batchSize = Spark3Util.batchSize(table.properties(), options);
+    this.options = options;
     // Allow reading timestamp without time zone as timestamp with time zone. Generally, this is not safe as timestamp
     // without time zone is supposed to represent wall clock time semantics, i.e. no matter the reader/writer timezone
     // 3PM should always be read as 3PM, but timestamp with time zone represents instant semantics, i.e the timestamp
@@ -171,12 +174,26 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
     boolean hasNoDeleteFiles = tasks().stream().noneMatch(TableScanUtil::hasDeletes);
 
+    boolean batchReadsEnabled = batchReadsEnabled(allParquetFileScanTasks, allOrcFileScanTasks);
+
     boolean hasTimestampWithoutZone = SparkUtil.hasTimestampWithoutZone(expectedSchema);
 
     boolean readUsingBatch = batchReadsEnabled && hasNoDeleteFiles && (allOrcFileScanTasks ||
             (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives && !hasTimestampWithoutZone));
 
     return new ReaderFactory(readUsingBatch ? batchSize : 0);
+  }
+
+  private boolean batchReadsEnabled(boolean isParquetOnly, boolean isOrcOnly) {
+    Map<String, String> properties = table.properties();
+    RuntimeConfig sessionConf = SparkSession.active().conf();
+    if (isParquetOnly) {
+      return Spark3Util.isVectorizationEnabled(FileFormat.PARQUET, properties, sessionConf, options);
+    } else if (isOrcOnly) {
+      return Spark3Util.isVectorizationEnabled(FileFormat.ORC, properties, sessionConf, options);
+    } else {
+      return false;
+    }
   }
 
   @Override

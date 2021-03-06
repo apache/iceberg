@@ -42,7 +42,7 @@ _logger = logging.getLogger(__name__)
 
 arrow_type_map = {lib.Type_BOOL: lambda x=None: BooleanType.get(),
                   lib.Type_DATE32: lambda x=None: DateType.get(),
-                  lib.Type_DECIMAL: lambda x=None: DecimalType.of(x.precision, x.scale),
+                  lib.Type_DECIMAL128: lambda x=None: DecimalType.of(x.precision, x.scale),
                   lib.Type_DOUBLE: lambda x=None: DoubleType.get(),
                   lib.Type_FIXED_SIZE_BINARY: lambda x=None: FixedType.of_length(x.byte_width),
                   lib.Type_BINARY: lambda x=None: BinaryType.get(),

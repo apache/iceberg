@@ -58,7 +58,7 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
  * are issued. Deletes are still performed locally after retrieving the results from the Spark executors.
  */
 @SuppressWarnings("UnnecessaryAnonymousClass")
-public class ExpireSnapshotsAction extends BaseSparkAction<ExpireSnapshotsActionResult> {
+public class ExpireSnapshotsAction extends BaseSparkAction<ExpireSnapshotsAction, ExpireSnapshotsActionResult> {
   private static final Logger LOG = LoggerFactory.getLogger(ExpireSnapshotsAction.class);
 
   private static final String DATA_FILE = "Data File";
