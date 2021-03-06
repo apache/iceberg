@@ -48,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.parquet.Preconditions;
@@ -120,8 +121,7 @@ public abstract class DeleteFilter<T> {
       filesByDeleteIds.put(Sets.newHashSet(delete.equalityFieldIds()), delete);
     }
 
-    CloseableIterable<T> remainRecords = records;
-    CloseableIterable<T> matchedRecords = CloseableIterable.empty();
+    List<Pair<StructProjection, StructLikeSet>> unprojectedDeleteSets = Lists.newArrayList();
     for (Map.Entry<Set<Integer>, Collection<DeleteFile>> entry : filesByDeleteIds.asMap().entrySet()) {
       Set<Integer> ids = entry.getKey();
       Iterable<DeleteFile> deletes = entry.getValue();
@@ -138,13 +138,10 @@ public abstract class DeleteFilter<T> {
           CloseableIterable.transform(CloseableIterable.concat(deleteRecords), Record::copy),
           deleteSchema.asStruct());
 
-      matchedRecords = CloseableIterable.concat(Lists.newArrayList(matchedRecords, Deletes.match(remainRecords,
-          record -> projectRow.wrap(asStructLike(record)), deleteSet)));
-      remainRecords = Deletes.filter(remainRecords,
-          record -> projectRow.wrap(asStructLike(record)), deleteSet);
+      unprojectedDeleteSets.add(Pair.of(projectRow, deleteSet));
     }
 
-    return matchedRecords;
+    return Deletes.match(records, (record, projection) -> projection.wrap(asStructLike(record)), unprojectedDeleteSets);
   }
 
   protected CloseableIterable<T> applyEqDeletes(CloseableIterable<T> records) {

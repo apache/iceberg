@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.CombinedScanTask;
@@ -134,7 +135,7 @@ public class ReplaceDeleteAction extends
         scan.deletes().stream().anyMatch(delete -> delete.content().equals(FileContent.EQUALITY_DELETES))
     );
 
-    List<DeleteFile> eqDeletes = Lists.newArrayList();
+    Set<DeleteFile> eqDeletes = Sets.newHashSet();
     tasksWithEqDelete.forEach(task -> {
       eqDeletes.addAll(task.deletes().stream()
           .filter(deleteFile -> deleteFile.content().equals(FileContent.EQUALITY_DELETES))
@@ -168,7 +169,7 @@ public class ReplaceDeleteAction extends
 
       if (!eqDeletes.isEmpty() && !posDeletes.isEmpty()) {
         rewriteDeletes(eqDeletes, posDeletes);
-        return new DeleteRewriteActionResult(eqDeletes, posDeletes);
+        return new DeleteRewriteActionResult(Lists.newArrayList(eqDeletes), posDeletes);
       }
     }
 

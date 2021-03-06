@@ -24,6 +24,7 @@ import java.io.UncheckedIOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.MetadataColumns;
@@ -40,8 +41,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Filter;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.SortedMerge;
 import org.apache.iceberg.util.StructLikeSet;
+import org.apache.iceberg.util.StructProjection;
 
 public class Deletes {
   private static final Schema POSITION_DELETE_SCHEMA = new Schema(
@@ -77,13 +80,14 @@ public class Deletes {
     return filter.filter(rows);
   }
 
-  public static <T> CloseableIterable<T> match(CloseableIterable<T> rows, Function<T, StructLike> rowToDeleteKey,
-                                               StructLikeSet deleteSet) {
-    if (deleteSet.isEmpty()) {
+  public static <T> CloseableIterable<T> match(CloseableIterable<T> rows,
+                                               BiFunction<T, StructProjection, StructLike> rowToDeleteKey,
+                                               List<Pair<StructProjection, StructLikeSet>> unprojectedDeleteSets) {
+    if (unprojectedDeleteSets.isEmpty()) {
       return rows;
     }
 
-    EqualitySetDeleteMatcher<T> equalityFilter = new EqualitySetDeleteMatcher<>(rowToDeleteKey, deleteSet);
+    EqualitySetDeleteMatcher<T> equalityFilter = new EqualitySetDeleteMatcher<>(rowToDeleteKey, unprojectedDeleteSets);
     return equalityFilter.filter(rows);
   }
 
@@ -154,18 +158,24 @@ public class Deletes {
   }
 
   private static class EqualitySetDeleteMatcher<T> extends Filter<T> {
-    private final StructLikeSet deletes;
-    private final Function<T, StructLike> extractEqStruct;
+    private final List<Pair<StructProjection, StructLikeSet>> deleteSets;
+    private final BiFunction<T, StructProjection, StructLike> extractEqStruct;
 
-    protected EqualitySetDeleteMatcher(Function<T, StructLike> extractEq,
-                                      StructLikeSet deletes) {
+    protected EqualitySetDeleteMatcher(BiFunction<T, StructProjection, StructLike> extractEq,
+                                      List<Pair<StructProjection, StructLikeSet>> deleteSets) {
       this.extractEqStruct = extractEq;
-      this.deletes = deletes;
+      this.deleteSets = deleteSets;
     }
 
     @Override
     protected boolean shouldKeep(T row) {
-      return deletes.contains(extractEqStruct.apply(row));
+      for (Pair<StructProjection, StructLikeSet> deleteSet : deleteSets) {
+        if (deleteSet.second().contains(extractEqStruct.apply(row, deleteSet.first()))) {
+          return true;
+        }
+      }
+
+      return false;
     }
   }
 
