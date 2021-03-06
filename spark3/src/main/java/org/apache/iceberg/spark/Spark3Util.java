@@ -63,7 +63,10 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.CatalystTypeConverters;
+import org.apache.spark.sql.catalyst.analysis.NoSuchDatabaseException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.catalog.CatalogTable;
+import org.apache.spark.sql.catalyst.catalog.SessionCatalog;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.parser.ParserInterface;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
@@ -849,5 +852,18 @@ public class Spark3Util {
           });
           return new SparkTableUtil.SparkPartition(values, partition.path().toString(), format);
         }).collect(Collectors.toList());
+  }
+
+  public static org.apache.spark.sql.catalyst.TableIdentifier toV1TableIdentifier(Identifier identifier) {
+    Preconditions.checkArgument(identifier.namespace().length <= 1,
+        "Cannot load a session catalog namespace with more than 1 part. Given %s", identifier);
+
+    Option<String> namespace =
+        identifier.namespace().length == 1 ? Option.apply(identifier.namespace()[0]) : Option.empty();
+
+    org.apache.spark.sql.catalyst.TableIdentifier tableIdent =
+        org.apache.spark.sql.catalyst.TableIdentifier.apply(identifier.name(), namespace);
+
+    return tableIdent;
   }
 }

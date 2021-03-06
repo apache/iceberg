@@ -138,19 +138,7 @@ public class SparkTableUtil {
     return spark.createDataFrame(partitions, SparkPartition.class).toDF("partition", "uri", "format");
   }
 
-  public static CatalogTable getCatalogTable(SparkSession spark, String table) {
-    try {
-      TableIdentifier tableIdent = spark.sessionState().sqlParser().parseTableIdentifier(table);
-      SessionCatalog catalog = spark.sessionState().catalog();
-      return catalog.getTableMetadata(tableIdent);
-    } catch (ParseException e) {
-      throw SparkExceptionUtil.toUncheckedException(e, "Unable to parse table identifier: %s", table);
-    } catch (NoSuchDatabaseException e) {
-      throw SparkExceptionUtil.toUncheckedException(e, "Unknown table: %s. Database not found in catalog.", table);
-    } catch (NoSuchTableException e) {
-      throw SparkExceptionUtil.toUncheckedException(e, "Unknown table: %s. Table not found in catalog.", table);
-    }
-  }
+
 
   /**
    * Returns all partitions in the table.
@@ -515,9 +503,10 @@ public class SparkTableUtil {
    * @param sourceTableIdent an identifier of the source Spark table
    * @param targetTable an Iceberg table where to import the data
    * @param stagingDir a staging directory to store temporary manifest files
+   * @param partitionFilter only import partitions whose values match those in the map, can be partially defined
    */
-  public static void importSparkTable(
-      SparkSession spark, TableIdentifier sourceTableIdent, Table targetTable, String stagingDir) {
+  public static void importSparkTable(SparkSession spark, TableIdentifier sourceTableIdent, Table targetTable,
+                                      String stagingDir, Map<String, String> partitionFilter) {
     SessionCatalog catalog = spark.sessionState().catalog();
 
     String db = sourceTableIdent.database().nonEmpty() ?
@@ -536,12 +525,30 @@ public class SparkTableUtil {
         importUnpartitionedSparkTable(spark, sourceTableIdentWithDB, targetTable);
       } else {
         List<SparkPartition> sourceTablePartitions = getPartitions(spark, sourceTableIdent);
-        importSparkPartitions(spark, sourceTablePartitions, targetTable, spec, stagingDir);
+        List<SparkPartition> filteredPartitions = filterPartitions(sourceTablePartitions, partitionFilter);
+        importSparkPartitions(spark, filteredPartitions, targetTable, spec, stagingDir);
       }
     } catch (AnalysisException e) {
       throw SparkExceptionUtil.toUncheckedException(
           e, "Unable to get partition spec for table: %s", sourceTableIdentWithDB);
     }
+  }
+
+  /**
+   * Import files from an existing Spark table to an Iceberg table.
+   *
+   * The import uses the Spark session to get table metadata. It assumes no
+   * operation is going on the original and target table and thus is not
+   * thread-safe.
+   *
+   * @param spark a Spark session
+   * @param sourceTableIdent an identifier of the source Spark table
+   * @param targetTable an Iceberg table where to import the data
+   * @param stagingDir a staging directory to store temporary manifest files
+   */
+  public static void importSparkTable(
+      SparkSession spark, TableIdentifier sourceTableIdent, Table targetTable, String stagingDir) {
+    importSparkTable(spark, sourceTableIdent, targetTable, stagingDir, Collections.emptyMap());
   }
 
   private static void importUnpartitionedSparkTable(
@@ -632,6 +639,32 @@ public class SparkTableUtil {
     } catch (Throwable e) {
       deleteManifests(targetTable.io(), manifests);
       throw e;
+    }
+  }
+
+  public static List<SparkPartition> filterPartitions(List<SparkPartition> partitions,
+                                                      Map<String, String> partitionFilter) {
+    if (partitionFilter.isEmpty()) {
+      // No partition filter arg
+
+      if (partitions.isEmpty()) {
+        throw new IllegalArgumentException("Cannot add files, no files found in the table.");
+      }
+      return partitions;
+    } else {
+      // Partition filter arg passed
+
+      List<SparkTableUtil.SparkPartition> filteredPartitions = partitions
+          .stream().filter(p -> p.getValues().entrySet().containsAll(partitionFilter.entrySet()))
+          .collect(Collectors.toList());
+
+      Preconditions.checkArgument(!filteredPartitions.isEmpty(),
+          "No partitions found in table for add_file command. Looking for partitions with the values %s",
+          partitionFilter.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue())
+              .collect(Collectors.joining(","))
+      );
+
+      return filteredPartitions;
     }
   }
 
