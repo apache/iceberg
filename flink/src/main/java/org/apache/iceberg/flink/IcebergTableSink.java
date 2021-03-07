@@ -36,6 +36,12 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
 
   private boolean overwrite = false;
 
+  private IcebergTableSink(IcebergTableSink toCopy) {
+    this.tableLoader = toCopy.tableLoader;
+    this.tableSchema = toCopy.tableSchema;
+    this.overwrite = toCopy.overwrite;
+  }
+
   public IcebergTableSink(TableLoader tableLoader, TableSchema tableSchema) {
     this.tableLoader = tableLoader;
     this.tableSchema = tableSchema;
@@ -43,8 +49,8 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
 
   @Override
   public SinkRuntimeProvider getSinkRuntimeProvider(Context context) {
-    Preconditions
-        .checkState(!overwrite || context.isBounded(), "Unbounded data stream doesn't support overwrite operation.");
+    Preconditions.checkState(!overwrite || context.isBounded(),
+            "Unbounded data stream doesn't support overwrite operation.");
 
     return (DataStreamSinkProvider) dataStream -> FlinkSink.forRowData(dataStream)
         .tableLoader(tableLoader)
@@ -70,14 +76,12 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
 
   @Override
   public DynamicTableSink copy() {
-    IcebergTableSink icebergTableSink = new IcebergTableSink(tableLoader, tableSchema);
-    icebergTableSink.overwrite = overwrite;
-    return icebergTableSink;
+    return new IcebergTableSink(this);
   }
 
   @Override
   public String asSummaryString() {
-    return "iceberg table sink";
+    return "Iceberg table sink";
   }
 
   @Override

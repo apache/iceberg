@@ -58,6 +58,17 @@ public class IcebergTableSource
   private final boolean isLimitPushDown;
   private final ReadableConfig readableConfig;
 
+  private IcebergTableSource(IcebergTableSource toCopy) {
+    this.loader = toCopy.loader;
+    this.schema = toCopy.schema;
+    this.properties = toCopy.properties;
+    this.projectedFields = toCopy.projectedFields;
+    this.isLimitPushDown = toCopy.isLimitPushDown;
+    this.limit = toCopy.limit;
+    this.filters = toCopy.filters;
+    this.readableConfig = toCopy.readableConfig;
+  }
+
   public IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> properties,
                             ReadableConfig readableConfig) {
     this(loader, schema, properties, null, false, -1, ImmutableList.of(), readableConfig);
@@ -81,7 +92,7 @@ public class IcebergTableSource
     this.projectedFields = Arrays.stream(projectFields).mapToInt(value -> value[0]).toArray();
   }
 
-  private DataStream<RowData> getDataStream(StreamExecutionEnvironment execEnv) {
+  private DataStream<RowData> createDataStream(StreamExecutionEnvironment execEnv) {
     return FlinkSource.forRowData()
         .env(execEnv)
         .tableLoader(loader)
@@ -129,7 +140,7 @@ public class IcebergTableSource
 
   @Override
   public boolean supportsNestedProjection() {
-    return false;
+    return true;
   }
 
   @Override
@@ -142,7 +153,7 @@ public class IcebergTableSource
     return new DataStreamScanProvider() {
       @Override
       public DataStream<RowData> produceDataStream(StreamExecutionEnvironment execEnv) {
-        return getDataStream(execEnv);
+        return createDataStream(execEnv);
       }
 
       @Override
@@ -154,12 +165,11 @@ public class IcebergTableSource
 
   @Override
   public DynamicTableSource copy() {
-    return new IcebergTableSource(loader, schema, properties, projectedFields, isLimitPushDown, limit, filters,
-        readableConfig);
+    return new IcebergTableSource(this);
   }
 
   @Override
   public String asSummaryString() {
-    return "iceberg table source";
+    return "Iceberg table source";
   }
 }
