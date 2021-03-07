@@ -65,6 +65,8 @@ conf.set("spark.sql.catalog.nessie.catalog-impl", "org.apache.iceberg.nessie.Nes
 conf.set("spark.sql.catalog.nessie", "org.apache.iceberg.spark.SparkCatalog")
 ```
 
+There is nothing special above about the `nessie` name. A spark catalog can have any name, the important parts are the 
+settings for the `catalog-impl` and the required config to start Nessie correctly.
 Once you have a Nessie catalog you have access to your entire Nessie repo. You can then perform create/delete/merge
 operations on branches and perform commits on branches. Each iceberg table in a Nessie Catalog is identified by an
 arbitrary length namespace and table name (eg `data.base.name.table`). These namespaces are implicit and don't need to
@@ -80,17 +82,21 @@ Nessie functionality.
 ## Nessie and Iceberg
 
 For most cases Nessie acts just like any other Catalog for Iceberg: providing a logical organization of a set of tables
-and providing atomicity to transactions. However using Nessie opens up other interesting possibilities.
+and providing atomicity to transactions. However using Nessie opens up other interesting possibilities. When using Nessie with 
+iceberg every iceberg transaction becomes a nessie commit. This history can be listed, merged or cherry-picked across branches.
 
-### Loosely coupled multi-table transactions
+### Loosely coupled transactions
 
 By creating a branch and performing a set of operations on that branch you can approximate a multi-table transaction.
 A sequence of commits can be performed on the newly created branch and then merged back into the main branch atomically.
-This gives the appearance of a series of connected changes being exposed to the main branch atomically. Downstream
-consumers will see this as a multi-table transaction on the database. Unlike a traditional database transaction this
-branch based transaction doesn't have a single owner. For example, a series of globally distributed Spark applications
-can simultaneously update the branch and the merge back to the main branch will expose all these changes atomically.
+This gives the appearance of a series of connected changes being exposed to the main branch simultaneously. While downstream
+consumers will see multiple transactions appear at once this isn't a true multi-table transaction on the database. It is 
+effectively a fast-forward merge of multiple commits (in git language) and each operation from the branch is its own distinct
+transaction and commit. This is different from a real multi-table transaction where all changes would be in the same commit.
+This does allow multiple applications to take part in modifying a branch and for this distributed set of transactions to be 
+exposed to the downstream users simultaneously.
 
+ 
 ### Experimentation
 
 Changes to a table can be tested in a branch before merging back into main. This is particularly useful when performing
