@@ -19,14 +19,9 @@
 
 package org.apache.iceberg;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 /**
  * API for replacing files in a table.
@@ -49,81 +44,22 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
    */
   default RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd) {
     return rewriteFiles(
-        FileSet.ofDataFiles(filesToDelete),
-        FileSet.ofDataFiles(filesToAdd)
+        filesToDelete,
+        ImmutableSet.of(),
+        filesToAdd,
+        ImmutableSet.of()
     );
   }
 
   /**
    * Add a rewrite that replaces one set of files with another set that contains the same data.
    *
-   * @param filesToDelete files that will be replaced (deleted), cannot be null empty.
-   * @param filesToAdd    files that will be added, cannot be null or empty.
+   * @param dataFilesToDelete   data files that will be replaced (deleted).
+   * @param deleteFilesToDelete delete files that will be replaced (deleted).
+   * @param dataFilesToAdd      data files that will be added.
+   * @param deleteFilesToAdd    delete files that will be added.
    * @return this for method chaining.
    */
-  RewriteFiles rewriteFiles(FileSet filesToDelete, FileSet filesToAdd);
-
-  class FileSet {
-    private final Set<DataFile> dataFiles = Sets.newHashSet();
-    private final Set<DeleteFile> deleteFiles = Sets.newHashSet();
-
-    public static FileSet ofDataFiles(DataFile... dataFiles) {
-      return new FileSet(dataFiles, new DeleteFile[0]);
-    }
-
-    public static FileSet ofDataFiles(Iterable<DataFile> dataFiles) {
-      return new FileSet(dataFiles, ImmutableSet.of());
-    }
-
-    public static FileSet ofDeleteFiles(Iterable<DeleteFile> deleteFiles) {
-      return new FileSet(ImmutableSet.of(), deleteFiles);
-    }
-
-    public static FileSet ofDeleteFiles(DeleteFile... deleteFiles) {
-      return new FileSet(new DataFile[0], deleteFiles);
-    }
-
-    public static FileSet of(Iterable<DataFile> dataFiles, Iterable<DeleteFile> deleteFiles) {
-      return new FileSet(dataFiles, deleteFiles);
-    }
-
-    public static FileSet of(ContentFile<?>... files) {
-      List<DataFile> dataFiles = Lists.newArrayList();
-      List<DeleteFile> deleteFiles = Lists.newArrayList();
-
-      for (ContentFile<?> file : files) {
-        if (file instanceof DataFile) {
-          dataFiles.add((DataFile) file);
-        } else if (file instanceof DeleteFile) {
-          deleteFiles.add((DeleteFile) file);
-        } else {
-          throw new IllegalArgumentException("Unknown content file: " + file);
-        }
-      }
-
-      return new FileSet(dataFiles, deleteFiles);
-    }
-
-    private FileSet(DataFile[] dataFiles, DeleteFile[] deleteFiles) {
-      Collections.addAll(this.dataFiles, dataFiles);
-      Collections.addAll(this.deleteFiles, deleteFiles);
-    }
-
-    private FileSet(Iterable<DataFile> dataFiles, Iterable<DeleteFile> deleteFiles) {
-      Iterables.addAll(this.dataFiles, dataFiles);
-      Iterables.addAll(this.deleteFiles, deleteFiles);
-    }
-
-    public Set<DataFile> dataFiles() {
-      return dataFiles;
-    }
-
-    public Set<DeleteFile> deleteFiles() {
-      return deleteFiles;
-    }
-
-    public boolean isEmpty() {
-      return dataFiles.isEmpty() && deleteFiles.isEmpty();
-    }
-  }
+  RewriteFiles rewriteFiles(Set<DataFile> dataFilesToDelete, Set<DeleteFile> deleteFilesToDelete,
+                            Set<DataFile> dataFilesToAdd, Set<DeleteFile> deleteFilesToAdd);
 }

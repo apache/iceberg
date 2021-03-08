@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements RewriteFiles {
@@ -39,27 +40,62 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
     return DataOperations.REPLACE;
   }
 
+  private void checkFilesToDelete(Set<DataFile> dataFilesToDelete,
+                                  Set<DeleteFile> deleteFilesToDelete) {
+    int filesToDelete = 0;
+    if (dataFilesToDelete != null) {
+      filesToDelete += dataFilesToDelete.size();
+    }
+
+    if (deleteFilesToDelete != null) {
+      filesToDelete += deleteFilesToDelete.size();
+    }
+
+    Preconditions.checkArgument(filesToDelete > 0, "Files to delete cannot be null or empty");
+  }
+
+  private void checkFilesToAdd(Set<DataFile> dataFilesToAdd,
+                               Set<DeleteFile> deleteFilesToAdd) {
+    int filesToAdd = 0;
+    if (dataFilesToAdd != null) {
+      filesToAdd += dataFilesToAdd.size();
+    }
+
+    if (deleteFilesToAdd != null) {
+      filesToAdd += deleteFilesToAdd.size();
+    }
+
+    Preconditions.checkArgument(filesToAdd > 0, "Files to add can not be null or empty");
+  }
+
   @Override
-  public RewriteFiles rewriteFiles(FileSet filesToRemove, FileSet filesToAdd) {
-    Preconditions.checkArgument(filesToRemove != null && !filesToRemove.isEmpty(),
-        "Files to delete cannot be null or empty");
-    Preconditions.checkArgument(filesToAdd != null && !filesToAdd.isEmpty(),
-        "Files to add can not be null or empty");
+  public RewriteFiles rewriteFiles(Set<DataFile> dataFilesToDelete, Set<DeleteFile> deleteFilesToDelete,
+                                   Set<DataFile> dataFilesToAdd, Set<DeleteFile> deleteFilesToAdd) {
+    checkFilesToDelete(dataFilesToDelete, deleteFilesToDelete);
+    checkFilesToAdd(dataFilesToAdd, deleteFilesToAdd);
 
-    for (DataFile dataFileToRemove : filesToRemove.dataFiles()) {
-      delete(dataFileToRemove);
+    if (dataFilesToDelete != null) {
+      for (DataFile dataFile : dataFilesToDelete) {
+        delete(dataFile);
+      }
     }
 
-    for (DeleteFile deleteFileToRemove : filesToRemove.deleteFiles()) {
-      delete(deleteFileToRemove);
+    if (deleteFilesToDelete != null) {
+      for (DeleteFile deleteFile : deleteFilesToDelete) {
+        delete(deleteFile);
+      }
     }
 
-    for (DataFile dataFileToAdd : filesToAdd.dataFiles()) {
-      add(dataFileToAdd);
+    if (dataFilesToAdd != null) {
+      for (DataFile dataFile : dataFilesToAdd) {
+        add(dataFile);
+      }
     }
 
-    for (DeleteFile deleteFileToAdd : filesToAdd.deleteFiles()) {
-      add(deleteFileToAdd);
+    if (deleteFilesToAdd != null) {
+      for (DeleteFile deleteFile : deleteFilesToAdd) {
+        add(deleteFile);
+      }
     }
 
     return this;

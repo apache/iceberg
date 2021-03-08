@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -65,7 +66,8 @@ public class TestRewriteFiles extends TableTestBase {
         ValidationException.class,
         "Missing required files to delete: /path/to/data-a-deletes.parquet",
         () -> table.newRewrite()
-            .rewriteFiles(RewriteFiles.FileSet.of(FILE_A_DELETES), RewriteFiles.FileSet.of(FILE_A, FILE_B_DELETES))
+            .rewriteFiles(ImmutableSet.of(), ImmutableSet.of(FILE_A_DELETES),
+                ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_B_DELETES))
             .commit());
   }
 
@@ -84,14 +86,15 @@ public class TestRewriteFiles extends TableTestBase {
         IllegalArgumentException.class,
         "Files to add can not be null or empty",
         () -> table.newRewrite()
-            .rewriteFiles(RewriteFiles.FileSet.of(FILE_A_DELETES), RewriteFiles.FileSet.of())
+            .rewriteFiles(ImmutableSet.of(), ImmutableSet.of(FILE_A_DELETES), ImmutableSet.of(), ImmutableSet.of())
             .apply());
 
     AssertHelpers.assertThrows("Expected an exception",
         IllegalArgumentException.class,
         "Files to add can not be null or empty",
         () -> table.newRewrite()
-            .rewriteFiles(RewriteFiles.FileSet.of(FILE_A, FILE_A_DELETES), RewriteFiles.FileSet.of())
+            .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_A_DELETES),
+                ImmutableSet.of(), ImmutableSet.of())
             .apply());
   }
 
@@ -110,14 +113,15 @@ public class TestRewriteFiles extends TableTestBase {
         IllegalArgumentException.class,
         "Files to delete cannot be null or empty",
         () -> table.newRewrite()
-            .rewriteFiles(RewriteFiles.FileSet.of(), RewriteFiles.FileSet.of(FILE_A_DELETES))
+            .rewriteFiles(ImmutableSet.of(), ImmutableSet.of(), ImmutableSet.of(), ImmutableSet.of(FILE_A_DELETES))
             .apply());
 
     AssertHelpers.assertThrows("Expected an exception",
         IllegalArgumentException.class,
         "Files to delete cannot be null or empty",
         () -> table.newRewrite()
-            .rewriteFiles(RewriteFiles.FileSet.of(), RewriteFiles.FileSet.of(FILE_A, FILE_A_DELETES))
+            .rewriteFiles(ImmutableSet.of(), ImmutableSet.of(),
+                ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_A_DELETES))
             .apply());
   }
 
@@ -233,7 +237,8 @@ public class TestRewriteFiles extends TableTestBase {
 
     // Rewrite the files.
     Snapshot pending = table.newRewrite()
-        .rewriteFiles(RewriteFiles.FileSet.of(FILE_A, FILE_A_DELETES), RewriteFiles.FileSet.of(FILE_D))
+        .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_A_DELETES),
+            ImmutableSet.of(FILE_D), ImmutableSet.of())
         .apply();
 
     Assert.assertEquals("Should contain 3 manifest", 3, pending.allManifests().size());
@@ -308,7 +313,8 @@ public class TestRewriteFiles extends TableTestBase {
     table.ops().failCommits(5);
 
     RewriteFiles rewrite = table.newRewrite()
-        .rewriteFiles(RewriteFiles.FileSet.of(FILE_A, FILE_A_DELETES, FILE_B_DELETES), RewriteFiles.FileSet.of(FILE_D));
+        .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_A_DELETES, FILE_B_DELETES),
+            ImmutableSet.of(FILE_D), ImmutableSet.of());
     Snapshot pending = rewrite.apply();
 
     Assert.assertEquals("Should produce 3 manifests", 3, pending.allManifests().size());
@@ -392,7 +398,8 @@ public class TestRewriteFiles extends TableTestBase {
     table.ops().failCommits(3);
 
     RewriteFiles rewrite = table.newRewrite()
-        .rewriteFiles(RewriteFiles.FileSet.of(FILE_A, FILE_A_DELETES, FILE_B_DELETES), RewriteFiles.FileSet.of(FILE_D));
+        .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_A_DELETES, FILE_B_DELETES),
+            ImmutableSet.of(FILE_D), ImmutableSet.of());
     Snapshot pending = rewrite.apply();
 
     Assert.assertEquals("Should produce 3 manifests", 3, pending.allManifests().size());
