@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -48,7 +49,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.ChainOrFilter;
+import org.apache.iceberg.util.Filter;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.parquet.Preconditions;
@@ -121,7 +123,7 @@ public abstract class DeleteFilter<T> {
       filesByDeleteIds.put(Sets.newHashSet(delete.equalityFieldIds()), delete);
     }
 
-    List<Pair<StructProjection, StructLikeSet>> unprojectedDeleteSets = Lists.newArrayList();
+    List<Predicate<T>> deleteSetFilters = Lists.newArrayList();
     for (Map.Entry<Set<Integer>, Collection<DeleteFile>> entry : filesByDeleteIds.asMap().entrySet()) {
       Set<Integer> ids = entry.getKey();
       Iterable<DeleteFile> deletes = entry.getValue();
@@ -138,10 +140,12 @@ public abstract class DeleteFilter<T> {
           CloseableIterable.transform(CloseableIterable.concat(deleteRecords), Record::copy),
           deleteSchema.asStruct());
 
-      unprojectedDeleteSets.add(Pair.of(projectRow, deleteSet));
+      Predicate<T> predicate = record -> deleteSet.contains(projectRow.wrap(asStructLike(record)));
+      deleteSetFilters.add(predicate);
     }
 
-    return Deletes.match(records, (record, projection) -> projection.wrap(asStructLike(record)), unprojectedDeleteSets);
+    Filter<T> findDeleteRows = new ChainOrFilter<>(deleteSetFilters);
+    return findDeleteRows.filter(records);
   }
 
   protected CloseableIterable<T> applyEqDeletes(CloseableIterable<T> records) {

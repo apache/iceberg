@@ -74,6 +74,5 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
     }
 
     return this;
-
   }
 }

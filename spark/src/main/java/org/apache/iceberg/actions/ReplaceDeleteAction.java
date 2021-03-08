@@ -40,6 +40,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.ListMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -168,7 +169,7 @@ public class ReplaceDeleteAction extends
       List<DeleteFile> posDeletes = deleteRewriter.toPosDeletes(taskRDD);
 
       if (!eqDeletes.isEmpty() && !posDeletes.isEmpty()) {
-        rewriteDeletes(eqDeletes, posDeletes);
+        rewriteDeletes(Lists.newArrayList(eqDeletes), posDeletes);
         return new DeleteRewriteActionResult(Lists.newArrayList(eqDeletes), posDeletes);
       }
     }
@@ -198,7 +199,11 @@ public class ReplaceDeleteAction extends
   }
 
 
-  private void rewriteDeletes(Iterable<DeleteFile> eqDeletes, Iterable<DeleteFile> posDeletes) {
+  private void rewriteDeletes(List<DeleteFile> eqDeletes, List<DeleteFile> posDeletes) {
+    Preconditions.checkArgument(eqDeletes.stream().allMatch(f -> f.content().equals(FileContent.EQUALITY_DELETES)),
+        "The deletes to be converted should be equality deletes");
+    Preconditions.checkArgument(posDeletes.stream().allMatch(f -> f.content().equals(FileContent.POSITION_DELETES)),
+        "The converted deletes should be position deletes");
     try {
       RewriteFiles rewriteFiles = table.newRewrite();
       rewriteFiles.rewriteDeletes(Sets.newHashSet(eqDeletes), Sets.newHashSet(posDeletes));
