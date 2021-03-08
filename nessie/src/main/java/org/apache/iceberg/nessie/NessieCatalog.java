@@ -19,19 +19,6 @@
 
 package org.apache.iceberg.nessie;
 
-import com.dremio.nessie.api.TreeApi;
-import com.dremio.nessie.client.NessieClient;
-import com.dremio.nessie.client.NessieConfigConstants;
-import com.dremio.nessie.error.BaseNessieClientServerException;
-import com.dremio.nessie.error.NessieConflictException;
-import com.dremio.nessie.error.NessieNotFoundException;
-import com.dremio.nessie.model.Contents;
-import com.dremio.nessie.model.IcebergTable;
-import com.dremio.nessie.model.ImmutableDelete;
-import com.dremio.nessie.model.ImmutableOperations;
-import com.dremio.nessie.model.ImmutablePut;
-import com.dremio.nessie.model.Operations;
-import com.dremio.nessie.model.Reference;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -57,6 +44,19 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.Tasks;
+import org.projectnessie.api.TreeApi;
+import org.projectnessie.client.NessieClient;
+import org.projectnessie.client.NessieConfigConstants;
+import org.projectnessie.error.BaseNessieClientServerException;
+import org.projectnessie.error.NessieConflictException;
+import org.projectnessie.error.NessieNotFoundException;
+import org.projectnessie.model.Contents;
+import org.projectnessie.model.IcebergTable;
+import org.projectnessie.model.ImmutableDelete;
+import org.projectnessie.model.ImmutableOperations;
+import org.projectnessie.model.ImmutablePut;
+import org.projectnessie.model.Operations;
+import org.projectnessie.model.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -90,7 +90,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     // remove nessie prefix
     final Function<String, String> removePrefix = x -> x.replace("nessie.", "");
 
-    this.client = NessieClient.withConfig(x -> options.get(removePrefix.apply(x)));
+    this.client = NessieClient.builder().fromConfig(x -> options.get(removePrefix.apply(x))).build();
 
     this.warehouseLocation = options.get(CatalogProperties.WAREHOUSE_LOCATION);
     if (warehouseLocation == null) {

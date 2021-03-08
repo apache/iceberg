@@ -19,13 +19,6 @@
 
 package org.apache.iceberg.nessie;
 
-import com.dremio.nessie.api.ContentsApi;
-import com.dremio.nessie.api.TreeApi;
-import com.dremio.nessie.client.NessieClient;
-import com.dremio.nessie.error.NessieConflictException;
-import com.dremio.nessie.error.NessieNotFoundException;
-import com.dremio.nessie.model.Branch;
-import com.dremio.nessie.model.Reference;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,6 +37,13 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
+import org.projectnessie.api.ContentsApi;
+import org.projectnessie.api.TreeApi;
+import org.projectnessie.client.NessieClient;
+import org.projectnessie.error.NessieConflictException;
+import org.projectnessie.error.NessieNotFoundException;
+import org.projectnessie.model.Branch;
+import org.projectnessie.model.Reference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -83,7 +83,7 @@ public abstract class BaseTestIceberg {
   public void beforeEach() throws IOException {
     String port = System.getProperty("quarkus.http.test-port", "19120");
     path = String.format("http://localhost:%s/api/v1", port);
-    this.client = NessieClient.none(path);
+    this.client = NessieClient.builder().withUri(path).build();
     tree = client.getTreeApi();
     contents = client.getContentsApi();
 
@@ -103,7 +103,7 @@ public abstract class BaseTestIceberg {
     NessieCatalog newCatalog = new NessieCatalog();
     newCatalog.setConf(hadoopConfig);
     newCatalog.initialize("nessie", ImmutableMap.of("ref", ref,
-        "url", path,
+        "uri", path,
         "auth_type", "NONE",
         CatalogProperties.WAREHOUSE_LOCATION, temp.getRoot().toURI().toString()
         ));

@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.nessie;
 
-import com.dremio.nessie.api.TreeApi;
-import com.dremio.nessie.error.NessieNotFoundException;
-import com.dremio.nessie.model.Branch;
-import com.dremio.nessie.model.Hash;
-import com.dremio.nessie.model.Reference;
+import org.projectnessie.api.TreeApi;
+import org.projectnessie.error.NessieNotFoundException;
+import org.projectnessie.model.Branch;
+import org.projectnessie.model.Hash;
+import org.projectnessie.model.Reference;
 
 class UpdateableReference {
 
