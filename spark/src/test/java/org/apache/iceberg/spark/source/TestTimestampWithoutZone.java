@@ -159,8 +159,7 @@ public abstract class TestTimestampWithoutZone {
   public void testUnpartitionedTimestampWithoutZoneError() {
     AssertHelpers.assertThrows(String.format("Read operation performed on a timestamp without timezone field while " +
                     "'%s' set to false should throw exception", SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_FLAG),
-            IllegalArgumentException.class, SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR,
-            () -> spark.read().format("iceberg")
+            IllegalArgumentException.class, SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR, () -> spark.read().format("iceberg")
                     .option("vectorization-enabled", String.valueOf(vectorized))
                     .option(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_FLAG, "false")
                     .load(unpartitioned.toString())
