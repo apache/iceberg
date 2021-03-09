@@ -50,6 +50,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.source.SparkTable;
+import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
 import org.apache.iceberg.transforms.SortOrderVisitor;
 import org.apache.iceberg.types.Type;
@@ -63,10 +64,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.CatalystTypeConverters;
-import org.apache.spark.sql.catalyst.analysis.NoSuchDatabaseException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.apache.spark.sql.catalyst.catalog.CatalogTable;
-import org.apache.spark.sql.catalyst.catalog.SessionCatalog;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.parser.ParserInterface;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
@@ -814,7 +812,7 @@ public class Spark3Util {
    * @param format format of the file
    * @return all table's partitions
    */
-  public static List<SparkTableUtil.SparkPartition> getPartitions(SparkSession spark, Path rootPath, String format) {
+  public static List<SparkPartition> getPartitions(SparkSession spark, Path rootPath, String format) {
     FileStatusCache fileStatusCache = FileStatusCache.getOrCreate(spark);
     Map<String, String> emptyMap = Collections.emptyMap();
 
@@ -836,7 +834,7 @@ public class Spark3Util {
     org.apache.spark.sql.execution.datasources.PartitionSpec spec = fileIndex.partitionSpec();
     StructType schema = spec.partitionColumns();
     if (spec.partitions().isEmpty()) {
-      return ImmutableList.of(new SparkTableUtil.SparkPartition(Collections.emptyMap(), rootPath.toString(), format));
+      return ImmutableList.of(new SparkPartition(Collections.emptyMap(), rootPath.toString(), format));
     }
 
     return JavaConverters
@@ -851,7 +849,7 @@ public class Spark3Util {
             Object value = CatalystTypeConverters.convertToScala(catalystValue, field.dataType());
             values.put(field.name(), value.toString());
           });
-          return new SparkTableUtil.SparkPartition(values, partition.path().toString(), format);
+          return new SparkPartition(values, partition.path().toString(), format);
         }).collect(Collectors.toList());
   }
 
