@@ -188,6 +188,7 @@ public abstract class TestRewriteDeletesAction extends SparkTestBase {
   public void testRewriteDeletesInPartitionedTable() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
         .identity("c1")
+        .truncate("c3", 2)
         .build();
     Map<String, String> options = Maps.newHashMap();
     BaseTable table = (BaseTable) TABLES.create(SCHEMA, spec, options, tableLocation);
@@ -195,7 +196,7 @@ public abstract class TestRewriteDeletesAction extends SparkTestBase {
     ops.commit(ops.current(), ops.current().upgradeToFormatVersion(2));
 
     List<ThreeColumnRecord> records1 = Lists.newArrayList(
-        new ThreeColumnRecord(1, null, "AAAA"),
+        new ThreeColumnRecord(1, "AAAAAAAA", "AAAA"),
         new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB")
     );
     writeRecords(records1);
@@ -210,23 +211,20 @@ public abstract class TestRewriteDeletesAction extends SparkTestBase {
     OutputFileFactory fileFactory = new OutputFileFactory(table.spec(), FileFormat.PARQUET, table.locationProvider(),
         table.io(), table.encryption(), 1, 1);
 
-    List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().findField("c3").fieldId());
-    Schema eqDeleteRowSchema = table.schema().select("c3");
+    List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().findField("c2").fieldId());
+    Schema eqDeleteRowSchema = table.schema().select("c2");
     GenericAppenderFactory appenderFactory = new GenericAppenderFactory(table.schema(), table.spec(),
         ArrayUtil.toIntArray(equalityFieldIds),
         eqDeleteRowSchema, null);
 
-    Record partitionRecord = GenericRecord.create(table.schema().select("c1"))
-        .copy(ImmutableMap.of("c1", 1));
+    PartitionKey key = createPartitionKey(table,
+        GenericRecord.create(table.schema()).copy(ImmutableMap.of("c1", 1, "c2", "ignore", "c3", "AAAA")));
 
     EqualityDeleteWriter<Record> eqDeleteWriter = appenderFactory.newEqDeleteWriter(
-        createEncryptedOutputFile(createPartitionKey(table, partitionRecord),  fileFactory),
-        FileFormat.PARQUET,
-        createPartitionKey(table, partitionRecord));
+        createEncryptedOutputFile(key, fileFactory), FileFormat.PARQUET, key);
 
-    Record record = GenericRecord.create(eqDeleteRowSchema).copy(ImmutableMap.of("c3", "AAAA"));
     try (EqualityDeleteWriter<Record> closeableWriter = eqDeleteWriter) {
-      closeableWriter.delete(record);
+      closeableWriter.delete(GenericRecord.create(eqDeleteRowSchema).copy(ImmutableMap.of("c2", "AAAAAAAA")));
     }
 
     table.newRowDelta().addDeletes(eqDeleteWriter.toDeleteFile()).commit();
