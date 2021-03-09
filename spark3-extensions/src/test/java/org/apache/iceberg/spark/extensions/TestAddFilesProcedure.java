@@ -163,27 +163,6 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void addIndividualFile() {
-    createUnpartitionedFileTable("parquet");
-
-    File fileToAdd = fileTableDir.listFiles((dir, name) -> name.endsWith("parquet"))[0];
-
-    String createIceberg =
-        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg";
-
-    sql(createIceberg, tableName);
-
-    Object importOperation = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`')",
-        catalogName, tableName, fileToAdd.getAbsolutePath());
-
-    Assert.assertEquals(1L, importOperation);
-
-    assertEquals("Iceberg table contains correct data",
-        sql("SELECT DISTINCT * FROM %s", sourceTableName),
-        sql("SELECT * FROM %s", tableName));
-  }
-
-  @Test
   public void addDataPartitioned() {
     createPartitionedFileTable("parquet");
 
@@ -264,7 +243,8 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     createCompositePartitionedTable("parquet");
 
     String createIceberg =
-        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg PARTITIONED BY (id, dept)";
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg " +
+            "PARTITIONED BY (id, dept)";
 
     sql(createIceberg, tableName);
 
@@ -438,8 +418,8 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   }
 
   private void createCompositePartitionedTable(String format) {
-    String createParquet = "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING %s PARTITIONED BY (id, dept) " +
-        "LOCATION '%s'";
+    String createParquet = "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING %s " +
+        "PARTITIONED BY (id, dept) LOCATION '%s'";
     sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
 
     compositePartitionedDF.write().insertInto(sourceTableName);

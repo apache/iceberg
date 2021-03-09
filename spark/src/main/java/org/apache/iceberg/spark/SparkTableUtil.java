@@ -138,8 +138,6 @@ public class SparkTableUtil {
     return spark.createDataFrame(partitions, SparkPartition.class).toDF("partition", "uri", "format");
   }
 
-
-
   /**
    * Returns all partitions in the table.
    *

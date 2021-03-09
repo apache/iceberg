@@ -20,20 +20,13 @@
 
 package org.apache.iceberg.spark.procedures;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionField;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
@@ -129,22 +122,7 @@ class AddFilesProcedure extends BaseProcedure {
       if (isFileIdentifier(sourceIdent)) {
         Path sourcePath = new Path(sourceIdent.name());
         String format = sourceIdent.namespace()[0];
-
-        Configuration conf = spark().sessionState().newHadoopConf();
-        FileSystem fs;
-        Boolean isFile;
-        try {
-          fs = sourcePath.getFileSystem(conf);
-          isFile = fs.getFileStatus(sourcePath).isFile();
-        } catch (IOException e) {
-          throw new RuntimeException("Unable to access add_file path", e);
-        }
-
-        if (isFile) {
-          importFile(table, sourcePath, format, partitionFilter);
-        } else {
-          importFileTable(table, sourcePath, format, partitionFilter);
-        }
+        importFileTable(table, sourcePath, format, partitionFilter);
       } else {
         importCatalogTable(table, sourceIdent, partitionFilter);
       }
@@ -166,36 +144,6 @@ class AddFilesProcedure extends BaseProcedure {
     }
   }
 
-  private int importFile(Table table, Path file, String format,  Map<String, String> partitionFilter) {
-    if (partitionFilter.isEmpty() && !table.spec().isUnpartitioned()) {
-      throw new IllegalArgumentException("Cannot add a file to a partitioned table without specifying the partition " +
-          "filter");
-    }
-    if (!partitionFilter.isEmpty() && table.spec().isUnpartitioned()) {
-      throw new IllegalArgumentException("Cannot add a file to an unpartitioned table while specifying the partition " +
-          "filter");
-    }
-
-    PartitionSpec spec = table.spec();
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(table.properties());
-    String partitionURI = file.toString();
-    Configuration conf = spark().sessionState().newHadoopConf();
-
-    List<DataFile> files =
-        SparkTableUtil.listPartition(partitionFilter, partitionURI, format, spec, conf, metricsConfig);
-
-    if (files.isEmpty()) {
-      throw new IllegalArgumentException(
-          String.format("No file found for add_file command. Looking for a file at URI %s", partitionURI));
-    }
-
-    // Add Snapshot Summary Info?
-    AppendFiles append = table.newAppend();
-    files.forEach(append::appendFile);
-    append.commit();
-    return 1;
-  }
-
   private void importFileTable(Table table, Path tableLocation, String format, Map<String, String> partitionFilter) {
     // List Partitions via Spark InMemory file search interface
     List<SparkPartition> partitions = Spark3Util.getPartitions(spark(), tableLocation, format);
@@ -215,8 +163,6 @@ class AddFilesProcedure extends BaseProcedure {
         .getOrDefault(TableProperties.WRITE_METADATA_LOCATION, table.location() + "/metadata");
     SparkTableUtil.importSparkPartitions(spark(), partitions, table, table.spec(), stagingLocation);
   }
-
-
 
   @Override
   public String description() {
