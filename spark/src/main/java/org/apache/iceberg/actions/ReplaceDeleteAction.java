@@ -188,9 +188,7 @@ public class ReplaceDeleteAction extends
     try (CloseableIterator<FileScanTask> iterator = tasksIter) {
       iterator.forEachRemaining(task -> {
         StructLikeWrapper structLike = StructLikeWrapper.forType(spec.partitionType()).set(task.file().partition());
-        if (TableScanUtil.hasDeletes(task)) {
-          tasksGroupedByPartition.put(structLike, task);
-        }
+        tasksGroupedByPartition.put(structLike, task);
       });
     } catch (IOException e) {
       LOG.warn("Failed to close task iterator", e);

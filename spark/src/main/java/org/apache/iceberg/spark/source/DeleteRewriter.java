@@ -29,7 +29,6 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
@@ -109,10 +108,8 @@ public class DeleteRewriter implements Serializable {
     OutputFileFactory fileFactory = new OutputFileFactory(
         spec, format, locations, io.value(), encryptionManager.value(), partitionId, taskId);
 
-    PartitionKey key = new PartitionKey(spec, schema);
-    key.partition(task.first());
     SortedPosDeleteWriter<InternalRow> posDeleteWriter =
-        new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, key);
+        new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, task.first());
 
     try {
       while (deleteRowReader.next()) {
@@ -123,7 +120,6 @@ public class DeleteRewriter implements Serializable {
       deleteRowReader.close();
       deleteRowReader = null;
 
-      posDeleteWriter.close();
       return Lists.newArrayList(posDeleteWriter.complete());
 
     } catch (Throwable originalThrowable) {
