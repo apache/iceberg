@@ -77,24 +77,25 @@ public class TestRewriteFiles extends TableTestBase {
 
     AssertHelpers.assertThrows("Expected an exception",
         IllegalArgumentException.class,
-        "Files to add can not be null or empty",
+        "Data files to add can not be null or empty because there's no delete file to rewrite",
         () -> table.newRewrite()
             .rewriteFiles(Sets.newSet(FILE_A), Collections.emptySet())
             .apply());
 
     AssertHelpers.assertThrows("Expected an exception",
         IllegalArgumentException.class,
-        "Files to add can not be null or empty",
+        "Data files to add can not be null or empty because there's no delete file to rewrite",
         () -> table.newRewrite()
-            .rewriteFiles(ImmutableSet.of(), ImmutableSet.of(FILE_A_DELETES), ImmutableSet.of(), ImmutableSet.of())
+            .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(),
+                ImmutableSet.of(), ImmutableSet.of(FILE_A_DELETES))
             .apply());
 
     AssertHelpers.assertThrows("Expected an exception",
         IllegalArgumentException.class,
-        "Files to add can not be null or empty",
+        "Delete files to add must be null or empty because there's no delete file to rewrite",
         () -> table.newRewrite()
-            .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_A_DELETES),
-                ImmutableSet.of(), ImmutableSet.of())
+            .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(),
+                ImmutableSet.of(FILE_B), ImmutableSet.of(FILE_B_DELETES))
             .apply());
   }
 
@@ -208,7 +209,7 @@ public class TestRewriteFiles extends TableTestBase {
 
   @Test
   public void testRewriteDataAndDeleteFiles() {
-    Assume.assumeTrue("Rewriting delete files is only supported in iceberg format v2. ", formatVersion == 2);
+    Assume.assumeTrue("Rewriting delete files is only supported in iceberg format v2. ", formatVersion > 1);
     Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
 
     table.newRowDelta()
@@ -299,7 +300,7 @@ public class TestRewriteFiles extends TableTestBase {
 
   @Test
   public void testFailureWhenRewriteBothDataAndDeleteFiles() {
-    Assume.assumeTrue("Rewriting delete files is only supported in iceberg format v2. ", formatVersion == 2);
+    Assume.assumeTrue("Rewriting delete files is only supported in iceberg format v2. ", formatVersion > 1);
 
     table.newRowDelta()
         .addRows(FILE_A)
@@ -384,7 +385,7 @@ public class TestRewriteFiles extends TableTestBase {
 
   @Test
   public void testRecoverWhenRewriteBothDataAndDeleteFiles() {
-    Assume.assumeTrue("Rewriting delete files is only supported in iceberg format v2. ", formatVersion == 2);
+    Assume.assumeTrue("Rewriting delete files is only supported in iceberg format v2. ", formatVersion > 1);
 
     table.newRowDelta()
         .addRows(FILE_A)
@@ -407,17 +408,17 @@ public class TestRewriteFiles extends TableTestBase {
     ManifestFile manifest2 = pending.allManifests().get(1);
     ManifestFile manifest3 = pending.allManifests().get(2);
 
-    validateManifestEntries(pending.allManifests().get(0),
+    validateManifestEntries(manifest1,
         ids(pending.snapshotId()),
         files(FILE_D),
         statuses(ADDED));
 
-    validateManifestEntries(pending.allManifests().get(1),
+    validateManifestEntries(manifest2,
         ids(pending.snapshotId(), baseSnapshotId, baseSnapshotId),
         files(FILE_A, FILE_B, FILE_C),
         statuses(DELETED, EXISTING, EXISTING));
 
-    validateDeleteManifest(pending.allManifests().get(2),
+    validateDeleteManifest(manifest3,
         seqs(2, 2),
         ids(pending.snapshotId(), pending.snapshotId()),
         files(FILE_A_DELETES, FILE_B_DELETES),
@@ -436,6 +437,107 @@ public class TestRewriteFiles extends TableTestBase {
 
     // As commit success all the manifests added with rewrite should be available.
     Assert.assertEquals("Only 5 manifest should exist", 5, listManifestFiles().size());
+  }
+
+  @Test
+  public void testReplaceEqualityDeletesWithPositionDeletes() {
+    Assume.assumeTrue("Rewriting delete files is only supported in iceberg format v2. ", formatVersion > 1);
+
+    table.newRowDelta()
+        .addRows(FILE_A2)
+        .addDeletes(FILE_A2_DELETES)
+        .commit();
+
+    TableMetadata metadata = readMetadata();
+    long baseSnapshotId = metadata.currentSnapshot().snapshotId();
+
+    // Apply and commit the rewrite transaction.
+    RewriteFiles rewrite = table.newRewrite().rewriteFiles(
+        ImmutableSet.of(), ImmutableSet.of(FILE_A2_DELETES),
+        ImmutableSet.of(), ImmutableSet.of(FILE_B_DELETES)
+    );
+    Snapshot pending = rewrite.apply();
+
+    Assert.assertEquals("Should produce 3 manifests", 3, pending.allManifests().size());
+    ManifestFile manifest1 = pending.allManifests().get(0);
+    ManifestFile manifest2 = pending.allManifests().get(1);
+    ManifestFile manifest3 = pending.allManifests().get(2);
+
+    validateManifestEntries(manifest1,
+        ids(baseSnapshotId),
+        files(FILE_A2),
+        statuses(ADDED));
+
+    validateDeleteManifest(manifest2,
+        seqs(2),
+        ids(pending.snapshotId()),
+        files(FILE_B_DELETES),
+        statuses(ADDED));
+
+    validateDeleteManifest(manifest3,
+        seqs(2),
+        ids(pending.snapshotId()),
+        files(FILE_A2_DELETES),
+        statuses(DELETED));
+
+    rewrite.commit();
+
+    Assert.assertTrue("Should reuse new manifest", new File(manifest1.path()).exists());
+    Assert.assertTrue("Should reuse new manifest", new File(manifest2.path()).exists());
+    Assert.assertTrue("Should reuse new manifest", new File(manifest3.path()).exists());
+
+    metadata = readMetadata();
+    List<ManifestFile> committedManifests = Lists.newArrayList(manifest1, manifest2, manifest3);
+    Assert.assertTrue("Should committed the manifests",
+        metadata.currentSnapshot().allManifests().containsAll(committedManifests));
+
+    // As commit success all the manifests added with rewrite should be available.
+    Assert.assertEquals("4 manifests should exist", 4, listManifestFiles().size());
+  }
+
+  @Test
+  public void testRemoveAllDeletes() {
+    Assume.assumeTrue("Rewriting delete files is only supported in iceberg format v2. ", formatVersion > 1);
+
+    table.newRowDelta()
+        .addRows(FILE_A)
+        .addDeletes(FILE_A_DELETES)
+        .commit();
+
+    // Apply and commit the rewrite transaction.
+    RewriteFiles rewrite = table.newRewrite().rewriteFiles(
+        ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_A_DELETES),
+        ImmutableSet.of(), ImmutableSet.of()
+    );
+    Snapshot pending = rewrite.apply();
+
+    Assert.assertEquals("Should produce 2 manifests", 2, pending.allManifests().size());
+    ManifestFile manifest1 = pending.allManifests().get(0);
+    ManifestFile manifest2 = pending.allManifests().get(1);
+
+    validateManifestEntries(manifest1,
+        ids(pending.snapshotId()),
+        files(FILE_A),
+        statuses(DELETED));
+
+    validateDeleteManifest(manifest2,
+        seqs(2),
+        ids(pending.snapshotId()),
+        files(FILE_A_DELETES),
+        statuses(DELETED));
+
+    rewrite.commit();
+
+    Assert.assertTrue("Should reuse the new manifest", new File(manifest1.path()).exists());
+    Assert.assertTrue("Should reuse the new manifest", new File(manifest2.path()).exists());
+
+    TableMetadata metadata = readMetadata();
+    List<ManifestFile> committedManifests = Lists.newArrayList(manifest1, manifest2);
+    Assert.assertTrue("Should committed the manifests",
+        metadata.currentSnapshot().allManifests().containsAll(committedManifests));
+
+    // As commit success all the manifests added with rewrite should be available.
+    Assert.assertEquals("4 manifests should exist", 4, listManifestFiles().size());
   }
 
   @Test

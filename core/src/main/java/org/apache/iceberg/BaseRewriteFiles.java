@@ -40,8 +40,8 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
     return DataOperations.REPLACE;
   }
 
-  private void checkFilesToDelete(Set<DataFile> dataFilesToDelete,
-                                  Set<DeleteFile> deleteFilesToDelete) {
+  private void verifyInputAndOutputFiles(Set<DataFile> dataFilesToDelete, Set<DeleteFile> deleteFilesToDelete,
+                                         Set<DataFile> dataFilesToAdd, Set<DeleteFile> deleteFilesToAdd) {
     int filesToDelete = 0;
     if (dataFilesToDelete != null) {
       filesToDelete += dataFilesToDelete.size();
@@ -52,27 +52,20 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
     }
 
     Preconditions.checkArgument(filesToDelete > 0, "Files to delete cannot be null or empty");
-  }
 
-  private void checkFilesToAdd(Set<DataFile> dataFilesToAdd,
-                               Set<DeleteFile> deleteFilesToAdd) {
-    int filesToAdd = 0;
-    if (dataFilesToAdd != null) {
-      filesToAdd += dataFilesToAdd.size();
+    if (deleteFilesToDelete == null || deleteFilesToDelete.isEmpty()) {
+      // When there is no delete files in the rewrite action, data files to add cannot be null or empty.
+      Preconditions.checkArgument(dataFilesToAdd != null && dataFilesToAdd.size() > 0,
+          "Data files to add can not be null or empty because there's no delete file to rewrite");
+      Preconditions.checkArgument(deleteFilesToAdd == null || deleteFilesToAdd.isEmpty(),
+          "Delete files to add must be null or empty because there's no delete file to rewrite");
     }
-
-    if (deleteFilesToAdd != null) {
-      filesToAdd += deleteFilesToAdd.size();
-    }
-
-    Preconditions.checkArgument(filesToAdd > 0, "Files to add can not be null or empty");
   }
 
   @Override
   public RewriteFiles rewriteFiles(Set<DataFile> dataFilesToDelete, Set<DeleteFile> deleteFilesToDelete,
                                    Set<DataFile> dataFilesToAdd, Set<DeleteFile> deleteFilesToAdd) {
-    checkFilesToDelete(dataFilesToDelete, deleteFilesToDelete);
-    checkFilesToAdd(dataFilesToAdd, deleteFilesToAdd);
+    verifyInputAndOutputFiles(dataFilesToDelete, deleteFilesToDelete, dataFilesToAdd, deleteFilesToAdd);
 
     if (dataFilesToDelete != null) {
       for (DataFile dataFile : dataFilesToDelete) {

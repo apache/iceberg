@@ -36,7 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
  */
 public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
   /**
-   * Add a rewrite that replaces one set of files with another set that contains the same data.
+   * Add a rewrite that replaces one set of data files with another set that contains the same data.
    *
    * @param filesToDelete files that will be replaced (deleted), cannot be null or empty.
    * @param filesToAdd    files that will be added, cannot be null or empty.
@@ -52,7 +52,7 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
   }
 
   /**
-   * Add a rewrite that replaces one set of files with another set that contains the same data.
+   * Add a rewrite that replaces one set of files with another set that contains the same data (format v2).
    *
    * @param dataFilesToDelete   data files that will be replaced (deleted).
    * @param deleteFilesToDelete delete files that will be replaced (deleted).
