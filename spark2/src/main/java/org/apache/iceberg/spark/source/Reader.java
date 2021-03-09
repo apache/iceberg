@@ -168,7 +168,8 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     // is adjusted so that the corresponding time in the reader timezone is displayed.
     // When set to false (default), we throw an exception at runtime
     // "Spark does not support timestamp without time zone fields" if reading timestamp without time zone fields
-    this.readTimestampWithoutZone = options.get(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_FLAG).map(Boolean::parseBoolean).orElse(false);
+    this.readTimestampWithoutZone = options.get(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_FLAG)
+            .map(Boolean::parseBoolean).orElse(false);
   }
 
   private Schema lazySchema() {
