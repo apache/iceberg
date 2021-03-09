@@ -720,6 +720,7 @@ public class Spark3Util {
     ParserInterface parser = spark.sessionState().sqlParser();
     Seq<String> multiPartIdentifier = parser.parseMultipartIdentifier(name);
     List<String> javaMultiPartIdentifier = JavaConverters.seqAsJavaList(multiPartIdentifier);
+
     return catalogAndIdentifier(spark, javaMultiPartIdentifier, defaultCatalog);
   }
 

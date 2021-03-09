@@ -231,20 +231,19 @@ class AddFilesProcedure extends BaseProcedure {
     boolean partitionSpecPassed = !partitionFilter.isEmpty();
 
     if (tablePartitioned && partitionSpecPassed) {
-
       // Not enough partition columns
       Preconditions.checkArgument(partitionFields.size() >= partitionFilter.size(),
-            "Cannot add data files to target table %s because that table is partitioned, " +
-            "but the number of columns in the provided partition filter (%d) " +
-            "is greater than the number of partitioned columns in table (%d)",
-              table.name(), partitionFilter.size(), partitionFields.size());
+          "Cannot add data files to target table %s because that table is partitioned, " +
+              "but the number of columns in the provided partition filter (%d) " +
+              "is greater than the number of partitioned columns in table (%d)",
+          table.name(), partitionFilter.size(), partitionFields.size());
 
       // Check for any non-identity partition columns
       List<PartitionField> nonIdentityFields =
           partitionFields.stream().filter(x -> !x.transform().isIdentity()).collect(Collectors.toList());
       Preconditions.checkArgument(nonIdentityFields.isEmpty(),
           "Cannot add data files to target table %s because that table is partitioned and contains non-identity" +
-          "partition transforms which will not be compatible. Found non-identity fields %s",
+              "partition transforms which will not be compatible. Found non-identity fields %s",
           table.name(), nonIdentityFields);
 
       // Check for any filters of non existent columns
@@ -252,15 +251,13 @@ class AddFilesProcedure extends BaseProcedure {
           partitionFilter.keySet().stream().filter(filterName -> !partitionNames.contains(filterName))
               .collect(Collectors.toList());
       Preconditions.checkArgument(unMatchedFilters.isEmpty(),
-              "Cannot add files to target table %s. %s is partitioned but the specified partition filter " +
+          "Cannot add files to target table %s. %s is partitioned but the specified partition filter " +
               "refers to columns that are not partitioned: '%s'",
-                table.name(), table.name(), unMatchedFilters);
-        } else {
-
+          table.name(), table.name(), unMatchedFilters);
+    } else {
       Preconditions.checkArgument(!partitionSpecPassed,
-            "Cannot use partition filter with an unpartitioned table %s",
-              table.name());
-      }
+          "Cannot use partition filter with an unpartitioned table %s",
+          table.name());
     }
   }
 }
