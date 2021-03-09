@@ -62,7 +62,7 @@ public abstract class BaseTestIceberg {
   protected ContentsApi contents;
   protected Configuration hadoopConfig;
   protected final String branch;
-  private String path;
+  private String uri;
 
   public BaseTestIceberg(String branch) {
     this.branch = branch;
@@ -82,8 +82,8 @@ public abstract class BaseTestIceberg {
   @Before
   public void beforeEach() throws IOException {
     String port = System.getProperty("quarkus.http.test-port", "19120");
-    path = String.format("http://localhost:%s/api/v1", port);
-    this.client = NessieClient.builder().withUri(path).build();
+    uri = String.format("http://localhost:%s/api/v1", port);
+    this.client = NessieClient.builder().withUri(uri).build();
     tree = client.getTreeApi();
     contents = client.getContentsApi();
 
@@ -103,7 +103,7 @@ public abstract class BaseTestIceberg {
     NessieCatalog newCatalog = new NessieCatalog();
     newCatalog.setConf(hadoopConfig);
     newCatalog.initialize("nessie", ImmutableMap.of("ref", ref,
-        "uri", path,
+        CatalogProperties.URI, uri,
         "auth_type", "NONE",
         CatalogProperties.WAREHOUSE_LOCATION, temp.getRoot().toURI().toString()
         ));

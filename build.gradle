@@ -1103,7 +1103,7 @@ project(':iceberg-nessie') {
     props = ["quarkus.http.test-port": 0]
   }
   tasks.getByName("quarkus-start")
-          // This is not doing anything with Docker or building a native image, just a quirk of in Quarkus since 1.10.
+          // This is not doing anything with Docker or building a native image, just a quirk of Quarkus since 1.10.
           .doFirst { System.setProperty("quarkus.native.builder-image", "quay.io/quarkus/ubi-quarkus-native-image:21.0.0-java11") }
           .dependsOn("compileTestJava")
   tasks.test.dependsOn("quarkus-start").finalizedBy("quarkus-stop")
