@@ -40,7 +40,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.Column;
@@ -84,8 +83,6 @@ public class RemoveOrphanFilesAction extends BaseSparkAction<RemoveOrphanFilesAc
     }
   }, DataTypes.StringType);
 
-  private final SparkSession spark;
-  private final JavaSparkContext sparkContext;
   private final SerializableConfiguration hadoopConf;
   private final int partitionDiscoveryParallelism;
   private final Table table;
@@ -101,8 +98,7 @@ public class RemoveOrphanFilesAction extends BaseSparkAction<RemoveOrphanFilesAc
   };
 
   RemoveOrphanFilesAction(SparkSession spark, Table table) {
-    this.spark = spark;
-    this.sparkContext = new JavaSparkContext(spark.sparkContext());
+    super(spark);
     this.hadoopConf = new SerializableConfiguration(spark.sessionState().newHadoopConf());
     this.partitionDiscoveryParallelism = spark.sessionState().conf().parallelPartitionDiscoveryParallelism();
     this.table = table;
@@ -112,11 +108,6 @@ public class RemoveOrphanFilesAction extends BaseSparkAction<RemoveOrphanFilesAc
     ValidationException.check(
         PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
         "Cannot remove orphan files: GC is disabled (deleting files may corrupt other tables)");
-  }
-
-  @Override
-  protected Table table() {
-    return table;
   }
 
   /**
@@ -154,8 +145,8 @@ public class RemoveOrphanFilesAction extends BaseSparkAction<RemoveOrphanFilesAc
 
   @Override
   public List<String> execute() {
-    Dataset<Row> validDataFileDF = buildValidDataFileDF(spark);
-    Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(spark, table, ops);
+    Dataset<Row> validDataFileDF = buildValidDataFileDF(table);
+    Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table, ops);
     Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);
     Dataset<Row> actualFileDF = buildActualFileDF();
 
@@ -185,20 +176,20 @@ public class RemoveOrphanFilesAction extends BaseSparkAction<RemoveOrphanFilesAc
     // list at most 3 levels and only dirs that have less than 10 direct sub dirs on the driver
     listDirRecursively(location, predicate, hadoopConf.value(), 3, 10, subDirs, matchingFiles);
 
-    JavaRDD<String> matchingFileRDD = sparkContext.parallelize(matchingFiles, 1);
+    JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
 
     if (subDirs.isEmpty()) {
-      return spark.createDataset(matchingFileRDD.rdd(), Encoders.STRING()).toDF("file_path");
+      return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING()).toDF("file_path");
     }
 
     int parallelism = Math.min(subDirs.size(), partitionDiscoveryParallelism);
-    JavaRDD<String> subDirRDD = sparkContext.parallelize(subDirs, parallelism);
+    JavaRDD<String> subDirRDD = sparkContext().parallelize(subDirs, parallelism);
 
-    Broadcast<SerializableConfiguration> conf = sparkContext.broadcast(hadoopConf);
+    Broadcast<SerializableConfiguration> conf = sparkContext().broadcast(hadoopConf);
     JavaRDD<String> matchingLeafFileRDD = subDirRDD.mapPartitions(listDirsRecursively(conf, olderThanTimestamp));
 
     JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
-    return spark.createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING()).toDF("file_path");
+    return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING()).toDF("file_path");
   }
 
   private static void listDirRecursively(

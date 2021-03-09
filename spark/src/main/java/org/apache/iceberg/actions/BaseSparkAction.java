@@ -48,7 +48,21 @@ import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 
 abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
-  protected abstract Table table();
+  private final SparkSession spark;
+  private final JavaSparkContext sparkContext;
+
+  protected BaseSparkAction(SparkSession spark) {
+    this.spark = spark;
+    this.sparkContext = new JavaSparkContext(spark.sparkContext());
+  }
+
+  protected SparkSession spark() {
+    return spark;
+  }
+
+  protected JavaSparkContext sparkContext() {
+    return sparkContext;
+  }
 
   /**
    * Returns all the path locations of all Manifest Lists for a given list of snapshots
@@ -84,15 +98,17 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     return otherMetadataFiles;
   }
 
-  protected Dataset<Row> buildValidDataFileDF(SparkSession spark) {
-    return buildValidDataFileDF(spark, table().name());
+  protected Table newStaticTable(TableMetadata metadata, FileIO io) {
+    String metadataFileLocation = metadata.metadataFileLocation();
+    StaticTableOperations ops = new StaticTableOperations(metadataFileLocation, io);
+    return new BaseTable(ops, metadataFileLocation);
   }
 
-  protected Dataset<Row> buildValidDataFileDF(SparkSession spark, String tableName) {
+  protected Dataset<Row> buildValidDataFileDF(Table table) {
     JavaSparkContext context = new JavaSparkContext(spark.sparkContext());
-    Broadcast<FileIO> ioBroadcast = context.broadcast(SparkUtil.serializableFileIO(table()));
+    Broadcast<FileIO> ioBroadcast = context.broadcast(SparkUtil.serializableFileIO(table));
 
-    Dataset<ManifestFileBean> allManifests = loadMetadataTable(spark, tableName, table().location(), ALL_MANIFESTS)
+    Dataset<ManifestFileBean> allManifests = loadMetadataTable(table, ALL_MANIFESTS)
         .selectExpr("path", "length", "partition_spec_id as partitionSpecId", "added_snapshot_id as addedSnapshotId")
         .dropDuplicates("path")
         .repartition(spark.sessionState().conf().numShufflePartitions()) // avoid adaptive execution combining tasks
@@ -101,47 +117,43 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     return allManifests.flatMap(new ReadManifest(ioBroadcast), Encoders.STRING()).toDF("file_path");
   }
 
-  protected Dataset<Row> buildManifestFileDF(SparkSession spark, String tableName) {
-    return loadMetadataTable(spark, tableName, table().location(), ALL_MANIFESTS).selectExpr("path as file_path");
+  protected Dataset<Row> buildManifestFileDF(Table table) {
+    return loadMetadataTable(table, ALL_MANIFESTS).selectExpr("path as file_path");
   }
 
-  protected Dataset<Row> buildManifestListDF(SparkSession spark, Table table) {
+  protected Dataset<Row> buildManifestListDF(Table table) {
     List<String> manifestLists = getManifestListPaths(table.snapshots());
     return spark.createDataset(manifestLists, Encoders.STRING()).toDF("file_path");
   }
 
-  protected Dataset<Row> buildManifestListDF(SparkSession spark, String metadataFileLocation) {
-    StaticTableOperations ops = new StaticTableOperations(metadataFileLocation, table().io());
-    return buildManifestListDF(spark, new BaseTable(ops, table().name()));
-  }
-
-  protected Dataset<Row> buildOtherMetadataFileDF(SparkSession spark, TableOperations ops) {
+  protected Dataset<Row> buildOtherMetadataFileDF(TableOperations ops) {
     List<String> otherMetadataFiles = getOtherMetadataFilePaths(ops);
     return spark.createDataset(otherMetadataFiles, Encoders.STRING()).toDF("file_path");
   }
 
-  protected Dataset<Row> buildValidMetadataFileDF(SparkSession spark, Table table, TableOperations ops) {
-    Dataset<Row> manifestDF = buildManifestFileDF(spark, table.name());
-    Dataset<Row> manifestListDF = buildManifestListDF(spark, table);
-    Dataset<Row> otherMetadataFileDF = buildOtherMetadataFileDF(spark, ops);
+  protected Dataset<Row> buildValidMetadataFileDF(Table table, TableOperations ops) {
+    Dataset<Row> manifestDF = buildManifestFileDF(table);
+    Dataset<Row> manifestListDF = buildManifestListDF(table);
+    Dataset<Row> otherMetadataFileDF = buildOtherMetadataFileDF(ops);
 
     return manifestDF.union(otherMetadataFileDF).union(manifestListDF);
   }
 
   // Attempt to use Spark3 Catalog resolution if available on the path
   private static final DynMethods.UnboundMethod LOAD_CATALOG = DynMethods.builder("loadCatalogMetadataTable")
-      .hiddenImpl("org.apache.iceberg.spark.Spark3Util",
-          SparkSession.class, String.class, MetadataTableType.class)
+      .hiddenImpl("org.apache.iceberg.spark.Spark3Util", SparkSession.class, String.class, MetadataTableType.class)
       .orNoop()
       .build();
 
-  private static Dataset<Row> loadCatalogMetadataTable(SparkSession spark, String tableName, MetadataTableType type) {
+  private Dataset<Row> loadCatalogMetadataTable(String tableName, MetadataTableType type) {
     Preconditions.checkArgument(!LOAD_CATALOG.isNoop(), "Cannot find Spark3Util class but Spark3 is in use");
     return LOAD_CATALOG.asStatic().invoke(spark, tableName, type);
   }
 
-  protected static Dataset<Row> loadMetadataTable(SparkSession spark, String tableName, String tableLocation,
-                                                  MetadataTableType type) {
+  protected Dataset<Row> loadMetadataTable(Table table, MetadataTableType type) {
+    String tableName = table.name();
+    String tableLocation = table.location();
+
     DataFrameReader dataFrameReader = spark.read().format("iceberg");
     if (tableName.contains("/")) {
       // Hadoop Table or Metadata location passed, load without a catalog
@@ -150,7 +162,7 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
     // Try DSV2 catalog based name based resolution
     if (spark.version().startsWith("3")) {
-      Dataset<Row> catalogMetadataTable = loadCatalogMetadataTable(spark, tableName, type);
+      Dataset<Row> catalogMetadataTable = loadCatalogMetadataTable(tableName, type);
       if (catalogMetadataTable != null) {
         return catalogMetadataTable;
       }
