@@ -50,7 +50,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
   @Override
   public SinkRuntimeProvider getSinkRuntimeProvider(Context context) {
     Preconditions.checkState(!overwrite || context.isBounded(),
-            "Unbounded data stream doesn't support overwrite operation.");
+        "Unbounded data stream doesn't support overwrite operation.");
 
     return (DataStreamSinkProvider) dataStream -> FlinkSink.forRowData(dataStream)
         .tableLoader(tableLoader)
@@ -66,12 +66,11 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
 
   @Override
   public ChangelogMode getChangelogMode(ChangelogMode requestedMode) {
-    return ChangelogMode.newBuilder()
-        .addContainedKind(RowKind.INSERT)
-        .addContainedKind(RowKind.UPDATE_BEFORE)
-        .addContainedKind(RowKind.UPDATE_AFTER)
-        .addContainedKind(RowKind.DELETE)
-        .build();
+    ChangelogMode.Builder builder = ChangelogMode.newBuilder();
+    for (RowKind kind : requestedMode.getContainedKinds()) {
+      builder.addContainedKind(kind);
+    }
+    return builder.build();
   }
 
   @Override

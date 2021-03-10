@@ -39,6 +39,7 @@ import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.types.DataType;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.source.FlinkSource;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -89,7 +90,12 @@ public class IcebergTableSource
 
   @Override
   public void applyProjection(int[][] projectFields) {
-    this.projectedFields = Arrays.stream(projectFields).mapToInt(value -> value[0]).toArray();
+    this.projectedFields = new int[projectFields.length];
+    for (int i = 0; i < projectFields.length; i++) {
+      Preconditions.checkArgument(projectFields[i].length == 1,
+          "Don't support nested projection in iceberg source now.");
+      this.projectedFields[i] = projectFields[i][0];
+    }
   }
 
   private DataStream<RowData> createDataStream(StreamExecutionEnvironment execEnv) {
@@ -140,7 +146,7 @@ public class IcebergTableSource
 
   @Override
   public boolean supportsNestedProjection() {
-    return true;
+    return false;
   }
 
   @Override
