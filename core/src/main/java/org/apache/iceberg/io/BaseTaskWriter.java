@@ -27,7 +27,6 @@ import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
@@ -100,7 +99,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     private SortedPosDeleteWriter<T> posDeleteWriter;
     private Map<StructLike, PathOffset> insertedRowMap;
 
-    protected BaseEqualityDeltaWriter(PartitionKey partition, Schema schema, Schema deleteSchema) {
+    protected BaseEqualityDeltaWriter(StructLike partition, Schema schema, Schema deleteSchema) {
       Preconditions.checkNotNull(schema, "Iceberg table schema cannot be null.");
       Preconditions.checkNotNull(deleteSchema, "Equality-delete schema cannot be null.");
       this.structProjection = StructProjection.create(schema, deleteSchema);
@@ -222,18 +221,18 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
   private abstract class BaseRollingWriter<W extends Closeable> implements Closeable {
     private static final int ROWS_DIVISOR = 1000;
-    private final PartitionKey partitionKey;
+    private final StructLike partitionKey;
 
     private EncryptedOutputFile currentFile = null;
     private W currentWriter = null;
     private long currentRows = 0;
 
-    private BaseRollingWriter(PartitionKey partitionKey) {
+    private BaseRollingWriter(StructLike partitionKey) {
       this.partitionKey = partitionKey;
       openCurrent();
     }
 
-    abstract W newWriter(EncryptedOutputFile file, PartitionKey key);
+    abstract W newWriter(EncryptedOutputFile file, StructLike partition);
 
     abstract long length(W writer);
 
@@ -301,13 +300,13 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   }
 
   protected class RollingFileWriter extends BaseRollingWriter<DataWriter<T>> {
-    public RollingFileWriter(PartitionKey partitionKey) {
+    public RollingFileWriter(StructLike partitionKey) {
       super(partitionKey);
     }
 
     @Override
-    DataWriter<T> newWriter(EncryptedOutputFile file, PartitionKey key) {
-      return appenderFactory.newDataWriter(file, format, key);
+    DataWriter<T> newWriter(EncryptedOutputFile file, StructLike partitionKey) {
+      return appenderFactory.newDataWriter(file, format, partitionKey);
     }
 
     @Override
@@ -327,13 +326,13 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   }
 
   protected class RollingEqDeleteWriter extends BaseRollingWriter<EqualityDeleteWriter<T>> {
-    RollingEqDeleteWriter(PartitionKey partitionKey) {
+    RollingEqDeleteWriter(StructLike partitionKey) {
       super(partitionKey);
     }
 
     @Override
-    EqualityDeleteWriter<T> newWriter(EncryptedOutputFile file, PartitionKey key) {
-      return appenderFactory.newEqDeleteWriter(file, format, key);
+    EqualityDeleteWriter<T> newWriter(EncryptedOutputFile file, StructLike partitionKey) {
+      return appenderFactory.newEqDeleteWriter(file, format, partitionKey);
     }
 
     @Override
