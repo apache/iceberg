@@ -278,29 +278,6 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void addIndividualFilePartitioned() {
-    createPartitionedFileTable("parquet");
-
-    File fileToAdd = fileTableDir
-        .listFiles((dir, name) -> name.endsWith("1"))[0]
-        .listFiles((dir, name) -> name.endsWith("parquet"))[0];
-
-    String createIceberg =
-        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg PARTITIONED BY (id)";
-
-    sql(createIceberg, tableName);
-
-    Object importOperation = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
-        catalogName, tableName, fileToAdd.getAbsolutePath());
-
-    Assert.assertEquals(1L, importOperation);
-
-    assertEquals("Iceberg table contains correct data",
-        sql("SELECT DISTINCT id, name, dept, subdept FROM %s WHERE id = 1 ", sourceTableName),
-        sql("SELECT id, name, dept, subdept FROM %s", tableName));
-  }
-
-  @Test
   public void invalidDataImport() {
     createPartitionedFileTable("parquet");
 
@@ -327,13 +304,6 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg PARTITIONED BY (id)";
 
     sql(createIceberg, tableName);
-
-    AssertHelpers.assertThrows("Should forbid adding a single file of data to partitioned table",
-        IllegalArgumentException.class,
-        "Cannot add a file to a partitioned",
-        () -> scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`')",
-            catalogName, tableName, fileToAdd.getAbsolutePath())
-    );
 
     AssertHelpers.assertThrows("Should forbid adding with a mismatching partition spec",
         IllegalArgumentException.class,
