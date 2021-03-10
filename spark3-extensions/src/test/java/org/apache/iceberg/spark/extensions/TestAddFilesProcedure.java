@@ -82,8 +82,8 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     Assert.assertEquals(2L, importOperation);
 
     assertEquals("Iceberg table contains correct data",
-        sql("SELECT * FROM %s", sourceTableName),
-        sql("SELECT * FROM %s", tableName));
+        sql("SELECT * FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
 
@@ -102,8 +102,8 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     Assert.assertEquals(2L, importOperation);
 
     assertEquals("Iceberg table contains correct data",
-        sql("SELECT * FROM %s", sourceTableName),
-        sql("SELECT * FROM %s", tableName));
+        sql("SELECT * FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @Test
@@ -121,8 +121,8 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     Assert.assertEquals(2L, importOperation);
 
     assertEquals("Iceberg table contains correct data",
-        sql("SELECT * FROM %s", sourceTableName),
-        sql("SELECT * FROM %s", tableName));
+        sql("SELECT * FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @Test
@@ -140,13 +140,14 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     Assert.assertEquals(2L, importOperation);
 
     assertEquals("Iceberg table contains correct data",
-        sql("SELECT * FROM %s", sourceTableName),
-        sql("SELECT id, name, dept, subdept FROM %s", tableName));
+        sql("SELECT * FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
   @Test
   public void addDataUnpartitionedMissingCol() {
     createUnpartitionedFileTable("parquet");
+
     String createIceberg =
         "CREATE TABLE %s (id Integer, name String, dept String) USING iceberg";
 
@@ -158,8 +159,27 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     Assert.assertEquals(2L, importOperation);
 
     assertEquals("Iceberg table contains correct data",
-        sql("SELECT id, name, dept FROM %s", sourceTableName),
-        sql("SELECT * FROM %s", tableName));
+        sql("SELECT id, name, dept FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void addDataPartitionedMissingCol() {
+    createPartitionedFileTable("parquet");
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String) USING iceberg PARTITIONED BY (id)";
+
+    sql(createIceberg, tableName);
+
+    Object importOperation = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    Assert.assertEquals(8L, importOperation);
+
+    assertEquals("Iceberg table contains correct data",
+        sql("SELECT id, name, dept FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @Test
@@ -234,8 +254,8 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     Assert.assertEquals(2L, importOperation);
 
     assertEquals("Iceberg table contains correct data",
-        sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ", sourceTableName),
-        sql("SELECT id, name, dept, subdept FROM %s", tableName));
+        sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
   @Test
@@ -254,8 +274,8 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     Assert.assertEquals(2L, importOperation);
 
     assertEquals("Iceberg table contains correct data",
-        sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ", sourceTableName),
-        sql("SELECT id, name, dept, subdept FROM %s", tableName));
+        sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
   @Test
@@ -273,8 +293,8 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     Assert.assertEquals(2L, importOperation);
 
     assertEquals("Iceberg table contains correct data",
-        sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ", sourceTableName),
-        sql("SELECT id, name, dept, subdept FROM %s", tableName));
+        sql("SELECT id, name, dept, subdept FROM %s WHERE id = 1 ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
   @Test

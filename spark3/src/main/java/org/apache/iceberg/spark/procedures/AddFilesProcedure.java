@@ -102,15 +102,16 @@ class AddFilesProcedure extends BaseProcedure {
           });
     }
 
-    long filesAdded = importToIceberg(tableIdent, sourceIdent, partitionFilter);
-    return new InternalRow[]{newInternalRow(filesAdded)};
+    long addedFilesCount = importToIceberg(tableIdent, sourceIdent, partitionFilter);
+    return new InternalRow[]{newInternalRow(addedFilesCount)};
   }
 
   private boolean isFileIdentifier(Identifier ident) {
     String[] namespace = ident.namespace();
     return namespace.length == 1 &&
-        (namespace[0].toLowerCase(Locale.ROOT).equals("orc") ||
-            namespace[0].toLowerCase(Locale.ROOT).equals("parquet"));
+        (namespace[0].equalsIgnoreCase("orc") ||
+            namespace[0].equalsIgnoreCase("parquet") ||
+            namespace[0].equalsIgnoreCase("avro"));
   }
 
   private long importToIceberg(Identifier destIdent, Identifier sourceIdent, Map<String, String> partitionFilter) {
@@ -128,8 +129,7 @@ class AddFilesProcedure extends BaseProcedure {
       }
 
       Snapshot snapshot = table.currentSnapshot();
-      long numAddedFiles = Long.parseLong(snapshot.summary().get(SnapshotSummary.ADDED_FILES_PROP));
-      return numAddedFiles;
+      return Long.parseLong(snapshot.summary().get(SnapshotSummary.ADDED_FILES_PROP));
     });
   }
 

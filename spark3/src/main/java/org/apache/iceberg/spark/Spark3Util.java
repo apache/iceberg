@@ -718,7 +718,6 @@ public class Spark3Util {
     ParserInterface parser = spark.sessionState().sqlParser();
     Seq<String> multiPartIdentifier = parser.parseMultipartIdentifier(name);
     List<String> javaMultiPartIdentifier = JavaConverters.seqAsJavaList(multiPartIdentifier);
-
     return catalogAndIdentifier(spark, javaMultiPartIdentifier, defaultCatalog);
   }
 
@@ -854,15 +853,13 @@ public class Spark3Util {
   }
 
   public static org.apache.spark.sql.catalyst.TableIdentifier toV1TableIdentifier(Identifier identifier) {
-    Preconditions.checkArgument(identifier.namespace().length <= 1,
-        "Cannot load a session catalog namespace with more than 1 part. Given %s", identifier);
+    String[] namespace = identifier.namespace();
 
-    Option<String> namespace =
-        identifier.namespace().length == 1 ? Option.apply(identifier.namespace()[0]) : Option.empty();
+    Preconditions.checkArgument(namespace.length <= 1,
+        "Cannot convert %s to a Spark v1 identifier, namespace contains more than 1 part", identifier);
 
-    org.apache.spark.sql.catalyst.TableIdentifier tableIdent =
-        org.apache.spark.sql.catalyst.TableIdentifier.apply(identifier.name(), namespace);
-
-    return tableIdent;
+    String table = identifier.name();
+    Option<String> database = namespace.length == 1 ? Option.apply(namespace[0]) : Option.empty();
+    return org.apache.spark.sql.catalyst.TableIdentifier.apply(table, database);
   }
 }
