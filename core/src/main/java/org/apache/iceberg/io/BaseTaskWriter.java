@@ -232,7 +232,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       openCurrent();
     }
 
-    abstract W newWriter(EncryptedOutputFile file, StructLike key);
+    abstract W newWriter(EncryptedOutputFile file, StructLike partition);
 
     abstract long length(W writer);
 
@@ -305,8 +305,8 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
 
     @Override
-    DataWriter<T> newWriter(EncryptedOutputFile file, StructLike key) {
-      return appenderFactory.newDataWriter(file, format, key);
+    DataWriter<T> newWriter(EncryptedOutputFile file, StructLike partitionKey) {
+      return appenderFactory.newDataWriter(file, format, partitionKey);
     }
 
     @Override
@@ -331,8 +331,8 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
 
     @Override
-    EqualityDeleteWriter<T> newWriter(EncryptedOutputFile file, StructLike key) {
-      return appenderFactory.newEqDeleteWriter(file, format, key);
+    EqualityDeleteWriter<T> newWriter(EncryptedOutputFile file, StructLike partitionKey) {
+      return appenderFactory.newEqDeleteWriter(file, format, partitionKey);
     }
 
     @Override

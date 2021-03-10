@@ -99,8 +99,8 @@ public class OutputFileFactory {
   /**
    * Generates EncryptedOutputFile for PartitionedWriter.
    */
-  public EncryptedOutputFile newOutputFile(StructLike key) {
-    String newDataLocation = locations.newDataLocation(spec, key, generateFilename());
+  public EncryptedOutputFile newOutputFile(StructLike partition) {
+    String newDataLocation = locations.newDataLocation(spec, partition, generateFilename());
     OutputFile rawOutputFile = io.newOutputFile(newDataLocation);
     return encryptionManager.encrypt(rawOutputFile);
   }
