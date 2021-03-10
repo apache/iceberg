@@ -24,30 +24,30 @@ import org.apache.iceberg.io.SeekableInputStream;
 
 public class SymmetricKeyDecryptedInputFile implements InputFile {
   private final InputFile encryptedInputFile;
-  private final SymmetricKeyCryptoFormat symmetricKeyCryptoFormat;
+  private final CryptoFormat cryptoFormat;
   private final byte[] plaintextDek;
   private final byte[] iv;
 
   public SymmetricKeyDecryptedInputFile(
       InputFile encryptedInputFile,
-      SymmetricKeyCryptoFormat symmetricKeyCryptoFormat,
+      CryptoFormat cryptoFormat,
       byte[] plaintextDek,
       byte[] iv) {
     this.encryptedInputFile = encryptedInputFile;
-    this.symmetricKeyCryptoFormat = symmetricKeyCryptoFormat;
+    this.cryptoFormat = cryptoFormat;
     this.plaintextDek = plaintextDek;
     this.iv = iv;
   }
 
   @Override
   public long getLength() {
-    return symmetricKeyCryptoFormat.plaintextLength(encryptedInputFile.getLength());
+    return cryptoFormat.plaintextLength(encryptedInputFile.getLength());
   }
 
   @Override
   public SeekableInputStream newStream() {
     SeekableInputStream encryptedInputStream = encryptedInputFile.newStream();
-    return symmetricKeyCryptoFormat.decryptionStream(
+    return cryptoFormat.decryptionStream(
         encryptedInputStream, encryptedInputFile.getLength(), plaintextDek, iv);
   }
 

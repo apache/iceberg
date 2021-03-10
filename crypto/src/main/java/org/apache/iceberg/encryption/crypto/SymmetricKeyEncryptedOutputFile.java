@@ -25,31 +25,31 @@ import org.apache.iceberg.io.PositionOutputStream;
 
 public class SymmetricKeyEncryptedOutputFile implements OutputFile {
   private final OutputFile plaintextOutputFile;
-  private final SymmetricKeyCryptoFormat symmetricKeyCryptoFormat;
+  private final CryptoFormat cryptoFormat;
   private final byte[] plaintextDek;
   private final byte[] iv;
 
   public SymmetricKeyEncryptedOutputFile(
       OutputFile plaintextOutputFile,
-      SymmetricKeyCryptoFormat symmetricKeyCryptoFormat,
+      CryptoFormat cryptoFormat,
       byte[] plaintextDek,
       byte[] iv) {
     this.plaintextOutputFile = plaintextOutputFile;
     this.plaintextDek = plaintextDek;
-    this.symmetricKeyCryptoFormat = symmetricKeyCryptoFormat;
+    this.cryptoFormat = cryptoFormat;
     this.iv = iv;
   }
 
   @Override
   public PositionOutputStream create() {
     PositionOutputStream plaintextOutputStream = plaintextOutputFile.create();
-    return symmetricKeyCryptoFormat.encryptionStream(plaintextOutputStream, plaintextDek, iv);
+    return cryptoFormat.encryptionStream(plaintextOutputStream, plaintextDek, iv);
   }
 
   @Override
   public PositionOutputStream createOrOverwrite() {
     PositionOutputStream plaintextOutputStream = plaintextOutputFile.createOrOverwrite();
-    return symmetricKeyCryptoFormat.encryptionStream(plaintextOutputStream, plaintextDek, iv);
+    return cryptoFormat.encryptionStream(plaintextOutputStream, plaintextDek, iv);
   }
 
   @Override
