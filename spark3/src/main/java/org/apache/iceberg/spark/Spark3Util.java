@@ -498,8 +498,10 @@ public class Spark3Util {
             TableProperties.PARQUET_VECTORIZATION_ENABLED,
             TableProperties.PARQUET_VECTORIZATION_ENABLED_DEFAULT);
       case ORC:
-        // TODO: add a table property to enable/disable ORC vectorized reads
-        return false;
+        return PropertyUtil.propertyAsBoolean(
+            properties,
+            TableProperties.ORC_VECTORIZATION_ENABLED,
+            TableProperties.ORC_VECTORIZATION_ENABLED_DEFAULT);
       default:
         return false;
     }
