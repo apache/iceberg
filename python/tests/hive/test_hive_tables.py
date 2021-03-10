@@ -25,10 +25,8 @@ import mock
 import pytest
 from pytest import raises
 
-
-class MockHMSTable(object):
-    def __init__(self, params):
-        self.parameters = params
+from tests.api.test_helpers import MockHMSTable, MockManifest, MockManifestEntry, MockMetadata, MockReader, \
+    MockSnapshot, MockTableOperations
 
 
 @mock.patch("iceberg.hive.HiveTableOperations.refresh_from_metadata_location")
@@ -159,7 +157,6 @@ def test_create_tables(client, current_call, base_scan_schema, base_scan_partiti
     tables.load("test.test_123")
 
 
-@mock.patch("iceberg.hive.HiveTables._delete_files")
 @mock.patch("iceberg.hive.HiveTableOperations.refresh_from_metadata_location")
 @mock.patch("iceberg.hive.HiveTableOperations.current")
 @mock.patch("iceberg.hive.HiveTables.get_client")
@@ -177,50 +174,38 @@ def test_drop_tables(client, metadata, refresh_call, tmpdir):
     client.return_value.__enter__.return_value.drop_table.assert_called_with("test", "test_123", deleteData=False)
 
 
-class MockTableOperations(object):
-    def __init__(self, location):
-        self.deleted = set()
-        self.current_metadata_location = location
-
-    def current(self):
-        return MockMetadata()
-
-    def delete_file(self, path):
-        self.deleted.add(path)
-
-
-class MockMetadata(object):
-    def __init__(self):
-        self.snapshots = [MockSnapshot("snap-a.avro"), MockSnapshot("snap-b.avro")]
-
-
-class MockSnapshot(object):
-    def __init__(self, location):
-        self._location = location
-
-    @property
-    def manifests(self):
-        return iter([MockManifest("a-manifest.avro"), MockManifest("b-manifest.avro")])
-
-    @property
-    def manifest_location(self):
-        return self._location
-
-
-class MockManifest(object):
-    def __init__(self, manifest_path):
-        self.manifest_path = manifest_path
-
-
 @mock.patch("iceberg.hive.HiveTableOperations.refresh_from_metadata_location")
 @mock.patch("iceberg.hive.HiveTables.new_table_ops")
 @mock.patch("iceberg.hive.HiveTables.get_client")
-@mock.patch("iceberg.hive.HiveTables._get_data_files_by_manifest")
-def test_drop_tables_purge(data_files, client, current_ops, refresh_call, tmpdir):
-
-    ops = MockTableOperations("a.json")
+def test_drop_tables_purge(client, current_ops, refresh_call, tmpdir):
+    mock_snapshots = [MockSnapshot(location="snap-a.avro",
+                                   manifests=[
+                                       MockManifest("a-manifest.avro"),
+                                       MockManifest("b-manifest.avro")],
+                                   manifest_to_entries={
+                                       "a-manifest.avro": MockReader(
+                                            [MockManifestEntry("a.parquet"),
+                                             MockManifestEntry("b.parquet")]),
+                                       "b-manifest.avro": MockReader(
+                                           [MockManifestEntry("c.parquet"),
+                                            MockManifestEntry("d.parquet")])
+                                   }),
+                      MockSnapshot(location="snap-b.avro",
+                                   manifests=[
+                                       MockManifest("c-manifest.avro"),
+                                       MockManifest("d-manifest.avro")],
+                                   manifest_to_entries={
+                                       "c-manifest.avro": MockReader(
+                                           [MockManifestEntry("e.parquet"),
+                                            MockManifestEntry("f.parquet")]),
+                                       "d-manifest.avro": MockReader(
+                                           [MockManifestEntry("g.parquet"),
+                                            MockManifestEntry("h.parquet")])
+                                   })
+                      ]
+    ops = MockTableOperations(MockMetadata(mock_snapshots), "a.json")
     current_ops.return_value = ops
-    data_files.return_value = iter(["a.parquet", "b.parquet"])
+
     parameters = {"table_type": "ICEBERG",
                   "partition_spec": [],
                   "metadata_location": "s3://path/to/iceberg.metadata.json"}
@@ -232,9 +217,18 @@ def test_drop_tables_purge(data_files, client, current_ops, refresh_call, tmpdir
     tables.drop("test", "test_123", purge=True)
 
     assert "a.json" in ops.deleted
-    assert "a-manifest.avro" in ops.deleted
-    assert "b-manifest.avro" in ops.deleted
     assert "snap-a.avro" in ops.deleted
     assert "snap-b.avro" in ops.deleted
+    assert "a-manifest.avro" in ops.deleted
+    assert "b-manifest.avro" in ops.deleted
+    assert "c-manifest.avro" in ops.deleted
+    assert "d-manifest.avro" in ops.deleted
     assert "a.parquet" in ops.deleted
     assert "b.parquet" in ops.deleted
+    assert "c.parquet" in ops.deleted
+    assert "d.parquet" in ops.deleted
+    assert "e.parquet" in ops.deleted
+    assert "f.parquet" in ops.deleted
+    assert "g.parquet" in ops.deleted
+    assert "h.parquet" in ops.deleted
+
