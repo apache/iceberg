@@ -23,7 +23,7 @@ package org.apache.iceberg.spark;
  * Captures information about the current job
  * which is used for displaying on the UI
  */
-public class JobGroupInfo {
+public class JobGroupInfo implements AutoCloseable {
   private String groupId;
   private String description;
   private boolean interruptOnCancel;
@@ -34,15 +34,20 @@ public class JobGroupInfo {
     this.interruptOnCancel = interruptOnCancel;
   }
 
-  public String getGroupId() {
+  public String groupId() {
     return groupId;
   }
 
-  public String getDescription() {
+  public String description() {
     return description;
   }
 
-  public boolean getInterruptOnCancel() {
+  public boolean interruptOnCancel() {
     return interruptOnCancel;
+  }
+
+  @Override
+  public void close() throws Exception {
+    // do nothing
   }
 }

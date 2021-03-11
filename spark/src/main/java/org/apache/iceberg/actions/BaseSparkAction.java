@@ -21,6 +21,8 @@ package org.apache.iceberg.actions;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Supplier;
+
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.MetadataTableType;
@@ -72,14 +74,17 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
   protected abstract JobGroupInfo jobGroup();
 
   @Override
-  public R execute() {
+  public R execute() throws Exception {
     SparkContext sparkContext = SparkSession.getActiveSession().get().sparkContext();
     JobGroupInfo info = JobGroupUtils.getJobGroupInfo(sparkContext);
-    JobGroupInfo jobGroupInfo = jobGroup();
-    sparkContext.setJobGroup(jobGroupInfo.getGroupId(),
-            jobGroupInfo.getDescription(), jobGroupInfo.getInterruptOnCancel());
-    try {
+
+
+    try(JobGroupInfo jobGroupInfo = jobGroup()) {
+      sparkContext.setJobGroup(jobGroupInfo.groupId(),
+              jobGroupInfo.description(), jobGroupInfo.interruptOnCancel());
       return doExecute();
+    } catch (Exception e) {
+      throw e;
     } finally {
       JobGroupUtils.setJobGroupInfo(sparkContext, info);
     }
