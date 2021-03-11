@@ -216,8 +216,8 @@ public class TestHiveMetastore {
     conf.set(HiveConf.ConfVars.METASTORE_TRY_DIRECT_SQL.varname, "false");
     conf.set(HiveConf.ConfVars.METASTORE_DISALLOW_INCOMPATIBLE_COL_TYPE_CHANGES.varname, "false");
     conf.set("iceberg.hive.client-pool-size", "2");
-    conf.setLong("iceberg.hive.client-pool-cache-cleaner-interval", TimeUnit.SECONDS.toMillis(5));
-    conf.setLong("iceberg.hive.client-pool-cache-eviction-interval", TimeUnit.SECONDS.toMillis(10));
+    conf.setLong(HiveCatalog.CACHE_CLEANER_INTERVAL, TimeUnit.SECONDS.toMillis(5));
+    conf.setLong(HiveCatalog.CACHE_EVICTION_INTERVAL, TimeUnit.SECONDS.toMillis(10));
   }
 
   private void setupMetastoreDB(String dbURL) throws SQLException, IOException {

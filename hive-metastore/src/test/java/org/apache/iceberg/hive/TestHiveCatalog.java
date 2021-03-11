@@ -404,13 +404,13 @@ public class TestHiveCatalog extends HiveMetastoreTest {
   @Test
   public void testClientPoolCleaner() throws InterruptedException {
     HiveCatalog catalog = new HiveCatalog(hiveConf);
-    HiveClientPool clientPool1 = catalog.loadHiveClientPool(hiveConf);
-    Thread.sleep(TimeUnit.SECONDS.toMillis(5));
-    HiveClientPool clientPool2 = catalog.loadHiveClientPool(hiveConf);
+    HiveClientPool clientPool1 = catalog.clientPool();
+    TimeUnit.SECONDS.sleep(5);
+    HiveClientPool clientPool2 = catalog.clientPool();
     Assert.assertTrue(clientPool1 == clientPool2);
-    Thread.sleep(TimeUnit.SECONDS.toMillis(15));
+    TimeUnit.SECONDS.sleep(15);
     Assert.assertEquals(0, HiveCatalog.CLIENT_POOL_CACHE.estimatedSize());
-    clientPool2 = catalog.loadHiveClientPool(hiveConf);
+    clientPool2 = catalog.clientPool();
     Assert.assertEquals(1, HiveCatalog.CLIENT_POOL_CACHE.estimatedSize());
     Assert.assertFalse(clientPool1 == clientPool2);
   }

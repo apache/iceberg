@@ -69,9 +69,9 @@ import org.slf4j.LoggerFactory;
 public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespaces, Configurable {
   private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 
-  private static final String CACHE_CLEANER_INTERVAL = "iceberg.hive.client-pool-cache-cleaner-interval";
+  public static final String CACHE_CLEANER_INTERVAL = "iceberg.hive.client-pool-cache-cleaner-interval";
   private static final long CACHE_CLEANER_INTERVAL_DEFAULT = TimeUnit.SECONDS.toMillis(30);
-  private static final String CACHE_EVICTION_INTERVAL = "iceberg.hive.client-pool-cache-eviction-interval";
+  public static final String CACHE_EVICTION_INTERVAL = "iceberg.hive.client-pool-cache-eviction-interval";
   private static final long CACHE_EVICTION_INTERVAL_DEFAULT = TimeUnit.MINUTES.toMillis(5);
 
   @VisibleForTesting
@@ -129,8 +129,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     String database = namespace.level(0);
 
     try {
-      List<String> tableNames = loadHiveClientPool(conf).run(client -> client.getAllTables(database));
-      List<Table> tableObjects = loadHiveClientPool(conf)
+      List<String> tableNames = clientPool().run(client -> client.getAllTables(database));
+      List<Table> tableObjects = clientPool()
               .run(client -> client.getTableObjectsByName(database, tableNames));
       List<TableIdentifier> tableIdentifiers = tableObjects.stream()
           .filter(table -> table.getParameters() == null ? false : BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE
@@ -175,7 +175,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     }
 
     try {
-      loadHiveClientPool(conf).run(client -> {
+      clientPool().run(client -> {
         client.dropTable(database, identifier.name(),
             false /* do not delete data */,
             false /* throw NoSuchObjectException if the table doesn't exist */);
@@ -216,13 +216,13 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     String fromName = from.name();
 
     try {
-      Table table = loadHiveClientPool(conf).run(client -> client.getTable(fromDatabase, fromName));
+      Table table = clientPool().run(client -> client.getTable(fromDatabase, fromName));
       HiveTableOperations.validateTableIsIceberg(table, fullTableName(name, from));
 
       table.setDbName(toDatabase);
       table.setTableName(to.name());
 
-      loadHiveClientPool(conf).run(client -> {
+      clientPool().run(client -> {
         client.alter_table(fromDatabase, fromName, table);
         return null;
       });
@@ -253,7 +253,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
         "Cannot support multi part namespace in Hive MetaStore: %s", namespace);
 
     try {
-      loadHiveClientPool(conf).run(client -> {
+      clientPool().run(client -> {
         client.createDatabase(convertToDatabase(namespace, meta));
         return null;
       });
@@ -283,7 +283,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
       return ImmutableList.of();
     }
     try {
-      List<Namespace> namespaces = loadHiveClientPool(conf).run(HiveMetaStoreClient::getAllDatabases)
+      List<Namespace> namespaces = clientPool().run(HiveMetaStoreClient::getAllDatabases)
           .stream()
           .map(Namespace::of)
           .collect(Collectors.toList());
@@ -308,7 +308,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     }
 
     try {
-      loadHiveClientPool(conf).run(client -> {
+      clientPool().run(client -> {
         client.dropDatabase(namespace.level(0),
             false /* deleteData */,
             false /* ignoreUnknownDb */,
@@ -367,7 +367,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
   private void alterHiveDataBase(Namespace namespace,  Database database) {
     try {
-      loadHiveClientPool(conf).run(client -> {
+      clientPool().run(client -> {
         client.alterDatabase(namespace.level(0), database);
         return null;
       });
@@ -392,7 +392,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     }
 
     try {
-      Database database = loadHiveClientPool(conf).run(client -> client.getDatabase(namespace.level(0)));
+      Database database = clientPool().run(client -> client.getDatabase(namespace.level(0)));
       Map<String, String> metadata = convertToMetadata(database);
       LOG.debug("Loaded metadata for namespace {} found {}", namespace, metadata.keySet());
       return metadata;
@@ -449,7 +449,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
     // Create a new location based on the namespace / database if it is set on database level
     try {
-      Database databaseData = loadHiveClientPool(conf)
+      Database databaseData = clientPool()
               .run(client -> client.getDatabase(tableIdentifier.namespace().levels()[0]));
       if (databaseData.getLocationUri() != null) {
         // If the database location is set use it as a base.
@@ -537,15 +537,16 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   }
 
   @VisibleForTesting
-  HiveClientPool loadHiveClientPool(Configuration configuration) {
-    String metastoreUri = configuration.get(HiveConf.ConfVars.METASTOREURIS.varname, "");
-    int clientPoolSize = configuration.getInt(CatalogProperties.CLIENT_POOL_SIZE,
-            CatalogProperties.CLIENT_POOL_SIZE_DEFAULT);
-    Pair<HiveClientPool, Long> cacheEntry = CLIENT_POOL_CACHE.getIfPresent(metastoreUri);
-    HiveClientPool clientPool = cacheEntry == null ? new HiveClientPool(clientPoolSize, configuration)
-            : cacheEntry.first();
-    CLIENT_POOL_CACHE.put(metastoreUri, Pair.of(clientPool, System.currentTimeMillis()));
-    return clientPool;
+  HiveClientPool clientPool() {
+    synchronized (CLIENT_POOL_CACHE) {
+      String metastoreUri = conf.get(HiveConf.ConfVars.METASTOREURIS.varname, "");
+      int clientPoolSize = conf.getInt(CatalogProperties.CLIENT_POOL_SIZE,
+              CatalogProperties.CLIENT_POOL_SIZE_DEFAULT);
+      Pair<HiveClientPool, Long> cacheEntry = CLIENT_POOL_CACHE.getIfPresent(metastoreUri);
+      HiveClientPool clientPool = cacheEntry == null ? new HiveClientPool(clientPoolSize, conf) : cacheEntry.first();
+      CLIENT_POOL_CACHE.put(metastoreUri, Pair.of(clientPool, System.currentTimeMillis() + evictionInterval));
+      return clientPool;
+    }
   }
 
   private void scheduleCacheCleaner() {
@@ -558,13 +559,18 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
                           .setNameFormat("iceberg-client-pool-cache-cleaner-%d")
                           .build());
         }
-        ScheduledFuture<?> futures = cleaner.scheduleWithFixedDelay(() -> CLIENT_POOL_CACHE.asMap().entrySet().stream()
-                .filter(e -> e.getValue().second() + evictionInterval <= System.currentTimeMillis())
-                .forEach(e -> {
-                  HiveClientPool pool = e.getValue().first();
-                  CLIENT_POOL_CACHE.invalidate(e.getKey());
-                  pool.close();
-                }), 0, cleanerInterval, TimeUnit.MILLISECONDS);
+        ScheduledFuture<?> futures = cleaner.scheduleWithFixedDelay(() -> {
+          synchronized (CLIENT_POOL_CACHE) {
+            long currentTime = System.currentTimeMillis();
+            CLIENT_POOL_CACHE.asMap().entrySet().stream()
+                    .filter(e -> e.getValue().second() <= currentTime)
+                    .forEach(e -> {
+                      HiveClientPool pool = e.getValue().first();
+                      CLIENT_POOL_CACHE.invalidate(e.getKey());
+                      pool.close();
+                    });
+          }
+        }, 0, cleanerInterval, TimeUnit.MILLISECONDS);
       }
     }
   }

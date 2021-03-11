@@ -78,7 +78,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
     spyClientPool.run(HiveMetaStoreClient::isLocalMetaStore); // To ensure new client is created.
 
     spyHiveCatalog = spy(new HiveCatalog(overriddenHiveConf));
-    when(spyHiveCatalog.loadHiveClientPool(overriddenHiveConf)).thenAnswer(invocation -> spyClientPool);
+    when(spyHiveCatalog.clientPool()).thenAnswer(invocation -> spyClientPool);
 
     Assert.assertNotNull(spyClientRef.get());
 
