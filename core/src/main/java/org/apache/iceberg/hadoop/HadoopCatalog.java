@@ -56,7 +56,6 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -94,40 +93,6 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   public HadoopCatalog(){
   }
 
-  /**
-   * The constructor of the HadoopCatalog. It uses the passed location as its warehouse directory.
-   *
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
-   * v0.12.0
-   * @param name The catalog name
-   * @param conf The Hadoop configuration
-   * @param warehouseLocation The location used as warehouse directory
-   */
-  @Deprecated
-  public HadoopCatalog(String name, Configuration conf, String warehouseLocation) {
-    this(name, conf, warehouseLocation, Maps.newHashMap());
-  }
-
-  /**
-   * The all-arg constructor of the HadoopCatalog.
-   *
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
-   * v0.12.0
-   * @param name The catalog name
-   * @param conf The Hadoop configuration
-   * @param warehouseLocation The location used as warehouse directory
-   * @param properties catalog properties
-   */
-  @Deprecated
-  public HadoopCatalog(String name, Configuration conf, String warehouseLocation, Map<String, String> properties) {
-    Preconditions.checkArgument(warehouseLocation != null && !warehouseLocation.equals(""),
-        "Cannot instantiate hadoop catalog. No location provided for warehouse");
-    setConf(conf);
-    Map<String, String> props = Maps.newHashMap(properties);
-    props.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
-    initialize(name, props);
-  }
-
   @Override
   public void initialize(String name, Map<String, String> properties) {
     String inputWarehouseLocation = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
@@ -146,11 +111,16 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   /**
    * The constructor of the HadoopCatalog. It uses the passed location as its warehouse directory.
    *
+   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
+   * v0.13.0
+   *
    * @param conf The Hadoop configuration
    * @param warehouseLocation The location used as warehouse directory
    */
+  @Deprecated
   public HadoopCatalog(Configuration conf, String warehouseLocation) {
-    this("hadoop", conf, warehouseLocation);
+    setConf(conf);
+    initialize("hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation));
   }
 
   /**
@@ -158,10 +128,16 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
    * from the passed Hadoop configuration as its default file system, and use the default directory
    * <code>iceberg/warehouse</code> as the warehouse directory.
    *
+   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
+   * v0.13.0
+   *
    * @param conf The Hadoop configuration
    */
+  @Deprecated
   public HadoopCatalog(Configuration conf) {
-    this("hadoop", conf, conf.get("fs.defaultFS") + "/" + ICEBERG_HADOOP_WAREHOUSE_BASE);
+    setConf(conf);
+    String hadoopWarehouseLocation = conf.get("fs.defaultFS") + "/" + ICEBERG_HADOOP_WAREHOUSE_BASE;
+    initialize("hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, hadoopWarehouseLocation));
   }
 
   @Override
