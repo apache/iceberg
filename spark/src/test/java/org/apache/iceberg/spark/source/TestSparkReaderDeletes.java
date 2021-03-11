@@ -129,6 +129,18 @@ public abstract class TestSparkReaderDeletes extends DeleteReadTests {
   public void testEqualityDeleteWithFilter() throws IOException {
     String tableName = "test_with_filter";
     Table table = createTable(tableName, SCHEMA, SPEC);
+
+    List<Record> records = Lists.newArrayList();
+    // records all use IDs that are in bucket id_bucket=0
+    GenericRecord record = GenericRecord.create(table.schema());
+    records.add(record.copy("id", 29, "data", "a"));
+    records.add(record.copy("id", 43, "data", "b"));
+    records.add(record.copy("id", 61, "data", "c"));
+    records.add(record.copy("id", 89, "data", "d"));
+    records.add(record.copy("id", 100, "data", "e"));
+    records.add(record.copy("id", 121, "data", "f"));
+    records.add(record.copy("id", 122, "data", "g"));
+
     Schema deleteRowSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(deleteRowSchema);
     List<Record> dataDeletes = Lists.newArrayList(
@@ -156,6 +168,8 @@ public abstract class TestSparkReaderDeletes extends DeleteReadTests {
       SparkStructLike rowWrapper = new SparkStructLike(projection);
       actual.add(rowWrapper.wrap(row));
     });
+
+    dropTable(tableName);
 
     Assert.assertEquals("Table should contain no rows", 0, actual.size());
   }
