@@ -41,9 +41,6 @@ import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -154,30 +151,12 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   }
 
   /**
-   * Returns the Table FileIO serialized to the configuration.
+   * Returns the Table serialized to the configuration.
    * @param config The configuration used to get the data from
-   * @return The Table FileIO object
+   * @return The Table
    */
-  public static FileIO io(Configuration config) {
-    return SerializationUtil.deserializeFromBase64(config.get(InputFormatConfig.FILE_IO));
-  }
-
-  /**
-   * Returns the Table LocationProvider serialized to the configuration.
-   * @param config The configuration used to get the data from
-   * @return The Table LocationProvider object
-   */
-  public static LocationProvider location(Configuration config) {
-    return SerializationUtil.deserializeFromBase64(config.get(InputFormatConfig.LOCATION_PROVIDER));
-  }
-
-  /**
-   * Returns the Table EncryptionManager serialized to the configuration.
-   * @param config The configuration used to get the data from
-   * @return The Table EncryptionManager object
-   */
-  public static EncryptionManager encryption(Configuration config) {
-    return SerializationUtil.deserializeFromBase64(config.get(InputFormatConfig.ENCRYPTION_MANAGER));
+  public static Table table(Configuration config) {
+    return SerializationUtil.deserializeFromBase64(config.get(InputFormatConfig.SERIALIZED_TABLE));
   }
 
   /**
@@ -239,9 +218,6 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
       map.put(InputFormatConfig.SERIALIZED_TABLE, SerializationUtil.serializeToBase64(table));
     }
 
-    map.put(InputFormatConfig.FILE_IO, SerializationUtil.serializeToBase64(table.io()));
-    map.put(InputFormatConfig.LOCATION_PROVIDER, SerializationUtil.serializeToBase64(table.locationProvider()));
-    map.put(InputFormatConfig.ENCRYPTION_MANAGER, SerializationUtil.serializeToBase64(table.encryption()));
     // We need to remove this otherwise the job.xml will be invalid as column comments are separated with '\0' and
     // the serialization utils fail to serialize this character
     map.remove("columns.comments");

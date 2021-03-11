@@ -33,6 +33,7 @@ import org.apache.hadoop.util.Progressable;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -68,9 +69,10 @@ public class HiveIcebergOutputFormat<T> implements OutputFormat<NullWritable, Co
     PartitionSpec spec = HiveIcebergStorageHandler.spec(jc);
     FileFormat fileFormat = FileFormat.valueOf(jc.get(InputFormatConfig.WRITE_FILE_FORMAT));
     long targetFileSize = jc.getLong(InputFormatConfig.WRITE_TARGET_FILE_SIZE, Long.MAX_VALUE);
-    FileIO io = HiveIcebergStorageHandler.io(jc);
-    LocationProvider location = HiveIcebergStorageHandler.location(jc);
-    EncryptionManager encryption = HiveIcebergStorageHandler.encryption(jc);
+    Table table = HiveIcebergStorageHandler.table(jc);
+    FileIO io = table.io();
+    LocationProvider location = table.locationProvider();
+    EncryptionManager encryption = table.encryption();
     OutputFileFactory outputFileFactory =
         new OutputFileFactory(spec, fileFormat, location, io, encryption, taskAttemptID.getTaskID().getId(),
             taskAttemptID.getId(), jc.get(HiveConf.ConfVars.HIVEQUERYID.varname) + "-" + taskAttemptID.getJobID());

@@ -200,7 +200,7 @@ abstract class BaseMetadataTable implements Table, Serializable {
   abstract MetadataTableType metadataTableType();
 
   final Object writeReplace() {
-    return new TableProxy(io(), table().name(), name(), metadataLocation(), metadataTableType());
+    return new TableProxy(io(), table().name(), name(), metadataLocation(), metadataTableType(), locationProvider());
   }
 
   static class TableProxy implements Serializable {
@@ -209,14 +209,16 @@ abstract class BaseMetadataTable implements Table, Serializable {
     private String metadataTableName;
     private String metadataLocation;
     private MetadataTableType type;
+    private LocationProvider locationProvider;
 
     TableProxy(FileIO io, String baseTableName, String metadataTableName, String metadataLocation,
-               MetadataTableType type) {
+               MetadataTableType type, LocationProvider locationProvider) {
       this.io = io;
       this.baseTableName = baseTableName;
       this.metadataTableName = metadataTableName;
       this.metadataLocation = metadataLocation;
       this.type = type;
+      this.locationProvider = locationProvider;
     }
 
     /**
@@ -226,7 +228,7 @@ abstract class BaseMetadataTable implements Table, Serializable {
      *         object
      */
     private Object readResolve()  {
-      TableOperations ops = new StaticTableOperations(metadataLocation, io);
+      TableOperations ops = new StaticTableOperations(metadataLocation, io, locationProvider);
       return MetadataTableUtils.createMetadataTableInstance(ops, baseTableName, metadataTableName, type);
     }
   }

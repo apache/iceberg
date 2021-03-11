@@ -232,11 +232,13 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
     private FileIO io;
     private String name;
     private String metadataLocation;
+    private LocationProvider locationProvider;
 
     private TableProxy(BaseTable table) {
       io = table.io();
       name = table.name();
       metadataLocation = table.operations().current().metadataFileLocation();
+      locationProvider = table.locationProvider();
     }
 
     /**
@@ -246,7 +248,7 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
      *         BaseTable object
      */
     private Object readResolve()  {
-      return new BaseTable(new StaticTableOperations(metadataLocation, io), name);
+      return new BaseTable(new StaticTableOperations(metadataLocation, io, locationProvider), name);
     }
   }
 }
