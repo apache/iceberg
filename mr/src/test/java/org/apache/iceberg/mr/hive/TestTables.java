@@ -45,7 +45,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.hive.HiveCatalogs;
+import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.MetastoreUtil;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestCatalogs;
@@ -382,7 +382,7 @@ abstract class TestTables {
   static class HiveTestTables extends TestTables {
 
     HiveTestTables(Configuration conf, TemporaryFolder temp) {
-      super(HiveCatalogs.loadCatalog(conf), temp);
+      super(new HiveCatalog(conf), temp);
     }
 
     @Override

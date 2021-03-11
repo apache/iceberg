@@ -19,11 +19,16 @@
 
 package org.apache.iceberg.hive;
 
-import java.io.Closeable;
-import java.util.Arrays;
+
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
@@ -50,25 +55,36 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.iceberg.util.Pair;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces, Configurable {
+public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespaces, Configurable {
   private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 
+  private static final String CACHE_CLEANER_INTERVAL = "iceberg.hive.client-pool-cache-cleaner-interval";
+  private static final long CACHE_CLEANER_INTERVAL_DEFAULT = TimeUnit.SECONDS.toMillis(30);
+  private static final String CACHE_EVICTION_INTERVAL = "iceberg.hive.client-pool-cache-eviction-interval";
+  private static final long CACHE_EVICTION_INTERVAL_DEFAULT = TimeUnit.MINUTES.toMillis(5);
+
+  @VisibleForTesting
+  static final Cache<String, Pair<HiveClientPool, Long>> CLIENT_POOL_CACHE = Caffeine.newBuilder()
+          .softValues().build();
+
+  private static volatile ScheduledExecutorService cleaner;
+
   private String name;
-  private HiveClientPool clients;
   private Configuration conf;
-  private StackTraceElement[] createStack;
   private FileIO fileIO;
-  private boolean closed;
+  private long cleanerInterval;
+  private long evictionInterval;
 
   public HiveCatalog() {
   }
@@ -83,12 +99,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   @Deprecated
   public HiveCatalog(Configuration conf) {
     this.name = "hive";
-    int clientPoolSize = conf.getInt(CatalogProperties.CLIENT_POOL_SIZE, CatalogProperties.CLIENT_POOL_SIZE_DEFAULT);
-    this.clients = new HiveClientPool(clientPoolSize, conf);
     this.conf = conf;
-    this.createStack = Thread.currentThread().getStackTrace();
-    this.closed = false;
     this.fileIO = new HadoopFileIO(conf);
+    this.cleanerInterval = conf.getLong(CACHE_CLEANER_INTERVAL, CACHE_CLEANER_INTERVAL_DEFAULT);
+    this.evictionInterval = conf.getLong(CACHE_EVICTION_INTERVAL, CACHE_EVICTION_INTERVAL_DEFAULT);
+    scheduleCacheCleaner();
   }
 
   @Override
@@ -102,14 +117,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
       this.conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, properties.get(CatalogProperties.WAREHOUSE_LOCATION));
     }
 
-    int clientPoolSize = PropertyUtil.propertyAsInt(properties,
-        CatalogProperties.CLIENT_POOL_SIZE, CatalogProperties.CLIENT_POOL_SIZE_DEFAULT);
-    this.clients = new HiveClientPool(clientPoolSize, this.conf);
-    this.createStack = Thread.currentThread().getStackTrace();
-    this.closed = false;
-
     String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(conf) : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
+    scheduleCacheCleaner();
   }
 
   @Override
@@ -119,8 +129,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     String database = namespace.level(0);
 
     try {
-      List<String> tableNames = clients.run(client -> client.getAllTables(database));
-      List<Table> tableObjects = clients.run(client -> client.getTableObjectsByName(database, tableNames));
+      List<String> tableNames = loadHiveClientPool(conf).run(client -> client.getAllTables(database));
+      List<Table> tableObjects = loadHiveClientPool(conf)
+              .run(client -> client.getTableObjectsByName(database, tableNames));
       List<TableIdentifier> tableIdentifiers = tableObjects.stream()
           .filter(table -> table.getParameters() == null ? false : BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE
               .equalsIgnoreCase(table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP)))
@@ -164,7 +175,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     }
 
     try {
-      clients.run(client -> {
+      loadHiveClientPool(conf).run(client -> {
         client.dropTable(database, identifier.name(),
             false /* do not delete data */,
             false /* throw NoSuchObjectException if the table doesn't exist */);
@@ -205,13 +216,13 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     String fromName = from.name();
 
     try {
-      Table table = clients.run(client -> client.getTable(fromDatabase, fromName));
+      Table table = loadHiveClientPool(conf).run(client -> client.getTable(fromDatabase, fromName));
       HiveTableOperations.validateTableIsIceberg(table, fullTableName(name, from));
 
       table.setDbName(toDatabase);
       table.setTableName(to.name());
 
-      clients.run(client -> {
+      loadHiveClientPool(conf).run(client -> {
         client.alter_table(fromDatabase, fromName, table);
         return null;
       });
@@ -242,7 +253,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
         "Cannot support multi part namespace in Hive MetaStore: %s", namespace);
 
     try {
-      clients.run(client -> {
+      loadHiveClientPool(conf).run(client -> {
         client.createDatabase(convertToDatabase(namespace, meta));
         return null;
       });
@@ -272,7 +283,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
       return ImmutableList.of();
     }
     try {
-      List<Namespace> namespaces = clients.run(HiveMetaStoreClient::getAllDatabases)
+      List<Namespace> namespaces = loadHiveClientPool(conf).run(HiveMetaStoreClient::getAllDatabases)
           .stream()
           .map(Namespace::of)
           .collect(Collectors.toList());
@@ -297,7 +308,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     }
 
     try {
-      clients.run(client -> {
+      loadHiveClientPool(conf).run(client -> {
         client.dropDatabase(namespace.level(0),
             false /* deleteData */,
             false /* ignoreUnknownDb */,
@@ -356,7 +367,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
   private void alterHiveDataBase(Namespace namespace,  Database database) {
     try {
-      clients.run(client -> {
+      loadHiveClientPool(conf).run(client -> {
         client.alterDatabase(namespace.level(0), database);
         return null;
       });
@@ -381,7 +392,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     }
 
     try {
-      Database database = clients.run(client -> client.getDatabase(namespace.level(0)));
+      Database database = loadHiveClientPool(conf).run(client -> client.getDatabase(namespace.level(0)));
       Map<String, String> metadata = convertToMetadata(database);
       LOG.debug("Loaded metadata for namespace {} found {}", namespace, metadata.keySet());
       return metadata;
@@ -426,7 +437,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   public TableOperations newTableOps(TableIdentifier tableIdentifier) {
     String dbName = tableIdentifier.namespace().level(0);
     String tableName = tableIdentifier.name();
-    return new HiveTableOperations(conf, clients, fileIO, name, dbName, tableName);
+    return new HiveTableOperations(conf, fileIO, this, dbName, tableName);
   }
 
   @Override
@@ -438,7 +449,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
     // Create a new location based on the namespace / database if it is set on database level
     try {
-      Database databaseData = clients.run(client -> client.getDatabase(tableIdentifier.namespace().levels()[0]));
+      Database databaseData = loadHiveClientPool(conf)
+              .run(client -> client.getDatabase(tableIdentifier.namespace().levels()[0]));
       if (databaseData.getLocationUri() != null) {
         // If the database location is set use it as a base.
         return String.format("%s/%s", databaseData.getLocationUri(), tableIdentifier.name());
@@ -506,30 +518,6 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
     return database;
   }
-
-  @Override
-  public void close() {
-    if (!closed) {
-      clients.close();
-      closed = true;
-    }
-  }
-
-  @SuppressWarnings("checkstyle:NoFinalizer")
-  @Override
-  protected void finalize() throws Throwable {
-    super.finalize();
-    // todo it is possible that the Catalog is gc-ed before child table operations are done w/ the clients object.
-    // The closing of the HiveCatalog should take that into account and child TableOperations should own the clients obj
-    // or the TabaleOperations should be explicitly closed and the Catalog can't be gc-ed/closed till all children are.
-    if (!closed) {
-      close(); // releasing resources is more important than printing the warning
-      String trace = Joiner.on("\n\t").join(
-          Arrays.copyOfRange(createStack, 1, createStack.length));
-      LOG.warn("Unclosed input stream created by:\n\t{}", trace);
-    }
-  }
-
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
@@ -546,5 +534,38 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   @Override
   public Configuration getConf() {
     return conf;
+  }
+
+  @VisibleForTesting
+  HiveClientPool loadHiveClientPool(Configuration configuration) {
+    String metastoreUri = configuration.get(HiveConf.ConfVars.METASTOREURIS.varname, "");
+    int clientPoolSize = configuration.getInt(CatalogProperties.CLIENT_POOL_SIZE,
+            CatalogProperties.CLIENT_POOL_SIZE_DEFAULT);
+    Pair<HiveClientPool, Long> cacheEntry = CLIENT_POOL_CACHE.getIfPresent(metastoreUri);
+    HiveClientPool clientPool = cacheEntry == null ? new HiveClientPool(clientPoolSize, configuration)
+            : cacheEntry.first();
+    CLIENT_POOL_CACHE.put(metastoreUri, Pair.of(clientPool, System.currentTimeMillis()));
+    return clientPool;
+  }
+
+  private void scheduleCacheCleaner() {
+    if (cleaner == null) {
+      synchronized (HiveCatalog.class) {
+        if (cleaner == null) {
+          cleaner = Executors.newSingleThreadScheduledExecutor(
+                  new ThreadFactoryBuilder()
+                          .setDaemon(true)
+                          .setNameFormat("iceberg-client-pool-cache-cleaner-%d")
+                          .build());
+        }
+        ScheduledFuture<?> futures = cleaner.scheduleWithFixedDelay(() -> CLIENT_POOL_CACHE.asMap().entrySet().stream()
+                .filter(e -> e.getValue().second() + evictionInterval <= System.currentTimeMillis())
+                .forEach(e -> {
+                  HiveClientPool pool = e.getValue().first();
+                  CLIENT_POOL_CACHE.invalidate(e.getKey());
+                  pool.close();
+                }), 0, cleanerInterval, TimeUnit.MILLISECONDS);
+      }
+    }
   }
 }

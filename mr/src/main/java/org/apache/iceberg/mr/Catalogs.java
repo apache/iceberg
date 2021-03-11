@@ -36,7 +36,7 @@ import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.hive.HiveCatalogs;
+import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -212,7 +212,7 @@ public final class Catalogs {
           LOG.info("Loaded Hadoop catalog {}", catalog);
           return Optional.of(catalog);
         case HIVE:
-          catalog = HiveCatalogs.loadCatalog(conf);
+          catalog = new HiveCatalog(conf);
           LOG.info("Loaded Hive Metastore catalog {}", catalog);
           return Optional.of(catalog);
         default:

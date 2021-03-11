@@ -22,6 +22,7 @@ package org.apache.iceberg.hive;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CachingCatalog;
@@ -398,6 +399,20 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     } finally {
       catalog.dropTable(tableIdent);
     }
+  }
+
+  @Test
+  public void testClientPoolCleaner() throws InterruptedException {
+    HiveCatalog catalog = new HiveCatalog(hiveConf);
+    HiveClientPool clientPool1 = catalog.loadHiveClientPool(hiveConf);
+    Thread.sleep(TimeUnit.SECONDS.toMillis(5));
+    HiveClientPool clientPool2 = catalog.loadHiveClientPool(hiveConf);
+    Assert.assertTrue(clientPool1 == clientPool2);
+    Thread.sleep(TimeUnit.SECONDS.toMillis(15));
+    Assert.assertEquals(0, HiveCatalog.CLIENT_POOL_CACHE.estimatedSize());
+    clientPool2 = catalog.loadHiveClientPool(hiveConf);
+    Assert.assertEquals(1, HiveCatalog.CLIENT_POOL_CACHE.estimatedSize());
+    Assert.assertFalse(clientPool1 == clientPool2);
   }
 
   private String defaultUri(Namespace namespace) throws TException {

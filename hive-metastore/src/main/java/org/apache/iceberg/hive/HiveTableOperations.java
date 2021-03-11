@@ -105,7 +105,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     UNKNOWN
   }
 
-  private final HiveClientPool metaClients;
   private final String fullName;
   private final String database;
   private final String tableName;
@@ -114,15 +113,16 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final long lockCheckMinWaitTime;
   private final long lockCheckMaxWaitTime;
   private final FileIO fileIO;
+  private final HiveCatalog catalog;
 
-  protected HiveTableOperations(Configuration conf, HiveClientPool metaClients, FileIO fileIO,
-                                String catalogName, String database, String table) {
+  protected HiveTableOperations(Configuration conf, FileIO fileIO, HiveCatalog catalog,
+                                String database, String table) {
     this.conf = conf;
-    this.metaClients = metaClients;
     this.fileIO = fileIO;
-    this.fullName = catalogName + "." + database + "." + table;
+    this.fullName = catalog.name() + "." + database + "." + table;
     this.database = database;
     this.tableName = table;
+    this.catalog = catalog;
     this.lockAcquireTimeout =
         conf.getLong(HIVE_ACQUIRE_LOCK_TIMEOUT_MS, HIVE_ACQUIRE_LOCK_TIMEOUT_MS_DEFAULT);
     this.lockCheckMinWaitTime =
@@ -145,7 +145,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   protected void doRefresh() {
     String metadataLocation = null;
     try {
-      Table table = metaClients.run(client -> client.getTable(database, tableName));
+      Table table = catalog.loadHiveClientPool(conf).run(client -> client.getTable(database, tableName));
       validateTableIsIceberg(table, fullName);
 
       metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
@@ -303,7 +303,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   @VisibleForTesting
   void persistTable(Table hmsTable, boolean updateHiveTable) throws TException, InterruptedException {
     if (updateHiveTable) {
-      metaClients.run(client -> {
+      catalog.loadHiveClientPool(conf).run(client -> {
         EnvironmentContext envContext = new EnvironmentContext(
             ImmutableMap.of(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE)
         );
@@ -311,7 +311,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         return null;
       });
     } else {
-      metaClients.run(client -> {
+      catalog.loadHiveClientPool(conf).run(client -> {
         client.createTable(hmsTable);
         return null;
       });
@@ -320,7 +320,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
   private Table loadHmsTable() throws TException, InterruptedException {
     try {
-      return metaClients.run(client -> client.getTable(database, tableName));
+      return catalog.loadHiveClientPool(conf).run(client -> client.getTable(database, tableName));
     } catch (NoSuchObjectException nte) {
       LOG.trace("Table not found {}", fullName, nte);
       return null;
@@ -417,7 +417,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     final LockRequest lockRequest = new LockRequest(Lists.newArrayList(lockComponent),
         System.getProperty("user.name"),
         InetAddress.getLocalHost().getHostName());
-    LockResponse lockResponse = metaClients.run(client -> client.lock(lockRequest));
+    LockResponse lockResponse = catalog.loadHiveClientPool(conf).run(client -> client.lock(lockRequest));
     AtomicReference<LockState> state = new AtomicReference<>(lockResponse.getState());
     long lockId = lockResponse.getLockid();
 
@@ -443,7 +443,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             .onlyRetryOn(WaitingForLockException.class)
             .run(id -> {
               try {
-                LockResponse response = metaClients.run(client -> client.checkLock(id));
+                LockResponse response = catalog.loadHiveClientPool(conf).run(client -> client.checkLock(id));
                 LockState newState = response.getState();
                 state.set(newState);
                 if (newState.equals(LockState.WAITING)) {
@@ -500,10 +500,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       }
     }
   }
-
+  
   @VisibleForTesting
   void doUnlock(long lockId) throws TException, InterruptedException {
-    metaClients.run(client -> {
+    catalog.loadHiveClientPool(conf).run(client -> {
       client.unlock(lockId);
       return null;
     });

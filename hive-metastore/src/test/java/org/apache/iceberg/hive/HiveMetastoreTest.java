@@ -52,7 +52,6 @@ public abstract class HiveMetastoreTest {
 
   @AfterClass
   public static void stopMetastore() {
-    catalog.close();
     HiveMetastoreTest.catalog = null;
 
     metastoreClient.close();
