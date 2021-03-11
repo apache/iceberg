@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.data.arrow;
+package org.apache.iceberg.arrow.vectorized;
 
 import java.io.File;
 import java.io.IOException;
@@ -51,7 +51,6 @@ import org.apache.arrow.vector.types.Types.MinorType;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -62,8 +61,8 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.expressions.Expressions;
@@ -117,9 +116,10 @@ public class ArrowReaderTest {
   @Rule
   public final TemporaryFolder temp = new TemporaryFolder();
 
+  private HadoopTables tables;
+
   private String tableLocation;
   private List<GenericRecord> rowsWritten;
-  private HadoopTables tables;
 
   /**
    * Read all rows and columns from the table without any filter. The test asserts that the Arrow {@link
@@ -130,8 +130,7 @@ public class ArrowReaderTest {
   public void testReadAll() throws Exception {
     writeTableWithIncrementalRecords();
     Table table = tables.load(tableLocation);
-    IcebergGenerics.ScanBuilder builder = IcebergGenerics.read(table);
-    readAndCheckVectorSchemaRoots(builder, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, ALL_COLUMNS);
+    readAndCheckVectorSchemaRoots(table.newScan(), NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, ALL_COLUMNS);
   }
 
   /**
@@ -198,8 +197,7 @@ public class ArrowReaderTest {
   public void testReadAllWithConstantRecords() throws Exception {
     writeTableWithConstantRecords();
     Table table = tables.load(tableLocation);
-    IcebergGenerics.ScanBuilder builder = IcebergGenerics.read(table);
-    readAndCheckVectorSchemaRoots(builder, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, ALL_COLUMNS);
+    readAndCheckVectorSchemaRoots(table.newScan(), NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, ALL_COLUMNS);
   }
 
   /**
@@ -212,8 +210,8 @@ public class ArrowReaderTest {
   public void testReadAllWithSmallerBatchSize() throws Exception {
     writeTableWithIncrementalRecords();
     Table table = tables.load(tableLocation);
-    IcebergGenerics.ScanBuilder builder = IcebergGenerics.read(table);
-    readAndCheckVectorSchemaRoots(builder, 10, 12 * NUM_ROWS_PER_MONTH, ALL_COLUMNS);
+    TableScan scan = table.newScan();
+    readAndCheckVectorSchemaRoots(scan, 10, 12 * NUM_ROWS_PER_MONTH, ALL_COLUMNS);
   }
 
   /**
@@ -227,11 +225,11 @@ public class ArrowReaderTest {
     Table table = tables.load(tableLocation);
     LocalDateTime beginTime = LocalDateTime.of(2020, 1, 1, 0, 0, 0);
     LocalDateTime endTime = LocalDateTime.of(2020, 2, 1, 0, 0, 0);
-    IcebergGenerics.ScanBuilder builder = IcebergGenerics.read(table)
-        .where(Expressions.and(
+    TableScan scan = table.newScan()
+        .filter(Expressions.and(
             Expressions.greaterThanOrEqual("timestamp", timestampToMicros(beginTime)),
             Expressions.lessThan("timestamp", timestampToMicros(endTime))));
-    readAndCheckVectorSchemaRoots(builder, NUM_ROWS_PER_MONTH, NUM_ROWS_PER_MONTH, ALL_COLUMNS);
+    readAndCheckVectorSchemaRoots(scan, NUM_ROWS_PER_MONTH, NUM_ROWS_PER_MONTH, ALL_COLUMNS);
   }
 
   /**
@@ -244,12 +242,12 @@ public class ArrowReaderTest {
     Table table = tables.load(tableLocation);
     LocalDateTime beginTime = LocalDateTime.of(2021, 1, 1, 0, 0, 0);
     LocalDateTime endTime = LocalDateTime.of(2021, 2, 1, 0, 0, 0);
-    IcebergGenerics.ScanBuilder builder = IcebergGenerics.read(table)
-            .where(Expressions.and(
+    TableScan scan = table.newScan()
+            .filter(Expressions.and(
                     Expressions.greaterThanOrEqual("timestamp", timestampToMicros(beginTime)),
                     Expressions.lessThan("timestamp", timestampToMicros(endTime))));
     int numRoots = 0;
-    for (VectorSchemaRoot root : ArrowReader.newBuilder(builder.getTableScan()).build()) {
+    for (ArrowBatch batch : new VectorizedTableScanIterable(scan, NUM_ROWS_PER_MONTH, false)) {
       numRoots++;
     }
     assertEquals(0, numRoots);
@@ -264,12 +262,10 @@ public class ArrowReaderTest {
   public void testReadColumnFilter1() throws Exception {
     writeTableWithIncrementalRecords();
     Table table = tables.load(tableLocation);
-    LocalDateTime beginTime = LocalDateTime.of(2020, 1, 1, 0, 0, 0);
-    LocalDateTime endTime = LocalDateTime.of(2021, 1, 1, 0, 0, 0);
-    IcebergGenerics.ScanBuilder builder = IcebergGenerics.read(table)
+    TableScan scan = table.newScan()
         .select("timestamp", "int", "string");
     readAndCheckVectorSchemaRoots(
-        builder, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH,
+        scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH,
         ImmutableList.of("timestamp", "int", "string"));
   }
 
@@ -282,25 +278,23 @@ public class ArrowReaderTest {
   public void testReadColumnFilter2() throws Exception {
     writeTableWithIncrementalRecords();
     Table table = tables.load(tableLocation);
-    LocalDateTime beginTime = LocalDateTime.of(2020, 1, 1, 0, 0, 0);
-    LocalDateTime endTime = LocalDateTime.of(2021, 1, 1, 0, 0, 0);
-    IcebergGenerics.ScanBuilder builder = IcebergGenerics.read(table)
+    TableScan scan = table.newScan()
         .select("timestamp");
     readAndCheckVectorSchemaRoots(
-        builder, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH,
+        scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH,
         ImmutableList.of("timestamp"));
   }
 
   private void readAndCheckVectorSchemaRoots(
-      IcebergGenerics.ScanBuilder builder,
+      TableScan scan,
       int numRowsPerRoot,
       int expectedTotalRows,
       List<String> columns) {
     Set<String> columnSet = ImmutableSet.copyOf(columns);
     int rowIndex = 0;
     int totalRows = 0;
-    for (VectorSchemaRoot root : ArrowReader.newBuilder(builder.getTableScan())
-        .setBatchSize(numRowsPerRoot).build()) {
+    for (ArrowBatch batch : new VectorizedTableScanIterable(scan, numRowsPerRoot, false)) {
+      VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
       assertEquals(createExpectedArrowSchema(columnSet), root.getSchema());
       checkAllVectorTypes(root, columnSet);
       checkAllVectorValues(numRowsPerRoot, rowsWritten.subList(rowIndex, rowIndex + numRowsPerRoot), root, columnSet);
@@ -320,7 +314,7 @@ public class ArrowReaderTest {
 
   private void writeTable(boolean constantRecords) throws Exception {
     rowsWritten = new ArrayList<>();
-    tables = new HadoopTables(new Configuration());
+    tables = new HadoopTables();
     tableLocation = temp.newFolder("test").toString();
 
     Schema schema = new Schema(

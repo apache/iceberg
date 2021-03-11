@@ -17,36 +17,35 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.data.vectorized;
+package org.apache.iceberg.arrow.vectorized;
 
-import java.util.Map;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.arrow.vectorized.VectorizedReaderBuilder;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.parquet.schema.MessageType;
 
-public class VectorizedSparkParquetReaders {
+/**
+ * Builds an {@link ArrowBatchReader}.
+ */
+class VectorizedParquetReaders {
 
-  private VectorizedSparkParquetReaders() {
+  private VectorizedParquetReaders() {
   }
 
-  public static ColumnarBatchReader buildReader(
+  /**
+   * Build the {@link ArrowBatchReader} for the expected schema and file schema.
+   *
+   * @param expectedSchema         Expected schema of the data returned.
+   * @param fileSchema             Schema of the data file.
+   * @param setArrowValidityVector Indicates whether to set the validity vector in Arrow vectors.
+   */
+  public static ArrowBatchReader buildReader(
       Schema expectedSchema,
       MessageType fileSchema,
       boolean setArrowValidityVector) {
-    return buildReader(expectedSchema, fileSchema, setArrowValidityVector, Maps.newHashMap());
-  }
-
-  public static ColumnarBatchReader buildReader(
-      Schema expectedSchema,
-      MessageType fileSchema,
-      boolean setArrowValidityVector,
-      Map<Integer, ?> idToConstant) {
-    return (ColumnarBatchReader)
+    return (ArrowBatchReader)
         TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
             new VectorizedReaderBuilder(
-                expectedSchema, fileSchema, setArrowValidityVector,
-                idToConstant, ColumnarBatchReader::new));
+                expectedSchema, fileSchema, setArrowValidityVector, ImmutableMap.of(), ArrowBatchReader::new));
   }
 }

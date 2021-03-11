@@ -17,14 +17,10 @@
  * under the License.
  */
 
-package org.apache.iceberg.data.arrow;
+package org.apache.iceberg.arrow.vectorized;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.iceberg.arrow.vectorized.VectorHolder;
-import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.parquet.Preconditions;
 import org.apache.parquet.column.page.PageReadStore;
@@ -35,12 +31,12 @@ import org.apache.parquet.hadoop.metadata.ColumnPath;
  * A collection of vectorized readers per column (in the expected read schema) and Arrow Vector holders. This class owns
  * the Arrow vectors and is responsible for closing the Arrow vectors.
  */
-public class VectorSchemaRootReader implements VectorizedReader<VectorSchemaRoot> {
+class ArrowBatchReader implements VectorizedReader<ArrowBatch> {
 
   private final VectorizedArrowReader[] readers;
   private final VectorHolder[] vectorHolders;
 
-  public VectorSchemaRootReader(List<VectorizedReader<?>> readers) {
+  ArrowBatchReader(List<VectorizedReader<?>> readers) {
     this.readers = readers.stream()
         .map(VectorizedArrowReader.class::cast)
         .toArray(VectorizedArrowReader[]::new);
@@ -48,8 +44,8 @@ public class VectorSchemaRootReader implements VectorizedReader<VectorSchemaRoot
   }
 
   @Override
-  public final void setRowGroupInfo(PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData,
-                                    long rowPosition) {
+  public final void setRowGroupInfo(
+      PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData, long rowPosition) {
     for (VectorizedArrowReader reader : readers) {
       if (reader != null) {
         reader.setRowGroupInfo(pageStore, metaData, rowPosition);
@@ -58,14 +54,14 @@ public class VectorSchemaRootReader implements VectorizedReader<VectorSchemaRoot
   }
 
   @Override
-  public final VectorSchemaRoot read(VectorSchemaRoot reuse, int numRowsToRead) {
+  public final ArrowBatch read(ArrowBatch reuse, int numRowsToRead) {
     Preconditions.checkArgument(numRowsToRead > 0, "Invalid number of rows to read: %s", numRowsToRead);
 
     if (reuse == null) {
       closeVectors();
     }
 
-    FieldVector[] fieldVectors = new FieldVector[readers.length];
+    ArrowVector[] arrowVectors = new ArrowVector[readers.length];
     for (int i = 0; i < readers.length; i += 1) {
       vectorHolders[i] = readers[i].read(vectorHolders[i], numRowsToRead);
       int numRowsInVector = vectorHolders[i].numValues();
@@ -74,11 +70,9 @@ public class VectorSchemaRootReader implements VectorizedReader<VectorSchemaRoot
           "Number of rows in the vector %s didn't match expected %s ", numRowsInVector,
           numRowsToRead);
       // Handle null vector for constant case
-      fieldVectors[i] = vectorHolders[i].vector();
+      arrowVectors[i] = new ArrowVector(vectorHolders[i]);
     }
-    VectorSchemaRoot root = VectorSchemaRoot.of(fieldVectors);
-    root.setRowCount(numRowsToRead);
-    return root;
+    return new ArrowBatch(numRowsToRead, arrowVectors);
   }
 
   private void closeVectors() {
