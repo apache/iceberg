@@ -27,6 +27,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.JobGroupInfo;
+import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.StagedSparkTable;
 import org.apache.spark.sql.SparkSession;
@@ -139,6 +140,6 @@ public class Spark3SnapshotAction extends Spark3CreateAction implements Snapshot
 
   @Override
   protected JobGroupInfo jobGroup() {
-    return new JobGroupInfo("SNAPSHOT", "SNAPSHOT-ACTION", false);
+    return new JobGroupInfo("SNAPSHOT", "SNAPSHOT-ACTION-" + JobGroupUtils.jobCounter(), false);
   }
 }

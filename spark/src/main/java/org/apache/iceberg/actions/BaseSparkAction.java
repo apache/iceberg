@@ -21,6 +21,8 @@ package org.apache.iceberg.actions;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.MetadataTableType;
@@ -53,6 +55,7 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
   private final SparkSession spark;
   private final JavaSparkContext sparkContext;
+  private AtomicInteger counter = new AtomicInteger();
 
   protected BaseSparkAction(SparkSession spark) {
     this.spark = spark;
@@ -71,18 +74,22 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
   protected abstract JobGroupInfo jobGroup();
 
+  protected <T> T withJobGroupInfo(JobGroupInfo info, Supplier<T> supplier) {
+    SparkContext context = spark().sparkContext();
+    JobGroupInfo previousInfo = JobGroupUtils.getJobGroupInfo(context);
+    try {
+      JobGroupUtils.setJobGroupInfo(context, info);
+      return supplier.get();
+    } finally {
+      JobGroupUtils.setJobGroupInfo(context, previousInfo);
+    }
+  }
+
   @Override
   public R execute() {
-    SparkContext context = SparkSession.getActiveSession().get().sparkContext();
+    SparkContext context = spark.sparkContext();
     JobGroupInfo info = JobGroupUtils.getJobGroupInfo(context);
-    try {
-      JobGroupInfo jobGroupInfo = jobGroup();
-      context.setJobGroup(jobGroupInfo.groupId(),
-              jobGroupInfo.description(), jobGroupInfo.interruptOnCancel());
-      return doExecute();
-    } finally {
-      JobGroupUtils.setJobGroupInfo(context, info);
-    }
+    return withJobGroupInfo(info, () -> doExecute());
   }
 
   /**

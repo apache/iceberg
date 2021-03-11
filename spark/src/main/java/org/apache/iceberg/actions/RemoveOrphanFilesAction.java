@@ -38,6 +38,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.JobGroupInfo;
+import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.api.java.JavaRDD;
@@ -260,6 +261,6 @@ public class RemoveOrphanFilesAction extends BaseSparkAction<RemoveOrphanFilesAc
 
   @Override
   protected JobGroupInfo jobGroup() {
-    return new JobGroupInfo("REMOVE", "REMOVE-ORPHAN-FILES", false);
+    return new JobGroupInfo("REMOVE", "REMOVE-ORPHAN-FILES-" + JobGroupUtils.jobCounter(), false);
   }
 }

@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -40,6 +42,7 @@ import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.source.StagedSparkTable;
+import org.apache.spark.SparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.catalog.CatalogTable;
 import org.apache.spark.sql.catalyst.catalog.CatalogUtils;
@@ -57,6 +60,7 @@ abstract class Spark3CreateAction implements CreateAction {
   protected static final String ICEBERG_METADATA_FOLDER = "metadata";
   protected static final List<String> EXCLUDED_PROPERTIES =
       ImmutableList.of("path", "transient_lastDdlTime", "serialization.format");
+  private AtomicInteger counter = new AtomicInteger();
 
   private final SparkSession spark;
 
@@ -192,18 +196,23 @@ abstract class Spark3CreateAction implements CreateAction {
 
   @Override
   public Long execute() {
-    JobGroupInfo callSite = JobGroupUtils.getJobGroupInfo(spark().sparkContext());
-    JobGroupInfo jobGroupInfo = jobGroup();
-    spark().sparkContext().setJobGroup(jobGroupInfo.groupId(),
-            jobGroupInfo.description(), jobGroupInfo.interruptOnCancel());
-    try {
-      return doExecute();
-    } finally {
-      JobGroupUtils.setJobGroupInfo(spark().sparkContext(), callSite);
-    }
+    SparkContext context = spark().sparkContext();
+    JobGroupInfo info = JobGroupUtils.getJobGroupInfo(context);
+    return withJobGroupInfo(info, () -> doExecute());
   }
 
   protected abstract Long doExecute();
+
+  protected <T> T withJobGroupInfo(JobGroupInfo info, Supplier<T> supplier) {
+    SparkContext context = spark().sparkContext();
+    JobGroupInfo previousInfo = JobGroupUtils.getJobGroupInfo(context);
+    try {
+      JobGroupUtils.setJobGroupInfo(context, info);
+      return supplier.get();
+    } finally {
+      JobGroupUtils.setJobGroupInfo(context, previousInfo);
+    }
+  }
 
   protected abstract JobGroupInfo jobGroup();
 }

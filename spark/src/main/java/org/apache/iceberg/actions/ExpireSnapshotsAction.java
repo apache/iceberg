@@ -34,6 +34,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
+import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.Column;
@@ -266,6 +267,6 @@ public class ExpireSnapshotsAction extends BaseSparkAction<ExpireSnapshotsAction
 
   @Override
   protected JobGroupInfo jobGroup() {
-    return new JobGroupInfo("EXPIRE", "EXPIRE-SNAPSHOTS", false);
+    return new JobGroupInfo("EXPIRE", "EXPIRE-SNAPSHOTS -" + JobGroupUtils.jobCounter(), false);
   }
 }

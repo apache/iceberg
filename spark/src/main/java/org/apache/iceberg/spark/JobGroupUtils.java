@@ -19,10 +19,14 @@
 
 package org.apache.iceberg.spark;
 
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.spark.SparkContext;
 import org.apache.spark.SparkContext$;
 
 public class JobGroupUtils {
+
+  private static AtomicInteger counter = new AtomicInteger();
+
   private JobGroupUtils() {
   }
 
@@ -38,5 +42,9 @@ public class JobGroupUtils {
     sparkContext.setLocalProperty(SparkContext$.MODULE$.SPARK_JOB_GROUP_ID(), obj.groupId());
     sparkContext.setLocalProperty(SparkContext$.MODULE$.SPARK_JOB_INTERRUPT_ON_CANCEL(),
             String.valueOf(obj.interruptOnCancel()));
+  }
+
+  public static int jobCounter() {
+    return counter.incrementAndGet();
   }
 }

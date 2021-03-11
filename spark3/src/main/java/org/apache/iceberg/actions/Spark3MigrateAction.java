@@ -28,6 +28,7 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.JobGroupInfo;
+import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.StagedSparkTable;
@@ -142,6 +143,6 @@ public class Spark3MigrateAction extends Spark3CreateAction {
 
   @Override
   protected JobGroupInfo jobGroup() {
-    return new JobGroupInfo("MIGRATE", "MIGRATE-ACTION", false);
+    return new JobGroupInfo("MIGRATE", "MIGRATE-ACTION-" + JobGroupUtils.jobCounter(), false);
   }
 }
