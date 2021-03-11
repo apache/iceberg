@@ -31,7 +31,6 @@ public class AssertHelpers {
 
   /**
    * A convenience method to avoid a large number of @Test(expected=...) tests
-   * of @Test(expected=...) tests
    * @param message A String message to describe this assertion
    * @param expected An Exception class that the Runnable should throw
    * @param containedInMessage A String that should be contained by the thrown
