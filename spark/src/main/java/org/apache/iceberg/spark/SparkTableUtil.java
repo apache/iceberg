@@ -652,13 +652,10 @@ public class SparkTableUtil {
                                                       Map<String, String> partitionFilter) {
     if (partitionFilter.isEmpty()) {
       return partitions;
-
     } else {
-      List<SparkTableUtil.SparkPartition> filteredPartitions = partitions.stream()
+      return partitions.stream()
           .filter(p -> p.getValues().entrySet().containsAll(partitionFilter.entrySet()))
           .collect(Collectors.toList());
-
-      return filteredPartitions;
     }
   }
 
