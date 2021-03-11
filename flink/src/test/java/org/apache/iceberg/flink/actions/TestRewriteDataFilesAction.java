@@ -25,6 +25,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.flink.configuration.CoreOptions;
+import org.apache.flink.table.api.TableEnvironment;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -70,6 +72,15 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
   public TestRewriteDataFilesAction(String catalogName, Namespace baseNamespace, FileFormat format) {
     super(catalogName, baseNamespace);
     this.format = format;
+  }
+
+  @Override
+  protected TableEnvironment getTableEnv() {
+    super.getTableEnv()
+        .getConfig()
+        .getConfiguration()
+        .set(CoreOptions.DEFAULT_PARALLELISM, 1);
+    return super.getTableEnv();
   }
 
   @Parameterized.Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}")
@@ -280,7 +291,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
       Assert.assertEquals("Residuals must be ignored", Expressions.alwaysTrue(), task.residual());
     }
     List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    Assert.assertEquals("Should have 8 data files before rewrite", 8, dataFiles.size());
+    Assert.assertEquals("Should have 2 data files before rewrite", 2, dataFiles.size());
 
     Actions actions = Actions.forTable(icebergTableUnPartitioned);
 
@@ -288,7 +299,7 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
         .rewriteDataFiles()
         .filter(Expressions.equal("data", "0"))
         .execute();
-    Assert.assertEquals("Action should rewrite 8 data files", 8, result.deletedDataFiles().size());
+    Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
     Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
 
     // Assert the table records as expected.

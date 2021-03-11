@@ -146,6 +146,7 @@ public class IcebergTableSource
 
   @Override
   public boolean supportsNestedProjection() {
+    // TODO: support nested projection
     return false;
   }
 
