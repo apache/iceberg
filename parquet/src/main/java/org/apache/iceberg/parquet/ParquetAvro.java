@@ -20,6 +20,7 @@
 package org.apache.iceberg.parquet;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.Conversion;
@@ -165,7 +166,7 @@ class ParquetAvro {
     @Override
     public BigDecimal fromFixed(GenericFixed value, Schema schema, LogicalType type) {
       final ParquetDecimal dec = (ParquetDecimal) type;
-      return super.fromFixed(value, schema, LogicalTypes.decimal(dec.precision(), dec.scale()));
+      return new BigDecimal(new BigInteger(value.bytes()), dec.scale());
     }
 
     @Override

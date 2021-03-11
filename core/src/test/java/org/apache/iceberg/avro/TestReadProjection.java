@@ -224,7 +224,7 @@ public abstract class TestReadProjection {
     Record projectedLocation = (Record) projected.get("location");
     AssertHelpers.assertEmptyAvroField(projected, "id");
     Assert.assertNotNull("Should project location", projected.get("location"));
-    AssertHelpers.assertEmptyAvroField(projected, "long");
+    AssertHelpers.assertEmptyAvroField(projectedLocation, "long");
     Assert.assertEquals("Should project latitude",
         52.995143f, (float) projectedLocation.get("lat"), 0.000001f);
 
