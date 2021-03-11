@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.flink.source;
 
-import com.google.common.collect.ImmutableMap;
 import java.util.Map;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.BaseTable;

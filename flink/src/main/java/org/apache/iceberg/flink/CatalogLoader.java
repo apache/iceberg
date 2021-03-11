@@ -76,7 +76,7 @@ public interface CatalogLoader extends Serializable {
 
     @Override
     public Catalog loadCatalog() {
-      return CatalogUtil.loadCatalog(HadoopCatalog.class.getName(), catalogName, properties, hadoopConf.get());
+      return new HadoopCatalog(catalogName, hadoopConf.get(), warehouseLocation, properties);
     }
 
     @Override
