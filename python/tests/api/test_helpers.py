@@ -108,7 +108,7 @@ class MockManifestEntry(object):
 
 
 class MockReader(object):
-    def __init__ (self, entries):
+    def __init__(self, entries):
         self._entries = entries
 
     def iterator(self):

@@ -24,7 +24,6 @@ from iceberg.hive import HiveTables
 import mock
 import pytest
 from pytest import raises
-
 from tests.api.test_helpers import MockHMSTable, MockManifest, MockManifestEntry, MockMetadata, MockReader, \
     MockSnapshot, MockTableOperations
 
@@ -184,8 +183,8 @@ def test_drop_tables_purge(client, current_ops, refresh_call, tmpdir):
                                        MockManifest("b-manifest.avro")],
                                    manifest_to_entries={
                                        "a-manifest.avro": MockReader(
-                                            [MockManifestEntry("a.parquet"),
-                                             MockManifestEntry("b.parquet")]),
+                                           [MockManifestEntry("a.parquet"),
+                                            MockManifestEntry("b.parquet")]),
                                        "b-manifest.avro": MockReader(
                                            [MockManifestEntry("c.parquet"),
                                             MockManifestEntry("d.parquet")])
@@ -231,4 +230,3 @@ def test_drop_tables_purge(client, current_ops, refresh_call, tmpdir):
     assert "f.parquet" in ops.deleted
     assert "g.parquet" in ops.deleted
     assert "h.parquet" in ops.deleted
-

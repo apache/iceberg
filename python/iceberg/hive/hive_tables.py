@@ -40,7 +40,7 @@ class HiveTables(BaseMetastoreTables):
     def new_table_ops(self, conf, database, table):
         return HiveTableOperations(conf, self.get_client(), database, table)
 
-    def drop(self, database: str, table: str, purge:bool = False) -> None:
+    def drop(self, database: str, table: str, purge: bool = False) -> None:
         ops = self.new_table_ops(self.conf, database, table)
         metadata = ops.current()
 
@@ -71,7 +71,7 @@ class HiveTables(BaseMetastoreTables):
     @staticmethod
     def _delete_file(ops: HiveTableOperations) -> Callable[[str], None]:
         def _delete_file_internal(path: str) -> None:
-            _logger.info("Deleting file: {path}".format(path=path)),
+            _logger.info("Deleting file: {path}".format(path=path))
             try:
                 ops.delete_file(path)
             except OSError:
