@@ -25,6 +25,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.flink.configuration.CoreOptions;
+import org.apache.flink.table.api.TableEnvironment;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -70,6 +72,15 @@ public class TestRewriteDataFilesAction extends FlinkCatalogTestBase {
   public TestRewriteDataFilesAction(String catalogName, Namespace baseNamespace, FileFormat format) {
     super(catalogName, baseNamespace);
     this.format = format;
+  }
+
+  @Override
+  protected TableEnvironment getTableEnv() {
+    super.getTableEnv()
+        .getConfig()
+        .getConfiguration()
+        .set(CoreOptions.DEFAULT_PARALLELISM, 1);
+    return super.getTableEnv();
   }
 
   @Parameterized.Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}")

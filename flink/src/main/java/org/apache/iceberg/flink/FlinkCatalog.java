@@ -50,7 +50,7 @@ import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
 import org.apache.flink.table.catalog.stats.CatalogColumnStatistics;
 import org.apache.flink.table.catalog.stats.CatalogTableStatistics;
 import org.apache.flink.table.expressions.Expression;
-import org.apache.flink.table.factories.TableFactory;
+import org.apache.flink.table.factories.Factory;
 import org.apache.flink.util.StringUtils;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.DataFile;
@@ -549,8 +549,8 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   @Override
-  public Optional<TableFactory> getTableFactory() {
-    return Optional.of(new FlinkTableFactory(this));
+  public Optional<Factory> getFactory() {
+    return Optional.of(new FlinkDynamicTableFactory(this));
   }
 
   CatalogLoader getCatalogLoader() {

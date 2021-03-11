@@ -22,21 +22,24 @@ package org.apache.iceberg.flink;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.connector.ChangelogMode;
+import org.apache.flink.table.connector.source.DataStreamScanProvider;
+import org.apache.flink.table.connector.source.DynamicTableSource;
+import org.apache.flink.table.connector.source.ScanTableSource;
+import org.apache.flink.table.connector.source.abilities.SupportsFilterPushDown;
+import org.apache.flink.table.connector.source.abilities.SupportsLimitPushDown;
+import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushDown;
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.expressions.Expression;
-import org.apache.flink.table.sources.FilterableTableSource;
-import org.apache.flink.table.sources.LimitableTableSource;
-import org.apache.flink.table.sources.ProjectableTableSource;
-import org.apache.flink.table.sources.StreamTableSource;
-import org.apache.flink.table.sources.TableSource;
+import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.types.DataType;
-import org.apache.flink.table.utils.TableConnectorUtils;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.source.FlinkSource;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -44,19 +47,28 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
  * Flink Iceberg table source.
  */
 public class IcebergTableSource
-    implements StreamTableSource<RowData>, ProjectableTableSource<RowData>, FilterableTableSource<RowData>,
-    LimitableTableSource<RowData> {
+    implements ScanTableSource, SupportsProjectionPushDown, SupportsFilterPushDown, SupportsLimitPushDown {
 
-  private static final Joiner COMMA = Joiner.on(',');
+  private int[] projectedFields;
+  private long limit;
+  private List<Expression> filters;
 
   private final TableLoader loader;
   private final TableSchema schema;
   private final Map<String, String> properties;
-  private final int[] projectedFields;
   private final boolean isLimitPushDown;
-  private final long limit;
-  private final List<org.apache.iceberg.expressions.Expression> filters;
   private final ReadableConfig readableConfig;
+
+  private IcebergTableSource(IcebergTableSource toCopy) {
+    this.loader = toCopy.loader;
+    this.schema = toCopy.schema;
+    this.properties = toCopy.properties;
+    this.projectedFields = toCopy.projectedFields;
+    this.isLimitPushDown = toCopy.isLimitPushDown;
+    this.limit = toCopy.limit;
+    this.filters = toCopy.filters;
+    this.readableConfig = toCopy.readableConfig;
+  }
 
   public IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> properties,
                             ReadableConfig readableConfig) {
@@ -65,8 +77,7 @@ public class IcebergTableSource
 
   private IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> properties,
                              int[] projectedFields, boolean isLimitPushDown,
-                             long limit, List<org.apache.iceberg.expressions.Expression> filters,
-                             ReadableConfig readableConfig) {
+                             long limit, List<Expression> filters, ReadableConfig readableConfig) {
     this.loader = loader;
     this.schema = schema;
     this.properties = properties;
@@ -78,17 +89,16 @@ public class IcebergTableSource
   }
 
   @Override
-  public boolean isBounded() {
-    return FlinkSource.isBounded(properties);
+  public void applyProjection(int[][] projectFields) {
+    this.projectedFields = new int[projectFields.length];
+    for (int i = 0; i < projectFields.length; i++) {
+      Preconditions.checkArgument(projectFields[i].length == 1,
+          "Don't support nested projection in iceberg source now.");
+      this.projectedFields[i] = projectFields[i][0];
+    }
   }
 
-  @Override
-  public TableSource<RowData> projectFields(int[] fields) {
-    return new IcebergTableSource(loader, schema, properties, fields, isLimitPushDown, limit, filters, readableConfig);
-  }
-
-  @Override
-  public DataStream<RowData> getDataStream(StreamExecutionEnvironment execEnv) {
+  private DataStream<RowData> createDataStream(StreamExecutionEnvironment execEnv) {
     return FlinkSource.forRowData()
         .env(execEnv)
         .tableLoader(loader)
@@ -100,23 +110,12 @@ public class IcebergTableSource
         .build();
   }
 
-  @Override
-  public TableSchema getTableSchema() {
-    return schema;
-  }
-
-  @Override
-  public DataType getProducedDataType() {
-    return getProjectedSchema().toRowDataType().bridgedTo(RowData.class);
-  }
-
   private TableSchema getProjectedSchema() {
-    TableSchema fullSchema = getTableSchema();
     if (projectedFields == null) {
-      return fullSchema;
+      return schema;
     } else {
-      String[] fullNames = fullSchema.getFieldNames();
-      DataType[] fullTypes = fullSchema.getFieldDataTypes();
+      String[] fullNames = schema.getFieldNames();
+      DataType[] fullTypes = schema.getFieldDataTypes();
       return TableSchema.builder().fields(
           Arrays.stream(projectedFields).mapToObj(i -> fullNames[i]).toArray(String[]::new),
           Arrays.stream(projectedFields).mapToObj(i -> fullTypes[i]).toArray(DataType[]::new)).build();
@@ -124,46 +123,60 @@ public class IcebergTableSource
   }
 
   @Override
-  public String explainSource() {
-    String explain = "Iceberg table: " + loader.toString();
-    if (projectedFields != null) {
-      explain += ", ProjectedFields: " + Arrays.toString(projectedFields);
-    }
-
-    if (isLimitPushDown) {
-      explain += String.format(", LimitPushDown : %d", limit);
-    }
-
-    if (isFilterPushedDown()) {
-      explain += String.format(", FilterPushDown: %s", COMMA.join(filters));
-    }
-
-    return TableConnectorUtils.generateRuntimeName(getClass(), getTableSchema().getFieldNames()) + explain;
+  public void applyLimit(long newLimit) {
+    this.limit = newLimit;
   }
 
   @Override
-  public boolean isLimitPushedDown() {
-    return isLimitPushDown;
-  }
+  public Result applyFilters(List<ResolvedExpression> flinkFilters) {
+    List<ResolvedExpression> acceptedFilters = Lists.newArrayList();
+    List<Expression> expressions = Lists.newArrayList();
 
-  @Override
-  public TableSource<RowData> applyLimit(long newLimit) {
-    return new IcebergTableSource(loader, schema, properties, projectedFields, true, newLimit, filters, readableConfig);
-  }
-
-  @Override
-  public TableSource<RowData> applyPredicate(List<Expression> predicates) {
-    List<org.apache.iceberg.expressions.Expression> expressions = Lists.newArrayList();
-    for (Expression predicate : predicates) {
-      FlinkFilters.convert(predicate).ifPresent(expressions::add);
+    for (ResolvedExpression resolvedExpression : flinkFilters) {
+      Optional<Expression> icebergExpression = FlinkFilters.convert(resolvedExpression);
+      if (icebergExpression.isPresent()) {
+        expressions.add(icebergExpression.get());
+        acceptedFilters.add(resolvedExpression);
+      }
     }
 
-    return new IcebergTableSource(loader, schema, properties, projectedFields, isLimitPushDown, limit, expressions,
-        readableConfig);
+    this.filters = expressions;
+    return Result.of(acceptedFilters, flinkFilters);
   }
 
   @Override
-  public boolean isFilterPushedDown() {
-    return this.filters != null && this.filters.size() > 0;
+  public boolean supportsNestedProjection() {
+    // TODO: support nested projection
+    return false;
+  }
+
+  @Override
+  public ChangelogMode getChangelogMode() {
+    return ChangelogMode.insertOnly();
+  }
+
+  @Override
+  public ScanRuntimeProvider getScanRuntimeProvider(ScanContext runtimeProviderContext) {
+    return new DataStreamScanProvider() {
+      @Override
+      public DataStream<RowData> produceDataStream(StreamExecutionEnvironment execEnv) {
+        return createDataStream(execEnv);
+      }
+
+      @Override
+      public boolean isBounded() {
+        return FlinkSource.isBounded(properties);
+      }
+    };
+  }
+
+  @Override
+  public DynamicTableSource copy() {
+    return new IcebergTableSource(this);
+  }
+
+  @Override
+  public String asSummaryString() {
+    return "Iceberg table source";
   }
 }

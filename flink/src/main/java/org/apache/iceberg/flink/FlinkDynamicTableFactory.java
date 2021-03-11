@@ -19,48 +19,52 @@
 
 package org.apache.iceberg.flink;
 
-import java.util.List;
-import java.util.Map;
+import java.util.Set;
+import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.catalog.ObjectPath;
-import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.factories.TableSinkFactory;
-import org.apache.flink.table.factories.TableSourceFactory;
-import org.apache.flink.table.sinks.TableSink;
-import org.apache.flink.table.sources.TableSource;
+import org.apache.flink.table.connector.sink.DynamicTableSink;
+import org.apache.flink.table.connector.source.DynamicTableSource;
+import org.apache.flink.table.factories.DynamicTableSinkFactory;
+import org.apache.flink.table.factories.DynamicTableSourceFactory;
 import org.apache.flink.table.utils.TableSchemaUtils;
 
-public class FlinkTableFactory implements TableSinkFactory<RowData>, TableSourceFactory<RowData> {
+public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, DynamicTableSourceFactory {
   private final FlinkCatalog catalog;
 
-  public FlinkTableFactory(FlinkCatalog catalog) {
+  public FlinkDynamicTableFactory(FlinkCatalog catalog) {
     this.catalog = catalog;
   }
 
   @Override
-  public TableSource<RowData> createTableSource(TableSourceFactory.Context context) {
+  public DynamicTableSource createDynamicTableSource(Context context) {
     ObjectPath objectPath = context.getObjectIdentifier().toObjectPath();
     TableLoader tableLoader = createTableLoader(objectPath);
-    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(context.getTable().getSchema());
-    return new IcebergTableSource(tableLoader, tableSchema, context.getTable().getOptions(),
+    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(context.getCatalogTable().getSchema());
+    return new IcebergTableSource(tableLoader, tableSchema, context.getCatalogTable().getOptions(),
         context.getConfiguration());
   }
 
   @Override
-  public TableSink<RowData> createTableSink(TableSinkFactory.Context context) {
+  public DynamicTableSink createDynamicTableSink(Context context) {
     ObjectPath objectPath = context.getObjectIdentifier().toObjectPath();
     TableLoader tableLoader = createTableLoader(objectPath);
-    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(context.getTable().getSchema());
-    return new IcebergTableSink(context.isBounded(), tableLoader, tableSchema);
+    TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(context.getCatalogTable().getSchema());
+    return new IcebergTableSink(tableLoader, tableSchema);
   }
 
   @Override
-  public Map<String, String> requiredContext() {
+  public Set<ConfigOption<?>> requiredOptions() {
     throw new UnsupportedOperationException("Iceberg Table Factory can not be loaded from Java SPI");
   }
 
   @Override
-  public List<String> supportedProperties() {
+  public Set<ConfigOption<?>> optionalOptions() {
+    throw new UnsupportedOperationException("Iceberg Table Factory can not be loaded from Java SPI");
+  }
+
+  @Override
+  public String factoryIdentifier() {
     throw new UnsupportedOperationException("Iceberg Table Factory can not be loaded from Java SPI");
   }
 
