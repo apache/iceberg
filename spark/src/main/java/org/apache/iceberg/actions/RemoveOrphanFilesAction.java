@@ -147,7 +147,7 @@ public class RemoveOrphanFilesAction extends BaseSparkAction<RemoveOrphanFilesAc
   @Override
   public List<String> doExecute() {
 
-    spark.sparkContext().setJobGroup("REMOVE", "REMOVE-ORPHAN-FILES", false);
+    spark().sparkContext().setJobGroup("REMOVE", "REMOVE-ORPHAN-FILES", false);
     Dataset<Row> validDataFileDF = buildValidDataFileDF(table);
     Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table, ops);
     Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);

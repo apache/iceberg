@@ -46,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.SparkDataFile;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
@@ -156,8 +157,14 @@ public class RewriteManifestsAction
     return this;
   }
 
+
   @Override
-  public RewriteManifestsActionResult execute() {
+  protected JobGroupInfo jobGroup() {
+    return new JobGroupInfo("EXPIRE", "EXPIRE-SNAPSHOTS", false);
+  }
+
+  @Override
+  public RewriteManifestsActionResult doExecute() {
     List<ManifestFile> matchingManifests = findMatchingManifests();
     if (matchingManifests.isEmpty()) {
       return RewriteManifestsActionResult.empty();
