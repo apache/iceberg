@@ -89,6 +89,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
 
     boolean threw = true;
+    boolean delete = false;
     try {
       IcebergTable newTable = ImmutableIcebergTable.builder().metadataLocation(newMetadataLocation).build();
       client.getContentsApi().setContents(key,
@@ -98,12 +99,14 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
                                           newTable);
       threw = false;
     } catch (NessieConflictException ex) {
+      delete = true;
       throw new CommitFailedException(ex, "Commit failed: Reference hash is out of date. " +
           "Update the reference %s and try again", reference.getName());
     } catch (NessieNotFoundException ex) {
+      delete = true;
       throw new RuntimeException(String.format("Commit failed: Reference %s no longer exist", reference.getName()), ex);
     } finally {
-      if (threw) {
+      if (threw && delete) {
         io().deleteFile(newMetadataLocation);
       }
     }
