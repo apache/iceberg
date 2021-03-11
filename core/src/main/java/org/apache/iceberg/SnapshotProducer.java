@@ -304,9 +304,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       Exceptions.suppressAndThrow(commitFailedException, this::cleanAll);
     } catch (RuntimeException e) {
       LOG.error("Cannot determine whether the commit was successful or not, the underlying data files may or " +
-              "may not be needed. Manual intervention via the Remove Orphan Files can be used to remove these files " +
-              "when a connection to the Catalog can be re-established if the commit was unsuccessful. No files" +
-              "will be deleted at this time including possibly unused manifest lists.");
+              "may not be needed. Manual intervention via the Remove Orphan Files Action can remove these " +
+              "files when a connection to the Catalog can be re-established if the commit was actually unsuccessful. " +
+              "No files will be deleted at this time including possibly unused manifest lists.\n{}", e);
       throw e;
     }
 

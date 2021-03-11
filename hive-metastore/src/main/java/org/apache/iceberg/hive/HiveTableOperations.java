@@ -52,7 +52,6 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynMethods;
-import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -153,6 +152,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     refreshFromMetadataLocation(metadataLocation);
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
@@ -213,9 +213,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     } catch (TException | UnknownHostException e) {
       if (e.getMessage() != null && e.getMessage().contains("Table/View 'HIVE_LOCKS' does not exist")) {
         commitFailed = true;
-        throw new RuntimeException("Failed to acquire locks from metastore because 'HIVE_LOCKS' doesn't " +
+        throw new CommitFailedException("Failed to acquire locks from metastore because 'HIVE_LOCKS' doesn't " +
             "exist, this probably happened when using embedded metastore or doesn't create a " +
-            "transactional meta table. To fix this, use an alternative metastore", e);
+            "transactional meta table. To fix this, use an alternative metastore.\n%s", e);
       }
 
       RuntimeException metastoreException =
@@ -226,7 +226,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       } else {
         // We were able to check and the commit did not succeed
         commitFailed = true;
-        throw metastoreException;
+        throw new CommitFailedException("Commit failed because of a Metastore error.\n%s", metastoreException);
       }
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
@@ -236,7 +236,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       } else {
         // We were able to check and the commit did not succeed
         commitFailed = true;
-        throw interruptException;
+        throw new CommitFailedException("Commit failed because of an interrupt.\n%s", interruptException);
       }
     } finally {
       cleanupMetadataAndUnlock(commitFailed, newMetadataLocation, lockId);
@@ -258,15 +258,16 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
       return metadataLocation.equals(newMetadataLocation);
     } catch (InterruptedException e) {
-      LOG.error("Cannot determine if commit was successful. Rethrowing original failure. Cause\n {}", e);
+      LOG.error("Cannot determine if commit was successful. Rethrowing original failure.", e);
       throw originalFailure;
     } catch (TException e) {
-      LOG.error("Cannot determine if commit was successful. Rethrowing original failure. Cause\n {}", e);
+      LOG.error("Cannot determine if commit was successful. Rethrowing original failure.", e);
       throw originalFailure;
     }
   }
 
-  private void persistTable(Table hmsTable, boolean updateHiveTable) throws TException, InterruptedException {
+  // Visible for testing
+  protected void persistTable(Table hmsTable, boolean updateHiveTable) throws TException, InterruptedException {
     if (updateHiveTable) {
       metaClients.run(client -> {
         EnvironmentContext envContext = new EnvironmentContext(
@@ -283,7 +284,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     }
   }
 
-  private Table loadHmsTable() throws TException, InterruptedException {
+  // Visible for tests
+  protected Table loadHmsTable() throws TException, InterruptedException {
     try {
       return metaClients.run(client -> client.getTable(database, tableName));
     } catch (NoSuchObjectException nte) {
