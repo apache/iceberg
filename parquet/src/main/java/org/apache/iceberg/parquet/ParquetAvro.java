@@ -48,8 +48,8 @@ class ParquetAvro {
   static class ParquetDecimal extends LogicalType {
     private static final String NAME = "parquet-decimal";
 
-    private int precision;
-    private int scale;
+    private final int precision;
+    private final int scale;
 
     ParquetDecimal(int precision, int scale) {
       super(NAME);
@@ -154,12 +154,7 @@ class ParquetAvro {
   }
 
   private static class FixedDecimalConversion extends Conversions.DecimalConversion {
-    private final LogicalType[] decimalsByScale = new LogicalType[39];
-
     private FixedDecimalConversion() {
-      for (int i = 0; i < decimalsByScale.length; i += 1) {
-        decimalsByScale[i] = LogicalTypes.decimal(i, i);
-      }
     }
 
     @Override
@@ -169,12 +164,14 @@ class ParquetAvro {
 
     @Override
     public BigDecimal fromFixed(GenericFixed value, Schema schema, LogicalType type) {
-      return super.fromFixed(value, schema, decimalsByScale[((ParquetDecimal) type).scale()]);
+      final ParquetDecimal dec = (ParquetDecimal) type;
+      return super.fromFixed(value, schema, LogicalTypes.decimal(dec.scale(), dec.precision()));
     }
 
     @Override
     public GenericFixed toFixed(BigDecimal value, Schema schema, LogicalType type) {
-      return super.toFixed(value, schema, decimalsByScale[((ParquetDecimal) type).scale()]);
+      final ParquetDecimal dec = (ParquetDecimal) type;
+      return super.toFixed(value, schema, dec);
     }
   }
 

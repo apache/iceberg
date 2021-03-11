@@ -20,6 +20,9 @@
 package org.apache.iceberg;
 
 import java.util.concurrent.Callable;
+
+import org.apache.avro.AvroRuntimeException;
+import org.apache.avro.generic.GenericRecord;
 import org.junit.Assert;
 
 public class TestHelpers {
@@ -84,5 +87,18 @@ public class TestHelpers {
       e.addSuppressed(actual);
       throw e;
     }
+  }
+
+  /**
+   * A convenience method to assert the cause of thrown exception.
+   * @param record The record to read from
+   * @param field The name of the field
+   */
+  public static void assertEmptyAvroField(GenericRecord record, String field) {
+    TestHelpers.assertThrows(
+        "Not a valid schema field: " + field,
+        AvroRuntimeException.class,
+        "Not a valid schema field: " + field,
+        () -> record.get(field));
   }
 }
