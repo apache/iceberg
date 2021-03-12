@@ -98,7 +98,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
     failCommitAndThrowException(spyOps);
 
     AssertHelpers.assertThrows("We should rethrow generic runtime errors if the " +
-        "commit actually doesn't succeed", RuntimeException.class,
+        "commit actually doesn't succeed", RuntimeException.class, "Datacenter on fire",
         () -> spyOps.commit(metadataV2, metadataV1));
 
     ops.refresh();
