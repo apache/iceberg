@@ -306,8 +306,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     parameters.put(StatsSetupConst.NUM_FILES, summary.getOrDefault(SnapshotSummary.TOTAL_DATA_FILES_PROP, "0"));
     parameters.put(StatsSetupConst.ROW_COUNT, summary.getOrDefault(SnapshotSummary.TOTAL_RECORDS_PROP, "0"));
     parameters.put(StatsSetupConst.TOTAL_SIZE, summary.getOrDefault(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "0"));
-    // we don't have the uncompressed file sizes, so we use the totalSize (size on disk) as an estimate for rawDataSize
-    parameters.put(StatsSetupConst.RAW_DATA_SIZE, summary.getOrDefault(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "0"));
 
     tbl.setParameters(parameters);
   }

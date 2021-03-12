@@ -520,7 +520,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     if (Catalogs.hiveCatalog(shell.getHiveConf())) {
-      Assert.assertEquals(13, hmsParams.size());
+      Assert.assertEquals(12, hmsParams.size());
       Assert.assertEquals("initial_val", hmsParams.get("custom_property"));
       Assert.assertEquals("TRUE", hmsParams.get(InputFormatConfig.EXTERNAL_TABLE_PURGE));
       Assert.assertEquals("TRUE", hmsParams.get("EXTERNAL"));
@@ -528,7 +528,6 @@ public class TestHiveIcebergStorageHandlerNoScan {
       Assert.assertEquals("0", hmsParams.get(StatsSetupConst.NUM_FILES));
       Assert.assertEquals("0", hmsParams.get(StatsSetupConst.ROW_COUNT));
       Assert.assertEquals("0", hmsParams.get(StatsSetupConst.TOTAL_SIZE));
-      Assert.assertEquals("0", hmsParams.get(StatsSetupConst.RAW_DATA_SIZE));
       Assert.assertEquals(HiveIcebergStorageHandler.class.getName(),
           hmsParams.get(hive_metastoreConstants.META_TABLE_STORAGE));
       Assert.assertEquals(BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(),
@@ -561,7 +560,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     if (Catalogs.hiveCatalog(shell.getHiveConf())) {
-      Assert.assertEquals(16, hmsParams.size()); // 2 newly-added properties + previous_metadata_location prop
+      Assert.assertEquals(15, hmsParams.size()); // 2 newly-added properties + previous_metadata_location prop
       Assert.assertEquals("true", hmsParams.get("new_prop_1"));
       Assert.assertEquals("false", hmsParams.get("new_prop_2"));
       Assert.assertEquals("new_val", hmsParams.get("custom_property"));
@@ -595,8 +594,6 @@ public class TestHiveIcebergStorageHandlerNoScan {
       Assert.assertEquals(summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP), hmsParams.get(StatsSetupConst.NUM_FILES));
       Assert.assertEquals(summary.get(SnapshotSummary.TOTAL_RECORDS_PROP), hmsParams.get(StatsSetupConst.ROW_COUNT));
       Assert.assertEquals(summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP), hmsParams.get(StatsSetupConst.TOTAL_SIZE));
-      Assert.assertEquals(summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP),
-          hmsParams.get(StatsSetupConst.RAW_DATA_SIZE));
     }
   }
 
