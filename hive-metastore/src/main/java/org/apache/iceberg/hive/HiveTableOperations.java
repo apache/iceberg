@@ -160,7 +160,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
     boolean hiveEngineEnabled = hiveEngineEnabled(metadata, conf);
 
-    boolean commitFailed = false;
+    boolean canCleanupMetadata = false;
     boolean updateHiveTable = false;
     Optional<Long> lockId = Optional.empty();
     try {
@@ -172,7 +172,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       if (tbl != null) {
         // If we try to create the table but the metadata location is already set, then we had a concurrent commit
         if (base == null && tbl.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP) != null) {
-          commitFailed = true;
+          canCleanupMetadata = true;
           throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
         }
 
@@ -188,7 +188,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
       String baseMetadataLocation = base != null ? base.metadataFileLocation() : null;
       if (!Objects.equals(baseMetadataLocation, metadataLocation)) {
-        commitFailed = true;
+        canCleanupMetadata = true;
         throw new CommitFailedException(
             "Base metadata location '%s' is not same as the current table metadata location '%s' for %s.%s",
             baseMetadataLocation, metadataLocation, database, tableName);
@@ -209,12 +209,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
       persistTable(tbl, updateHiveTable);
     } catch (org.apache.hadoop.hive.metastore.api.AlreadyExistsException e) {
-      commitFailed = true;
+      canCleanupMetadata = true;
       throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
 
     } catch (TException | UnknownHostException e) {
       if (e.getMessage() != null && e.getMessage().contains("Table/View 'HIVE_LOCKS' does not exist")) {
-        commitFailed = true;
+        canCleanupMetadata = true;
         throw new RuntimeException("Failed to acquire locks from metastore because 'HIVE_LOCKS' doesn't " +
             "exist, this probably happened when using embedded metastore or doesn't create a " +
             "transactional meta table. To fix this, use an alternative metastore.\n%s", e);
@@ -226,7 +226,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         return; // We are able to verify the commit succeed
       } else {
         // We were able to check and the commit did not succeed
-        commitFailed = true;
+        canCleanupMetadata = true;
         throw new RuntimeException("Commit failed because of a Metastore error.\n%s", metastoreException);
       }
 
@@ -238,11 +238,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         return; // We are able to verify the commit succeed
       } else {
         // We were able to check and the commit did not succeed
-        commitFailed = true;
+        canCleanupMetadata = true;
         throw new RuntimeException("Commit failed because of an interrupt.\n%s", interruptException);
       }
     } finally {
-      cleanupMetadataAndUnlock(commitFailed, newMetadataLocation, lockId);
+      cleanupMetadataAndUnlock(canCleanupMetadata, newMetadataLocation, lockId);
     }
   }
 
