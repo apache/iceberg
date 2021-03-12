@@ -166,42 +166,37 @@ public class RewriteManifestsAction
   }
 
   private RewriteManifestsActionResult doExecute() {
-    SparkContext context = spark().sparkContext();
-    JobGroupInfo info = JobGroupUtils.getJobGroupInfo(context);
-    return withJobGroupInfo(info, () -> {
-      spark().sparkContext().setJobGroup("REWRITE-MANIFEST", "REWRITE-MANIFEST-" + JobGroupUtils.jobCounter(), false);
-      List<ManifestFile> matchingManifests = findMatchingManifests();
-      if (matchingManifests.isEmpty()) {
-        return RewriteManifestsActionResult.empty();
-      }
+    List<ManifestFile> matchingManifests = findMatchingManifests();
+    if (matchingManifests.isEmpty()) {
+      return RewriteManifestsActionResult.empty();
+    }
 
-      long totalSizeBytes = 0L;
-      int numEntries = 0;
+    long totalSizeBytes = 0L;
+    int numEntries = 0;
 
-      for (ManifestFile manifest : matchingManifests) {
-        ValidationException.check(hasFileCounts(manifest), "No file counts in manifest: %s", manifest.path());
+    for (ManifestFile manifest : matchingManifests) {
+      ValidationException.check(hasFileCounts(manifest), "No file counts in manifest: %s", manifest.path());
 
-        totalSizeBytes += manifest.length();
-        numEntries += manifest.addedFilesCount() + manifest.existingFilesCount() + manifest.deletedFilesCount();
-      }
+      totalSizeBytes += manifest.length();
+      numEntries += manifest.addedFilesCount() + manifest.existingFilesCount() + manifest.deletedFilesCount();
+    }
 
-      int targetNumManifests = targetNumManifests(totalSizeBytes);
-      int targetNumManifestEntries = targetNumManifestEntries(numEntries, targetNumManifests);
+    int targetNumManifests = targetNumManifests(totalSizeBytes);
+    int targetNumManifestEntries = targetNumManifestEntries(numEntries, targetNumManifests);
 
-      Dataset<Row> manifestEntryDF = buildManifestEntryDF(matchingManifests);
+    Dataset<Row> manifestEntryDF = buildManifestEntryDF(matchingManifests);
 
-      List<ManifestFile> newManifests;
-      if (spec.fields().size() < 1) {
-        newManifests = writeManifestsForUnpartitionedTable(manifestEntryDF, targetNumManifests);
-      } else {
-        newManifests = writeManifestsForPartitionedTable(manifestEntryDF, targetNumManifests, targetNumManifestEntries);
-      }
+    List<ManifestFile> newManifests;
+    if (spec.fields().size() < 1) {
+      newManifests = writeManifestsForUnpartitionedTable(manifestEntryDF, targetNumManifests);
+    } else {
+      newManifests = writeManifestsForPartitionedTable(manifestEntryDF, targetNumManifests, targetNumManifestEntries);
+    }
 
-      replaceManifests(matchingManifests, newManifests);
+    replaceManifests(matchingManifests, newManifests);
 
-      return new RewriteManifestsActionResult(matchingManifests, newManifests);
+    return new RewriteManifestsActionResult(matchingManifests, newManifests);
 
-    });
   }
 
   private Dataset<Row> buildManifestEntryDF(List<ManifestFile> manifests) {

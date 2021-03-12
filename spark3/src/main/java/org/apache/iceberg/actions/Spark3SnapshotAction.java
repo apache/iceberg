@@ -57,7 +57,6 @@ public class Spark3SnapshotAction extends Spark3CreateAction implements Snapshot
   }
 
   private Long doExecute() {
-    spark().sparkContext().setJobGroup("SNAPSHOT", "SNAPSHOT-" + JobGroupUtils.jobCounter(), false);
     StagedSparkTable stagedTable = stageDestTable();
     Table icebergTable = stagedTable.table();
     // TODO Check table location here against source location
@@ -94,8 +93,7 @@ public class Spark3SnapshotAction extends Spark3CreateAction implements Snapshot
 
   @Override
   public Long execute() {
-    SparkContext context = spark().sparkContext();
-    JobGroupInfo info = JobGroupUtils.getJobGroupInfo(context);
+    JobGroupInfo info = new JobGroupInfo("SNAPSHOT", "SNAPSHOT-ACTION", false);
     return withJobGroupInfo(info, this::doExecute);
   }
 

@@ -58,7 +58,6 @@ public class Spark3MigrateAction extends Spark3CreateAction {
   }
 
   private Long doExecute() {
-    spark().sparkContext().setJobGroup("MIGRATE", "MIGRATE-" + JobGroupUtils.jobCounter(), false);
     // Move source table to a new name, halting all modifications and allowing us to stage
     // the creation of a new Iceberg table in its place
     String backupName = sourceTableIdent().name() + BACKUP_SUFFIX;
@@ -119,8 +118,7 @@ public class Spark3MigrateAction extends Spark3CreateAction {
 
   @Override
   public Long execute() {
-    SparkContext context = spark().sparkContext();
-    JobGroupInfo info = JobGroupUtils.getJobGroupInfo(context);
+    JobGroupInfo info = new JobGroupInfo("MIGRATE", "MIGRATE", false);
     return withJobGroupInfo(info, this::doExecute);
   }
 

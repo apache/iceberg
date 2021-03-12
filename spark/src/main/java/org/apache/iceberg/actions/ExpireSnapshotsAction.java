@@ -214,16 +214,11 @@ public class ExpireSnapshotsAction extends BaseSparkAction<ExpireSnapshotsAction
   }
 
   private ExpireSnapshotsActionResult doExecute() {
-    SparkContext context = spark().sparkContext();
-    JobGroupInfo info = JobGroupUtils.getJobGroupInfo(context);
-    return withJobGroupInfo(info, () -> {
-      spark().sparkContext().setJobGroup("EXPIRE", "EXPIRE-SNAPSHOTS-" + JobGroupUtils.jobCounter(), false);
-      if (streamResults) {
-        return deleteFiles(expire().toLocalIterator());
-      } else {
-        return deleteFiles(expire().collectAsList().iterator());
-      }
-    });
+    if (streamResults) {
+      return deleteFiles(expire().toLocalIterator());
+    } else {
+      return deleteFiles(expire().collectAsList().iterator());
+    }
   }
 
   private Dataset<Row> appendTypeString(Dataset<Row> ds, String type) {

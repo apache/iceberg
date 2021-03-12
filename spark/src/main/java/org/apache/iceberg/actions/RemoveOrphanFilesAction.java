@@ -153,31 +153,26 @@ public class RemoveOrphanFilesAction extends BaseSparkAction<RemoveOrphanFilesAc
   }
 
   private List<String> doExecute() {
-    SparkContext context = spark().sparkContext();
-    JobGroupInfo info = JobGroupUtils.getJobGroupInfo(context);
-    return withJobGroupInfo(info, () -> {
-      spark().sparkContext().setJobGroup("REMOVE", "REMOVE-ORPHAN-FILES-" + JobGroupUtils.jobCounter(), false);
-      Dataset<Row> validDataFileDF = buildValidDataFileDF(table);
-      Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table, ops);
-      Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);
-      Dataset<Row> actualFileDF = buildActualFileDF();
+    Dataset<Row> validDataFileDF = buildValidDataFileDF(table);
+    Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table, ops);
+    Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);
+    Dataset<Row> actualFileDF = buildActualFileDF();
 
-      Column nameEqual = filename.apply(actualFileDF.col("file_path"))
-              .equalTo(filename.apply(validFileDF.col("file_path")));
-      Column actualContains = actualFileDF.col("file_path").contains(validFileDF.col("file_path"));
-      Column joinCond = nameEqual.and(actualContains);
-      List<String> orphanFiles = actualFileDF.join(validFileDF, joinCond, "leftanti")
-              .as(Encoders.STRING())
-              .collectAsList();
+    Column nameEqual = filename.apply(actualFileDF.col("file_path"))
+            .equalTo(filename.apply(validFileDF.col("file_path")));
+    Column actualContains = actualFileDF.col("file_path").contains(validFileDF.col("file_path"));
+    Column joinCond = nameEqual.and(actualContains);
+    List<String> orphanFiles = actualFileDF.join(validFileDF, joinCond, "leftanti")
+            .as(Encoders.STRING())
+            .collectAsList();
 
-      Tasks.foreach(orphanFiles)
-              .noRetry()
-              .suppressFailureWhenFinished()
-              .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
-              .run(deleteFunc::accept);
+    Tasks.foreach(orphanFiles)
+            .noRetry()
+            .suppressFailureWhenFinished()
+            .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
+            .run(deleteFunc::accept);
 
-      return orphanFiles;
-    });
+    return orphanFiles;
   }
 
   private Dataset<Row> buildActualFileDF() {
