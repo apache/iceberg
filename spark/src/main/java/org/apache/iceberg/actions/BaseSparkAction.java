@@ -55,7 +55,7 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
   private final SparkSession spark;
   private final JavaSparkContext sparkContext;
-  private AtomicInteger counter = new AtomicInteger();
+  private final AtomicInteger jobCounter = new AtomicInteger();
 
   protected BaseSparkAction(SparkSession spark) {
     this.spark = spark;
@@ -81,6 +81,9 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     }
   }
 
+  protected JobGroupInfo newJobGroupInfo(String groupId, String desc) {
+    return new JobGroupInfo(groupId, desc + "-" + jobCounter.incrementAndGet(), false);
+  }
   /**
    * Returns all the path locations of all Manifest Lists for a given list of snapshots
    * @param snapshots snapshots

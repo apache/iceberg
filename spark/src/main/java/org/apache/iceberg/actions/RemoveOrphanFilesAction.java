@@ -148,6 +148,11 @@ public class RemoveOrphanFilesAction extends BaseSparkAction<RemoveOrphanFilesAc
 
   @Override
   public List<String> execute() {
+    JobGroupInfo info = newJobGroupInfo("REMOVE-ORPHAN-FILES", "REMOVE-ORPHAN-FILES");
+    return withJobGroupInfo(info, this::doExecute);
+  }
+
+  private List<String> doExecute() {
     SparkContext context = spark().sparkContext();
     JobGroupInfo info = JobGroupUtils.getJobGroupInfo(context);
     return withJobGroupInfo(info, () -> {

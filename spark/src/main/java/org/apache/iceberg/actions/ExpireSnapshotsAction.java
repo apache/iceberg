@@ -209,6 +209,11 @@ public class ExpireSnapshotsAction extends BaseSparkAction<ExpireSnapshotsAction
 
   @Override
   public ExpireSnapshotsActionResult execute() {
+    JobGroupInfo info = newJobGroupInfo("EXPIRE", "EXPIRE-SNAPSHOTS");
+    return withJobGroupInfo(info, this::doExecute);
+  }
+
+  private ExpireSnapshotsActionResult doExecute() {
     SparkContext context = spark().sparkContext();
     JobGroupInfo info = JobGroupUtils.getJobGroupInfo(context);
     return withJobGroupInfo(info, () -> {

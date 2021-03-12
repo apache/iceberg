@@ -56,45 +56,47 @@ public class Spark3SnapshotAction extends Spark3CreateAction implements Snapshot
     super(spark, sourceCatalog, sourceTableIdent, destCatalog, destTableIdent);
   }
 
+  private Long doExecute() {
+    spark().sparkContext().setJobGroup("SNAPSHOT", "SNAPSHOT-" + JobGroupUtils.jobCounter(), false);
+    StagedSparkTable stagedTable = stageDestTable();
+    Table icebergTable = stagedTable.table();
+    // TODO Check table location here against source location
+
+    ensureNameMappingPresent(icebergTable);
+
+    boolean threw = true;
+    try {
+      String stagingLocation = getMetadataLocation(icebergTable);
+      LOG.info("Beginning snapshot of {} to {} using metadata location {}", sourceTableIdent(), destTableIdent(),
+              stagingLocation);
+
+      TableIdentifier v1TableIdentifier = v1SourceTable().identifier();
+      SparkTableUtil.importSparkTable(spark(), v1TableIdentifier, icebergTable, stagingLocation);
+      stagedTable.commitStagedChanges();
+      threw = false;
+    } finally {
+      if (threw) {
+        LOG.error("Error when attempting to commit snapshot changes, rolling back");
+
+        try {
+          stagedTable.abortStagedChanges();
+        } catch (Exception abortException) {
+          LOG.error("Cannot abort staged changes", abortException);
+        }
+      }
+    }
+
+    Snapshot snapshot = icebergTable.currentSnapshot();
+    long numMigratedFiles = Long.parseLong(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
+    LOG.info("Successfully loaded Iceberg metadata for {} files", numMigratedFiles);
+    return numMigratedFiles;
+  }
+
   @Override
   public Long execute() {
     SparkContext context = spark().sparkContext();
     JobGroupInfo info = JobGroupUtils.getJobGroupInfo(context);
-    return withJobGroupInfo(info, () -> {
-      spark().sparkContext().setJobGroup("SNAPSHOT", "SNAPSHOT-" + JobGroupUtils.jobCounter(), false);
-      StagedSparkTable stagedTable = stageDestTable();
-      Table icebergTable = stagedTable.table();
-      // TODO Check table location here against source location
-
-      ensureNameMappingPresent(icebergTable);
-
-      boolean threw = true;
-      try {
-        String stagingLocation = getMetadataLocation(icebergTable);
-        LOG.info("Beginning snapshot of {} to {} using metadata location {}", sourceTableIdent(), destTableIdent(),
-                stagingLocation);
-
-        TableIdentifier v1TableIdentifier = v1SourceTable().identifier();
-        SparkTableUtil.importSparkTable(spark(), v1TableIdentifier, icebergTable, stagingLocation);
-        stagedTable.commitStagedChanges();
-        threw = false;
-      } finally {
-        if (threw) {
-          LOG.error("Error when attempting to commit snapshot changes, rolling back");
-
-          try {
-            stagedTable.abortStagedChanges();
-          } catch (Exception abortException) {
-            LOG.error("Cannot abort staged changes", abortException);
-          }
-        }
-      }
-
-      Snapshot snapshot = icebergTable.currentSnapshot();
-      long numMigratedFiles = Long.parseLong(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
-      LOG.info("Successfully loaded Iceberg metadata for {} files", numMigratedFiles);
-      return numMigratedFiles;
-    });
+    return withJobGroupInfo(info, this::doExecute);
   }
 
   @Override

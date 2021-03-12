@@ -161,6 +161,11 @@ public class RewriteManifestsAction
 
   @Override
   public RewriteManifestsActionResult execute() {
+    JobGroupInfo info = newJobGroupInfo("REWRITE-MANIFESTS", "REWRITE-MANIFESTS");
+    return withJobGroupInfo(info, this::doExecute);
+  }
+
+  private RewriteManifestsActionResult doExecute() {
     SparkContext context = spark().sparkContext();
     JobGroupInfo info = JobGroupUtils.getJobGroupInfo(context);
     return withJobGroupInfo(info, () -> {
