@@ -254,13 +254,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
    */
   private boolean checkCommitSuccessful(String newMetadataLocation, RuntimeException originalFailure) {
     try {
-      Table tbl = loadHmsTable();
-      String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
-      return metadataLocation.equals(newMetadataLocation);
-    } catch (InterruptedException e) {
-      LOG.error("Cannot determine if commit was successful. Rethrowing original failure.", e);
-      throw originalFailure;
-    } catch (TException e) {
+      refresh();
+      TableMetadata metadata = current();
+      String metadataLocation = metadata.metadataFileLocation();
+      return metadataLocation.equals(newMetadataLocation) ||
+              metadata.previousFiles().stream().anyMatch(log -> log.file().equals(newMetadataLocation));
+    } catch (RuntimeException e) {
       LOG.error("Cannot determine if commit was successful. Rethrowing original failure.", e);
       throw originalFailure;
     }
@@ -377,7 +376,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     return storageDescriptor;
   }
 
-  private long acquireLock() throws UnknownHostException, TException, InterruptedException {
+  // Visible for testing
+  protected long acquireLock() throws UnknownHostException, TException, InterruptedException {
     final LockComponent lockComponent = new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, database);
     lockComponent.setTablename(tableName);
     final LockRequest lockRequest = new LockRequest(Lists.newArrayList(lockComponent),

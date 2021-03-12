@@ -20,6 +20,8 @@
 package org.apache.iceberg.hive;
 
 import java.io.File;
+import java.net.UnknownHostException;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
@@ -172,7 +174,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
   }
 
   @Test
-  public void testRuntimeExceptionsUnknownSuccessCommit() throws TException, InterruptedException {
+  public void testThriftExceptionsUnknownSuccessCommit() throws TException, InterruptedException {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
     HiveTableOperations ops = (HiveTableOperations) ((HasTableOperations) table).operations();
 
@@ -203,6 +205,47 @@ public class TestHiveCommits extends HiveTableBaseTest {
     Assert.assertTrue("Current metadata file should still exist", metadataFileExists(ops.current()));
   }
 
+  @Test
+  public void testThriftExceptionConcurrentCommit() throws TException, InterruptedException, UnknownHostException {
+    Table table = catalog.loadTable(TABLE_IDENTIFIER);
+    HiveTableOperations ops = (HiveTableOperations) ((HasTableOperations) table).operations();
+
+    TableMetadata metadataV1 = ops.current();
+
+    table.updateSchema()
+        .addColumn("n", Types.IntegerType.get())
+        .commit();
+
+    ops.refresh();
+
+    TableMetadata metadataV2 = ops.current();
+
+    Assert.assertEquals(2, ops.current().schema().columns().size());
+
+    HiveTableOperations spyOps = spy(ops);
+
+    AtomicLong lockId = new AtomicLong();
+    doAnswer(i -> {
+      lockId.set(ops.acquireLock());
+      return lockId.get();
+    }).when(spyOps).acquireLock();
+
+    throwExceptionAndConcurrentCommit(ops, spyOps, table, lockId);
+
+    /*
+    This commit and our concurrent commit should succeed even though this commit throws an exception
+    after the persist operation suceeds
+     */
+    spyOps.commit(metadataV2, metadataV1);
+
+    ops.refresh();
+
+    Assert.assertFalse("Current metadata should have changed", ops.current().equals(metadataV2));
+    Assert.assertTrue("Current metadata file should still exist", metadataFileExists(ops.current()));
+    Assert.assertEquals("The column addition from the concurrent commit should have been successful",
+        2, ops.current().schema().columns().size());
+  }
+
   private void throwExceptionAndCommit(HiveTableOperations realOperations, HiveTableOperations spyOperations)
       throws TException, InterruptedException {
     // Simulate a communication error after a successful commit
@@ -214,19 +257,32 @@ public class TestHiveCommits extends HiveTableBaseTest {
     }).when(spyOperations).persistTable(any(), anyBoolean());
   }
 
+  private void throwExceptionAndConcurrentCommit(HiveTableOperations realOperations, HiveTableOperations spyOperations,
+                                                 Table table, AtomicLong lockId)
+      throws TException, InterruptedException {
+    // Simulate a communication error after a successful commit
+    doAnswer(i -> {
+      org.apache.hadoop.hive.metastore.api.Table tbl =
+          i.getArgumentAt(0, org.apache.hadoop.hive.metastore.api.Table.class);
+      realOperations.persistTable(tbl, true);
+      // Simulate lock expiration or removal
+      realOperations.doUnlock(lockId.get());
+      table.refresh();
+      table.updateSchema().addColumn("newCol", Types.IntegerType.get()).commit();
+      throw new TException("Datacenter on fire");
+    }).when(spyOperations).persistTable(any(), anyBoolean());
+  }
+
   private void throwExceptionDontCommit(HiveTableOperations spyOperations) throws TException, InterruptedException {
     doThrow(new TException("Datacenter on fire"))
         .when(spyOperations)
         .persistTable(any(), anyBoolean());
-
   }
 
-  private void breakCommitCheck(HiveTableOperations spyOperations) throws TException, InterruptedException {
-    when(spyOperations.loadHmsTable())
-        .thenCallRealMethod() // Success when loading
-        .thenThrow(new TException("Still on fire")); // Failure on commit check
+  private void breakCommitCheck(HiveTableOperations spyOperations) {
+    when(spyOperations.refresh())
+        .thenThrow(new RuntimeException("Still on fire")); // Failure on commit check
   }
-
 
   private boolean metadataFileExists(TableMetadata metadata) {
     return new File(metadata.metadataFileLocation().replace("file:", "")).exists();
