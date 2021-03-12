@@ -127,8 +127,7 @@ public abstract class TestSparkReaderDeletes extends DeleteReadTests {
 
   @Test
   public void testEqualityDeleteWithFilter() throws IOException {
-    String tableName = "test_with_filter";
-    Table table = createTable(tableName, SCHEMA, SPEC);
+    String tableName = table.name().substring(table.name().lastIndexOf(".") + 1);
     Schema deleteRowSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(deleteRowSchema);
     List<Record> dataDeletes = Lists.newArrayList(

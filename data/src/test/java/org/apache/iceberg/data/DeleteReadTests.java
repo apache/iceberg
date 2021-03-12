@@ -59,7 +59,7 @@ public abstract class DeleteReadTests {
   public TemporaryFolder temp = new TemporaryFolder();
 
   private String tableName = null;
-  private Table table = null;
+  protected Table table = null;
   private List<Record> records = null;
   private DataFile dataFile = null;
 
