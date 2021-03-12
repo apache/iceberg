@@ -29,8 +29,10 @@ import org.apache.flink.test.util.TestBaseUtils;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.CloseableIterator;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -57,7 +59,8 @@ public abstract class FlinkTestBase extends TestBaseUtils {
     FlinkTestBase.metastore = new TestHiveMetastore();
     metastore.start();
     FlinkTestBase.hiveConf = metastore.hiveConf();
-    FlinkTestBase.catalog = new HiveCatalog(metastore.hiveConf());
+    FlinkTestBase.catalog = (HiveCatalog)
+        CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
   }
 
   @AfterClass

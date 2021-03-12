@@ -23,6 +23,8 @@ import java.util.HashMap;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.Database;
+import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -44,7 +46,8 @@ public abstract class HiveMetastoreTest {
     String dbPath = metastore.getDatabasePath(DB_NAME);
     Database db = new Database(DB_NAME, "description", dbPath, new HashMap<>());
     metastoreClient.createDatabase(db);
-    HiveMetastoreTest.catalog = new HiveCatalog(hiveConf);
+    HiveMetastoreTest.catalog = (HiveCatalog)
+        CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
   }
 
   @AfterClass
