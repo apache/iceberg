@@ -220,26 +220,26 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             "transactional meta table. To fix this, use an alternative metastore.\n%s", e);
       }
 
-      CommitStateUnknownException metastoreException =
-              new CommitStateUnknownException(e, "Metastore operation failed for %s.%s", database, tableName);
+      RuntimeException metastoreException =
+              new RuntimeException(String.format("Metastore operation failed for %s.%s", database, tableName), e);
       if (checkCommitSuccessful(newMetadataLocation, metastoreException)) {
         return; // We are able to verify the commit succeed
       } else {
         // We were able to check and the commit did not succeed
         canCleanupMetadata = true;
-        throw new RuntimeException("Commit failed because of a Metastore error.\n%s", metastoreException);
+        throw metastoreException;
       }
 
     } catch (InterruptedException e) {
 
       Thread.currentThread().interrupt();
-      CommitStateUnknownException interruptException = new CommitStateUnknownException(e, "Interrupted during commit");
+      RuntimeException interruptException = new RuntimeException("Interrupted during commit", e);
       if (checkCommitSuccessful(newMetadataLocation, interruptException)) {
         return; // We are able to verify the commit succeed
       } else {
         // We were able to check and the commit did not succeed
         canCleanupMetadata = true;
-        throw new RuntimeException("Commit failed because of an interrupt.\n%s", interruptException);
+        throw interruptException;
       }
     } finally {
       cleanupMetadataAndUnlock(canCleanupMetadata, newMetadataLocation, lockId);
@@ -255,7 +255,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
    * @return true if the commit was successful, false if not, and rethrows the original exception if we cannot
    * determine
    */
-  private boolean checkCommitSuccessful(String newMetadataLocation, CommitStateUnknownException originalFailure) {
+  private boolean checkCommitSuccessful(String newMetadataLocation, RuntimeException originalFailure) {
     try {
       refresh();
       TableMetadata metadata = current();
@@ -264,7 +264,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
               metadata.previousFiles().stream().anyMatch(log -> log.file().equals(newMetadataLocation));
     } catch (RuntimeException e) {
       LOG.error("Cannot determine if commit was successful. Rethrowing original failure.", e);
-      throw originalFailure;
+      throw new CommitStateUnknownException(originalFailure);
     }
   }
 

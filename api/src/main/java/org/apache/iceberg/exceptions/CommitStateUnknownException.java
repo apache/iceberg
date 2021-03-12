@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.exceptions;
 
-import com.google.errorprone.annotations.FormatMethod;
-
 /**
  * Exception for a failure to confirm either affirmatively or negatively that a commit was applied. The client
  * cannot take any further action without possibly corrupting the table.
@@ -34,13 +32,7 @@ public class CommitStateUnknownException extends RuntimeException {
       "Please check to see whether or not your commit was successful when the catalog is again reachable." +
       "At this time no files will be deleted including possibly unused manifest lists.";
 
-  @FormatMethod
-  public CommitStateUnknownException(String message, Object... args) {
-    super(String.format(message, args) + commonInfo);
-  }
-
-  @FormatMethod
-  public CommitStateUnknownException(Throwable cause, String message, Object... args) {
-    super(String.format(message, args) + commonInfo, cause);
+  public CommitStateUnknownException(Throwable cause) {
+    super(cause.getMessage() + commonInfo, cause);
   }
 }
