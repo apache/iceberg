@@ -49,7 +49,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ChainedFilter;
 import org.apache.iceberg.util.Filter;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
@@ -113,9 +112,10 @@ public abstract class DeleteFilter<T> {
     return applyEqDeletes(applyPosDeletes(records));
   }
 
-  public CloseableIterable<T> matchEqDeletes(CloseableIterable<T> records) {
+  private List<Predicate<T>> applyEqDeletes() {
+    List<Predicate<T>> isInDeleteSets = Lists.newArrayList();
     if (eqDeletes.isEmpty()) {
-      return records;
+      return isInDeleteSets;
     }
 
     Multimap<Set<Integer>, DeleteFile> filesByDeleteIds = Multimaps.newMultimap(Maps.newHashMap(), Lists::newArrayList);
@@ -123,7 +123,6 @@ public abstract class DeleteFilter<T> {
       filesByDeleteIds.put(Sets.newHashSet(delete.equalityFieldIds()), delete);
     }
 
-    List<Predicate<T>> deleteSetFilters = Lists.newArrayList();
     for (Map.Entry<Set<Integer>, Collection<DeleteFile>> entry : filesByDeleteIds.asMap().entrySet()) {
       Set<Integer> ids = entry.getKey();
       Iterable<DeleteFile> deletes = entry.getValue();
@@ -140,46 +139,43 @@ public abstract class DeleteFilter<T> {
           CloseableIterable.transform(CloseableIterable.concat(deleteRecords), Record::copy),
           deleteSchema.asStruct());
 
-      Predicate<T> predicate = record -> deleteSet.contains(projectRow.wrap(asStructLike(record)));
-      deleteSetFilters.add(predicate);
+      Predicate<T> isInDeleteSet = record -> deleteSet.contains(projectRow.wrap(asStructLike(record)));
+      isInDeleteSets.add(isInDeleteSet);
     }
 
-    Filter<T> findDeleteRows = new ChainedFilter<>(deleteSetFilters);
-    return findDeleteRows.filter(records);
+    return isInDeleteSets;
+  }
+
+  public CloseableIterable<T> findEqualityDeleteRows(CloseableIterable<T> records) {
+    // Predicate to test whether a row has been deleted by equality deletions.
+    Predicate<T> deletedRows = applyEqDeletes().stream()
+        .reduce(Predicate::or)
+        .orElse(t -> false);
+
+    Filter<T> deletedRowsFilter = new Filter<T>() {
+      @Override
+      protected boolean shouldKeep(T item) {
+        return deletedRows.test(item);
+      }
+    };
+    return deletedRowsFilter.filter(records);
   }
 
   private CloseableIterable<T> applyEqDeletes(CloseableIterable<T> records) {
-    if (eqDeletes.isEmpty()) {
-      return records;
-    }
+    // Predicate to test whether a row should be visible to user after applying equality deletions.
+    Predicate<T> remainingRows = applyEqDeletes().stream()
+        .map(Predicate::negate)
+        .reduce(Predicate::and)
+        .orElse(t -> true);
 
-    Multimap<Set<Integer>, DeleteFile> filesByDeleteIds = Multimaps.newMultimap(Maps.newHashMap(), Lists::newArrayList);
-    for (DeleteFile delete : eqDeletes) {
-      filesByDeleteIds.put(Sets.newHashSet(delete.equalityFieldIds()), delete);
-    }
+    Filter<T> remainingRowsFilter = new Filter<T>() {
+      @Override
+      protected boolean shouldKeep(T item) {
+        return remainingRows.test(item);
+      }
+    };
 
-    CloseableIterable<T> filteredRecords = records;
-    for (Map.Entry<Set<Integer>, Collection<DeleteFile>> entry : filesByDeleteIds.asMap().entrySet()) {
-      Set<Integer> ids = entry.getKey();
-      Iterable<DeleteFile> deletes = entry.getValue();
-
-      Schema deleteSchema = TypeUtil.select(requiredSchema, ids);
-
-      // a projection to select and reorder fields of the file schema to match the delete rows
-      StructProjection projectRow = StructProjection.create(requiredSchema, deleteSchema);
-
-      Iterable<CloseableIterable<Record>> deleteRecords = Iterables.transform(deletes,
-          delete -> openDeletes(delete, deleteSchema));
-      StructLikeSet deleteSet = Deletes.toEqualitySet(
-          // copy the delete records because they will be held in a set
-          CloseableIterable.transform(CloseableIterable.concat(deleteRecords), Record::copy),
-          deleteSchema.asStruct());
-
-      filteredRecords = Deletes.filter(filteredRecords,
-          record -> projectRow.wrap(asStructLike(record)), deleteSet);
-    }
-
-    return filteredRecords;
+    return remainingRowsFilter.filter(records);
   }
 
   private CloseableIterable<T> applyPosDeletes(CloseableIterable<T> records) {

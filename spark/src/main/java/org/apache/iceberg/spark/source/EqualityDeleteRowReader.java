@@ -54,6 +54,6 @@ public class EqualityDeleteRowReader extends RowDataReader {
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(file.path().toString(), task.start(), task.length());
 
-    return matches.matchEqDeletes(open(task, requiredSchema, idToConstant)).iterator();
+    return matches.findEqualityDeleteRows(open(task, requiredSchema, idToConstant)).iterator();
   }
 }
