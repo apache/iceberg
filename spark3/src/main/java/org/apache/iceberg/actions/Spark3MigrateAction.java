@@ -32,6 +32,7 @@ import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.StagedSparkTable;
+import org.apache.spark.SparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
@@ -57,63 +58,68 @@ public class Spark3MigrateAction extends Spark3CreateAction {
   }
 
   @Override
-  public Long doExecute() {
-    // Move source table to a new name, halting all modifications and allowing us to stage
-    // the creation of a new Iceberg table in its place
-    String backupName = sourceTableIdent().name() + BACKUP_SUFFIX;
-    Identifier backupIdentifier = Identifier.of(sourceTableIdent().namespace(), backupName);
-    try {
-      destCatalog().renameTable(sourceTableIdent(), backupIdentifier);
-    } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException e) {
-      throw new NoSuchTableException("Cannot find table '%s' to migrate", sourceTableIdent());
-    } catch (org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException e) {
-      throw new AlreadyExistsException("Cannot rename migration source '%s' to backup name '%s'." +
-          " Backup table already exists.", sourceTableIdent(), backupIdentifier);
-    }
+  public Long execute() {
+    SparkContext context = spark().sparkContext();
+    JobGroupInfo info = JobGroupUtils.getJobGroupInfo(context);
+    return withJobGroupInfo(info, () -> {
+      spark().sparkContext().setJobGroup("MIGRATE", "MIGRATE-" + JobGroupUtils.jobCounter(), false);
+      // Move source table to a new name, halting all modifications and allowing us to stage
+      // the creation of a new Iceberg table in its place
+      String backupName = sourceTableIdent().name() + BACKUP_SUFFIX;
+      Identifier backupIdentifier = Identifier.of(sourceTableIdent().namespace(), backupName);
+      try {
+        destCatalog().renameTable(sourceTableIdent(), backupIdentifier);
+      } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException e) {
+        throw new NoSuchTableException("Cannot find table '%s' to migrate", sourceTableIdent());
+      } catch (org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException e) {
+        throw new AlreadyExistsException("Cannot rename migration source '%s' to backup name '%s'." +
+                " Backup table already exists.", sourceTableIdent(), backupIdentifier);
+      }
 
-    StagedSparkTable stagedTable = null;
-    Table icebergTable;
-    boolean threw = true;
-    try {
-      stagedTable = stageDestTable();
-      icebergTable = stagedTable.table();
+      StagedSparkTable stagedTable = null;
+      Table icebergTable;
+      boolean threw = true;
+      try {
+        stagedTable = stageDestTable();
+        icebergTable = stagedTable.table();
 
-      ensureNameMappingPresent(icebergTable);
+        ensureNameMappingPresent(icebergTable);
 
-      String stagingLocation = getMetadataLocation(icebergTable);
+        String stagingLocation = getMetadataLocation(icebergTable);
 
-      LOG.info("Beginning migration of {} using metadata location {}", sourceTableIdent(), stagingLocation);
-      Some<String> backupNamespace = Some.apply(backupIdentifier.namespace()[0]);
-      TableIdentifier v1BackupIdentifier = new TableIdentifier(backupIdentifier.name(), backupNamespace);
-      SparkTableUtil.importSparkTable(spark(), v1BackupIdentifier, icebergTable, stagingLocation);
+        LOG.info("Beginning migration of {} using metadata location {}", sourceTableIdent(), stagingLocation);
+        Some<String> backupNamespace = Some.apply(backupIdentifier.namespace()[0]);
+        TableIdentifier v1BackupIdentifier = new TableIdentifier(backupIdentifier.name(), backupNamespace);
+        SparkTableUtil.importSparkTable(spark(), v1BackupIdentifier, icebergTable, stagingLocation);
 
-      stagedTable.commitStagedChanges();
-      threw = false;
-    } finally {
-      if (threw) {
-        LOG.error("Error when attempting perform migration changes, aborting table creation and restoring backup.");
+        stagedTable.commitStagedChanges();
+        threw = false;
+      } finally {
+        if (threw) {
+          LOG.error("Error when attempting perform migration changes, aborting table creation and restoring backup.");
 
-        try {
-          destCatalog().renameTable(backupIdentifier, sourceTableIdent());
-        } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException nstException) {
-          LOG.error("Cannot restore backup '{}', the backup cannot be found", backupIdentifier, nstException);
-        } catch (org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException taeException) {
-          LOG.error("Cannot restore backup, a table with the original name " +
-              "exists. The backup can be found with the name '{}'", backupIdentifier, taeException);
-        }
+          try {
+            destCatalog().renameTable(backupIdentifier, sourceTableIdent());
+          } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException nstException) {
+            LOG.error("Cannot restore backup '{}', the backup cannot be found", backupIdentifier, nstException);
+          } catch (org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException taeException) {
+            LOG.error("Cannot restore backup, a table with the original name " +
+                    "exists. The backup can be found with the name '{}'", backupIdentifier, taeException);
+          }
 
-        try {
-          stagedTable.abortStagedChanges();
-        } catch (Exception abortException) {
-          LOG.error("Cannot abort staged changes", abortException);
+          try {
+            stagedTable.abortStagedChanges();
+          } catch (Exception abortException) {
+            LOG.error("Cannot abort staged changes", abortException);
+          }
         }
       }
-    }
 
-    Snapshot snapshot = icebergTable.currentSnapshot();
-    long numMigratedFiles = Long.parseLong(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
-    LOG.info("Successfully loaded Iceberg metadata for {} files", numMigratedFiles);
-    return numMigratedFiles;
+      Snapshot snapshot = icebergTable.currentSnapshot();
+      long numMigratedFiles = Long.parseLong(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
+      LOG.info("Successfully loaded Iceberg metadata for {} files", numMigratedFiles);
+      return numMigratedFiles;
+    });
   }
 
   @Override
@@ -139,10 +145,5 @@ public class Spark3MigrateAction extends Spark3CreateAction {
         catalog.name(), catalog.getClass().getName());
 
     return (TableCatalog) catalog;
-  }
-
-  @Override
-  protected JobGroupInfo jobGroup() {
-    return new JobGroupInfo("MIGRATE", "MIGRATE-ACTION-" + JobGroupUtils.jobCounter(), false);
   }
 }

@@ -41,6 +41,7 @@ import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.broadcast.Broadcast;
@@ -146,29 +147,32 @@ public class RemoveOrphanFilesAction extends BaseSparkAction<RemoveOrphanFilesAc
   }
 
   @Override
-  public List<String> doExecute() {
+  public List<String> execute() {
+    SparkContext context = spark().sparkContext();
+    JobGroupInfo info = JobGroupUtils.getJobGroupInfo(context);
+    return withJobGroupInfo(info, () -> {
+      spark().sparkContext().setJobGroup("REMOVE", "REMOVE-ORPHAN-FILES-" + JobGroupUtils.jobCounter(), false);
+      Dataset<Row> validDataFileDF = buildValidDataFileDF(table);
+      Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table, ops);
+      Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);
+      Dataset<Row> actualFileDF = buildActualFileDF();
 
-    spark().sparkContext().setJobGroup("REMOVE", "REMOVE-ORPHAN-FILES", false);
-    Dataset<Row> validDataFileDF = buildValidDataFileDF(table);
-    Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table, ops);
-    Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);
-    Dataset<Row> actualFileDF = buildActualFileDF();
+      Column nameEqual = filename.apply(actualFileDF.col("file_path"))
+              .equalTo(filename.apply(validFileDF.col("file_path")));
+      Column actualContains = actualFileDF.col("file_path").contains(validFileDF.col("file_path"));
+      Column joinCond = nameEqual.and(actualContains);
+      List<String> orphanFiles = actualFileDF.join(validFileDF, joinCond, "leftanti")
+              .as(Encoders.STRING())
+              .collectAsList();
 
-    Column nameEqual = filename.apply(actualFileDF.col("file_path"))
-        .equalTo(filename.apply(validFileDF.col("file_path")));
-    Column actualContains = actualFileDF.col("file_path").contains(validFileDF.col("file_path"));
-    Column joinCond = nameEqual.and(actualContains);
-    List<String> orphanFiles = actualFileDF.join(validFileDF, joinCond, "leftanti")
-        .as(Encoders.STRING())
-        .collectAsList();
+      Tasks.foreach(orphanFiles)
+              .noRetry()
+              .suppressFailureWhenFinished()
+              .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
+              .run(deleteFunc::accept);
 
-    Tasks.foreach(orphanFiles)
-        .noRetry()
-        .suppressFailureWhenFinished()
-        .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
-        .run(deleteFunc::accept);
-
-    return orphanFiles;
+      return orphanFiles;
+    });
   }
 
   private Dataset<Row> buildActualFileDF() {
@@ -257,10 +261,5 @@ public class RemoveOrphanFilesAction extends BaseSparkAction<RemoveOrphanFilesAc
 
       return files.iterator();
     };
-  }
-
-  @Override
-  protected JobGroupInfo jobGroup() {
-    return new JobGroupInfo("REMOVE", "REMOVE-ORPHAN-FILES-" + JobGroupUtils.jobCounter(), false);
   }
 }

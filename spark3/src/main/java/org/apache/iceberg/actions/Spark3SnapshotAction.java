@@ -30,6 +30,7 @@ import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.StagedSparkTable;
+import org.apache.spark.SparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
@@ -56,39 +57,44 @@ public class Spark3SnapshotAction extends Spark3CreateAction implements Snapshot
   }
 
   @Override
-  public Long doExecute() {
-    StagedSparkTable stagedTable = stageDestTable();
-    Table icebergTable = stagedTable.table();
-    // TODO Check table location here against source location
+  public Long execute() {
+    SparkContext context = spark().sparkContext();
+    JobGroupInfo info = JobGroupUtils.getJobGroupInfo(context);
+    return withJobGroupInfo(info, () -> {
+      spark().sparkContext().setJobGroup("SNAPSHOT", "SNAPSHOT-" + JobGroupUtils.jobCounter(), false);
+      StagedSparkTable stagedTable = stageDestTable();
+      Table icebergTable = stagedTable.table();
+      // TODO Check table location here against source location
 
-    ensureNameMappingPresent(icebergTable);
+      ensureNameMappingPresent(icebergTable);
 
-    boolean threw = true;
-    try {
-      String stagingLocation = getMetadataLocation(icebergTable);
-      LOG.info("Beginning snapshot of {} to {} using metadata location {}", sourceTableIdent(), destTableIdent(),
-          stagingLocation);
+      boolean threw = true;
+      try {
+        String stagingLocation = getMetadataLocation(icebergTable);
+        LOG.info("Beginning snapshot of {} to {} using metadata location {}", sourceTableIdent(), destTableIdent(),
+                stagingLocation);
 
-      TableIdentifier v1TableIdentifier = v1SourceTable().identifier();
-      SparkTableUtil.importSparkTable(spark(), v1TableIdentifier, icebergTable, stagingLocation);
-      stagedTable.commitStagedChanges();
-      threw = false;
-    } finally {
-      if (threw) {
-        LOG.error("Error when attempting to commit snapshot changes, rolling back");
+        TableIdentifier v1TableIdentifier = v1SourceTable().identifier();
+        SparkTableUtil.importSparkTable(spark(), v1TableIdentifier, icebergTable, stagingLocation);
+        stagedTable.commitStagedChanges();
+        threw = false;
+      } finally {
+        if (threw) {
+          LOG.error("Error when attempting to commit snapshot changes, rolling back");
 
-        try {
-          stagedTable.abortStagedChanges();
-        } catch (Exception abortException) {
-          LOG.error("Cannot abort staged changes", abortException);
+          try {
+            stagedTable.abortStagedChanges();
+          } catch (Exception abortException) {
+            LOG.error("Cannot abort staged changes", abortException);
+          }
         }
       }
-    }
 
-    Snapshot snapshot = icebergTable.currentSnapshot();
-    long numMigratedFiles = Long.parseLong(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
-    LOG.info("Successfully loaded Iceberg metadata for {} files", numMigratedFiles);
-    return numMigratedFiles;
+      Snapshot snapshot = icebergTable.currentSnapshot();
+      long numMigratedFiles = Long.parseLong(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
+      LOG.info("Successfully loaded Iceberg metadata for {} files", numMigratedFiles);
+      return numMigratedFiles;
+    });
   }
 
   @Override
@@ -136,10 +142,5 @@ public class Spark3SnapshotAction extends Spark3CreateAction implements Snapshot
             " This would cause a mixing of original table created and snapshot created files.");
     this.destTableLocation = location;
     return this;
-  }
-
-  @Override
-  protected JobGroupInfo jobGroup() {
-    return new JobGroupInfo("SNAPSHOT", "SNAPSHOT-ACTION-" + JobGroupUtils.jobCounter(), false);
   }
 }

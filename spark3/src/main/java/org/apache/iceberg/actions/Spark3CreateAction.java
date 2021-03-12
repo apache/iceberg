@@ -194,15 +194,6 @@ abstract class Spark3CreateAction implements CreateAction {
 
   protected abstract TableCatalog checkSourceCatalog(CatalogPlugin catalog);
 
-  @Override
-  public Long execute() {
-    SparkContext context = spark().sparkContext();
-    JobGroupInfo info = JobGroupUtils.getJobGroupInfo(context);
-    return withJobGroupInfo(info, () -> doExecute());
-  }
-
-  protected abstract Long doExecute();
-
   protected <T> T withJobGroupInfo(JobGroupInfo info, Supplier<T> supplier) {
     SparkContext context = spark().sparkContext();
     JobGroupInfo previousInfo = JobGroupUtils.getJobGroupInfo(context);
@@ -214,5 +205,4 @@ abstract class Spark3CreateAction implements CreateAction {
     }
   }
 
-  protected abstract JobGroupInfo jobGroup();
 }

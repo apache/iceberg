@@ -37,6 +37,7 @@ import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.spark.SparkContext;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -207,13 +208,17 @@ public class ExpireSnapshotsAction extends BaseSparkAction<ExpireSnapshotsAction
   }
 
   @Override
-  public ExpireSnapshotsActionResult doExecute() {
-    spark().sparkContext().setJobGroup("EXPIRE", "EXPIRE-SNAPSHOTS", false);
-    if (streamResults) {
-      return deleteFiles(expire().toLocalIterator());
-    } else {
-      return deleteFiles(expire().collectAsList().iterator());
-    }
+  public ExpireSnapshotsActionResult execute() {
+    SparkContext context = spark().sparkContext();
+    JobGroupInfo info = JobGroupUtils.getJobGroupInfo(context);
+    return withJobGroupInfo(info, () -> {
+      spark().sparkContext().setJobGroup("EXPIRE", "EXPIRE-SNAPSHOTS-" + JobGroupUtils.jobCounter(), false);
+      if (streamResults) {
+        return deleteFiles(expire().toLocalIterator());
+      } else {
+        return deleteFiles(expire().collectAsList().iterator());
+      }
+    });
   }
 
   private Dataset<Row> appendTypeString(Dataset<Row> ds, String type) {
@@ -263,10 +268,5 @@ public class ExpireSnapshotsAction extends BaseSparkAction<ExpireSnapshotsAction
         });
     LOG.info("Deleted {} total files", dataFileCount.get() + manifestCount.get() + manifestListCount.get());
     return new ExpireSnapshotsActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get());
-  }
-
-  @Override
-  protected JobGroupInfo jobGroup() {
-    return new JobGroupInfo("EXPIRE", "EXPIRE-SNAPSHOTS -" + JobGroupUtils.jobCounter(), false);
   }
 }

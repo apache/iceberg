@@ -70,10 +70,6 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     return sparkContext;
   }
 
-  protected abstract R doExecute();
-
-  protected abstract JobGroupInfo jobGroup();
-
   protected <T> T withJobGroupInfo(JobGroupInfo info, Supplier<T> supplier) {
     SparkContext context = spark().sparkContext();
     JobGroupInfo previousInfo = JobGroupUtils.getJobGroupInfo(context);
@@ -83,13 +79,6 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     } finally {
       JobGroupUtils.setJobGroupInfo(context, previousInfo);
     }
-  }
-
-  @Override
-  public R execute() {
-    SparkContext context = spark.sparkContext();
-    JobGroupInfo info = JobGroupUtils.getJobGroupInfo(context);
-    return withJobGroupInfo(info, () -> doExecute());
   }
 
   /**

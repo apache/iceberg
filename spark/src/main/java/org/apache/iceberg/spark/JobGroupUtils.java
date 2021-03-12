@@ -26,21 +26,24 @@ import org.apache.spark.SparkContext$;
 public class JobGroupUtils {
 
   private static AtomicInteger counter = new AtomicInteger();
+  private static final String JOB_GROUP_ID = SparkContext$.MODULE$.SPARK_JOB_GROUP_ID();
+  private static final String JOB_GROUP_DESC = SparkContext$.MODULE$.SPARK_JOB_GROUP_ID();
+  private static final String JOB_INTERRUPT_ON_CANCEL = SparkContext$.MODULE$.SPARK_JOB_INTERRUPT_ON_CANCEL();
 
   private JobGroupUtils() {
   }
 
   public static JobGroupInfo getJobGroupInfo(SparkContext sparkContext) {
-    String groupId = sparkContext.getLocalProperty(SparkContext$.MODULE$.SPARK_JOB_GROUP_ID());
-    String description = sparkContext.getLocalProperty(SparkContext$.MODULE$.SPARK_JOB_DESCRIPTION());
-    String interruptOnCancel = sparkContext.getLocalProperty(SparkContext$.MODULE$.SPARK_JOB_INTERRUPT_ON_CANCEL());
+    String groupId = sparkContext.getLocalProperty(JOB_GROUP_ID);
+    String description = sparkContext.getLocalProperty(JOB_GROUP_DESC);
+    String interruptOnCancel = sparkContext.getLocalProperty(JOB_INTERRUPT_ON_CANCEL);
     return new JobGroupInfo(groupId, description, Boolean.parseBoolean(interruptOnCancel));
   }
 
   public static void setJobGroupInfo(SparkContext sparkContext, JobGroupInfo obj) {
-    sparkContext.setLocalProperty(SparkContext$.MODULE$.SPARK_JOB_DESCRIPTION(), obj.description());
-    sparkContext.setLocalProperty(SparkContext$.MODULE$.SPARK_JOB_GROUP_ID(), obj.groupId());
-    sparkContext.setLocalProperty(SparkContext$.MODULE$.SPARK_JOB_INTERRUPT_ON_CANCEL(),
+    sparkContext.setLocalProperty(JOB_GROUP_ID, obj.groupId());
+    sparkContext.setLocalProperty(JOB_GROUP_DESC, obj.description());
+    sparkContext.setLocalProperty(JOB_INTERRUPT_ON_CANCEL,
             String.valueOf(obj.interruptOnCancel()));
   }
 
