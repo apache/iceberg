@@ -95,6 +95,10 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     return deletes.filter(open(task, requiredSchema, idToConstant)).iterator();
   }
 
+  protected Schema tableSchema() {
+    return tableSchema;
+  }
+
   protected CloseableIterable<InternalRow> open(FileScanTask task, Schema readSchema, Map<Integer, ?> idToConstant) {
     CloseableIterable<InternalRow> iter;
     if (task.isDataTask()) {
