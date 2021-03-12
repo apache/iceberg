@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark;
 
-import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.spark.SparkContext;
 import org.apache.spark.SparkContext$;
 
