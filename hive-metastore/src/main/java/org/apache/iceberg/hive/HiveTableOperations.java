@@ -47,6 +47,8 @@ import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynMethods;
@@ -196,7 +198,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             .collect(Collectors.toSet());
       }
 
-      setHmsTableParameters(newMetadataLocation, tbl, metadata.properties(), removedProps, hiveEngineEnabled);
+      Map<String, String> summary = Optional.ofNullable(metadata.currentSnapshot())
+          .map(Snapshot::summary)
+          .orElseGet(ImmutableMap::of);
+      setHmsTableParameters(newMetadataLocation, tbl, metadata.properties(), removedProps, hiveEngineEnabled, summary);
 
       persistTable(tbl, updateHiveTable);
       threw = false;
@@ -268,7 +273,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   }
 
   private void setHmsTableParameters(String newMetadataLocation, Table tbl, Map<String, String> icebergTableProps,
-                                     Set<String> obsoleteProps, boolean hiveEngineEnabled) {
+                                     Set<String> obsoleteProps, boolean hiveEngineEnabled,
+                                     Map<String, String> summary) {
     Map<String, String> parameters = tbl.getParameters();
 
     if (parameters == null) {
@@ -295,6 +301,13 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     } else {
       parameters.remove(hive_metastoreConstants.META_TABLE_STORAGE);
     }
+
+    // Set the basic statistics
+    parameters.put(StatsSetupConst.NUM_FILES, summary.getOrDefault(SnapshotSummary.TOTAL_DATA_FILES_PROP, "0"));
+    parameters.put(StatsSetupConst.ROW_COUNT, summary.getOrDefault(SnapshotSummary.TOTAL_RECORDS_PROP, "0"));
+    parameters.put(StatsSetupConst.TOTAL_SIZE, summary.getOrDefault(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "0"));
+    // we don't have the uncompressed file sizes, so we use the totalSize (size on disk) as an estimate for rawDataSize
+    parameters.put(StatsSetupConst.RAW_DATA_SIZE, summary.getOrDefault(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "0"));
 
     tbl.setParameters(parameters);
   }
