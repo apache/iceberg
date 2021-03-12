@@ -41,28 +41,18 @@ public class TestHiveClientPool {
   @Test
   public void testConf() {
     HiveConf conf = createHiveConf();
-    conf.set(HiveConf.ConfVars.METASTOREURIS.varname, "thrift://locahost:12345");
     conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file:/mywarehouse/");
     conf.setInt("iceberg.hive.client-pool-size", 10);
 
     HiveClientPool clientPool = new HiveClientPool(conf);
     HiveConf clientConf = clientPool.hiveConf();
 
-    // hive will pick up system property whenever a new HiveConf is created
-    // see org.apache.iceberg.hive.TestHiveMetastore.start(int)
-    if (System.getProperty(HiveConf.ConfVars.METASTOREURIS.varname) != null) {
-      Assert.assertEquals(System.getProperty(HiveConf.ConfVars.METASTOREURIS.varname),
-              clientConf.get(HiveConf.ConfVars.METASTOREURIS.varname));
-    } else {
-      Assert.assertEquals(conf.get(HiveConf.ConfVars.METASTOREURIS.varname),
-              clientConf.get(HiveConf.ConfVars.METASTOREURIS.varname));
-    }
-
     Assert.assertEquals(conf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname),
             clientConf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname));
     Assert.assertEquals(conf.get("iceberg.hive.client-pool-size"), clientConf.get("iceberg.hive.client-pool-size"));
     Assert.assertEquals(10, clientPool.poolSize());
 
+    // 'hive.metastore.sasl.enabled' should be 'true' as defined in xml
     Assert.assertEquals(conf.get(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL.varname),
             clientConf.get(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL.varname));
     Assert.assertTrue(clientConf.getBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL));
