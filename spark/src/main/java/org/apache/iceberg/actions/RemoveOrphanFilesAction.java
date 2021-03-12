@@ -159,18 +159,18 @@ public class RemoveOrphanFilesAction extends BaseSparkAction<RemoveOrphanFilesAc
     Dataset<Row> actualFileDF = buildActualFileDF();
 
     Column nameEqual = filename.apply(actualFileDF.col("file_path"))
-            .equalTo(filename.apply(validFileDF.col("file_path")));
+        .equalTo(filename.apply(validFileDF.col("file_path")));
     Column actualContains = actualFileDF.col("file_path").contains(validFileDF.col("file_path"));
     Column joinCond = nameEqual.and(actualContains);
     List<String> orphanFiles = actualFileDF.join(validFileDF, joinCond, "leftanti")
-            .as(Encoders.STRING())
-            .collectAsList();
+        .as(Encoders.STRING())
+        .collectAsList();
 
     Tasks.foreach(orphanFiles)
-            .noRetry()
-            .suppressFailureWhenFinished()
-            .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
-            .run(deleteFunc::accept);
+        .noRetry()
+        .suppressFailureWhenFinished()
+        .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
+        .run(deleteFunc::accept);
 
     return orphanFiles;
   }

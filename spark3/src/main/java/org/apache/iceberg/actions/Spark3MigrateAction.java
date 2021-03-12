@@ -68,7 +68,7 @@ public class Spark3MigrateAction extends Spark3CreateAction {
       throw new NoSuchTableException("Cannot find table '%s' to migrate", sourceTableIdent());
     } catch (org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException e) {
       throw new AlreadyExistsException("Cannot rename migration source '%s' to backup name '%s'." +
-              " Backup table already exists.", sourceTableIdent(), backupIdentifier);
+          " Backup table already exists.", sourceTableIdent(), backupIdentifier);
     }
 
     StagedSparkTable stagedTable = null;
@@ -99,7 +99,7 @@ public class Spark3MigrateAction extends Spark3CreateAction {
           LOG.error("Cannot restore backup '{}', the backup cannot be found", backupIdentifier, nstException);
         } catch (org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException taeException) {
           LOG.error("Cannot restore backup, a table with the original name " +
-                  "exists. The backup can be found with the name '{}'", backupIdentifier, taeException);
+              "exists. The backup can be found with the name '{}'", backupIdentifier, taeException);
         }
 
         try {

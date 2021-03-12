@@ -196,7 +196,6 @@ public class RewriteManifestsAction
     replaceManifests(matchingManifests, newManifests);
 
     return new RewriteManifestsActionResult(matchingManifests, newManifests);
-
   }
 
   private Dataset<Row> buildManifestEntryDF(List<ManifestFile> manifests) {
