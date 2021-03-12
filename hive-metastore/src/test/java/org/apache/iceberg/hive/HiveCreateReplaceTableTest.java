@@ -105,7 +105,7 @@ public class HiveCreateReplaceTableTest extends HiveMetastoreTest {
 
     AssertHelpers.assertThrows(
         "Create table txn should fail",
-        CommitFailedException.class,
+        AlreadyExistsException.class,
         "Table already exists: hivedb.tbl",
         txn::commitTransaction);
   }

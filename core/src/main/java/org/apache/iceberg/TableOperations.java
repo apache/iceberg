@@ -53,10 +53,11 @@ public interface TableOperations {
    * Once the atomic commit operation succeeds, implementations must not perform any operations that
    * may fail because failure in this method cannot be distinguished from commit failure.
    * <p></p>
-   * Implementations must throw a CommitFailedException in cases where the commit is known to have failed
-   * but throw another class of exception if the state is unknown. For example if a network partition causes the
-   * confirmation of the commit to be lost, the implementation should throw a non-CommitFailedException because
-   * the implementation cannot actually determine whether the commit failed.
+   * Implementations must throw a CommitStateUnknownException in cases where it cannot be determined if the
+   * commit succeeded or failed. For example if a network partition causes the confirmation of the commit to be lost,
+   * the implementation should throw a CommitStateUnknownException. This is important because downstream users of
+   * this API need to know whether they can clean up the commit or not, if the state is unknown then it is not safe
+   * to remove any files. All other exceptions will be treated as if the commit has failed.
    *
    * @param base     table metadata on which changes were based
    * @param metadata new table metadata with updates

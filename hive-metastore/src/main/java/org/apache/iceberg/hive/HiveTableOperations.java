@@ -52,7 +52,9 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.ConfigProperties;
@@ -171,7 +173,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         // If we try to create the table but the metadata location is already set, then we had a concurrent commit
         if (base == null && tbl.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP) != null) {
           commitFailed = true;
-          throw new CommitFailedException("Table already exists: %s.%s", database, tableName);
+          throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
         }
 
         updateHiveTable = true;
@@ -208,35 +210,36 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       persistTable(tbl, updateHiveTable);
     } catch (org.apache.hadoop.hive.metastore.api.AlreadyExistsException e) {
       commitFailed = true;
-      throw new CommitFailedException("Table already exists: %s.%s", database, tableName);
+      throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
 
     } catch (TException | UnknownHostException e) {
       if (e.getMessage() != null && e.getMessage().contains("Table/View 'HIVE_LOCKS' does not exist")) {
         commitFailed = true;
-        throw new CommitFailedException("Failed to acquire locks from metastore because 'HIVE_LOCKS' doesn't " +
+        throw new RuntimeException("Failed to acquire locks from metastore because 'HIVE_LOCKS' doesn't " +
             "exist, this probably happened when using embedded metastore or doesn't create a " +
             "transactional meta table. To fix this, use an alternative metastore.\n%s", e);
       }
 
-      RuntimeException metastoreException =
-              new RuntimeException(String.format("Metastore operation failed for %s.%s", database, tableName), e);
-
+      CommitStateUnknownException metastoreException =
+              new CommitStateUnknownException(e, "Metastore operation failed for %s.%s", database, tableName);
       if (checkCommitSuccessful(newMetadataLocation, metastoreException)) {
         return; // We are able to verify the commit succeed
       } else {
         // We were able to check and the commit did not succeed
         commitFailed = true;
-        throw new CommitFailedException("Commit failed because of a Metastore error.\n%s", metastoreException);
+        throw new RuntimeException("Commit failed because of a Metastore error.\n%s", metastoreException);
       }
+
     } catch (InterruptedException e) {
+
       Thread.currentThread().interrupt();
-      RuntimeException interruptException = new RuntimeException("Interrupted during commit", e);
+      CommitStateUnknownException interruptException = new CommitStateUnknownException(e, "Interrupted during commit");
       if (checkCommitSuccessful(newMetadataLocation, interruptException)) {
         return; // We are able to verify the commit succeed
       } else {
         // We were able to check and the commit did not succeed
         commitFailed = true;
-        throw new CommitFailedException("Commit failed because of an interrupt.\n%s", interruptException);
+        throw new RuntimeException("Commit failed because of an interrupt.\n%s", interruptException);
       }
     } finally {
       cleanupMetadataAndUnlock(commitFailed, newMetadataLocation, lockId);
@@ -252,7 +255,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
    * @return true if the commit was successful, false if not, and rethrows the original exception if we cannot
    * determine
    */
-  private boolean checkCommitSuccessful(String newMetadataLocation, RuntimeException originalFailure) {
+  private boolean checkCommitSuccessful(String newMetadataLocation, CommitStateUnknownException originalFailure) {
     try {
       refresh();
       TableMetadata metadata = current();

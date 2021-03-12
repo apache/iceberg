@@ -26,7 +26,7 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.Assert;
@@ -95,10 +95,10 @@ public class TestHiveCommits extends HiveTableBaseTest {
 
     HiveTableOperations spyOps = spy(ops);
 
-    throwExceptionDontCommit(spyOps);
+    failCommitAndThrowException(spyOps);
 
-    AssertHelpers.assertThrows("We should rethrow generic runtime errors as CFE if the " +
-        "commit actually doesn't succeed", CommitFailedException.class,
+    AssertHelpers.assertThrows("We should rethrow generic runtime errors if the " +
+        "commit actually doesn't succeed", RuntimeException.class,
         () -> spyOps.commit(metadataV2, metadataV1));
 
     ops.refresh();
@@ -127,7 +127,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
     HiveTableOperations spyOps = spy(ops);
 
     // Simulate a communication error after a successful commit
-    throwExceptionAndCommit(ops, spyOps);
+    commitAndThrowException(ops, spyOps);
 
     // Shouldn't throw because the commit actually succeeds even though persistTable throws an exception
     spyOps.commit(metadataV2, metadataV1);
@@ -158,11 +158,11 @@ public class TestHiveCommits extends HiveTableBaseTest {
 
     HiveTableOperations spyOps = spy(ops);
 
-    throwExceptionDontCommit(spyOps);
-    breakCommitCheck(spyOps);
+    failCommitAndThrowException(spyOps);
+    breakFallbackCatalogCommitCheck(spyOps);
 
-    AssertHelpers.assertThrows("Should throw original thrift exception since we couldn't determine final state",
-        RuntimeException.class, "Metastore operation failed for",
+    AssertHelpers.assertThrows("Should throw CommitStateUnknownException since the catalog check was blocked",
+        CommitStateUnknownException.class, "Metastore operation failed for",
         () -> spyOps.commit(metadataV2, metadataV1));
 
     ops.refresh();
@@ -192,11 +192,11 @@ public class TestHiveCommits extends HiveTableBaseTest {
 
     HiveTableOperations spyOps = spy(ops);
 
-    throwExceptionAndCommit(ops, spyOps);
-    breakCommitCheck(spyOps);
+    commitAndThrowException(ops, spyOps);
+    breakFallbackCatalogCommitCheck(spyOps);
 
-    AssertHelpers.assertThrows("Should throw original thrift exception since we couldn't determine final state",
-        RuntimeException.class, "Metastore operation failed for",
+    AssertHelpers.assertThrows("Should throw CommitStateUnknownException since the catalog check was blocked",
+        CommitStateUnknownException.class, "Metastore operation failed for",
         () -> spyOps.commit(metadataV2, metadataV1));
 
     ops.refresh();
@@ -230,7 +230,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
       return lockId.get();
     }).when(spyOps).acquireLock();
 
-    throwExceptionAndConcurrentCommit(ops, spyOps, table, lockId);
+    concurrentCommitAndThrowException(ops, spyOps, table, lockId);
 
     /*
     This commit and our concurrent commit should succeed even though this commit throws an exception
@@ -246,7 +246,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
         2, ops.current().schema().columns().size());
   }
 
-  private void throwExceptionAndCommit(HiveTableOperations realOperations, HiveTableOperations spyOperations)
+  private void commitAndThrowException(HiveTableOperations realOperations, HiveTableOperations spyOperations)
       throws TException, InterruptedException {
     // Simulate a communication error after a successful commit
     doAnswer(i -> {
@@ -257,7 +257,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
     }).when(spyOperations).persistTable(any(), anyBoolean());
   }
 
-  private void throwExceptionAndConcurrentCommit(HiveTableOperations realOperations, HiveTableOperations spyOperations,
+  private void concurrentCommitAndThrowException(HiveTableOperations realOperations, HiveTableOperations spyOperations,
                                                  Table table, AtomicLong lockId)
       throws TException, InterruptedException {
     // Simulate a communication error after a successful commit
@@ -273,13 +273,13 @@ public class TestHiveCommits extends HiveTableBaseTest {
     }).when(spyOperations).persistTable(any(), anyBoolean());
   }
 
-  private void throwExceptionDontCommit(HiveTableOperations spyOperations) throws TException, InterruptedException {
+  private void failCommitAndThrowException(HiveTableOperations spyOperations) throws TException, InterruptedException {
     doThrow(new TException("Datacenter on fire"))
         .when(spyOperations)
         .persistTable(any(), anyBoolean());
   }
 
-  private void breakCommitCheck(HiveTableOperations spyOperations) {
+  private void breakFallbackCatalogCommitCheck(HiveTableOperations spyOperations) {
     when(spyOperations.refresh())
         .thenThrow(new RuntimeException("Still on fire")); // Failure on commit check
   }

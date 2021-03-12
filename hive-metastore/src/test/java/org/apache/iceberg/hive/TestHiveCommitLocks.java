@@ -185,7 +185,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
         .when(spyClient).checkLock(eq(dummyLockId));
 
     AssertHelpers.assertThrows("Expected an exception",
-        CommitFailedException.class,
+        RuntimeException.class,
         "Metastore operation failed for",
         () -> spyOps.doCommit(metadataV2, metadataV1));
   }

@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -299,15 +300,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             taskOps.commit(base, updated.withUUID());
           });
 
-    } catch (CommitFailedException commitFailedException) {
-      // We have an acknowledged failure from the Catalog. We are confident that the commit has not been applied
-      Exceptions.suppressAndThrow(commitFailedException, this::cleanAll);
+    } catch (CommitStateUnknownException commitStateUnknownException) {
+      throw commitStateUnknownException;
     } catch (RuntimeException e) {
-      LOG.error("Cannot determine whether the commit was successful or not, the underlying data files may or " +
-              "may not be needed. Manual intervention via the Remove Orphan Files Action can remove these " +
-              "files when a connection to the Catalog can be re-established if the commit was actually unsuccessful. " +
-              "No files will be deleted at this time including possibly unused manifest lists.\n{}", e);
-      throw e;
+      Exceptions.suppressAndThrow(e, this::cleanAll);
     }
 
     LOG.info("Committed snapshot {} ({})", newSnapshotId.get(), getClass().getSimpleName());
