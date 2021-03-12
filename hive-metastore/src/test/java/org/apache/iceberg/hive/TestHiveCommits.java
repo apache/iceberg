@@ -162,7 +162,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
     breakFallbackCatalogCommitCheck(spyOps);
 
     AssertHelpers.assertThrows("Should throw CommitStateUnknownException since the catalog check was blocked",
-        CommitStateUnknownException.class, "Metastore operation failed for",
+        CommitStateUnknownException.class, "Datacenter on fire",
         () -> spyOps.commit(metadataV2, metadataV1));
 
     ops.refresh();
@@ -196,7 +196,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
     breakFallbackCatalogCommitCheck(spyOps);
 
     AssertHelpers.assertThrows("Should throw CommitStateUnknownException since the catalog check was blocked",
-        CommitStateUnknownException.class, "Metastore operation failed for",
+        CommitStateUnknownException.class, "Datacenter on fire",
         () -> spyOps.commit(metadataV2, metadataV1));
 
     ops.refresh();

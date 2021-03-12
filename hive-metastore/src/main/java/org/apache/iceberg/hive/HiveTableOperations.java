@@ -92,6 +92,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     }
   }
 
+  private enum CommitStatus {
+    FAILURE,
+    SUCCESS,
+    UNKNOWN
+  }
+
   private final HiveClientPool metaClients;
   private final String fullName;
   private final String database;
@@ -160,7 +166,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
     boolean hiveEngineEnabled = hiveEngineEnabled(metadata, conf);
 
-    boolean canCleanupMetadata = false;
+    CommitStatus commitStatus = CommitStatus.FAILURE;
     boolean updateHiveTable = false;
     Optional<Long> lockId = Optional.empty();
     try {
@@ -172,7 +178,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       if (tbl != null) {
         // If we try to create the table but the metadata location is already set, then we had a concurrent commit
         if (base == null && tbl.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP) != null) {
-          canCleanupMetadata = true;
           throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
         }
 
@@ -188,7 +193,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       String metadataLocation = tbl.getParameters().get(METADATA_LOCATION_PROP);
       String baseMetadataLocation = base != null ? base.metadataFileLocation() : null;
       if (!Objects.equals(baseMetadataLocation, metadataLocation)) {
-        canCleanupMetadata = true;
         throw new CommitFailedException(
             "Base metadata location '%s' is not same as the current table metadata location '%s' for %s.%s",
             baseMetadataLocation, metadataLocation, database, tableName);
@@ -207,64 +211,68 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
           .orElseGet(ImmutableMap::of);
       setHmsTableParameters(newMetadataLocation, tbl, metadata.properties(), removedProps, hiveEngineEnabled, summary);
 
-      persistTable(tbl, updateHiveTable);
+      try {
+        persistTable(tbl, updateHiveTable);
+        commitStatus = CommitStatus.SUCCESS;
+      } catch (Throwable persistFailure) {
+        LOG.error("Cannot tell if commit succeeded, attempting to reconnect and check", persistFailure);
+        commitStatus = checkCommitStatus(newMetadataLocation);
+        switch (commitStatus) {
+          case SUCCESS:
+            return;
+          case FAILURE:
+            throw persistFailure;
+          case UNKNOWN:
+            throw new CommitStateUnknownException(persistFailure);
+        }
+      }
+
     } catch (org.apache.hadoop.hive.metastore.api.AlreadyExistsException e) {
-      canCleanupMetadata = true;
       throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
 
     } catch (TException | UnknownHostException e) {
       if (e.getMessage() != null && e.getMessage().contains("Table/View 'HIVE_LOCKS' does not exist")) {
-        canCleanupMetadata = true;
         throw new RuntimeException("Failed to acquire locks from metastore because 'HIVE_LOCKS' doesn't " +
             "exist, this probably happened when using embedded metastore or doesn't create a " +
-            "transactional meta table. To fix this, use an alternative metastore.\n%s", e);
+            "transactional meta table. To fix this, use an alternative metastore", e);
       }
 
-      RuntimeException metastoreException =
-              new RuntimeException(String.format("Metastore operation failed for %s.%s", database, tableName), e);
-      if (checkCommitSuccessful(newMetadataLocation, metastoreException)) {
-        return; // We are able to verify the commit succeed
-      } else {
-        // We were able to check and the commit did not succeed
-        canCleanupMetadata = true;
-        throw metastoreException;
-      }
+      throw new RuntimeException(String.format("Metastore operation failed for %s.%s", database, tableName), e);
 
     } catch (InterruptedException e) {
-
       Thread.currentThread().interrupt();
-      RuntimeException interruptException = new RuntimeException("Interrupted during commit", e);
-      if (checkCommitSuccessful(newMetadataLocation, interruptException)) {
-        return; // We are able to verify the commit succeed
-      } else {
-        // We were able to check and the commit did not succeed
-        canCleanupMetadata = true;
-        throw interruptException;
-      }
+      throw new RuntimeException("Interrupted during commit", e);
+
     } finally {
-      cleanupMetadataAndUnlock(canCleanupMetadata, newMetadataLocation, lockId);
+      cleanupMetadataAndUnlock(commitStatus, newMetadataLocation, lockId);
     }
   }
 
   /**
-   * Attempt to load the table and see if the current metadata location matches our new commit path. This as used as
-   * a last resort when we are dealing with exceptions which may indicate that our commit has failed but we are not
-   * certain if that is the case.
+   * Attempt to load the table and see if any current or past metadata location matches the one we were attempting
+   * to set. This is used as a last resort when we are dealing with exceptions that may indicate the commit has
+   * failed but are not proof that this is the case. Past locations must also be searched on the chance that a second
+   * committer was able to successfully commit on top of our commit.
+   *
    * @param newMetadataLocation the path of the new commit file
-   * @param originalFailure the exception which leads us to believe the commit has failed
-   * @return true if the commit was successful, false if not, and rethrows the original exception if we cannot
-   * determine
+   * @return Commit Status of Success, Failure or Unknown
    */
-  private boolean checkCommitSuccessful(String newMetadataLocation, RuntimeException originalFailure) {
+  private CommitStatus checkCommitStatus(String newMetadataLocation) {
     try {
-      refresh();
-      TableMetadata metadata = current();
+      TableMetadata metadata = refresh();
       String metadataLocation = metadata.metadataFileLocation();
-      return metadataLocation.equals(newMetadataLocation) ||
-              metadata.previousFiles().stream().anyMatch(log -> log.file().equals(newMetadataLocation));
-    } catch (RuntimeException e) {
-      LOG.error("Cannot determine if commit was successful. Rethrowing original failure.", e);
-      throw new CommitStateUnknownException(originalFailure);
+      boolean commitSuccess = metadataLocation.equals(newMetadataLocation) ||
+          metadata.previousFiles().stream().anyMatch(log -> log.file().equals(newMetadataLocation));
+      if (commitSuccess) {
+        LOG.info("Commit status check: Commit of {} succeeded", newMetadataLocation);
+        return CommitStatus.SUCCESS;
+      } else {
+        LOG.info("Commit status check: Commit of {} failed", newMetadataLocation);
+        return CommitStatus.FAILURE;
+      }
+    } catch (Throwable checkFailure) {
+      LOG.error("Cannot check if commit exists, treating commit state as unknown", checkFailure);
+      return CommitStatus.UNKNOWN;
     }
   }
 
@@ -446,9 +454,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     return lockId;
   }
 
-  private void cleanupMetadataAndUnlock(boolean commitFailed, String metadataLocation, Optional<Long> lockId) {
+  private void cleanupMetadataAndUnlock(CommitStatus commitStatus, String metadataLocation, Optional<Long> lockId) {
     try {
-      if (commitFailed) {
+      if (commitStatus == CommitStatus.FAILURE) {
         // If we are sure the commit failed, clean up the uncommitted metadata file
         io().deleteFile(metadataLocation);
       }

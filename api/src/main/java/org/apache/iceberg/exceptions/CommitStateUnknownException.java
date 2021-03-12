@@ -25,14 +25,15 @@ package org.apache.iceberg.exceptions;
  */
 public class CommitStateUnknownException extends RuntimeException {
 
-  private static final String commonInfo =
-      "\nCannot determine whether the commit was successful or not, the underlying data files may or " +
+  private static final String COMMON_INFO =
+      "Cannot determine whether the commit was successful or not, the underlying data files may or " +
       "may not be needed. Manual intervention via the Remove Orphan Files Action can remove these " +
-      "files when a connection to the Catalog can be re-established if the commit was actually unsuccessful." +
-      "Please check to see whether or not your commit was successful when the catalog is again reachable." +
+      "files when a connection to the Catalog can be re-established if the commit was actually unsuccessful.\n" +
+      "Please check to see whether or not your commit was successful before retying this commit. Retrying " +
+      "an already successful operation will result in duplicate records or unintentional modifications.\n" +
       "At this time no files will be deleted including possibly unused manifest lists.";
 
   public CommitStateUnknownException(Throwable cause) {
-    super(cause.getMessage() + commonInfo, cause);
+    super(cause.getMessage() + "\n" + COMMON_INFO, cause);
   }
 }
