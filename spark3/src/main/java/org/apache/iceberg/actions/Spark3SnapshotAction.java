@@ -67,7 +67,7 @@ public class Spark3SnapshotAction extends Spark3CreateAction implements Snapshot
     try {
       String stagingLocation = getMetadataLocation(icebergTable);
       LOG.info("Beginning snapshot of {} to {} using metadata location {}", sourceTableIdent(), destTableIdent(),
-              stagingLocation);
+          stagingLocation);
 
       TableIdentifier v1TableIdentifier = v1SourceTable().identifier();
       SparkTableUtil.importSparkTable(spark(), v1TableIdentifier, icebergTable, stagingLocation);
@@ -93,7 +93,7 @@ public class Spark3SnapshotAction extends Spark3CreateAction implements Snapshot
 
   @Override
   public Long execute() {
-    JobGroupInfo info = new JobGroupInfo("SNAPSHOT", "SNAPSHOT-ACTION", false);
+    JobGroupInfo info = new JobGroupInfo("SNAPSHOT", "SNAPSHOT", false);
     return withJobGroupInfo(info, this::doExecute);
   }
 

@@ -25,7 +25,6 @@ import org.apache.spark.SparkContext$;
 
 public class JobGroupUtils {
 
-  private static AtomicInteger counter = new AtomicInteger();
   private static final String JOB_GROUP_ID = SparkContext$.MODULE$.SPARK_JOB_GROUP_ID();
   private static final String JOB_GROUP_DESC = SparkContext$.MODULE$.SPARK_JOB_GROUP_ID();
   private static final String JOB_INTERRUPT_ON_CANCEL = SparkContext$.MODULE$.SPARK_JOB_INTERRUPT_ON_CANCEL();
@@ -45,9 +44,5 @@ public class JobGroupUtils {
     sparkContext.setLocalProperty(JOB_GROUP_DESC, obj.description());
     sparkContext.setLocalProperty(JOB_INTERRUPT_ON_CANCEL,
             String.valueOf(obj.interruptOnCancel()));
-  }
-
-  public static int jobCounter() {
-    return counter.incrementAndGet();
   }
 }
