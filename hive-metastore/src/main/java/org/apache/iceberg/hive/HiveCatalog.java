@@ -62,6 +62,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,8 +84,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   private String name;
   private Configuration conf;
   private FileIO fileIO;
-  private long cleanerInterval;
   private long evictionInterval;
+  private int clientPoolSize;
 
   public HiveCatalog() {
   }
@@ -101,8 +102,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     this.name = "hive";
     this.conf = conf;
     this.fileIO = new HadoopFileIO(conf);
-    this.cleanerInterval = conf.getLong(CACHE_CLEANER_INTERVAL, CACHE_CLEANER_INTERVAL_DEFAULT);
-    this.evictionInterval = conf.getLong(CACHE_EVICTION_INTERVAL, CACHE_EVICTION_INTERVAL_DEFAULT);
+    this.evictionInterval = conf.getLong(CACHE_EVICTION_INTERVAL, CACHE_CLEANER_INTERVAL_DEFAULT);
+    this.clientPoolSize = conf.getInt(CatalogProperties.CLIENT_POOL_SIZE,
+            CatalogProperties.CLIENT_POOL_SIZE_DEFAULT);
     scheduleCacheCleaner();
   }
 
@@ -116,6 +118,10 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     if (properties.containsKey(CatalogProperties.WAREHOUSE_LOCATION)) {
       this.conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, properties.get(CatalogProperties.WAREHOUSE_LOCATION));
     }
+
+    this.evictionInterval = conf.getLong(CACHE_EVICTION_INTERVAL, CACHE_CLEANER_INTERVAL_DEFAULT);
+    this.clientPoolSize = PropertyUtil.propertyAsInt(properties, CatalogProperties.CLIENT_POOL_SIZE,
+            CatalogProperties.CLIENT_POOL_SIZE_DEFAULT);
 
     String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(conf) : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
@@ -540,8 +546,6 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   HiveClientPool clientPool() {
     synchronized (CLIENT_POOL_CACHE) {
       String metastoreUri = conf.get(HiveConf.ConfVars.METASTOREURIS.varname, "");
-      int clientPoolSize = conf.getInt(CatalogProperties.CLIENT_POOL_SIZE,
-              CatalogProperties.CLIENT_POOL_SIZE_DEFAULT);
       Pair<HiveClientPool, Long> cacheEntry = CLIENT_POOL_CACHE.getIfPresent(metastoreUri);
       HiveClientPool clientPool = cacheEntry == null ? new HiveClientPool(clientPoolSize, conf) : cacheEntry.first();
       CLIENT_POOL_CACHE.put(metastoreUri, Pair.of(clientPool, System.currentTimeMillis() + evictionInterval));
@@ -559,6 +563,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
                           .setNameFormat("iceberg-client-pool-cache-cleaner-%d")
                           .build());
         }
+        long cleanerInterval = conf.getLong(CACHE_CLEANER_INTERVAL, CACHE_CLEANER_INTERVAL_DEFAULT);
         ScheduledFuture<?> futures = cleaner.scheduleWithFixedDelay(() -> {
           synchronized (CLIENT_POOL_CACHE) {
             long currentTime = System.currentTimeMillis();

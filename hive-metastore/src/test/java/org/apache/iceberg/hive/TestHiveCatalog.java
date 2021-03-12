@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CachingCatalog;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -403,7 +404,8 @@ public class TestHiveCatalog extends HiveMetastoreTest {
 
   @Test
   public void testClientPoolCleaner() throws InterruptedException {
-    HiveCatalog catalog = new HiveCatalog(hiveConf);
+    HiveCatalog catalog = (HiveCatalog) CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(),
+            hiveConf);
     HiveClientPool clientPool1 = catalog.clientPool();
     TimeUnit.SECONDS.sleep(5);
     HiveClientPool clientPool2 = catalog.clientPool();

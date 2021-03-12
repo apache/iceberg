@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
@@ -382,7 +383,7 @@ abstract class TestTables {
   static class HiveTestTables extends TestTables {
 
     HiveTestTables(Configuration conf, TemporaryFolder temp) {
-      super(new HiveCatalog(conf), temp);
+      super(CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), conf), temp);
     }
 
     @Override

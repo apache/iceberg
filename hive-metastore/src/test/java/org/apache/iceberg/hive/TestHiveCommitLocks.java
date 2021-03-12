@@ -25,10 +25,12 @@ import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.LockResponse;
 import org.apache.hadoop.hive.metastore.api.LockState;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.AfterClass;
@@ -77,7 +79,8 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     spyClientPool.run(HiveMetaStoreClient::isLocalMetaStore); // To ensure new client is created.
 
-    spyHiveCatalog = spy(new HiveCatalog(overriddenHiveConf));
+    spyHiveCatalog = spy((HiveCatalog) CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "spyHiveCatalog",
+            ImmutableMap.of(), hiveConf));
     when(spyHiveCatalog.clientPool()).thenAnswer(invocation -> spyClientPool);
 
     Assert.assertNotNull(spyClientRef.get());

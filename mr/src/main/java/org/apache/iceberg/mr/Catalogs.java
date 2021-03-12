@@ -25,6 +25,7 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
@@ -39,6 +40,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -212,7 +214,7 @@ public final class Catalogs {
           LOG.info("Loaded Hadoop catalog {}", catalog);
           return Optional.of(catalog);
         case HIVE:
-          catalog = new HiveCatalog(conf);
+          catalog = CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), conf);
           LOG.info("Loaded Hive Metastore catalog {}", catalog);
           return Optional.of(catalog);
         default:
