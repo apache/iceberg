@@ -294,8 +294,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     }
   }
 
-  // Visible for tests
-  protected Table loadHmsTable() throws TException, InterruptedException {
+  private Table loadHmsTable() throws TException, InterruptedException {
     try {
       return metaClients.run(client -> client.getTable(database, tableName));
     } catch (NoSuchObjectException nte) {

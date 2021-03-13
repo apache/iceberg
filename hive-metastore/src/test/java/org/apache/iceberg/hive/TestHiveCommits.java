@@ -98,11 +98,11 @@ public class TestHiveCommits extends HiveTableBaseTest {
     failCommitAndThrowException(spyOps);
 
     AssertHelpers.assertThrows("We should rethrow generic runtime errors if the " +
-        "commit actually doesn't succeed", RuntimeException.class, "Datacenter on fire",
+        "commit actually doesn't succeed", RuntimeException.class, "Metastore operation failed",
         () -> spyOps.commit(metadataV2, metadataV1));
 
     ops.refresh();
-    Assert.assertTrue("Current metadata should not have changed", ops.current().equals(metadataV2));
+    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
     Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
     Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
   }
@@ -133,7 +133,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
     spyOps.commit(metadataV2, metadataV1);
 
     ops.refresh();
-    Assert.assertFalse("Current metadata should have changed", ops.current().equals(metadataV2));
+    Assert.assertNotEquals("Current metadata should have changed", metadataV2, ops.current());
     Assert.assertTrue("Current metadata file should still exist", metadataFileExists(ops.current()));
     Assert.assertEquals("Commit should have been successful and new metadata file should be made",
         3, metadataFileCount(ops.current()));
@@ -167,7 +167,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
 
     ops.refresh();
 
-    Assert.assertTrue("Current metadata should not have changed", ops.current().equals(metadataV2));
+    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
     Assert.assertTrue("Current metadata file should still exist", metadataFileExists(ops.current()));
     Assert.assertEquals("Client could not determine outcome so new metadata file should also exist",
         3, metadataFileCount(ops.current()));
@@ -239,8 +239,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
     spyOps.commit(metadataV2, metadataV1);
 
     ops.refresh();
-
-    Assert.assertFalse("Current metadata should have changed", ops.current().equals(metadataV2));
+    Assert.assertNotEquals("Current metadata should have changed", metadataV2, ops.current());
     Assert.assertTrue("Current metadata file should still exist", metadataFileExists(ops.current()));
     Assert.assertEquals("The column addition from the concurrent commit should have been successful",
         2, ops.current().schema().columns().size());

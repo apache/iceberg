@@ -52,8 +52,8 @@ public interface TableOperations {
    * Implementations must check that the base metadata is current to avoid overwriting updates.
    * Once the atomic commit operation succeeds, implementations must not perform any operations that
    * may fail because failure in this method cannot be distinguished from commit failure.
-   * <p></p>
-   * Implementations must throw a CommitStateUnknownException in cases where it cannot be determined if the
+   * <p>
+   * Implementations must throw a {@link org.apache.iceberg.exceptions.CommitStateUnknownException} in cases where it cannot be determined if the
    * commit succeeded or failed. For example if a network partition causes the confirmation of the commit to be lost,
    * the implementation should throw a CommitStateUnknownException. This is important because downstream users of
    * this API need to know whether they can clean up the commit or not, if the state is unknown then it is not safe
