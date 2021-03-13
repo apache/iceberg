@@ -82,7 +82,7 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
   }
 
   protected JobGroupInfo newJobGroupInfo(String groupId, String desc) {
-    return new JobGroupInfo(groupId, desc + "-" + jobCounter.incrementAndGet(), false);
+    return new JobGroupInfo(groupId + "-" + jobCounter.incrementAndGet(), desc, false);
   }
   /**
    * Returns all the path locations of all Manifest Lists for a given list of snapshots

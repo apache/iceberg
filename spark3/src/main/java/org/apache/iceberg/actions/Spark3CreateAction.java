@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -60,7 +59,6 @@ abstract class Spark3CreateAction implements CreateAction {
   protected static final String ICEBERG_METADATA_FOLDER = "metadata";
   protected static final List<String> EXCLUDED_PROPERTIES =
       ImmutableList.of("path", "transient_lastDdlTime", "serialization.format");
-  private AtomicInteger counter = new AtomicInteger();
 
   private final SparkSession spark;
 
