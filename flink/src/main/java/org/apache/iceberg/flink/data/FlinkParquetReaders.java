@@ -318,77 +318,57 @@ public class FlinkParquetReaders {
     }
   }
 
-  private static class MicrosToTimestampTzReader extends ParquetValueReaders.UnboxedReader<TimestampData> {
+  private static class MicrosToTimestampTzReader extends ParquetValueReaders.PrimitiveReader<TimestampData> {
     MicrosToTimestampTzReader(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
     public TimestampData read(TimestampData ignored) {
-      long value = readLong();
+      long value = column.nextLong();
       return TimestampData.fromLocalDateTime(Instant.ofEpochSecond(Math.floorDiv(value, 1000_000),
           Math.floorMod(value, 1000_000) * 1000)
           .atOffset(ZoneOffset.UTC)
           .toLocalDateTime());
     }
-
-    @Override
-    public long readLong() {
-      return column.nextLong();
-    }
   }
 
-  private static class MicrosToTimestampReader extends ParquetValueReaders.UnboxedReader<TimestampData> {
+  private static class MicrosToTimestampReader extends ParquetValueReaders.PrimitiveReader<TimestampData> {
     MicrosToTimestampReader(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
     public TimestampData read(TimestampData ignored) {
-      long value = readLong();
+      long value = column.nextLong();
       return TimestampData.fromInstant(Instant.ofEpochSecond(Math.floorDiv(value, 1000_000),
           Math.floorMod(value, 1000_000) * 1000));
     }
-
-    @Override
-    public long readLong() {
-      return column.nextLong();
-    }
   }
 
-  private static class MillisToTimestampReader extends ParquetValueReaders.UnboxedReader<TimestampData> {
+  private static class MillisToTimestampReader extends ParquetValueReaders.PrimitiveReader<TimestampData> {
     MillisToTimestampReader(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
     public TimestampData read(TimestampData ignored) {
-      long millis = readLong();
+      long millis = column.nextLong();
       return TimestampData.fromEpochMillis(millis);
-    }
-
-    @Override
-    public long readLong() {
-      return column.nextLong();
     }
   }
 
-  private static class MillisToTimestampTzReader extends ParquetValueReaders.UnboxedReader<TimestampData> {
+  private static class MillisToTimestampTzReader extends ParquetValueReaders.PrimitiveReader<TimestampData> {
     MillisToTimestampTzReader(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
     public TimestampData read(TimestampData ignored) {
-      long millis = readLong();
+      long millis = column.nextLong();
       return TimestampData.fromLocalDateTime(Instant.ofEpochMilli(millis)
           .atOffset(ZoneOffset.UTC)
           .toLocalDateTime());
-    }
-
-    @Override
-    public long readLong() {
-      return column.nextLong();
     }
   }
 
