@@ -328,4 +328,13 @@ public abstract class DeleteReadTests {
         .forEach(set::add);
     return set;
   }
+
+  protected StructLikeSet rowSetWitIds(int... idsToRetain) {
+    Set<Integer> deletedIds = Sets.newHashSet(ArrayUtil.toIntList(idsToRetain));
+    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
+    records.stream()
+        .filter(row -> deletedIds.contains(row.getField("id")))
+        .forEach(set::add);
+    return set;
+  }
 }

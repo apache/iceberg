@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -48,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Filter;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.parquet.Preconditions;
@@ -110,9 +112,10 @@ public abstract class DeleteFilter<T> {
     return applyEqDeletes(applyPosDeletes(records));
   }
 
-  private CloseableIterable<T> applyEqDeletes(CloseableIterable<T> records) {
+  private List<Predicate<T>> applyEqDeletes() {
+    List<Predicate<T>> isInDeleteSets = Lists.newArrayList();
     if (eqDeletes.isEmpty()) {
-      return records;
+      return isInDeleteSets;
     }
 
     Multimap<Set<Integer>, DeleteFile> filesByDeleteIds = Multimaps.newMultimap(Maps.newHashMap(), Lists::newArrayList);
@@ -120,7 +123,6 @@ public abstract class DeleteFilter<T> {
       filesByDeleteIds.put(Sets.newHashSet(delete.equalityFieldIds()), delete);
     }
 
-    CloseableIterable<T> filteredRecords = records;
     for (Map.Entry<Set<Integer>, Collection<DeleteFile>> entry : filesByDeleteIds.asMap().entrySet()) {
       Set<Integer> ids = entry.getKey();
       Iterable<DeleteFile> deletes = entry.getValue();
@@ -137,11 +139,43 @@ public abstract class DeleteFilter<T> {
           CloseableIterable.transform(CloseableIterable.concat(deleteRecords), Record::copy),
           deleteSchema.asStruct());
 
-      filteredRecords = Deletes.filter(filteredRecords,
-          record -> projectRow.wrap(asStructLike(record)), deleteSet);
+      Predicate<T> isInDeleteSet = record -> deleteSet.contains(projectRow.wrap(asStructLike(record)));
+      isInDeleteSets.add(isInDeleteSet);
     }
 
-    return filteredRecords;
+    return isInDeleteSets;
+  }
+
+  public CloseableIterable<T> findEqualityDeleteRows(CloseableIterable<T> records) {
+    // Predicate to test whether a row has been deleted by equality deletions.
+    Predicate<T> deletedRows = applyEqDeletes().stream()
+        .reduce(Predicate::or)
+        .orElse(t -> false);
+
+    Filter<T> deletedRowsFilter = new Filter<T>() {
+      @Override
+      protected boolean shouldKeep(T item) {
+        return deletedRows.test(item);
+      }
+    };
+    return deletedRowsFilter.filter(records);
+  }
+
+  private CloseableIterable<T> applyEqDeletes(CloseableIterable<T> records) {
+    // Predicate to test whether a row should be visible to user after applying equality deletions.
+    Predicate<T> remainingRows = applyEqDeletes().stream()
+        .map(Predicate::negate)
+        .reduce(Predicate::and)
+        .orElse(t -> true);
+
+    Filter<T> remainingRowsFilter = new Filter<T>() {
+      @Override
+      protected boolean shouldKeep(T item) {
+        return remainingRows.test(item);
+      }
+    };
+
+    return remainingRowsFilter.filter(records);
   }
 
   private CloseableIterable<T> applyPosDeletes(CloseableIterable<T> records) {
