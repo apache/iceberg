@@ -30,7 +30,6 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -57,7 +56,6 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   private final int[] equalityFieldIds;
   private final Schema eqDeleteRowSchema;
   private final Schema posDeleteRowSchema;
-  private final SortOrder sortOrder;
 
   private RowType eqDeleteFlinkSchema = null;
   private RowType posDeleteFlinkSchema = null;
@@ -69,17 +67,10 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   public FlinkAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props,
                               PartitionSpec spec, int[] equalityFieldIds,
                               Schema eqDeleteRowSchema, Schema posDeleteRowSchema) {
-    this(schema, flinkSchema, props, spec, null, equalityFieldIds, eqDeleteRowSchema, posDeleteRowSchema);
-  }
-
-  public FlinkAppenderFactory(Schema schema, RowType flinkSchema, Map<String, String> props,
-                              PartitionSpec spec, SortOrder sortOrder, int[] equalityFieldIds,
-                              Schema eqDeleteRowSchema, Schema posDeleteRowSchema) {
     this.schema = schema;
     this.flinkSchema = flinkSchema;
     this.props = props;
     this.spec = spec;
-    this.sortOrder = sortOrder;
     this.equalityFieldIds = equalityFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
     this.posDeleteRowSchema = posDeleteRowSchema;
@@ -145,7 +136,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
   public DataWriter<RowData> newDataWriter(EncryptedOutputFile file, FileFormat format, StructLike partition) {
     return new DataWriter<>(
         newAppender(file.encryptingOutputFile(), format), format,
-        file.encryptingOutputFile().location(), spec, partition, file.keyMetadata(), sortOrder);
+        file.encryptingOutputFile().location(), spec, partition, file.keyMetadata());
   }
 
   @Override
@@ -169,7 +160,6 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .withSpec(spec)
               .withKeyMetadata(outputFile.keyMetadata())
               .equalityFieldIds(equalityFieldIds)
-              .withSortOrder(sortOrder)
               .buildEqualityWriter();
 
         case PARQUET:
@@ -183,7 +173,6 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               .withSpec(spec)
               .withKeyMetadata(outputFile.keyMetadata())
               .equalityFieldIds(equalityFieldIds)
-              .withSortOrder(sortOrder)
               .buildEqualityWriter();
 
         default:

@@ -25,12 +25,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.GenericRecord;
@@ -102,16 +100,9 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
         .commit();
   }
 
-  protected FileAppenderFactory<T> createAppenderFactory(List<Integer> equalityFieldIds,
-                                                                  Schema eqDeleteSchema,
-                                                                  Schema posDeleteRowSchema) {
-    return createAppenderFactory(equalityFieldIds, eqDeleteSchema, posDeleteRowSchema, null);
-  }
-
   protected abstract FileAppenderFactory<T> createAppenderFactory(List<Integer> equalityFieldIds,
                                                                   Schema eqDeleteSchema,
-                                                                  Schema posDeleteRowSchema,
-                                                                  SortOrder sortOrder);
+                                                                  Schema posDeleteRowSchema);
 
   protected abstract T createRow(Integer id, String data);
 
@@ -182,17 +173,6 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
   }
 
   @Test
-  public void testDataWriterPopulatesSortOrderInDataFile() throws IOException {
-    SortOrder sortOrder = SortOrder.builderFor(SCHEMA).asc("id").withOrderId(2).build();
-    FileAppenderFactory<T> appenderFactory = createAppenderFactory(null, null, null, sortOrder);
-
-    List<T> rowSet = testRowSet();
-    DataFile dataFile = prepareDataFile(rowSet, appenderFactory);
-
-    Assert.assertEquals("Should have expected sort order id", sortOrder.orderId(), dataFile.sortOrderId().intValue());
-  }
-
-  @Test
   public void testEqDeleteWriter() throws IOException {
     List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().findField("id").fieldId());
     Schema eqDeleteRowSchema = table.schema().select("id");
@@ -240,28 +220,6 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
   }
 
   @Test
-  public void testEqDeleteWriterPopulatesSortOrderInDeleteFile() throws IOException {
-    SortOrder sortOrder = SortOrder.builderFor(SCHEMA).asc("id").withOrderId(2).build();
-
-    List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().findField("id").fieldId());
-    Schema eqDeleteRowSchema = table.schema().select("id");
-    FileAppenderFactory<T> appenderFactory = createAppenderFactory(
-        equalityFieldIds, eqDeleteRowSchema, null, sortOrder);
-
-    List<T> deletes = Lists.newArrayList(
-        createRow(1, "aaa")
-    );
-    EncryptedOutputFile out = createEncryptedOutputFile();
-    EqualityDeleteWriter<T> eqDeleteWriter = appenderFactory.newEqDeleteWriter(out, format, partition);
-    try (EqualityDeleteWriter<T> closeableWriter = eqDeleteWriter) {
-      closeableWriter.deleteAll(deletes);
-    }
-
-    DeleteFile deleteFile = eqDeleteWriter.toDeleteFile();
-    Assert.assertEquals("Should have expected sort order id", sortOrder.orderId(), deleteFile.sortOrderId().intValue());
-  }
-
-  @Test
   public void testPosDeleteWriter() throws IOException {
     // Initialize FileAppenderFactory without pos-delete row schema.
     FileAppenderFactory<T> appenderFactory = createAppenderFactory(null, null, null);
@@ -276,8 +234,8 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     );
 
     EncryptedOutputFile out = createEncryptedOutputFile();
-    PositionDeleteWriter<T> posDeleteWriter = appenderFactory.newPosDeleteWriter(out, format, partition);
-    try (PositionDeleteWriter<T> closeableWriter = posDeleteWriter) {
+    PositionDeleteWriter<T> eqDeleteWriter = appenderFactory.newPosDeleteWriter(out, format, partition);
+    try (PositionDeleteWriter<T> closeableWriter = eqDeleteWriter) {
       for (Pair<CharSequence, Long> delete : deletes) {
         closeableWriter.delete(delete.first(), delete.second());
       }
@@ -296,8 +254,8 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
 
     table.newRowDelta()
         .addRows(dataFile)
-        .addDeletes(posDeleteWriter.toDeleteFile())
-        .validateDataFilesExist(posDeleteWriter.referencedDataFiles())
+        .addDeletes(eqDeleteWriter.toDeleteFile())
+        .validateDataFilesExist(eqDeleteWriter.referencedDataFiles())
         .validateDeletedFiles()
         .commit();
 
@@ -322,8 +280,8 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     );
 
     EncryptedOutputFile out = createEncryptedOutputFile();
-    PositionDeleteWriter<T> posDeleteWriter = appenderFactory.newPosDeleteWriter(out, format, partition);
-    try (PositionDeleteWriter<T> closeableWriter = posDeleteWriter) {
+    PositionDeleteWriter<T> eqDeleteWriter = appenderFactory.newPosDeleteWriter(out, format, partition);
+    try (PositionDeleteWriter<T> closeableWriter = eqDeleteWriter) {
       for (PositionDelete<T> delete : deletes) {
         closeableWriter.delete(delete.path(), delete.pos(), delete.row());
       }
@@ -343,8 +301,8 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
 
     table.newRowDelta()
         .addRows(dataFile)
-        .addDeletes(posDeleteWriter.toDeleteFile())
-        .validateDataFilesExist(posDeleteWriter.referencedDataFiles())
+        .addDeletes(eqDeleteWriter.toDeleteFile())
+        .validateDataFilesExist(eqDeleteWriter.referencedDataFiles())
         .validateDeletedFiles()
         .commit();
 
@@ -353,31 +311,6 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
         createRow(4, "ddd")
     );
     Assert.assertEquals("Should have the expected records", expectedRowSet(expected), actualRowSet("*"));
-  }
-
-  @Test
-  public void testPosDeleteWriterNotPopulateSortOrderInDeleteFile() throws IOException {
-    SortOrder sortOrder = SortOrder.builderFor(SCHEMA).asc("id").withOrderId(2).build();
-
-    FileAppenderFactory<T> appenderFactory = createAppenderFactory(
-        null, null, table.schema(), sortOrder);
-
-    List<T> rowSet = testRowSet();
-    DataFile dataFile = prepareDataFile(rowSet, appenderFactory);
-
-    List<PositionDelete<T>> deletes = Lists.newArrayList(
-        new PositionDelete<T>().set(dataFile.path(), 0, rowSet.get(0))
-    );
-
-    EncryptedOutputFile out = createEncryptedOutputFile();
-    PositionDeleteWriter<T> posDeleteWriter = appenderFactory.newPosDeleteWriter(out, format, partition);
-    try (PositionDeleteWriter<T> closeableWriter = posDeleteWriter) {
-      for (PositionDelete<T> delete : deletes) {
-        closeableWriter.delete(delete.path(), delete.pos(), delete.row());
-      }
-    }
-    DeleteFile deleteFile = posDeleteWriter.toDeleteFile();
-    Assert.assertNull("Should have no sort order id", deleteFile.sortOrderId());
   }
 
   private CloseableIterable<Record> createReader(Schema schema, InputFile inputFile) {

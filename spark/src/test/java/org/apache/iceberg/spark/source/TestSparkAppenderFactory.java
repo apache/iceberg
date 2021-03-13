@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.source;
 
 import java.util.List;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.TestAppenderFactory;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -44,9 +43,8 @@ public class TestSparkAppenderFactory extends TestAppenderFactory<InternalRow> {
   @Override
   protected FileAppenderFactory<InternalRow> createAppenderFactory(List<Integer> equalityFieldIds,
                                                                    Schema eqDeleteSchema,
-                                                                   Schema posDeleteRowSchema,
-                                                                   SortOrder sortOrder) {
-    return new SparkAppenderFactory(table.properties(), table.schema(), sparkType, table.spec(), sortOrder,
+                                                                   Schema posDeleteRowSchema) {
+    return new SparkAppenderFactory(table.properties(), table.schema(), sparkType, table.spec(),
         ArrayUtil.toIntArray(equalityFieldIds), eqDeleteSchema, posDeleteRowSchema);
   }
 

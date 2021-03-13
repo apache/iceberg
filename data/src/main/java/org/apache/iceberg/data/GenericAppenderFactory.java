@@ -26,7 +26,6 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataWriter;
@@ -53,7 +52,6 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
   private final int[] equalityFieldIds;
   private final Schema eqDeleteRowSchema;
   private final Schema posDeleteRowSchema;
-  private final SortOrder sortOrder;
   private final Map<String, String> config = Maps.newHashMap();
 
   public GenericAppenderFactory(Schema schema) {
@@ -68,17 +66,8 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
                                 int[] equalityFieldIds,
                                 Schema eqDeleteRowSchema,
                                 Schema posDeleteRowSchema) {
-    this(schema, spec, null, equalityFieldIds, eqDeleteRowSchema, posDeleteRowSchema);
-  }
-
-  public GenericAppenderFactory(Schema schema, PartitionSpec spec,
-                                SortOrder sortOrder,
-                                int[] equalityFieldIds,
-                                Schema eqDeleteRowSchema,
-                                Schema posDeleteRowSchema) {
     this.schema = schema;
     this.spec = spec;
-    this.sortOrder = sortOrder;
     this.equalityFieldIds = equalityFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
     this.posDeleteRowSchema = posDeleteRowSchema;
@@ -139,7 +128,7 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
                                                                 StructLike partition) {
     return new org.apache.iceberg.io.DataWriter<>(
         newAppender(file.encryptingOutputFile(), format), format,
-        file.encryptingOutputFile().location(), spec, partition, file.keyMetadata(), sortOrder);
+        file.encryptingOutputFile().location(), spec, partition, file.keyMetadata());
   }
 
   @Override
@@ -163,7 +152,6 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
               .withSpec(spec)
               .withKeyMetadata(file.keyMetadata())
               .equalityFieldIds(equalityFieldIds)
-              .withSortOrder(sortOrder)
               .buildEqualityWriter();
 
         case PARQUET:
@@ -177,7 +165,6 @@ public class GenericAppenderFactory implements FileAppenderFactory<Record> {
               .withSpec(spec)
               .withKeyMetadata(file.keyMetadata())
               .equalityFieldIds(equalityFieldIds)
-              .withSortOrder(sortOrder)
               .buildEqualityWriter();
 
         default:
