@@ -19,13 +19,6 @@
 
 package org.apache.iceberg.nessie;
 
-import com.dremio.nessie.client.NessieClient;
-import com.dremio.nessie.error.NessieConflictException;
-import com.dremio.nessie.error.NessieNotFoundException;
-import com.dremio.nessie.model.Contents;
-import com.dremio.nessie.model.ContentsKey;
-import com.dremio.nessie.model.IcebergTable;
-import com.dremio.nessie.model.ImmutableIcebergTable;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.Snapshot;
@@ -33,6 +26,13 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
+import org.projectnessie.client.NessieClient;
+import org.projectnessie.error.NessieConflictException;
+import org.projectnessie.error.NessieNotFoundException;
+import org.projectnessie.model.Contents;
+import org.projectnessie.model.ContentsKey;
+import org.projectnessie.model.IcebergTable;
+import org.projectnessie.model.ImmutableIcebergTable;
 
 /**
  * Nessie implementation of Iceberg TableOperations.

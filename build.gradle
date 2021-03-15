@@ -38,7 +38,7 @@ buildscript {
 
 plugins {
   id 'nebula.dependency-recommender' version '9.0.2'
-  id 'org.projectnessie' version '0.3.0'
+  id 'org.projectnessie' version '0.4.0'
 }
 
 try {
@@ -1093,7 +1093,7 @@ project(':iceberg-nessie') {
     compile project(':iceberg-core')
     compile project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compile "org.projectnessie:nessie-client"
-    quarkusAppRunnerConfig "org.projectnessie:nessie-quarkus:0.2.1"
+    quarkusAppRunnerConfig "org.projectnessie:nessie-quarkus:0.4.0"
 
     compileOnly "org.apache.hadoop:hadoop-common"
 
@@ -1102,7 +1102,10 @@ project(':iceberg-nessie') {
   quarkusAppRunnerProperties {
     props = ["quarkus.http.test-port": 0]
   }
-  tasks.getByName("quarkus-start").dependsOn("compileTestJava")
+  tasks.getByName("quarkus-start")
+          // This is not doing anything with Docker or building a native image, just a quirk of Quarkus since 1.10.
+          .doFirst { System.setProperty("quarkus.native.builder-image", "quay.io/quarkus/ubi-quarkus-native-image:21.0.0-java11") }
+          .dependsOn("compileTestJava")
   tasks.test.dependsOn("quarkus-start").finalizedBy("quarkus-stop")
 
 }
