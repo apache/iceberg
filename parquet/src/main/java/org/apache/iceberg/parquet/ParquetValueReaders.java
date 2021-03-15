@@ -306,6 +306,7 @@ public class ParquetValueReaders {
     public IntAsLongReader(ColumnDescriptor desc) {
       super(desc);
     }
+
     @Override
     public long readLong() {
       return column.nextInteger();
@@ -316,6 +317,7 @@ public class ParquetValueReaders {
     public FloatAsDoubleReader(ColumnDescriptor desc) {
       super(desc);
     }
+
     @Override
     public double readDouble() {
       return column.nextFloat();
