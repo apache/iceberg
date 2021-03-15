@@ -239,10 +239,10 @@ public abstract class BaseParquetReaders<T> {
             if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.LONG) {
               return new ParquetValueReaders.IntAsLongReader(desc);
             } else {
-              return new ParquetValueReaders.UnboxedReader<>(desc);
+              return new ParquetValueReaders.IntReader(desc);
             }
           case INT_64:
-            return new ParquetValueReaders.UnboxedReader<>(desc);
+            return new ParquetValueReaders.LongReader(desc);
           case DATE:
             return new DateReader(desc);
           case TIMESTAMP_MICROS:
@@ -294,18 +294,20 @@ public abstract class BaseParquetReaders<T> {
           if (expected != null && expected.typeId() == org.apache.iceberg.types.Type.TypeID.LONG) {
             return new ParquetValueReaders.IntAsLongReader(desc);
           } else {
-            return new ParquetValueReaders.UnboxedReader<>(desc);
+            return new ParquetValueReaders.IntReader(desc);
           }
         case FLOAT:
           if (expected != null && expected.typeId() == org.apache.iceberg.types.Type.TypeID.DOUBLE) {
             return new ParquetValueReaders.FloatAsDoubleReader(desc);
           } else {
-            return new ParquetValueReaders.UnboxedReader<>(desc);
+            return new ParquetValueReaders.FloatReader(desc);
           }
         case BOOLEAN:
+          return new ParquetValueReaders.BooleanReader(desc);
         case INT64:
+          return new ParquetValueReaders.LongReader(desc);
         case DOUBLE:
-          return new ParquetValueReaders.UnboxedReader<>(desc);
+          return new ParquetValueReaders.DoubleReader(desc);
         case INT96:
           // Impala & Spark used to write timestamps as INT96 without a logical type. For backwards
           // compatibility we try to read INT96 as timestamps.

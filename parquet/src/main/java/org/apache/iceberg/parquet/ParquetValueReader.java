@@ -30,4 +30,49 @@ public interface ParquetValueReader<T> {
   List<TripleIterator<?>> columns();
 
   void setPageSource(PageReadStore pageStore, long rowPosition);
+
+  interface OfBoolean extends ParquetValueReader<Boolean> {
+    @Override
+    default Boolean read(Boolean ignored) {
+      return readBoolean();
+    }
+
+    boolean readBoolean();
+  }
+
+  interface OfInt extends ParquetValueReader<Integer> {
+    @Override
+    default Integer read(Integer ignored) {
+      return readInteger();
+    }
+
+    int readInteger();
+  }
+
+  interface OfLong extends ParquetValueReader<Long> {
+    @Override
+    default Long read(Long ignored) {
+      return readLong();
+    }
+
+    long readLong();
+  }
+
+  interface OfFloat extends ParquetValueReader<Float> {
+    @Override
+    default Float read(Float ignored) {
+      return readFloat();
+    }
+
+    float readFloat();
+  }
+
+  interface OfDouble extends ParquetValueReader<Double> {
+    @Override
+    default Double read(Double ignored) {
+      return readDouble();
+    }
+
+    double readDouble();
+  }
 }

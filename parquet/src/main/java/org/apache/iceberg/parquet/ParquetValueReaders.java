@@ -196,6 +196,65 @@ public class ParquetValueReaders {
     }
   }
 
+  public static class BooleanReader extends PrimitiveReader<Boolean> implements ParquetValueReader.OfBoolean {
+
+    public BooleanReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public boolean readBoolean() {
+      return column.nextBoolean();
+    }
+  }
+
+  public static class IntReader extends PrimitiveReader<Integer> implements ParquetValueReader.OfInt {
+    public IntReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public int readInteger() {
+      return column.nextInteger();
+    }
+  }
+
+  public static class LongReader extends PrimitiveReader<Long> implements ParquetValueReader.OfLong {
+
+    public LongReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public long readLong() {
+      return column.nextLong();
+    }
+  }
+
+  public static class FloatReader extends PrimitiveReader<Float> implements ParquetValueReader.OfFloat {
+
+    public FloatReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public float readFloat() {
+      return column.nextFloat();
+    }
+  }
+
+  public static class DoubleReader extends PrimitiveReader<Double> implements ParquetValueReader.OfDouble {
+
+    public DoubleReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public double readDouble() {
+      return column.nextDouble();
+    }
+  }
+
   public static class UnboxedReader<T> extends PrimitiveReader<T> {
     public UnboxedReader(ColumnDescriptor desc) {
       super(desc);
@@ -243,35 +302,23 @@ public class ParquetValueReaders {
     }
   }
 
-  public static class IntAsLongReader extends UnboxedReader<Long> {
+  public static class IntAsLongReader extends LongReader {
     public IntAsLongReader(ColumnDescriptor desc) {
       super(desc);
     }
-
-    @Override
-    public Long read(Long ignored) {
-      return readLong();
-    }
-
     @Override
     public long readLong() {
-      return super.readInteger();
+      return column.nextInteger();
     }
   }
 
-  public static class FloatAsDoubleReader extends UnboxedReader<Double> {
+  public static class FloatAsDoubleReader extends DoubleReader {
     public FloatAsDoubleReader(ColumnDescriptor desc) {
       super(desc);
     }
-
-    @Override
-    public Double read(Double ignored) {
-      return readDouble();
-    }
-
     @Override
     public double readDouble() {
-      return super.readFloat();
+      return column.nextFloat();
     }
   }
 
@@ -651,27 +698,20 @@ public class ParquetValueReaders {
   }
 
   public abstract static class StructReader<T, I> implements ParquetValueReader<T> {
-    private interface Setter<R> {
-      void set(R record, int pos, Object reuse);
-    }
-
     private final ParquetValueReader<?>[] readers;
     private final TripleIterator<?> column;
     private final List<TripleIterator<?>> children;
 
-    @SuppressWarnings("unchecked")
     protected StructReader(List<Type> types, List<ParquetValueReader<?>> readers) {
       this.readers = (ParquetValueReader<?>[]) Array.newInstance(
           ParquetValueReader.class, readers.size());
       TripleIterator<?>[] columns = (TripleIterator<?>[]) Array.newInstance(TripleIterator.class, readers.size());
-      Setter<I>[] setters = (Setter<I>[]) Array.newInstance(Setter.class, readers.size());
 
       ImmutableList.Builder<TripleIterator<?>> columnsBuilder = ImmutableList.builder();
       for (int i = 0; i < readers.size(); i += 1) {
         ParquetValueReader<?> reader = readers.get(i);
         this.readers[i] = readers.get(i);
         columns[i] = reader.column();
-        setters[i] = newSetter(reader, types.get(i));
         columnsBuilder.addAll(reader.columns());
       }
 
@@ -696,8 +736,20 @@ public class ParquetValueReaders {
       I intermediate = newStructData(reuse);
 
       for (int i = 0; i < readers.length; i += 1) {
-        set(intermediate, i, readers[i].read(get(intermediate, i)));
-        // setters[i].set(intermediate, i, get(intermediate, i));
+        final ParquetValueReader<?> reader = readers[i];
+        if (reader instanceof ParquetValueReader.OfBoolean) {
+          setBoolean(intermediate, i, ((OfBoolean) reader).readBoolean());
+        } else if (reader instanceof ParquetValueReader.OfInt) {
+          setInteger(intermediate, i, ((OfInt) reader).readInteger());
+        } else if (reader instanceof ParquetValueReader.OfLong) {
+          setLong(intermediate, i, ((OfLong) reader).readLong());
+        } else if (reader instanceof ParquetValueReader.OfFloat) {
+          setFloat(intermediate, i, ((OfFloat) reader).readFloat());
+        } else if (reader instanceof ParquetValueReader.OfDouble) {
+          setDouble(intermediate, i, ((OfDouble) reader).readDouble());
+        } else {
+          set(intermediate, i, reader.read(get(intermediate, i)));
+        }
       }
 
       return buildStruct(intermediate);
@@ -706,41 +758,6 @@ public class ParquetValueReaders {
     @Override
     public List<TripleIterator<?>> columns() {
       return children;
-    }
-
-    @SuppressWarnings("unchecked")
-    private <E> Setter<I> newSetter(ParquetValueReader<E> reader, Type type) {
-      if (reader instanceof UnboxedReader && type.isPrimitive()) {
-        UnboxedReader<?> unboxed  = (UnboxedReader<?>) reader;
-        switch (type.asPrimitiveType().getPrimitiveTypeName()) {
-          case BOOLEAN:
-            return (record, pos, ignored) -> setBoolean(record, pos, unboxed.readBoolean());
-          case INT32:
-            return (record, pos, ignored) -> setInteger(record, pos, unboxed.readInteger());
-          case INT64:
-            return (record, pos, ignored) -> setLong(record, pos, unboxed.readLong());
-          case FLOAT:
-            return (record, pos, ignored) -> setFloat(record, pos, unboxed.readFloat());
-          case DOUBLE:
-            return (record, pos, ignored) -> setDouble(record, pos, unboxed.readDouble());
-          case INT96:
-          case FIXED_LEN_BYTE_ARRAY:
-          case BINARY:
-            return (record, pos, ignored) -> set(record, pos, unboxed.readBinary());
-          default:
-            throw new UnsupportedOperationException("Unsupported type: " + type);
-        }
-      }
-
-      // TODO: Add support for options to avoid the null check
-      return (record, pos, reuse) -> {
-        Object obj = reader.read((E) reuse);
-        if (obj != null) {
-          set(record, pos, obj);
-        } else {
-          setNull(record, pos);
-        }
-      };
     }
 
     @SuppressWarnings("unchecked")
