@@ -46,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.SparkDataFile;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
@@ -158,6 +159,11 @@ public class RewriteManifestsAction
 
   @Override
   public RewriteManifestsActionResult execute() {
+    JobGroupInfo info = newJobGroupInfo("REWRITE-MANIFESTS", "REWRITE-MANIFESTS");
+    return withJobGroupInfo(info, this::doExecute);
+  }
+
+  private RewriteManifestsActionResult doExecute() {
     List<ManifestFile> matchingManifests = findMatchingManifests();
     if (matchingManifests.isEmpty()) {
       return RewriteManifestsActionResult.empty();

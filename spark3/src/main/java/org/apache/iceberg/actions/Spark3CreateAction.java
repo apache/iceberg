@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -35,9 +36,12 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.JobGroupInfo;
+import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.source.StagedSparkTable;
+import org.apache.spark.SparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.catalog.CatalogTable;
 import org.apache.spark.sql.catalyst.catalog.CatalogUtils;
@@ -187,4 +191,16 @@ abstract class Spark3CreateAction implements CreateAction {
   protected abstract Map<String, String> targetTableProps();
 
   protected abstract TableCatalog checkSourceCatalog(CatalogPlugin catalog);
+
+  protected <T> T withJobGroupInfo(JobGroupInfo info, Supplier<T> supplier) {
+    SparkContext context = spark().sparkContext();
+    JobGroupInfo previousInfo = JobGroupUtils.getJobGroupInfo(context);
+    try {
+      JobGroupUtils.setJobGroupInfo(context, info);
+      return supplier.get();
+    } finally {
+      JobGroupUtils.setJobGroupInfo(context, previousInfo);
+    }
+  }
+
 }
