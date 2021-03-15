@@ -53,9 +53,10 @@ import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 
 abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
+  private static final AtomicInteger JOB_COUNTER = new AtomicInteger();
+
   private final SparkSession spark;
   private final JavaSparkContext sparkContext;
-  private static final AtomicInteger jobCounter = new AtomicInteger();
 
   protected BaseSparkAction(SparkSession spark) {
     this.spark = spark;
@@ -82,7 +83,7 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
   }
 
   protected JobGroupInfo newJobGroupInfo(String groupId, String desc) {
-    return new JobGroupInfo(groupId + "-" + jobCounter.incrementAndGet(), desc, false);
+    return new JobGroupInfo(groupId + "-" + JOB_COUNTER.incrementAndGet(), desc, false);
   }
 
   /**
