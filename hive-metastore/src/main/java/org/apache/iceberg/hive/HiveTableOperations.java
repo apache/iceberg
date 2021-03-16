@@ -303,9 +303,15 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     }
 
     // Set the basic statistics
-    parameters.put(StatsSetupConst.NUM_FILES, summary.getOrDefault(SnapshotSummary.TOTAL_DATA_FILES_PROP, "0"));
-    parameters.put(StatsSetupConst.ROW_COUNT, summary.getOrDefault(SnapshotSummary.TOTAL_RECORDS_PROP, "0"));
-    parameters.put(StatsSetupConst.TOTAL_SIZE, summary.getOrDefault(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "0"));
+    if (summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP) != null) {
+      parameters.put(StatsSetupConst.NUM_FILES, summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
+    }
+    if (summary.get(SnapshotSummary.TOTAL_RECORDS_PROP) != null) {
+      parameters.put(StatsSetupConst.ROW_COUNT, summary.get(SnapshotSummary.TOTAL_RECORDS_PROP));
+    }
+    if (summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP) != null) {
+      parameters.put(StatsSetupConst.TOTAL_SIZE, summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
+    }
 
     tbl.setParameters(parameters);
   }
