@@ -25,12 +25,10 @@ import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.LockResponse;
 import org.apache.hadoop.hive.metastore.api.LockState;
 import org.apache.iceberg.AssertHelpers;
-import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
 import org.junit.AfterClass;
@@ -49,7 +47,7 @@ import static org.mockito.Mockito.when;
 public class TestHiveCommitLocks extends HiveTableBaseTest {
   private static HiveTableOperations spyOps = null;
   private static HiveClientPool spyClientPool = null;
-  private static HiveCatalog spyHiveCatalog = null;
+  private static HiveClientPoolProvider spyHiveClientPoolProvider = null;
   private static Configuration overriddenHiveConf = new Configuration(hiveConf);
   private static AtomicReference<HiveMetaStoreClient> spyClientRef = new AtomicReference<>();
   private static HiveMetaStoreClient spyClient = null;
@@ -79,9 +77,8 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     spyClientPool.run(HiveMetaStoreClient::isLocalMetaStore); // To ensure new client is created.
 
-    spyHiveCatalog = spy((HiveCatalog) CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "spyHiveCatalog",
-            ImmutableMap.of(), hiveConf));
-    when(spyHiveCatalog.clientPool()).thenAnswer(invocation -> spyClientPool);
+    spyHiveClientPoolProvider = spy(new HiveClientPoolProvider(hiveConf));
+    when(spyHiveClientPoolProvider.clientPool()).thenAnswer(invocation -> spyClientPool);
 
     Assert.assertNotNull(spyClientRef.get());
 
@@ -107,7 +104,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     Assert.assertEquals(2, ops.current().schema().columns().size());
 
-    spyOps = spy(new HiveTableOperations(overriddenHiveConf, ops.io(), spyHiveCatalog,
+    spyOps = spy(new HiveTableOperations(overriddenHiveConf, catalog.name(), ops.io(), spyHiveClientPoolProvider,
             dbName, tableName));
   }
 

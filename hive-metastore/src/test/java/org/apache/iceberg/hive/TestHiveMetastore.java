@@ -29,7 +29,6 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -216,8 +215,6 @@ public class TestHiveMetastore {
     conf.set(HiveConf.ConfVars.METASTORE_TRY_DIRECT_SQL.varname, "false");
     conf.set(HiveConf.ConfVars.METASTORE_DISALLOW_INCOMPATIBLE_COL_TYPE_CHANGES.varname, "false");
     conf.set("iceberg.hive.client-pool-size", "2");
-    conf.setLong(HiveCatalog.CACHE_CLEANER_INTERVAL, TimeUnit.SECONDS.toMillis(5));
-    conf.setLong(HiveCatalog.CACHE_EVICTION_INTERVAL, TimeUnit.SECONDS.toMillis(10));
   }
 
   private void setupMetastoreDB(String dbURL) throws SQLException, IOException {
