@@ -520,14 +520,11 @@ public class TestHiveIcebergStorageHandlerNoScan {
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     if (Catalogs.hiveCatalog(shell.getHiveConf())) {
-      Assert.assertEquals(12, hmsParams.size());
+      Assert.assertEquals(9, hmsParams.size());
       Assert.assertEquals("initial_val", hmsParams.get("custom_property"));
       Assert.assertEquals("TRUE", hmsParams.get(InputFormatConfig.EXTERNAL_TABLE_PURGE));
       Assert.assertEquals("TRUE", hmsParams.get("EXTERNAL"));
       Assert.assertEquals("true", hmsParams.get(TableProperties.ENGINE_HIVE_ENABLED));
-      Assert.assertEquals("0", hmsParams.get(StatsSetupConst.NUM_FILES));
-      Assert.assertEquals("0", hmsParams.get(StatsSetupConst.ROW_COUNT));
-      Assert.assertEquals("0", hmsParams.get(StatsSetupConst.TOTAL_SIZE));
       Assert.assertEquals(HiveIcebergStorageHandler.class.getName(),
           hmsParams.get(hive_metastoreConstants.META_TABLE_STORAGE));
       Assert.assertEquals(BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(),
@@ -560,7 +557,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     if (Catalogs.hiveCatalog(shell.getHiveConf())) {
-      Assert.assertEquals(15, hmsParams.size()); // 2 newly-added properties + previous_metadata_location prop
+      Assert.assertEquals(12, hmsParams.size()); // 2 newly-added properties + previous_metadata_location prop
       Assert.assertEquals("true", hmsParams.get("new_prop_1"));
       Assert.assertEquals("false", hmsParams.get("new_prop_2"));
       Assert.assertEquals("new_val", hmsParams.get("custom_property"));
