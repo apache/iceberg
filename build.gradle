@@ -21,7 +21,6 @@ import groovy.transform.Memoized
 
 buildscript {
   repositories {
-    jcenter()
     gradlePluginPortal()
     maven { url "http://palantir.bintray.com/releases" }
     maven { url "https://plugins.gradle.org/m2/" }
