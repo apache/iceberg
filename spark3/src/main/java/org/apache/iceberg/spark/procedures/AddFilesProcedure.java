@@ -21,7 +21,6 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -50,6 +49,8 @@ import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import scala.runtime.BoxedUnit;
+
+import static org.apache.iceberg.spark.SparkTableUtil.MAP_JOINER;
 
 class AddFilesProcedure extends BaseProcedure {
 
@@ -147,29 +148,41 @@ class AddFilesProcedure extends BaseProcedure {
   private void importFileTable(Table table, Path tableLocation, String format, Map<String, String> partitionFilter) {
     // List Partitions via Spark InMemory file search interface
     List<SparkPartition> partitions = Spark3Util.getPartitions(spark(), tableLocation, format);
+    boolean sourceUnpartitioned = partitions.size() == 1 && partitions.get(0).getValues().isEmpty();
+    Preconditions.checkArgument(
+        (table.spec().isUnpartitioned() && sourceUnpartitioned) || !table.spec().isUnpartitioned(),
+        "Cannot add partitioned files to an unpartitioned table");
+    Preconditions.checkArgument(!partitions.isEmpty(),
+        "Cannot find any partitions in table %s", partitions);
     List<SparkPartition> filteredPartitions = SparkTableUtil.filterPartitions(partitions, partitionFilter);
+    Preconditions.checkArgument(!filteredPartitions.isEmpty(),
+        "Cannot find any partitions which match the given filter. Partition filter is %s",
+        MAP_JOINER.join(partitionFilter));
     importPartitions(table, filteredPartitions);
   }
 
   private void importCatalogTable(Table table, Identifier sourceIdent, Map<String, String> partitionFilter) {
-    String stagingLocation = table.properties()
-        .getOrDefault(TableProperties.WRITE_METADATA_LOCATION, table.location() + "/metadata");
+    String stagingLocation = getMetadataLocation(table);
     TableIdentifier sourceTableIdentifier = Spark3Util.toV1TableIdentifier(sourceIdent);
     SparkTableUtil.importSparkTable(spark(), sourceTableIdentifier, table, stagingLocation, partitionFilter);
   }
 
   private void importPartitions(Table table, List<SparkTableUtil.SparkPartition> partitions) {
-    String stagingLocation = table.properties()
-        .getOrDefault(TableProperties.WRITE_METADATA_LOCATION, table.location() + "/metadata");
+    String stagingLocation = getMetadataLocation(table);
     SparkTableUtil.importSparkPartitions(spark(), partitions, table, table.spec(), stagingLocation);
+  }
+
+  private String getMetadataLocation(Table table) {
+    String defaultValue = table.location() + "/metadata";
+    return table.properties().getOrDefault(TableProperties.WRITE_METADATA_LOCATION, defaultValue);
   }
 
   @Override
   public String description() {
-    return null;
+    return "AddFiles";
   }
 
-  private void validatePartitionSpec(Table table, Map<String, String> partitionFilter) {
+  private static void validatePartitionSpec(Table table, Map<String, String> partitionFilter) {
     List<PartitionField> partitionFields = table.spec().fields();
     Set<String> partitionNames = table.spec().fields().stream().map(PartitionField::name).collect(Collectors.toSet());
 

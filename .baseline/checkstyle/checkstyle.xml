@@ -92,6 +92,7 @@
                 org.apache.iceberg.IsolationLevel.*,
                 org.apache.iceberg.NullOrder.*,
                 org.apache.iceberg.MetadataTableType.*,
+                org.apache.iceberg.spark.SparkTableUtil.*,
                 org.apache.iceberg.SortDirection.*,
                 org.apache.iceberg.TableProperties.*,
                 org.apache.iceberg.types.Type.*,
