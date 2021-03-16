@@ -21,7 +21,9 @@ package org.apache.iceberg.spark.extensions;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.Dataset;
@@ -75,6 +77,25 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql(createIceberg, tableName);
 
+    Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    Assert.assertEquals(2L, result);
+
+    assertEquals("Iceberg table contains correct data",
+        sql("SELECT * FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Ignore // TODO Classpath issues prevent us from actually writing to a Spark ORC table
+  public void addDataUnpartitionedOrc() {
+    createUnpartitionedFileTable("orc");
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg";
+
+    sql(createIceberg, tableName);
+
     Object result = scalarSql("CALL %s.system.add_files('%s', '`orc`.`%s`')",
         catalogName, tableName, fileTableDir.getAbsolutePath());
 
@@ -85,16 +106,17 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Ignore  // Classpath issues prevent us from actually writing to a Spark ORC table
-  public void addDataUnpartitionedOrc() {
-    createUnpartitionedFileTable("orc");
+  // TODO Adding spark-avro doesn't work in tests
+  @Ignore
+  public void addDataUnpartitionedAvro() {
+    createUnpartitionedFileTable("avro");
 
     String createIceberg =
         "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg";
 
     sql(createIceberg, tableName);
 
-    Object result = scalarSql("CALL %s.system.add_files('%s', '`orc`.`%s`')",
+    Object result = scalarSql("CALL %s.system.add_files('%s', '`avro`.`%s`')",
         catalogName, tableName, fileTableDir.getAbsolutePath());
 
     Assert.assertEquals(2L, result);
@@ -199,7 +221,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
-  @Ignore  // Classpath issues prevent us from actually writing to a Spark ORC table
+  @Ignore  // TODO Classpath issues prevent us from actually writing to a Spark ORC table
   public void addDataPartitionedOrc() {
     createPartitionedFileTable("orc");
 
@@ -209,6 +231,26 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     sql(createIceberg, tableName);
 
     Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    Assert.assertEquals(8L, result);
+
+    assertEquals("Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  // TODO Adding spark-avro doesn't work in tests
+  @Ignore
+  public void addDataPartitionedAvro() {
+    createPartitionedFileTable("avro");
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg PARTITIONED BY (id)";
+
+    sql(createIceberg, tableName);
+
+    Object result = scalarSql("CALL %s.system.add_files('%s', '`avro`.`%s`')",
         catalogName, tableName, fileTableDir.getAbsolutePath());
 
     Assert.assertEquals(8L, result);
@@ -277,6 +319,47 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void addWeirdCaseHiveTable() {
+    createWeirdCaseTable();
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, `naMe` String, dept String, subdept String) USING iceberg " +
+            "PARTITIONED BY (`naMe`)";
+
+    sql(createIceberg, tableName);
+
+    Object result = scalarSql("CALL %s.system.add_files('%s', '%s', map('naMe', 'John Doe'))",
+        catalogName, tableName, sourceTableName);
+
+    Assert.assertEquals(2L, result);
+
+    /*
+    While we would like to use
+    SELECT id, `naMe`, dept, subdept FROM %s WHERE `naMe` = 'John Doe' ORDER BY id
+    Spark does not actually handle this pushdown correctly for hive based tables and it returns 0 records
+     */
+    List<Object[]> expected =
+        sql("SELECT id, `naMe`, dept, subdept from %s ORDER BY id", sourceTableName)
+            .stream()
+            .filter(r -> r[1].equals("John Doe"))
+            .collect(Collectors.toList());
+
+    // TODO when this assert breaks Spark fixed the pushdown issue
+    Assert.assertEquals("If this assert breaks it means that Spark has fixed the pushdown issue", 0,
+        sql("SELECT id, `naMe`, dept, subdept from %s WHERE `naMe` = 'John Doe' ORDER BY id", sourceTableName)
+            .size());
+
+    // Pushdown works for iceberg
+    Assert.assertEquals("We should be able to pushdown mixed case partition keys", 2,
+        sql("SELECT id, `naMe`, dept, subdept FROM %s WHERE `naMe` = 'John Doe' ORDER BY id", tableName)
+            .size());
+
+    assertEquals("Iceberg table contains correct data",
+        expected,
+        sql("SELECT id, `naMe`, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
   public void addPartitionToPartitionedHive() {
     createPartitionedHiveTable();
 
@@ -313,7 +396,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     AssertHelpers.assertThrows("Should forbid adding of partitioned data to unpartitioned table",
         IllegalArgumentException.class,
-        "Cannot use partition filter with an unpartitioned table",
+        "Cannot add partitioned files to an unpartitioned table",
         () -> scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`')",
             catalogName, tableName, fileTableDir.getAbsolutePath())
     );
@@ -322,8 +405,6 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   @Test
   public void invalidDataImportPartitioned() {
     createUnpartitionedFileTable("parquet");
-
-    File fileToAdd = fileTableDir.listFiles((dir, name) -> name.endsWith("parquet"))[0];
 
     String createIceberg =
         "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg PARTITIONED BY (id)";
@@ -341,7 +422,6 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         "specified partition filter refers to columns that are not partitioned",
         () -> scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', '2'))",
             catalogName, tableName, fileTableDir.getAbsolutePath()));
-
   }
 
   private static final StructField[] struct = {
@@ -366,6 +446,13 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
   private static final Dataset<Row> compositePartitionedDF =
       unpartitionedDF.select("name", "subdept", "id", "dept");
+
+  private static final Dataset<Row> weirdColumnNamesDF =
+      unpartitionedDF.select(
+          unpartitionedDF.col("id"),
+          unpartitionedDF.col("subdept"),
+          unpartitionedDF.col("dept"),
+          unpartitionedDF.col("name").as("naMe"));
 
 
   private void  createUnpartitionedFileTable(String format) {
@@ -397,15 +484,15 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     compositePartitionedDF.write().insertInto(sourceTableName);
   }
 
-  private void createWeirdCaseTable(String format) {
+  private void createWeirdCaseTable() {
     String createParquet =
-        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING %s PARTITIONED BY (Dep_OT) " +
-            "LOCATION '%s'";
+        "CREATE TABLE %s (id Integer, subdept String, dept String) " +
+            "PARTITIONED BY (`naMe` String) STORED AS parquet";
 
-    sql(createParquet, sourceTableName, format, fileTableDir.getAbsolutePath());
+    sql(createParquet, sourceTableName);
 
-    partitionedDF.write().insertInto(sourceTableName);
-    partitionedDF.write().insertInto(sourceTableName);
+    weirdColumnNamesDF.write().insertInto(sourceTableName);
+    weirdColumnNamesDF.write().insertInto(sourceTableName);
 
   }
 
