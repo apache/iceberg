@@ -1038,6 +1038,7 @@ project(':iceberg-spark3-runtime') {
     relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
     relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
     relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
+    relocate 'org.antlr.v4.runtime', 'org.apache.iceberg.shaded.org.antlr.v4.runtime'
     relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
     relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
     relocate 'avro.shaded', 'org.apache.iceberg.shaded.org.apache.avro.shaded'
