@@ -76,6 +76,9 @@ public class TestHiveCommits extends HiveTableBaseTest {
     Assert.assertEquals(1, ops.current().schema().columns().size());
   }
 
+  /**
+   * Pretends we throw an error while persisting that actually fails to commit serverside
+   */
   @Test
   public void testThriftExceptionFailureOnCommit() throws TException, InterruptedException {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
@@ -107,6 +110,9 @@ public class TestHiveCommits extends HiveTableBaseTest {
     Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
   }
 
+  /**
+   * Pretends we throw an error while persisting that actually does commit serverside
+   */
   @Test
   public void testThriftExceptionSuccessOnCommit() throws TException, InterruptedException {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
@@ -139,6 +145,10 @@ public class TestHiveCommits extends HiveTableBaseTest {
         3, metadataFileCount(ops.current()));
   }
 
+  /**
+   * Pretends we throw an exception while persisting and don't know what happened, can't check to find out,
+   * but in reality the commit failed
+   */
   @Test
   public void testThriftExceptionUnknownFailedCommit() throws TException, InterruptedException {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
@@ -173,6 +183,10 @@ public class TestHiveCommits extends HiveTableBaseTest {
         3, metadataFileCount(ops.current()));
   }
 
+  /**
+   * Pretends we throw an exception while persisting and don't know what happened, can't check to find out,
+   * but in reality the commit succeeded
+   */
   @Test
   public void testThriftExceptionsUnknownSuccessCommit() throws TException, InterruptedException {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
@@ -205,6 +219,20 @@ public class TestHiveCommits extends HiveTableBaseTest {
     Assert.assertTrue("Current metadata file should still exist", metadataFileExists(ops.current()));
   }
 
+  /**
+   * Pretends we threw an exception while persisting, the commit succeeded, the lock expired,
+   * and a second committer placed a commit on top of ours before the first committer was able to check
+   * if their commit succeeded or not
+   *
+   * Timeline:
+   *   Client 1 commits which throws an exception but suceeded
+   *   Client 1's lock expires while waiting to do the recheck for commit success
+   *   Client 2 acquires a lock, commits successfully on top of client 1's commit and release lock
+   *   Client 1 check's to see if their commit was successful
+   *
+   * This tests to make sure a disconnected client 1 doesn't think their commit failed just because it isn't the
+   * current one during the recheck phase.
+   */
   @Test
   public void testThriftExceptionConcurrentCommit() throws TException, InterruptedException, UnknownHostException {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
@@ -234,7 +262,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
 
     /*
     This commit and our concurrent commit should succeed even though this commit throws an exception
-    after the persist operation suceeds
+    after the persist operation succeeds
      */
     spyOps.commit(metadataV2, metadataV1);
 

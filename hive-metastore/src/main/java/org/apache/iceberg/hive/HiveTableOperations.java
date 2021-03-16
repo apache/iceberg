@@ -59,6 +59,7 @@ import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Tasks;
@@ -215,7 +216,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         persistTable(tbl, updateHiveTable);
         commitStatus = CommitStatus.SUCCESS;
       } catch (Throwable persistFailure) {
-        LOG.error("Cannot tell if commit succeeded, attempting to reconnect and check", persistFailure);
+        LOG.error("Cannot tell if commit to {}.{} succeeded, attempting to reconnect and check: {}",
+            database, tableName, persistFailure);
         commitStatus = checkCommitStatus(newMetadataLocation);
         switch (commitStatus) {
           case SUCCESS:
@@ -264,19 +266,20 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       boolean commitSuccess = metadataLocation.equals(newMetadataLocation) ||
           metadata.previousFiles().stream().anyMatch(log -> log.file().equals(newMetadataLocation));
       if (commitSuccess) {
-        LOG.info("Commit status check: Commit of {} succeeded", newMetadataLocation);
+        LOG.info("Commit status check: Commit to {}.{} of {} succeeded", newMetadataLocation);
         return CommitStatus.SUCCESS;
       } else {
-        LOG.info("Commit status check: Commit of {} failed", newMetadataLocation);
+        LOG.info("Commit status check: Commit to {}.{} of {} failed", newMetadataLocation);
         return CommitStatus.FAILURE;
       }
     } catch (Throwable checkFailure) {
-      LOG.error("Cannot check if commit exists, treating commit state as unknown", checkFailure);
+      LOG.error("Cannot check if commit to {}.{} exists, treating commit state as unknown: {}",
+          database, tableName, checkFailure);
       return CommitStatus.UNKNOWN;
     }
   }
 
-  // Visible for testing
+  @VisibleForTesting
   protected void persistTable(Table hmsTable, boolean updateHiveTable) throws TException, InterruptedException {
     if (updateHiveTable) {
       metaClients.run(client -> {
@@ -386,7 +389,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     return storageDescriptor;
   }
 
-  // Visible for testing
+  @VisibleForTesting
   protected long acquireLock() throws UnknownHostException, TException, InterruptedException {
     final LockComponent lockComponent = new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, database);
     lockComponent.setTablename(tableName);
@@ -477,7 +480,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     }
   }
 
-  // visible for testing
+  @VisibleForTesting
   protected void doUnlock(long lockId) throws TException, InterruptedException {
     metaClients.run(client -> {
       client.unlock(lockId);
