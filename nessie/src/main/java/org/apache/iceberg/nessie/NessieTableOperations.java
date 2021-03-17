@@ -54,10 +54,14 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
       UpdateableReference reference,
       NessieClient client,
       FileIO fileIO) {
-    this.key = Objects.requireNonNull(key, "key must not be null, make sure the NessieCatalog is properly initialized");
-    this.reference = Objects.requireNonNull(reference, "reference must not be null, make sure the NessieCatalog is properly initialized");
-    this.client = Objects.requireNonNull(client, "client must not be null, make sure the NessieCatalog is properly initialized");
-    this.fileIO = Objects.requireNonNull(fileIO, "fileIO must not be null, make sure the NessieCatalog is properly initialized");
+    this.key = Objects.requireNonNull(key, "key must not be null, " +
+            "make sure the NessieCatalog is properly initialized");
+    this.reference = Objects.requireNonNull(reference, "reference must not be null, " +
+            "make sure the NessieCatalog is properly initialized");
+    this.client = Objects.requireNonNull(client, "client must not be null, " +
+            "make sure the NessieCatalog is properly initialized");
+    this.fileIO = Objects.requireNonNull(fileIO, "fileIO must not be null, " +
+            "make sure the NessieCatalog is properly initialized");
   }
 
   @Override

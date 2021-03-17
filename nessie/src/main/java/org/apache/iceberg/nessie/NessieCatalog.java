@@ -89,7 +89,8 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
       close();
     }
     if (config == null) {
-      throw new IllegalStateException(String.format("setConf() must be called before initialize() for NessieCatalog '%s'", name));
+      throw new IllegalStateException(String.format("setConf() must be called before initialize() " +
+              "for NessieCatalog '%s'", name));
     }
 
     try {

@@ -32,8 +32,10 @@ class UpdateableReference {
   private final TreeApi client;
 
   UpdateableReference(Reference reference, TreeApi client) {
-    this.reference = Objects.requireNonNull(reference, "reference must not be null, make sure the NessieCatalog is properly initialized");
-    this.client = Objects.requireNonNull(client, "client must not be null, make sure the NessieCatalog is properly initialized");
+    this.reference = Objects.requireNonNull(reference, "reference must not be null, " +
+            "make sure the NessieCatalog is properly initialized");
+    this.client = Objects.requireNonNull(client, "client must not be null, " +
+            "make sure the NessieCatalog is properly initialized");
   }
 
   public boolean refresh() throws NessieNotFoundException {
