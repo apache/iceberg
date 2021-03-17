@@ -41,8 +41,10 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.hive.HiveSchemaUtil;
@@ -106,9 +108,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
       ))
   );
 
-  private static final Set<String> IGNORED_PARAMS =
-      ImmutableSet.of("bucketing_version", StatsSetupConst.ROW_COUNT,
-          StatsSetupConst.RAW_DATA_SIZE, StatsSetupConst.TOTAL_SIZE, StatsSetupConst.NUM_FILES, "numFilesErasureCoded");
+  private static final Set<String> IGNORED_PARAMS = ImmutableSet.of("bucketing_version", "numFilesErasureCoded");
 
   @Parameters(name = "catalog={0}")
   public static Collection<Object[]> parameters() {
@@ -485,7 +485,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
   }
 
   @Test
-  public void testIcebergAndHmsTableProperties() throws TException, InterruptedException {
+  public void testIcebergAndHmsTableProperties() throws Exception {
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
 
     shell.executeStatement(String.format("CREATE EXTERNAL TABLE default.customers " +
@@ -576,13 +576,21 @@ public class TestHiveIcebergStorageHandlerNoScan {
           .remove("custom_property")
           .remove("new_prop_1")
           .commit();
-      hmsParams = shell.metastore().getTable("default", "customers").getParameters()
-          .entrySet().stream()
-          .filter(e -> !IGNORED_PARAMS.contains(e.getKey()))
-          .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+      hmsParams = shell.metastore().getTable("default", "customers").getParameters();
       Assert.assertFalse(hmsParams.containsKey("custom_property"));
       Assert.assertFalse(hmsParams.containsKey("new_prop_1"));
       Assert.assertTrue(hmsParams.containsKey("new_prop_2"));
+    }
+
+    // append some data and check whether HMS stats are aligned with snapshot summary
+    if (Catalogs.hiveCatalog(shell.getHiveConf())) {
+      List<Record> records = HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS;
+      testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, FileFormat.PARQUET, null, records);
+      hmsParams = shell.metastore().getTable("default", "customers").getParameters();
+      Map<String, String> summary = icebergTable.currentSnapshot().summary();
+      Assert.assertEquals(summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP), hmsParams.get(StatsSetupConst.NUM_FILES));
+      Assert.assertEquals(summary.get(SnapshotSummary.TOTAL_RECORDS_PROP), hmsParams.get(StatsSetupConst.ROW_COUNT));
+      Assert.assertEquals(summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP), hmsParams.get(StatsSetupConst.TOTAL_SIZE));
     }
   }
 

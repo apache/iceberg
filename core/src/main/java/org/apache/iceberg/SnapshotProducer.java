@@ -218,12 +218,15 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       }
     } else {
       // if there was no previous snapshot, default the summary to start totals at 0
-      previousSummary = ImmutableMap.of(
-          SnapshotSummary.TOTAL_RECORDS_PROP, "0",
-          SnapshotSummary.TOTAL_DATA_FILES_PROP, "0",
-          SnapshotSummary.TOTAL_DELETE_FILES_PROP, "0",
-          SnapshotSummary.TOTAL_POS_DELETES_PROP, "0",
-          SnapshotSummary.TOTAL_EQ_DELETES_PROP, "0");
+      ImmutableMap.Builder<String, String> summaryBuilder = ImmutableMap.builder();
+      summaryBuilder
+          .put(SnapshotSummary.TOTAL_RECORDS_PROP, "0")
+          .put(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "0")
+          .put(SnapshotSummary.TOTAL_DATA_FILES_PROP, "0")
+          .put(SnapshotSummary.TOTAL_DELETE_FILES_PROP, "0")
+          .put(SnapshotSummary.TOTAL_POS_DELETES_PROP, "0")
+          .put(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "0");
+      previousSummary = summaryBuilder.build();
     }
 
     ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
@@ -234,6 +237,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     updateTotal(
         builder, previousSummary, SnapshotSummary.TOTAL_RECORDS_PROP,
         summary, SnapshotSummary.ADDED_RECORDS_PROP, SnapshotSummary.DELETED_RECORDS_PROP);
+    updateTotal(
+        builder, previousSummary, SnapshotSummary.TOTAL_FILE_SIZE_PROP,
+        summary, SnapshotSummary.ADDED_FILE_SIZE_PROP, SnapshotSummary.REMOVED_FILE_SIZE_PROP);
     updateTotal(
         builder, previousSummary, SnapshotSummary.TOTAL_DATA_FILES_PROP,
         summary, SnapshotSummary.ADDED_FILES_PROP, SnapshotSummary.DELETED_FILES_PROP);

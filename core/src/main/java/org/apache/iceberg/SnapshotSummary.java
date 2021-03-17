@@ -38,6 +38,7 @@ public class SnapshotSummary {
   public static final String TOTAL_RECORDS_PROP = "total-records";
   public static final String ADDED_FILE_SIZE_PROP = "added-files-size";
   public static final String REMOVED_FILE_SIZE_PROP = "removed-files-size";
+  public static final String TOTAL_FILE_SIZE_PROP = "total-files-size";
   public static final String ADDED_POS_DELETES_PROP = "added-position-deletes";
   public static final String REMOVED_POS_DELETES_PROP = "removed-position-deletes";
   public static final String TOTAL_POS_DELETES_PROP = "total-position-deletes";

@@ -47,6 +47,8 @@ import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynMethods;
@@ -196,7 +198,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             .collect(Collectors.toSet());
       }
 
-      setHmsTableParameters(newMetadataLocation, tbl, metadata.properties(), removedProps, hiveEngineEnabled);
+      Map<String, String> summary = Optional.ofNullable(metadata.currentSnapshot())
+          .map(Snapshot::summary)
+          .orElseGet(ImmutableMap::of);
+      setHmsTableParameters(newMetadataLocation, tbl, metadata.properties(), removedProps, hiveEngineEnabled, summary);
 
       persistTable(tbl, updateHiveTable);
       threw = false;
@@ -268,7 +273,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   }
 
   private void setHmsTableParameters(String newMetadataLocation, Table tbl, Map<String, String> icebergTableProps,
-                                     Set<String> obsoleteProps, boolean hiveEngineEnabled) {
+                                     Set<String> obsoleteProps, boolean hiveEngineEnabled,
+                                     Map<String, String> summary) {
     Map<String, String> parameters = tbl.getParameters();
 
     if (parameters == null) {
@@ -294,6 +300,17 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
           "org.apache.iceberg.mr.hive.HiveIcebergStorageHandler");
     } else {
       parameters.remove(hive_metastoreConstants.META_TABLE_STORAGE);
+    }
+
+    // Set the basic statistics
+    if (summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP) != null) {
+      parameters.put(StatsSetupConst.NUM_FILES, summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
+    }
+    if (summary.get(SnapshotSummary.TOTAL_RECORDS_PROP) != null) {
+      parameters.put(StatsSetupConst.ROW_COUNT, summary.get(SnapshotSummary.TOTAL_RECORDS_PROP));
+    }
+    if (summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP) != null) {
+      parameters.put(StatsSetupConst.TOTAL_SIZE, summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
     }
 
     tbl.setParameters(parameters);
