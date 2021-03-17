@@ -62,10 +62,14 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS_DEFAULT;
 
 /**
  * TODO we should be able to extract some more commonalities to BaseMetastoreTableOperations to
@@ -216,9 +220,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         persistTable(tbl, updateHiveTable);
         commitStatus = CommitStatus.SUCCESS;
       } catch (Throwable persistFailure) {
-        LOG.error("Cannot tell if commit to {}.{} succeeded, attempting to reconnect and check: {}",
+        LOG.error("Cannot tell if commit to {}.{} succeeded, attempting to reconnect and check.",
             database, tableName, persistFailure);
-        commitStatus = checkCommitStatus(newMetadataLocation);
+        commitStatus = checkCommitStatus(newMetadataLocation, metadata);
         switch (commitStatus) {
           case SUCCESS:
             return;
@@ -259,8 +263,15 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
    * @param newMetadataLocation the path of the new commit file
    * @return Commit Status of Success, Failure or Unknown
    */
-  private CommitStatus checkCommitStatus(String newMetadataLocation) {
+  private CommitStatus checkCommitStatus(String newMetadataLocation, TableMetadata metadata) {
+    int maxAttempts = PropertyUtil.propertyAsInt(metadata.properties(), COMMIT_NUM_STATUS_CHECKS,
+        COMMIT_NUM_STATUS_CHECKS_DEFAULT);
+    return innerCommitCheck(newMetadataLocation, 1, maxAttempts);
+  }
+
+  private CommitStatus innerCommitCheck(String newMetadataLocation, int attempt, int maxAttempts) {
     try {
+      Thread.sleep(1000);
       TableMetadata metadata = refresh();
       String metadataLocation = metadata.metadataFileLocation();
       boolean commitSuccess = metadataLocation.equals(newMetadataLocation) ||
@@ -273,9 +284,16 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         return CommitStatus.FAILURE;
       }
     } catch (Throwable checkFailure) {
-      LOG.error("Cannot check if commit to {}.{} exists, treating commit state as unknown: {}",
-          database, tableName, checkFailure);
-      return CommitStatus.UNKNOWN;
+      if (attempt < maxAttempts) {
+        LOG.error("Cannot check if commit to {}.{} exists. Retry attempt {} of {}.",
+            database, tableName, attempt, maxAttempts, checkFailure);
+        return innerCommitCheck(newMetadataLocation, attempt + 1, maxAttempts);
+      } else {
+        LOG.error("Cannot check if commit to {}.{} exists. Failed to check {} times. " +
+                "Treating commit state as unknown.",
+            database, tableName, attempt, checkFailure);
+        return CommitStatus.UNKNOWN;
+      }
     }
   }
 
