@@ -24,11 +24,16 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class LazyImmutableMap<K, V> implements Map<K, V>, Serializable {
 
   private final Map<K, V> map;
   private Map<K, V> immutableMap;
+
+  LazyImmutableMap() {
+    this.map = Maps.newLinkedHashMap();
+  }
 
   private LazyImmutableMap(Map<K, V> map) {
     this.map = map;

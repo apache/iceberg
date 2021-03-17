@@ -306,17 +306,17 @@ abstract class BaseFile<F>
       case 5:
         return fileSizeInBytes;
       case 6:
-        return columnSizes.immutableMap();
+        return toImmutableMap(columnSizes);
       case 7:
-        return valueCounts.immutableMap();
+        return toImmutableMap(valueCounts);
       case 8:
-        return nullValueCounts.immutableMap();
+        return toImmutableMap(nullValueCounts);
       case 9:
-        return nanValueCounts.immutableMap();
+        return toImmutableMap(nanValueCounts);
       case 10:
-        return lowerBounds;
+        return toImmutableMap(lowerBounds);
       case 11:
-        return upperBounds;
+        return toImmutableMap(upperBounds);
       case 12:
         return keyMetadata();
       case 13:
@@ -379,32 +379,32 @@ abstract class BaseFile<F>
 
   @Override
   public Map<Integer, Long> columnSizes() {
-    return columnSizes.immutableMap();
+    return toImmutableMap(columnSizes);
   }
 
   @Override
   public Map<Integer, Long> valueCounts() {
-    return valueCounts.immutableMap();
+    return toImmutableMap(valueCounts);
   }
 
   @Override
   public Map<Integer, Long> nullValueCounts() {
-    return nullValueCounts.immutableMap();
+    return toImmutableMap(nullValueCounts);
   }
 
   @Override
   public Map<Integer, Long> nanValueCounts() {
-    return nanValueCounts.immutableMap();
+    return toImmutableMap(nanValueCounts);
   }
 
   @Override
   public Map<Integer, ByteBuffer> lowerBounds() {
-    return lowerBounds;
+    return toImmutableMap(lowerBounds);
   }
 
   @Override
   public Map<Integer, ByteBuffer> upperBounds() {
-    return upperBounds;
+    return toImmutableMap(upperBounds);
   }
 
   @Override
@@ -427,6 +427,10 @@ abstract class BaseFile<F>
     return sortOrderId;
   }
 
+  private static <K, V> Map<K, V> toImmutableMap(LazyImmutableMap<K, V> map) {
+    return map == null ? null : map.immutableMap();
+  }
+
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
@@ -436,12 +440,12 @@ abstract class BaseFile<F>
         .add("partition", partitionData)
         .add("record_count", recordCount)
         .add("file_size_in_bytes", fileSizeInBytes)
-        .add("column_sizes", columnSizes.immutableMap())
-        .add("value_counts", valueCounts.immutableMap())
-        .add("null_value_counts", nullValueCounts.immutableMap())
-        .add("nan_value_counts", nanValueCounts.immutableMap())
-        .add("lower_bounds", lowerBounds.immutableMap())
-        .add("upper_bounds", upperBounds.immutableMap())
+        .add("column_sizes", toImmutableMap(columnSizes))
+        .add("value_counts", toImmutableMap(valueCounts))
+        .add("null_value_counts", toImmutableMap(nullValueCounts))
+        .add("nan_value_counts", toImmutableMap(nanValueCounts))
+        .add("lower_bounds", toImmutableMap(lowerBounds))
+        .add("upper_bounds", toImmutableMap(upperBounds))
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
         .add("equality_ids", equalityIds == null ? "null" : equalityFieldIds())
