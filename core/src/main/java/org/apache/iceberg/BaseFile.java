@@ -22,7 +22,6 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -32,7 +31,6 @@ import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
@@ -64,12 +62,12 @@ abstract class BaseFile<F>
   private long fileSizeInBytes = -1L;
 
   // optional fields
-  private Map<Integer, Long> columnSizes = null;
-  private Map<Integer, Long> valueCounts = null;
-  private Map<Integer, Long> nullValueCounts = null;
-  private Map<Integer, Long> nanValueCounts = null;
-  private Map<Integer, ByteBuffer> lowerBounds = null;
-  private Map<Integer, ByteBuffer> upperBounds = null;
+  private LazyImmutableMap<Integer, Long> columnSizes = null;
+  private LazyImmutableMap<Integer, Long> valueCounts = null;
+  private LazyImmutableMap<Integer, Long> nullValueCounts = null;
+  private LazyImmutableMap<Integer, Long> nanValueCounts = null;
+  private LazyImmutableMap<Integer, ByteBuffer> lowerBounds = null;
+  private LazyImmutableMap<Integer, ByteBuffer> upperBounds = null;
   private long[] splitOffsets = null;
   private int[] equalityIds = null;
   private byte[] keyMetadata = null;
@@ -140,12 +138,12 @@ abstract class BaseFile<F>
     // this will throw NPE if metrics.recordCount is null
     this.recordCount = recordCount;
     this.fileSizeInBytes = fileSizeInBytes;
-    this.columnSizes = columnSizes;
-    this.valueCounts = valueCounts;
-    this.nullValueCounts = nullValueCounts;
-    this.nanValueCounts = nanValueCounts;
-    this.lowerBounds = SerializableByteBufferMap.wrap(lowerBounds);
-    this.upperBounds = SerializableByteBufferMap.wrap(upperBounds);
+    this.columnSizes = LazyImmutableMap.of(columnSizes);
+    this.valueCounts = LazyImmutableMap.of(valueCounts);
+    this.nullValueCounts = LazyImmutableMap.of(nullValueCounts);
+    this.nanValueCounts = LazyImmutableMap.of(nanValueCounts);
+    this.lowerBounds = LazyImmutableMap.of(SerializableByteBufferMap.wrap(lowerBounds));
+    this.upperBounds = LazyImmutableMap.of(SerializableByteBufferMap.wrap(upperBounds));
     this.splitOffsets = ArrayUtil.toLongArray(splitOffsets);
     this.equalityIds = equalityFieldIds;
     this.sortOrderId = sortOrderId;
@@ -155,7 +153,7 @@ abstract class BaseFile<F>
   /**
    * Copy constructor.
    *
-   * @param toCopy a generic data file to copy.
+   * @param toCopy   a generic data file to copy.
    * @param fullCopy whether to copy all fields or to drop column-level stats
    */
   BaseFile(BaseFile<F> toCopy, boolean fullCopy) {
@@ -169,13 +167,12 @@ abstract class BaseFile<F>
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     if (fullCopy) {
-      // TODO: support lazy conversion to/from map
-      this.columnSizes = copy(toCopy.columnSizes);
-      this.valueCounts = copy(toCopy.valueCounts);
-      this.nullValueCounts = copy(toCopy.nullValueCounts);
-      this.nanValueCounts = copy(toCopy.nanValueCounts);
-      this.lowerBounds = SerializableByteBufferMap.wrap(copy(toCopy.lowerBounds));
-      this.upperBounds = SerializableByteBufferMap.wrap(copy(toCopy.upperBounds));
+      this.columnSizes = LazyImmutableMap.of(toCopy.columnSizes);
+      this.valueCounts = LazyImmutableMap.of(toCopy.valueCounts);
+      this.nullValueCounts = LazyImmutableMap.of(toCopy.nullValueCounts);
+      this.nanValueCounts = LazyImmutableMap.of(toCopy.nanValueCounts);
+      this.lowerBounds = LazyImmutableMap.of(SerializableByteBufferMap.wrap(toCopy.lowerBounds));
+      this.upperBounds = LazyImmutableMap.of(SerializableByteBufferMap.wrap(toCopy.upperBounds));
     } else {
       this.columnSizes = null;
       this.valueCounts = null;
@@ -246,22 +243,22 @@ abstract class BaseFile<F>
         this.fileSizeInBytes = (Long) value;
         return;
       case 6:
-        this.columnSizes = (Map<Integer, Long>) value;
+        this.columnSizes = LazyImmutableMap.of((Map<Integer, Long>) value);
         return;
       case 7:
-        this.valueCounts = (Map<Integer, Long>) value;
+        this.valueCounts = LazyImmutableMap.of((Map<Integer, Long>) value);
         return;
       case 8:
-        this.nullValueCounts = (Map<Integer, Long>) value;
+        this.nullValueCounts = LazyImmutableMap.of((Map<Integer, Long>) value);
         return;
       case 9:
-        this.nanValueCounts = (Map<Integer, Long>) value;
+        this.nanValueCounts = LazyImmutableMap.of((Map<Integer, Long>) value);
         return;
       case 10:
-        this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
+        this.lowerBounds = LazyImmutableMap.of(SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value));
         return;
       case 11:
-        this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
+        this.upperBounds = LazyImmutableMap.of(SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value));
         return;
       case 12:
         this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
@@ -309,13 +306,13 @@ abstract class BaseFile<F>
       case 5:
         return fileSizeInBytes;
       case 6:
-        return columnSizes;
+        return columnSizes.immutableMap();
       case 7:
-        return valueCounts;
+        return valueCounts.immutableMap();
       case 8:
-        return nullValueCounts;
+        return nullValueCounts.immutableMap();
       case 9:
-        return nanValueCounts;
+        return nanValueCounts.immutableMap();
       case 10:
         return lowerBounds;
       case 11:
@@ -382,22 +379,22 @@ abstract class BaseFile<F>
 
   @Override
   public Map<Integer, Long> columnSizes() {
-    return columnSizes;
+    return columnSizes.immutableMap();
   }
 
   @Override
   public Map<Integer, Long> valueCounts() {
-    return valueCounts;
+    return valueCounts.immutableMap();
   }
 
   @Override
   public Map<Integer, Long> nullValueCounts() {
-    return nullValueCounts;
+    return nullValueCounts.immutableMap();
   }
 
   @Override
   public Map<Integer, Long> nanValueCounts() {
-    return nanValueCounts;
+    return nanValueCounts.immutableMap();
   }
 
   @Override
@@ -430,15 +427,6 @@ abstract class BaseFile<F>
     return sortOrderId;
   }
 
-  private static <K, V> Map<K, V> copy(Map<K, V> map) {
-    if (map != null) {
-      Map<K, V> copy = Maps.newHashMapWithExpectedSize(map.size());
-      copy.putAll(map);
-      return Collections.unmodifiableMap(copy);
-    }
-    return null;
-  }
-
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
@@ -448,17 +436,16 @@ abstract class BaseFile<F>
         .add("partition", partitionData)
         .add("record_count", recordCount)
         .add("file_size_in_bytes", fileSizeInBytes)
-        .add("column_sizes", columnSizes)
-        .add("value_counts", valueCounts)
-        .add("null_value_counts", nullValueCounts)
-        .add("nan_value_counts", nanValueCounts)
-        .add("lower_bounds", lowerBounds)
-        .add("upper_bounds", upperBounds)
+        .add("column_sizes", columnSizes.immutableMap())
+        .add("value_counts", valueCounts.immutableMap())
+        .add("null_value_counts", nullValueCounts.immutableMap())
+        .add("nan_value_counts", nanValueCounts.immutableMap())
+        .add("lower_bounds", lowerBounds.immutableMap())
+        .add("upper_bounds", upperBounds.immutableMap())
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
         .add("equality_ids", equalityIds == null ? "null" : equalityFieldIds())
         .add("sort_order_id", sortOrderId)
         .toString();
   }
-
 }
