@@ -62,12 +62,12 @@ abstract class BaseFile<F>
   private long fileSizeInBytes = -1L;
 
   // optional fields
-  private LazyImmutableMap<Integer, Long> columnSizes = null;
-  private LazyImmutableMap<Integer, Long> valueCounts = null;
-  private LazyImmutableMap<Integer, Long> nullValueCounts = null;
-  private LazyImmutableMap<Integer, Long> nanValueCounts = null;
-  private LazyImmutableMap<Integer, ByteBuffer> lowerBounds = null;
-  private LazyImmutableMap<Integer, ByteBuffer> upperBounds = null;
+  private Map<Integer, Long> columnSizes = null;
+  private Map<Integer, Long> valueCounts = null;
+  private Map<Integer, Long> nullValueCounts = null;
+  private Map<Integer, Long> nanValueCounts = null;
+  private Map<Integer, ByteBuffer> lowerBounds = null;
+  private Map<Integer, ByteBuffer> upperBounds = null;
   private long[] splitOffsets = null;
   private int[] equalityIds = null;
   private byte[] keyMetadata = null;
@@ -138,12 +138,12 @@ abstract class BaseFile<F>
     // this will throw NPE if metrics.recordCount is null
     this.recordCount = recordCount;
     this.fileSizeInBytes = fileSizeInBytes;
-    this.columnSizes = LazyImmutableMap.of(columnSizes);
-    this.valueCounts = LazyImmutableMap.of(valueCounts);
-    this.nullValueCounts = LazyImmutableMap.of(nullValueCounts);
-    this.nanValueCounts = LazyImmutableMap.of(nanValueCounts);
-    this.lowerBounds = LazyImmutableMap.of(SerializableByteBufferMap.wrap(lowerBounds));
-    this.upperBounds = LazyImmutableMap.of(SerializableByteBufferMap.wrap(upperBounds));
+    this.columnSizes = columnSizes;
+    this.valueCounts = valueCounts;
+    this.nullValueCounts = nullValueCounts;
+    this.nanValueCounts = nanValueCounts;
+    this.lowerBounds = SerializableByteBufferMap.wrap(lowerBounds);
+    this.upperBounds = SerializableByteBufferMap.wrap(upperBounds);
     this.splitOffsets = ArrayUtil.toLongArray(splitOffsets);
     this.equalityIds = equalityFieldIds;
     this.sortOrderId = sortOrderId;
@@ -243,22 +243,22 @@ abstract class BaseFile<F>
         this.fileSizeInBytes = (Long) value;
         return;
       case 6:
-        this.columnSizes = LazyImmutableMap.of((Map<Integer, Long>) value);
+        this.columnSizes = (Map<Integer, Long>) value;
         return;
       case 7:
-        this.valueCounts = LazyImmutableMap.of((Map<Integer, Long>) value);
+        this.valueCounts = (Map<Integer, Long>) value;
         return;
       case 8:
-        this.nullValueCounts = LazyImmutableMap.of((Map<Integer, Long>) value);
+        this.nullValueCounts = (Map<Integer, Long>) value;
         return;
       case 9:
-        this.nanValueCounts = LazyImmutableMap.of((Map<Integer, Long>) value);
+        this.nanValueCounts = (Map<Integer, Long>) value;
         return;
       case 10:
-        this.lowerBounds = LazyImmutableMap.of(SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value));
+        this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
         return;
       case 11:
-        this.upperBounds = LazyImmutableMap.of(SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value));
+        this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
         return;
       case 12:
         this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
@@ -306,17 +306,17 @@ abstract class BaseFile<F>
       case 5:
         return fileSizeInBytes;
       case 6:
-        return toImmutableMap(columnSizes);
+        return toReadableMap(columnSizes);
       case 7:
-        return toImmutableMap(valueCounts);
+        return toReadableMap(valueCounts);
       case 8:
-        return toImmutableMap(nullValueCounts);
+        return toReadableMap(nullValueCounts);
       case 9:
-        return toImmutableMap(nanValueCounts);
+        return toReadableMap(nanValueCounts);
       case 10:
-        return toImmutableMap(lowerBounds);
+        return toReadableMap(lowerBounds);
       case 11:
-        return toImmutableMap(upperBounds);
+        return toReadableMap(upperBounds);
       case 12:
         return keyMetadata();
       case 13:
@@ -379,32 +379,32 @@ abstract class BaseFile<F>
 
   @Override
   public Map<Integer, Long> columnSizes() {
-    return toImmutableMap(columnSizes);
+    return toReadableMap(columnSizes);
   }
 
   @Override
   public Map<Integer, Long> valueCounts() {
-    return toImmutableMap(valueCounts);
+    return toReadableMap(valueCounts);
   }
 
   @Override
   public Map<Integer, Long> nullValueCounts() {
-    return toImmutableMap(nullValueCounts);
+    return toReadableMap(nullValueCounts);
   }
 
   @Override
   public Map<Integer, Long> nanValueCounts() {
-    return toImmutableMap(nanValueCounts);
+    return toReadableMap(nanValueCounts);
   }
 
   @Override
   public Map<Integer, ByteBuffer> lowerBounds() {
-    return toImmutableMap(lowerBounds);
+    return toReadableMap(lowerBounds);
   }
 
   @Override
   public Map<Integer, ByteBuffer> upperBounds() {
-    return toImmutableMap(upperBounds);
+    return toReadableMap(upperBounds);
   }
 
   @Override
@@ -427,8 +427,12 @@ abstract class BaseFile<F>
     return sortOrderId;
   }
 
-  private static <K, V> Map<K, V> toImmutableMap(LazyImmutableMap<K, V> map) {
-    return map == null ? null : map.immutableMap();
+  private static <K, V> Map<K, V> toReadableMap(Map<K, V> map) {
+    if (map instanceof LazyImmutableMap) {
+      return ((LazyImmutableMap<K, V>) map).immutableMap();
+    } else {
+      return map;
+    }
   }
 
   @Override
@@ -440,12 +444,12 @@ abstract class BaseFile<F>
         .add("partition", partitionData)
         .add("record_count", recordCount)
         .add("file_size_in_bytes", fileSizeInBytes)
-        .add("column_sizes", toImmutableMap(columnSizes))
-        .add("value_counts", toImmutableMap(valueCounts))
-        .add("null_value_counts", toImmutableMap(nullValueCounts))
-        .add("nan_value_counts", toImmutableMap(nanValueCounts))
-        .add("lower_bounds", toImmutableMap(lowerBounds))
-        .add("upper_bounds", toImmutableMap(upperBounds))
+        .add("column_sizes", toReadableMap(columnSizes))
+        .add("value_counts", toReadableMap(valueCounts))
+        .add("null_value_counts", toReadableMap(nullValueCounts))
+        .add("nan_value_counts", toReadableMap(nanValueCounts))
+        .add("lower_bounds", toReadableMap(lowerBounds))
+        .add("upper_bounds", toReadableMap(upperBounds))
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
         .add("equality_ids", equalityIds == null ? "null" : equalityFieldIds())
