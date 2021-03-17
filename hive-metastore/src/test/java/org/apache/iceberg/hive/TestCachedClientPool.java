@@ -19,24 +19,25 @@
 
 package org.apache.iceberg.hive;
 
+import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.junit.Assert;
 import org.junit.Test;
 
-public class TestHiveClientPoolProvider extends HiveMetastoreTest {
+public class TestCachedClientPool extends HiveMetastoreTest {
 
   @Test
   public void testClientPoolCleaner() throws InterruptedException {
     String metastoreUri = hiveConf.get(HiveConf.ConfVars.METASTOREURIS.varname, "");
-    HiveClientPoolProvider provider = new HiveClientPoolProvider(hiveConf);
-    HiveClientPool clientPool1 = provider.clientPool();
-    Assert.assertTrue(HiveClientPoolProvider.clientPoolCache().getIfPresent(metastoreUri) == clientPool1);
+    CachedClientPool clientPool = new CachedClientPool(hiveConf, Collections.emptyMap());
+    HiveClientPool clientPool1 = clientPool.clientPool();
+    Assert.assertTrue(CachedClientPool.clientPoolCache().getIfPresent(metastoreUri) == clientPool1);
     TimeUnit.SECONDS.sleep(8);
-    HiveClientPool clientPool2 = provider.clientPool();
+    HiveClientPool clientPool2 = clientPool.clientPool();
     Assert.assertTrue(clientPool1 == clientPool2);
     TimeUnit.SECONDS.sleep(15);
-    Assert.assertNull(HiveClientPoolProvider.clientPoolCache().getIfPresent(metastoreUri));
+    Assert.assertNull(CachedClientPool.clientPoolCache().getIfPresent(metastoreUri));
   }
 
 }

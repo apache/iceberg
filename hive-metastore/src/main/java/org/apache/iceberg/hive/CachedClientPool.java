@@ -21,13 +21,17 @@ package org.apache.iceberg.hive;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.util.PropertyUtil;
+import org.apache.thrift.TException;
 
-public class HiveClientPoolProvider {
+public class CachedClientPool implements ClientPool<HiveMetaStoreClient, TException> {
 
   private static Cache<String, HiveClientPool> clientPoolCache;
 
@@ -36,23 +40,23 @@ public class HiveClientPoolProvider {
   private final int clientPoolSize;
   private final long evictionInterval;
 
-  HiveClientPoolProvider(Configuration conf) {
+  CachedClientPool(Configuration conf, Map<String, String> properties) {
     this.conf = conf;
     this.metastoreUri = conf.get(HiveConf.ConfVars.METASTOREURIS.varname, "");
-    this.clientPoolSize = conf.getInt(CatalogProperties.CLIENT_POOL_SIZE,
+    this.clientPoolSize = PropertyUtil.propertyAsInt(properties,
+            CatalogProperties.CLIENT_POOL_SIZE,
             CatalogProperties.CLIENT_POOL_SIZE_DEFAULT);
-    this.evictionInterval = conf.getLong(CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
+    this.evictionInterval = PropertyUtil.propertyAsLong(properties,
+            CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
             CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS_DEFAULT);
     init();
   }
 
-  /**
-   * Callers must not store the HiveClientPool instance returned by this method.
-   * @return
-   */
-  public HiveClientPool clientPool() {
+  @VisibleForTesting
+  HiveClientPool clientPool() {
     return clientPoolCache.get(metastoreUri, k -> new HiveClientPool(clientPoolSize, conf));
   }
+
 
   private synchronized void init() {
     if (clientPoolCache == null) {
@@ -65,5 +69,10 @@ public class HiveClientPoolProvider {
   @VisibleForTesting
   static Cache<String, HiveClientPool> clientPoolCache() {
     return clientPoolCache;
+  }
+
+  @Override
+  public <R> R run(Action<R, HiveMetaStoreClient, TException> action) throws TException, InterruptedException {
+    return clientPool().run(action);
   }
 }

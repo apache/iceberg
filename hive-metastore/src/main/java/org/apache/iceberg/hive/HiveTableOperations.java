@@ -113,16 +113,16 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final long lockCheckMinWaitTime;
   private final long lockCheckMaxWaitTime;
   private final FileIO fileIO;
-  private final HiveClientPoolProvider provider;
+  private final CachedClientPool clientPool;
 
-  protected HiveTableOperations(Configuration conf, String name, FileIO fileIO, HiveClientPoolProvider provider,
+  protected HiveTableOperations(Configuration conf, String name, FileIO fileIO, CachedClientPool clientPool,
                                 String database, String table) {
     this.conf = conf;
     this.fileIO = fileIO;
     this.fullName = name + "." + database + "." + table;
     this.database = database;
     this.tableName = table;
-    this.provider = provider;
+    this.clientPool = clientPool;
     this.lockAcquireTimeout =
         conf.getLong(HIVE_ACQUIRE_LOCK_TIMEOUT_MS, HIVE_ACQUIRE_LOCK_TIMEOUT_MS_DEFAULT);
     this.lockCheckMinWaitTime =
@@ -145,7 +145,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   protected void doRefresh() {
     String metadataLocation = null;
     try {
-      Table table = provider.clientPool().run(client -> client.getTable(database, tableName));
+      Table table = clientPool.run(client -> client.getTable(database, tableName));
       validateTableIsIceberg(table, fullName);
 
       metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
@@ -303,7 +303,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   @VisibleForTesting
   void persistTable(Table hmsTable, boolean updateHiveTable) throws TException, InterruptedException {
     if (updateHiveTable) {
-      provider.clientPool().run(client -> {
+      clientPool.run(client -> {
         EnvironmentContext envContext = new EnvironmentContext(
             ImmutableMap.of(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE)
         );
@@ -311,7 +311,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         return null;
       });
     } else {
-      provider.clientPool().run(client -> {
+      clientPool.run(client -> {
         client.createTable(hmsTable);
         return null;
       });
@@ -320,7 +320,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
   private Table loadHmsTable() throws TException, InterruptedException {
     try {
-      return provider.clientPool().run(client -> client.getTable(database, tableName));
+      return clientPool.run(client -> client.getTable(database, tableName));
     } catch (NoSuchObjectException nte) {
       LOG.trace("Table not found {}", fullName, nte);
       return null;
@@ -417,7 +417,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     final LockRequest lockRequest = new LockRequest(Lists.newArrayList(lockComponent),
         System.getProperty("user.name"),
         InetAddress.getLocalHost().getHostName());
-    LockResponse lockResponse = provider.clientPool().run(client -> client.lock(lockRequest));
+    LockResponse lockResponse = clientPool.run(client -> client.lock(lockRequest));
     AtomicReference<LockState> state = new AtomicReference<>(lockResponse.getState());
     long lockId = lockResponse.getLockid();
 
@@ -443,7 +443,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             .onlyRetryOn(WaitingForLockException.class)
             .run(id -> {
               try {
-                LockResponse response = provider.clientPool().run(client -> client.checkLock(id));
+                LockResponse response = clientPool.run(client -> client.checkLock(id));
                 LockState newState = response.getState();
                 state.set(newState);
                 if (newState.equals(LockState.WAITING)) {
@@ -503,7 +503,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   
   @VisibleForTesting
   void doUnlock(long lockId) throws TException, InterruptedException {
-    provider.clientPool().run(client -> {
+    clientPool.clientPool().run(client -> {
       client.unlock(lockId);
       return null;
     });
