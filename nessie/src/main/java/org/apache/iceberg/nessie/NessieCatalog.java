@@ -78,31 +78,63 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   private UpdateableReference reference;
   private String name;
   private FileIO fileIO;
+  private boolean initialized;
 
   public NessieCatalog() {
   }
 
   @Override
   public void initialize(String inputName, Map<String, String> options) {
-    String fileIOImpl = options.get(CatalogProperties.FILE_IO_IMPL);
-    this.fileIO = fileIOImpl == null ? new HadoopFileIO(config) : CatalogUtil.loadFileIO(fileIOImpl, options, config);
-    this.name = inputName == null ? "nessie" : inputName;
-    // remove nessie prefix
-    final Function<String, String> removePrefix = x -> x.replace("nessie.", "");
-
-    this.client = NessieClient.builder().fromConfig(x -> options.get(removePrefix.apply(x))).build();
-
-    this.warehouseLocation = options.get(CatalogProperties.WAREHOUSE_LOCATION);
-    if (warehouseLocation == null) {
-      throw new IllegalStateException("Parameter warehouse not set, nessie can't store data.");
+    if (initialized) {
+      close();
     }
-    final String requestedRef = options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF));
-    this.reference = loadReference(requestedRef);
+    if (config == null) {
+      throw new IllegalStateException(String.format("setConf() must be called before initialize() for NessieCatalog '%s'", name));
+    }
+
+    try {
+      String fileIOImpl = options.get(CatalogProperties.FILE_IO_IMPL);
+      this.fileIO = fileIOImpl == null ? new HadoopFileIO(config) : CatalogUtil.loadFileIO(fileIOImpl, options, config);
+      this.name = inputName == null ? "nessie" : inputName;
+      // remove nessie prefix
+      final Function<String, String> removePrefix = x -> x.replace("nessie.", "");
+
+      this.client = NessieClient.builder().fromConfig(x -> options.get(removePrefix.apply(x))).build();
+
+      this.warehouseLocation = options.get(CatalogProperties.WAREHOUSE_LOCATION);
+      if (warehouseLocation == null) {
+        throw new IllegalStateException("Parameter warehouse not set, nessie can't store data.");
+      }
+      final String requestedRef = options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF));
+      this.reference = loadReference(requestedRef);
+
+      this.initialized = true;
+    } catch (RuntimeException e) {
+      close();
+      throw new RuntimeException("Failed to initialize NessieCatalog with options " + options);
+    }
+  }
+
+  private void assertInitialized() {
+    if (!initialized) {
+      throw new IllegalStateException(String.format("NessieCatalog %s not initialized", this));
+    }
   }
 
   @Override
   public void close() {
-    client.close();
+    try {
+      if (client != null) {
+        client.close();
+      }
+    } finally {
+      client = null;
+      warehouseLocation = null;
+      reference = null;
+      name = null;
+      fileIO = null;
+      initialized = false;
+    }
   }
 
   @Override
@@ -112,6 +144,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
+    assertInitialized();
     TableReference pti = TableReference.parse(tableIdentifier);
     UpdateableReference newReference = this.reference;
     if (pti.reference() != null) {
@@ -122,6 +155,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   @Override
   protected String defaultWarehouseLocation(TableIdentifier table) {
+    assertInitialized();
     if (table.hasNamespace()) {
       return SLASH.join(warehouseLocation, table.namespace().toString(), table.name());
     }
@@ -130,11 +164,13 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
+    assertInitialized();
     return tableStream(namespace).collect(Collectors.toList());
   }
 
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
+    assertInitialized();
     reference.checkMutable();
 
     IcebergTable existingTable = table(identifier);
@@ -163,6 +199,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier toOriginal) {
+    assertInitialized();
     reference.checkMutable();
 
     TableIdentifier to = NessieUtil.removeCatalogName(toOriginal, name());
@@ -211,10 +248,12 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
    */
   @Override
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
+    assertInitialized();
   }
 
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
+    assertInitialized();
     return tableStream(namespace)
         .map(TableIdentifier::namespace)
         .filter(n -> !n.isEmpty())
@@ -230,6 +269,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
    */
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
+    assertInitialized();
     return ImmutableMap.of();
   }
 
@@ -241,6 +281,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
    */
   @Override
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
+    assertInitialized();
     return false;
   }
 
@@ -267,18 +308,22 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   }
 
   TreeApi getTreeApi() {
+    assertInitialized();
     return client.getTreeApi();
   }
 
   public void refresh() throws NessieNotFoundException {
+    assertInitialized();
     reference.refresh();
   }
 
   public String currentHash() {
+    assertInitialized();
     return reference.getHash();
   }
 
   String currentRefName() {
+    assertInitialized();
     return reference.getName();
   }
 
@@ -309,7 +354,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   }
 
 
-  public void dropTableInner(TableIdentifier identifier) throws NessieConflictException, NessieNotFoundException {
+  private void dropTableInner(TableIdentifier identifier) throws NessieConflictException, NessieNotFoundException {
     try {
       client.getContentsApi().deleteContents(NessieUtil.toKey(identifier),
           reference.getAsBranch().getName(),
