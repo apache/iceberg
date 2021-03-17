@@ -298,7 +298,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   }
 
   @VisibleForTesting
-  protected void persistTable(Table hmsTable, boolean updateHiveTable) throws TException, InterruptedException {
+  void persistTable(Table hmsTable, boolean updateHiveTable) throws TException, InterruptedException {
     if (updateHiveTable) {
       metaClients.run(client -> {
         EnvironmentContext envContext = new EnvironmentContext(
@@ -408,7 +408,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   }
 
   @VisibleForTesting
-  protected long acquireLock() throws UnknownHostException, TException, InterruptedException {
+  long acquireLock() throws UnknownHostException, TException, InterruptedException {
     final LockComponent lockComponent = new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, database);
     lockComponent.setTablename(tableName);
     final LockRequest lockRequest = new LockRequest(Lists.newArrayList(lockComponent),
@@ -499,7 +499,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   }
 
   @VisibleForTesting
-  protected void doUnlock(long lockId) throws TException, InterruptedException {
+  void doUnlock(long lockId) throws TException, InterruptedException {
     metaClients.run(client -> {
       client.unlock(lockId);
       return null;
