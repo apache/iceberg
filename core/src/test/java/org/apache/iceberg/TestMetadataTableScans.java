@@ -20,9 +20,12 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.util.stream.StreamSupport;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -160,6 +163,105 @@ public class TestMetadataTableScans extends TableTestBase {
   }
 
   @Test
+  public void testPartitionsTableScan() throws IOException {
+
+    // Make 4 Manifests
+    table.newFastAppend()
+        .appendFile(FILE_PARTITION_0)
+        .commit();
+    table.newFastAppend()
+        .appendFile(FILE_PARTITION_1)
+        .commit();
+    table.newFastAppend()
+        .appendFile(FILE_PARTITION_2)
+        .commit();
+    table.newFastAppend()
+        .appendFile(FILE_PARTITION_3)
+        .commit();
+
+    Table partitionsTable = new PartitionsTable(table.ops(), table);
+    Types.StructType expected = new Schema(
+        required(1, "partition", Types.StructType.of(
+            optional(1000, "data_bucket", Types.IntegerType.get())))).asStruct();
+
+    // Sanity check a variety of partition predicates.
+    TableScan scanNoFilter = partitionsTable.newScan()
+        .select("partition.data_bucket");
+    Assert.assertEquals(expected, scanNoFilter.schema().asStruct());
+    CloseableIterable<FileScanTask> tasksNoFilter = ((PartitionsTable) partitionsTable)
+        .planTasks((StaticTableScan) scanNoFilter);
+    Assert.assertEquals(4, Iterators.size(tasksNoFilter.iterator()));
+    validateIncludes(tasksNoFilter, 0);
+    validateIncludes(tasksNoFilter, 1);
+    validateIncludes(tasksNoFilter, 2);
+    validateIncludes(tasksNoFilter, 3);
+
+    Expression andEquals = Expressions.and(
+        Expressions.equal("partition.data_bucket", 0),
+        Expressions.greaterThan("record_count", 0));
+    TableScan scanAndEq = partitionsTable.newScan()
+        .filter(andEquals);
+    CloseableIterable<FileScanTask> tasksAndEq = ((PartitionsTable) partitionsTable)
+        .planTasks((StaticTableScan) scanAndEq);
+    Assert.assertEquals(1, Iterators.size(tasksAndEq.iterator()));
+    validateIncludes(tasksAndEq, 0);
+
+    Expression ltAnd = Expressions.and(
+        Expressions.lessThan("partition.data_bucket", 2),
+        Expressions.greaterThan("record_count", 0));
+    TableScan scanLtAnd = partitionsTable.newScan()
+        .filter(ltAnd);
+    CloseableIterable<FileScanTask> tasksLtAnd = ((PartitionsTable) partitionsTable)
+        .planTasks((StaticTableScan) scanLtAnd);
+    Assert.assertEquals(2, Iterators.size(tasksLtAnd.iterator()));
+    validateIncludes(tasksLtAnd, 0);
+    validateIncludes(tasksLtAnd, 1);
+
+    Expression or = Expressions.or(
+        Expressions.equal("partition.data_bucket", 2),
+        Expressions.greaterThan("record_count", 0));
+    TableScan scanOr = partitionsTable.newScan()
+        .filter(or);
+    CloseableIterable<FileScanTask> tasksOr = ((PartitionsTable) partitionsTable)
+        .planTasks((StaticTableScan) scanOr);
+    Assert.assertEquals(4, Iterators.size(tasksOr.iterator()));
+    validateIncludes(tasksOr, 0);
+    validateIncludes(tasksOr, 1);
+    validateIncludes(tasksOr, 2);
+    validateIncludes(tasksOr, 3);
+
+    Expression not = Expressions.not(
+        Expressions.lessThan("partition.data_bucket", 2));
+    TableScan scanNot = partitionsTable.newScan()
+        .filter(not);
+    CloseableIterable<FileScanTask> tasksNot = ((PartitionsTable) partitionsTable)
+        .planTasks((StaticTableScan) scanNot);
+    Assert.assertEquals(2, Iterators.size(tasksNot.iterator()));
+    validateIncludes(tasksNot, 2);
+    validateIncludes(tasksNot, 3);
+
+    Expression set = Expressions.in("partition.data_bucket", 2, 3);
+    TableScan scanSet = partitionsTable.newScan()
+        .filter(set);
+    CloseableIterable<FileScanTask> tasksSet = ((PartitionsTable) partitionsTable)
+        .planTasks((StaticTableScan) scanSet);
+    Assert.assertEquals(2, Iterators.size(tasksSet.iterator()));
+    validateIncludes(tasksSet, 2);
+    validateIncludes(tasksSet, 3);
+
+    Expression unary = Expressions.notNull("partition.data_bucket");
+    TableScan scanUnary = partitionsTable.newScan()
+        .filter(unary);
+    CloseableIterable<FileScanTask> tasksUnary = ((PartitionsTable) partitionsTable)
+        .planTasks((StaticTableScan) scanUnary);
+    Assert.assertEquals(4, Iterators.size(tasksUnary.iterator()));
+    validateIncludes(tasksUnary, 0);
+    validateIncludes(tasksUnary, 1);
+    validateIncludes(tasksUnary, 2);
+    validateIncludes(tasksUnary, 3);
+  }
+
+  @Test
   public void testDataFilesTableSelection() throws IOException {
     table.newFastAppend()
         .appendFile(FILE_A)
@@ -193,5 +295,11 @@ public class TestMetadataTableScans extends TableTestBase {
         }
       }
     }
+  }
+
+  private void validateIncludes(CloseableIterable<FileScanTask> tasks, int partValue) {
+    Assert.assertTrue("File scan tasks do not include correct file",
+        StreamSupport.stream(tasks.spliterator(), false).filter(
+            a -> ((PartitionData) a.file().partition()).get(0).equals(partValue)).findAny().isPresent());
   }
 }

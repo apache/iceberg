@@ -20,6 +20,7 @@
 package org.apache.iceberg.expressions;
 
 import java.util.Collection;
+import java.util.Optional;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
@@ -132,6 +133,27 @@ public class Projections {
    */
   public static ProjectionEvaluator strict(PartitionSpec spec, boolean caseSensitive) {
     return new StrictProjection(spec, caseSensitive);
+  }
+
+  /**
+   * Creates a {@code ProjectionEvaluator} for the {@link PartitionSpec spec}, for use of metadata tables
+   * with the following partition struct: partition.{part_field1, part_field2}
+   * <p>
+   * An evaluator is used to project expressions for a metadata table's data rows into expressions on the
+   * table's partition values. The evaluator returned by this function is strict and will build
+   * expressions with the following guarantee: if the projected expression matches a partition,
+   * then the original expression will match all rows in that partition.
+   * <p>
+   * Each predicate in the expression is projected using
+   * {@link Transform#projectStrict(String, BoundPredicate)}.
+   *
+   * @param spec a partition spec
+   * @param caseSensitive whether the Projection should consider case sensitivity on column names or not.
+   * @return a strict projection evaluator for the partition spec
+   * @see Transform#projectStrict(String, BoundPredicate) Strict transform used for each predicate
+   */
+  public static ProjectionEvaluator metadata(PartitionSpec spec, boolean caseSensitive) {
+    return new MetadataProjections(spec, caseSensitive);
   }
 
   private static class BaseProjectionEvaluator extends ProjectionEvaluator {
@@ -259,6 +281,31 @@ public class Projections {
       }
 
       return result;
+    }
+  }
+
+  private static class MetadataProjections extends BaseProjectionEvaluator {
+
+    private static final String PREFIX = "partition.";
+
+    private MetadataProjections(PartitionSpec spec, boolean caseSensitive) {
+      super(spec, caseSensitive);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Expression predicate(UnboundPredicate<T> pred) {
+      String name = pred.ref().name();
+      if (name.startsWith(PREFIX)) {
+        String partitionCol = name.substring(PREFIX.length());
+        UnboundPredicate<T> realPartitionPred = pred.clone(Expressions.ref(partitionCol));
+        Optional<PartitionField> partField = spec().fields().stream().filter(
+            f -> f.name().equals(partitionCol)).findAny();
+        if (partField.isPresent()) {
+          return realPartitionPred;
+        }
+      }
+      return Expressions.alwaysTrue();
     }
   }
 }

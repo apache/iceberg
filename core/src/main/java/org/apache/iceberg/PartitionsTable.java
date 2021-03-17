@@ -20,9 +20,14 @@
 package org.apache.iceberg;
 
 import java.util.Map;
+import org.apache.iceberg.expressions.ManifestEvaluator;
+import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
+import org.apache.iceberg.util.ThreadPools;
 
 /**
  * A {@link Table} implementation that exposes a table's partitions as rows.
@@ -30,6 +35,9 @@ import org.apache.iceberg.util.StructLikeWrapper;
 public class PartitionsTable extends BaseMetadataTable {
 
   private final Schema schema;
+  private final String name;
+  static final boolean PLAN_SCANS_WITH_WORKER_POOL =
+      SystemProperties.getBoolean(SystemProperties.SCAN_THREAD_POOL_ENABLED, true);
 
   PartitionsTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".partitions");
@@ -63,9 +71,9 @@ public class PartitionsTable extends BaseMetadataTable {
     return MetadataTableType.PARTITIONS;
   }
 
-  private DataTask task(TableScan scan) {
+  private DataTask task(StaticTableScan scan) {
     TableOperations ops = operations();
-    Iterable<Partition> partitions = partitions(table(), scan.snapshot().snapshotId());
+    Iterable<Partition> partitions = partitions(scan);
     if (table().spec().fields().size() < 1) {
       // the table is unpartitioned, partitions contains only the root partition
       return StaticDataTask.of(io().newInputFile(ops.current().metadataFileLocation()), partitions,
@@ -80,20 +88,45 @@ public class PartitionsTable extends BaseMetadataTable {
     return StaticDataTask.Row.of(partition.key, partition.recordCount, partition.fileCount);
   }
 
-  private static Iterable<Partition> partitions(Table table, Long snapshotId) {
-    PartitionMap partitions = new PartitionMap(table.spec().partitionType());
-    TableScan scan = table.newScan();
+  private Iterable<Partition> partitions(StaticTableScan scan) {
+    CloseableIterable<FileScanTask> tasks = planTasks(scan);
 
-    if (snapshotId != null) {
-      scan = scan.useSnapshot(snapshotId);
-    }
-
-    for (FileScanTask task : scan.planFiles()) {
+    PartitionMap partitions = new PartitionMap(table().spec().partitionType());
+    for (FileScanTask task : tasks) {
       partitions.get(task.file().partition()).update(task.file());
     }
-
     return partitions.all();
   }
+
+  @VisibleForTesting
+  CloseableIterable<FileScanTask> planTasks(StaticTableScan scan) {
+    boolean caseSensitive = scan.isCaseSensitive();
+    boolean ignoreResiduals = scan.shouldIgnoreResiduals();
+    long snapshotId = scan.snapshot().snapshotId();
+
+    ManifestEvaluator eval = ManifestEvaluator.forPartitionFilter(
+        Projections.metadata(table().spec(), caseSensitive).project(scan.filter()),
+        table().spec(),
+        caseSensitive);
+    ManifestGroup manifestGroup = new ManifestGroup(
+        table().io(), table().snapshot(snapshotId).dataManifests(), table().snapshot(snapshotId).deleteManifests())
+        .caseSensitive(caseSensitive)
+        .filterManifests(manifestFile -> eval.eval(manifestFile))
+        .select(DataTableScan.SCAN_COLUMNS)
+        .specsById(table().specs())
+        .ignoreDeleted();
+
+    if (ignoreResiduals) {
+      manifestGroup = manifestGroup.ignoreResiduals();
+    }
+
+    if (PLAN_SCANS_WITH_WORKER_POOL && scan.snapshot().dataManifests().size() > 1) {
+      manifestGroup = manifestGroup.planWith(ThreadPools.getWorkerPool());
+    }
+
+    return manifestGroup.planFiles();
+  }
+
 
   private class PartitionsScan extends StaticTableScan {
     PartitionsScan(TableOperations ops, Table table) {
