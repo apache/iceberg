@@ -22,6 +22,7 @@ package org.apache.iceberg.actions;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.spark.actions.BaseExpireSnapshotsSparkAction;
 import org.apache.spark.sql.SparkSession;
 
 public class Actions {
@@ -79,7 +80,8 @@ public class Actions {
   }
 
   public ExpireSnapshotsAction expireSnapshots() {
-    return new ExpireSnapshotsAction(spark, table);
+    BaseExpireSnapshotsSparkAction delegate = new BaseExpireSnapshotsSparkAction(spark, table);
+    return new ExpireSnapshotsAction(delegate);
   }
 
   /**

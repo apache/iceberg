@@ -19,11 +19,19 @@
 
 package org.apache.iceberg.actions;
 
+@Deprecated
 public class ExpireSnapshotsActionResult {
 
   private final Long dataFilesDeleted;
   private final Long manifestFilesDeleted;
   private final Long manifestListsDeleted;
+
+  static ExpireSnapshotsActionResult wrap(ExpireSnapshots.Result result) {
+    return new ExpireSnapshotsActionResult(
+        result.deletedDataFilesCount(),
+        result.deletedManifestsCount(),
+        result.deletedManifestListsCount());
+  }
 
   public ExpireSnapshotsActionResult(Long dataFilesDeleted, Long manifestFilesDeleted, Long manifestListsDeleted) {
     this.dataFilesDeleted = dataFilesDeleted;

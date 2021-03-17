@@ -19,27 +19,32 @@
 
 package org.apache.iceberg.actions;
 
-import java.util.Map;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.spark.sql.SparkSession;
+public class BaseExpireSnapshotsActionResult implements ExpireSnapshots.Result {
 
-abstract class BaseSnapshotUpdateSparkAction<ThisT, R>
-    extends BaseSparkAction<ThisT, R> implements SnapshotUpdate<ThisT, R> {
+  private final long deletedDataFilesCount;
+  private final long deletedManifestsCount;
+  private final long deletedManifestListsCount;
 
-  private final Map<String, String> summary = Maps.newHashMap();
-
-  protected BaseSnapshotUpdateSparkAction(SparkSession spark) {
-    super(spark);
+  public BaseExpireSnapshotsActionResult(long deletedDataFilesCount,
+                                         long deletedManifestsCount,
+                                         long deletedManifestListsCount) {
+    this.deletedDataFilesCount = deletedDataFilesCount;
+    this.deletedManifestsCount = deletedManifestsCount;
+    this.deletedManifestListsCount = deletedManifestListsCount;
   }
 
   @Override
-  public ThisT snapshotProperty(String property, String value) {
-    summary.put(property, value);
-    return self();
+  public long deletedDataFilesCount() {
+    return deletedDataFilesCount;
   }
 
-  protected void commit(org.apache.iceberg.SnapshotUpdate<?> update) {
-    summary.forEach(update::set);
-    update.commit();
+  @Override
+  public long deletedManifestsCount() {
+    return deletedManifestsCount;
+  }
+
+  @Override
+  public long deletedManifestListsCount() {
+    return deletedManifestListsCount;
   }
 }

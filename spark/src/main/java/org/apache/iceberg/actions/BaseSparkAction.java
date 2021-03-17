@@ -21,6 +21,7 @@ package org.apache.iceberg.actions;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.iceberg.BaseTable;
@@ -36,6 +37,7 @@ import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.spark.SparkUtil;
@@ -51,12 +53,13 @@ import org.apache.spark.sql.SparkSession;
 
 import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 
-abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
+public abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
   private static final AtomicInteger JOB_COUNTER = new AtomicInteger();
 
   private final SparkSession spark;
   private final JavaSparkContext sparkContext;
+  private final Map<String, String> options = Maps.newHashMap();
 
   protected BaseSparkAction(SparkSession spark) {
     this.spark = spark;
@@ -69,6 +72,24 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
   protected JavaSparkContext sparkContext() {
     return sparkContext;
+  }
+
+  protected abstract ThisT self();
+
+  @Override
+  public ThisT option(String name, String value) {
+    options.put(name, value);
+    return self();
+  }
+
+  @Override
+  public ThisT options(Map<String, String> newOptions) {
+    options.putAll(newOptions);
+    return self();
+  }
+
+  protected Map<String, String> options() {
+    return options;
   }
 
   protected <T> T withJobGroupInfo(JobGroupInfo info, Supplier<T> supplier) {
