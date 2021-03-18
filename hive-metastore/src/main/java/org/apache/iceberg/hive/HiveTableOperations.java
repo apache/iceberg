@@ -113,9 +113,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final long lockCheckMinWaitTime;
   private final long lockCheckMaxWaitTime;
   private final FileIO fileIO;
-  private final CachedClientPool metaClients;
+  private final ClientPool<HiveMetaStoreClient, TException> metaClients;
 
-  protected HiveTableOperations(Configuration conf, CachedClientPool metaClients, FileIO fileIO,
+  protected HiveTableOperations(Configuration conf, ClientPool metaClients, FileIO fileIO,
                                 String catalogName, String database, String table) {
     this.conf = conf;
     this.metaClients = metaClients;

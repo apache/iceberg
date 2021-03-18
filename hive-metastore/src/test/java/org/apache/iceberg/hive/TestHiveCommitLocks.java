@@ -105,7 +105,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     Assert.assertEquals(2, ops.current().schema().columns().size());
 
-    spyOps = spy(new HiveTableOperations(overriddenHiveConf,  spyCachedClientPool, ops.io(), catalog.name(),
+    spyOps = spy(new HiveTableOperations(overriddenHiveConf, spyCachedClientPool, ops.io(), catalog.name(),
             dbName, tableName));
   }
 

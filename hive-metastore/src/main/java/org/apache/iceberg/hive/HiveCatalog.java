@@ -63,7 +63,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   private String name;
   private Configuration conf;
   private FileIO fileIO;
-  private CachedClientPool clients;
+  private ClientPool<HiveMetaStoreClient, TException> clients;
 
   public HiveCatalog() {
   }
