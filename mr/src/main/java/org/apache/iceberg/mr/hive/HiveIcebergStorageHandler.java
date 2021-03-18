@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.mr.hive;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import java.io.Serializable;
 import java.util.Map;
 import java.util.Properties;
@@ -44,13 +42,11 @@ import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.SerializationUtil;
 
 public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, HiveStorageHandler {
 
   static final String WRITE_KEY = "HiveIcebergStorageHandler_write";
-  private static final Cache<Pair<String, String>, Table> tableCache = Caffeine.newBuilder().softValues().build();
 
   private Configuration conf;
 
@@ -151,9 +147,7 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
    * @return The Table
    */
   public static Table table(Configuration config) {
-    return tableCache.get(Pair.of(config.get(InputFormatConfig.TABLE_IDENTIFIER),
-        config.get(InputFormatConfig.TABLE_LOCATION)),
-        k -> SerializationUtil.deserializeFromBase64(config.get(InputFormatConfig.SERIALIZED_TABLE)));
+    return SerializationUtil.deserializeFromBase64(config.get(InputFormatConfig.SERIALIZED_TABLE));
   }
 
   /**
@@ -199,7 +193,6 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
 
     if (table instanceof Serializable) {
       map.put(InputFormatConfig.SERIALIZED_TABLE, SerializationUtil.serializeToBase64(table));
-      tableCache.put(Pair.of(tableIdentifier, tableLocation), table);
     }
 
     // We need to remove this otherwise the job.xml will be invalid as column comments are separated with '\0' and

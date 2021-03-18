@@ -29,7 +29,8 @@ import org.apache.iceberg.io.LocationProvider;
  * and cannot be used to create or delete files.
  */
 public class StaticTableOperations implements TableOperations {
-  private final TableMetadata staticMetadata;
+  private TableMetadata staticMetadata;
+  private final String metadataFileLocation;
   private final FileIO io;
   private final LocationProvider locationProvider;
 
@@ -42,17 +43,23 @@ public class StaticTableOperations implements TableOperations {
 
   public StaticTableOperations(String metadataFileLocation, FileIO io, LocationProvider locationProvider) {
     this.io = io;
-    this.staticMetadata = TableMetadataParser.read(io, metadataFileLocation);
+    this.metadataFileLocation = metadataFileLocation;
     this.locationProvider = locationProvider;
   }
 
   @Override
   public TableMetadata current() {
+    if (staticMetadata == null) {
+      staticMetadata = TableMetadataParser.read(io, metadataFileLocation);
+    }
     return staticMetadata;
   }
 
   @Override
   public TableMetadata refresh() {
+    if (staticMetadata == null) {
+      staticMetadata = TableMetadataParser.read(io, metadataFileLocation);
+    }
     return staticMetadata;
   }
 
