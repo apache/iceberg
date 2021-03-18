@@ -42,14 +42,12 @@ public class TestHiveClientPool {
   public void testConf() {
     HiveConf conf = createHiveConf();
     conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file:/mywarehouse/");
-    conf.setInt("iceberg.hive.client-pool-size", 10);
 
-    HiveClientPool clientPool = new HiveClientPool(conf);
+    HiveClientPool clientPool = new HiveClientPool(10, conf);
     HiveConf clientConf = clientPool.hiveConf();
 
     Assert.assertEquals(conf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname),
             clientConf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname));
-    Assert.assertEquals(conf.get("iceberg.hive.client-pool-size"), clientConf.get("iceberg.hive.client-pool-size"));
     Assert.assertEquals(10, clientPool.poolSize());
 
     // 'hive.metastore.sasl.enabled' should be 'true' as defined in xml
