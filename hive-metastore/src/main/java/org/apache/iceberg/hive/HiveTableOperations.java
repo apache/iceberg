@@ -78,6 +78,8 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS_DEFAUL
 public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HiveTableOperations.class);
 
+  private static final int COMMIT_STATUS_RECHECK_SLEEP = 1000;
+
   private static final String HIVE_ACQUIRE_LOCK_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
   private static final String HIVE_LOCK_CHECK_MIN_WAIT_MS = "iceberg.hive.lock-check-min-wait-ms";
   private static final String HIVE_LOCK_CHECK_MAX_WAIT_MS = "iceberg.hive.lock-check-max-wait-ms";
@@ -261,40 +263,36 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
    * committer was able to successfully commit on top of our commit.
    *
    * @param newMetadataLocation the path of the new commit file
+   * @param config metadata to use for configuration
    * @return Commit Status of Success, Failure or Unknown
    */
-  private CommitStatus checkCommitStatus(String newMetadataLocation, TableMetadata metadata) {
-    int maxAttempts = PropertyUtil.propertyAsInt(metadata.properties(), COMMIT_NUM_STATUS_CHECKS,
+  private CommitStatus checkCommitStatus(String newMetadataLocation, TableMetadata config) {
+    int maxAttempts = PropertyUtil.propertyAsInt(config.properties(), COMMIT_NUM_STATUS_CHECKS,
         COMMIT_NUM_STATUS_CHECKS_DEFAULT);
-    return innerCommitCheck(newMetadataLocation, 1, maxAttempts);
-  }
 
-  private CommitStatus innerCommitCheck(String newMetadataLocation, int attempt, int maxAttempts) {
-    try {
-      Thread.sleep(1000);
-      TableMetadata metadata = refresh();
-      String metadataLocation = metadata.metadataFileLocation();
-      boolean commitSuccess = metadataLocation.equals(newMetadataLocation) ||
-          metadata.previousFiles().stream().anyMatch(log -> log.file().equals(newMetadataLocation));
-      if (commitSuccess) {
-        LOG.info("Commit status check: Commit to {}.{} of {} succeeded", database, tableName, newMetadataLocation);
-        return CommitStatus.SUCCESS;
-      } else {
-        LOG.info("Commit status check: Commit to {}.{} of {} failed", database, tableName, newMetadataLocation);
-        return CommitStatus.FAILURE;
-      }
-    } catch (Throwable checkFailure) {
-      if (attempt < maxAttempts) {
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        Thread.sleep(COMMIT_STATUS_RECHECK_SLEEP);
+        TableMetadata metadata = refresh();
+        String metadataLocation = metadata.metadataFileLocation();
+        boolean commitSuccess = metadataLocation.equals(newMetadataLocation) ||
+            metadata.previousFiles().stream().anyMatch(log -> log.file().equals(newMetadataLocation));
+        if (commitSuccess) {
+          LOG.info("Commit status check: Commit to {}.{} of {} succeeded", database, tableName, newMetadataLocation);
+          return CommitStatus.SUCCESS;
+        } else {
+          LOG.info("Commit status check: Commit to {}.{} of {} failed", database, tableName, newMetadataLocation);
+          return CommitStatus.FAILURE;
+        }
+      } catch (Throwable checkFailure) {
         LOG.error("Cannot check if commit to {}.{} exists. Retry attempt {} of {}.",
             database, tableName, attempt, maxAttempts, checkFailure);
-        return innerCommitCheck(newMetadataLocation, attempt + 1, maxAttempts);
-      } else {
-        LOG.error("Cannot check if commit to {}.{} exists. Failed to check {} times. " +
-                "Treating commit state as unknown.",
-            database, tableName, attempt, checkFailure);
-        return CommitStatus.UNKNOWN;
       }
     }
+
+    LOG.error("Cannot determine commit state to {}.{}. Failed to check {} times. Treating commit state as unknown.",
+        database, tableName, maxAttempts);
+    return CommitStatus.UNKNOWN;
   }
 
   @VisibleForTesting
