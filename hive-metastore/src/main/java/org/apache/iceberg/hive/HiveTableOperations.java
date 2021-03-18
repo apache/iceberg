@@ -113,16 +113,16 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final long lockCheckMinWaitTime;
   private final long lockCheckMaxWaitTime;
   private final FileIO fileIO;
-  private final CachedClientPool clientPool;
+  private final CachedClientPool metaClients;
 
-  protected HiveTableOperations(Configuration conf, String name, FileIO fileIO, CachedClientPool clientPool,
-                                String database, String table) {
+  protected HiveTableOperations(Configuration conf, CachedClientPool metaClients, FileIO fileIO,
+                                String catalogName, String database, String table) {
     this.conf = conf;
+    this.metaClients = metaClients;
     this.fileIO = fileIO;
-    this.fullName = name + "." + database + "." + table;
+    this.fullName = catalogName + "." + database + "." + table;
     this.database = database;
     this.tableName = table;
-    this.clientPool = clientPool;
     this.lockAcquireTimeout =
         conf.getLong(HIVE_ACQUIRE_LOCK_TIMEOUT_MS, HIVE_ACQUIRE_LOCK_TIMEOUT_MS_DEFAULT);
     this.lockCheckMinWaitTime =
@@ -145,7 +145,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   protected void doRefresh() {
     String metadataLocation = null;
     try {
-      Table table = clientPool.run(client -> client.getTable(database, tableName));
+      Table table = metaClients.run(client -> client.getTable(database, tableName));
       validateTableIsIceberg(table, fullName);
 
       metadataLocation = table.getParameters().get(METADATA_LOCATION_PROP);
@@ -303,7 +303,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   @VisibleForTesting
   void persistTable(Table hmsTable, boolean updateHiveTable) throws TException, InterruptedException {
     if (updateHiveTable) {
-      clientPool.run(client -> {
+      metaClients.run(client -> {
         EnvironmentContext envContext = new EnvironmentContext(
             ImmutableMap.of(StatsSetupConst.DO_NOT_UPDATE_STATS, StatsSetupConst.TRUE)
         );
@@ -311,7 +311,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         return null;
       });
     } else {
-      clientPool.run(client -> {
+      metaClients.run(client -> {
         client.createTable(hmsTable);
         return null;
       });
@@ -320,7 +320,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
   private Table loadHmsTable() throws TException, InterruptedException {
     try {
-      return clientPool.run(client -> client.getTable(database, tableName));
+      return metaClients.run(client -> client.getTable(database, tableName));
     } catch (NoSuchObjectException nte) {
       LOG.trace("Table not found {}", fullName, nte);
       return null;
@@ -417,7 +417,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     final LockRequest lockRequest = new LockRequest(Lists.newArrayList(lockComponent),
         System.getProperty("user.name"),
         InetAddress.getLocalHost().getHostName());
-    LockResponse lockResponse = clientPool.run(client -> client.lock(lockRequest));
+    LockResponse lockResponse = metaClients.run(client -> client.lock(lockRequest));
     AtomicReference<LockState> state = new AtomicReference<>(lockResponse.getState());
     long lockId = lockResponse.getLockid();
 
@@ -443,7 +443,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             .onlyRetryOn(WaitingForLockException.class)
             .run(id -> {
               try {
-                LockResponse response = clientPool.run(client -> client.checkLock(id));
+                LockResponse response = metaClients.run(client -> client.checkLock(id));
                 LockState newState = response.getState();
                 state.set(newState);
                 if (newState.equals(LockState.WAITING)) {
@@ -503,7 +503,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   
   @VisibleForTesting
   void doUnlock(long lockId) throws TException, InterruptedException {
-    clientPool.clientPool().run(client -> {
+    metaClients.clientPool().run(client -> {
       client.unlock(lockId);
       return null;
     });
