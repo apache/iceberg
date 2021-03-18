@@ -121,7 +121,7 @@ public class GenericManifestFile
     this.existingRowsCount = existingRowsCount;
     this.deletedFilesCount = deletedFilesCount;
     this.deletedRowsCount = deletedRowsCount;
-    this.partitions = partitions.toArray(new PartitionFieldSummary[0]);
+    this.partitions = partitions == null ? null : partitions.toArray(new PartitionFieldSummary[0]);
     this.fromProjectionPos = null;
   }
 
@@ -240,7 +240,7 @@ public class GenericManifestFile
 
   @Override
   public List<PartitionFieldSummary> partitions() {
-    return Arrays.asList(partitions);
+    return partitions == null ? null : Arrays.asList(partitions);
   }
 
   @Override
