@@ -24,6 +24,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransportException;
 
@@ -45,6 +46,7 @@ public class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> 
   public HiveClientPool(int poolSize, Configuration conf) {
     super(poolSize, TTransportException.class);
     this.hiveConf = new HiveConf(conf, HiveClientPool.class);
+    this.hiveConf.addResource(conf);
   }
 
   @Override
@@ -92,5 +94,10 @@ public class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> 
   @Override
   protected void close(HiveMetaStoreClient client) {
     client.close();
+  }
+
+  @VisibleForTesting
+  HiveConf hiveConf() {
+    return hiveConf;
   }
 }

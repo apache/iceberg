@@ -22,6 +22,7 @@ package org.apache.iceberg.hive;
 import java.io.Closeable;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -108,6 +109,11 @@ public abstract class ClientPool<C, E extends Exception> implements Closeable {
       Thread.currentThread().interrupt();
       LOG.warn("Interrupted while shutting down pool. Some clients may not be closed.", e);
     }
+  }
+
+  @VisibleForTesting
+  int poolSize() {
+    return poolSize;
   }
 
   private C get() throws InterruptedException {
