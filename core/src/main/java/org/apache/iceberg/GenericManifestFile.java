@@ -20,7 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.avro.Schema;
@@ -56,7 +56,7 @@ public class GenericManifestFile
   private Long addedRowsCount = null;
   private Long existingRowsCount = null;
   private Long deletedRowsCount = null;
-  private List<PartitionFieldSummary> partitions = null;
+  private PartitionFieldSummary[] partitions = null;
 
   /**
    * Used by Avro reflection to instantiate this class when reading manifest files.
@@ -121,7 +121,7 @@ public class GenericManifestFile
     this.existingRowsCount = existingRowsCount;
     this.deletedFilesCount = deletedFilesCount;
     this.deletedRowsCount = deletedRowsCount;
-    this.partitions = partitions;
+    this.partitions = partitions.toArray(new PartitionFieldSummary[0]);
     this.fromProjectionPos = null;
   }
 
@@ -145,7 +145,12 @@ public class GenericManifestFile
     this.existingRowsCount = toCopy.existingRowsCount;
     this.deletedFilesCount = toCopy.deletedFilesCount;
     this.deletedRowsCount = toCopy.deletedRowsCount;
-    this.partitions = copyList(toCopy.partitions, PartitionFieldSummary::copy);
+    if (toCopy.partitions != null) {
+      this.partitions = copyList(toCopy.partitions(), PartitionFieldSummary::copy)
+          .toArray(new PartitionFieldSummary[0]);
+    } else {
+      this.partitions = null;
+    }
     this.fromProjectionPos = toCopy.fromProjectionPos;
   }
 
@@ -235,7 +240,7 @@ public class GenericManifestFile
 
   @Override
   public List<PartitionFieldSummary> partitions() {
-    return partitions;
+    return Arrays.asList(partitions);
   }
 
   @Override
@@ -283,7 +288,7 @@ public class GenericManifestFile
       case 12:
         return deletedRowsCount;
       case 13:
-        return partitions;
+        return partitions();
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -339,7 +344,8 @@ public class GenericManifestFile
         this.deletedRowsCount = (Long) value;
         return;
       case 13:
-        this.partitions = (List<PartitionFieldSummary>) value;
+        this.partitions = value == null ? null :
+            ((List<PartitionFieldSummary>) value).toArray(new PartitionFieldSummary[0]);
         return;
       default:
         // ignore the object, it must be from a newer version of the format
@@ -430,7 +436,7 @@ public class GenericManifestFile
       for (E element : list) {
         copy.add(transform.apply(element));
       }
-      return Collections.unmodifiableList(copy);
+      return copy;
     }
     return null;
   }
