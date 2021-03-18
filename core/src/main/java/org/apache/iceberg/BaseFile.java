@@ -171,8 +171,8 @@ abstract class BaseFile<F>
       this.valueCounts = LazyImmutableMap.of(toCopy.valueCounts);
       this.nullValueCounts = LazyImmutableMap.of(toCopy.nullValueCounts);
       this.nanValueCounts = LazyImmutableMap.of(toCopy.nanValueCounts);
-      this.lowerBounds = LazyImmutableMap.of(SerializableByteBufferMap.wrap(toCopy.lowerBounds));
-      this.upperBounds = LazyImmutableMap.of(SerializableByteBufferMap.wrap(toCopy.upperBounds));
+      this.lowerBounds = SerializableByteBufferMap.wrap(LazyImmutableMap.of(toCopy.lowerBounds));
+      this.upperBounds = SerializableByteBufferMap.wrap(LazyImmutableMap.of(toCopy.upperBounds));
     } else {
       this.columnSizes = null;
       this.valueCounts = null;

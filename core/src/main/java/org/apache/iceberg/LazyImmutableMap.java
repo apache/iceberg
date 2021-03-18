@@ -21,22 +21,23 @@ package org.apache.iceberg;
 
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class LazyImmutableMap<K, V> implements Map<K, V>, Serializable {
 
-  private final Map<K, V> map;
+  private final Map<K, V> copiedMap;
   private Map<K, V> immutableMap;
 
   LazyImmutableMap() {
-    this.map = Maps.newLinkedHashMap();
+    this.copiedMap = Maps.newLinkedHashMap();
   }
 
   private LazyImmutableMap(Map<K, V> map) {
-    this.map = map;
+    this.copiedMap = Maps.newLinkedHashMap();
+    this.copiedMap.putAll(map);
   }
 
   public static <K, V> LazyImmutableMap<K, V> of(Map<K, V> map) {
@@ -45,7 +46,7 @@ public class LazyImmutableMap<K, V> implements Map<K, V>, Serializable {
 
   public Map<K, V> immutableMap() {
     if (immutableMap == null) {
-      immutableMap = ImmutableMap.copyOf(map);
+      immutableMap = Collections.unmodifiableMap(copiedMap);
     }
 
     return immutableMap;
@@ -53,71 +54,71 @@ public class LazyImmutableMap<K, V> implements Map<K, V>, Serializable {
 
   @Override
   public int size() {
-    return map.size();
+    return copiedMap.size();
   }
 
   @Override
   public boolean isEmpty() {
-    return map.isEmpty();
+    return copiedMap.isEmpty();
   }
 
   @Override
   public boolean containsKey(Object key) {
-    return map.containsKey(key);
+    return copiedMap.containsKey(key);
   }
 
   @Override
   public boolean containsValue(Object value) {
-    return map.containsValue(value);
+    return copiedMap.containsValue(value);
   }
 
   @Override
   public V get(Object key) {
-    return map.get(key);
+    return copiedMap.get(key);
   }
 
   @Override
   public V put(K key, V value) {
-    return map.put(key, value);
+    return copiedMap.put(key, value);
   }
 
   @Override
   public V remove(Object key) {
-    return map.remove(key);
+    return copiedMap.remove(key);
   }
 
   @Override
   public void putAll(Map<? extends K, ? extends V> m) {
-    map.putAll(m);
+    copiedMap.putAll(m);
   }
 
   @Override
   public void clear() {
-    map.clear();
+    copiedMap.clear();
   }
 
   @Override
   public Set<K> keySet() {
-    return map.keySet();
+    return copiedMap.keySet();
   }
 
   @Override
   public Collection<V> values() {
-    return map.values();
+    return copiedMap.values();
   }
 
   @Override
   public Set<Entry<K, V>> entrySet() {
-    return map.entrySet();
+    return copiedMap.entrySet();
   }
 
   @Override
   public boolean equals(Object o) {
-    return map.equals(o);
+    return copiedMap.equals(o);
   }
 
   @Override
   public int hashCode() {
-    return map.hashCode();
+    return copiedMap.hashCode();
   }
 }
