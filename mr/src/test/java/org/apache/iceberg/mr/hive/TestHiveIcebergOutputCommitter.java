@@ -256,7 +256,7 @@ public class TestHiveIcebergOutputCommitter {
     LocationProvider location = table.locationProvider();
     EncryptionManager encryption = table.encryption();
     Schema schema = HiveIcebergStorageHandler.schema(conf);
-    PartitionSpec spec = HiveIcebergStorageHandler.spec(conf);
+    PartitionSpec spec = table.spec();
 
     for (int i = 0; i < taskNum; ++i) {
       List<Record> records = TestHelper.generateRandomRecords(schema, RECORD_NUM, i + attemptNum);

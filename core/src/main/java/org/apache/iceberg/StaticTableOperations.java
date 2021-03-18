@@ -40,13 +40,11 @@ public class StaticTableOperations implements TableOperations {
     this(metadataFileLocation, io, null);
   }
 
-
   public StaticTableOperations(String metadataFileLocation, FileIO io, LocationProvider locationProvider) {
     this.io = io;
     this.staticMetadata = TableMetadataParser.read(io, metadataFileLocation);
     this.locationProvider = locationProvider;
   }
-
 
   @Override
   public TableMetadata current() {

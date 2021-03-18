@@ -200,7 +200,7 @@ public class BaseExpireSnapshotsSparkAction
   }
 
   private Dataset<Row> buildValidFileDF(TableMetadata metadata) {
-    Table staticTable = newStaticTable(metadata, this.table.io());
+    Table staticTable = newStaticTable(metadata, this.table.io(), table.locationProvider());
     return appendTypeString(buildValidDataFileDF(staticTable), DATA_FILE)
         .union(appendTypeString(buildManifestFileDF(staticTable), MANIFEST))
         .union(appendTypeString(buildManifestListDF(staticTable), MANIFEST_LIST));

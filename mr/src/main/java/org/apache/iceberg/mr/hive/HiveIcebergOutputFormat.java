@@ -34,14 +34,15 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFileFactory;
-import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.mapred.Container;
+import org.apache.iceberg.util.PropertyUtil;
 
 public class HiveIcebergOutputFormat<T> implements OutputFormat<NullWritable, Container<Record>>,
     HiveOutputFormat<NullWritable, Container<Record>> {
@@ -65,11 +66,13 @@ public class HiveIcebergOutputFormat<T> implements OutputFormat<NullWritable, Co
 
   private static HiveIcebergRecordWriter writer(JobConf jc) {
     TaskAttemptID taskAttemptID = TezUtil.taskAttemptWrapper(jc);
-    Schema schema = HiveIcebergStorageHandler.schema(jc);
-    PartitionSpec spec = HiveIcebergStorageHandler.spec(jc);
-    FileFormat fileFormat = FileFormat.valueOf(jc.get(InputFormatConfig.WRITE_FILE_FORMAT));
-    long targetFileSize = jc.getLong(InputFormatConfig.WRITE_TARGET_FILE_SIZE, Long.MAX_VALUE);
     Table table = HiveIcebergStorageHandler.table(jc);
+    Schema schema = HiveIcebergStorageHandler.schema(jc);
+    PartitionSpec spec = table.spec();
+    FileFormat fileFormat = FileFormat.valueOf(PropertyUtil.propertyAsString(table.properties(),
+            TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT));
+    long targetFileSize = PropertyUtil.propertyAsLong(table.properties(), TableProperties.WRITE_TARGET_FILE_SIZE_BYTES,
+            TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
     FileIO io = table.io();
     LocationProvider location = table.locationProvider();
     EncryptionManager encryption = table.encryption();
