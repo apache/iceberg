@@ -52,7 +52,7 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
   }
 
   /**
-   * Add a rewrite that replaces one set of files with another set that contains the same data (format v2).
+   * Add a rewrite that replaces one set of files with another set that contains the same data.
    *
    * @param dataFilesToDelete   data files that will be replaced (deleted).
    * @param deleteFilesToDelete delete files that will be replaced (deleted).

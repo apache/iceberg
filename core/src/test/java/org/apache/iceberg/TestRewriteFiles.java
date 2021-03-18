@@ -244,7 +244,7 @@ public class TestRewriteFiles extends TableTestBase {
 
     Assert.assertEquals("Should contain 3 manifest", 3, pending.allManifests().size());
     Assert.assertFalse("Should not contain manifest from initial write",
-        pending.allManifests().containsAll(initialManifests));
+        pending.allManifests().stream().anyMatch(initialManifests::contains));
 
     long pendingId = pending.snapshotId();
     validateManifestEntries(pending.allManifests().get(0),
@@ -432,8 +432,8 @@ public class TestRewriteFiles extends TableTestBase {
 
     TableMetadata metadata = readMetadata();
     List<ManifestFile> committedManifests = Lists.newArrayList(manifest1, manifest2, manifest3);
-    Assert.assertTrue("Should committed the manifests",
-        metadata.currentSnapshot().allManifests().containsAll(committedManifests));
+    Assert.assertEquals("Should committed the manifests",
+        metadata.currentSnapshot().allManifests(), committedManifests);
 
     // As commit success all the manifests added with rewrite should be available.
     Assert.assertEquals("Only 5 manifest should exist", 5, listManifestFiles().size());
@@ -488,8 +488,8 @@ public class TestRewriteFiles extends TableTestBase {
 
     metadata = readMetadata();
     List<ManifestFile> committedManifests = Lists.newArrayList(manifest1, manifest2, manifest3);
-    Assert.assertTrue("Should committed the manifests",
-        metadata.currentSnapshot().allManifests().containsAll(committedManifests));
+    Assert.assertEquals("Should committed the manifests",
+        metadata.currentSnapshot().allManifests(), committedManifests);
 
     // As commit success all the manifests added with rewrite should be available.
     Assert.assertEquals("4 manifests should exist", 4, listManifestFiles().size());
