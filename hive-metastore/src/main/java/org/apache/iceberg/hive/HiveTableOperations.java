@@ -277,10 +277,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       boolean commitSuccess = metadataLocation.equals(newMetadataLocation) ||
           metadata.previousFiles().stream().anyMatch(log -> log.file().equals(newMetadataLocation));
       if (commitSuccess) {
-        LOG.info("Commit status check: Commit to {}.{} of {} succeeded", newMetadataLocation);
+        LOG.info("Commit status check: Commit to {}.{} of {} succeeded", database, tableName, newMetadataLocation);
         return CommitStatus.SUCCESS;
       } else {
-        LOG.info("Commit status check: Commit to {}.{} of {} failed", newMetadataLocation);
+        LOG.info("Commit status check: Commit to {}.{} of {} failed", database, tableName, newMetadataLocation);
         return CommitStatus.FAILURE;
       }
     } catch (Throwable checkFailure) {
