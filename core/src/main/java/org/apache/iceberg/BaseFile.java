@@ -153,7 +153,7 @@ abstract class BaseFile<F>
   /**
    * Copy constructor.
    *
-   * @param toCopy   a generic data file to copy.
+   * @param toCopy a generic data file to copy.
    * @param fullCopy whether to copy all fields or to drop column-level stats
    */
   BaseFile(BaseFile<F> toCopy, boolean fullCopy) {
