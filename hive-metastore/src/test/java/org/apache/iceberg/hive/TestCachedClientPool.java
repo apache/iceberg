@@ -33,10 +33,10 @@ public class TestCachedClientPool extends HiveMetastoreTest {
     CachedClientPool clientPool = new CachedClientPool(hiveConf, Collections.emptyMap());
     HiveClientPool clientPool1 = clientPool.clientPool();
     Assert.assertTrue(CachedClientPool.clientPoolCache().getIfPresent(metastoreUri) == clientPool1);
-    TimeUnit.SECONDS.sleep(8);
+    TimeUnit.MILLISECONDS.sleep(EVICTION_INTERVAL - TimeUnit.SECONDS.toMillis(2));
     HiveClientPool clientPool2 = clientPool.clientPool();
     Assert.assertTrue(clientPool1 == clientPool2);
-    TimeUnit.SECONDS.sleep(15);
+    TimeUnit.MILLISECONDS.sleep(EVICTION_INTERVAL + TimeUnit.SECONDS.toMillis(5));
     Assert.assertNull(CachedClientPool.clientPoolCache().getIfPresent(metastoreUri));
   }
 

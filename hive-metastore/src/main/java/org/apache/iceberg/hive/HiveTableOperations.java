@@ -500,10 +500,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       }
     }
   }
-  
+
   @VisibleForTesting
   void doUnlock(long lockId) throws TException, InterruptedException {
-    metaClients.clientPool().run(client -> {
+    metaClients.run(client -> {
       client.unlock(lockId);
       return null;
     });

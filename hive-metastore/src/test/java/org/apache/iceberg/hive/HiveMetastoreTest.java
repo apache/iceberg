@@ -33,6 +33,7 @@ import org.junit.BeforeClass;
 public abstract class HiveMetastoreTest {
 
   protected static final String DB_NAME = "hivedb";
+  protected static final long EVICTION_INTERVAL = TimeUnit.SECONDS.toMillis(10);
 
   protected static HiveMetaStoreClient metastoreClient;
   protected static HiveCatalog catalog;
@@ -49,10 +50,8 @@ public abstract class HiveMetastoreTest {
     Database db = new Database(DB_NAME, "description", dbPath, new HashMap<>());
     metastoreClient.createDatabase(db);
     HiveMetastoreTest.catalog = (HiveCatalog)
-        CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(
-                CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
-                String.valueOf(TimeUnit.SECONDS.toMillis(10))
-        ), hiveConf);
+        CatalogUtil.loadCatalog(HiveCatalog.class.getName(), CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE, ImmutableMap.of(
+                CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS, String.valueOf(EVICTION_INTERVAL)), hiveConf);
   }
 
   @AfterClass

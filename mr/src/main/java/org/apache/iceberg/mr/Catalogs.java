@@ -214,7 +214,8 @@ public final class Catalogs {
           LOG.info("Loaded Hadoop catalog {}", catalog);
           return Optional.of(catalog);
         case HIVE:
-          catalog = CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), conf);
+          catalog = CatalogUtil.loadCatalog(HiveCatalog.class.getName(), CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
+                  ImmutableMap.of(), conf);
           LOG.info("Loaded Hive Metastore catalog {}", catalog);
           return Optional.of(catalog);
         default:

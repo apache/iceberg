@@ -383,7 +383,8 @@ abstract class TestTables {
   static class HiveTestTables extends TestTables {
 
     HiveTestTables(Configuration conf, TemporaryFolder temp) {
-      super(CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), conf), temp);
+      super(CatalogUtil.loadCatalog(HiveCatalog.class.getName(), CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
+              ImmutableMap.of(), conf), temp);
     }
 
     @Override
