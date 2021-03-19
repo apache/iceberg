@@ -55,12 +55,14 @@ public class StaticTableOperations implements TableOperations {
     return staticMetadata;
   }
 
+  /**
+   * StaticTableOperations works on the same version of TableMetadata, and it will never refer a different TableMetadata
+   * object than the one it was created with.
+   * @return always {@link #current()}.
+   */
   @Override
   public TableMetadata refresh() {
-    if (staticMetadata == null) {
-      staticMetadata = TableMetadataParser.read(io, metadataFileLocation);
-    }
-    return staticMetadata;
+    return current();
   }
 
   @Override

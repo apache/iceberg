@@ -185,10 +185,8 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
         .filter(entry -> !map.containsKey(entry.getKey())) // map overrides tableDesc properties
         .forEach(entry -> map.put(entry.getKey(), entry.getValue()));
 
-    String tableIdentifier = props.getProperty(Catalogs.NAME);
-    map.put(InputFormatConfig.TABLE_IDENTIFIER, tableIdentifier);
-    String tableLocation = table.location();
-    map.put(InputFormatConfig.TABLE_LOCATION, tableLocation);
+    map.put(InputFormatConfig.TABLE_IDENTIFIER, props.getProperty(Catalogs.NAME));
+    map.put(InputFormatConfig.TABLE_LOCATION, table.location());
     map.put(InputFormatConfig.TABLE_SCHEMA, schemaJson);
 
     if (table instanceof Serializable) {
