@@ -34,6 +34,11 @@ class GetProjectedIds extends TypeUtil.SchemaVisitor<Set<Integer>> {
 
   @Override
   public Set<Integer> struct(Types.StructType struct, List<Set<Integer>> fieldResults) {
+    // if the struct is an empty struct, we should consider itself as 'internal', thus including its id.
+    if (struct.fields().size() == 0) {
+      // since returning null is signaling the call to field() to add the field ID, we return null here.
+      return null;
+    }
     return fieldIds;
   }
 

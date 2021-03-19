@@ -34,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 public class TypeUtil {
 
@@ -83,7 +84,11 @@ public class TypeUtil {
   }
 
   private static Set<Integer> getIdsInternal(Type type) {
-    return visit(type, new GetProjectedIds());
+    Set<Integer> res = visit(type, new GetProjectedIds());
+    if (res == null) {
+      return Sets.newHashSet();
+    }
+    return res;
   }
 
   public static Types.StructType selectNot(Types.StructType struct, Set<Integer> fieldIds) {

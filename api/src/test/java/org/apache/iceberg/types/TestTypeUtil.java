@@ -20,10 +20,13 @@
 
 package org.apache.iceberg.types;
 
+import java.util.Collections;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 
@@ -66,5 +69,26 @@ public class TestTypeUtil {
         );
 
     TypeUtil.indexByName(Types.StructType.of(nestedType));
+  }
+
+  @Test
+  public void testSelectNot() {
+    // iceberg schema which has an empty struct column.
+    Schema schema = new Schema(
+            required(1, "a", Types.IntegerType.get()),
+            optional(2, "b", Types.StructType.of(
+                    required(3, "c", Types.StringType.get()),
+                    optional(4, "d", Types.StructType.of(Collections.emptyList()))))
+    );
+    Schema filteredSchema = TypeUtil.selectNot(schema, ImmutableSet.of());
+    Assert.assertEquals(schema.toString(), filteredSchema.toString());
+
+    filteredSchema = TypeUtil.selectNot(schema, ImmutableSet.of(4));
+    Schema expected = new Schema(
+            required(1, "a", Types.IntegerType.get()),
+            optional(2, "b", Types.StructType.of(
+                    required(3, "c", Types.StringType.get())))
+    );
+    Assert.assertEquals(expected.toString(), filteredSchema.toString());
   }
 }
