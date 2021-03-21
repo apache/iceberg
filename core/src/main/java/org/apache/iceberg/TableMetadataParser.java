@@ -195,6 +195,7 @@ public class TableMetadataParser {
 
     generator.writeNumberField(LAST_PARTITION_ID, metadata.lastAssignedPartitionId());
 
+    // write the default order ID and sort order list
     generator.writeNumberField(DEFAULT_SORT_ORDER_ID, metadata.defaultSortOrderId());
     generator.writeArrayFieldStart(SORT_ORDERS);
     for (SortOrder sortOrder : metadata.sortOrders()) {
@@ -202,6 +203,7 @@ public class TableMetadataParser {
     }
     generator.writeEndArray();
 
+    // write properties map
     generator.writeObjectFieldStart(PROPERTIES);
     for (Map.Entry<String, String> keyValue : metadata.properties().entrySet()) {
       generator.writeStringField(keyValue.getKey(), keyValue.getValue());
@@ -347,6 +349,7 @@ public class TableMetadataParser {
       lastAssignedPartitionId = specs.stream().mapToInt(PartitionSpec::lastAssignedFieldId).max().orElse(999);
     }
 
+    // parse the sort orders
     JsonNode sortOrderArray = node.get(SORT_ORDERS);
     List<SortOrder> sortOrders;
     int defaultSortOrderId;
@@ -365,6 +368,7 @@ public class TableMetadataParser {
       defaultSortOrderId = defaultSortOrder.orderId();
     }
 
+    // parse properties map
     Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, node);
     long currentVersionId = JsonUtil.getLong(CURRENT_SNAPSHOT_ID, node);
     long lastUpdatedMillis = JsonUtil.getLong(LAST_UPDATED_MILLIS, node);

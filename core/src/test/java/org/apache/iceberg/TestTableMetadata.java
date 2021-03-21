@@ -137,6 +137,12 @@ public class TestTableMetadata {
         expected.specs(), metadata.specs());
     Assert.assertEquals("lastAssignedFieldId across all PartitionSpecs should match",
         expected.spec().lastAssignedFieldId(), metadata.lastAssignedPartitionId());
+    Assert.assertEquals("Default sort ID should match",
+        expected.defaultSortOrderId(), metadata.defaultSortOrderId());
+    Assert.assertEquals("Sort order should match",
+        expected.sortOrder(), metadata.sortOrder());
+    Assert.assertEquals("Sort order map should match",
+        expected.sortOrders(), metadata.sortOrders());
     Assert.assertEquals("Properties should match",
         expected.properties(), metadata.properties());
     Assert.assertEquals("Snapshot logs should match",
