@@ -91,7 +91,6 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import scala.Option;
 import scala.Predef;
 import scala.Some;
-import scala.Tuple2;
 import scala.collection.JavaConverters;
 import scala.collection.Seq;
 
