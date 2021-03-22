@@ -251,11 +251,12 @@ public class TestHiveIcebergOutputCommitter {
                                     JobConf conf, OutputCommitter committer) throws IOException {
     List<Record> expected = new ArrayList<>(RECORD_NUM * taskNum);
 
-    FileIO io = HiveIcebergStorageHandler.io(conf);
-    LocationProvider location = HiveIcebergStorageHandler.location(conf);
-    EncryptionManager encryption = HiveIcebergStorageHandler.encryption(conf);
+    Table table = HiveIcebergStorageHandler.table(conf);
+    FileIO io = table.io();
+    LocationProvider location = table.locationProvider();
+    EncryptionManager encryption = table.encryption();
     Schema schema = HiveIcebergStorageHandler.schema(conf);
-    PartitionSpec spec = HiveIcebergStorageHandler.spec(conf);
+    PartitionSpec spec = table.spec();
 
     for (int i = 0; i < taskNum; ++i) {
       List<Record> records = TestHelper.generateRandomRecords(schema, RECORD_NUM, i + attemptNum);

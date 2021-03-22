@@ -29,25 +29,40 @@ import org.apache.iceberg.io.LocationProvider;
  * and cannot be used to create or delete files.
  */
 public class StaticTableOperations implements TableOperations {
-  private final TableMetadata staticMetadata;
+  private TableMetadata staticMetadata;
+  private final String metadataFileLocation;
   private final FileIO io;
+  private final LocationProvider locationProvider;
 
   /**
    * Creates a StaticTableOperations tied to a specific static version of the TableMetadata
    */
   public StaticTableOperations(String metadataFileLocation, FileIO io) {
+    this(metadataFileLocation, io, null);
+  }
+
+  public StaticTableOperations(String metadataFileLocation, FileIO io, LocationProvider locationProvider) {
     this.io = io;
-    this.staticMetadata = TableMetadataParser.read(io, metadataFileLocation);
+    this.metadataFileLocation = metadataFileLocation;
+    this.locationProvider = locationProvider;
   }
 
   @Override
   public TableMetadata current() {
+    if (staticMetadata == null) {
+      staticMetadata = TableMetadataParser.read(io, metadataFileLocation);
+    }
     return staticMetadata;
   }
 
+  /**
+   * StaticTableOperations works on the same version of TableMetadata, and it will never refer a different TableMetadata
+   * object than the one it was created with.
+   * @return always {@link #current()}.
+   */
   @Override
   public TableMetadata refresh() {
-    return staticMetadata;
+    return current();
   }
 
   @Override
@@ -67,6 +82,6 @@ public class StaticTableOperations implements TableOperations {
 
   @Override
   public LocationProvider locationProvider() {
-    throw new UnsupportedOperationException("Cannot modify a static table");
+    return locationProvider;
   }
 }
