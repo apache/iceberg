@@ -227,7 +227,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         commitStatus = checkCommitStatus(newMetadataLocation, metadata);
         switch (commitStatus) {
           case SUCCESS:
-            return;
+            break;
           case FAILURE:
             throw persistFailure;
           case UNKNOWN:
@@ -270,29 +270,33 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     int maxAttempts = PropertyUtil.propertyAsInt(config.properties(), COMMIT_NUM_STATUS_CHECKS,
         COMMIT_NUM_STATUS_CHECKS_DEFAULT);
 
-    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        Thread.sleep(COMMIT_STATUS_RECHECK_SLEEP);
-        TableMetadata metadata = refresh();
-        String metadataLocation = metadata.metadataFileLocation();
-        boolean commitSuccess = metadataLocation.equals(newMetadataLocation) ||
-            metadata.previousFiles().stream().anyMatch(log -> log.file().equals(newMetadataLocation));
-        if (commitSuccess) {
-          LOG.info("Commit status check: Commit to {}.{} of {} succeeded", database, tableName, newMetadataLocation);
-          return CommitStatus.SUCCESS;
-        } else {
-          LOG.info("Commit status check: Commit to {}.{} of {} failed", database, tableName, newMetadataLocation);
-          return CommitStatus.FAILURE;
-        }
-      } catch (Throwable checkFailure) {
-        LOG.error("Cannot check if commit to {}.{} exists. Retry attempt {} of {}.",
-            database, tableName, attempt, maxAttempts, checkFailure);
-      }
-    }
+    AtomicReference<CommitStatus> status = new AtomicReference<>(CommitStatus.UNKNOWN);
 
-    LOG.error("Cannot determine commit state to {}.{}. Failed to check {} times. Treating commit state as unknown.",
+    Tasks
+        .foreach(newMetadataLocation)
+        .retry(maxAttempts)
+        .suppressFailureWhenFinished()
+        .exponentialBackoff(COMMIT_STATUS_RECHECK_SLEEP, COMMIT_STATUS_RECHECK_SLEEP, Long.MAX_VALUE, 1.0)
+        .onFailure((location, checkException) ->
+            LOG.error("Cannot check if commit to {}.{} exists.", database, tableName, checkException))
+        .run(location -> {
+          TableMetadata metadata = refresh();
+          String currentMetadataLocation = metadata.metadataFileLocation();
+          boolean commitSuccess = currentMetadataLocation.equals(newMetadataLocation) ||
+              metadata.previousFiles().stream().anyMatch(log -> log.file().equals(newMetadataLocation));
+          if (commitSuccess) {
+            LOG.info("Commit status check: Commit to {}.{} of {} succeeded", database, tableName, newMetadataLocation);
+            status.set(CommitStatus.SUCCESS);
+          } else {
+            LOG.info("Commit status check: Commit to {}.{} of {} failed", database, tableName, newMetadataLocation);
+            status.set(CommitStatus.FAILURE);
+          }
+        });
+
+    LOG.error("Cannot determine commit state to {}.{}. Failed during checking {} times. " +
+            "Treating commit state as unknown.",
         database, tableName, maxAttempts);
-    return CommitStatus.UNKNOWN;
+    return status.get();
   }
 
   @VisibleForTesting
