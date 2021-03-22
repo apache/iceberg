@@ -824,7 +824,7 @@ public class Spark3Util {
         JavaConverters
             .mapAsScalaMapConverter(emptyMap)
             .asScala()
-            .toMap(Predef.<Tuple2<String, String>>conforms()),
+            .toMap(Predef.conforms()),
         Option.empty(),
         fileStatusCache,
         Option.empty(),
@@ -832,9 +832,6 @@ public class Spark3Util {
 
     org.apache.spark.sql.execution.datasources.PartitionSpec spec = fileIndex.partitionSpec();
     StructType schema = spec.partitionColumns();
-    if (spec.partitions().isEmpty()) {
-      return ImmutableList.of(new SparkPartition(Collections.emptyMap(), rootPath.toString(), format));
-    }
 
     return JavaConverters
         .seqAsJavaListConverter(spec.partitions())
