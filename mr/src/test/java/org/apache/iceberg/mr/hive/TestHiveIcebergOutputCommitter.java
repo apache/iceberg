@@ -226,7 +226,7 @@ public class TestHiveIcebergOutputCommitter {
     conf.setNumReduceTasks(0);
     conf.set(HiveConf.ConfVars.HIVEQUERYID.varname, QUERY_ID);
     Map<String, String> outputs = Maps.newHashMap();
-    outputs.put(table.location(), table.name());
+    outputs.put(table.name(), table.location());
     conf.set(InputFormatConfig.OUTPUT_TABLES, SerializationUtil.serializeToBase64(outputs));
 
     Map<String, String> propMap = Maps.newHashMap();

@@ -22,12 +22,11 @@ package org.apache.iceberg.mr.hive;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.apache.hadoop.conf.Configuration;
@@ -213,7 +212,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
           .run(entry -> {
             LOG.info("Cleaning job for table {}", jobContext.getJobID(), entry.getKey());
 
-            List<DataFile> dataFiles = dataFiles(fileExecutor, entry.getValue(), jobContext, io, false);
+            Queue<DataFile> dataFiles = dataFiles(fileExecutor, entry.getValue(), jobContext, io, false);
 
             // Check if we have files already committed and remove data files if there are any
             if (dataFiles.size() > 0) {
@@ -256,7 +255,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
     LOG.info("Committing job has started for table: {}, using location: {}",
         table, generateJobLocation(location, conf, jobContext.getJobID()));
 
-    List<DataFile> dataFiles = dataFiles(executor, location, jobContext, io, true);
+    Queue<DataFile> dataFiles = dataFiles(executor, location, jobContext, io, true);
 
     if (dataFiles.size() > 0) {
       // Appending data files to the table
@@ -350,14 +349,14 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
    * @param throwOnFailure If <code>true</code> then it throws an exception on failure
    * @return The list of the committed data files
    */
-  private static List<DataFile> dataFiles(ExecutorService executor, String location, JobContext jobContext, FileIO io,
+  private static Queue<DataFile> dataFiles(ExecutorService executor, String location, JobContext jobContext, FileIO io,
       boolean throwOnFailure) {
     JobConf conf = jobContext.getJobConf();
     // If there are reducers, then every reducer will generate a result file.
     // If this is a map only task, then every mapper will generate a result file.
     int expectedFiles = conf.getNumReduceTasks() > 0 ? conf.getNumReduceTasks() : conf.getNumMapTasks();
 
-    List<DataFile> dataFiles = Collections.synchronizedList(new ArrayList<>());
+    Queue<DataFile> dataFiles = new ConcurrentLinkedQueue<>();
 
     // Reading the committed files. The assumption here is that the taskIds are generated in sequential order
     // starting from 0.
