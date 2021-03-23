@@ -45,12 +45,6 @@ public class EqualityDeleteWriter<T> implements Closeable {
 
   public EqualityDeleteWriter(FileAppender<T> appender, FileFormat format, String location,
                               PartitionSpec spec, StructLike partition, EncryptionKeyMetadata keyMetadata,
-                              int... equalityFieldIds) {
-    this(appender, format, location, spec, partition, keyMetadata, null, equalityFieldIds);
-  }
-
-  public EqualityDeleteWriter(FileAppender<T> appender, FileFormat format, String location,
-                              PartitionSpec spec, StructLike partition, EncryptionKeyMetadata keyMetadata,
                               SortOrder sortOrder, int... equalityFieldIds) {
     this.appender = appender;
     this.format = format;
