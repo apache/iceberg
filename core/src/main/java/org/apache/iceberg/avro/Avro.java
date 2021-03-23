@@ -43,6 +43,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -207,6 +208,7 @@ public class Avro {
     private StructLike partition;
     private EncryptionKeyMetadata keyMetadata = null;
     private int[] equalityFieldIds = null;
+    private SortOrder sortOrder;
 
     private DeleteWriteBuilder(OutputFile file) {
       this.appenderBuilder = write(file);
@@ -284,6 +286,11 @@ public class Avro {
       return this;
     }
 
+    public DeleteWriteBuilder withSortOrder(SortOrder newSortOrder) {
+      this.sortOrder = newSortOrder;
+      return this;
+    }
+
     public <T> EqualityDeleteWriter<T> buildEqualityWriter() throws IOException {
       Preconditions.checkState(rowSchema != null, "Cannot create equality delete file without a schema`");
       Preconditions.checkState(equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
@@ -300,7 +307,8 @@ public class Avro {
       appenderBuilder.createWriterFunc(createWriterFunc);
 
       return new EqualityDeleteWriter<>(
-          appenderBuilder.build(), FileFormat.AVRO, location, spec, partition, keyMetadata, equalityFieldIds);
+          appenderBuilder.build(), FileFormat.AVRO, location, spec, partition, keyMetadata, sortOrder,
+          equalityFieldIds);
     }
 
     public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {

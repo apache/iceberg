@@ -26,6 +26,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -37,16 +38,23 @@ public class DataWriter<T> implements Closeable {
   private final PartitionSpec spec;
   private final StructLike partition;
   private final ByteBuffer keyMetadata;
+  private final SortOrder sortOrder;
   private DataFile dataFile = null;
 
   public DataWriter(FileAppender<T> appender, FileFormat format, String location,
                     PartitionSpec spec, StructLike partition, EncryptionKeyMetadata keyMetadata) {
+    this(appender, format, location, spec, partition, keyMetadata, null);
+  }
+
+  public DataWriter(FileAppender<T> appender, FileFormat format, String location,
+                    PartitionSpec spec, StructLike partition, EncryptionKeyMetadata keyMetadata, SortOrder sortOrder) {
     this.appender = appender;
     this.format = format;
     this.location = location;
     this.spec = spec;
     this.partition = partition;
     this.keyMetadata = keyMetadata != null ? keyMetadata.buffer() : null;
+    this.sortOrder = sortOrder;
   }
 
   public void add(T row) {
@@ -69,6 +77,7 @@ public class DataWriter<T> implements Closeable {
           .withFileSizeInBytes(appender.length())
           .withMetrics(appender.metrics())
           .withSplitOffsets(appender.splitOffsets())
+          .withSortOrder(sortOrder)
           .build();
     }
   }
