@@ -78,7 +78,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS_DEFAUL
 public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HiveTableOperations.class);
 
-  private static final int COMMIT_STATUS_RECHECK_SLEEP = 1000;
+  private static final int COMMIT_STATUS_CHECK_WAIT_MS = 1000;
 
   private static final String HIVE_ACQUIRE_LOCK_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
   private static final String HIVE_LOCK_CHECK_MIN_WAIT_MS = "iceberg.hive.lock-check-min-wait-ms";
@@ -272,11 +272,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
     AtomicReference<CommitStatus> status = new AtomicReference<>(CommitStatus.UNKNOWN);
 
-    Tasks
-        .foreach(newMetadataLocation)
+    Tasks.foreach(newMetadataLocation)
         .retry(maxAttempts)
         .suppressFailureWhenFinished()
-        .exponentialBackoff(COMMIT_STATUS_RECHECK_SLEEP, COMMIT_STATUS_RECHECK_SLEEP, Long.MAX_VALUE, 1.0)
+        .exponentialBackoff(COMMIT_STATUS_CHECK_WAIT_MS, COMMIT_STATUS_CHECK_WAIT_MS, Long.MAX_VALUE, 2.0)
         .onFailure((location, checkException) ->
             LOG.error("Cannot check if commit to {}.{} exists.", database, tableName, checkException))
         .run(location -> {
@@ -293,9 +292,11 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
           }
         });
 
-    LOG.error("Cannot determine commit state to {}.{}. Failed during checking {} times. " +
-            "Treating commit state as unknown.",
-        database, tableName, maxAttempts);
+    if (status.get() == CommitStatus.UNKNOWN) {
+      LOG.error("Cannot determine commit state to {}.{}. Failed during checking {} times. " +
+              "Treating commit state as unknown.",
+          database, tableName, maxAttempts);
+    }
     return status.get();
   }
 
