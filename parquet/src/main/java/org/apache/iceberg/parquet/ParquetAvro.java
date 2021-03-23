@@ -23,6 +23,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
+import java.util.WeakHashMap;
 import org.apache.avro.Conversion;
 import org.apache.avro.Conversions;
 import org.apache.avro.LogicalType;
@@ -31,6 +32,7 @@ import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericFixed;
 import org.apache.avro.specific.SpecificData;
+import org.apache.commons.math3.util.Pair;
 import org.apache.iceberg.avro.AvroSchemaVisitor;
 import org.apache.iceberg.avro.UUIDConversion;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -155,7 +157,10 @@ class ParquetAvro {
   }
 
   private static class FixedDecimalConversion extends Conversions.DecimalConversion {
+    private final WeakHashMap<Pair<Integer, Integer>, LogicalType> decimalsByScale;
+
     private FixedDecimalConversion() {
+      this.decimalsByScale = new WeakHashMap<>();
     }
 
     @Override
@@ -165,14 +170,16 @@ class ParquetAvro {
 
     @Override
     public BigDecimal fromFixed(GenericFixed value, Schema schema, LogicalType type) {
-      final ParquetDecimal dec = (ParquetDecimal) type;
+      ParquetDecimal dec = (ParquetDecimal) type;
       return new BigDecimal(new BigInteger(value.bytes()), dec.scale());
     }
 
     @Override
     public GenericFixed toFixed(BigDecimal value, Schema schema, LogicalType type) {
-      final ParquetDecimal dec = (ParquetDecimal) type;
-      return super.toFixed(value, schema, LogicalTypes.decimal(dec.precision(), dec.scale()));
+      ParquetDecimal dec = (ParquetDecimal) type;
+      Pair<Integer, Integer> key = new Pair<>(dec.precision(), dec.scale());
+      return super.toFixed(value, schema,
+          decimalsByScale.computeIfAbsent(key, k -> LogicalTypes.decimal(k.getFirst(), k.getSecond())));
     }
   }
 
