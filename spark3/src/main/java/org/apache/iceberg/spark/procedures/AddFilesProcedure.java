@@ -17,7 +17,6 @@
  * under the License.
  */
 
-
 package org.apache.iceberg.spark.procedures;
 
 import java.util.Collections;
@@ -154,10 +153,11 @@ class AddFilesProcedure extends BaseProcedure {
 
     if (table.spec().isUnpartitioned()) {
       Preconditions.checkArgument(partitions.isEmpty(), "Cannot add partitioned files to an unpartitioned table");
-      // Build a Global Partition for the source
-      SparkPartition partition = new SparkPartition(Collections.emptyMap(), tableLocation.toString(), format);
       Preconditions.checkArgument(partitionFilter.isEmpty(), "Cannot use a partition filter when importing" +
           "to an unpartitioned table");
+
+      // Build a Global Partition for the source
+      SparkPartition partition = new SparkPartition(Collections.emptyMap(), tableLocation.toString(), format);
       importPartitions(table, ImmutableList.of(partition));
     } else {
       Preconditions.checkArgument(!partitions.isEmpty(),
@@ -199,10 +199,9 @@ class AddFilesProcedure extends BaseProcedure {
     boolean partitionSpecPassed = !partitionFilter.isEmpty();
 
     // Check for any non-identity partition columns
-    List<PartitionField> nonIdentityFields =
-        partitionFields.stream()
-            .filter(x -> !x.transform().isIdentity())
-            .collect(Collectors.toList());
+    List<PartitionField> nonIdentityFields = partitionFields.stream()
+        .filter(x -> !x.transform().isIdentity())
+        .collect(Collectors.toList());
     Preconditions.checkArgument(nonIdentityFields.isEmpty(),
         "Cannot add data files to target table %s because that table is partitioned and contains non-identity" +
             "partition transforms which will not be compatible. Found non-identity fields %s",
@@ -217,10 +216,9 @@ class AddFilesProcedure extends BaseProcedure {
           table.name(), partitionFilter.size(), partitionFields.size());
 
       // Check for any filters of non existent columns
-      List<String> unMatchedFilters =
-          partitionFilter.keySet().stream()
-              .filter(filterName -> !partitionNames.contains(filterName))
-              .collect(Collectors.toList());
+      List<String> unMatchedFilters = partitionFilter.keySet().stream()
+          .filter(filterName -> !partitionNames.contains(filterName))
+          .collect(Collectors.toList());
       Preconditions.checkArgument(unMatchedFilters.isEmpty(),
           "Cannot add files to target table %s. %s is partitioned but the specified partition filter " +
               "refers to columns that are not partitioned: '%s' . Valid partition columns %s",
