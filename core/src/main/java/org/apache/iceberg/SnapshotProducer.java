@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -299,6 +300,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             taskOps.commit(base, updated.withUUID());
           });
 
+    } catch (CommitStateUnknownException commitStateUnknownException) {
+      throw commitStateUnknownException;
     } catch (RuntimeException e) {
       Exceptions.suppressAndThrow(e, this::cleanAll);
     }
