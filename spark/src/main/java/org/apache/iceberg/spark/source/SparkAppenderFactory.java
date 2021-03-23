@@ -27,6 +27,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -59,6 +60,11 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
 
   private StructType eqDeleteSparkType = null;
   private StructType posDeleteSparkType = null;
+
+  // TODO: expose a builder like SparkAppenderFactory.forTable()
+  SparkAppenderFactory(Table table, Schema writeSchema, StructType dsSchema) {
+    this(table.properties(), writeSchema, dsSchema, table.spec());
+  }
 
   SparkAppenderFactory(Map<String, String> properties, Schema writeSchema, StructType dsSchema) {
     this(properties, writeSchema, dsSchema, PartitionSpec.unpartitioned(), null, null, null);

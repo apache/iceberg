@@ -28,13 +28,13 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.data.DeleteFilter;
-import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.ORC;
@@ -63,20 +63,16 @@ class RowDataReader extends BaseDataReader<InternalRow> {
       .impl(UnsafeProjection.class, InternalRow.class)
       .build();
 
-  private final FileIO io;
   private final Schema tableSchema;
   private final Schema expectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
 
-  RowDataReader(
-      CombinedScanTask task, Schema tableSchema, Schema expectedSchema, String nameMapping, FileIO io,
-      EncryptionManager encryptionManager, boolean caseSensitive) {
-    super(task, io, encryptionManager);
-    this.io = io;
-    this.tableSchema = tableSchema;
+  RowDataReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
+    super(task, table.io(), table.encryption());
+    this.tableSchema = table.schema();
     this.expectedSchema = expectedSchema;
-    this.nameMapping = nameMapping;
+    this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     this.caseSensitive = caseSensitive;
   }
 

@@ -32,9 +32,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.UnpartitionedWriter;
@@ -49,34 +46,21 @@ import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
-
 public class RowDataRewriter implements Serializable {
 
   private static final Logger LOG = LoggerFactory.getLogger(RowDataRewriter.class);
 
-  private final Schema schema;
+  private final Broadcast<Table> tableBroadcast;
   private final PartitionSpec spec;
-  private final Map<String, String> properties;
   private final FileFormat format;
-  private final Broadcast<FileIO> io;
-  private final Broadcast<EncryptionManager> encryptionManager;
-  private final LocationProvider locations;
-  private final String nameMapping;
   private final boolean caseSensitive;
 
-  public RowDataRewriter(Table table, PartitionSpec spec, boolean caseSensitive,
-                         Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager) {
-    this.schema = table.schema();
+  public RowDataRewriter(Broadcast<Table> tableBroadcast, PartitionSpec spec, boolean caseSensitive) {
+    this.tableBroadcast = tableBroadcast;
     this.spec = spec;
-    this.locations = table.locationProvider();
-    this.properties = table.properties();
-    this.io = io;
-    this.encryptionManager = encryptionManager;
-
     this.caseSensitive = caseSensitive;
-    this.nameMapping = table.properties().get(DEFAULT_NAME_MAPPING);
 
+    Table table = tableBroadcast.value();
     String formatString = table.properties().getOrDefault(
         TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
     this.format = FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
@@ -95,27 +79,29 @@ public class RowDataRewriter implements Serializable {
     int partitionId = context.partitionId();
     long taskId = context.taskAttemptId();
 
-    RowDataReader dataReader = new RowDataReader(
-        task, schema, schema, nameMapping, io.value(), encryptionManager.value(), caseSensitive);
+    Table table = tableBroadcast.value();
+    Schema schema = table.schema();
+    Map<String, String> properties = table.properties();
+
+    RowDataReader dataReader = new RowDataReader(task, table, schema, caseSensitive);
 
     StructType structType = SparkSchemaUtil.convert(schema);
     SparkAppenderFactory appenderFactory = new SparkAppenderFactory(properties, schema, structType, spec);
-    OutputFileFactory fileFactory = new OutputFileFactory(
-        spec, format, locations, io.value(), encryptionManager.value(), partitionId, taskId);
+    OutputFileFactory fileFactory = new OutputFileFactory(table, spec, format, partitionId, taskId);
 
     TaskWriter<InternalRow> writer;
     if (spec.isUnpartitioned()) {
-      writer = new UnpartitionedWriter<>(spec, format, appenderFactory, fileFactory, io.value(),
+      writer = new UnpartitionedWriter<>(spec, format, appenderFactory, fileFactory, table.io(),
           Long.MAX_VALUE);
     } else if (PropertyUtil.propertyAsBoolean(properties,
         TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED,
         TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT)) {
       writer = new SparkPartitionedFanoutWriter(
-          spec, format, appenderFactory, fileFactory, io.value(), Long.MAX_VALUE, schema,
+          spec, format, appenderFactory, fileFactory, table.io(), Long.MAX_VALUE, schema,
           structType);
     } else {
       writer = new SparkPartitionedWriter(
-          spec, format, appenderFactory, fileFactory, io.value(), Long.MAX_VALUE, schema,
+          spec, format, appenderFactory, fileFactory, table.io(), Long.MAX_VALUE, schema,
           structType);
     }
 
