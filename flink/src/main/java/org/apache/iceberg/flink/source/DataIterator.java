@@ -19,10 +19,10 @@
 
 package org.apache.iceberg.flink.source;
 
-import com.google.common.collect.ImmutableMap;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -35,6 +35,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
  * Base class of Flink iterators.
@@ -51,7 +52,7 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
   DataIterator(CombinedScanTask task, FileIO io, EncryptionManager encryption) {
     this.tasks = task.files().iterator();
 
-    ImmutableMap.Builder<String, InputFile> files = ImmutableMap.builderWithExpectedSize(task.files().size());
+    Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(task.files().size());
     task.files().stream()
             .flatMap(fileScanTask -> Stream.concat(Stream.of(fileScanTask.file()), fileScanTask.deletes().stream()))
             .forEach(file -> {
@@ -61,9 +62,9 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
 
               // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
               InputFile decrypt = encryption.decrypt(encryptedInputFile);
-              files.put(decrypt.location(), decrypt);
+              files.putIfAbsent(decrypt.location(), decrypt);
             });
-    this.inputFiles = files.build();
+    this.inputFiles = Collections.unmodifiableMap(files);
 
     this.currentIterator = CloseableIterator.empty();
   }
