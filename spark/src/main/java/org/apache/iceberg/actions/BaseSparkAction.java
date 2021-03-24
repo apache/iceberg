@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.actions;
+package org.apache.iceberg.actions;
 
 import java.util.Iterator;
 import java.util.List;
@@ -32,8 +32,6 @@ import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.actions.Action;
-import org.apache.iceberg.actions.ManifestFileBean;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
@@ -55,7 +53,7 @@ import org.apache.spark.sql.SparkSession;
 
 import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 
-abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
+public abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
   private static final AtomicInteger JOB_COUNTER = new AtomicInteger();
 

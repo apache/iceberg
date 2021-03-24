@@ -17,14 +17,13 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.actions;
+package org.apache.iceberg.actions;
 
 import java.util.Map;
-import org.apache.iceberg.actions.SnapshotUpdate;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.spark.sql.SparkSession;
 
-abstract class BaseSnapshotUpdateSparkAction<ThisT, R>
+public abstract class BaseSnapshotUpdateSparkAction<ThisT, R>
     extends BaseSparkAction<ThisT, R> implements SnapshotUpdate<ThisT, R> {
 
   private final Map<String, String> summary = Maps.newHashMap();

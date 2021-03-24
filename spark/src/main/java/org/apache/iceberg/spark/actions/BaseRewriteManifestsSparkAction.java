@@ -39,6 +39,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.BaseRewriteManifestsActionResult;
+import org.apache.iceberg.actions.BaseSnapshotUpdateSparkAction;
 import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
@@ -82,6 +83,9 @@ public class BaseRewriteManifestsSparkAction
     implements RewriteManifests {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseRewriteManifestsSparkAction.class);
+
+  private static final String USE_CACHING = "use-caching";
+  private static final boolean USE_CACHING_DEFAULT = true;
 
   private final Encoder<ManifestFile> manifestEncoder;
   private final Table table;
@@ -241,7 +245,7 @@ public class BaseRewriteManifestsSparkAction
 
   private <T, U> U withReusableDS(Dataset<T> ds, Function<Dataset<T>, U> func) {
     Dataset<T> reusableDS;
-    boolean useCaching = PropertyUtil.propertyAsBoolean(options(), "use-caching", true);
+    boolean useCaching = PropertyUtil.propertyAsBoolean(options(), USE_CACHING, USE_CACHING_DEFAULT);
     if (useCaching) {
       reusableDS = ds.cache();
     } else {
