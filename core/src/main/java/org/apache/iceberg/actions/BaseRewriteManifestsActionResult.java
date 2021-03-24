@@ -19,39 +19,31 @@
 
 package org.apache.iceberg.actions;
 
-import java.util.List;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
-@Deprecated
-public class RewriteManifestsActionResult {
+public class BaseRewriteManifestsActionResult implements RewriteManifests.Result {
 
-  private static final RewriteManifestsActionResult EMPTY =
-      new RewriteManifestsActionResult(ImmutableList.of(), ImmutableList.of());
+  private final Iterable<ManifestFile> rewrittenManifests;
+  private final Iterable<ManifestFile> addedManifests;
 
-  private List<ManifestFile> deletedManifests;
-  private List<ManifestFile> addedManifests;
-
-  public RewriteManifestsActionResult(List<ManifestFile> deletedManifests, List<ManifestFile> addedManifests) {
-    this.deletedManifests = deletedManifests;
+  public BaseRewriteManifestsActionResult(Iterable<ManifestFile> rewrittenManifests,
+                                          Iterable<ManifestFile> addedManifests) {
+    this.rewrittenManifests = rewrittenManifests;
     this.addedManifests = addedManifests;
   }
 
-  static RewriteManifestsActionResult wrap(RewriteManifests.Result result) {
-    return new RewriteManifestsActionResult(
-        ImmutableList.copyOf(result.rewrittenManifests()),
-        ImmutableList.copyOf(result.addedManifests()));
+  public static RewriteManifests.Result empty() {
+    return new BaseRewriteManifestsActionResult(ImmutableList.of(), ImmutableList.of());
   }
 
-  static RewriteManifestsActionResult empty() {
-    return EMPTY;
+  @Override
+  public Iterable<ManifestFile> rewrittenManifests() {
+    return rewrittenManifests;
   }
 
-  public List<ManifestFile> deletedManifests() {
-    return deletedManifests;
-  }
-
-  public List<ManifestFile> addedManifests() {
+  @Override
+  public Iterable<ManifestFile> addedManifests() {
     return addedManifests;
   }
 }
