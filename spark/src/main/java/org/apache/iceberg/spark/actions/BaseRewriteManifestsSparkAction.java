@@ -39,7 +39,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.BaseRewriteManifestsActionResult;
-import org.apache.iceberg.actions.BaseSnapshotUpdateSparkAction;
 import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
