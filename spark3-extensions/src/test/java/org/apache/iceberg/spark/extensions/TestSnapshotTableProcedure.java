@@ -119,6 +119,26 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testDropTable() throws IOException {
+    String location = temp.newFolder().toString();
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", sourceName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+
+    Object result = scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, sourceName, tableName);
+    Assert.assertEquals("Should have added one file", 1L, result);
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1L, "a")),
+        sql("SELECT * FROM %s", tableName));
+
+    sql("DROP TABLE %s", tableName);
+
+    assertEquals("Source table should be intact",
+        ImmutableList.of(row(1L, "a")),
+        sql("SELECT * FROM %s", sourceName));
+  }
+
+  @Test
   public void testInvalidSnapshotsCases() throws IOException {
     String location = temp.newFolder().toString();
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", sourceName, location);
