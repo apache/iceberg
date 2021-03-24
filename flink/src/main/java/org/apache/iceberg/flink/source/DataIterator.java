@@ -58,7 +58,8 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
             .forEach(file -> {
               String filePath = file.path().toString();
               ByteBuffer fileKeyMetadata = file.keyMetadata();
-              EncryptedInputFile encryptedInputFile = EncryptedFiles.encryptedInput(io.newInputFile(filePath), fileKeyMetadata);
+              EncryptedInputFile encryptedInputFile = EncryptedFiles
+                      .encryptedInput(io.newInputFile(filePath), fileKeyMetadata);
 
               // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
               InputFile decrypt = encryption.decrypt(encryptedInputFile);
