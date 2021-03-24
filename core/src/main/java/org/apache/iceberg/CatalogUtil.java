@@ -85,7 +85,7 @@ public class CatalogUtil {
     boolean gcEnabled = PropertyUtil.propertyAsBoolean(metadata.properties(), GC_ENABLED, GC_ENABLED_DEFAULT);
 
     if (gcEnabled) {
-      // do not delete data files as this may corrupt other tables
+      // delete data files only if we are sure this won't corrupt other tables
       deleteFiles(io, manifestsToDelete);
     }
 
