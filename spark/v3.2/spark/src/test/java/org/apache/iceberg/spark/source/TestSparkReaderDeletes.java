@@ -26,6 +26,7 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -228,7 +229,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
 
     for (CombinedScanTask task : tasks) {
-      try (EqualityDeleteRowReader reader = new EqualityDeleteRowReader(task, table, table.schema(), false)) {
+      try (DeleteRowReader reader = new DeleteRowReader(task, table, table.schema(), false,
+          FileContent.EQUALITY_DELETES)) {
         while (reader.next()) {
           actualRowSet.add(new InternalRowWrapper(SparkSchemaUtil.convert(table.schema())).wrap(reader.get().copy()));
         }

@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.source;
 import java.util.Map;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -29,12 +30,15 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 
-public class EqualityDeleteRowReader extends RowDataReader {
+public class DeleteRowReader extends RowDataReader {
   private final Schema expectedSchema;
+  private final FileContent deleteContent;
 
-  public EqualityDeleteRowReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
-    super(task, table, table.schema(), caseSensitive);
+  public DeleteRowReader(CombinedScanTask task, Table table, Schema expectedSchema,
+                         boolean caseSensitive, FileContent deleteContent) {
+    super(task, table, expectedSchema, caseSensitive);
     this.expectedSchema = expectedSchema;
+    this.deleteContent = deleteContent;
   }
 
   @Override
@@ -49,6 +53,10 @@ public class EqualityDeleteRowReader extends RowDataReader {
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(file.path().toString(), task.start(), task.length());
 
-    return matches.findEqualityDeleteRows(open(task, requiredSchema, idToConstant)).iterator();
+    if (deleteContent.equals(FileContent.EQUALITY_DELETES)) {
+      return matches.keepRowsFromEqualityDeletes(open(task, requiredSchema, idToConstant)).iterator();
+    } else {
+      return matches.keepRowsFromPosDeletes(open(task, requiredSchema, idToConstant)).iterator();
+    }
   }
 }

@@ -127,8 +127,9 @@ public class Deletes {
 
   public static <T> CloseableIterable<T> streamingFilter(CloseableIterable<T> rows,
                                                          Function<T, Long> rowToPosition,
-                                                         CloseableIterable<Long> posDeletes) {
-    return new PositionStreamDeleteFilter<>(rows, rowToPosition, posDeletes);
+                                                         CloseableIterable<Long> posDeletes,
+                                                         boolean keepDeleteRows) {
+    return new PositionStreamDeleteFilter<>(rows, rowToPosition, posDeletes, keepDeleteRows);
   }
 
   public static CloseableIterable<Long> deletePositions(CharSequence dataLocation,
@@ -180,12 +181,14 @@ public class Deletes {
     private final CloseableIterable<T> rows;
     private final Function<T, Long> extractPos;
     private final CloseableIterable<Long> deletePositions;
+    private final boolean keepDeleteRows;
 
     private PositionStreamDeleteFilter(CloseableIterable<T> rows, Function<T, Long> extractPos,
-                                       CloseableIterable<Long> deletePositions) {
+                                       CloseableIterable<Long> deletePositions, boolean keepDeleteRows) {
       this.rows = rows;
       this.extractPos = extractPos;
       this.deletePositions = deletePositions;
+      this.keepDeleteRows = keepDeleteRows;
     }
 
     @Override
@@ -221,6 +224,10 @@ public class Deletes {
 
       @Override
       protected boolean shouldKeep(T row) {
+        return keepDeleteRows != filter(row);
+      }
+
+      private boolean filter(T row) {
         long currentPos = extractPos.apply(row);
         if (currentPos < nextDeletePos) {
           return true;

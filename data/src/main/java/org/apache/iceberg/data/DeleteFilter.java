@@ -121,11 +121,11 @@ public abstract class DeleteFilter<T> {
     return applyEqDeletes(applyPosDeletes(records));
   }
 
-  private List<Predicate<T>> applyEqDeletes() {
-    List<Predicate<T>> isInDeleteSets = Lists.newArrayList();
+  private Predicate<T> buildEqDeletePredicate() {
     if (eqDeletes.isEmpty()) {
-      return isInDeleteSets;
+      return null;
     }
+    Predicate<T> isDeleted = t -> false;
 
     Multimap<Set<Integer>, DeleteFile> filesByDeleteIds = Multimaps.newMultimap(Maps.newHashMap(), Lists::newArrayList);
     for (DeleteFile delete : eqDeletes) {
@@ -153,39 +153,74 @@ public abstract class DeleteFilter<T> {
               records, record -> new InternalRecordWrapper(deleteSchema.asStruct()).wrap(record)),
           deleteSchema.asStruct());
 
-      Predicate<T> isInDeleteSet = record -> deleteSet.contains(projectRow.wrap(asStructLike(record)));
-      isInDeleteSets.add(isInDeleteSet);
+      isDeleted = isDeleted.or(record -> deleteSet.contains(projectRow.wrap(asStructLike(record))));
     }
 
-    return isInDeleteSets;
+    return isDeleted;
   }
 
-  public CloseableIterable<T> findEqualityDeleteRows(CloseableIterable<T> records) {
+  private Predicate<T> buildPosDeletePredicate() {
+    if (posDeletes.isEmpty()) {
+      return null;
+    }
+
+    Predicate<T> isDeleted = t -> false;
+
+    List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
+    Set<Long> deleteSet = Deletes.toPositionSet(dataFile.path(), CloseableIterable.concat(deletes));
+    if (deleteSet.isEmpty()) {
+      return isDeleted;
+    }
+
+    return isDeleted.or(record -> deleteSet.contains(pos(record)));
+  }
+
+  public CloseableIterable<T> keepRowsFromEqualityDeletes(CloseableIterable<T> records) {
     // Predicate to test whether a row has been deleted by equality deletions.
-    Predicate<T> deletedRows = applyEqDeletes().stream()
-        .reduce(Predicate::or)
-        .orElse(t -> false);
+    Predicate<T> predicate = buildEqDeletePredicate();
+    if (predicate == null) {
+      return CloseableIterable.empty();
+    }
 
     Filter<T> deletedRowsFilter = new Filter<T>() {
       @Override
       protected boolean shouldKeep(T item) {
-        return deletedRows.test(item);
+        return predicate.test(item);
       }
     };
     return deletedRowsFilter.filter(records);
   }
 
+  public CloseableIterable<T> keepRowsFromPosDeletes(CloseableIterable<T> records) {
+    // if there are fewer deletes than a reasonable number to keep in memory, use a set
+    if (posDeletes.stream().mapToLong(DeleteFile::recordCount).sum() < setFilterThreshold) {
+      // Predicate to test whether a row has been deleted by equality deletions.
+      Predicate<T> predicate = buildPosDeletePredicate();
+
+      Filter<T> deletedRowsFilter = new Filter<T>() {
+        @Override
+        protected boolean shouldKeep(T item) {
+          return predicate.test(item);
+        }
+      };
+      return deletedRowsFilter.filter(records);
+    } else {
+      List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
+      return Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(dataFile.path(), deletes), true);
+    }
+  }
+
   private CloseableIterable<T> applyEqDeletes(CloseableIterable<T> records) {
     // Predicate to test whether a row should be visible to user after applying equality deletions.
-    Predicate<T> remainingRows = applyEqDeletes().stream()
-        .map(Predicate::negate)
-        .reduce(Predicate::and)
-        .orElse(t -> true);
+    Predicate<T> predicate = buildEqDeletePredicate();
+    if (predicate == null) {
+      return records;
+    }
 
     Filter<T> remainingRowsFilter = new Filter<T>() {
       @Override
       protected boolean shouldKeep(T item) {
-        return remainingRows.test(item);
+        return !predicate.test(item);
       }
     };
 
@@ -218,7 +253,7 @@ public abstract class DeleteFilter<T> {
           Deletes.toPositionSet(dataFile.path(), CloseableIterable.concat(deletes)));
     }
 
-    return Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(dataFile.path(), deletes));
+    return Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(dataFile.path(), deletes), false);
   }
 
   private CloseableIterable<Record> openPosDeletes(DeleteFile file) {
