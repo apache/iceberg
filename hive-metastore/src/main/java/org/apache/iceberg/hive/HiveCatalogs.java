@@ -33,6 +33,11 @@ public final class HiveCatalogs {
   private HiveCatalogs() {
   }
 
+  /**
+   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
+   * v0.12.0
+   */
+  @Deprecated
   public static HiveCatalog loadCatalog(Configuration conf) {
     // metastore URI can be null in local mode
     String metastoreUri = conf.get(HiveConf.ConfVars.METASTOREURIS.varname, "");

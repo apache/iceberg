@@ -94,7 +94,6 @@ public abstract class TestSparkReaderDeletes extends DeleteReadTests {
 
   @AfterClass
   public static void stopMetastoreAndSpark() {
-    catalog.close();
     catalog = null;
     metastore.stop();
     metastore = null;
