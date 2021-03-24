@@ -164,15 +164,13 @@ public abstract class DeleteFilter<T> {
       return null;
     }
 
-    Predicate<T> isDeleted = t -> false;
-
     List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
     Set<Long> deleteSet = Deletes.toPositionSet(dataFile.path(), CloseableIterable.concat(deletes));
     if (deleteSet.isEmpty()) {
-      return isDeleted;
+      return null;
     }
 
-    return isDeleted.or(record -> deleteSet.contains(pos(record)));
+    return record -> deleteSet.contains(pos(record));
   }
 
   public CloseableIterable<T> keepRowsFromEqualityDeletes(CloseableIterable<T> records) {
@@ -196,6 +194,9 @@ public abstract class DeleteFilter<T> {
     if (posDeletes.stream().mapToLong(DeleteFile::recordCount).sum() < setFilterThreshold) {
       // Predicate to test whether a row has been deleted by equality deletions.
       Predicate<T> predicate = buildPosDeletePredicate();
+      if (predicate == null) {
+        return CloseableIterable.empty();
+      }
 
       Filter<T> deletedRowsFilter = new Filter<T>() {
         @Override
