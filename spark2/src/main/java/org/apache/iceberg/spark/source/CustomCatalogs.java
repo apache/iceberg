@@ -39,8 +39,7 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.sql.SparkSession;
 
 public final class CustomCatalogs {
-  private static final Cache<Pair<SparkSession, String>, Catalog> CATALOG_CACHE = Caffeine.newBuilder()
-      .softValues().build();
+  private static final Cache<Pair<SparkSession, String>, Catalog> CATALOG_CACHE = Caffeine.newBuilder().build();
 
   public static final String ICEBERG_DEFAULT_CATALOG = "default_catalog";
   public static final String ICEBERG_CATALOG_PREFIX = "spark.sql.catalog";
