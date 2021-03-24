@@ -264,7 +264,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
 
   private void replaceDataFiles(Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles) {
     try {
-      RewriteFiles rewriteFiles = table.newRewrite().rewriteSpec(spec());
+      RewriteFiles rewriteFiles = table.newRewrite();
       rewriteFiles.rewriteFiles(Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles));
       commit(rewriteFiles);
     } catch (Exception e) {

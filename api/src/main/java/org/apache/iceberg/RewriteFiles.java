@@ -42,14 +42,4 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
    * @return this for method chaining
    */
   RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd);
-
-  /**
-   * Create a new {@link RewriteFiles} setting the {@link PartitionSpec} for the new files to add
-   * during the rewrite.
-   *
-   * @param spec partition spec to use during the rewrite on files to add
-   * @return a new rewrite files instance with capability to write new files to add with the
-   * specified spec.
-   */
-  RewriteFiles rewriteSpec(PartitionSpec spec);
 }

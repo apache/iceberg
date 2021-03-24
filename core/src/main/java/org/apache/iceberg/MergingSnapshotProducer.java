@@ -60,7 +60,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   private final String tableName;
   private final TableOperations ops;
-  private final PartitionSpec spec;
+  private PartitionSpec spec;
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
   private final ManifestMergeManager<DataFile> mergeManager;
   private final ManifestFilterManager<DataFile> filterManager;
@@ -84,14 +84,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private boolean hasNewDeleteFiles = false;
 
   MergingSnapshotProducer(String tableName, TableOperations ops) {
-    this(tableName, ops, ops.current().spec());
-  }
-
-  MergingSnapshotProducer(String tableName, TableOperations ops, PartitionSpec spec) {
     super(ops);
     this.tableName = tableName;
     this.ops = ops;
-    this.spec = spec;
+    this.spec = null;
     long targetSizeBytes = ops.current()
         .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
     int minCountToMerge = ops.current()
@@ -112,15 +108,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     return self();
   }
 
-  protected String tableName() {
-    return tableName;
-  }
-
-  protected TableOperations ops() {
-    return ops;
-  }
-
   protected PartitionSpec writeSpec() {
+    Preconditions.checkState(spec != null, "No data or delete files have been added.");
     // the spec is set when the write is started
     return spec;
   }
@@ -191,6 +180,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * Add a data file to the new snapshot.
    */
   protected void add(DataFile file) {
+    setWriteSpec(file);
     addedFilesSummary.addedFile(writeSpec(), file);
     hasNewFiles = true;
     newFiles.add(file);
@@ -200,9 +190,22 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * Add a delete file to the new snapshot.
    */
   protected void add(DeleteFile file) {
+    setWriteSpec(file);
     addedFilesSummary.addedFile(writeSpec(), file);
     hasNewDeleteFiles = true;
     newDeleteFiles.add(file);
+  }
+
+  private void setWriteSpec(ContentFile<?> file) {
+    PartitionSpec writeSpec = ops.current().spec(file.specId());
+    Preconditions.checkNotNull(file, "Invalid content file: null");
+    Preconditions.checkNotNull(writeSpec,
+        "Partition spec id should be defined in table, writing partition spec: null");
+    if (spec == null) {
+      spec = writeSpec;
+    } else if (spec.specId() != file.specId()) {
+      throw new ValidationException("Invalid file, expected spec id: %d", spec.specId());
+    }
   }
 
   /**

@@ -23,13 +23,8 @@ import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements RewriteFiles {
-
   BaseRewriteFiles(String tableName, TableOperations ops) {
-    this(tableName, ops, ops.current().spec());
-  }
-
-  BaseRewriteFiles(String tableName, TableOperations ops, PartitionSpec spec) {
-    super(tableName, ops, spec);
+    super(tableName, ops);
 
     // replace files must fail if any of the deleted paths is missing and cannot be deleted
     failMissingDeletePaths();
@@ -51,8 +46,6 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
         "Files to delete cannot be null or empty");
     Preconditions.checkArgument(filesToAdd != null && !filesToAdd.isEmpty(),
         "Files to add can not be null or empty");
-    Preconditions.checkArgument(filesToAdd.stream().allMatch(df -> df.specId() == writeSpec().specId()),
-        "Files to add can not have a different spec than the rewrite files spec");
 
     for (DataFile toDelete : filesToDelete) {
       delete(toDelete);
@@ -63,12 +56,5 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
     }
 
     return this;
-  }
-
-  @Override
-  public RewriteFiles rewriteSpec(PartitionSpec newSpec) {
-    Preconditions.checkArgument(current().specsById().containsKey(newSpec.specId()),
-        "Invalid spec with id %d", newSpec.specId());
-    return new BaseRewriteFiles(tableName(), ops(), newSpec);
   }
 }
