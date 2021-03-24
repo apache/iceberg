@@ -32,6 +32,7 @@ import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.catalyst.expressions.NamedExpression
 import org.apache.spark.sql.catalyst.planning.PhysicalOperation
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
+import org.apache.spark.sql.catalyst.plans.logical.ChangePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.Call
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
@@ -47,6 +48,7 @@ import org.apache.spark.sql.execution.FilterExec
 import org.apache.spark.sql.execution.LeafExecNode
 import org.apache.spark.sql.execution.ProjectExec
 import org.apache.spark.sql.execution.SparkPlan
+
 import scala.collection.JavaConverters._
 
 case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
@@ -61,6 +63,9 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
 
     case DropPartitionField(IcebergCatalogAndIdentifier(catalog, ident), transform) =>
       DropPartitionFieldExec(catalog, ident, transform) :: Nil
+
+    case ChangePartitionField(IcebergCatalogAndIdentifier(catalog, ident), transformFrom, transformTo, name) =>
+      ChangePartitionFieldExec(catalog, ident, transformFrom, transformTo, name) :: Nil
 
     case SetWriteDistributionAndOrdering(
         IcebergCatalogAndIdentifier(catalog, ident), distributionMode, ordering) =>

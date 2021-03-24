@@ -69,6 +69,7 @@ statement
     : CALL multipartIdentifier '(' (callArgument (',' callArgument)*)? ')'                  #call
     | ALTER TABLE multipartIdentifier ADD PARTITION FIELD transform (AS name=identifier)?   #addPartitionField
     | ALTER TABLE multipartIdentifier DROP PARTITION FIELD transform                        #dropPartitionField
+    | ALTER TABLE multipartIdentifier CHANGE PARTITION FIELD transform TO transform (AS name=identifier)? #changePartitionField
     | ALTER TABLE multipartIdentifier WRITE writeSpec                                       #setWriteDistributionAndOrdering
     ;
 
@@ -169,6 +170,7 @@ AS: 'AS';
 ASC: 'ASC';
 BY: 'BY';
 CALL: 'CALL';
+CHANGE: 'CHANGE';
 DESC: 'DESC';
 DISTRIBUTED: 'DISTRIBUTED';
 DROP: 'DROP';
@@ -180,6 +182,7 @@ NULLS: 'NULLS';
 ORDERED: 'ORDERED';
 PARTITION: 'PARTITION';
 TABLE: 'TABLE';
+TO: 'TO';
 UNORDERED: 'UNORDERED';
 WRITE: 'WRITE';
 
