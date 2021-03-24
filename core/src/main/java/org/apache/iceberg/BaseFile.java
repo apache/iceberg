@@ -167,12 +167,12 @@ abstract class BaseFile<F>
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     if (fullCopy) {
-      this.columnSizes = LazyImmutableMap.of(toCopy.columnSizes);
-      this.valueCounts = LazyImmutableMap.of(toCopy.valueCounts);
-      this.nullValueCounts = LazyImmutableMap.of(toCopy.nullValueCounts);
-      this.nanValueCounts = LazyImmutableMap.of(toCopy.nanValueCounts);
-      this.lowerBounds = SerializableByteBufferMap.wrap(LazyImmutableMap.of(toCopy.lowerBounds));
-      this.upperBounds = SerializableByteBufferMap.wrap(LazyImmutableMap.of(toCopy.upperBounds));
+      this.columnSizes = SerializableMap.copyOf(toCopy.columnSizes);
+      this.valueCounts = SerializableMap.copyOf(toCopy.valueCounts);
+      this.nullValueCounts = SerializableMap.copyOf(toCopy.nullValueCounts);
+      this.nanValueCounts = SerializableMap.copyOf(toCopy.nanValueCounts);
+      this.lowerBounds = SerializableByteBufferMap.wrap(SerializableMap.copyOf(toCopy.lowerBounds));
+      this.upperBounds = SerializableByteBufferMap.wrap(SerializableMap.copyOf(toCopy.upperBounds));
     } else {
       this.columnSizes = null;
       this.valueCounts = null;
@@ -306,17 +306,17 @@ abstract class BaseFile<F>
       case 5:
         return fileSizeInBytes;
       case 6:
-        return toReadableMap(columnSizes);
+        return columnSizes;
       case 7:
-        return toReadableMap(valueCounts);
+        return valueCounts;
       case 8:
-        return toReadableMap(nullValueCounts);
+        return nullValueCounts;
       case 9:
-        return toReadableMap(nanValueCounts);
+        return nanValueCounts;
       case 10:
-        return toReadableMap(lowerBounds);
+        return lowerBounds;
       case 11:
-        return toReadableMap(upperBounds);
+        return upperBounds;
       case 12:
         return keyMetadata();
       case 13:
@@ -428,8 +428,8 @@ abstract class BaseFile<F>
   }
 
   private static <K, V> Map<K, V> toReadableMap(Map<K, V> map) {
-    if (map instanceof LazyImmutableMap) {
-      return ((LazyImmutableMap<K, V>) map).immutableMap();
+    if (map instanceof SerializableMap) {
+      return ((SerializableMap<K, V>) map).immutableMap();
     } else {
       return map;
     }
@@ -444,12 +444,12 @@ abstract class BaseFile<F>
         .add("partition", partitionData)
         .add("record_count", recordCount)
         .add("file_size_in_bytes", fileSizeInBytes)
-        .add("column_sizes", toReadableMap(columnSizes))
-        .add("value_counts", toReadableMap(valueCounts))
-        .add("null_value_counts", toReadableMap(nullValueCounts))
-        .add("nan_value_counts", toReadableMap(nanValueCounts))
-        .add("lower_bounds", toReadableMap(lowerBounds))
-        .add("upper_bounds", toReadableMap(upperBounds))
+        .add("column_sizes", columnSizes)
+        .add("value_counts", valueCounts)
+        .add("null_value_counts", nullValueCounts)
+        .add("nan_value_counts", nanValueCounts)
+        .add("lower_bounds", lowerBounds)
+        .add("upper_bounds", upperBounds)
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
         .add("equality_ids", equalityIds == null ? "null" : equalityFieldIds())

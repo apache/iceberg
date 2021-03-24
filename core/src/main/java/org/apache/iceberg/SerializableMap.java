@@ -26,22 +26,22 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-public class LazyImmutableMap<K, V> implements Map<K, V>, Serializable {
+public class SerializableMap<K, V> implements Map<K, V>, Serializable {
 
   private final Map<K, V> copiedMap;
   private Map<K, V> immutableMap;
 
-  LazyImmutableMap() {
-    this.copiedMap = Maps.newLinkedHashMap();
+  SerializableMap() {
+    this.copiedMap = Maps.newHashMap();
   }
 
-  private LazyImmutableMap(Map<K, V> map) {
-    this.copiedMap = Maps.newLinkedHashMap();
+  private SerializableMap(Map<K, V> map) {
+    this.copiedMap = Maps.newHashMap();
     this.copiedMap.putAll(map);
   }
 
-  public static <K, V> LazyImmutableMap<K, V> of(Map<K, V> map) {
-    return map == null ? null : new LazyImmutableMap<>(map);
+  public static <K, V> SerializableMap<K, V> copyOf(Map<K, V> map) {
+    return map == null ? null : new SerializableMap<>(map);
   }
 
   public Map<K, V> immutableMap() {

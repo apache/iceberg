@@ -325,6 +325,7 @@ public class TestHelpers {
     Assert.assertEquals("Content", expected.content(), actual.content());
     Assert.assertEquals("Path", expected.path(), actual.path());
     Assert.assertEquals("Format", expected.format(), actual.format());
+    Assert.assertEquals("Partition size", expected.partition().size(), actual.partition().size());
     for (int i = 0; i < expected.partition().size(); i++) {
       Assert.assertEquals("Partition data at index " + i,
           expected.partition().get(i, Object.class),
