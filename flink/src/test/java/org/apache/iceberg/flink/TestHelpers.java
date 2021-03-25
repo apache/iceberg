@@ -47,6 +47,8 @@ import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.ContentFile;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.data.RowDataUtil;
@@ -275,5 +277,68 @@ public class TestHelpers {
       assertEquals(valueType, actualValueType, entry.getValue(),
           valueGetter.getElementOrNull(actualValueArrayData, valueIndex));
     }
+  }
+
+  public static void assertEquals(ManifestFile expected, ManifestFile actual) {
+    if (expected == actual) {
+      return;
+    }
+    Assert.assertTrue("Should not be null.", expected != null && actual != null);
+    Assert.assertEquals("Path must match", expected.path(), actual.path());
+    Assert.assertEquals("Length must match", expected.length(), actual.length());
+    Assert.assertEquals("Spec id must match", expected.partitionSpecId(), actual.partitionSpecId());
+    Assert.assertEquals("ManifestContent must match", expected.content(), actual.content());
+    Assert.assertEquals("SequenceNumber must match", expected.sequenceNumber(), actual.sequenceNumber());
+    Assert.assertEquals("MinSequenceNumber must match", expected.minSequenceNumber(), actual.minSequenceNumber());
+    Assert.assertEquals("Snapshot id must match", expected.snapshotId(), actual.snapshotId());
+    Assert.assertEquals("Added files flag must match", expected.hasAddedFiles(), actual.hasAddedFiles());
+    Assert.assertEquals("Added files count must match", expected.addedFilesCount(), actual.addedFilesCount());
+    Assert.assertEquals("Added rows count must match", expected.addedRowsCount(), actual.addedRowsCount());
+    Assert.assertEquals("Existing files flag must match", expected.hasExistingFiles(), actual.hasExistingFiles());
+    Assert.assertEquals("Existing files count must match", expected.existingFilesCount(), actual.existingFilesCount());
+    Assert.assertEquals("Existing rows count must match", expected.existingRowsCount(), actual.existingRowsCount());
+    Assert.assertEquals("Deleted files flag must match", expected.hasDeletedFiles(), actual.hasDeletedFiles());
+    Assert.assertEquals("Deleted files count must match", expected.deletedFilesCount(), actual.deletedFilesCount());
+    Assert.assertEquals("Deleted rows count must match", expected.deletedRowsCount(), actual.deletedRowsCount());
+
+    List<ManifestFile.PartitionFieldSummary> expectedSummaries = expected.partitions();
+    List<ManifestFile.PartitionFieldSummary> actualSummaries = actual.partitions();
+    Assert.assertEquals("PartitionFieldSummary size does not match", expectedSummaries.size(), actualSummaries.size());
+    for (int i = 0; i < expectedSummaries.size(); i++) {
+      Assert.assertEquals("Null flag in partition must match",
+          expectedSummaries.get(i).containsNull(), actualSummaries.get(i).containsNull());
+      Assert.assertEquals("NaN flag in partition must match",
+          expectedSummaries.get(i).containsNaN(), actualSummaries.get(i).containsNaN());
+      Assert.assertEquals("Lower bounds in partition must match",
+          expectedSummaries.get(i).lowerBound(), actualSummaries.get(i).lowerBound());
+      Assert.assertEquals("Upper bounds in partition must match",
+          expectedSummaries.get(i).upperBound(), actualSummaries.get(i).upperBound());
+    }
+  }
+
+  public static void assertEquals(ContentFile<?> expected, ContentFile<?> actual) {
+    if (expected == actual) {
+      return;
+    }
+    Assert.assertTrue("Shouldn't be null.", expected != null && actual != null);
+    Assert.assertEquals("SpecId", expected.specId(), actual.specId());
+    Assert.assertEquals("Content", expected.content(), actual.content());
+    Assert.assertEquals("Path", expected.path(), actual.path());
+    Assert.assertEquals("Format", expected.format(), actual.format());
+    for (int i = 0; i < expected.partition().size(); i++) {
+      Assert.assertEquals("Partition data at index " + i,
+          expected.partition().get(i, Object.class),
+          actual.partition().get(i, Object.class));
+    }
+    Assert.assertEquals("Record count", expected.recordCount(), actual.recordCount());
+    Assert.assertEquals("File size in bytes", expected.fileSizeInBytes(), actual.fileSizeInBytes());
+    Assert.assertEquals("Column sizes", expected.columnSizes(), actual.columnSizes());
+    Assert.assertEquals("Value counts", expected.valueCounts(), actual.valueCounts());
+    Assert.assertEquals("Null value counts", expected.nullValueCounts(), actual.nullValueCounts());
+    Assert.assertEquals("Lower bounds", expected.lowerBounds(), actual.lowerBounds());
+    Assert.assertEquals("Upper bounds", expected.upperBounds(), actual.upperBounds());
+    Assert.assertEquals("Key metadata", expected.keyMetadata(), actual.keyMetadata());
+    Assert.assertEquals("Split offsets", expected.splitOffsets(), actual.splitOffsets());
+    Assert.assertEquals("Equality field id list", actual.equalityFieldIds(), expected.equalityFieldIds());
   }
 }
