@@ -47,15 +47,15 @@ case class ReplacePartitionFieldExec(
           case IdentityTransform(FieldReference(parts)) if parts.size == 1 && schema.findField(parts.head) == null =>
             // the name is not present in the Iceberg schema, so it must be a partition field name, not a column name
             iceberg.table.updateSpec()
-              .addField(name.orNull, Spark3Util.toIcebergTerm(transformTo))
-              .removeField(parts.head)
-              .commit()
+                .removeField(parts.head)
+                .addField(name.orNull, Spark3Util.toIcebergTerm(transformTo))
+                .commit()
 
           case _ =>
             iceberg.table.updateSpec()
-              .addField(name.orNull, Spark3Util.toIcebergTerm(transformTo))
-              .removeField(Spark3Util.toIcebergTerm(transformFrom))
-              .commit()
+                .removeField(Spark3Util.toIcebergTerm(transformFrom))
+                .addField(name.orNull, Spark3Util.toIcebergTerm(transformTo))
+                .commit()
         }
 
       case table =>
@@ -67,6 +67,6 @@ case class ReplacePartitionFieldExec(
 
   override def simpleString(maxFields: Int): String = {
     s"ReplacePartitionField ${catalog.name}.${ident.quoted} ${transformFrom.describe} " +
-      s"to ${name.map(n => s"$n=").getOrElse("")}${transformTo.describe}"
+        s"to ${name.map(n => s"$n=").getOrElse("")}${transformTo.describe}"
   }
 }

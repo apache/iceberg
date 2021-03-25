@@ -23,16 +23,16 @@ import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.expressions.Transform
 
 case class ReplacePartitionField(
-  table: Seq[String],
-  transformFrom: Transform,
-  transformTo: Transform,
-  name: Option[String]) extends Command {
+    table: Seq[String],
+    transformFrom: Transform,
+    transformTo: Transform,
+    name: Option[String]) extends Command {
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil
 
   override def simpleString(maxFields: Int): String = {
     s"ReplacePartitionField ${table.quoted} ${transformFrom.describe} " +
-      s"to ${name.map(n => s"$n=").getOrElse("")}${transformTo.describe}"
+        s"to ${name.map(n => s"$n=").getOrElse("")}${transformTo.describe}"
   }
 }
