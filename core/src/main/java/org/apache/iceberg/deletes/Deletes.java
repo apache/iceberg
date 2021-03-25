@@ -127,9 +127,14 @@ public class Deletes {
 
   public static <T> CloseableIterable<T> streamingFilter(CloseableIterable<T> rows,
                                                          Function<T, Long> rowToPosition,
-                                                         CloseableIterable<Long> posDeletes,
-                                                         boolean keepDeleteRows) {
-    return new PositionStreamDeleteFilter<>(rows, rowToPosition, posDeletes, keepDeleteRows);
+                                                         CloseableIterable<Long> posDeletes) {
+    return new PositionStreamDeleteFilter<>(rows, rowToPosition, posDeletes);
+  }
+
+  public static <T> CloseableIterable<T> streamingSelector(CloseableIterable<T> rows,
+                                                         Function<T, Long> rowToPosition,
+                                                         CloseableIterable<Long> posDeletes) {
+    return new PositionStreamDeletedRowSelector<>(rows, rowToPosition, posDeletes);
   }
 
   public static CloseableIterable<Long> deletePositions(CharSequence dataLocation,
@@ -177,18 +182,16 @@ public class Deletes {
     }
   }
 
-  private static class PositionStreamDeleteFilter<T> extends CloseableGroup implements CloseableIterable<T> {
+  protected static class PositionStreamDeleteFilter<T> extends CloseableGroup implements CloseableIterable<T> {
     private final CloseableIterable<T> rows;
     private final Function<T, Long> extractPos;
     private final CloseableIterable<Long> deletePositions;
-    private final boolean keepDeleteRows;
 
     private PositionStreamDeleteFilter(CloseableIterable<T> rows, Function<T, Long> extractPos,
-                                       CloseableIterable<Long> deletePositions, boolean keepDeleteRows) {
+                                       CloseableIterable<Long> deletePositions) {
       this.rows = rows;
       this.extractPos = extractPos;
       this.deletePositions = deletePositions;
-      this.keepDeleteRows = keepDeleteRows;
     }
 
     @Override
@@ -197,7 +200,7 @@ public class Deletes {
 
       CloseableIterator<T> iter;
       if (deletePosIterator.hasNext()) {
-        iter = new PositionFilterIterator(rows.iterator(), deletePosIterator);
+        iter = getPositionIterator(rows.iterator(), deletePosIterator);
       } else {
         iter = rows.iterator();
         try {
@@ -212,7 +215,12 @@ public class Deletes {
       return iter;
     }
 
-    private class PositionFilterIterator extends FilterIterator<T> {
+    protected FilterIterator<T> getPositionIterator(CloseableIterator<T> items,
+                                                    CloseableIterator<Long> newDeletePositions) {
+      return new PositionFilterIterator(items, newDeletePositions);
+    }
+
+    protected class PositionFilterIterator extends FilterIterator<T> {
       private final CloseableIterator<Long> deletePosIterator;
       private long nextDeletePos;
 
@@ -224,10 +232,6 @@ public class Deletes {
 
       @Override
       protected boolean shouldKeep(T row) {
-        return keepDeleteRows != filter(row);
-      }
-
-      private boolean filter(T row) {
         long currentPos = extractPos.apply(row);
         if (currentPos < nextDeletePos) {
           return true;
@@ -254,6 +258,30 @@ public class Deletes {
         } catch (IOException e) {
           throw new UncheckedIOException("Failed to close delete positions iterator", e);
         }
+      }
+    }
+  }
+
+  static class PositionStreamDeletedRowSelector<T> extends PositionStreamDeleteFilter<T> {
+    private PositionStreamDeletedRowSelector(CloseableIterable<T> rows, Function<T, Long> extractPos,
+                                             CloseableIterable<Long> deletePositions) {
+      super(rows, extractPos, deletePositions);
+    }
+
+    @Override
+    protected FilterIterator<T> getPositionIterator(CloseableIterator<T> items,
+                                                    CloseableIterator<Long> deletePositions) {
+      return new PositionSelectorIterator(items, deletePositions);
+    }
+
+    private class PositionSelectorIterator extends PositionFilterIterator {
+      protected PositionSelectorIterator(CloseableIterator<T> items, CloseableIterator<Long> deletePositions) {
+        super(items, deletePositions);
+      }
+
+      @Override
+      protected boolean shouldKeep(T row) {
+        return !super.shouldKeep(row);
       }
     }
   }

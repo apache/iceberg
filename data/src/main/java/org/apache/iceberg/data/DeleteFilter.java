@@ -207,7 +207,7 @@ public abstract class DeleteFilter<T> {
       return deletedRowsFilter.filter(records);
     } else {
       List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
-      return Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(dataFile.path(), deletes), true);
+      return Deletes.streamingSelector(records, this::pos, Deletes.deletePositions(dataFile.path(), deletes));
     }
   }
 
@@ -254,7 +254,7 @@ public abstract class DeleteFilter<T> {
           Deletes.toPositionSet(dataFile.path(), CloseableIterable.concat(deletes)));
     }
 
-    return Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(dataFile.path(), deletes), false);
+    return Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(dataFile.path(), deletes));
   }
 
   private CloseableIterable<Record> openPosDeletes(DeleteFile file) {
