@@ -23,7 +23,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.flink.runtime.state.CheckpointListener;
+import org.apache.flink.api.common.state.CheckpointListener;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
 
 /**

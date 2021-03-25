@@ -88,8 +88,8 @@ public class Schema implements Serializable {
     this(schemaId, columns, null, identifierFieldIds);
   }
 
-  private Schema(int schemaId, List<NestedField> columns, Map<String, Integer> aliases,
-                 Set<Integer> identifierFieldIds) {
+  public Schema(int schemaId, List<NestedField> columns, Map<String, Integer> aliases,
+                Set<Integer> identifierFieldIds) {
     this.schemaId = schemaId;
     this.struct = StructType.of(columns);
     this.aliasToId = aliases != null ? ImmutableBiMap.copyOf(aliases) : null;

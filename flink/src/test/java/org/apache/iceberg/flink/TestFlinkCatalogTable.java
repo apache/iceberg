@@ -22,6 +22,7 @@ package org.apache.iceberg.flink;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -29,6 +30,7 @@ import java.util.stream.StreamSupport;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
+import org.apache.flink.table.api.constraints.UniqueConstraint;
 import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
@@ -45,9 +47,12 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.Assert;
@@ -119,6 +124,40 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     CatalogTable catalogTable = catalogTable("tl");
     Assert.assertEquals(TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
+  }
+
+  @Test
+  public void testCreateTableWithPrimaryKey() throws Exception {
+    sql("CREATE TABLE tl(id BIGINT, data STRING, key STRING PRIMARY KEY NOT ENFORCED)");
+
+    Table table = table("tl");
+    Assert.assertEquals("Should have the expected row key.",
+        Sets.newHashSet(table.schema().findField("key").fieldId()),
+        table.schema().identifierFieldIds());
+
+    CatalogTable catalogTable = catalogTable("tl");
+    Optional<UniqueConstraint> uniqueConstraintOptional = catalogTable.getSchema().getPrimaryKey();
+    Assert.assertTrue("Should have the expected unique constraint", uniqueConstraintOptional.isPresent());
+    Assert.assertEquals("Should have the expected columns",
+        ImmutableList.of("key"), uniqueConstraintOptional.get().getColumns());
+  }
+
+  @Test
+  public void testCreateTableWithMultiColumnsInPrimaryKey() throws Exception {
+    sql("CREATE TABLE tl(id BIGINT, data STRING, CONSTRAINT pk_constraint PRIMARY KEY(data, id) NOT ENFORCED)");
+
+    Table table = table("tl");
+    Assert.assertEquals("Should have the expected RowKey",
+        Sets.newHashSet(
+            table.schema().findField("id").fieldId(),
+            table.schema().findField("data").fieldId()),
+        table.schema().identifierFieldIds());
+
+    CatalogTable catalogTable = catalogTable("tl");
+    Optional<UniqueConstraint> uniqueConstraintOptional = catalogTable.getSchema().getPrimaryKey();
+    Assert.assertTrue("Should have the expected unique constraint", uniqueConstraintOptional.isPresent());
+    Assert.assertEquals("Should have the expected columns",
+        ImmutableSet.of("data", "id"), ImmutableSet.copyOf(uniqueConstraintOptional.get().getColumns()));
   }
 
   @Test

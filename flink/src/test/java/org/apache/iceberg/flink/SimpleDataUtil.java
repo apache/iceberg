@@ -210,8 +210,17 @@ public class SimpleDataUtil {
 
   public static StructLikeSet actualRowSet(Table table, String... columns) throws IOException {
     table.refresh();
+    return actualRowSet(table, table.currentSnapshot().snapshotId(), columns);
+  }
+
+  public static StructLikeSet actualRowSet(Table table, long snapshotId, String... columns) throws IOException {
+    table.refresh();
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
-    try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
+    try (CloseableIterable<Record> reader = IcebergGenerics
+        .read(table)
+        .useSnapshot(snapshotId)
+        .select(columns)
+        .build()) {
       reader.forEach(set::add);
     }
     return set;
