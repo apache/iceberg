@@ -287,7 +287,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
         .build();
     Assert.assertEquals("Should have new spec field", expected, table.spec());
 
-    sql("ALTER TABLE %s REPLACE PARTITION FIELD days(ts) TO hours(ts)", tableName);
+    sql("ALTER TABLE %s REPLACE PARTITION FIELD days(ts) WITH hours(ts)", tableName);
     table.refresh();
     expected = PartitionSpec.builderFor(table.schema())
         .withSpecId(2)
@@ -311,7 +311,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
         .build();
     Assert.assertEquals("Should have new spec field", expected, table.spec());
 
-    sql("ALTER TABLE %s REPLACE PARTITION FIELD days(ts) TO hours(ts) AS hour_col", tableName);
+    sql("ALTER TABLE %s REPLACE PARTITION FIELD days(ts) WITH hours(ts) AS hour_col", tableName);
     table.refresh();
     expected = PartitionSpec.builderFor(table.schema())
         .withSpecId(2)
@@ -335,7 +335,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
         .build();
     Assert.assertEquals("Should have new spec field", expected, table.spec());
 
-    sql("ALTER TABLE %s REPLACE PARTITION FIELD day_col TO hours(ts)", tableName);
+    sql("ALTER TABLE %s REPLACE PARTITION FIELD day_col WITH hours(ts)", tableName);
     table.refresh();
     expected = PartitionSpec.builderFor(table.schema())
         .withSpecId(2)
