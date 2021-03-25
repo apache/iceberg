@@ -23,6 +23,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Stream;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData.SchemaConstructable;
@@ -146,8 +147,9 @@ public class GenericManifestFile
     this.deletedFilesCount = toCopy.deletedFilesCount;
     this.deletedRowsCount = toCopy.deletedRowsCount;
     if (toCopy.partitions != null) {
-      this.partitions = copyList(toCopy.partitions(), PartitionFieldSummary::copy)
-          .toArray(new PartitionFieldSummary[0]);
+      this.partitions = Stream.of(toCopy.partitions)
+          .map(PartitionFieldSummary::copy)
+          .toArray(PartitionFieldSummary[]::new);
     } else {
       this.partitions = null;
     }

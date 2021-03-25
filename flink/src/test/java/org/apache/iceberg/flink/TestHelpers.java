@@ -325,9 +325,11 @@ public class TestHelpers {
     Assert.assertEquals("Content", expected.content(), actual.content());
     Assert.assertEquals("Path", expected.path(), actual.path());
     Assert.assertEquals("Format", expected.format(), actual.format());
-    Assert.assertEquals("Partition",
-        expected.partition().get(0, Object.class),
-        actual.partition().get(0, Object.class));
+    for (int i = 0; i < expected.partition().size(); i++) {
+      Assert.assertEquals("Partition data at index " + i,
+          expected.partition().get(i, Object.class),
+          actual.partition().get(i, Object.class));
+    }
     Assert.assertEquals("Record count", expected.recordCount(), actual.recordCount());
     Assert.assertEquals("File size in bytes", expected.fileSizeInBytes(), actual.fileSizeInBytes());
     Assert.assertEquals("Column sizes", expected.columnSizes(), actual.columnSizes());
