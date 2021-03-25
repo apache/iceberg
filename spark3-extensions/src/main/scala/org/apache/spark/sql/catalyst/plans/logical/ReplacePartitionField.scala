@@ -22,7 +22,7 @@ package org.apache.spark.sql.catalyst.plans.logical
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.expressions.Transform
 
-case class ChangePartitionField(
+case class ReplacePartitionField(
   table: Seq[String],
   transformFrom: Transform,
   transformTo: Transform,
@@ -32,7 +32,7 @@ case class ChangePartitionField(
   override lazy val output: Seq[Attribute] = Nil
 
   override def simpleString(maxFields: Int): String = {
-    s"AlterPartitionField ${table.quoted} ${transformFrom.describe} " +
+    s"ReplacePartitionField ${table.quoted} ${transformFrom.describe} " +
       s"to ${name.map(n => s"$n=").getOrElse("")}${transformTo.describe}"
   }
 }

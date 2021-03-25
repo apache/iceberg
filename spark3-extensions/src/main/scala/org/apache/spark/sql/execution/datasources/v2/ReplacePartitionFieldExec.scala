@@ -29,7 +29,7 @@ import org.apache.spark.sql.connector.expressions.FieldReference
 import org.apache.spark.sql.connector.expressions.IdentityTransform
 import org.apache.spark.sql.connector.expressions.Transform
 
-case class ChangePartitionFieldExec(
+case class ReplacePartitionFieldExec(
     catalog: TableCatalog,
     ident: Identifier,
     transformFrom: Transform,
@@ -59,14 +59,14 @@ case class ChangePartitionFieldExec(
         }
 
       case table =>
-        throw new UnsupportedOperationException(s"Cannot alter partition field in non-Iceberg table: $table")
+        throw new UnsupportedOperationException(s"Cannot replace partition field in non-Iceberg table: $table")
     }
 
     Nil
   }
 
   override def simpleString(maxFields: Int): String = {
-    s"ChangePartitionField ${catalog.name}.${ident.quoted} ${transformFrom.describe} " +
+    s"ReplacePartitionField ${catalog.name}.${ident.quoted} ${transformFrom.describe} " +
       s"to ${name.map(n => s"$n=").getOrElse("")}${transformTo.describe}"
   }
 }

@@ -37,11 +37,11 @@ import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParse
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.CallArgument
 import org.apache.spark.sql.catalyst.plans.logical.CallStatement
-import org.apache.spark.sql.catalyst.plans.logical.ChangePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.NamedArgument
 import org.apache.spark.sql.catalyst.plans.logical.PositionalArgument
+import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
 import org.apache.spark.sql.connector.expressions
 import org.apache.spark.sql.connector.expressions.ApplyTransform
@@ -85,8 +85,8 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   /**
    * Create an CHANGE PARTITION FIELD logical command.
    */
-  override def visitChangePartitionField(ctx: ChangePartitionFieldContext): ChangePartitionField = withOrigin(ctx) {
-    ChangePartitionField(
+  override def visitReplacePartitionField(ctx: ReplacePartitionFieldContext): ReplacePartitionField = withOrigin(ctx) {
+    ReplacePartitionField(
       typedVisit[Seq[String]](ctx.multipartIdentifier),
       typedVisit[Transform](ctx.transform(0)),
       typedVisit[Transform](ctx.transform(1)),
