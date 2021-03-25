@@ -15,18 +15,23 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from __future__ import annotations
+
+from typing import Any, TYPE_CHECKING
+
 from iceberg.exceptions import ValidationException
 
+from ..types import StructType
 
-class Reference(object):
-    pass
+if TYPE_CHECKING:
+    from iceberg.api import StructLike
 
 
-class BoundReference(Reference):
+class BoundReference:
 
-    def __init__(self, struct, field_id):
-        self.field_id = field_id
-        self.pos = self.find(field_id, struct)
+    def __init__(self, struct, field):
+        self.field = field
+        self.pos = self.find(field.field_id, struct)
         self._type = struct.fields[self.pos].type
 
     @property
@@ -39,7 +44,7 @@ class BoundReference(Reference):
         elif other is None or not isinstance(other, BoundReference):
             return False
 
-        return self.field_id == other.field_id and self.pos == other.pos and self._type == other._type
+        return self.field.field_id == other.field.field_id and self.pos == other.pos and self._type == other._type
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -47,7 +52,7 @@ class BoundReference(Reference):
     def find(self, field_id, struct):
         fields = struct.fields
         for i, field in enumerate(fields):
-            if field.field_id == self.field_id:
+            if field.field_id == self.field.field_id:
                 return i
 
         raise ValidationException("Cannot find top-level field id %d in struct: %s", (field_id, struct))
@@ -56,12 +61,19 @@ class BoundReference(Reference):
         return struct.get(self.pos)
 
     def __str__(self):
-        return "ref(id={id}, pos={pos}, type={_type})".format(id=self.field_id,
+        return "ref(id={id}, pos={pos}, type={_type})".format(id=self.field.field_id,
                                                               pos=self.pos,
                                                               _type=self._type)
 
+    @property
+    def ref(self):
+        return self
 
-class NamedReference(Reference):
+    def eval(self, struct: StructLike) -> Any:
+        return self.get(struct)
+
+
+class NamedReference:
 
     def __init__(self, name):
         super(NamedReference, self).__init__()
@@ -69,6 +81,20 @@ class NamedReference(Reference):
             raise RuntimeError("Name cannot be null")
 
         self.name = name
+
+    @property
+    def ref(self):
+        return self
+
+    def bind(self, struct: StructType, case_sensitive: bool = True) -> BoundReference:
+        from iceberg.api import Schema
+        schema = Schema(struct.fields)
+        field = schema.find_field(self.name) if case_sensitive else schema.case_insensitive_find_field(self.name)
+
+        ValidationException.check(field is not None, "Cannot find field '%s' in struct: %s", (self.name,
+                                                                                              schema.as_struct()))
+
+        return BoundReference(struct, field)
 
     def __eq__(self, other):
         if id(self) == id(other):

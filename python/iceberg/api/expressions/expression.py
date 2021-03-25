@@ -43,6 +43,8 @@ class Operation(Enum):
     FALSE = "FALSE"
     IS_NULL = "IS_NULL"
     NOT_NULL = "NOT_NULL"
+    IS_NAN = "IS_NAN"
+    NOT_NAN = "NOT_NAN"
     LT = "LT"
     LT_EQ = "LT_EQ"
     GT = "GT"
@@ -60,6 +62,10 @@ class Operation(Enum):
             return Operation.NOT_NULL
         elif self == Operation.NOT_NULL:
             return Operation.IS_NULL
+        elif self == Operation.IS_NAN:
+            return Operation.NOT_NAN
+        elif self == Operation.NOT_NAN:
+            return Operation.IS_NAN
         elif self == Operation.LT:
             return Operation.GT_EQ
         elif self == Operation.LT_EQ:

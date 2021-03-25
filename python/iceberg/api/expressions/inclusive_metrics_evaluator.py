@@ -81,7 +81,7 @@ class MetricsEvalVisitor(ExpressionVisitors.BoundExpressionVisitor):
         return left_result or right_result
 
     def is_null(self, ref):
-        id = ref.field_id
+        id = ref.field.field_id
 
         if self.struct.field(id=id) is None:
             raise RuntimeError("Cannot filter by nested column: %s" % self.schema.find_field(id))
@@ -92,7 +92,7 @@ class MetricsEvalVisitor(ExpressionVisitors.BoundExpressionVisitor):
         return MetricsEvalVisitor.ROWS_MIGHT_MATCH
 
     def not_null(self, ref):
-        id = ref.field_id
+        id = ref.field.field_id
 
         if self.struct.field(id=id) is None:
             raise RuntimeError("Cannot filter by nested column: %s" % self.schema.find_field(id))
@@ -104,7 +104,7 @@ class MetricsEvalVisitor(ExpressionVisitors.BoundExpressionVisitor):
         return MetricsEvalVisitor.ROWS_MIGHT_MATCH
 
     def lt(self, ref, lit):
-        id = ref.field_id
+        id = ref.field.field_id
         field = self.struct.field(id=id)
 
         if field is None:
@@ -118,7 +118,7 @@ class MetricsEvalVisitor(ExpressionVisitors.BoundExpressionVisitor):
         return MetricsEvalVisitor.ROWS_MIGHT_MATCH
 
     def lt_eq(self, ref, lit):
-        id = ref.field_id
+        id = ref.field.field_id
         field = self.struct.field(id=id)
 
         if field is None:
@@ -132,7 +132,7 @@ class MetricsEvalVisitor(ExpressionVisitors.BoundExpressionVisitor):
         return MetricsEvalVisitor.ROWS_MIGHT_MATCH
 
     def gt(self, ref, lit):
-        id = ref.field_id
+        id = ref.field.field_id
         field = self.struct.field(id=id)
 
         if field is None:
@@ -146,7 +146,7 @@ class MetricsEvalVisitor(ExpressionVisitors.BoundExpressionVisitor):
         return MetricsEvalVisitor.ROWS_MIGHT_MATCH
 
     def gt_eq(self, ref, lit):
-        id = ref.field_id
+        id = ref.field.field_id
         field = self.struct.field(id=id)
 
         if field is None:
@@ -160,7 +160,7 @@ class MetricsEvalVisitor(ExpressionVisitors.BoundExpressionVisitor):
         return MetricsEvalVisitor.ROWS_MIGHT_MATCH
 
     def eq(self, ref, lit):
-        id = ref.field_id
+        id = ref.field.field_id
         field = self.struct.field(id=id)
 
         if field is None:

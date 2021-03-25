@@ -52,7 +52,6 @@ __all__ = ["ABOVE_MAX",
            "Operation",
            "Or",
            "Predicate",
-           "Reference",
            "ResidualEvaluator",
            "strict",
            "StrictMetricsEvaluator",
@@ -103,7 +102,6 @@ from .projections import (inclusive,
                           strict,
                           StrictProjection)
 from .reference import (BoundReference,
-                        NamedReference,
-                        Reference)
+                        NamedReference)
 from .residual_evaluator import ResidualEvaluator
 from .strict_metrics_evaluator import StrictMetricsEvaluator

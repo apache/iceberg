@@ -83,7 +83,7 @@ class InclusiveProjection(BaseProjectionEvaluator):
         if isinstance(pred, UnboundPredicate):
             return super(InclusiveProjection, self).predicate(pred)
 
-        part = self.spec.get_field_by_source_id(pred.ref.field_id)
+        part = self.spec.get_field_by_source_id(pred.ref.field.field_id)
 
         if part is None:
             return self.always_true()
@@ -101,7 +101,7 @@ class StrictProjection(BaseProjectionEvaluator):
         super(StrictProjection, self).__init__(spec)
 
     def predicate(self, pred):
-        part = self.spec.get_field_by_source_id(pred.ref.field_id)
+        part = self.spec.get_field_by_source_id(pred.ref.field.field_id)
 
         if part is None:
             return self.always_false()

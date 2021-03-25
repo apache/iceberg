@@ -83,7 +83,7 @@ class StrictMetricsEvaluator(object):
             return left_result or right_result
 
         def is_null(self, ref):
-            id = ref.field_id
+            id = ref.field.field_id
             if self.struct.field(id=id) is None:
                 raise RuntimeError("Cannot filter by nested column: %s" % self.schema.find_field(id))
 
@@ -95,7 +95,7 @@ class StrictMetricsEvaluator(object):
             return StrictMetricsEvaluator.MetricsEvalVisitor.ROWS_MIGHT_NOT_MATCH
 
         def not_null(self, ref):
-            id = ref.field_id
+            id = ref.field.field_id
             if self.struct.field(id=id) is None:
                 raise RuntimeError("Cannot filter by nested column: %s" % self.schema.find_field(id))
 
@@ -106,7 +106,7 @@ class StrictMetricsEvaluator(object):
 
         def lt(self, ref, lit):
             # Rows must match when: <----------Min----Max---X------->
-            id = ref.field_id
+            id = ref.field.field_id
 
             field = self.struct.field(id=id)
 
@@ -122,7 +122,7 @@ class StrictMetricsEvaluator(object):
 
         def lt_eq(self, ref, lit):
             # Rows must match when: <----------Min----Max---X------->
-            id = ref.field_id
+            id = ref.field.field_id
 
             field = self.struct.field(id=id)
 
@@ -138,7 +138,7 @@ class StrictMetricsEvaluator(object):
 
         def gt(self, ref, lit):
             # Rows must match when: <-------X---Min----Max---------->
-            id = ref.field_id
+            id = ref.field.field_id
 
             field = self.struct.field(id=id)
 
@@ -154,7 +154,7 @@ class StrictMetricsEvaluator(object):
 
         def gt_eq(self, ref, lit):
             # Rows must match when: <-------X---Min----Max---------->
-            id = ref.field_id
+            id = ref.field.field_id
 
             field = self.struct.field(id=id)
 
@@ -170,7 +170,7 @@ class StrictMetricsEvaluator(object):
 
         def eq(self, ref, lit):
             # Rows must match when Min == X == Max
-            id = ref.field_id
+            id = ref.field.field_id
 
             field = self.struct.field(id=id)
 
@@ -194,7 +194,7 @@ class StrictMetricsEvaluator(object):
 
         def not_eq(self, ref, lit):
             # Rows must match when X < Min or Max < X because it is not in the range
-            id = ref.field_id
+            id = ref.field.field_id
 
             field = self.struct.field(id=id)
 
