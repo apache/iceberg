@@ -259,4 +259,57 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     Assert.assertEquals("should include 3 deleted row", 3, actualRowSet.size());
     Assert.assertEquals("deleted row should be matched", expectedRowSet, actualRowSet);
   }
+
+  @Test
+  public void testReadDeleteRows() throws IOException {
+    Schema deleteSchema = table.schema().select("data");
+    Record dataDelete = GenericRecord.create(deleteSchema);
+    List<Record> dataDeletes = Lists.newArrayList(
+        dataDelete.copy("data", "b"), // id = 43
+        dataDelete.copy("data", "f"), // id = 121
+        dataDelete.copy("data", "g") // id = 122
+    );
+
+    DeleteFile eqDelete = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, deleteSchema);
+
+
+    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(
+        Pair.of(dataFile.path(), 0L), // id = 29
+        Pair.of(dataFile.path(), 3L), // id = 89
+        Pair.of(dataFile.path(), 6L) // id = 122
+    );
+
+    Pair<DeleteFile, Set<CharSequence>> posDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), deletes);
+
+    table.newRowDelta()
+        .addDeletes(posDeletes.first())
+        .addDeletes(eqDelete)
+        .validateDataFilesExist(posDeletes.second())
+        .commit();
+
+    StructLikeSet expectedRowSet = rowSetWithIds(29, 43, 89, 121, 122);
+
+    Types.StructType type = table.schema().asStruct();
+    StructLikeSet actualRowSet = StructLikeSet.create(type);
+
+    CloseableIterable<CombinedScanTask> tasks = TableScanUtil.planTasks(
+        table.newScan().planFiles(),
+        TableProperties.METADATA_SPLIT_SIZE_DEFAULT,
+        TableProperties.SPLIT_LOOKBACK_DEFAULT,
+        TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+
+    for (CombinedScanTask task : tasks) {
+      try (DeleteRowReader reader = new DeleteRowReader(task, table.schema(), table.schema(),
+          table.properties().get(DEFAULT_NAME_MAPPING), table.io(), table.encryption(), false, null)) {
+        while (reader.next()) {
+          actualRowSet.add(new InternalRowWrapper(SparkSchemaUtil.convert(table.schema())).wrap(reader.get().copy()));
+        }
+      }
+    }
+
+    Assert.assertEquals("should include 5 deleted row", 5, actualRowSet.size());
+    Assert.assertEquals("deleted row should be matched", expectedRowSet, actualRowSet);
+  }
 }

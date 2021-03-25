@@ -173,6 +173,11 @@ public abstract class DeleteFilter<T> {
     return record -> deleteSet.contains(pos(record));
   }
 
+  public CloseableIterable<T> keepRowsFromDeletes(CloseableIterable<T> records) {
+    return CloseableIterable.concat(Lists.newArrayList(keepRowsFromPosDeletes(records),
+        keepRowsFromEqualityDeletes(records)));
+  }
+
   public CloseableIterable<T> keepRowsFromEqualityDeletes(CloseableIterable<T> records) {
     // Predicate to test whether a row has been deleted by equality deletions.
     Predicate<T> predicate = buildEqDeletePredicate();

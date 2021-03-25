@@ -32,13 +32,13 @@ import org.apache.spark.sql.catalyst.InternalRow;
 
 public class DeleteRowReader extends RowDataReader {
   private final Schema expectedSchema;
-  private final FileContent deleteContent;
+  private final FileContent deleteSelector;
 
   public DeleteRowReader(CombinedScanTask task, Table table, Schema expectedSchema,
                          boolean caseSensitive, FileContent deleteContent) {
     super(task, table, expectedSchema, caseSensitive);
     this.expectedSchema = expectedSchema;
-    this.deleteContent = deleteContent;
+    this.deleteSelector = deleteContent;
   }
 
   @Override
@@ -53,7 +53,9 @@ public class DeleteRowReader extends RowDataReader {
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(file.path().toString(), task.start(), task.length());
 
-    if (deleteContent.equals(FileContent.EQUALITY_DELETES)) {
+    if (deleteSelector == null) {
+      return matches.keepRowsFromDeletes(open(task, requiredSchema, idToConstant)).iterator();
+    } else if (deleteSelector.equals(FileContent.EQUALITY_DELETES)) {
       return matches.keepRowsFromEqualityDeletes(open(task, requiredSchema, idToConstant)).iterator();
     } else {
       return matches.keepRowsFromPosDeletes(open(task, requiredSchema, idToConstant)).iterator();
