@@ -20,6 +20,7 @@
 package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
+import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -29,9 +30,17 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.SerializableSupplier;
 
-public class HadoopFileIO implements FileIO {
+public class HadoopFileIO implements FileIO, Configurable {
 
-  private final SerializableSupplier<Configuration> hadoopConf;
+  private SerializableSupplier<Configuration> hadoopConf;
+
+  /**
+   * Constructor used for dynamic FileIO loading.
+   * <p>
+   * {@link Configuration Hadoop configuration} must be set through {@link HadoopFileIO#setConf(Configuration)}
+   */
+  public HadoopFileIO() {
+  }
 
   public HadoopFileIO(Configuration hadoopConf) {
     this(new SerializableConfiguration(hadoopConf)::get);
@@ -64,5 +73,15 @@ public class HadoopFileIO implements FileIO {
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to delete file: %s", path);
     }
+  }
+
+  @Override
+  public void setConf(Configuration conf) {
+    this.hadoopConf = new SerializableConfiguration(conf)::get;
+  }
+
+  @Override
+  public Configuration getConf() {
+    return hadoopConf.get();
   }
 }

@@ -27,6 +27,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -121,6 +122,15 @@ public class TestCatalogUtil {
     FileIO fileIO = CatalogUtil.loadFileIO(TestFileIONoArg.class.getName(), properties, null);
     Assert.assertTrue(fileIO instanceof TestFileIONoArg);
     Assert.assertEquals(properties, ((TestFileIONoArg) fileIO).map);
+  }
+
+  @Test
+  public void loadCustomFileIO_hadoopConfigConstructor() {
+    Configuration configuration = new Configuration();
+    configuration.set("key", "val");
+    FileIO fileIO = CatalogUtil.loadFileIO(HadoopFileIO.class.getName(), Maps.newHashMap(), configuration);
+    Assert.assertTrue(fileIO instanceof HadoopFileIO);
+    Assert.assertEquals("val", ((HadoopFileIO) fileIO).conf().get("key"));
   }
 
   @Test
