@@ -459,16 +459,13 @@ public class TestCreateActions extends SparkCatalogTestBase {
     String[] keys = {"provider", "format", "current-snapshot-id", "location"};
 
     for (String entry : keys) {
-      Assert.assertTrue(
-              "Created table missing reserved property " + entry, table.properties().containsKey(entry));
+      Assert.assertTrue("Created table missing reserved property " + entry, table.properties().containsKey(entry));
     }
 
-    Assert.assertEquals("Property value is not the expected value", "iceberg", table.properties().get("provider"));
-    Assert.assertEquals("Property value is not the expected value", "iceberg/parquet",
-        table.properties().get("format"));
-    Assert.assertTrue("Current-snapshot-id doesn't exist",
-        !table.properties().get("current-snapshot-id").equals("none"));
-    Assert.assertTrue("location isn't correct", table.properties().get("location").endsWith(destTableName));
+    Assert.assertEquals("Unexpected provider", "iceberg", table.properties().get("provider"));
+    Assert.assertEquals("Unexpected format", "iceberg/parquet", table.properties().get("format"));
+    Assert.assertNotEquals("No current-snapshot-id found", "none", table.properties().get("current-snapshot-id"));
+    Assert.assertTrue("Location isn't correct", table.properties().get("location").endsWith(destTableName));
   }
 
   @Test
