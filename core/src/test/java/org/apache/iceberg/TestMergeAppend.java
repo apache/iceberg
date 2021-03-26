@@ -749,7 +749,7 @@ public class TestMergeAppend extends TableTestBase {
     V2Assert.assertEquals("Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
     V1Assert.assertEquals("Table should end with last-sequence-number 0", 0, readMetadata().lastSequenceNumber());
 
-    DataFile newFileY = DataFiles.builder(newSpec)
+    DataFile newFileY = DataFiles.builder(table.spec())
         .withPath("/path/to/data-y.parquet")
         .withFileSizeInBytes(10)
         .withPartitionPath("data_bucket=2/id_bucket=3")

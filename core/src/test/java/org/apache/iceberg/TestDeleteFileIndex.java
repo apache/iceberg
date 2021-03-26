@@ -56,48 +56,56 @@ public class TestDeleteFileIndex extends TableTestBase {
   static final DeleteFile FILE_A_EQ_2 = FILE_A_EQ_1.copy();
   static final DeleteFile[] DELETE_FILES = new DeleteFile[] { FILE_A_POS_1, FILE_A_EQ_1, FILE_A_POS_2, FILE_A_EQ_2 };
 
-  static final DataFile UNPARTITIONED_FILE = DataFiles.builder(PartitionSpec.unpartitioned())
-      .withPath("/path/to/data-unpartitioned.parquet")
-      .withFileSizeInBytes(10)
-      .withRecordCount(1)
-      .build();
+  private static DataFile unpartitionedFile(PartitionSpec spec) {
+    return DataFiles.builder(spec)
+        .withPath("/path/to/data-unpartitioned.parquet")
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .build();
+  }
 
-  static final DeleteFile UNPARTITIONED_POS_DELETES = FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
-      .ofPositionDeletes()
-      .withPath("/path/to/data-unpartitioned-pos-deletes.parquet")
-      .withFileSizeInBytes(10)
-      .withRecordCount(1)
-      .build();
+  private static DeleteFile unpartitionedPosDeletes(PartitionSpec spec) {
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofPositionDeletes()
+        .withPath("/path/to/data-unpartitioned-pos-deletes.parquet")
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .build();
+  }
 
-  static final DeleteFile UNPARTITIONED_EQ_DELETES = FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
-      .ofEqualityDeletes()
-      .withPath("/path/to/data-unpartitioned-eq-deletes.parquet")
-      .withFileSizeInBytes(10)
-      .withRecordCount(1)
-      .build();
+  private static DeleteFile unpartitionedEqDeletes(PartitionSpec spec) {
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofEqualityDeletes()
+        .withPath("/path/to/data-unpartitioned-eq-deletes.parquet")
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .build();
+  }
 
   @Test
   public void testUnpartitionedDeletes() {
+    PartitionSpec partSpec = PartitionSpec.unpartitioned();
     DeleteFileIndex index = new DeleteFileIndex(
         ImmutableMap.of(
-            PartitionSpec.unpartitioned().specId(), PartitionSpec.unpartitioned(),
+            partSpec.specId(), partSpec,
             1, SPEC),
         new long[] { 3, 5, 5, 6 }, DELETE_FILES, ImmutableMap.of());
 
+    DataFile unpartitionedFile = unpartitionedFile(partSpec);
     Assert.assertArrayEquals("All deletes should apply to seq 0",
-        DELETE_FILES, index.forDataFile(0, UNPARTITIONED_FILE));
+        DELETE_FILES, index.forDataFile(0, unpartitionedFile));
     Assert.assertArrayEquals("All deletes should apply to seq 3",
-        DELETE_FILES, index.forDataFile(3, UNPARTITIONED_FILE));
+        DELETE_FILES, index.forDataFile(3, unpartitionedFile));
     Assert.assertArrayEquals("Last 3 deletes should apply to seq 4",
-        Arrays.copyOfRange(DELETE_FILES, 1, 4), index.forDataFile(4, UNPARTITIONED_FILE));
+        Arrays.copyOfRange(DELETE_FILES, 1, 4), index.forDataFile(4, unpartitionedFile));
     Assert.assertArrayEquals("Last 3 deletes should apply to seq 5",
-        Arrays.copyOfRange(DELETE_FILES, 1, 4), index.forDataFile(5, UNPARTITIONED_FILE));
+        Arrays.copyOfRange(DELETE_FILES, 1, 4), index.forDataFile(5, unpartitionedFile));
     Assert.assertArrayEquals("Last delete should apply to seq 6",
-        Arrays.copyOfRange(DELETE_FILES, 3, 4), index.forDataFile(6, UNPARTITIONED_FILE));
+        Arrays.copyOfRange(DELETE_FILES, 3, 4), index.forDataFile(6, unpartitionedFile));
     Assert.assertArrayEquals("No deletes should apply to seq 7",
-        new DataFile[0], index.forDataFile(7, UNPARTITIONED_FILE));
+        new DataFile[0], index.forDataFile(7, unpartitionedFile));
     Assert.assertArrayEquals("No deletes should apply to seq 10",
-        new DataFile[0], index.forDataFile(10, UNPARTITIONED_FILE));
+        new DataFile[0], index.forDataFile(10, unpartitionedFile));
 
     // copy file A with a different spec ID
     DataFile partitionedFileA = FILE_A.copy();
@@ -152,13 +160,15 @@ public class TestDeleteFileIndex extends TableTestBase {
 
     Table unpartitioned = TestTables.create(location, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), 2);
 
+    DataFile unpartitionedFile = unpartitionedFile(unpartitioned.spec());
     unpartitioned.newAppend()
-        .appendFile(UNPARTITIONED_FILE)
+        .appendFile(unpartitionedFile)
         .commit();
 
     // add a delete file
+    DeleteFile unpartitionedPosDeletes = unpartitionedPosDeletes(unpartitioned.spec());
     unpartitioned.newRowDelta()
-        .addDeletes(UNPARTITIONED_POS_DELETES)
+        .addDeletes(unpartitionedPosDeletes)
         .commit();
 
     List<FileScanTask> tasks = Lists.newArrayList(unpartitioned.newScan().planFiles().iterator());
@@ -166,25 +176,26 @@ public class TestDeleteFileIndex extends TableTestBase {
 
     FileScanTask task = tasks.get(0);
     Assert.assertEquals("Should have the correct data file path",
-        UNPARTITIONED_FILE.path(), task.file().path());
+        unpartitionedFile.path(), task.file().path());
     Assert.assertEquals("Should have one associated delete file",
         1, task.deletes().size());
     Assert.assertEquals("Should have expected delete file",
-        UNPARTITIONED_POS_DELETES.path(), task.deletes().get(0).path());
+        unpartitionedPosDeletes.path(), task.deletes().get(0).path());
 
     // add a second delete file
+    DeleteFile unpartitionedEqDeletes = unpartitionedEqDeletes(unpartitioned.spec());
     unpartitioned.newRowDelta()
-        .addDeletes(UNPARTITIONED_EQ_DELETES)
+        .addDeletes(unpartitionedEqDeletes)
         .commit();
 
     tasks = Lists.newArrayList(unpartitioned.newScan().planFiles().iterator());
     task = tasks.get(0);
     Assert.assertEquals("Should have the correct data file path",
-        UNPARTITIONED_FILE.path(), task.file().path());
+        unpartitionedFile.path(), task.file().path());
     Assert.assertEquals("Should have two associated delete files",
         2, task.deletes().size());
     Assert.assertEquals("Should have expected delete files",
-        Sets.newHashSet(UNPARTITIONED_POS_DELETES.path(), UNPARTITIONED_EQ_DELETES.path()),
+        Sets.newHashSet(unpartitionedPosDeletes.path(), unpartitionedEqDeletes.path()),
         Sets.newHashSet(Iterables.transform(task.deletes(), ContentFile::path)));
   }
 
@@ -284,9 +295,10 @@ public class TestDeleteFileIndex extends TableTestBase {
     table.ops().commit(base, base.updatePartitionSpec(PartitionSpec.unpartitioned()));
 
     // add unpartitioned equality and position deletes, but only equality deletes are global
+    DeleteFile unpartitionedEqDeletes = unpartitionedEqDeletes(table.spec());
     table.newRowDelta()
-        .addDeletes(UNPARTITIONED_POS_DELETES)
-        .addDeletes(UNPARTITIONED_EQ_DELETES)
+        .addDeletes(unpartitionedPosDeletes(table.spec()))
+        .addDeletes(unpartitionedEqDeletes)
         .commit();
 
     List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
@@ -298,7 +310,7 @@ public class TestDeleteFileIndex extends TableTestBase {
     Assert.assertEquals("Should have one associated delete file",
         1, task.deletes().size());
     Assert.assertEquals("Should have expected delete file",
-        UNPARTITIONED_EQ_DELETES.path(), task.deletes().get(0).path());
+        unpartitionedEqDeletes.path(), task.deletes().get(0).path());
   }
 
   @Test
@@ -315,9 +327,10 @@ public class TestDeleteFileIndex extends TableTestBase {
     table.ops().commit(base, base.updatePartitionSpec(PartitionSpec.unpartitioned()));
 
     // add unpartitioned equality and position deletes, but only equality deletes are global
+    DeleteFile unpartitionedEqDeletes = unpartitionedEqDeletes(table.spec());
     table.newRowDelta()
-        .addDeletes(UNPARTITIONED_POS_DELETES)
-        .addDeletes(UNPARTITIONED_EQ_DELETES)
+        .addDeletes(unpartitionedPosDeletes(table.spec()))
+        .addDeletes(unpartitionedEqDeletes)
         .commit();
 
     List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles().iterator());
@@ -329,7 +342,7 @@ public class TestDeleteFileIndex extends TableTestBase {
     Assert.assertEquals("Should have two associated delete files",
         2, task.deletes().size());
     Assert.assertEquals("Should have expected delete files",
-        Sets.newHashSet(UNPARTITIONED_EQ_DELETES.path(), FILE_A_EQ_1.path()),
+        Sets.newHashSet(unpartitionedEqDeletes.path(), FILE_A_EQ_1.path()),
         Sets.newHashSet(Iterables.transform(task.deletes(), ContentFile::path)));
   }
 
@@ -362,10 +375,12 @@ public class TestDeleteFileIndex extends TableTestBase {
 
     // add data, pos deletes, and eq deletes in the same sequence number
     // the position deletes will be applied to the data file, but the equality deletes will not
+    DataFile unpartitionedFile = unpartitionedFile(unpartitioned.spec());
+    DeleteFile unpartitionedPosDeleteFile = unpartitionedPosDeletes(unpartitioned.spec());
     unpartitioned.newRowDelta()
-        .addRows(UNPARTITIONED_FILE)
-        .addDeletes(UNPARTITIONED_POS_DELETES)
-        .addDeletes(UNPARTITIONED_EQ_DELETES)
+        .addRows(unpartitionedFile)
+        .addDeletes(unpartitionedPosDeleteFile)
+        .addDeletes(unpartitionedEqDeletes(unpartitioned.spec()))
         .commit();
 
     Assert.assertEquals("Table should contain 2 delete files",
@@ -376,10 +391,10 @@ public class TestDeleteFileIndex extends TableTestBase {
 
     FileScanTask task = tasks.get(0);
     Assert.assertEquals("Should have the correct data file path",
-        UNPARTITIONED_FILE.path(), task.file().path());
+        unpartitionedFile.path(), task.file().path());
     Assert.assertEquals("Should have one associated delete file",
         1, task.deletes().size());
     Assert.assertEquals("Should have only pos delete file",
-        UNPARTITIONED_POS_DELETES.path(), task.deletes().get(0).path());
+        unpartitionedPosDeleteFile.path(), task.deletes().get(0).path());
   }
 }
