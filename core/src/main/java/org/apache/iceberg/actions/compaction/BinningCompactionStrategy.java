@@ -30,10 +30,12 @@ package org.apache.iceberg.actions.compaction;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.BinPacking;
+import org.apache.iceberg.util.PropertyUtil;
 
 import static org.apache.iceberg.util.StreamUtil.streamOf;
 
@@ -46,15 +48,15 @@ public abstract class BinningCompactionStrategy implements DataCompactionStrateg
   // TODO Maybe these should be global?
   private static final String TARGET_SIZE_OPTION = "target_size";
   private static final String TARGET_THRESHOLD_OPTION = "target_threshold";
-  private static final String TARGET_MAX_JOB_SIZE_OPTION = "max_job_size";
+  private static final String MAX_JOB_SIZE_OPTION = "max_job_size";
 
   protected static final long TARGET_THRESHOLD_DEFAULT = 50 * 1024 * 1024; // 50 MB
   protected static final long TARGET_SIZE_DEFAULT = 512 * 1024 * 1024; // 512 MB (Perhaps always have this passed through from table? target write size?)
   protected static final long MAX_JOB_SIZE_DEFAULT = 100L * 1024 * 1024 * 1024; // 100 GB
 
-  protected long targetThreshold = TARGET_THRESHOLD_DEFAULT;
-  protected long targetSize = TARGET_SIZE_DEFAULT;
-  protected long maxJobSize = MAX_JOB_SIZE_DEFAULT;
+  private long targetThreshold = TARGET_THRESHOLD_DEFAULT;
+  private long targetSize = TARGET_SIZE_DEFAULT;
+  private long maxJobSize = MAX_JOB_SIZE_DEFAULT;
 
   @Override
   public String name() {
@@ -63,7 +65,7 @@ public abstract class BinningCompactionStrategy implements DataCompactionStrateg
 
   @Override
   public Set<String> validOptions() {
-    return ImmutableSet.of(TARGET_SIZE_OPTION, TARGET_THRESHOLD_OPTION, TARGET_MAX_JOB_SIZE_OPTION);
+    return ImmutableSet.of(TARGET_SIZE_OPTION, TARGET_THRESHOLD_OPTION, MAX_JOB_SIZE_OPTION);
   }
 
   @Override
@@ -75,10 +77,21 @@ public abstract class BinningCompactionStrategy implements DataCompactionStrateg
 
   @Override
   public Iterator<List<FileScanTask>> groupsFilesIntoJobs(Iterator<FileScanTask> dataFiles) {
-    BinPacking.ListPacker<FileScanTask> packer =
-        new BinPacking.ListPacker<>(maxJobSize, 1, false);
+    BinPacking.ListPacker<FileScanTask> packer = new BinPacking.ListPacker<>(maxJobSize, 1, false);
     List<List<FileScanTask>> bins = packer.pack(() -> dataFiles, fileScanTask -> fileScanTask.file().fileSizeInBytes());
     return bins.iterator();
   }
 
+  @Override
+  public DataCompactionStrategy withOptions(Map<String, String> options) {
+    validateOptions(options);
+    targetSize = PropertyUtil.propertyAsLong(options, TARGET_SIZE_OPTION, TARGET_SIZE_DEFAULT);
+    targetThreshold = PropertyUtil.propertyAsLong(options, TARGET_THRESHOLD_OPTION, TARGET_THRESHOLD_DEFAULT);
+    maxJobSize = PropertyUtil.propertyAsLong(options, MAX_JOB_SIZE_OPTION, MAX_JOB_SIZE_DEFAULT);
+    return this;
+  }
+
+  protected long targetSize() {
+    return targetSize;
+  }
 }

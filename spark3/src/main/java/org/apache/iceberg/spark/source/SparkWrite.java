@@ -290,9 +290,14 @@ class SparkWrite {
     }
   }
 
-  private class CopyOnWriteMergeWrite extends BaseBatchWrite {
+  class CopyOnWriteMergeWrite extends BaseBatchWrite {
     private final SparkMergeScan scan;
     private final IsolationLevel isolationLevel;
+    private List<DataFile> writtenFiles = null;
+
+    public List<DataFile> writtenFiles(){
+      return writtenFiles;
+    }
 
     private CopyOnWriteMergeWrite(SparkMergeScan scan, IsolationLevel isolationLevel) {
       this.scan = scan;
@@ -339,6 +344,7 @@ class SparkWrite {
       } else {
         throw new IllegalArgumentException("Unsupported isolation level: " + isolationLevel);
       }
+      writtenFiles = ImmutableList.copyOf(files(messages));
     }
 
     private void commitWithSerializableIsolation(OverwriteFiles overwriteFiles,

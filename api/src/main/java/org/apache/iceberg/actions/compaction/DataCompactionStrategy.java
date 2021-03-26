@@ -80,6 +80,8 @@ public interface DataCompactionStrategy extends Serializable {
     }
   }
 
+  DataCompactionStrategy withOptions(Map<String, String> options);
+
   /**
    * Before the compaction strategy rules are applied, the underlying action has the ability to use this expression
    * to filter the FileScanTasks which will be created when planning file reads that will later be run through
@@ -116,7 +118,7 @@ public interface DataCompactionStrategy extends Serializable {
    * based on the particular CompactionStrategy's Algorithm. This will most likely be
    * Action framework specific.
    *
-   * @param table
+   * @param table table being modified
    * @param filesToRewrite a group of files to be rewritten together
    * @return a list of newly committed files
    */
