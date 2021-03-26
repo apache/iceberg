@@ -42,23 +42,23 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
 
   private void verifyInputAndOutputFiles(Set<DataFile> dataFilesToDelete, Set<DeleteFile> deleteFilesToDelete,
                                          Set<DataFile> dataFilesToAdd, Set<DeleteFile> deleteFilesToAdd) {
-    int filesToDelete = 0;
-    if (dataFilesToDelete != null) {
-      filesToDelete += dataFilesToDelete.size();
-    }
+    Preconditions.checkNotNull(dataFilesToDelete, "Data files to delete can not be null");
+    Preconditions.checkNotNull(deleteFilesToDelete, "Delete files to delete can not be null");
+    Preconditions.checkNotNull(dataFilesToAdd, "Data files to add can not be null");
+    Preconditions.checkNotNull(deleteFilesToAdd, "Delete files to add can not be null");
 
-    if (deleteFilesToDelete != null) {
-      filesToDelete += deleteFilesToDelete.size();
-    }
+    int filesToDelete = 0;
+    filesToDelete += dataFilesToDelete.size();
+    filesToDelete += deleteFilesToDelete.size();
 
     Preconditions.checkArgument(filesToDelete > 0, "Files to delete cannot be null or empty");
 
-    if (deleteFilesToDelete == null || deleteFilesToDelete.isEmpty()) {
+    if (deleteFilesToDelete.isEmpty()) {
       // When there is no delete files in the rewrite action, data files to add cannot be null or empty.
-      Preconditions.checkArgument(dataFilesToAdd != null && dataFilesToAdd.size() > 0,
-          "Data files to add can not be null or empty because there's no delete file to be rewritten");
-      Preconditions.checkArgument(deleteFilesToAdd == null || deleteFilesToAdd.isEmpty(),
-          "Delete files to add must be null or empty because there's no delete file to be rewritten");
+      Preconditions.checkArgument(dataFilesToAdd.size() > 0,
+          "Data files to add can not be empty because there's no delete file to be rewritten");
+      Preconditions.checkArgument(deleteFilesToAdd.isEmpty(),
+          "Delete files to add must be empty because there's no delete file to be rewritten");
     }
   }
 
@@ -67,28 +67,20 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
                                    Set<DataFile> dataFilesToAdd, Set<DeleteFile> deleteFilesToAdd) {
     verifyInputAndOutputFiles(dataFilesToDelete, deleteFilesToDelete, dataFilesToAdd, deleteFilesToAdd);
 
-    if (dataFilesToDelete != null) {
-      for (DataFile dataFile : dataFilesToDelete) {
-        delete(dataFile);
-      }
+    for (DataFile dataFile : dataFilesToDelete) {
+      delete(dataFile);
     }
 
-    if (deleteFilesToDelete != null) {
-      for (DeleteFile deleteFile : deleteFilesToDelete) {
-        delete(deleteFile);
-      }
+    for (DeleteFile deleteFile : deleteFilesToDelete) {
+      delete(deleteFile);
     }
 
-    if (dataFilesToAdd != null) {
-      for (DataFile dataFile : dataFilesToAdd) {
-        add(dataFile);
-      }
+    for (DataFile dataFile : dataFilesToAdd) {
+      add(dataFile);
     }
 
-    if (deleteFilesToAdd != null) {
-      for (DeleteFile deleteFile : deleteFilesToAdd) {
-        add(deleteFile);
-      }
+    for (DeleteFile deleteFile : deleteFilesToAdd) {
+      add(deleteFile);
     }
 
     return this;
