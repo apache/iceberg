@@ -26,7 +26,7 @@
  * limitations under the License.
  */
 
-package org.apache.iceberg.actions.compaction;
+package org.apache.iceberg.spark.actions.compaction;
 
 import java.util.List;
 import org.apache.iceberg.DataFile;
@@ -44,7 +44,7 @@ public class SparkBinningCompactionStrategy extends BinningCompactionStrategy {
   }
 
   @Override
-  public List<DataFile> rewriteFiles(Table table, List<FileScanTask> filesToRewrite, String description) {
+  public List<DataFile> rewriteFiles(Table table, List<FileScanTask> filesToRewrite) {
     return SourceUtil.rewriteFiles(spark, table, filesToRewrite, targetSize());
   }
 }

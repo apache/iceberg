@@ -20,22 +20,30 @@
 package org.apache.iceberg.actions;
 
 import java.io.File;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.actions.CompactDataFilesAction;
+import org.apache.iceberg.spark.actions.compaction.BinningCompactionStrategy;
+import org.apache.iceberg.spark.actions.compaction.SparkBinningCompactionStrategy;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -101,36 +109,21 @@ public class TestCompactDataFilesAction3 extends SparkTestBase {
     );
     writeRecords(records2);
 
-    table.refresh();
 
-    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    Assert.assertEquals("Should have 4 data files before rewrite", 4, dataFiles.size());
+    shouldPlanFiles(table, 4);
 
-    Actions actions = Actions.forTable(table);
+    withDataUnchanged( () -> {
+      Actions actions = Actions.forTable(table);
+      CompactDataFiles.Result result = new CompactDataFilesAction(spark, table).execute();
 
+      Assert.assertEquals("Action should run 1 Job", 1, result.resultMap().size());
+      CompactDataFiles.CompactionResult jobResult = result.resultMap().values().iterator().next();
+      Assert.assertEquals("Action should remove 4 datafiles", 4, jobResult.numFilesRemoved());
+      Assert.assertEquals("Action should add 1 datafile", 1, jobResult.numFilesAdded());
+      return;
+    });
 
-    CompactDataFiles.Result result = new CompactDataFilesAction(spark, table).execute();
-
-    //Assert.assertEquals("Action should rewrite 4 data files", 4, result.deletedDataFiles().size());
-    //Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
-
-    table.refresh();
-
-    CloseableIterable<FileScanTask> tasks1 = table.newScan().planFiles();
-    List<DataFile> dataFiles1 = Lists.newArrayList(CloseableIterable.transform(tasks1, FileScanTask::file));
-    Assert.assertEquals("Should have 1 data files before rewrite", 1, dataFiles1.size());
-
-    List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
-    expectedRecords.addAll(records1);
-    expectedRecords.addAll(records2);
-
-    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords = resultDF.sort("c1", "c2")
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
-
-    Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
+    shouldPlanFiles(table, 1);
   }
 
   @Test
@@ -166,35 +159,20 @@ public class TestCompactDataFilesAction3 extends SparkTestBase {
     );
     writeRecords(records4);
 
-    table.refresh();
+    shouldPlanFiles(table, 8);
 
-    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    Assert.assertEquals("Should have 8 data files before rewrite", 8, dataFiles.size());
+    withDataUnchanged(() -> {
+      // TODO we need HMS Catalog so we can do concurrent operations here
+      CompactDataFiles.Result result = new CompactDataFilesAction(spark, table).parallelism(1).execute();
+      Assert.assertEquals("Action should run 4 Jobs", 4, result.resultMap().size());
 
-    // TODO we need HMS Catalog so we can do concurrent operations here
-    CompactDataFiles.Result result = new CompactDataFilesAction(spark, table).parallelism(1).execute();
-    // Assert.assertEquals("Action should rewrite 8 data files", 8, result.deletedDataFiles().size());
-    // Assert.assertEquals("Action should add 4 data file", 4, result.addedDataFiles().size());
+      result.resultMap().values().forEach( jobResult -> {
+        Assert.assertEquals("Action should remove 2 datafiles", 2, jobResult.numFilesRemoved());
+        Assert.assertEquals("Action should add 1 datafile", 1, jobResult.numFilesAdded());
+      });
+    });
 
-    table.refresh();
-
-    CloseableIterable<FileScanTask> tasks1 = table.newScan().planFiles();
-    List<DataFile> dataFiles1 = Lists.newArrayList(CloseableIterable.transform(tasks1, FileScanTask::file));
-    Assert.assertEquals("Should have 4 data files before rewrite", 4, dataFiles1.size());
-
-    List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
-    expectedRecords.addAll(records1);
-    expectedRecords.addAll(records2);
-    expectedRecords.addAll(records3);
-    expectedRecords.addAll(records4);
-
-    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords = resultDF.sort("c1", "c2", "c3")
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
-
-    Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
+    shouldPlanFiles(table, 4);
   }
 
   @Test
@@ -230,40 +208,23 @@ public class TestCompactDataFilesAction3 extends SparkTestBase {
     );
     writeRecords(records4);
 
-    table.refresh();
+   shouldPlanFiles(table, 8);
 
-    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    Assert.assertEquals("Should have 8 data files before rewrite", 8, dataFiles.size());
+   withDataUnchanged(() -> {
+     CompactDataFiles.Result result = new CompactDataFilesAction(spark, table)
+         .filter(Expressions.equal("c1", 1))
+         .filter(Expressions.startsWith("c2", "AA"))
+         .execute();
 
-    CompactDataFiles.Result result = new CompactDataFilesAction(spark, table)
-            .filter(Expressions.equal("c1", 1))
-            .filter(Expressions.startsWith("c2", "AA"))
-            .execute();
-    // Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
-    // Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
+     Assert.assertEquals("Action should run 1 Job", 1, result.resultMap().size());
+     CompactDataFiles.CompactionResult jobResult = result.resultMap().values().iterator().next();
+     Assert.assertEquals("Action should remove 2 datafiles", 2, jobResult.numFilesRemoved());
+     Assert.assertEquals("Action should add 1 datafile", 1, jobResult.numFilesAdded());
+   });
 
-    table.refresh();
-
-    CloseableIterable<FileScanTask> tasks1 = table.newScan().planFiles();
-    List<DataFile> dataFiles1 = Lists.newArrayList(CloseableIterable.transform(tasks1, FileScanTask::file));
-    Assert.assertEquals("Should have 7 data files before rewrite", 7, dataFiles1.size());
-
-    List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
-    expectedRecords.addAll(records1);
-    expectedRecords.addAll(records2);
-    expectedRecords.addAll(records3);
-    expectedRecords.addAll(records4);
-
-    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords = resultDF.sort("c1", "c2", "c3")
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
-
-    Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
+   shouldPlanFiles(table, 7);
   }
 
-  /*
   @Test
   public void testRewriteLargeTableHasResiduals() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).build();
@@ -288,32 +249,22 @@ public class TestCompactDataFilesAction3 extends SparkTestBase {
     for (FileScanTask task : tasks) {
       Assert.assertEquals("Residuals must be ignored", Expressions.alwaysTrue(), task.residual());
     }
-    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    Assert.assertEquals("Should have 2 data files before rewrite", 2, dataFiles.size());
 
-    Actions actions = Actions.forTable(table);
+    shouldPlanFiles(table, 2);
 
-    RewriteDataFilesActionResult result = actions
-        .rewriteDataFiles()
-        .filter(Expressions.equal("c3", "0"))
-        .execute();
-    Assert.assertEquals("Action should rewrite 2 data files", 2, result.deletedDataFiles().size());
-    Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFiles().size());
-
-    table.refresh();
-
-    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords = resultDF.sort("c1")
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
-
-    Assert.assertEquals("Rows must match", records, actualRecords);
+    withDataUnchanged(() -> {
+      CompactDataFiles.Result result = new CompactDataFilesAction(spark, table)
+          .filter(Expressions.equal("c3", "0"))
+          .execute();
+      Assert.assertEquals("Action should run 1 Job", 1, result.resultMap().size());
+      CompactDataFiles.CompactionResult jobResult = result.resultMap().values().iterator().next();
+      Assert.assertEquals("Action should remove 2 datafiles", 2, jobResult.numFilesRemoved());
+      Assert.assertEquals("Action should add 1 datafile", 1, jobResult.numFilesAdded());
+    });
   }
-   */
 
-  /*
   @Test
-  public void testRewriteDataFilesForLargeFile() throws AnalysisException {
+  public void testSplitLargeFile() throws AnalysisException {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
@@ -331,37 +282,51 @@ public class TestCompactDataFilesAction3 extends SparkTestBase {
     );
     writeRecords(records2);
 
-    table.refresh();
+    shouldPlanFiles(table, 3);
 
     CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
     List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
     DataFile maxSizeFile = Collections.max(dataFiles, Comparator.comparingLong(DataFile::fileSizeInBytes));
     Assert.assertEquals("Should have 3 files before rewrite", 3, dataFiles.size());
 
-    spark.read().format("iceberg").load(tableLocation).createTempView("origin");
-    long originalNumRecords = spark.read().format("iceberg").load(tableLocation).count();
-    List<Object[]> originalRecords = sql("SELECT * from origin sort by c2");
+    withDataUnchanged(() -> {
+      long targetSizeInBytes = (maxSizeFile.fileSizeInBytes() - 10) / 4;
+      CompactDataFiles.Result result = new CompactDataFilesAction(spark, table)
+          .option(BinningCompactionStrategy.TARGET_SIZE_OPTION, String.valueOf(targetSizeInBytes))
+          .option(BinningCompactionStrategy.TARGET_THRESHOLD_OPTION, String.valueOf(5))
+          .execute();
 
-    Actions actions = Actions.forTable(table);
+      Assert.assertEquals("Action should run 1 Job", 1, result.resultMap().size());
+      CompactDataFiles.CompactionResult jobResult = result.resultMap().values().iterator().next();
+      Assert.assertEquals("Action should remove 3 datafiles", 3, jobResult.numFilesRemoved());
+      Assert.assertEquals("Action should add 4 datafile", 4, jobResult.numFilesAdded());
+    });
 
-    long targetSizeInBytes = maxSizeFile.fileSizeInBytes() - 10;
-    RewriteDataFilesActionResult result = actions
-        .rewriteDataFiles()
-        .targetSizeInBytes(targetSizeInBytes)
-        .splitOpenFileCost(1)
-        .execute();
-
-    Assert.assertEquals("Action should delete 4 data files", 4, result.deletedDataFiles().size());
-    Assert.assertEquals("Action should add 2 data files", 2, result.addedDataFiles().size());
-
-    spark.read().format("iceberg").load(tableLocation).createTempView("postRewrite");
-    long postRewriteNumRecords = spark.read().format("iceberg").load(tableLocation).count();
-    List<Object[]> rewrittenRecords = sql("SELECT * from postRewrite sort by c2");
-
-    Assert.assertEquals(originalNumRecords, postRewriteNumRecords);
-    assertEquals("Rows should be unchanged", originalRecords, rewrittenRecords);
+    shouldPlanFiles(table, 4);
   }
-   */
+
+  private void shouldPlanFiles(Table table, int files) {
+    table.refresh();
+    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
+    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+    String message = String.format("Should have %d data files when scanning", files);
+    Assert.assertEquals(message, files, dataFiles.size());
+  }
+
+  private void withDataUnchanged(Runnable test) {
+    Dataset<ThreeColumnRecord> tableDF = spark.read().format("iceberg")
+        .load(tableLocation).sort("c1", "c2", "c3")
+        .as(Encoders.bean(ThreeColumnRecord.class));
+
+    List<ThreeColumnRecord> originalRecords = tableDF.collectAsList();
+
+    test.run();
+
+    List<ThreeColumnRecord> postTestRecords = tableDF.collectAsList();
+
+    Assert.assertEquals("Row values were changed, but they should be identical",
+        originalRecords, postTestRecords);
+  }
 
   private void writeRecords(List<ThreeColumnRecord> records) {
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class);

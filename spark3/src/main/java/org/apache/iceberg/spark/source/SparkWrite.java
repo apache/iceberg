@@ -295,7 +295,7 @@ class SparkWrite {
     private final IsolationLevel isolationLevel;
     private List<DataFile> writtenFiles = null;
 
-    public List<DataFile> writtenFiles(){
+    public List<DataFile> writtenFiles() {
       return writtenFiles;
     }
 

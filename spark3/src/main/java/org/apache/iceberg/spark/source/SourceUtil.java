@@ -25,10 +25,10 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.read.Scan;
-import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.LogicalWriteInfoImpl$;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation$;
@@ -53,8 +53,9 @@ public class SourceUtil {
 
     // Build Overwrite from Read
     String queryID = UUID.randomUUID().toString();
-    LogicalWriteInfo info = LogicalWriteInfoImpl$.MODULE$.apply(
-        queryID, sparkSchema, CaseInsensitiveStringMap.empty());
+    CaseInsensitiveStringMap writeOptions = new CaseInsensitiveStringMap(
+        ImmutableMap.of(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, String.valueOf(targetSize)));
+    LogicalWriteInfo info = LogicalWriteInfoImpl$.MODULE$.apply(queryID, sparkSchema, writeOptions);
     SparkWriteBuilder writeBuilder = new SparkWriteBuilder(spark, table, info);
     // Do we make this configurable or use the table property? Maybe best to not let this be changeable ...
     SparkWrite.CopyOnWriteMergeWrite write = (SparkWrite.CopyOnWriteMergeWrite)
@@ -63,6 +64,8 @@ public class SourceUtil {
     WriteToDataSourceV2 writePlan = WriteToDataSourceV2$.MODULE$.apply(
         write,
         DataSourceV2ScanRelation$.MODULE$.apply(sparkTable, scan, sparkSchema.toAttributes()));
+
+    spark.sessionState().executePlan(writePlan).executedPlan().executeCollect();
 
     return write.writtenFiles();
   }

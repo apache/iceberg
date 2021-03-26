@@ -26,13 +26,14 @@
  * limitations under the License.
  */
 
-package org.apache.iceberg.actions.compaction;
+package org.apache.iceberg.spark.actions.compaction;
 
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.actions.compaction.DataCompactionStrategy;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.BinPacking;
 import org.apache.iceberg.util.PropertyUtil;
@@ -45,10 +46,12 @@ import static org.apache.iceberg.util.StreamUtil.streamOf;
  */
 public abstract class BinningCompactionStrategy implements DataCompactionStrategy {
 
+
+  public static final String TARGET_SIZE_OPTION = "target_size";
+  public static final String TARGET_THRESHOLD_OPTION = "target_threshold";
+
   // TODO Maybe these should be global?
-  private static final String TARGET_SIZE_OPTION = "target_size";
-  private static final String TARGET_THRESHOLD_OPTION = "target_threshold";
-  private static final String MAX_JOB_SIZE_OPTION = "max_job_size";
+  public static final String MAX_JOB_SIZE_OPTION = "max_job_size";
 
   protected static final long TARGET_THRESHOLD_DEFAULT = 50 * 1024 * 1024; // 50 MB
   protected static final long TARGET_SIZE_DEFAULT = 512 * 1024 * 1024; // 512 MB (Perhaps always have this passed through from table? target write size?)

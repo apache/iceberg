@@ -12,7 +12,7 @@
  * limitations under the License.
  */
 
-package org.apache.iceberg.actions;
+package org.apache.iceberg.spark.actions;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -25,20 +25,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.actions.CompactDataFiles;
 import org.apache.iceberg.actions.compaction.DataCompactionStrategy;
-import org.apache.iceberg.actions.compaction.SparkBinningCompactionStrategy;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
-import org.apache.iceberg.spark.actions.BaseSparkAction;
+import org.apache.iceberg.spark.actions.compaction.SparkBinningCompactionStrategy;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.SparkSession;
@@ -63,17 +60,20 @@ public class CompactDataFilesAction extends BaseSparkAction<CompactDataFiles, Co
     this.compactionStrategy = new SparkBinningCompactionStrategy(spark);
   }
 
+  @Override
   public CompactDataFilesAction parallelism(int par) {
     parallelism = par;
     return this;
   }
 
+  @Override
   public CompactDataFilesAction compactionStrategy(DataCompactionStrategy strategy) {
     compactionStrategy = strategy;
     return this;
   }
 
   // Todo Do we want to allow generic class loading here? I think yes this will probably be framework specific
+  @Override
   public CompactDataFilesAction compactionStrategy(String strategyName) {
     compactionStrategy = (DataCompactionStrategy) DynConstructors.builder().impl(strategyName).build().newInstance();
     return this;
@@ -87,6 +87,7 @@ public class CompactDataFilesAction extends BaseSparkAction<CompactDataFiles, Co
 
   @Override
   public CompactDataFiles.Result execute() {
+    compactionStrategy.withOptions(options());
     CloseableIterable<FileScanTask> files = table.newScan()
         .filter(Expressions.and(filters, compactionStrategy.preFilter()))
         .ignoreResiduals()
@@ -129,7 +130,7 @@ public class CompactDataFilesAction extends BaseSparkAction<CompactDataFiles, Co
         parallelism, totalJobs, totalPartitions);
 
     // Concurrent Map here to collect results?
-    ConcurrentHashMap<StructLike, Integer> completedJobs = new ConcurrentHashMap();
+    ConcurrentHashMap<CompactionJobInfo, CompactionResult> completedJobs = new ConcurrentHashMap();
 
     try {
       Tasks.foreach(jobStream.iterator())
@@ -138,24 +139,21 @@ public class CompactDataFilesAction extends BaseSparkAction<CompactDataFiles, Co
           .noRetry() // Debatable
           .run(job -> {
             CompactionJobInfo info = job.first();
-            final String jobDescription = String.format("Compaction Job (%d / %d) - Partition %s - " +
-                            "Partition Job (%d / %d) - %d Files To Compact",
-                    info.jobIndex(), totalJobs, info.partition(), info.partitionIndex(),
-                    jobsPerPartition.get(info.partition()), job.second().size());
-
+            List<FileScanTask> filesToRewrite = job.second();
             LOG.info("Compaction Job ({} / {}) - Partition {} -  Partition Job ({} / {}) - {} Files To Compact",
                     info.jobIndex(), totalJobs, info.partition(), info.partitionIndex(),
-                    jobsPerPartition.get(info.partition()), job.second().size());
+                    jobsPerPartition.get(info.partition()), filesToRewrite.size());
             LOG.trace("Job {} will compact files:\n{}",
-                job.second().stream().map(t -> t.file().path()).collect(Collectors.joining("\n")));
+                filesToRewrite.stream().map(t -> t.file().path()).collect(Collectors.joining("\n")));
 
-            compactionStrategy.rewriteFiles(table, job.second(), jobDescription);
+            int numWrittenFiles = compactionStrategy.rewriteFiles(table, filesToRewrite).size();
+            completedJobs.put(info, new CompactionResult(filesToRewrite.size(), numWrittenFiles));
           });
     } finally {
       executorService.shutdown();
     }
 
-    return null;
+    return new CompactDataFiles.Result(completedJobs);
   }
 
   @Override
