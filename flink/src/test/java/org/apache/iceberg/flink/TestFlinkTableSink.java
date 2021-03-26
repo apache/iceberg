@@ -19,13 +19,8 @@
 
 package org.apache.iceberg.flink;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
@@ -39,7 +34,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -278,23 +272,12 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
     ));
 
     Assert.assertEquals("There should be only 1 data file in partition 'aaa'", 1,
-        partitionFiles(tableName, "aaa").size());
+        SimpleDataUtil.partitionDataFiles(table, ImmutableMap.of("data", "aaa")).size());
     Assert.assertEquals("There should be only 1 data file in partition 'bbb'", 1,
-        partitionFiles(tableName, "bbb").size());
+        SimpleDataUtil.partitionDataFiles(table, ImmutableMap.of("data", "bbb")).size());
     Assert.assertEquals("There should be only 1 data file in partition 'ccc'", 1,
-        partitionFiles(tableName, "ccc").size());
+        SimpleDataUtil.partitionDataFiles(table, ImmutableMap.of("data", "ccc")).size());
 
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
-  }
-
-  private List<Path> partitionFiles(String table, String partition) throws IOException {
-    String databasePath = Joiner.on("/").join(baseNamespace.levels()) + "/" + DATABASE;
-    if (!isHadoopCatalog) {
-      databasePath = databasePath + ".db";
-    }
-    Path dir = Paths.get(warehouseRoot(), databasePath, table, "data", String.format("data=%s", partition));
-    return Files.list(dir)
-        .filter(p -> !p.toString().endsWith(".crc"))
-        .collect(Collectors.toList());
   }
 }
