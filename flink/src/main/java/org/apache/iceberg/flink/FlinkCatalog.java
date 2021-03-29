@@ -91,17 +91,15 @@ public class FlinkCatalog extends AbstractCatalog {
 
   private final CatalogLoader catalogLoader;
   private final Catalog icebergCatalog;
-  private final String[] baseNamespace;
+  private final Namespace baseNamespace;
   private final SupportsNamespaces asNamespaceCatalog;
   private final Closeable closeable;
   private final boolean cacheEnabled;
 
-  // TODO - Update baseNamespace to use Namespace class
-  // https://github.com/apache/iceberg/issues/1541
   public FlinkCatalog(
       String catalogName,
       String defaultDatabase,
-      String[] baseNamespace,
+      Namespace baseNamespace,
       CatalogLoader catalogLoader,
       boolean cacheEnabled) {
     super(catalogName, defaultDatabase);
@@ -141,10 +139,10 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   private Namespace toNamespace(String database) {
-    String[] namespace = new String[baseNamespace.length + 1];
-    System.arraycopy(baseNamespace, 0, namespace, 0, baseNamespace.length);
-    namespace[baseNamespace.length] = database;
-    return Namespace.of(namespace);
+    List<String> namespaces = Lists.newArrayListWithExpectedSize(baseNamespace.levels().length + 1);
+    Collections.addAll(namespaces, baseNamespace.levels());
+    Collections.addAll(namespaces, database);
+    return Namespace.of(namespaces.toArray(new String[0]));
   }
 
   TableIdentifier toIdentifier(ObjectPath path) {
@@ -157,7 +155,7 @@ public class FlinkCatalog extends AbstractCatalog {
       return Collections.singletonList(getDefaultDatabase());
     }
 
-    return asNamespaceCatalog.listNamespaces(Namespace.of(baseNamespace)).stream()
+    return asNamespaceCatalog.listNamespaces(baseNamespace).stream()
         .map(n -> n.level(n.levels().length - 1))
         .collect(Collectors.toList());
   }
