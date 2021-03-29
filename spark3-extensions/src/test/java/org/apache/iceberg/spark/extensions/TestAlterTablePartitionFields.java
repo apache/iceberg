@@ -272,4 +272,100 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
 
     Assert.assertEquals("Should have new spec field", expected, table.spec());
   }
+
+  @Test
+  public void testReplacePartition() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, category string, ts timestamp, data string) USING iceberg", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertTrue("Table should start unpartitioned", table.spec().isUnpartitioned());
+
+    sql("ALTER TABLE %s ADD PARTITION FIELD days(ts)", tableName);
+    table.refresh();
+    PartitionSpec expected = PartitionSpec.builderFor(table.schema())
+        .withSpecId(1)
+        .day("ts")
+        .build();
+    Assert.assertEquals("Should have new spec field", expected, table.spec());
+
+    sql("ALTER TABLE %s REPLACE PARTITION FIELD days(ts) WITH hours(ts)", tableName);
+    table.refresh();
+    expected = PartitionSpec.builderFor(table.schema())
+        .withSpecId(2)
+        .alwaysNull("ts", "ts_day")
+        .hour("ts")
+        .build();
+    Assert.assertEquals("Should changed from daily to hourly partitioned field", expected, table.spec());
+  }
+
+  @Test
+  public void testReplacePartitionAndRename() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, category string, ts timestamp, data string) USING iceberg", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertTrue("Table should start unpartitioned", table.spec().isUnpartitioned());
+
+    sql("ALTER TABLE %s ADD PARTITION FIELD days(ts)", tableName);
+    table.refresh();
+    PartitionSpec expected = PartitionSpec.builderFor(table.schema())
+        .withSpecId(1)
+        .day("ts")
+        .build();
+    Assert.assertEquals("Should have new spec field", expected, table.spec());
+
+    sql("ALTER TABLE %s REPLACE PARTITION FIELD days(ts) WITH hours(ts) AS hour_col", tableName);
+    table.refresh();
+    expected = PartitionSpec.builderFor(table.schema())
+        .withSpecId(2)
+        .alwaysNull("ts", "ts_day")
+        .hour("ts", "hour_col")
+        .build();
+    Assert.assertEquals("Should changed from daily to hourly partitioned field", expected, table.spec());
+  }
+
+  @Test
+  public void testReplaceNamedPartition() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, category string, ts timestamp, data string) USING iceberg", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertTrue("Table should start unpartitioned", table.spec().isUnpartitioned());
+
+    sql("ALTER TABLE %s ADD PARTITION FIELD days(ts) AS day_col", tableName);
+    table.refresh();
+    PartitionSpec expected = PartitionSpec.builderFor(table.schema())
+        .withSpecId(1)
+        .day("ts", "day_col")
+        .build();
+    Assert.assertEquals("Should have new spec field", expected, table.spec());
+
+    sql("ALTER TABLE %s REPLACE PARTITION FIELD day_col WITH hours(ts)", tableName);
+    table.refresh();
+    expected = PartitionSpec.builderFor(table.schema())
+        .withSpecId(2)
+        .alwaysNull("ts", "day_col")
+        .hour("ts")
+        .build();
+    Assert.assertEquals("Should changed from daily to hourly partitioned field", expected, table.spec());
+  }
+
+  @Test
+  public void testReplaceNamedPartitionAndRenameDifferently() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, category string, ts timestamp, data string) USING iceberg", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertTrue("Table should start unpartitioned", table.spec().isUnpartitioned());
+
+    sql("ALTER TABLE %s ADD PARTITION FIELD days(ts) AS day_col", tableName);
+    table.refresh();
+    PartitionSpec expected = PartitionSpec.builderFor(table.schema())
+        .withSpecId(1)
+        .day("ts", "day_col")
+        .build();
+    Assert.assertEquals("Should have new spec field", expected, table.spec());
+
+    sql("ALTER TABLE %s REPLACE PARTITION FIELD day_col WITH hours(ts) AS hour_col", tableName);
+    table.refresh();
+    expected = PartitionSpec.builderFor(table.schema())
+        .withSpecId(2)
+        .alwaysNull("ts", "day_col")
+        .hour("ts", "hour_col")
+        .build();
+    Assert.assertEquals("Should changed from daily to hourly partitioned field", expected, table.spec());
+  }
 }
