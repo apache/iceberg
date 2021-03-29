@@ -40,19 +40,47 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
     return DataOperations.REPLACE;
   }
 
-  @Override
-  public RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd) {
-    Preconditions.checkArgument(filesToDelete != null && !filesToDelete.isEmpty(),
-        "Files to delete cannot be null or empty");
-    Preconditions.checkArgument(filesToAdd != null && !filesToAdd.isEmpty(),
-        "Files to add can not be null or empty");
+  private void verifyInputAndOutputFiles(Set<DataFile> dataFilesToDelete, Set<DeleteFile> deleteFilesToDelete,
+                                         Set<DataFile> dataFilesToAdd, Set<DeleteFile> deleteFilesToAdd) {
+    Preconditions.checkNotNull(dataFilesToDelete, "Data files to delete can not be null");
+    Preconditions.checkNotNull(deleteFilesToDelete, "Delete files to delete can not be null");
+    Preconditions.checkNotNull(dataFilesToAdd, "Data files to add can not be null");
+    Preconditions.checkNotNull(deleteFilesToAdd, "Delete files to add can not be null");
 
-    for (DataFile toDelete : filesToDelete) {
-      delete(toDelete);
+    int filesToDelete = 0;
+    filesToDelete += dataFilesToDelete.size();
+    filesToDelete += deleteFilesToDelete.size();
+
+    Preconditions.checkArgument(filesToDelete > 0, "Files to delete cannot be null or empty");
+
+    if (deleteFilesToDelete.isEmpty()) {
+      // When there is no delete files in the rewrite action, data files to add cannot be null or empty.
+      Preconditions.checkArgument(dataFilesToAdd.size() > 0,
+          "Data files to add can not be empty because there's no delete file to be rewritten");
+      Preconditions.checkArgument(deleteFilesToAdd.isEmpty(),
+          "Delete files to add must be empty because there's no delete file to be rewritten");
+    }
+  }
+
+  @Override
+  public RewriteFiles rewriteFiles(Set<DataFile> dataFilesToDelete, Set<DeleteFile> deleteFilesToDelete,
+                                   Set<DataFile> dataFilesToAdd, Set<DeleteFile> deleteFilesToAdd) {
+    verifyInputAndOutputFiles(dataFilesToDelete, deleteFilesToDelete, dataFilesToAdd, deleteFilesToAdd);
+
+    for (DataFile dataFile : dataFilesToDelete) {
+      delete(dataFile);
     }
 
-    for (DataFile toAdd : filesToAdd) {
-      add(toAdd);
+    for (DeleteFile deleteFile : deleteFilesToDelete) {
+      delete(deleteFile);
+    }
+
+    for (DataFile dataFile : dataFilesToAdd) {
+      add(dataFile);
+    }
+
+    for (DeleteFile deleteFile : deleteFilesToAdd) {
+      add(deleteFile);
     }
 
     return this;
