@@ -33,6 +33,6 @@ case class ReplacePartitionField(
 
   override def simpleString(maxFields: Int): String = {
     s"ReplacePartitionField ${table.quoted} ${transformFrom.describe} " +
-        s"to ${name.map(n => s"$n=").getOrElse("")}${transformTo.describe}"
+        s"with ${name.map(n => s"$n=").getOrElse("")}${transformTo.describe}"
   }
 }

@@ -67,6 +67,6 @@ case class ReplacePartitionFieldExec(
 
   override def simpleString(maxFields: Int): String = {
     s"ReplacePartitionField ${catalog.name}.${ident.quoted} ${transformFrom.describe} " +
-        s"to ${name.map(n => s"$n=").getOrElse("")}${transformTo.describe}"
+        s"with ${name.map(n => s"$n=").getOrElse("")}${transformTo.describe}"
   }
 }
