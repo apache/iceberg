@@ -21,10 +21,10 @@ package org.apache.iceberg.actions;
 
 import java.util.List;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.RewriteResult;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.source.RowDataRewriter;
 import org.apache.spark.api.java.JavaRDD;
@@ -62,7 +62,7 @@ public class RewriteDataFilesAction
   }
 
   @Override
-  protected List<DataFile> rewriteDataForTasks(List<CombinedScanTask> combinedScanTasks) {
+  protected RewriteResult rewriteDataForTasks(List<CombinedScanTask> combinedScanTasks) {
     JavaRDD<CombinedScanTask> taskRDD = sparkContext.parallelize(combinedScanTasks, combinedScanTasks.size());
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table()));
     RowDataRewriter rowDataRewriter = new RowDataRewriter(tableBroadcast, spec(), caseSensitive());
