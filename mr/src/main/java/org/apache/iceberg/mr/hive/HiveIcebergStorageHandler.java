@@ -48,7 +48,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializationUtil;
 
 public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, HiveStorageHandler {
-  private static final Splitter DOUBLE_DOT = Splitter.on("..");
+  private static final Splitter TABLE_NAME_SPLITTER = Splitter.on("..");
+  private static final String TABLE_NAME_SEPARATOR = "..";
 
   static final String WRITE_KEY = "HiveIcebergStorageHandler_write";
 
@@ -112,10 +113,10 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   public void configureJobConf(TableDesc tableDesc, JobConf jobConf) {
     if (tableDesc != null && tableDesc.getProperties() != null &&
         tableDesc.getProperties().get(WRITE_KEY) != null) {
-      Preconditions.checkArgument(!tableDesc.getTableName().contains(".."),
-          "Can not handle table " + tableDesc.getTableName() + ". It's name contains '..'");
+      Preconditions.checkArgument(!tableDesc.getTableName().contains(TABLE_NAME_SEPARATOR),
+          "Can not handle table " + tableDesc.getTableName() + ". Its name contains '" + TABLE_NAME_SEPARATOR + "'");
       String tables = jobConf.get(InputFormatConfig.OUTPUT_TABLES);
-      tables = tables == null ? tableDesc.getTableName() : tables + ".." + tableDesc.getTableName();
+      tables = tables == null ? tableDesc.getTableName() : tables + TABLE_NAME_SEPARATOR + tableDesc.getTableName();
 
       jobConf.set("mapred.output.committer.class", HiveIcebergOutputCommitter.class.getName());
       jobConf.set(InputFormatConfig.OUTPUT_TABLES, tables);
@@ -162,12 +163,12 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   }
 
   /**
-   * Returns the names of tha output tables stored in the configuration.
+   * Returns the names of the output tables stored in the configuration.
    * @param config The configuration used to get the data from
    * @return The collection of the table names as returned by TableDesc.getTableName()
    */
   public static Collection<String> outputTables(Configuration config) {
-    return DOUBLE_DOT.splitToList(config.get(InputFormatConfig.OUTPUT_TABLES));
+    return TABLE_NAME_SPLITTER.splitToList(config.get(InputFormatConfig.OUTPUT_TABLES));
   }
 
   /**

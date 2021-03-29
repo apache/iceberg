@@ -68,6 +68,7 @@ public class HiveIcebergOutputFormat<T> implements OutputFormat<NullWritable, Co
 
   private static HiveIcebergRecordWriter writer(JobConf jc) {
     TaskAttemptID taskAttemptID = TezUtil.taskAttemptWrapper(jc);
+    // It gets the config from the FileSinkOperator which has its own config for every target table
     Table table = HiveIcebergStorageHandler.table(jc, jc.get(hive_metastoreConstants.META_TABLE_NAME));
     Schema schema = HiveIcebergStorageHandler.schema(jc);
     PartitionSpec spec = table.spec();
@@ -81,9 +82,9 @@ public class HiveIcebergOutputFormat<T> implements OutputFormat<NullWritable, Co
     OutputFileFactory outputFileFactory =
         new OutputFileFactory(spec, fileFormat, location, io, encryption, taskAttemptID.getTaskID().getId(),
             taskAttemptID.getId(), jc.get(HiveConf.ConfVars.HIVEQUERYID.varname) + "-" + taskAttemptID.getJobID());
-    String targetLocation = jc.get(Catalogs.NAME);
+    String tableName = jc.get(Catalogs.NAME);
     HiveIcebergRecordWriter writer = new HiveIcebergRecordWriter(schema, spec, fileFormat,
-        new GenericAppenderFactory(schema, spec), outputFileFactory, io, targetFileSize, taskAttemptID, targetLocation);
+        new GenericAppenderFactory(schema, spec), outputFileFactory, io, targetFileSize, taskAttemptID, tableName);
 
     return writer;
   }

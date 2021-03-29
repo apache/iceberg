@@ -26,7 +26,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -159,7 +158,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
     LOG.info("Committing job {} has started", jobContext.getJobID());
 
     Collection<String> outputs = HiveIcebergStorageHandler.outputTables(jobContext.getJobConf());
-    Queue<String> jobLocations = new ConcurrentLinkedQueue<>();
+    Collection<String> jobLocations = new ConcurrentLinkedQueue<>();
 
     ExecutorService fileExecutor = fileExecutor(jobConf);
     ExecutorService tableExecutor = tableExecutor(jobConf, outputs.size());
@@ -200,7 +199,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
 
     LOG.info("Job {} is aborted. Data file cleaning started", jobContext.getJobID());
     Collection<String> outputs = HiveIcebergStorageHandler.outputTables(jobContext.getJobConf());
-    Queue<String> jobLocations = new ConcurrentLinkedQueue<>();
+    Collection<String> jobLocations = new ConcurrentLinkedQueue<>();
 
     ExecutorService fileExecutor = fileExecutor(jobConf);
     ExecutorService tableExecutor = tableExecutor(jobConf, outputs.size());
@@ -215,7 +214,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
 
             Table table = HiveIcebergStorageHandler.table(jobConf, output);
             jobLocations.add(generateJobLocation(table.location(), jobConf, jobContext.getJobID()));
-            Queue<DataFile> dataFiles = dataFiles(fileExecutor, table.location(), jobContext, table.io(), false);
+            Collection<DataFile> dataFiles = dataFiles(fileExecutor, table.location(), jobContext, table.io(), false);
 
             // Check if we have files already committed and remove data files if there are any
             if (dataFiles.size() > 0) {
@@ -258,7 +257,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
     LOG.info("Committing job has started for table: {}, using location: {}",
         table, generateJobLocation(location, conf, jobContext.getJobID()));
 
-    Queue<DataFile> dataFiles = dataFiles(executor, location, jobContext, io, true);
+    Collection<DataFile> dataFiles = dataFiles(executor, location, jobContext, io, true);
 
     if (dataFiles.size() > 0) {
       // Appending data files to the table
@@ -348,14 +347,14 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
    * @param throwOnFailure If <code>true</code> then it throws an exception on failure
    * @return The list of the committed data files
    */
-  private static Queue<DataFile> dataFiles(ExecutorService executor, String location, JobContext jobContext, FileIO io,
-      boolean throwOnFailure) {
+  private static Collection<DataFile> dataFiles(ExecutorService executor, String location, JobContext jobContext,
+      FileIO io, boolean throwOnFailure) {
     JobConf conf = jobContext.getJobConf();
     // If there are reducers, then every reducer will generate a result file.
     // If this is a map only task, then every mapper will generate a result file.
     int expectedFiles = conf.getNumReduceTasks() > 0 ? conf.getNumReduceTasks() : conf.getNumMapTasks();
 
-    Queue<DataFile> dataFiles = new ConcurrentLinkedQueue<>();
+    Collection<DataFile> dataFiles = new ConcurrentLinkedQueue<>();
 
     // Reading the committed files. The assumption here is that the taskIds are generated in sequential order
     // starting from 0.

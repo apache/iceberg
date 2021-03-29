@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
 import org.apache.hadoop.conf.Configuration;
@@ -94,10 +95,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   @Override
   public List<InputSplit> getSplits(JobContext context) {
     Configuration conf = context.getConfiguration();
-    Table table = HiveIcebergStorageHandler.table(conf, conf.get(InputFormatConfig.TABLE_IDENTIFIER));
-    if (table == null) {
-      table = Catalogs.loadTable(conf);
-    }
+    Table table = Optional
+        .ofNullable(HiveIcebergStorageHandler.table(conf, conf.get(InputFormatConfig.TABLE_IDENTIFIER)))
+        .orElseGet(() -> Catalogs.loadTable(conf));
 
     TableScan scan = table.newScan()
             .caseSensitive(conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, InputFormatConfig.CASE_SENSITIVE_DEFAULT));
@@ -128,8 +128,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       scan = scan.filter(filter);
     }
 
-    FileIO io = table.io();
-    EncryptionManager encryption = table.encryption();
     List<InputSplit> splits = Lists.newArrayList();
     boolean applyResidual = !conf.getBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, false);
     InputFormatConfig.InMemoryDataModel model = conf.getEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL,
@@ -141,7 +139,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           // TODO: We do not support residual evaluation for HIVE and PIG in memory data model yet
           checkResiduals(task);
         }
-        splits.add(new IcebergSplit(conf, task, io, encryption));
+        splits.add(new IcebergSplit(conf, task, table.io(), table.encryption()));
       });
     } catch (IOException e) {
       throw new UncheckedIOException(String.format("Failed to close table scan: %s", scan), e);
