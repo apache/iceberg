@@ -18,7 +18,6 @@
 #
 
 import logging
-
 from multiprocessing import cpu_count
 from multiprocessing.dummy import Pool
 from typing import Callable
