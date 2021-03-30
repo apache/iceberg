@@ -27,10 +27,12 @@ import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.LogicalWriteInfoImpl$;
+import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation$;
 import org.apache.spark.sql.execution.datasources.v2.WriteToDataSourceV2;
 import org.apache.spark.sql.execution.datasources.v2.WriteToDataSourceV2$;
@@ -65,7 +67,8 @@ public class SourceUtil {
         write,
         DataSourceV2ScanRelation$.MODULE$.apply(sparkTable, scan, sparkSchema.toAttributes()));
 
-    spark.sessionState().executePlan(writePlan).executedPlan().executeCollect();
+    Dataset overwriteDf = Dataset.ofRows(spark, writePlan);
+    overwriteDf.collect();
 
     return write.writtenFiles();
   }

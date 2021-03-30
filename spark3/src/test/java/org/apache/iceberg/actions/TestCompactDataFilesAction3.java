@@ -263,6 +263,11 @@ public class TestCompactDataFilesAction3 extends SparkTestBase {
     });
   }
 
+  /**
+   * Creates one large file and 2 small files. The large file should be split into 4 pieces, 3 pieces each being
+   * large enough to make their own target size file, the last piece needs to be combined with the 2 small files
+   * to make a target size file.
+   */
   @Test
   public void testSplitLargeFile() throws AnalysisException {
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -270,9 +275,11 @@ public class TestCompactDataFilesAction3 extends SparkTestBase {
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
     Assert.assertNull("Table must be empty", table.currentSnapshot());
 
-    List<ThreeColumnRecord> records1 = Lists.newArrayList();
+    // Reader can only split tasks on row-groups and only checks for rollovers on 1000 Row Intervals
+    table.updateProperties().set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, "2000").commit();
 
-    IntStream.range(0, 2000).forEach(i -> records1.add(new ThreeColumnRecord(i, "foo" + i, "bar" + i)));
+    List<ThreeColumnRecord> records1 = Lists.newArrayList();
+    IntStream.range(0, 10000).forEach(i -> records1.add(new ThreeColumnRecord(i, "foo" + i, "bar" + i)));
     Dataset<Row> df = spark.createDataFrame(records1, ThreeColumnRecord.class).repartition(1);
     writeDF(df);
 
