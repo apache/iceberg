@@ -47,10 +47,12 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.mr.Catalogs;
+import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.mr.mapred.Container;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SerializationUtil;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -58,7 +60,7 @@ import org.junit.rules.TemporaryFolder;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-import static org.apache.iceberg.mr.hive.HiveIcebergRecordWriter.getWriter;
+import static org.apache.iceberg.mr.hive.HiveIcebergRecordWriter.getWriters;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestHiveIcebergOutputCommitter {
@@ -107,7 +109,7 @@ public class TestHiveIcebergOutputCommitter {
     HiveIcebergOutputCommitter committer = new HiveIcebergOutputCommitter();
     Table table = table(temp.getRoot().getPath(), false);
     JobConf conf = jobConf(table, 1);
-    List<Record> expected = writeRecords(1, 0, true, false, conf);
+    List<Record> expected = writeRecords(table.name(), 1, 0, true, false, conf);
     committer.commitJob(new JobContextImpl(conf, JOB_ID));
 
     HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 1);
@@ -119,7 +121,7 @@ public class TestHiveIcebergOutputCommitter {
     HiveIcebergOutputCommitter committer = new HiveIcebergOutputCommitter();
     Table table = table(temp.getRoot().getPath(), true);
     JobConf conf = jobConf(table, 1);
-    List<Record> expected = writeRecords(1, 0, true, false, conf);
+    List<Record> expected = writeRecords(table.name(), 1, 0, true, false, conf);
     committer.commitJob(new JobContextImpl(conf, JOB_ID));
 
     HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 3);
@@ -131,7 +133,7 @@ public class TestHiveIcebergOutputCommitter {
     HiveIcebergOutputCommitter committer = new HiveIcebergOutputCommitter();
     Table table = table(temp.getRoot().getPath(), false);
     JobConf conf = jobConf(table, 2);
-    List<Record> expected = writeRecords(2, 0, true, false, conf);
+    List<Record> expected = writeRecords(table.name(), 2, 0, true, false, conf);
     committer.commitJob(new JobContextImpl(conf, JOB_ID));
 
     HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 2);
@@ -143,7 +145,7 @@ public class TestHiveIcebergOutputCommitter {
     HiveIcebergOutputCommitter committer = new HiveIcebergOutputCommitter();
     Table table = table(temp.getRoot().getPath(), true);
     JobConf conf = jobConf(table, 2);
-    List<Record> expected = writeRecords(2, 0, true, false, conf);
+    List<Record> expected = writeRecords(table.name(), 2, 0, true, false, conf);
     committer.commitJob(new JobContextImpl(conf, JOB_ID));
 
     HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 6);
@@ -157,18 +159,18 @@ public class TestHiveIcebergOutputCommitter {
     JobConf conf = jobConf(table, 2);
 
     // Write records and abort the tasks
-    writeRecords(2, 0, false, true, conf);
+    writeRecords(table.name(), 2, 0, false, true, conf);
     HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 0);
     HiveIcebergTestUtils.validateData(table, Collections.emptyList(), 0);
 
     // Write records but do not abort the tasks
     // The data files remain since we can not identify them but should not be read
-    writeRecords(2, 1, false, false, conf);
+    writeRecords(table.name(), 2, 1, false, false, conf);
     HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 2);
     HiveIcebergTestUtils.validateData(table, Collections.emptyList(), 0);
 
     // Write and commit the records
-    List<Record> expected = writeRecords(2, 2, true, false, conf);
+    List<Record> expected = writeRecords(table.name(), 2, 2, true, false, conf);
     committer.commitJob(new JobContextImpl(conf, JOB_ID));
     HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 4);
     HiveIcebergTestUtils.validateData(table, expected, 0);
@@ -179,7 +181,7 @@ public class TestHiveIcebergOutputCommitter {
     HiveIcebergOutputCommitter committer = new HiveIcebergOutputCommitter();
     Table table = table(temp.getRoot().getPath(), false);
     JobConf conf = jobConf(table, 1);
-    writeRecords(1, 0, true, false, conf);
+    writeRecords(table.name(), 1, 0, true, false, conf);
     committer.abortJob(new JobContextImpl(conf, JOB_ID), JobStatus.State.FAILED);
 
     HiveIcebergTestUtils.validateFiles(table, conf, JOB_ID, 0);
@@ -198,7 +200,7 @@ public class TestHiveIcebergOutputCommitter {
     Table table = table(temp.getRoot().getPath(), false);
     JobConf conf = jobConf(table, 1);
     try {
-      writeRecords(1, 0, true, false, conf, failingCommitter);
+      writeRecords(table.name(), 1, 0, true, false, conf, failingCommitter);
       Assert.fail();
     } catch (RuntimeException e) {
       Assert.assertTrue(e.getMessage().contains(exceptionMessage));
@@ -207,10 +209,10 @@ public class TestHiveIcebergOutputCommitter {
     Assert.assertEquals(1, argumentCaptor.getAllValues().size());
     TaskAttemptID capturedId = TezUtil.taskAttemptWrapper(argumentCaptor.getValue().getTaskAttemptID());
     // writer is still in the map after commitTask failure
-    Assert.assertNotNull(getWriter(capturedId));
+    Assert.assertNotNull(getWriters(capturedId));
     failingCommitter.abortTask(new TaskAttemptContextImpl(conf, capturedId));
     // abortTask succeeds and removes writer
-    Assert.assertNull(getWriter(capturedId));
+    Assert.assertNull(getWriters(capturedId));
   }
 
   private Table table(String location, boolean partitioned) {
@@ -223,6 +225,8 @@ public class TestHiveIcebergOutputCommitter {
     conf.setNumMapTasks(taskNum);
     conf.setNumReduceTasks(0);
     conf.set(HiveConf.ConfVars.HIVEQUERYID.varname, QUERY_ID);
+    conf.set(InputFormatConfig.OUTPUT_TABLES, table.name());
+    conf.set(InputFormatConfig.SERIALIZED_TABLE_PREFIX + table.name(), SerializationUtil.serializeToBase64(table));
 
     Map<String, String> propMap = Maps.newHashMap();
     TableDesc tableDesc = new TableDesc();
@@ -237,6 +241,7 @@ public class TestHiveIcebergOutputCommitter {
   /**
    * Write random records to the given table using separate {@link HiveIcebergOutputCommitter} and
    * a separate {@link HiveIcebergRecordWriter} for every task.
+   * @param name The name of the table to get the table object from the conf
    * @param taskNum The number of tasks in the job handled by the committer
    * @param attemptNum The id used for attempt number generation
    * @param commitTasks If <code>true</code> the tasks will be committed
@@ -247,11 +252,11 @@ public class TestHiveIcebergOutputCommitter {
    * @return The random generated records which were appended to the table
    * @throws IOException Propagating {@link HiveIcebergRecordWriter} exceptions
    */
-  private List<Record> writeRecords(int taskNum, int attemptNum, boolean commitTasks, boolean abortTasks,
+  private List<Record> writeRecords(String name, int taskNum, int attemptNum, boolean commitTasks, boolean abortTasks,
                                     JobConf conf, OutputCommitter committer) throws IOException {
     List<Record> expected = new ArrayList<>(RECORD_NUM * taskNum);
 
-    Table table = HiveIcebergStorageHandler.table(conf);
+    Table table = HiveIcebergStorageHandler.table(conf, name);
     FileIO io = table.io();
     LocationProvider location = table.locationProvider();
     EncryptionManager encryption = table.encryption();
@@ -266,7 +271,7 @@ public class TestHiveIcebergOutputCommitter {
               attemptNum, QUERY_ID + "-" + JOB_ID);
       HiveIcebergRecordWriter testWriter = new HiveIcebergRecordWriter(schema, spec, FileFormat.PARQUET,
           new GenericAppenderFactory(schema), outputFileFactory, io, TARGET_FILE_SIZE,
-          TezUtil.taskAttemptWrapper(taskId));
+          TezUtil.taskAttemptWrapper(taskId), conf.get(Catalogs.NAME));
 
       Container<Record> container = new Container<>();
 
@@ -287,8 +292,8 @@ public class TestHiveIcebergOutputCommitter {
     return expected;
   }
 
-  private List<Record> writeRecords(int taskNum, int attemptNum, boolean commitTasks, boolean abortTasks,
+  private List<Record> writeRecords(String name, int taskNum, int attemptNum, boolean commitTasks, boolean abortTasks,
                                     JobConf conf) throws IOException {
-    return writeRecords(taskNum, attemptNum, commitTasks, abortTasks, conf, new HiveIcebergOutputCommitter());
+    return writeRecords(name, taskNum, attemptNum, commitTasks, abortTasks, conf, new HiveIcebergOutputCommitter());
   }
 }

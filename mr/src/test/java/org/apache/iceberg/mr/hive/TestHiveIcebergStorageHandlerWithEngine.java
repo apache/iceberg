@@ -621,6 +621,47 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     HiveIcebergTestUtils.validateData(table, records, 0);
   }
 
+  @Test
+  public void testMultiTableInsert() throws IOException {
+    Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
+
+    testTables.createTable(shell, "customers", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
+        fileFormat, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
+
+    Schema target1Schema = new Schema(
+        optional(1, "customer_id", Types.LongType.get()),
+        optional(2, "first_name", Types.StringType.get())
+    );
+
+    Schema target2Schema = new Schema(
+        optional(1, "last_name", Types.StringType.get()),
+        optional(2, "customer_id", Types.LongType.get())
+    );
+
+    List<Record> target1Records = TestHelper.RecordsBuilder.newInstance(target1Schema)
+        .add(0L, "Alice")
+        .add(1L, "Bob")
+        .add(2L, "Trudy")
+        .build();
+
+    List<Record> target2Records = TestHelper.RecordsBuilder.newInstance(target2Schema)
+        .add("Brown", 0L)
+        .add("Green", 1L)
+        .add("Pink", 2L)
+        .build();
+
+    Table target1 = testTables.createTable(shell, "target1", target1Schema, fileFormat, ImmutableList.of());
+    Table target2 = testTables.createTable(shell, "target2", target2Schema, fileFormat, ImmutableList.of());
+
+    shell.executeStatement("FROM customers " +
+            "INSERT INTO target1 SELECT customer_id, first_name " +
+            "INSERT INTO target2 SELECT last_name, customer_id");
+
+    // Check that everything is as expected
+    HiveIcebergTestUtils.validateData(target1, target1Records, 0);
+    HiveIcebergTestUtils.validateData(target2, target2Records, 1);
+  }
+
   private void testComplexTypeWrite(Schema schema, List<Record> records) throws IOException {
     String tableName = "complex_table";
     Table table = testTables.createTable(shell, "complex_table", schema, fileFormat, ImmutableList.of());

@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
 import org.apache.hadoop.conf.Configuration;
@@ -64,6 +65,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
+import org.apache.iceberg.mr.hive.HiveIcebergStorageHandler;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -93,12 +95,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   @Override
   public List<InputSplit> getSplits(JobContext context) {
     Configuration conf = context.getConfiguration();
-    Table table;
-    if (conf.get(InputFormatConfig.SERIALIZED_TABLE) != null) {
-      table = SerializationUtil.deserializeFromBase64(conf.get(InputFormatConfig.SERIALIZED_TABLE));
-    } else {
-      table = Catalogs.loadTable(conf);
-    }
+    Table table = Optional
+        .ofNullable(HiveIcebergStorageHandler.table(conf, conf.get(InputFormatConfig.TABLE_IDENTIFIER)))
+        .orElseGet(() -> Catalogs.loadTable(conf));
 
     TableScan scan = table.newScan()
             .caseSensitive(conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, InputFormatConfig.CASE_SENSITIVE_DEFAULT));
