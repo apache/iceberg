@@ -215,7 +215,7 @@ public final class Catalogs {
 
   /**
    * Collect all the catalog specific configuration from the global hive configuration.
-   * @param conf global hive configuration
+   * @param conf a Hadoop configuration
    * @param catalogName name of the catalog
    * @param catalogType type of the catalog
    * @return complete map of catalog properties
@@ -231,6 +231,7 @@ public final class Catalogs {
   /**
    * This method is used for backward-compatible catalog configuration.
    * Collect all the catalog specific configuration from the global hive configuration.
+   * Note: this should be removed when the old catalog configuration is depracated.
    * @param conf global hive configuration
    * @param catalogType type of the catalog
    * @param catalogProperties pre-populated catalog properties
