@@ -18,6 +18,7 @@
 #
 
 import logging
+
 from multiprocessing import cpu_count
 from multiprocessing.dummy import Pool
 from typing import Callable
@@ -74,6 +75,7 @@ class HiveTables(BaseMetastoreTables):
             _logger.info("Deleting file: {path}".format(path=path))
             try:
                 ops.delete_file(path)
-            except OSError:
+            except OSError as e:
+                _logger.info("Error deleting file: {path}: {e}".format(path=path, e=e))
                 pass
         return _delete_file_internal
