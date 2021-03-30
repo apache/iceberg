@@ -448,6 +448,27 @@ public class TestCreateActions extends SparkCatalogTestBase {
   }
 
   @Test
+  public void testSparkTableReservedProperties() throws Exception {
+    String destTableName = "iceberg_reserved_properties";
+    String source = sourceName("test_reserved_properties_table");
+    String dest = destName(destTableName);
+    createSourceTable(CREATE_PARQUET, source);
+    assertMigratedFileCount(Actions.snapshot(source, dest), source, dest);
+    SparkTable table = loadTable(dest);
+
+    String[] keys = {"provider", "format", "current-snapshot-id", "location"};
+
+    for (String entry : keys) {
+      Assert.assertTrue("Created table missing reserved property " + entry, table.properties().containsKey(entry));
+    }
+
+    Assert.assertEquals("Unexpected provider", "iceberg", table.properties().get("provider"));
+    Assert.assertEquals("Unexpected format", "iceberg/parquet", table.properties().get("format"));
+    Assert.assertNotEquals("No current-snapshot-id found", "none", table.properties().get("current-snapshot-id"));
+    Assert.assertTrue("Location isn't correct", table.properties().get("location").endsWith(destTableName));
+  }
+
+  @Test
   public void testSnapshotDefaultLocation() throws Exception {
     String source = sourceName("test_snapshot_default");
     String dest = destName("iceberg_snapshot_default");
