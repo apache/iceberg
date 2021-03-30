@@ -229,7 +229,8 @@ public class TestHiveIcebergOutputCommitter {
     conf.setNumMapTasks(taskNum);
     conf.setNumReduceTasks(0);
     conf.set(HiveConf.ConfVars.HIVEQUERYID.varname, QUERY_ID);
-    conf.set(InputFormatConfig.OUTPUT_TABLES, table.name());
+    conf.set(InputFormatConfig.OUTPUT_TABLES, table.properties().get(InputFormatConfig.CATALOG_NAME) +
+            HiveIcebergStorageHandler.CATALOG_NAME_SEPARATOR + table.name());
     conf.set(InputFormatConfig.SERIALIZED_TABLE_PREFIX + table.name(), SerializationUtil.serializeToBase64(table));
 
     Map<String, String> propMap = Maps.newHashMap();

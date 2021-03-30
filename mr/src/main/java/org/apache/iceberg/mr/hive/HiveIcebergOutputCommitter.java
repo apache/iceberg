@@ -51,6 +51,7 @@ import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -93,7 +94,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
     TaskAttemptID attemptID = context.getTaskAttemptID();
     JobConf jobConf = context.getJobConf();
     Map<String, HiveIcebergRecordWriter> writers = HiveIcebergRecordWriter.getWriters(attemptID);
-    Collection<String> outputs = HiveIcebergStorageHandler.outputTables(context.getJobConf());
+    Collection<Pair<String, String>> outputs = HiveIcebergStorageHandler.outputTables(context.getJobConf());
 
     ExecutorService tableExecutor = tableExecutor(jobConf, outputs.size());
     try {
@@ -104,8 +105,8 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
           .throwFailureWhenFinished()
           .executeWith(tableExecutor)
           .run(output -> {
-            Table table = HiveIcebergStorageHandler.table(context.getJobConf(), output);
-            HiveIcebergRecordWriter writer = writers.get(output);
+            Table table = HiveIcebergStorageHandler.table(context.getJobConf(), output.second());
+            HiveIcebergRecordWriter writer = writers.get(output.second());
             DataFile[] closedFiles = writer != null ? writer.dataFiles() : new DataFile[0];
             String fileForCommitLocation = generateFileForCommitLocation(table.location(), jobConf,
                 attemptID.getJobID(), attemptID.getTaskID().getId());
@@ -157,7 +158,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
     long startTime = System.currentTimeMillis();
     LOG.info("Committing job {} has started", jobContext.getJobID());
 
-    Collection<String> outputs = HiveIcebergStorageHandler.outputTables(jobContext.getJobConf());
+    Collection<Pair<String, String>> outputs = HiveIcebergStorageHandler.outputTables(jobContext.getJobConf());
     Collection<String> jobLocations = new ConcurrentLinkedQueue<>();
 
     ExecutorService fileExecutor = fileExecutor(jobConf);
@@ -169,9 +170,9 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
           .stopOnFailure()
           .executeWith(tableExecutor)
           .run(output -> {
-            Table table = HiveIcebergStorageHandler.table(jobConf, output);
+            Table table = HiveIcebergStorageHandler.table(jobConf, output.second());
             jobLocations.add(generateJobLocation(table.location(), jobConf, jobContext.getJobID()));
-            commitTable(table.io(), fileExecutor, jobContext, output, table.location());
+            commitTable(table.io(), fileExecutor, jobContext, output.second(), table.location(), output.first());
           });
     } finally {
       fileExecutor.shutdown();
@@ -198,7 +199,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
     JobConf jobConf = jobContext.getJobConf();
 
     LOG.info("Job {} is aborted. Data file cleaning started", jobContext.getJobID());
-    Collection<String> outputs = HiveIcebergStorageHandler.outputTables(jobContext.getJobConf());
+    Collection<Pair<String, String>> outputs = HiveIcebergStorageHandler.outputTables(jobContext.getJobConf());
     Collection<String> jobLocations = new ConcurrentLinkedQueue<>();
 
     ExecutorService fileExecutor = fileExecutor(jobConf);
@@ -212,7 +213,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
           .run(output -> {
             LOG.info("Cleaning job for table {}", jobContext.getJobID(), output);
 
-            Table table = HiveIcebergStorageHandler.table(jobConf, output);
+            Table table = HiveIcebergStorageHandler.table(jobConf, output.second());
             jobLocations.add(generateJobLocation(table.location(), jobConf, jobContext.getJobID()));
             Collection<DataFile> dataFiles = dataFiles(fileExecutor, table.location(), jobContext, table.io(), false);
 
@@ -245,12 +246,17 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
    * @param jobContext The job context
    * @param name The name of the table used for loading from the catalog
    * @param location The location of the table used for loading from the catalog
+   * @param catalogName The name of the catalog that contains the table
    */
-  private void commitTable(FileIO io, ExecutorService executor, JobContext jobContext, String name, String location) {
+  private void commitTable(FileIO io, ExecutorService executor, JobContext jobContext, String name, String location,
+                           String catalogName) {
     JobConf conf = jobContext.getJobConf();
     Properties catalogProperties = new Properties();
     catalogProperties.put(Catalogs.NAME, name);
     catalogProperties.put(Catalogs.LOCATION, location);
+    if (catalogName != null) {
+      catalogProperties.put(InputFormatConfig.CATALOG_NAME, catalogName);
+    }
     Table table = Catalogs.loadTable(conf, catalogProperties);
 
     long startTime = System.currentTimeMillis();
