@@ -60,7 +60,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   private final String tableName;
   private final TableOperations ops;
-  private final PartitionSpec spec;
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
   private final ManifestMergeManager<DataFile> mergeManager;
   private final ManifestFilterManager<DataFile> filterManager;
@@ -76,6 +75,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final SnapshotSummary.Builder addedFilesSummary = SnapshotSummary.builder();
   private final SnapshotSummary.Builder appendedManifestsSummary = SnapshotSummary.builder();
   private Expression deleteExpression = Expressions.alwaysFalse();
+  private PartitionSpec spec;
 
   // cache new manifests after writing
   private ManifestFile cachedNewManifest = null;
@@ -87,7 +87,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     super(ops);
     this.tableName = tableName;
     this.ops = ops;
-    this.spec = ops.current().spec();
+    this.spec = null;
     long targetSizeBytes = ops.current()
         .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
     int minCountToMerge = ops.current()
@@ -109,6 +109,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   protected PartitionSpec writeSpec() {
+    Preconditions.checkState(spec != null,
+        "Cannot determine partition spec: no data or delete files have been added");
     // the spec is set when the write is started
     return spec;
   }
@@ -179,7 +181,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * Add a data file to the new snapshot.
    */
   protected void add(DataFile file) {
-    addedFilesSummary.addedFile(spec, file);
+    setWriteSpec(file);
+    addedFilesSummary.addedFile(writeSpec(), file);
     hasNewFiles = true;
     newFiles.add(file);
   }
@@ -188,9 +191,22 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * Add a delete file to the new snapshot.
    */
   protected void add(DeleteFile file) {
-    addedFilesSummary.addedFile(spec, file);
+    setWriteSpec(file);
+    addedFilesSummary.addedFile(writeSpec(), file);
     hasNewDeleteFiles = true;
     newDeleteFiles.add(file);
+  }
+
+  private void setWriteSpec(ContentFile<?> file) {
+    Preconditions.checkNotNull(file, "Invalid content file: null");
+    PartitionSpec writeSpec = ops.current().spec(file.specId());
+    Preconditions.checkNotNull(writeSpec,
+        "Cannot find partition spec for file: %s", file.path());
+    if (spec == null) {
+      spec = writeSpec;
+    } else if (spec.specId() != file.specId()) {
+      throw new ValidationException("Invalid file, expected spec id: %d", spec.specId());
+    }
   }
 
   /**
@@ -444,7 +460,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     if (cachedNewManifest == null) {
       try {
-        ManifestWriter<DataFile> writer = newManifestWriter(spec);
+        ManifestWriter<DataFile> writer = newManifestWriter(writeSpec());
         try {
           writer.addAll(newFiles);
         } finally {
@@ -477,7 +493,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     if (cachedNewDeleteManifest == null) {
       try {
-        ManifestWriter<DeleteFile> writer = newDeleteManifestWriter(spec);
+        ManifestWriter<DeleteFile> writer = newDeleteManifestWriter(writeSpec());
         try {
           writer.addAll(newDeleteFiles);
         } finally {

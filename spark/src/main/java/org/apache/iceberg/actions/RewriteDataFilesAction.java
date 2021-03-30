@@ -62,7 +62,7 @@ public class RewriteDataFilesAction
     Broadcast<FileIO> io = sparkContext.broadcast(fileIO());
     Broadcast<EncryptionManager> encryption = sparkContext.broadcast(encryptionManager());
     RowDataRewriter rowDataRewriter =
-        new RowDataRewriter(table(), table().spec(), caseSensitive(), io, encryption);
+        new RowDataRewriter(table(), spec(), caseSensitive(), io, encryption);
     return rowDataRewriter.rewriteDataForTasks(taskRDD);
   }
 }
