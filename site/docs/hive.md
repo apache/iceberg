@@ -121,3 +121,11 @@ Columns from the Hive SQL `SELECT` clause are projected down to the Iceberg read
 
 #### Hive Query Engines
 Both the Map Reduce and Tez query execution engines are supported.
+
+#### Hive Multi-table inserts
+It is possible to issue inserts targeting multiple Hive tables backed by Iceberg. The users should be aware that the commits are atomic only on table level, and the commit is not atomic on query level. The commits to Iceberg tables happen 1-by-1, and if one of the commit fails the other writes will not be rolled back. Example:
+```sql
+FROM customers
+    INSERT INTO target1 SELECT customer_id, first_name
+    INSERT INTO target2 SELECT last_name, customer_id
+```
