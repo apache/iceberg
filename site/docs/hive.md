@@ -123,7 +123,7 @@ Columns from the Hive SQL `SELECT` clause are projected down to the Iceberg read
 Both the Map Reduce and Tez query execution engines are supported.
 
 #### Hive Multi-table inserts
-Multi-table inserts will not be atomic and are committed one table at a time. Partial changes will be visible during the commit process and failures can leave partial changes committed. Changes within a single table will remain atomic
+Multi-table inserts will not be atomic and are committed one table at a time. Partial changes will be visible during the commit process and failures can leave partial changes committed. Changes within a single table will remain atomic.
 
 Here is an example of inserting into multiple tables at once in Hive SQL:
 ```sql
