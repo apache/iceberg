@@ -121,29 +121,20 @@ public class BaseRewriteManifestsSparkAction
     return this;
   }
 
+  @Override
   public RewriteManifests specId(int specId) {
     Preconditions.checkArgument(table.specs().containsKey(specId), "Invalid spec id %d", specId);
     this.spec = table.specs().get(specId);
     return this;
   }
 
-  /**
-   * Rewrites only manifests that match the given predicate.
-   *
-   * @param newPredicate a predicate
-   * @return this for method chaining
-   */
+  @Override
   public RewriteManifests rewriteIf(Predicate<ManifestFile> newPredicate) {
     this.predicate = newPredicate;
     return this;
   }
 
-  /**
-   * Passes a location where the manifests should be written.
-   *
-   * @param newStagingLocation a staging location
-   * @return this for method chaining
-   */
+  @Override
   public RewriteManifests stagingLocation(String newStagingLocation) {
     this.stagingLocation = newStagingLocation;
     return this;
