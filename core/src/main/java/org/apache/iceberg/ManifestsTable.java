@@ -44,35 +44,20 @@ public class ManifestsTable extends BaseMetadataTable {
       )))
   );
 
-  private final TableOperations ops;
-  private final Table table;
   private final PartitionSpec spec;
-  private final String name;
 
   ManifestsTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".manifests");
   }
 
   ManifestsTable(TableOperations ops, Table table, String name) {
-    this.ops = ops;
-    this.table = table;
+    super(ops, table, name);
     this.spec = table.spec();
-    this.name = name;
-  }
-
-  @Override
-  Table table() {
-    return table;
-  }
-
-  @Override
-  public String name() {
-    return name;
   }
 
   @Override
   public TableScan newScan() {
-    return new ManifestsTableScan();
+    return new ManifestsTableScan(operations(), table());
   }
 
   @Override
@@ -81,16 +66,12 @@ public class ManifestsTable extends BaseMetadataTable {
   }
 
   @Override
-  String metadataLocation() {
-    return ops.current().metadataFileLocation();
-  }
-
-  @Override
   MetadataTableType metadataTableType() {
     return MetadataTableType.MANIFESTS;
   }
 
   protected DataTask task(TableScan scan) {
+    TableOperations ops = operations();
     String location = scan.snapshot().manifestListLocation();
     return StaticDataTask.of(
         ops.io().newInputFile(location != null ? location : ops.current().metadataFileLocation()),
@@ -99,7 +80,7 @@ public class ManifestsTable extends BaseMetadataTable {
   }
 
   private class ManifestsTableScan extends StaticTableScan {
-    ManifestsTableScan() {
+    ManifestsTableScan(TableOperations ops, Table table) {
       super(ops, table, SNAPSHOT_SCHEMA, ManifestsTable.this::task);
     }
   }
