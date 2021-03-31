@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.Locale;
@@ -48,6 +49,26 @@ public class SortOrderParser {
     generator.writeFieldName(FIELDS);
     toJsonFields(sortOrder, generator);
     generator.writeEndObject();
+  }
+
+  public static String toJson(SortOrder sortOrder) {
+    return toJson(sortOrder, false);
+  }
+
+  public static String toJson(SortOrder sortOrder, boolean pretty) {
+    try {
+      StringWriter writer = new StringWriter();
+      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+      if (pretty) {
+        generator.useDefaultPrettyPrinter();
+      }
+      toJson(sortOrder, generator);
+      generator.flush();
+      return writer.toString();
+
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   private static String toJson(SortDirection direction) {
