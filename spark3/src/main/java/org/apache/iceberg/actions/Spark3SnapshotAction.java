@@ -20,132 +20,51 @@
 package org.apache.iceberg.actions;
 
 import java.util.Map;
-import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotSummary;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.JobGroupInfo;
-import org.apache.iceberg.spark.SparkTableUtil;
-import org.apache.iceberg.spark.source.StagedSparkTable;
+import org.apache.iceberg.spark.actions.BaseSnapshotTableSparkAction;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import scala.collection.JavaConverters;
 
 /**
  * Creates a new Iceberg table based on a source Spark table. The new Iceberg table will
  * have a different data and metadata directory allowing it to exist independently of the
  * source table.
+ *
+ * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link SnapshotTable} instead.
  */
-public class Spark3SnapshotAction extends Spark3CreateAction implements SnapshotAction {
-  private static final Logger LOG = LoggerFactory.getLogger(Spark3SnapshotAction.class);
+@Deprecated
+public class Spark3SnapshotAction implements SnapshotAction {
 
-  private String destTableLocation = null;
+  private final SnapshotTable delegate;
 
   public Spark3SnapshotAction(SparkSession spark, CatalogPlugin sourceCatalog,
                               Identifier sourceTableIdent, CatalogPlugin destCatalog,
                               Identifier destTableIdent) {
-    super(spark, sourceCatalog, sourceTableIdent, destCatalog, destTableIdent);
-  }
 
-  private Long doExecute() {
-    LOG.info("Staging a new Iceberg table {} as a snapshot of {}", destTableIdent(), sourceTableIdent());
-    StagedSparkTable stagedTable = stageDestTable();
-    Table icebergTable = stagedTable.table();
-    // TODO Check table location here against source location
-
-    boolean threw = true;
-    try {
-      LOG.info("Ensuring {} has a valid name mapping", destTableIdent());
-      ensureNameMappingPresent(icebergTable);
-
-      String stagingLocation = getMetadataLocation(icebergTable);
-      TableIdentifier v1TableIdentifier = v1SourceTable().identifier();
-      LOG.info("Generating Iceberg metadata for {} in {}", destTableIdent(), stagingLocation);
-      SparkTableUtil.importSparkTable(spark(), v1TableIdentifier, icebergTable, stagingLocation);
-
-      LOG.info("Committing staged changes to {}", destTableIdent());
-      stagedTable.commitStagedChanges();
-      threw = false;
-    } finally {
-      if (threw) {
-        LOG.error("Error when attempting to commit snapshot changes, rolling back");
-
-        try {
-          stagedTable.abortStagedChanges();
-        } catch (Exception abortException) {
-          LOG.error("Cannot abort staged changes", abortException);
-        }
-      }
-    }
-
-    Snapshot snapshot = icebergTable.currentSnapshot();
-    long numMigratedFiles = Long.parseLong(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
-    LOG.info("Successfully loaded Iceberg metadata for {} files to {}", numMigratedFiles, destTableIdent());
-    return numMigratedFiles;
-  }
-
-  @Override
-  public Long execute() {
-    JobGroupInfo info = new JobGroupInfo("SNAPSHOT", "SNAPSHOT", false);
-    return withJobGroupInfo(info, this::doExecute);
-  }
-
-  @Override
-  protected Map<String, String> targetTableProps() {
-    Map<String, String> properties = Maps.newHashMap();
-
-    // copy over relevant source table props
-    properties.putAll(JavaConverters.mapAsJavaMapConverter(v1SourceTable().properties()).asJava());
-    EXCLUDED_PROPERTIES.forEach(properties::remove);
-
-    // Remove any possible location properties from origin properties
-    properties.remove(LOCATION);
-    properties.remove(TableProperties.WRITE_METADATA_LOCATION);
-    properties.remove(TableProperties.WRITE_NEW_DATA_LOCATION);
-
-    // set default and user-provided props
-    properties.put(TableCatalog.PROP_PROVIDER, "iceberg");
-    properties.putAll(additionalProperties());
-
-    // make sure we mark this table as a snapshot table
-    properties.put(TableProperties.GC_ENABLED, "false");
-    properties.put("snapshot", "true");
-
-    // Don't use the default location for the destination table if an alternate has be set
-    if (destTableLocation != null) {
-      properties.put(LOCATION, destTableLocation);
-    }
-
-    return properties;
-  }
-
-  @Override
-  protected TableCatalog checkSourceCatalog(CatalogPlugin catalog) {
-    // Currently the Import code relies on being able to look up the table in the session code
-    Preconditions.checkArgument(catalog.name().equals("spark_catalog"),
-        "Cannot snapshot a table that isn't in spark_catalog, the session catalog. Found source catalog %s",
-        catalog.name());
-
-    Preconditions.checkArgument(catalog instanceof TableCatalog,
-        "Cannot snapshot a table from a non-table catalog %s. Catalog has class of %s.", catalog.name(),
-        catalog.getClass().toString());
-
-    return (TableCatalog) catalog;
+    delegate = new BaseSnapshotTableSparkAction(spark, sourceCatalog, sourceTableIdent, destCatalog, destTableIdent);
   }
 
   @Override
   public SnapshotAction withLocation(String location) {
-    Preconditions.checkArgument(!sourceTableLocation().equals(location),
-        "Cannot create snapshot where destination location is the same as the source location." +
-            " This would cause a mixing of original table created and snapshot created files.");
-    this.destTableLocation = location;
+    delegate.tableLocation(location);
     return this;
+  }
+
+  @Override
+  public SnapshotAction withProperties(Map<String, String> properties) {
+    delegate.tableProperties(properties);
+    return this;
+  }
+
+  @Override
+  public SnapshotAction withProperty(String key, String value) {
+    delegate.tableProperty(key, value);
+    return this;
+  }
+
+  @Override
+  public Long execute() {
+    SnapshotTable.Result result = delegate.execute();
+    return result.importedDataFilesCount();
   }
 }

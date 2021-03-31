@@ -19,7 +19,16 @@
 
 package org.apache.iceberg.actions;
 
-@Deprecated
-public interface SnapshotAction extends CreateAction {
-  SnapshotAction withLocation(String location);
+public class BaseMigrateTableActionResult implements MigrateTable.Result {
+
+  private final long migratedDataFilesCount;
+
+  public BaseMigrateTableActionResult(long migratedDataFilesCount) {
+    this.migratedDataFilesCount = migratedDataFilesCount;
+  }
+
+  @Override
+  public long migratedDataFilesCount() {
+    return migratedDataFilesCount;
+  }
 }

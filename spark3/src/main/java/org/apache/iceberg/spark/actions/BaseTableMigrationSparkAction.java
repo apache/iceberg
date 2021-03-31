@@ -17,13 +17,12 @@
  * under the License.
  */
 
-package org.apache.iceberg.actions;
+package org.apache.iceberg.spark.actions;
 
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
@@ -36,12 +35,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.JobGroupInfo;
-import org.apache.iceberg.spark.JobGroupUtils;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.source.StagedSparkTable;
-import org.apache.spark.SparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.catalog.CatalogTable;
 import org.apache.spark.sql.catalyst.catalog.CatalogUtils;
@@ -53,14 +49,12 @@ import org.apache.spark.sql.connector.catalog.V1Table;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 
-abstract class Spark3CreateAction implements CreateAction {
+abstract class BaseTableMigrationSparkAction<ThisT, R> extends BaseSparkAction<ThisT, R> {
   private static final Set<String> ALLOWED_SOURCES = ImmutableSet.of("parquet", "avro", "orc", "hive");
   protected static final String LOCATION = "location";
   protected static final String ICEBERG_METADATA_FOLDER = "metadata";
   protected static final List<String> EXCLUDED_PROPERTIES =
       ImmutableList.of("path", "transient_lastDdlTime", "serialization.format");
-
-  private final SparkSession spark;
 
   // Source Fields
   private final V1Table sourceTable;
@@ -70,19 +64,19 @@ abstract class Spark3CreateAction implements CreateAction {
   private final Identifier sourceTableIdent;
 
   // Destination Fields
-  private final StagingTableCatalog destCatalog;
-  private final Identifier destTableIdent;
+  private StagingTableCatalog destCatalog;
+  private Identifier destTableIdent;
 
   // Optional Parameters for destination
   private final Map<String, String> additionalProperties = Maps.newHashMap();
 
-  Spark3CreateAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent,
-                     CatalogPlugin destCatalog, Identifier destTableIdent) {
+  BaseTableMigrationSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent,
+                                CatalogPlugin destCatalog, Identifier destTableIdent) {
+    super(spark);
 
-    this.spark = spark;
     this.sourceCatalog = checkSourceCatalog(sourceCatalog);
     this.sourceTableIdent = sourceTableIdent;
-    this.destCatalog = checkDestinationCatalog(destCatalog);
+    this.destCatalog = destCatalog != null ? checkDestinationCatalog(destCatalog) : null;
     this.destTableIdent = destTableIdent;
 
     try {
@@ -99,20 +93,17 @@ abstract class Spark3CreateAction implements CreateAction {
     this.sourceTableLocation = CatalogUtils.URIToString(sourceCatalogTable.storage().locationUri().get());
   }
 
-  @Override
-  public CreateAction withProperties(Map<String, String> properties) {
+  protected void setDestCatalogAndIdent(CatalogPlugin catalog, Identifier ident) {
+    this.destCatalog = checkDestinationCatalog(catalog);
+    this.destTableIdent = ident;
+  }
+
+  protected void setProperties(Map<String, String> properties) {
     this.additionalProperties.putAll(properties);
-    return this;
   }
 
-  @Override
-  public CreateAction withProperty(String key, String value) {
+  protected void setProperty(String key, String value) {
     this.additionalProperties.put(key, value);
-    return this;
-  }
-
-  protected SparkSession spark() {
-    return spark;
   }
 
   protected String sourceTableLocation() {
@@ -191,16 +182,4 @@ abstract class Spark3CreateAction implements CreateAction {
   protected abstract Map<String, String> targetTableProps();
 
   protected abstract TableCatalog checkSourceCatalog(CatalogPlugin catalog);
-
-  protected <T> T withJobGroupInfo(JobGroupInfo info, Supplier<T> supplier) {
-    SparkContext context = spark().sparkContext();
-    JobGroupInfo previousInfo = JobGroupUtils.getJobGroupInfo(context);
-    try {
-      JobGroupUtils.setJobGroupInfo(context, info);
-      return supplier.get();
-    } finally {
-      JobGroupUtils.setJobGroupInfo(context, previousInfo);
-    }
-  }
-
 }
