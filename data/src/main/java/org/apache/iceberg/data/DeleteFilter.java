@@ -125,7 +125,7 @@ public abstract class DeleteFilter<T> {
     if (eqDeletes.isEmpty()) {
       return null;
     }
-    Predicate<T> isDeleted = t -> false;
+    Predicate<T> isDeleted = null;
 
     Multimap<Set<Integer>, DeleteFile> filesByDeleteIds = Multimaps.newMultimap(Maps.newHashMap(), Lists::newArrayList);
     for (DeleteFile delete : eqDeletes) {
@@ -153,7 +153,8 @@ public abstract class DeleteFilter<T> {
               records, record -> new InternalRecordWrapper(deleteSchema.asStruct()).wrap(record)),
           deleteSchema.asStruct());
 
-      isDeleted = isDeleted.or(record -> deleteSet.contains(projectRow.wrap(asStructLike(record))));
+      isDeleted = isDeleted == null ? record -> deleteSet.contains(projectRow.wrap(asStructLike(record))) :
+              isDeleted.or(record -> deleteSet.contains(projectRow.wrap(asStructLike(record))));
     }
 
     return isDeleted;
@@ -171,11 +172,6 @@ public abstract class DeleteFilter<T> {
     }
 
     return record -> deleteSet.contains(pos(record));
-  }
-
-  public CloseableIterable<T> keepRowsFromDeletes(CloseableIterable<T> records) {
-    return CloseableIterable.concat(Lists.newArrayList(keepRowsFromPosDeletes(records),
-        keepRowsFromEqualityDeletes(records)));
   }
 
   public CloseableIterable<T> keepRowsFromEqualityDeletes(CloseableIterable<T> records) {
@@ -212,21 +208,21 @@ public abstract class DeleteFilter<T> {
       return deletedRowsFilter.filter(records);
     } else {
       List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
-      return Deletes.streamingSelector(records, this::pos, Deletes.deletePositions(dataFile.path(), deletes));
+      return Deletes.streamingDeletedRowSelector(records, this::pos, Deletes.deletePositions(dataFile.path(), deletes));
     }
   }
 
   private CloseableIterable<T> applyEqDeletes(CloseableIterable<T> records) {
     // Predicate to test whether a row should be visible to user after applying equality deletions.
-    Predicate<T> predicate = buildEqDeletePredicate();
-    if (predicate == null) {
+    Predicate<T> isDeleted = buildEqDeletePredicate();
+    if (isDeleted == null) {
       return records;
     }
 
     Filter<T> remainingRowsFilter = new Filter<T>() {
       @Override
       protected boolean shouldKeep(T item) {
-        return !predicate.test(item);
+        return !isDeleted.test(item);
       }
     };
 

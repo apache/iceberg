@@ -54,7 +54,8 @@ public class DeleteRowReader extends RowDataReader {
     InputFileBlockHolder.set(file.path().toString(), task.start(), task.length());
 
     if (deleteSelector == null) {
-      return matches.keepRowsFromDeletes(open(task, requiredSchema, idToConstant)).iterator();
+      throw new UnsupportedOperationException(
+              "Read delete rows from equality delete and position delete once is not implemented");
     } else if (deleteSelector.equals(FileContent.EQUALITY_DELETES)) {
       return matches.keepRowsFromEqualityDeletes(open(task, requiredSchema, idToConstant)).iterator();
     } else {

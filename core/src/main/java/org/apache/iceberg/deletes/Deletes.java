@@ -131,9 +131,9 @@ public class Deletes {
     return new PositionStreamDeleteFilter<>(rows, rowToPosition, posDeletes);
   }
 
-  public static <T> CloseableIterable<T> streamingSelector(CloseableIterable<T> rows,
-                                                         Function<T, Long> rowToPosition,
-                                                         CloseableIterable<Long> posDeletes) {
+  public static <T> CloseableIterable<T> streamingDeletedRowSelector(CloseableIterable<T> rows,
+                                                                     Function<T, Long> rowToPosition,
+                                                                     CloseableIterable<Long> posDeletes) {
     return new PositionStreamDeletedRowSelector<>(rows, rowToPosition, posDeletes);
   }
 
@@ -182,7 +182,7 @@ public class Deletes {
     }
   }
 
-  protected static class PositionStreamDeleteFilter<T> extends CloseableGroup implements CloseableIterable<T> {
+  private static class PositionStreamDeleteFilter<T> extends CloseableGroup implements CloseableIterable<T> {
     private final CloseableIterable<T> rows;
     private final Function<T, Long> extractPos;
     private final CloseableIterable<Long> deletePositions;
@@ -200,7 +200,7 @@ public class Deletes {
 
       CloseableIterator<T> iter;
       if (deletePosIterator.hasNext()) {
-        iter = getPositionIterator(rows.iterator(), deletePosIterator);
+        iter = positionIterator(rows.iterator(), deletePosIterator);
       } else {
         iter = rows.iterator();
         try {
@@ -215,8 +215,8 @@ public class Deletes {
       return iter;
     }
 
-    protected FilterIterator<T> getPositionIterator(CloseableIterator<T> items,
-                                                    CloseableIterator<Long> newDeletePositions) {
+    protected FilterIterator<T> positionIterator(CloseableIterator<T> items,
+                                                 CloseableIterator<Long> newDeletePositions) {
       return new PositionFilterIterator(items, newDeletePositions);
     }
 
@@ -269,8 +269,8 @@ public class Deletes {
     }
 
     @Override
-    protected FilterIterator<T> getPositionIterator(CloseableIterator<T> items,
-                                                    CloseableIterator<Long> deletePositions) {
+    protected FilterIterator<T> positionIterator(CloseableIterator<T> items,
+                                                 CloseableIterator<Long> deletePositions) {
       return new PositionSelectorIterator(items, deletePositions);
     }
 
