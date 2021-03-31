@@ -96,6 +96,7 @@
                 org.apache.iceberg.TableProperties.*,
                 org.apache.iceberg.types.Type.*,
                 org.apache.iceberg.types.Types.NestedField.*,
+                org.apache.iceberg.util.StreamUtil.*,
                 org.apache.parquet.schema.OriginalType.*,
                 org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.*,
                 org.apache.spark.sql.functions.*,

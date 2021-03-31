@@ -53,7 +53,7 @@ public interface CompactDataFiles extends Action<CompactDataFiles, CompactDataFi
    * Compaction strategy. This will be used in addition to whatever rules the Compaction strategy
    * generates.
    *
-   * @param expression
+   * @param expression only entries that pass this filter will be compacted
    * @return this for chaining
    */
   CompactDataFiles filter(Expression expression);

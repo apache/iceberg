@@ -40,7 +40,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.actions.CompactDataFilesAction;
 import org.apache.iceberg.spark.actions.compaction.BinningCompactionStrategy;
-import org.apache.iceberg.spark.actions.compaction.SparkBinningCompactionStrategy;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
@@ -112,7 +111,7 @@ public class TestCompactDataFilesAction3 extends SparkTestBase {
 
     shouldPlanFiles(table, 4);
 
-    withDataUnchanged( () -> {
+    withDataUnchanged(() -> {
       Actions actions = Actions.forTable(table);
       CompactDataFiles.Result result = new CompactDataFilesAction(spark, table).execute();
 
@@ -166,7 +165,7 @@ public class TestCompactDataFilesAction3 extends SparkTestBase {
       CompactDataFiles.Result result = new CompactDataFilesAction(spark, table).parallelism(1).execute();
       Assert.assertEquals("Action should run 4 Jobs", 4, result.resultMap().size());
 
-      result.resultMap().values().forEach( jobResult -> {
+      result.resultMap().values().forEach(jobResult -> {
         Assert.assertEquals("Action should remove 2 datafiles", 2, jobResult.numFilesRemoved());
         Assert.assertEquals("Action should add 1 datafile", 1, jobResult.numFilesAdded());
       });
@@ -208,21 +207,21 @@ public class TestCompactDataFilesAction3 extends SparkTestBase {
     );
     writeRecords(records4);
 
-   shouldPlanFiles(table, 8);
+    shouldPlanFiles(table, 8);
 
-   withDataUnchanged(() -> {
-     CompactDataFiles.Result result = new CompactDataFilesAction(spark, table)
-         .filter(Expressions.equal("c1", 1))
-         .filter(Expressions.startsWith("c2", "AA"))
-         .execute();
+    withDataUnchanged(() -> {
+      CompactDataFiles.Result result = new CompactDataFilesAction(spark, table)
+          .filter(Expressions.equal("c1", 1))
+          .filter(Expressions.startsWith("c2", "AA"))
+          .execute();
 
-     Assert.assertEquals("Action should run 1 Job", 1, result.resultMap().size());
-     CompactDataFiles.CompactionResult jobResult = result.resultMap().values().iterator().next();
-     Assert.assertEquals("Action should remove 2 datafiles", 2, jobResult.numFilesRemoved());
-     Assert.assertEquals("Action should add 1 datafile", 1, jobResult.numFilesAdded());
-   });
+      Assert.assertEquals("Action should run 1 Job", 1, result.resultMap().size());
+      CompactDataFiles.CompactionResult jobResult = result.resultMap().values().iterator().next();
+      Assert.assertEquals("Action should remove 2 datafiles", 2, jobResult.numFilesRemoved());
+      Assert.assertEquals("Action should add 1 datafile", 1, jobResult.numFilesAdded());
+    });
 
-   shouldPlanFiles(table, 7);
+    shouldPlanFiles(table, 7);
   }
 
   @Test
