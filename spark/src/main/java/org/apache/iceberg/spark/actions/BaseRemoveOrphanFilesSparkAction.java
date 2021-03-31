@@ -235,7 +235,7 @@ public class BaseRemoveOrphanFilesSparkAction
       Broadcast<SerializableConfiguration> conf,
       long olderThanTimestamp) {
 
-    return (FlatMapFunction<Iterator<String>, String>) dirs -> {
+    return dirs -> {
       List<String> subDirs = Lists.newArrayList();
       List<String> files = Lists.newArrayList();
 

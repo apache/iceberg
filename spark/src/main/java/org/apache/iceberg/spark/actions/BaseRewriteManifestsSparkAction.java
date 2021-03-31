@@ -341,7 +341,7 @@ public class BaseRewriteManifestsSparkAction
       Broadcast<FileIO> io, long maxNumManifestEntries, String location,
       int format, PartitionSpec spec, StructType sparkType) {
 
-    return (MapPartitionsFunction<Row, ManifestFile>) rows -> {
+    return rows -> {
       List<Row> rowsAsList = Lists.newArrayList(rows);
 
       if (rowsAsList.isEmpty()) {
