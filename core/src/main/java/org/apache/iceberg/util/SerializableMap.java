@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg;
+package org.apache.iceberg.util;
 
 import java.io.Serializable;
 import java.util.Collection;
@@ -29,7 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 public class SerializableMap<K, V> implements Map<K, V>, Serializable {
 
   private final Map<K, V> copiedMap;
-  private Map<K, V> immutableMap;
+  private transient volatile Map<K, V> immutableMap;
 
   SerializableMap() {
     this.copiedMap = Maps.newHashMap();
@@ -46,7 +46,11 @@ public class SerializableMap<K, V> implements Map<K, V>, Serializable {
 
   public Map<K, V> immutableMap() {
     if (immutableMap == null) {
-      immutableMap = Collections.unmodifiableMap(copiedMap);
+      synchronized (this) {
+        if (immutableMap == null) {
+          immutableMap = Collections.unmodifiableMap(copiedMap);
+        }
+      }
     }
 
     return immutableMap;

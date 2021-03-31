@@ -35,6 +35,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.SerializableMap;
 
 /**
  * Base class for both {@link DataFile} and {@link DeleteFile}.
