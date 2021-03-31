@@ -28,8 +28,10 @@ import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -103,14 +105,30 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
-    boolean exceptionThrown = true;
+    CommitStatus commitStatus = CommitStatus.FAILURE;
+
     try {
       lock(newMetadataLocation);
       Table glueTable = getGlueTable();
       checkMetadataLocation(glueTable, base);
       Map<String, String> properties = prepareProperties(glueTable, newMetadataLocation);
-      persistGlueTable(glueTable, properties);
-      exceptionThrown = false;
+
+      try {
+        persistGlueTable(glueTable, properties);
+        commitStatus = CommitStatus.SUCCESS;
+      } catch (Throwable persistFailure) {
+        LOG.error("Confirming if commit to {} indeed failed to persist, attempting to reconnect and check.",
+            fullTableName, persistFailure);
+        commitStatus = checkCommitStatus(newMetadataLocation, metadata);
+        switch (commitStatus) {
+          case SUCCESS:
+            break;
+          case FAILURE:
+            throw persistFailure;
+          case UNKNOWN:
+            throw new CommitStateUnknownException(persistFailure);
+        }
+      }
     } catch (ConcurrentModificationException e) {
       throw new CommitFailedException(e, "Cannot commit %s because Glue detected concurrent update", tableName());
     } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
@@ -119,7 +137,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     } catch (SdkException e) {
       throw new CommitFailedException(e, "Cannot commit %s because unexpected exception contacting AWS", tableName());
     } finally {
-      cleanupMetadataAndUnlock(exceptionThrown, newMetadataLocation);
+      cleanupMetadataAndUnlock(commitStatus, newMetadataLocation);
     }
   }
 
@@ -164,7 +182,8 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     return properties;
   }
 
-  private void persistGlueTable(Table glueTable, Map<String, String> parameters) {
+  @VisibleForTesting
+  void persistGlueTable(Table glueTable, Map<String, String> parameters) {
     if (glueTable != null) {
       LOG.debug("Committing existing Glue table: {}", tableName());
       glue.updateTable(UpdateTableRequest.builder()
@@ -191,9 +210,10 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     }
   }
 
-  private void cleanupMetadataAndUnlock(boolean exceptionThrown, String metadataLocation) {
+  @VisibleForTesting
+  void cleanupMetadataAndUnlock(CommitStatus commitStatus, String metadataLocation) {
     try {
-      if (exceptionThrown) {
+      if (commitStatus == CommitStatus.FAILURE) {
         // if anything went wrong, clean up the uncommitted metadata file
         io().deleteFile(metadataLocation);
       }

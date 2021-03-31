@@ -62,14 +62,10 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS_DEFAULT;
 
 /**
  * TODO we should be able to extract some more commonalities to BaseMetastoreTableOperations to
@@ -77,8 +73,6 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS_DEFAUL
  */
 public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HiveTableOperations.class);
-
-  private static final int COMMIT_STATUS_CHECK_WAIT_MS = 1000;
 
   private static final String HIVE_ACQUIRE_LOCK_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
   private static final String HIVE_LOCK_CHECK_MIN_WAIT_MS = "iceberg.hive.lock-check-min-wait-ms";
@@ -97,12 +91,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     WaitingForLockException(String message) {
       super(message);
     }
-  }
-
-  private enum CommitStatus {
-    FAILURE,
-    SUCCESS,
-    UNKNOWN
   }
 
   private final String fullName;
@@ -234,7 +222,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             throw new CommitStateUnknownException(persistFailure);
         }
       }
-
     } catch (org.apache.hadoop.hive.metastore.api.AlreadyExistsException e) {
       throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
 
@@ -254,50 +241,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     } finally {
       cleanupMetadataAndUnlock(commitStatus, newMetadataLocation, lockId);
     }
-  }
-
-  /**
-   * Attempt to load the table and see if any current or past metadata location matches the one we were attempting
-   * to set. This is used as a last resort when we are dealing with exceptions that may indicate the commit has
-   * failed but are not proof that this is the case. Past locations must also be searched on the chance that a second
-   * committer was able to successfully commit on top of our commit.
-   *
-   * @param newMetadataLocation the path of the new commit file
-   * @param config metadata to use for configuration
-   * @return Commit Status of Success, Failure or Unknown
-   */
-  private CommitStatus checkCommitStatus(String newMetadataLocation, TableMetadata config) {
-    int maxAttempts = PropertyUtil.propertyAsInt(config.properties(), COMMIT_NUM_STATUS_CHECKS,
-        COMMIT_NUM_STATUS_CHECKS_DEFAULT);
-
-    AtomicReference<CommitStatus> status = new AtomicReference<>(CommitStatus.UNKNOWN);
-
-    Tasks.foreach(newMetadataLocation)
-        .retry(maxAttempts)
-        .suppressFailureWhenFinished()
-        .exponentialBackoff(COMMIT_STATUS_CHECK_WAIT_MS, COMMIT_STATUS_CHECK_WAIT_MS, Long.MAX_VALUE, 2.0)
-        .onFailure((location, checkException) ->
-            LOG.error("Cannot check if commit to {}.{} exists.", database, tableName, checkException))
-        .run(location -> {
-          TableMetadata metadata = refresh();
-          String currentMetadataLocation = metadata.metadataFileLocation();
-          boolean commitSuccess = currentMetadataLocation.equals(newMetadataLocation) ||
-              metadata.previousFiles().stream().anyMatch(log -> log.file().equals(newMetadataLocation));
-          if (commitSuccess) {
-            LOG.info("Commit status check: Commit to {}.{} of {} succeeded", database, tableName, newMetadataLocation);
-            status.set(CommitStatus.SUCCESS);
-          } else {
-            LOG.info("Commit status check: Commit to {}.{} of {} failed", database, tableName, newMetadataLocation);
-            status.set(CommitStatus.FAILURE);
-          }
-        });
-
-    if (status.get() == CommitStatus.UNKNOWN) {
-      LOG.error("Cannot determine commit state to {}.{}. Failed during checking {} times. " +
-              "Treating commit state as unknown.",
-          database, tableName, maxAttempts);
-    }
-    return status.get();
   }
 
   @VisibleForTesting
