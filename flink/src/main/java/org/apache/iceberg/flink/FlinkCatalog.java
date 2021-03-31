@@ -139,10 +139,10 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   private Namespace toNamespace(String database) {
-    List<String> namespaces = Lists.newArrayListWithExpectedSize(baseNamespace.levels().length + 1);
-    Collections.addAll(namespaces, baseNamespace.levels());
-    Collections.addAll(namespaces, database);
-    return Namespace.of(namespaces.toArray(new String[0]));
+    String[] namespace = new String[baseNamespace.levels().length + 1];
+    System.arraycopy(baseNamespace.levels(), 0, namespace, 0, baseNamespace.levels().length);
+    namespace[baseNamespace.levels().length] = database;
+    return Namespace.of(namespace);
   }
 
   TableIdentifier toIdentifier(ObjectPath path) {

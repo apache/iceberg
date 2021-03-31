@@ -120,13 +120,13 @@ public class FlinkCatalogFactory implements CatalogFactory {
   protected Catalog createCatalog(String name, Map<String, String> properties, Configuration hadoopConf) {
     CatalogLoader catalogLoader = createCatalogLoader(name, properties, hadoopConf);
     String defaultDatabase = properties.getOrDefault(DEFAULT_DATABASE, "default");
-    boolean cacheEnabled = Boolean.parseBoolean(properties.getOrDefault(CACHE_ENABLED, "true"));
 
     Namespace baseNamespace = Namespace.empty();
     if (properties.containsKey(BASE_NAMESPACE)) {
       baseNamespace = Namespace.of(properties.get(BASE_NAMESPACE).split("\\."));
     }
 
+    boolean cacheEnabled = Boolean.parseBoolean(properties.getOrDefault(CACHE_ENABLED, "true"));
     return new FlinkCatalog(name, defaultDatabase, baseNamespace, catalogLoader, cacheEnabled);
   }
 
