@@ -92,3 +92,65 @@ class MockDataFile(DataFile):
 
     def copy(self):
         return self
+
+
+class MockHMSTable(object):
+    def __init__(self, params):
+        self.parameters = params
+
+
+class MockManifestEntry(object):
+    def __init__(self, path):
+        self._path = path
+
+    def path(self):
+        return self._path
+
+
+class MockReader(object):
+    def __init__(self, entries):
+        self._entries = entries
+
+    def iterator(self):
+        return iter(self._entries)
+
+
+class MockTableOperations(object):
+    def __init__(self, metadata, location):
+        self.metadata = metadata
+        self.current_metadata_location = location
+        self.deleted = []
+
+    def current(self):
+        return self.metadata
+
+    def delete_file(self, path):
+        self.deleted.append(path)
+
+
+class MockManifest(object):
+    def __init__(self, manifest_path):
+        self.manifest_path = manifest_path
+
+
+class MockSnapshot(object):
+    def __init__(self, location, manifests, manifest_to_entries):
+        self._location = location
+        self._manifests = manifests
+        self._manifest_to_entries = manifest_to_entries
+
+    @property
+    def manifests(self):
+        return iter(self._manifests)
+
+    @property
+    def manifest_location(self):
+        return self._location
+
+    def get_filtered_manifest(self, path):
+        return self._manifest_to_entries[path]
+
+
+class MockMetadata(object):
+    def __init__(self, snapshots):
+        self.snapshots = snapshots
