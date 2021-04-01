@@ -111,10 +111,8 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       Table glueTable = getGlueTable();
       checkMetadataLocation(glueTable, base);
       Map<String, String> properties = prepareProperties(glueTable, newMetadataLocation);
-
       persistGlueTable(glueTable, properties);
       commitStatus = CommitStatus.SUCCESS;
-
     } catch (ConcurrentModificationException e) {
       throw new CommitFailedException(e, "Cannot commit %s because Glue detected concurrent update", tableName());
     } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
