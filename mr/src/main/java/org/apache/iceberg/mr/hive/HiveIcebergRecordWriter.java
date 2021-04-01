@@ -21,7 +21,6 @@ package org.apache.iceberg.mr.hive;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import org.apache.hadoop.hive.ql.exec.FileSinkOperator;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Writable;
@@ -38,6 +37,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitionedFanoutWriter;
 import org.apache.iceberg.mr.mapred.Container;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,21 +50,26 @@ class HiveIcebergRecordWriter extends PartitionedFanoutWriter<Record>
   private final PartitionKey currentKey;
   private final FileIO io;
 
-  // <TaskAttemptId, HiveIcebergRecordWriter> map to store the active writers
+  // <TaskAttemptId, <TABLE_NAME, HiveIcebergRecordWriter>> map to store the active writers
   // Stored in concurrent map, since some executor engines can share containers
-  private static final Map<TaskAttemptID, HiveIcebergRecordWriter> writers = new ConcurrentHashMap<>();
+  private static final Map<TaskAttemptID, Map<String, HiveIcebergRecordWriter>> writers = Maps.newConcurrentMap();
 
-  static HiveIcebergRecordWriter removeWriter(TaskAttemptID taskAttemptID) {
+  static Map<String, HiveIcebergRecordWriter> removeWriters(TaskAttemptID taskAttemptID) {
     return writers.remove(taskAttemptID);
+  }
+
+  static Map<String, HiveIcebergRecordWriter> getWriters(TaskAttemptID taskAttemptID) {
+    return writers.get(taskAttemptID);
   }
 
   HiveIcebergRecordWriter(Schema schema, PartitionSpec spec, FileFormat format,
       FileAppenderFactory<Record> appenderFactory, OutputFileFactory fileFactory, FileIO io, long targetFileSize,
-      TaskAttemptID taskAttemptID) {
+      TaskAttemptID taskAttemptID, String tableName) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
     this.io = io;
     this.currentKey = new PartitionKey(spec, schema);
-    writers.put(taskAttemptID, this);
+    writers.putIfAbsent(taskAttemptID, Maps.newConcurrentMap());
+    writers.get(taskAttemptID).put(tableName, this);
   }
 
   @Override

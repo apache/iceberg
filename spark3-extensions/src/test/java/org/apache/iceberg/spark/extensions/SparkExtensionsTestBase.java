@@ -20,8 +20,10 @@
 package org.apache.iceberg.spark.extensions;
 
 import java.util.Map;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.spark.sql.SparkSession;
@@ -52,6 +54,7 @@ public abstract class SparkExtensionsTestBase extends SparkCatalogTestBase {
         .enableHiveSupport()
         .getOrCreate();
 
-    SparkTestBase.catalog = new HiveCatalog(spark.sessionState().newHadoopConf());
+    SparkTestBase.catalog = (HiveCatalog)
+        CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
   }
 }

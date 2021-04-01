@@ -20,7 +20,10 @@
 package org.apache.iceberg.spark.data;
 
 import java.util.List;
+import java.util.stream.Stream;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcRowWriter;
 import org.apache.iceberg.orc.OrcSchemaWithTypeVisitor;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -61,6 +64,11 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
     }
   }
 
+  @Override
+  public Stream<FieldMetrics> metrics() {
+    return writer.metrics();
+  }
+
   private static class WriteBuilder extends OrcSchemaWithTypeVisitor<SparkOrcValueWriter> {
     private WriteBuilder() {
     }
@@ -98,9 +106,9 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
         case LONG:
           return SparkOrcValueWriters.longs();
         case FLOAT:
-          return SparkOrcValueWriters.floats();
+          return SparkOrcValueWriters.floats(ORCSchemaUtil.fieldId(primitive));
         case DOUBLE:
-          return SparkOrcValueWriters.doubles();
+          return SparkOrcValueWriters.doubles(ORCSchemaUtil.fieldId(primitive));
         case BINARY:
           return SparkOrcValueWriters.byteArrays();
         case STRING:
@@ -136,5 +144,11 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
         writers.get(c).write(rowId, c, value, cv.fields[c]);
       }
     }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return writers.stream().flatMap(SparkOrcValueWriter::metrics);
+    }
+
   }
 }

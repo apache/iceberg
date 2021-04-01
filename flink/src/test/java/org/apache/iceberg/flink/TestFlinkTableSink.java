@@ -20,26 +20,43 @@
 package org.apache.iceberg.flink;
 
 import java.util.List;
+import java.util.Map;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.Expressions;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
+import org.apache.flink.test.util.MiniClusterWithClientResource;
+import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
 public class TestFlinkTableSink extends FlinkCatalogTestBase {
+
+  @ClassRule
+  public static final MiniClusterWithClientResource MINI_CLUSTER_RESOURCE =
+      MiniClusterResource.createWithClassloaderCheckDisabled();
+
+  @ClassRule
+  public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+
   private static final String TABLE_NAME = "test_table";
   private TableEnvironment tEnv;
   private Table icebergTable;
@@ -77,9 +94,12 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
             .useBlinkPlanner();
         if (isStreamingJob) {
           settingsBuilder.inStreamingMode();
-          StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+          StreamExecutionEnvironment env = StreamExecutionEnvironment
+              .getExecutionEnvironment(MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG);
           env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
           env.enableCheckpointing(400);
+          env.setMaxParallelism(2);
+          env.setParallelism(2);
           tEnv = StreamTableEnvironment.create(env, settingsBuilder.build());
         } else {
           settingsBuilder.inBatchMode();
@@ -217,6 +237,46 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
         SimpleDataUtil.createRecord(4, "c"),
         SimpleDataUtil.createRecord(5, "d")
     ));
+
+    sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
+  }
+
+  @Test
+  public void testHashDistributeMode() throws Exception {
+    String tableName = "test_hash_distribution_mode";
+
+    Map<String, String> tableProps = ImmutableMap.of(
+        "write.format.default", format.name(),
+        TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName()
+    );
+    sql("CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) WITH %s",
+        tableName, toWithClause(tableProps));
+
+    // Insert data set.
+    sql("INSERT INTO %s VALUES " +
+        "(1, 'aaa'), (1, 'bbb'), (1, 'ccc'), " +
+        "(2, 'aaa'), (2, 'bbb'), (2, 'ccc'), " +
+        "(3, 'aaa'), (3, 'bbb'), (3, 'ccc')", tableName);
+
+    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, tableName));
+    SimpleDataUtil.assertTableRecords(table, ImmutableList.of(
+        SimpleDataUtil.createRecord(1, "aaa"),
+        SimpleDataUtil.createRecord(1, "bbb"),
+        SimpleDataUtil.createRecord(1, "ccc"),
+        SimpleDataUtil.createRecord(2, "aaa"),
+        SimpleDataUtil.createRecord(2, "bbb"),
+        SimpleDataUtil.createRecord(2, "ccc"),
+        SimpleDataUtil.createRecord(3, "aaa"),
+        SimpleDataUtil.createRecord(3, "bbb"),
+        SimpleDataUtil.createRecord(3, "ccc")
+    ));
+
+    Assert.assertEquals("There should be only 1 data file in partition 'aaa'", 1,
+        SimpleDataUtil.partitionDataFiles(table, ImmutableMap.of("data", "aaa")).size());
+    Assert.assertEquals("There should be only 1 data file in partition 'bbb'", 1,
+        SimpleDataUtil.partitionDataFiles(table, ImmutableMap.of("data", "bbb")).size());
+    Assert.assertEquals("There should be only 1 data file in partition 'ccc'", 1,
+        SimpleDataUtil.partitionDataFiles(table, ImmutableMap.of("data", "ccc")).size());
 
     sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
   }

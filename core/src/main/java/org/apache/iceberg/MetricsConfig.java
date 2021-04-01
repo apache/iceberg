@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.Map;
 import org.apache.iceberg.MetricsModes.MetricsMode;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,6 +73,15 @@ public class MetricsConfig implements Serializable {
         });
 
     return spec;
+  }
+
+  public void validateReferencedColumns(Schema schema) {
+    for (String column : columnModes.keySet()) {
+      ValidationException.check(
+          schema.findField(column) != null,
+          "Invalid metrics config, could not find column %s from table prop %s in schema %s",
+          column, TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + column, schema);
+    }
   }
 
   public MetricsMode columnMode(String columnAlias) {

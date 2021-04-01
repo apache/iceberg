@@ -44,6 +44,12 @@ To see changes locally before committing, use mkdocs to run a local server from 
 mkdocs serve
 ```
 
+To see changes in Javadoc, run:
+
+```
+./gradlew refreshJavadoc
+```
+
 ### Publishing
 
 After site changes are committed, you can publish the site with this command:

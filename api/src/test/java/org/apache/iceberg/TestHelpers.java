@@ -28,6 +28,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundSetPredicate;
 import org.apache.iceberg.expressions.Expression;
@@ -82,6 +83,23 @@ public class TestHelpers {
         new ByteArrayInputStream(bytes.toByteArray()))) {
       return (T) in.readObject();
     }
+  }
+
+  public static void assertSameSchemaList(List<Schema> list1, List<Schema> list2) {
+    if (list1.size() != list2.size()) {
+      Assert.fail("Should have same number of schemas in both lists");
+    }
+
+    IntStream.range(0, list1.size()).forEach(
+        index -> {
+          Schema schema1 = list1.get(index);
+          Schema schema2 = list2.get(index);
+          Assert.assertEquals("Should have matching schema id",
+              schema1.schemaId(), schema2.schemaId());
+          Assert.assertEquals("Should have matching schema struct",
+              schema1.asStruct(), schema2.asStruct());
+        }
+    );
   }
 
   private static class CheckReferencesBound extends ExpressionVisitors.ExpressionVisitor<Void> {
@@ -150,11 +168,17 @@ public class TestHelpers {
 
   public static class TestFieldSummary implements ManifestFile.PartitionFieldSummary {
     private final boolean containsNull;
+    private final Boolean containsNaN;
     private final ByteBuffer lowerBound;
     private final ByteBuffer upperBound;
 
     public TestFieldSummary(boolean containsNull, ByteBuffer lowerBound, ByteBuffer upperBound) {
+      this(containsNull, null, lowerBound, upperBound);
+    }
+
+    public TestFieldSummary(boolean containsNull, Boolean containsNaN, ByteBuffer lowerBound, ByteBuffer upperBound) {
       this.containsNull = containsNull;
+      this.containsNaN = containsNaN;
       this.lowerBound = lowerBound;
       this.upperBound = upperBound;
     }
@@ -162,6 +186,11 @@ public class TestHelpers {
     @Override
     public boolean containsNull() {
       return containsNull;
+    }
+
+    @Override
+    public Boolean containsNaN() {
+      return containsNaN;
     }
 
     @Override

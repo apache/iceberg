@@ -27,7 +27,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
@@ -45,21 +47,29 @@ import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS_DEFAULT;
 
 /**
  * TODO we should be able to extract some more commonalities to BaseMetastoreTableOperations to
@@ -67,6 +77,8 @@ import org.slf4j.LoggerFactory;
  */
 public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HiveTableOperations.class);
+
+  private static final int COMMIT_STATUS_CHECK_WAIT_MS = 1000;
 
   private static final String HIVE_ACQUIRE_LOCK_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
   private static final String HIVE_LOCK_CHECK_MIN_WAIT_MS = "iceberg.hive.lock-check-min-wait-ms";
@@ -87,7 +99,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     }
   }
 
-  private final HiveClientPool metaClients;
+  private enum CommitStatus {
+    FAILURE,
+    SUCCESS,
+    UNKNOWN
+  }
+
   private final String fullName;
   private final String database;
   private final String tableName;
@@ -96,8 +113,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final long lockCheckMinWaitTime;
   private final long lockCheckMaxWaitTime;
   private final FileIO fileIO;
+  private final ClientPool<HiveMetaStoreClient, TException> metaClients;
 
-  protected HiveTableOperations(Configuration conf, HiveClientPool metaClients, FileIO fileIO,
+  protected HiveTableOperations(Configuration conf, ClientPool metaClients, FileIO fileIO,
                                 String catalogName, String database, String table) {
     this.conf = conf;
     this.metaClients = metaClients;
@@ -149,12 +167,13 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     refreshFromMetadataLocation(metadataLocation);
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
     boolean hiveEngineEnabled = hiveEngineEnabled(metadata, conf);
 
-    boolean threw = true;
+    CommitStatus commitStatus = CommitStatus.FAILURE;
     boolean updateHiveTable = false;
     Optional<Long> lockId = Optional.empty();
     try {
@@ -186,10 +205,36 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
             baseMetadataLocation, metadataLocation, database, tableName);
       }
 
-      setParameters(newMetadataLocation, tbl, hiveEngineEnabled);
+      // get Iceberg props that have been removed
+      Set<String> removedProps = Collections.emptySet();
+      if (base != null) {
+        removedProps = base.properties().keySet().stream()
+            .filter(key -> !metadata.properties().containsKey(key))
+            .collect(Collectors.toSet());
+      }
 
-      persistTable(tbl, updateHiveTable);
-      threw = false;
+      Map<String, String> summary = Optional.ofNullable(metadata.currentSnapshot())
+          .map(Snapshot::summary)
+          .orElseGet(ImmutableMap::of);
+      setHmsTableParameters(newMetadataLocation, tbl, metadata.properties(), removedProps, hiveEngineEnabled, summary);
+
+      try {
+        persistTable(tbl, updateHiveTable);
+        commitStatus = CommitStatus.SUCCESS;
+      } catch (Throwable persistFailure) {
+        LOG.error("Cannot tell if commit to {}.{} succeeded, attempting to reconnect and check.",
+            database, tableName, persistFailure);
+        commitStatus = checkCommitStatus(newMetadataLocation, metadata);
+        switch (commitStatus) {
+          case SUCCESS:
+            break;
+          case FAILURE:
+            throw persistFailure;
+          case UNKNOWN:
+            throw new CommitStateUnknownException(persistFailure);
+        }
+      }
+
     } catch (org.apache.hadoop.hive.metastore.api.AlreadyExistsException e) {
       throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
 
@@ -207,11 +252,56 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       throw new RuntimeException("Interrupted during commit", e);
 
     } finally {
-      cleanupMetadataAndUnlock(threw, newMetadataLocation, lockId);
+      cleanupMetadataAndUnlock(commitStatus, newMetadataLocation, lockId);
     }
   }
 
-  private void persistTable(Table hmsTable, boolean updateHiveTable) throws TException, InterruptedException {
+  /**
+   * Attempt to load the table and see if any current or past metadata location matches the one we were attempting
+   * to set. This is used as a last resort when we are dealing with exceptions that may indicate the commit has
+   * failed but are not proof that this is the case. Past locations must also be searched on the chance that a second
+   * committer was able to successfully commit on top of our commit.
+   *
+   * @param newMetadataLocation the path of the new commit file
+   * @param config metadata to use for configuration
+   * @return Commit Status of Success, Failure or Unknown
+   */
+  private CommitStatus checkCommitStatus(String newMetadataLocation, TableMetadata config) {
+    int maxAttempts = PropertyUtil.propertyAsInt(config.properties(), COMMIT_NUM_STATUS_CHECKS,
+        COMMIT_NUM_STATUS_CHECKS_DEFAULT);
+
+    AtomicReference<CommitStatus> status = new AtomicReference<>(CommitStatus.UNKNOWN);
+
+    Tasks.foreach(newMetadataLocation)
+        .retry(maxAttempts)
+        .suppressFailureWhenFinished()
+        .exponentialBackoff(COMMIT_STATUS_CHECK_WAIT_MS, COMMIT_STATUS_CHECK_WAIT_MS, Long.MAX_VALUE, 2.0)
+        .onFailure((location, checkException) ->
+            LOG.error("Cannot check if commit to {}.{} exists.", database, tableName, checkException))
+        .run(location -> {
+          TableMetadata metadata = refresh();
+          String currentMetadataLocation = metadata.metadataFileLocation();
+          boolean commitSuccess = currentMetadataLocation.equals(newMetadataLocation) ||
+              metadata.previousFiles().stream().anyMatch(log -> log.file().equals(newMetadataLocation));
+          if (commitSuccess) {
+            LOG.info("Commit status check: Commit to {}.{} of {} succeeded", database, tableName, newMetadataLocation);
+            status.set(CommitStatus.SUCCESS);
+          } else {
+            LOG.info("Commit status check: Commit to {}.{} of {} failed", database, tableName, newMetadataLocation);
+            status.set(CommitStatus.FAILURE);
+          }
+        });
+
+    if (status.get() == CommitStatus.UNKNOWN) {
+      LOG.error("Cannot determine commit state to {}.{}. Failed during checking {} times. " +
+              "Treating commit state as unknown.",
+          database, tableName, maxAttempts);
+    }
+    return status.get();
+  }
+
+  @VisibleForTesting
+  void persistTable(Table hmsTable, boolean updateHiveTable) throws TException, InterruptedException {
     if (updateHiveTable) {
       metaClients.run(client -> {
         EnvironmentContext envContext = new EnvironmentContext(
@@ -257,12 +347,20 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     return newTable;
   }
 
-  private void setParameters(String newMetadataLocation, Table tbl, boolean hiveEngineEnabled) {
+  private void setHmsTableParameters(String newMetadataLocation, Table tbl, Map<String, String> icebergTableProps,
+                                     Set<String> obsoleteProps, boolean hiveEngineEnabled,
+                                     Map<String, String> summary) {
     Map<String, String> parameters = tbl.getParameters();
 
     if (parameters == null) {
       parameters = new HashMap<>();
     }
+
+    // push all Iceberg table properties into HMS
+    icebergTableProps.forEach(parameters::put);
+
+    // remove any props from HMS that are no longer present in Iceberg table props
+    obsoleteProps.forEach(parameters::remove);
 
     parameters.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
     parameters.put(METADATA_LOCATION_PROP, newMetadataLocation);
@@ -277,6 +375,17 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
           "org.apache.iceberg.mr.hive.HiveIcebergStorageHandler");
     } else {
       parameters.remove(hive_metastoreConstants.META_TABLE_STORAGE);
+    }
+
+    // Set the basic statistics
+    if (summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP) != null) {
+      parameters.put(StatsSetupConst.NUM_FILES, summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
+    }
+    if (summary.get(SnapshotSummary.TOTAL_RECORDS_PROP) != null) {
+      parameters.put(StatsSetupConst.ROW_COUNT, summary.get(SnapshotSummary.TOTAL_RECORDS_PROP));
+    }
+    if (summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP) != null) {
+      parameters.put(StatsSetupConst.TOTAL_SIZE, summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
     }
 
     tbl.setParameters(parameters);
@@ -301,7 +410,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     return storageDescriptor;
   }
 
-  private long acquireLock() throws UnknownHostException, TException, InterruptedException {
+  @VisibleForTesting
+  long acquireLock() throws UnknownHostException, TException, InterruptedException {
     final LockComponent lockComponent = new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, database);
     lockComponent.setTablename(tableName);
     final LockRequest lockRequest = new LockRequest(Lists.newArrayList(lockComponent),
@@ -315,8 +425,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     long duration = 0;
     boolean timeout = false;
 
-    if (state.get().equals(LockState.WAITING)) {
-      try {
+    try {
+      if (state.get().equals(LockState.WAITING)) {
         // Retry count is the typical "upper bound of retries" for Tasks.run() function. In fact, the maximum number of
         // attempts the Tasks.run() would try is `retries + 1`. Here, for checking locks, we use timeout as the
         // upper bound of retries. So it is just reasonable to set a large retry count. However, if we set
@@ -344,9 +454,13 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
                 LOG.warn("Interrupted while waiting for lock.", e);
               }
             }, TException.class);
-      } catch (WaitingForLockException waitingForLockException) {
-        timeout = true;
-        duration = System.currentTimeMillis() - start;
+      }
+    } catch (WaitingForLockException waitingForLockException) {
+      timeout = true;
+      duration = System.currentTimeMillis() - start;
+    } finally {
+      if (!state.get().equals(LockState.ACQUIRED)) {
+        unlock(Optional.of(lockId));
       }
     }
 
@@ -363,10 +477,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     return lockId;
   }
 
-  private void cleanupMetadataAndUnlock(boolean errorThrown, String metadataLocation, Optional<Long> lockId) {
+  private void cleanupMetadataAndUnlock(CommitStatus commitStatus, String metadataLocation, Optional<Long> lockId) {
     try {
-      if (errorThrown) {
-        // if anything went wrong, clean up the uncommitted metadata file
+      if (commitStatus == CommitStatus.FAILURE) {
+        // If we are sure the commit failed, clean up the uncommitted metadata file
         io().deleteFile(metadataLocation);
       }
     } catch (RuntimeException e) {
@@ -387,8 +501,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     }
   }
 
-  // visible for testing
-  protected void doUnlock(long lockId) throws TException, InterruptedException {
+  @VisibleForTesting
+  void doUnlock(long lockId) throws TException, InterruptedException {
     metaClients.run(client -> {
       client.unlock(lockId);
       return null;

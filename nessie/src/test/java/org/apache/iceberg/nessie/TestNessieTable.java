@@ -20,11 +20,6 @@
 package org.apache.iceberg.nessie;
 
 
-import com.dremio.nessie.error.NessieConflictException;
-import com.dremio.nessie.error.NessieNotFoundException;
-import com.dremio.nessie.model.Branch;
-import com.dremio.nessie.model.ContentsKey;
-import com.dremio.nessie.model.IcebergTable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
@@ -54,6 +49,11 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.projectnessie.error.NessieConflictException;
+import org.projectnessie.error.NessieNotFoundException;
+import org.projectnessie.model.Branch;
+import org.projectnessie.model.ContentsKey;
+import org.projectnessie.model.IcebergTable;
 
 import static org.apache.iceberg.TableMetadataParser.getFileExtension;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -98,7 +98,7 @@ public class TestNessieTable extends BaseTestIceberg {
     super.afterEach();
   }
 
-  private com.dremio.nessie.model.IcebergTable getTable(ContentsKey key) throws NessieNotFoundException {
+  private org.projectnessie.model.IcebergTable getTable(ContentsKey key) throws NessieNotFoundException {
     return client.getContentsApi()
         .getContents(key, BRANCH)
         .unwrap(IcebergTable.class).get();

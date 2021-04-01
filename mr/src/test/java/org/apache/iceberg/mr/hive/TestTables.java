@@ -22,23 +22,31 @@ package org.apache.iceberg.mr.hive;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Tables;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.hive.HiveCatalogs;
+import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.MetastoreUtil;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestCatalogs;
@@ -47,6 +55,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ObjectArrays;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.rules.TemporaryFolder;
 
@@ -97,13 +107,21 @@ abstract class TestTables {
    * string which we have to execute. Overridden for HiveCatalog where the Hive table is immediately created
    * during the Iceberg table creation so no extra sql execution is required.
    * @param identifier The table identifier (the namespace should be non-empty and single level)
+   * @param tableProps Optional map of table properties
    * @return The SQL string - which should be executed, null - if it is not needed.
    */
-  public String createHiveTableSQL(TableIdentifier identifier) {
+  public String createHiveTableSQL(TableIdentifier identifier, Map<String, String> tableProps) {
     Preconditions.checkArgument(!identifier.namespace().isEmpty(), "Namespace should not be empty");
     Preconditions.checkArgument(identifier.namespace().levels().length == 1, "Namespace should be single level");
-    return String.format("CREATE TABLE %s.%s STORED BY '%s' %s", identifier.namespace(), identifier.name(),
+    String sql = String.format("CREATE TABLE %s.%s STORED BY '%s' %s", identifier.namespace(), identifier.name(),
         HiveIcebergStorageHandler.class.getName(), locationForCreateTableSQL(identifier));
+    if (tableProps != null && !tableProps.isEmpty()) {
+      String props = tableProps.entrySet().stream()
+          .map(entry -> String.format("'%s'='%s'", entry.getKey(), entry.getValue()))
+          .collect(Collectors.joining(","));
+      sql += " TBLPROPERTIES (" + props + ")";
+    }
+    return sql;
   }
 
   /**
@@ -117,23 +135,68 @@ abstract class TestTables {
   }
 
   /**
-   * Creates a Hive test table. Creates the Iceberg table/data and creates the corresponding Hive table as well when
-   * needed. The table will be in the 'default' database. The table will be populated with the provided List of
-   * {@link Record}s.
+   * Creates an non partitioned Hive test table. Creates the Iceberg table/data and creates the corresponding Hive
+   * table as well when needed. The table will be in the 'default' database. The table will be populated with the
+   * provided List of {@link Record}s.
    * @param shell The HiveShell used for Hive table creation
    * @param tableName The name of the test table
    * @param schema The schema used for the table creation
    * @param fileFormat The file format used for writing the data
    * @param records The records with which the table is populated
+   * @return The created table
    * @throws IOException If there is an error writing data
    */
-  public void createTable(TestHiveShell shell, String tableName, Schema schema, FileFormat fileFormat,
+  public Table createTable(TestHiveShell shell, String tableName, Schema schema, FileFormat fileFormat,
       List<Record> records) throws IOException {
-    createIcebergTable(shell.getHiveConf(), tableName, schema, fileFormat, records);
-    String createHiveSQL = createHiveTableSQL(TableIdentifier.of("default", tableName));
+    Table table = createIcebergTable(shell.getHiveConf(), tableName, schema, fileFormat, records);
+    String createHiveSQL = createHiveTableSQL(TableIdentifier.of("default", tableName), ImmutableMap.of());
     if (createHiveSQL != null) {
       shell.executeStatement(createHiveSQL);
     }
+
+    return table;
+  }
+
+  /**
+   * Creates a partitioned Hive test table using Hive SQL. The table will be in the 'default' database.
+   * The table will be populated with the provided List of {@link Record}s using a Hive insert statement.
+   * @param shell The HiveShell used for Hive table creation
+   * @param tableName The name of the test table
+   * @param schema The schema used for the table creation
+   * @param spec The partition specification for the table
+   * @param fileFormat The file format used for writing the data
+   * @param records The records with which the table is populated
+   * @return The created table
+   * @throws IOException If there is an error writing data
+   */
+  public Table createTable(TestHiveShell shell, String tableName, Schema schema, PartitionSpec spec,
+      FileFormat fileFormat, List<Record> records)  {
+    TableIdentifier identifier = TableIdentifier.of("default", tableName);
+    shell.executeStatement("CREATE EXTERNAL TABLE " + identifier +
+        " STORED BY '" + HiveIcebergStorageHandler.class.getName() + "' " +
+        locationForCreateTableSQL(identifier) +
+        "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" +
+        SchemaParser.toJson(schema) + "', " +
+        "'" + InputFormatConfig.PARTITION_SPEC + "'='" +
+        PartitionSpecParser.toJson(spec) + "', " +
+        "'" + TableProperties.DEFAULT_FILE_FORMAT + "'='" + fileFormat + "')");
+
+    if (records != null && !records.isEmpty()) {
+      StringBuilder query = new StringBuilder().append("INSERT INTO " + identifier + " VALUES ");
+
+      records.forEach(record -> {
+        query.append("(");
+        query.append(record.struct().fields().stream()
+                .map(field -> getStringValueForInsert(record.getField(field.name()), field.type()))
+                .collect(Collectors.joining(",")));
+        query.append("),");
+      });
+      query.setLength(query.length() - 1);
+
+      shell.executeStatement(query.toString());
+    }
+
+    return loadTable(identifier);
   }
 
   /**
@@ -221,6 +284,11 @@ abstract class TestTables {
     @Override
     public Table load(String tableIdentifier) {
       return catalog.loadTable(TableIdentifier.parse(tableIdentifier));
+    }
+
+    @Override
+    public boolean exists(String tableIdentifier) {
+      return catalog.tableExists(TableIdentifier.parse(tableIdentifier));
     }
   }
 
@@ -315,7 +383,8 @@ abstract class TestTables {
   static class HiveTestTables extends TestTables {
 
     HiveTestTables(Configuration conf, TemporaryFolder temp) {
-      super(HiveCatalogs.loadCatalog(conf), temp);
+      super(CatalogUtil.loadCatalog(HiveCatalog.class.getName(), CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
+              ImmutableMap.of(), conf), temp);
     }
 
     @Override
@@ -329,13 +398,27 @@ abstract class TestTables {
     }
 
     @Override
-    public String createHiveTableSQL(TableIdentifier identifier) {
+    public String createHiveTableSQL(TableIdentifier identifier, Map<String, String> tblProps) {
       return null;
     }
   }
 
   private static String tablePath(TableIdentifier identifier) {
     return "/" + Joiner.on("/").join(identifier.namespace().levels()) + "/" + identifier.name();
+  }
+
+  private String getStringValueForInsert(Object value, Type type) {
+    String template = "\'%s\'";
+    if (type.equals(Types.TimestampType.withoutZone())) {
+      return String.format(template, Timestamp.valueOf((LocalDateTime) value).toString());
+    } else if (type.equals(Types.TimestampType.withZone())) {
+      return String.format(template, Timestamp.from(((OffsetDateTime) value).toInstant()).toString());
+    } else if (type.equals(Types.BooleanType.get())) {
+      // in hive2 boolean type values must not be surrounded in apostrophes. Otherwise the value is translated to true.
+      return value.toString();
+    } else {
+      return String.format(template, value.toString());
+    }
   }
 
   enum TestTableType {

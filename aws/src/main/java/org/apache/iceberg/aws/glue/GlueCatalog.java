@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
+import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.TableMetadata;
@@ -176,6 +177,7 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
       nextToken = response.nextToken();
       if (response.hasTableList()) {
         results.addAll(response.tableList().stream()
+            .filter(this::isGlueIcebergTable)
             .map(GlueToIcebergConverter::toTableId)
             .collect(Collectors.toList()));
       }
@@ -183,6 +185,12 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
     LOG.debug("Listing of namespace: {} resulted in the following tables: {}", namespace, results);
     return results;
+  }
+
+  private boolean isGlueIcebergTable(Table table) {
+    return table.parameters() != null &&
+        BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.equalsIgnoreCase(
+            table.parameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP));
   }
 
   @Override
@@ -336,10 +344,21 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   @Override
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
     namespaceExists(namespace);
-    List<TableIdentifier> tableIdentifiers = listTables(namespace);
-    if (tableIdentifiers != null && !tableIdentifiers.isEmpty()) {
-      throw new NamespaceNotEmptyException("Cannot drop namespace %s because it is not empty. " +
-          "The following tables still exist under the namespace: %s", namespace, tableIdentifiers);
+
+    GetTablesResponse response = glue.getTables(GetTablesRequest.builder()
+        .catalogId(awsProperties.glueCatalogId())
+        .databaseName(IcebergToGlueConverter.toDatabaseName(namespace))
+        .build());
+
+    if (response.hasTableList() && !response.tableList().isEmpty()) {
+      Table table = response.tableList().get(0);
+      if (isGlueIcebergTable(table)) {
+        throw new NamespaceNotEmptyException(
+            "Cannot drop namespace %s because it still contains Iceberg tables", namespace);
+      } else {
+        throw new NamespaceNotEmptyException(
+            "Cannot drop namespace %s because it still contains non-Iceberg tables", namespace);
+      }
     }
 
     glue.deleteDatabase(DeleteDatabaseRequest.builder()

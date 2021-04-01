@@ -136,13 +136,15 @@ class SchemaUpdate implements UpdateSchema {
           parentField.type().isNestedType() && parentField.type().asNestedType().isStructType(),
           "Cannot add to non-struct column: %s: %s", parent, parentField.type());
       parentId = parentField.fieldId();
+      Types.NestedField currentField = schema.findField(parent + "." + name);
       Preconditions.checkArgument(!deletes.contains(parentId),
           "Cannot add to a column that will be deleted: %s", parent);
-      Preconditions.checkArgument(schema.findField(parent + "." + name) == null,
+      Preconditions.checkArgument(currentField == null || deletes.contains(currentField.fieldId()),
           "Cannot add column, name already exists: %s.%s", parent, name);
       fullName = schema.findColumnName(parentId) + "." + name;
     } else {
-      Preconditions.checkArgument(schema.findField(name) == null,
+      Types.NestedField currentField = schema.findField(name);
+      Preconditions.checkArgument(currentField == null || deletes.contains(currentField.fieldId()),
           "Cannot add column, name already exists: %s", name);
       fullName = name;
     }
@@ -357,7 +359,14 @@ class SchemaUpdate implements UpdateSchema {
    */
   @Override
   public Schema apply() {
-    return applyChanges(schema, deletes, updates, adds, moves);
+    Schema newSchema = applyChanges(schema, deletes, updates, adds, moves);
+
+    // Validate the metrics if we have existing properties.
+    if (base != null && base.properties() != null) {
+      MetricsConfig.fromProperties(base.properties()).validateReferencedColumns(newSchema);
+    }
+
+    return newSchema;
   }
 
   @Override

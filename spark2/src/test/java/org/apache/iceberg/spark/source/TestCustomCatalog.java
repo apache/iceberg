@@ -51,14 +51,14 @@ public class TestCustomCatalog {
   private static final String WAREHOUSE = String.format("%s.%s.%s", CustomCatalogs.ICEBERG_CATALOG_PREFIX,
       CustomCatalogs.ICEBERG_DEFAULT_CATALOG, CatalogProperties.WAREHOUSE_LOCATION);
   private static final String URI_KEY = String.format("%s.%s.%s", CustomCatalogs.ICEBERG_CATALOG_PREFIX,
-      CustomCatalogs.ICEBERG_DEFAULT_CATALOG, CatalogProperties.HIVE_URI);
+      CustomCatalogs.ICEBERG_DEFAULT_CATALOG, CatalogProperties.URI);
   private static final String TEST_CATALOG = "placeholder_catalog";
   private static final String TEST_CATALOG_IMPL = String.format("%s.%s.%s", CustomCatalogs.ICEBERG_CATALOG_PREFIX,
       TEST_CATALOG, CatalogProperties.CATALOG_IMPL);
   private static final String TEST_WAREHOUSE = String.format("%s.%s.%s", CustomCatalogs.ICEBERG_CATALOG_PREFIX,
       TEST_CATALOG, CatalogProperties.WAREHOUSE_LOCATION);
   private static final String TEST_URI_KEY = String.format("%s.%s.%s", CustomCatalogs.ICEBERG_CATALOG_PREFIX,
-      TEST_CATALOG, CatalogProperties.HIVE_URI);
+      TEST_CATALOG, CatalogProperties.URI);
   private static final String URI_VAL = "thrift://localhost:12345"; // dummy uri
   private static final String CATALOG_VAL = "org.apache.iceberg.spark.source.TestCatalog";
   private static final TableIdentifier TABLE = TableIdentifier.of("default", "table");

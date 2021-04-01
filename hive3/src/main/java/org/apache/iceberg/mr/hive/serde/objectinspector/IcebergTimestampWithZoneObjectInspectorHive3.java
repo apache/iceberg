@@ -47,7 +47,7 @@ public class IcebergTimestampWithZoneObjectInspectorHive3 extends AbstractPrimit
     if (o == null) {
       return null;
     }
-    ZonedDateTime zdt = ((TimestampLocalTZWritable) o).getTimestampTZ().getZonedDateTime();
+    ZonedDateTime zdt = ((TimestampTZ) o).getZonedDateTime();
     return OffsetDateTime.of(zdt.toLocalDateTime(), zdt.getOffset());
   }
 

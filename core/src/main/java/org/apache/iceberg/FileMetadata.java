@@ -58,6 +58,7 @@ public class FileMetadata {
     private Map<Integer, ByteBuffer> lowerBounds = null;
     private Map<Integer, ByteBuffer> upperBounds = null;
     private ByteBuffer keyMetadata = null;
+    private Integer sortOrderId = null;
 
     Builder(PartitionSpec spec) {
       this.spec = spec;
@@ -80,6 +81,7 @@ public class FileMetadata {
       this.nanValueCounts = null;
       this.lowerBounds = null;
       this.upperBounds = null;
+      this.sortOrderId = null;
     }
 
     public Builder copy(DeleteFile toCopy) {
@@ -100,6 +102,7 @@ public class FileMetadata {
       this.upperBounds = toCopy.upperBounds();
       this.keyMetadata = toCopy.keyMetadata() == null ? null
           : ByteBuffers.copy(toCopy.keyMetadata());
+      this.sortOrderId = toCopy.sortOrderId();
       return this;
     }
 
@@ -197,6 +200,13 @@ public class FileMetadata {
       return withEncryptionKeyMetadata(newKeyMetadata.buffer());
     }
 
+    public Builder withSortOrder(SortOrder newSortOrder) {
+      if (newSortOrder != null) {
+        this.sortOrderId = newSortOrder.orderId();
+      }
+      return this;
+    }
+
     public DeleteFile build() {
       Preconditions.checkArgument(filePath != null, "File path is required");
       if (format == null) {
@@ -207,11 +217,25 @@ public class FileMetadata {
       Preconditions.checkArgument(fileSizeInBytes >= 0, "File size is required");
       Preconditions.checkArgument(recordCount >= 0, "Record count is required");
 
+      switch (content) {
+        case POSITION_DELETES:
+          Preconditions.checkArgument(sortOrderId == null,
+              "Position delete file should not have sort order");
+          break;
+        case EQUALITY_DELETES:
+          if (sortOrderId == null) {
+            sortOrderId = SortOrder.unsorted().orderId();
+          }
+          break;
+        default:
+          throw new IllegalStateException("Unknown content type " + content);
+      }
+
       return new GenericDeleteFile(
           specId, content, filePath, format, isPartitioned ? DataFiles.copy(spec, partitionData) : null,
           fileSizeInBytes, new Metrics(
           recordCount, columnSizes, valueCounts, nullValueCounts, nanValueCounts, lowerBounds, upperBounds),
-          equalityFieldIds, keyMetadata);
+          equalityFieldIds, sortOrderId, keyMetadata);
     }
   }
 }

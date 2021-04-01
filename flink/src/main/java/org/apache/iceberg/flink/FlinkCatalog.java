@@ -50,7 +50,7 @@ import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
 import org.apache.flink.table.catalog.stats.CatalogColumnStatistics;
 import org.apache.flink.table.catalog.stats.CatalogTableStatistics;
 import org.apache.flink.table.expressions.Expression;
-import org.apache.flink.table.factories.TableFactory;
+import org.apache.flink.table.factories.Factory;
 import org.apache.flink.util.StringUtils;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.DataFile;
@@ -69,6 +69,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -90,17 +91,15 @@ public class FlinkCatalog extends AbstractCatalog {
 
   private final CatalogLoader catalogLoader;
   private final Catalog icebergCatalog;
-  private final String[] baseNamespace;
+  private final Namespace baseNamespace;
   private final SupportsNamespaces asNamespaceCatalog;
   private final Closeable closeable;
   private final boolean cacheEnabled;
 
-  // TODO - Update baseNamespace to use Namespace class
-  // https://github.com/apache/iceberg/issues/1541
   public FlinkCatalog(
       String catalogName,
       String defaultDatabase,
-      String[] baseNamespace,
+      Namespace baseNamespace,
       CatalogLoader catalogLoader,
       boolean cacheEnabled) {
     super(catalogName, defaultDatabase);
@@ -135,10 +134,14 @@ public class FlinkCatalog extends AbstractCatalog {
     }
   }
 
+  public Catalog catalog() {
+    return icebergCatalog;
+  }
+
   private Namespace toNamespace(String database) {
-    String[] namespace = new String[baseNamespace.length + 1];
-    System.arraycopy(baseNamespace, 0, namespace, 0, baseNamespace.length);
-    namespace[baseNamespace.length] = database;
+    String[] namespace = new String[baseNamespace.levels().length + 1];
+    System.arraycopy(baseNamespace.levels(), 0, namespace, 0, baseNamespace.levels().length);
+    namespace[baseNamespace.levels().length] = database;
     return Namespace.of(namespace);
   }
 
@@ -152,7 +155,7 @@ public class FlinkCatalog extends AbstractCatalog {
       return Collections.singletonList(getDefaultDatabase());
     }
 
-    return asNamespaceCatalog.listNamespaces(Namespace.of(baseNamespace)).stream()
+    return asNamespaceCatalog.listNamespaces(baseNamespace).stream()
         .map(n -> n.level(n.levels().length - 1))
         .collect(Collectors.toList());
   }
@@ -308,7 +311,7 @@ public class FlinkCatalog extends AbstractCatalog {
     return toCatalogTable(table);
   }
 
-  Table loadIcebergTable(ObjectPath tablePath) throws TableNotExistException {
+  private Table loadIcebergTable(ObjectPath tablePath) throws TableNotExistException {
     try {
       Table table = icebergCatalog.loadTable(toIdentifier(tablePath));
       if (cacheEnabled) {
@@ -332,7 +335,9 @@ public class FlinkCatalog extends AbstractCatalog {
     try {
       icebergCatalog.dropTable(toIdentifier(tablePath));
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
-      throw new TableNotExistException(getName(), tablePath, e);
+      if (!ignoreIfNotExists) {
+        throw new TableNotExistException(getName(), tablePath, e);
+      }
     }
   }
 
@@ -344,7 +349,9 @@ public class FlinkCatalog extends AbstractCatalog {
           toIdentifier(tablePath),
           toIdentifier(new ObjectPath(tablePath.getDatabaseName(), newTableName)));
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
-      throw new TableNotExistException(getName(), tablePath, e);
+      if (!ignoreIfNotExists) {
+        throw new TableNotExistException(getName(), tablePath, e);
+      }
     } catch (AlreadyExistsException e) {
       throw new TableAlreadyExistException(getName(), tablePath, e);
     }
@@ -376,7 +383,9 @@ public class FlinkCatalog extends AbstractCatalog {
           location,
           properties.build());
     } catch (AlreadyExistsException e) {
-      throw new TableAlreadyExistException(getName(), tablePath, e);
+      if (!ignoreIfExists) {
+        throw new TableAlreadyExistException(getName(), tablePath, e);
+      }
     }
   }
 
@@ -384,7 +393,18 @@ public class FlinkCatalog extends AbstractCatalog {
   public void alterTable(ObjectPath tablePath, CatalogBaseTable newTable, boolean ignoreIfNotExists)
       throws CatalogException, TableNotExistException {
     validateFlinkTable(newTable);
-    Table icebergTable = loadIcebergTable(tablePath);
+
+    Table icebergTable;
+    try {
+      icebergTable = loadIcebergTable(tablePath);
+    } catch (TableNotExistException e) {
+      if (!ignoreIfNotExists) {
+        throw e;
+      } else {
+        return;
+      }
+    }
+
     CatalogTable table = toCatalogTable(icebergTable);
 
     // Currently, Flink SQL only support altering table properties.
@@ -439,7 +459,7 @@ public class FlinkCatalog extends AbstractCatalog {
 
     TableSchema schema = table.getSchema();
     schema.getTableColumns().forEach(column -> {
-      if (column.isGenerated()) {
+      if (!FlinkCompatibilityUtil.isPhysicalColumn(column)) {
         throw new UnsupportedOperationException("Creating table with computed columns is not supported yet.");
       }
     });
@@ -527,8 +547,8 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   @Override
-  public Optional<TableFactory> getTableFactory() {
-    return Optional.of(new FlinkTableFactory(this));
+  public Optional<Factory> getFactory() {
+    return Optional.of(new FlinkDynamicTableFactory(this));
   }
 
   CatalogLoader getCatalogLoader() {

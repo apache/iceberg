@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 /**
  * API for replacing files in a table.
@@ -35,11 +36,30 @@ import org.apache.iceberg.exceptions.ValidationException;
  */
 public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
   /**
-   * Add a rewrite that replaces one set of files with another set that contains the same data.
+   * Add a rewrite that replaces one set of data files with another set that contains the same data.
    *
    * @param filesToDelete files that will be replaced (deleted), cannot be null or empty.
-   * @param filesToAdd files that will be added, cannot be null or empty.
+   * @param filesToAdd    files that will be added, cannot be null or empty.
    * @return this for method chaining
    */
-  RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd);
+  default RewriteFiles rewriteFiles(Set<DataFile> filesToDelete, Set<DataFile> filesToAdd) {
+    return rewriteFiles(
+        filesToDelete,
+        ImmutableSet.of(),
+        filesToAdd,
+        ImmutableSet.of()
+    );
+  }
+
+  /**
+   * Add a rewrite that replaces one set of files with another set that contains the same data.
+   *
+   * @param dataFilesToDelete   data files that will be replaced (deleted).
+   * @param deleteFilesToDelete delete files that will be replaced (deleted).
+   * @param dataFilesToAdd      data files that will be added.
+   * @param deleteFilesToAdd    delete files that will be added.
+   * @return this for method chaining.
+   */
+  RewriteFiles rewriteFiles(Set<DataFile> dataFilesToDelete, Set<DeleteFile> deleteFilesToDelete,
+                            Set<DataFile> dataFilesToAdd, Set<DeleteFile> deleteFilesToAdd);
 }

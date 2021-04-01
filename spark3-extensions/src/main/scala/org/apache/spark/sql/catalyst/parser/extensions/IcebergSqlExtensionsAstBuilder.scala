@@ -22,10 +22,12 @@ package org.apache.spark.sql.catalyst.parser.extensions
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime.tree.TerminalNode
+import org.apache.iceberg.DistributionMode
 import org.apache.iceberg.NullOrder
 import org.apache.iceberg.SortDirection
 import org.apache.iceberg.expressions.Term
 import org.apache.iceberg.spark.Spark3Util
+import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.parser.ParseException
@@ -39,7 +41,8 @@ import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.NamedArgument
 import org.apache.spark.sql.catalyst.plans.logical.PositionalArgument
-import org.apache.spark.sql.catalyst.plans.logical.SetWriteOrder
+import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
+import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
 import org.apache.spark.sql.connector.expressions
 import org.apache.spark.sql.connector.expressions.ApplyTransform
 import org.apache.spark.sql.connector.expressions.FieldReference
@@ -78,13 +81,65 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       typedVisit[Transform](ctx.transform))
   }
 
+
   /**
-   * Create a WRITE ORDERED BY logical command.
+   * Create an CHANGE PARTITION FIELD logical command.
    */
-  override def visitSetTableOrder(ctx: SetTableOrderContext): SetWriteOrder = withOrigin(ctx) {
-    SetWriteOrder(
+  override def visitReplacePartitionField(ctx: ReplacePartitionFieldContext): ReplacePartitionField = withOrigin(ctx) {
+    ReplacePartitionField(
       typedVisit[Seq[String]](ctx.multipartIdentifier),
-      ctx.order.fields.asScala.map(typedVisit[(Term, SortDirection, NullOrder)]).toArray)
+      typedVisit[Transform](ctx.transform(0)),
+      typedVisit[Transform](ctx.transform(1)),
+      Option(ctx.name).map(_.getText))
+  }
+
+  /**
+   * Create a [[SetWriteDistributionAndOrdering]] for changing the write distribution and ordering.
+   */
+  override def visitSetWriteDistributionAndOrdering(
+      ctx: SetWriteDistributionAndOrderingContext): SetWriteDistributionAndOrdering = {
+
+    val tableName = typedVisit[Seq[String]](ctx.multipartIdentifier)
+
+    val (distributionSpec, orderingSpec) = toDistributionAndOrderingSpec(ctx.writeSpec)
+
+    if (distributionSpec == null && orderingSpec == null) {
+      throw new AnalysisException(
+        "ALTER TABLE has no changes: missing both distribution and ordering clauses")
+    }
+
+    val distributionMode = if (distributionSpec != null) {
+      DistributionMode.HASH
+    } else if (orderingSpec.UNORDERED != null || orderingSpec.LOCALLY != null) {
+      DistributionMode.NONE
+    } else {
+      DistributionMode.RANGE
+    }
+
+    val ordering = if (orderingSpec != null && orderingSpec.order != null) {
+      orderingSpec.order.fields.asScala.map(typedVisit[(Term, SortDirection, NullOrder)])
+    } else {
+      Seq.empty
+    }
+
+    SetWriteDistributionAndOrdering(tableName, distributionMode, ordering)
+  }
+
+  private def toDistributionAndOrderingSpec(
+      writeSpec: WriteSpecContext): (WriteDistributionSpecContext, WriteOrderingSpecContext) = {
+
+    if (writeSpec.writeDistributionSpec.size > 1) {
+      throw new AnalysisException("ALTER TABLE contains multiple distribution clauses")
+    }
+
+    if (writeSpec.writeOrderingSpec.size > 1) {
+      throw new AnalysisException("ALTER TABLE contains multiple ordering clauses")
+    }
+
+    val distributionSpec = writeSpec.writeDistributionSpec.asScala.headOption.orNull
+    val orderingSpec = writeSpec.writeOrderingSpec.asScala.headOption.orNull
+
+    (distributionSpec, orderingSpec)
   }
 
   /**

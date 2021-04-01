@@ -34,10 +34,14 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.MapMaker;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
+import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 public class CatalogUtil {
   private static final Logger LOG = LoggerFactory.getLogger(CatalogUtil.class);
@@ -78,7 +82,12 @@ public class CatalogUtil {
 
     // run all of the deletes
 
-    deleteFiles(io, manifestsToDelete);
+    boolean gcEnabled = PropertyUtil.propertyAsBoolean(metadata.properties(), GC_ENABLED, GC_ENABLED_DEFAULT);
+
+    if (gcEnabled) {
+      // delete data files only if we are sure this won't corrupt other tables
+      deleteFiles(io, manifestsToDelete);
+    }
 
     Tasks.foreach(Iterables.transform(manifestsToDelete, ManifestFile::path))
         .noRetry().suppressFailureWhenFinished()
@@ -155,7 +164,7 @@ public class CatalogUtil {
       ctor = DynConstructors.builder(Catalog.class).impl(impl).buildChecked();
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(String.format(
-          "Cannot initialize Catalog, missing no-arg constructor: %s", impl), e);
+          "Cannot initialize Catalog implementation %s: %s", impl, e.getMessage()), e);
     }
 
     Catalog catalog;

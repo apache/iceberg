@@ -27,7 +27,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-abstract class BaseAction<R> implements Action<R> {
+abstract class BaseAction<ThisT, R> implements Action<ThisT, R> {
 
   protected abstract Table table();
 

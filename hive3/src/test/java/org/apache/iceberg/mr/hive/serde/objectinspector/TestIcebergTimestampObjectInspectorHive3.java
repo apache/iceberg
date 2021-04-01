@@ -65,7 +65,7 @@ public class TestIcebergTimestampObjectInspectorHive3 {
 
     Assert.assertFalse(oi.preferWritable());
 
-    Assert.assertEquals(local, oi.convert(new TimestampWritableV2(ts)));
+    Assert.assertEquals(local, oi.convert(ts));
   }
 
 }

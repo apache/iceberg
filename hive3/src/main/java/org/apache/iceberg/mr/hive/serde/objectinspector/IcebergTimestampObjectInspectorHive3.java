@@ -45,7 +45,7 @@ public class IcebergTimestampObjectInspectorHive3 extends AbstractPrimitiveJavaO
     if (o == null) {
       return null;
     }
-    Timestamp timestamp = ((TimestampWritableV2) o).getTimestamp();
+    Timestamp timestamp = (Timestamp) o;
     return LocalDateTime.ofEpochSecond(timestamp.toEpochSecond(), timestamp.getNanos(), ZoneOffset.UTC);
   }
 

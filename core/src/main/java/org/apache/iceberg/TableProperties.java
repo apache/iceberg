@@ -36,6 +36,9 @@ public class TableProperties {
   public static final String COMMIT_TOTAL_RETRY_TIME_MS = "commit.retry.total-timeout-ms";
   public static final int COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT = 1800000; // 30 minutes
 
+  public static final String COMMIT_NUM_STATUS_CHECKS = "commit.num-status-checks";
+  public static final int COMMIT_NUM_STATUS_CHECKS_DEFAULT = 3;
+
   public static final String MANIFEST_TARGET_SIZE_BYTES = "commit.manifest.target-size-bytes";
   public static final long MANIFEST_TARGET_SIZE_BYTES_DEFAULT = 8388608; // 8 MB
 
@@ -84,6 +87,9 @@ public class TableProperties {
   public static final String PARQUET_BATCH_SIZE = "read.parquet.vectorization.batch-size";
   public static final int PARQUET_BATCH_SIZE_DEFAULT = 5000;
 
+  public static final String ORC_VECTORIZATION_ENABLED = "read.orc.vectorization.enabled";
+  public static final boolean ORC_VECTORIZATION_ENABLED_DEFAULT = false;
+
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
 
@@ -127,7 +133,7 @@ public class TableProperties {
   public static final String WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT = "false";
 
   public static final String WRITE_TARGET_FILE_SIZE_BYTES = "write.target-file-size-bytes";
-  public static final long WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT = Long.MAX_VALUE;
+  public static final long WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT = 536870912; // 512 MB
 
   public static final String SPARK_WRITE_PARTITIONED_FANOUT_ENABLED = "write.spark.fanout.enabled";
   public static final boolean SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT = false;
@@ -137,6 +143,12 @@ public class TableProperties {
 
   public static final String ENGINE_HIVE_ENABLED = "engine.hive.enabled";
   public static final boolean ENGINE_HIVE_ENABLED_DEFAULT = false;
+
+  public static final String WRITE_DISTRIBUTION_MODE = "write.distribution-mode";
+  public static final String WRITE_DISTRIBUTION_MODE_NONE = "none";
+  public static final String WRITE_DISTRIBUTION_MODE_HASH = "hash";
+  public static final String WRITE_DISTRIBUTION_MODE_RANGE = "range";
+  public static final String WRITE_DISTRIBUTION_MODE_DEFAULT = WRITE_DISTRIBUTION_MODE_NONE;
 
   public static final String GC_ENABLED = "gc.enabled";
   public static final boolean GC_ENABLED_DEFAULT = true;
@@ -164,4 +176,7 @@ public class TableProperties {
 
   public static final String MERGE_MODE = "write.merge.mode";
   public static final String MERGE_MODE_DEFAULT = "copy-on-write";
+
+  public static final String MERGE_CARDINALITY_CHECK_ENABLED = "write.merge.cardinality-check.enabled";
+  public static final boolean MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT = true;
 }

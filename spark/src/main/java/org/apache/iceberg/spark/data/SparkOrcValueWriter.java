@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.spark.data;
 
+import java.util.stream.Stream;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
 
@@ -43,4 +45,15 @@ interface SparkOrcValueWriter {
   }
 
   void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output);
+
+  /**
+   * Returns a stream of {@link FieldMetrics} that this SparkOrcValueWriter keeps track of.
+   * <p>
+   * Since ORC keeps track of most metrics via column statistics, for now SparkOrcValueWriter only keeps track of NaN
+   * counters, and only return non-empty stream if the writer writes double or float values either by itself or
+   * transitively.
+   */
+  default Stream<FieldMetrics> metrics() {
+    return Stream.empty();
+  }
 }

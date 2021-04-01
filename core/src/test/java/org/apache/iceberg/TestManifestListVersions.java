@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
@@ -34,6 +35,8 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -205,6 +208,45 @@ public class TestManifestListVersions {
     Assert.assertTrue("Deleted files should be present", manifest.hasDeletedFiles());
     Assert.assertEquals("Deleted files count should match", 4, (int) manifest.deletedFilesCount());
     Assert.assertNull("Deleted rows count should be null", manifest.deletedRowsCount());
+  }
+
+  @Test
+  public void testManifestsPartitionSummary() throws IOException {
+    ByteBuffer firstSummaryLowerBound = Conversions.toByteBuffer(Types.IntegerType.get(), 10);
+    ByteBuffer firstSummaryUpperBound = Conversions.toByteBuffer(Types.IntegerType.get(), 100);
+    ByteBuffer secondSummaryLowerBound = Conversions.toByteBuffer(Types.IntegerType.get(), 20);
+    ByteBuffer secondSummaryUpperBound = Conversions.toByteBuffer(Types.IntegerType.get(), 200);
+
+    List<ManifestFile.PartitionFieldSummary> partitionFieldSummaries = Lists.newArrayList(
+        new GenericPartitionFieldSummary(false, firstSummaryLowerBound, firstSummaryUpperBound),
+        new GenericPartitionFieldSummary(true, false, secondSummaryLowerBound, secondSummaryUpperBound));
+    ManifestFile manifest = new GenericManifestFile(
+        PATH, LENGTH, SPEC_ID, ManifestContent.DATA, SEQ_NUM, MIN_SEQ_NUM, SNAPSHOT_ID,
+        ADDED_FILES, ADDED_ROWS, EXISTING_FILES, EXISTING_ROWS, DELETED_FILES, DELETED_ROWS,
+        partitionFieldSummaries);
+
+    InputFile manifestList = writeManifestList(manifest, 2);
+
+    List<ManifestFile> files = ManifestLists.read(manifestList);
+    ManifestFile returnedManifest = Iterables.getOnlyElement(files);
+    Assert.assertEquals("Number of partition field summaries should match",
+        2, returnedManifest.partitions().size());
+
+    ManifestFile.PartitionFieldSummary first = returnedManifest.partitions().get(0);
+    Assert.assertFalse("First partition field summary should not contain null", first.containsNull());
+    Assert.assertNull("First partition field summary has unknown NaN", first.containsNaN());
+    Assert.assertEquals("Lower bound for first partition field summary should match",
+        firstSummaryLowerBound, first.lowerBound());
+    Assert.assertEquals("Upper bound for first partition field summary should match",
+        firstSummaryUpperBound, first.upperBound());
+
+    ManifestFile.PartitionFieldSummary second = returnedManifest.partitions().get(1);
+    Assert.assertTrue("Second partition field summary should contain null", second.containsNull());
+    Assert.assertFalse("Second partition field summary should not contain NaN", second.containsNaN());
+    Assert.assertEquals("Lower bound for second partition field summary should match",
+        secondSummaryLowerBound, second.lowerBound());
+    Assert.assertEquals("Upper bound for second partition field summary should match",
+        secondSummaryUpperBound, second.upperBound());
   }
 
   private InputFile writeManifestList(ManifestFile manifest, int formatVersion) throws IOException {

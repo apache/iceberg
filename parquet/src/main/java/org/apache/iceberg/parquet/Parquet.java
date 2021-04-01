@@ -36,6 +36,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -280,6 +281,7 @@ public class Parquet {
     private StructLike partition = null;
     private EncryptionKeyMetadata keyMetadata = null;
     private int[] equalityFieldIds = null;
+    private SortOrder sortOrder;
     private Function<CharSequence, ?> pathTransformFunc = Function.identity();
 
     private DeleteWriteBuilder(OutputFile file) {
@@ -365,6 +367,11 @@ public class Parquet {
       return this;
     }
 
+    public DeleteWriteBuilder withSortOrder(SortOrder newSortOrder) {
+      this.sortOrder = newSortOrder;
+      return this;
+    }
+
     public <T> EqualityDeleteWriter<T> buildEqualityWriter() throws IOException {
       Preconditions.checkState(rowSchema != null, "Cannot create equality delete file without a schema`");
       Preconditions.checkState(equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
@@ -381,7 +388,8 @@ public class Parquet {
       appenderBuilder.createWriterFunc(createWriterFunc);
 
       return new EqualityDeleteWriter<>(
-          appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata, equalityFieldIds);
+          appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata,
+          sortOrder, equalityFieldIds);
     }
 
     public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {

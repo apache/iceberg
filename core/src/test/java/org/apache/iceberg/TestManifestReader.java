@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -126,6 +127,19 @@ public class TestManifestReader extends TableTestBase {
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
       long expectedPos = 0L;
       for (DataFile file : reader) {
+        Assert.assertEquals("Position should match", (Long) expectedPos, file.pos());
+        expectedPos += 1;
+      }
+    }
+  }
+
+  @Test
+  public void testDeleteFilePositions() throws IOException {
+    Assume.assumeTrue("Delete files only work for format version 2", formatVersion == 2);
+    ManifestFile manifest = writeDeleteManifest(formatVersion, 1000L, FILE_A_DELETES, FILE_B_DELETES);
+    try (ManifestReader<DeleteFile> reader = ManifestFiles.readDeleteManifest(manifest, FILE_IO, null)) {
+      long expectedPos = 0L;
+      for (DeleteFile file : reader) {
         Assert.assertEquals("Position should match", (Long) expectedPos, file.pos());
         expectedPos += 1;
       }

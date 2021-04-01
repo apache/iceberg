@@ -88,9 +88,12 @@ public class TableMetadataParser {
   static final String LAST_UPDATED_MILLIS = "last-updated-ms";
   static final String LAST_COLUMN_ID = "last-column-id";
   static final String SCHEMA = "schema";
+  static final String SCHEMAS = "schemas";
+  static final String CURRENT_SCHEMA_ID = "current-schema-id";
   static final String PARTITION_SPEC = "partition-spec";
   static final String PARTITION_SPECS = "partition-specs";
   static final String DEFAULT_SPEC_ID = "default-spec-id";
+  static final String LAST_PARTITION_ID = "last-partition-id";
   static final String DEFAULT_SORT_ORDER_ID = "default-sort-order-id";
   static final String SORT_ORDERS = "sort-orders";
   static final String PROPERTIES = "properties";
@@ -161,8 +164,20 @@ public class TableMetadataParser {
     generator.writeNumberField(LAST_UPDATED_MILLIS, metadata.lastUpdatedMillis());
     generator.writeNumberField(LAST_COLUMN_ID, metadata.lastColumnId());
 
-    generator.writeFieldName(SCHEMA);
-    SchemaParser.toJson(metadata.schema(), generator);
+    // for older readers, continue writing the current schema as "schema".
+    // this is only needed for v1 because support for schemas and current-schema-id is required in v2 and later.
+    if (metadata.formatVersion() == 1) {
+      generator.writeFieldName(SCHEMA);
+      SchemaParser.toJson(metadata.schema(), generator);
+    }
+
+    // write the current schema ID and schema list
+    generator.writeNumberField(CURRENT_SCHEMA_ID, metadata.currentSchemaId());
+    generator.writeArrayFieldStart(SCHEMAS);
+    for (Schema schema : metadata.schemas()) {
+      SchemaParser.toJson(schema, generator);
+    }
+    generator.writeEndArray();
 
     // for older readers, continue writing the default spec as "partition-spec"
     if (metadata.formatVersion() == 1) {
@@ -178,6 +193,9 @@ public class TableMetadataParser {
     }
     generator.writeEndArray();
 
+    generator.writeNumberField(LAST_PARTITION_ID, metadata.lastAssignedPartitionId());
+
+    // write the default order ID and sort order list
     generator.writeNumberField(DEFAULT_SORT_ORDER_ID, metadata.defaultSortOrderId());
     generator.writeArrayFieldStart(SORT_ORDERS);
     for (SortOrder sortOrder : metadata.sortOrders()) {
@@ -185,6 +203,7 @@ public class TableMetadataParser {
     }
     generator.writeEndArray();
 
+    // write properties map
     generator.writeObjectFieldStart(PROPERTIES);
     for (Map.Entry<String, String> keyValue : metadata.properties().entrySet()) {
       generator.writeStringField(keyValue.getKey(), keyValue.getValue());
@@ -242,6 +261,7 @@ public class TableMetadataParser {
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   static TableMetadata fromJson(FileIO io, InputFile file, JsonNode node) {
     Preconditions.checkArgument(node.isObject(),
         "Cannot parse metadata from a non-object: %s", node);
@@ -259,7 +279,41 @@ public class TableMetadataParser {
       lastSequenceNumber = TableMetadata.INITIAL_SEQUENCE_NUMBER;
     }
     int lastAssignedColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
-    Schema schema = SchemaParser.fromJson(node.get(SCHEMA));
+
+    List<Schema> schemas;
+    int currentSchemaId;
+    Schema schema = null;
+
+    JsonNode schemaArray = node.get(SCHEMAS);
+    if (schemaArray != null) {
+      Preconditions.checkArgument(schemaArray.isArray(),
+          "Cannot parse schemas from non-array: %s", schemaArray);
+      // current schema ID is required when the schema array is present
+      currentSchemaId = JsonUtil.getInt(CURRENT_SCHEMA_ID, node);
+
+      // parse the schema array
+      ImmutableList.Builder<Schema> builder = ImmutableList.builder();
+      for (JsonNode schemaNode : schemaArray) {
+        Schema current = SchemaParser.fromJson(schemaNode);
+        if (current.schemaId() == currentSchemaId) {
+          schema = current;
+        }
+        builder.add(current);
+      }
+
+      Preconditions.checkArgument(schema != null,
+          "Cannot find schema with %s=%s from %s", CURRENT_SCHEMA_ID, currentSchemaId, SCHEMAS);
+
+      schemas = builder.build();
+
+    } else {
+      Preconditions.checkArgument(formatVersion == 1,
+          "%s must exist in format v%s", SCHEMAS, formatVersion);
+
+      schema = SchemaParser.fromJson(node.get(SCHEMA));
+      currentSchemaId = schema.schemaId();
+      schemas = ImmutableList.of(schema);
+    }
 
     JsonNode specArray = node.get(PARTITION_SPECS);
     List<PartitionSpec> specs;
@@ -288,6 +342,14 @@ public class TableMetadataParser {
           schema, TableMetadata.INITIAL_SPEC_ID, node.get(PARTITION_SPEC)));
     }
 
+    Integer lastAssignedPartitionId = JsonUtil.getIntOrNull(LAST_PARTITION_ID, node);
+    if (lastAssignedPartitionId == null) {
+      Preconditions.checkArgument(formatVersion == 1,
+          "%s must exist in format v%s", LAST_PARTITION_ID, formatVersion);
+      lastAssignedPartitionId = specs.stream().mapToInt(PartitionSpec::lastAssignedFieldId).max().orElse(999);
+    }
+
+    // parse the sort orders
     JsonNode sortOrderArray = node.get(SORT_ORDERS);
     List<SortOrder> sortOrders;
     int defaultSortOrderId;
@@ -306,6 +368,7 @@ public class TableMetadataParser {
       defaultSortOrderId = defaultSortOrder.orderId();
     }
 
+    // parse properties map
     Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, node);
     long currentVersionId = JsonUtil.getLong(CURRENT_SNAPSHOT_ID, node);
     long lastUpdatedMillis = JsonUtil.getLong(LAST_UPDATED_MILLIS, node);
@@ -341,8 +404,8 @@ public class TableMetadataParser {
     }
 
     return new TableMetadata(file, formatVersion, uuid, location,
-        lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, schema, defaultSpecId, specs,
-        defaultSortOrderId, sortOrders, properties, currentVersionId, snapshots, entries.build(),
-        metadataEntries.build());
+        lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, currentSchemaId, schemas, defaultSpecId, specs,
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentVersionId,
+        snapshots, entries.build(), metadataEntries.build());
   }
 }

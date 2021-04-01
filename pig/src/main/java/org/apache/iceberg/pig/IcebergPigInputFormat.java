@@ -27,7 +27,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.commons.lang3.SerializationUtils;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.InputSplit;
@@ -52,6 +51,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.SerializationUtil;
 import org.apache.pig.data.DataByteArray;
 import org.apache.pig.impl.util.ObjectSerializer;
 import org.slf4j.Logger;
@@ -64,8 +64,8 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
   static final String ICEBERG_PROJECTED_FIELDS = "iceberg.projected.fields";
   static final String ICEBERG_FILTER_EXPRESSION = "iceberg.filter.expression";
 
-  private Table table;
-  private String signature;
+  private final Table table;
+  private final String signature;
   private List<InputSplit> splits;
 
   IcebergPigInputFormat(Table table, String signature) {
@@ -129,7 +129,7 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
 
     @Override
     public void write(DataOutput out) throws IOException {
-      byte[] data = SerializationUtils.serialize(this.task);
+      byte[] data = SerializationUtil.serializeToBytes(this.task);
       out.writeInt(data.length);
       out.write(data);
     }
@@ -139,7 +139,7 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
       byte[] data = new byte[in.readInt()];
       in.readFully(data);
 
-      this.task = (CombinedScanTask) SerializationUtils.deserialize(data);
+      this.task = SerializationUtil.deserializeFromBytes(data);
     }
   }
 

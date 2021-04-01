@@ -73,8 +73,13 @@ public class TestHiveShell {
     }
   }
 
+  public void setHiveSessionValue(String key, boolean value) {
+    setHiveSessionValue(key, Boolean.toString(value));
+  }
+
   public void start() {
-    metastore.start();
+    // Create a copy of the HiveConf for the metastore
+    metastore.start(new HiveConf(hs2Conf));
     hs2Conf.setVar(HiveConf.ConfVars.METASTOREURIS, metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREURIS));
     hs2Conf.setVar(HiveConf.ConfVars.METASTOREWAREHOUSE,
         metastore.hiveConf().getVar(HiveConf.ConfVars.METASTOREWAREHOUSE));
@@ -180,6 +185,9 @@ public class TestHiveShell {
 
     // Tez configuration
     hiveConf.setBoolean("tez.local.mode", true);
+
+    // Disable vectorization for HiveIcebergInputFormat
+    hiveConf.setBoolVar(HiveConf.ConfVars.HIVE_VECTORIZATION_ENABLED, false);
 
     return hiveConf;
   }

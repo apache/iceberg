@@ -19,6 +19,9 @@
 
 package org.apache.iceberg.spark.data;
 
+import java.util.stream.Stream;
+import org.apache.iceberg.FieldMetrics;
+import org.apache.iceberg.FloatFieldMetrics;
 import org.apache.orc.storage.common.type.HiveDecimal;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
@@ -56,12 +59,12 @@ class SparkOrcValueWriters {
     return LongWriter.INSTANCE;
   }
 
-  static SparkOrcValueWriter floats() {
-    return FloatWriter.INSTANCE;
+  static SparkOrcValueWriter floats(int id) {
+    return new FloatWriter(id);
   }
 
-  static SparkOrcValueWriter doubles() {
-    return DoubleWriter.INSTANCE;
+  static SparkOrcValueWriter doubles(int id) {
+    return new DoubleWriter(id);
   }
 
   static SparkOrcValueWriter byteArrays() {
@@ -138,20 +141,52 @@ class SparkOrcValueWriters {
   }
 
   private static class FloatWriter implements SparkOrcValueWriter {
-    private static final FloatWriter INSTANCE = new FloatWriter();
+    private final int id;
+    private long nanCount;
+
+    private FloatWriter(int id) {
+      this.id = id;
+      this.nanCount = 0;
+    }
 
     @Override
     public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
-      ((DoubleColumnVector) output).vector[rowId] = data.getFloat(column);
+      float floatValue = data.getFloat(column);
+      ((DoubleColumnVector) output).vector[rowId] = floatValue;
+
+      if (Float.isNaN(floatValue)) {
+        nanCount++;
+      }
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.of(new FloatFieldMetrics(id, nanCount));
     }
   }
 
   private static class DoubleWriter implements SparkOrcValueWriter {
-    private static final DoubleWriter INSTANCE = new DoubleWriter();
+    private final int id;
+    private long nanCount;
+
+    private DoubleWriter(int id) {
+      this.id = id;
+      this.nanCount = 0;
+    }
 
     @Override
     public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
-      ((DoubleColumnVector) output).vector[rowId] = data.getDouble(column);
+      double doubleValue = data.getDouble(column);
+      ((DoubleColumnVector) output).vector[rowId] = doubleValue;
+
+      if (Double.isNaN(doubleValue)) {
+        nanCount++;
+      }
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.of(new FloatFieldMetrics(id, nanCount));
     }
   }
 
@@ -236,13 +271,18 @@ class SparkOrcValueWriters {
       // record the length and start of the list elements
       cv.lengths[rowId] = value.numElements();
       cv.offsets[rowId] = cv.childCount;
-      cv.childCount += cv.lengths[rowId];
+      cv.childCount = (int) (cv.childCount + cv.lengths[rowId]);
       // make sure the child is big enough
-      cv.child.ensureSize(cv.childCount, true);
+      growColumnVector(cv.child, cv.childCount);
       // Add each element
       for (int e = 0; e < cv.lengths[rowId]; ++e) {
         writer.write((int) (e + cv.offsets[rowId]), e, value, cv.child);
       }
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return writer.metrics();
     }
   }
 
@@ -264,16 +304,28 @@ class SparkOrcValueWriters {
       // record the length and start of the list elements
       cv.lengths[rowId] = value.numElements();
       cv.offsets[rowId] = cv.childCount;
-      cv.childCount += cv.lengths[rowId];
+      cv.childCount = (int) (cv.childCount + cv.lengths[rowId]);
       // make sure the child is big enough
-      cv.keys.ensureSize(cv.childCount, true);
-      cv.values.ensureSize(cv.childCount, true);
+      growColumnVector(cv.keys, cv.childCount);
+      growColumnVector(cv.values, cv.childCount);
       // Add each element
       for (int e = 0; e < cv.lengths[rowId]; ++e) {
         int pos = (int) (e + cv.offsets[rowId]);
         keyWriter.write(pos, e, key, cv.keys);
         valueWriter.write(pos, e, value, cv.values);
       }
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
+    }
+  }
+
+  private static void growColumnVector(ColumnVector cv, int requestedSize) {
+    if (cv.isNull.length < requestedSize) {
+      // Use growth factor of 3 to avoid frequent array allocations
+      cv.ensureSize(requestedSize * 3, true);
     }
   }
 }

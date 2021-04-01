@@ -24,11 +24,13 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.spark.sql.Row;
@@ -62,7 +64,8 @@ public abstract class SparkTestBase {
         .enableHiveSupport()
         .getOrCreate();
 
-    SparkTestBase.catalog = new HiveCatalog(spark.sessionState().newHadoopConf());
+    SparkTestBase.catalog = (HiveCatalog)
+        CatalogUtil.loadCatalog(HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
 
     try {
       catalog.createNamespace(Namespace.of("default"));
@@ -73,9 +76,6 @@ public abstract class SparkTestBase {
 
   @AfterClass
   public static void stopMetastoreAndSpark() {
-    if (catalog != null) {
-      catalog.close();
-    }
     SparkTestBase.catalog = null;
     metastore.stop();
     SparkTestBase.metastore = null;
@@ -97,11 +97,28 @@ public abstract class SparkTestBase {
       return ImmutableList.of();
     }
 
-    return rows.stream()
-        .map(row -> IntStream.range(0, row.size())
-            .mapToObj(pos -> row.isNullAt(pos) ? null : row.get(pos))
-            .toArray(Object[]::new)
-        ).collect(Collectors.toList());
+    return rows.stream().map(this::toJava).collect(Collectors.toList());
+  }
+
+  private Object[] toJava(Row row) {
+    return IntStream.range(0, row.size())
+        .mapToObj(pos -> {
+          if (row.isNullAt(pos)) {
+            return null;
+          }
+
+          Object value = row.get(pos);
+          if (value instanceof Row) {
+            return toJava((Row) value);
+          } else if (value instanceof scala.collection.Seq) {
+            return row.getList(pos);
+          } else if (value instanceof scala.collection.Map) {
+            return row.getJavaMap(pos);
+          } else {
+            return value;
+          }
+        })
+        .toArray(Object[]::new);
   }
 
   protected Object scalarSql(String query, Object... args) {
@@ -123,10 +140,22 @@ public abstract class SparkTestBase {
       Object[] actual = actualRows.get(row);
       Assert.assertEquals("Number of columns should match", expected.length, actual.length);
       for (int col = 0; col < actualRows.get(row).length; col += 1) {
-        if (expected[col] != ANY) {
-          Assert.assertEquals(context + ": row " + row + " col " + col + " contents should match",
-              expected[col], actual[col]);
-        }
+        String newContext = String.format("%s: row %d col %d", context, row + 1, col + 1);
+        assertEquals(newContext, expected, actual);
+      }
+    }
+  }
+
+  private void assertEquals(String context, Object[] expectedRow, Object[] actualRow) {
+    Assert.assertEquals("Number of columns should match", expectedRow.length, actualRow.length);
+    for (int col = 0; col < actualRow.length; col += 1) {
+      Object expectedValue = expectedRow[col];
+      Object actualValue = actualRow[col];
+      if (expectedValue != null && expectedValue.getClass().isArray()) {
+        String newContext = String.format("%s (nested col %d)", context, col + 1);
+        assertEquals(newContext, (Object[]) expectedValue, (Object[]) actualValue);
+      } else if (expectedValue != ANY) {
+        Assert.assertEquals(context + " contents should match", expectedValue, actualValue);
       }
     }
   }

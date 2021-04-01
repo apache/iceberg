@@ -30,11 +30,13 @@ public class CatalogProperties {
   public static final String FILE_IO_IMPL = "io-impl";
   public static final String WAREHOUSE_LOCATION = "warehouse";
 
-  public static final String HIVE_URI = "uri";
-  public static final String HIVE_CLIENT_POOL_SIZE = "clients";
-  public static final int HIVE_CLIENT_POOL_SIZE_DEFAULT = 2;
+  public static final String URI = "uri";
+  public static final String CLIENT_POOL_SIZE = "clients";
+  public static final int CLIENT_POOL_SIZE_DEFAULT = 2;
+  public static final String CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS = "client.pool.cache.eviction-interval-ms";
+  public static final long CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS_DEFAULT = TimeUnit.MINUTES.toMillis(5);
 
-  public static final String LOCK_IMPL = "lock.impl";
+  public static final String LOCK_IMPL = "lock-impl";
 
   public static final String LOCK_HEARTBEAT_INTERVAL_MS = "lock.heartbeat-interval-ms";
   public static final long LOCK_HEARTBEAT_INTERVAL_MS_DEFAULT = TimeUnit.SECONDS.toMillis(3);

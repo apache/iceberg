@@ -77,7 +77,7 @@ public class ParquetMetricsRowGroupFilter {
   private static final boolean ROWS_CANNOT_MATCH = false;
 
   private class MetricsEvalVisitor extends BoundExpressionVisitor<Boolean> {
-    private Map<Integer, Statistics> stats = null;
+    private Map<Integer, Statistics<?>> stats = null;
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Function<Object, Object>> conversions = null;
 
@@ -93,9 +93,10 @@ public class ParquetMetricsRowGroupFilter {
         PrimitiveType colType = fileSchema.getType(col.getPath().toArray()).asPrimitiveType();
         if (colType.getId() != null) {
           int id = colType.getId().intValue();
+          Type icebergType = schema.findType(id);
           stats.put(id, col.getStatistics());
           valueCounts.put(id, col.getValueCount());
-          conversions.put(id, ParquetConversions.converterFromParquet(colType));
+          conversions.put(id, ParquetConversions.converterFromParquet(colType, icebergType));
         }
       }
 
@@ -501,5 +502,20 @@ public class ParquetMetricsRowGroupFilter {
   static boolean hasNonNullButNoMinMax(Statistics statistics, long valueCount) {
     return statistics.getNumNulls() < valueCount &&
         (statistics.getMaxBytes() == null || statistics.getMinBytes() == null);
+  }
+
+  private static Function<Object, Object> converterFor(PrimitiveType parquetType, Type icebergType) {
+    Function<Object, Object> fromParquet = ParquetConversions.converterFromParquet(parquetType);
+    if (icebergType != null) {
+      if (icebergType.typeId() == Type.TypeID.LONG &&
+          parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32) {
+        return value -> ((Integer) fromParquet.apply(value)).longValue();
+      } else if (icebergType.typeId() == Type.TypeID.DOUBLE &&
+          parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FLOAT) {
+        return value -> ((Float) fromParquet.apply(value)).doubleValue();
+      }
+    }
+
+    return fromParquet;
   }
 }

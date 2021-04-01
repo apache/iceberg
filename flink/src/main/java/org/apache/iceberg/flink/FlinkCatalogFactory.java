@@ -33,10 +33,10 @@ import org.apache.flink.table.factories.CatalogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
@@ -109,17 +109,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
 
   @Override
   public List<String> supportedProperties() {
-    List<String> properties = Lists.newArrayList();
-    properties.add(ICEBERG_CATALOG_TYPE);
-    properties.add(HIVE_CONF_DIR);
-    properties.add(DEFAULT_DATABASE);
-    properties.add(BASE_NAMESPACE);
-    properties.add(CatalogProperties.FILE_IO_IMPL);
-    properties.add(CatalogProperties.WAREHOUSE_LOCATION);
-    properties.add(CatalogProperties.HIVE_URI);
-    properties.add(CatalogProperties.HIVE_CLIENT_POOL_SIZE);
-    properties.add(CACHE_ENABLED);
-    return properties;
+    return ImmutableList.of("*");
   }
 
   @Override
@@ -130,9 +120,12 @@ public class FlinkCatalogFactory implements CatalogFactory {
   protected Catalog createCatalog(String name, Map<String, String> properties, Configuration hadoopConf) {
     CatalogLoader catalogLoader = createCatalogLoader(name, properties, hadoopConf);
     String defaultDatabase = properties.getOrDefault(DEFAULT_DATABASE, "default");
-    String[] baseNamespace = properties.containsKey(BASE_NAMESPACE) ?
-        Splitter.on('.').splitToList(properties.get(BASE_NAMESPACE)).toArray(new String[0]) :
-        new String[0];
+
+    Namespace baseNamespace = Namespace.empty();
+    if (properties.containsKey(BASE_NAMESPACE)) {
+      baseNamespace = Namespace.of(properties.get(BASE_NAMESPACE).split("\\."));
+    }
+
     boolean cacheEnabled = Boolean.parseBoolean(properties.getOrDefault(CACHE_ENABLED, "true"));
     return new FlinkCatalog(name, defaultDatabase, baseNamespace, catalogLoader, cacheEnabled);
   }

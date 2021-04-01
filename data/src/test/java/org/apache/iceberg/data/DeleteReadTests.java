@@ -59,7 +59,7 @@ public abstract class DeleteReadTests {
   public TemporaryFolder temp = new TemporaryFolder();
 
   private String tableName = null;
-  private Table table = null;
+  protected Table table = null;
   private List<Record> records = null;
   private DataFile dataFile = null;
 
@@ -325,6 +325,15 @@ public abstract class DeleteReadTests {
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
     records.stream()
         .filter(row -> !deletedIds.contains(row.getField("id")))
+        .forEach(set::add);
+    return set;
+  }
+
+  protected StructLikeSet rowSetWitIds(int... idsToRetain) {
+    Set<Integer> deletedIds = Sets.newHashSet(ArrayUtil.toIntList(idsToRetain));
+    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
+    records.stream()
+        .filter(row -> deletedIds.contains(row.getField("id")))
         .forEach(set::add);
     return set;
   }

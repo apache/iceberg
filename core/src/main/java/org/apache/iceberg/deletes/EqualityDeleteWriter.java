@@ -26,6 +26,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.FileAppender;
@@ -39,17 +40,19 @@ public class EqualityDeleteWriter<T> implements Closeable {
   private final StructLike partition;
   private final ByteBuffer keyMetadata;
   private final int[] equalityFieldIds;
+  private final SortOrder sortOrder;
   private DeleteFile deleteFile = null;
 
   public EqualityDeleteWriter(FileAppender<T> appender, FileFormat format, String location,
                               PartitionSpec spec, StructLike partition, EncryptionKeyMetadata keyMetadata,
-                              int... equalityFieldIds) {
+                              SortOrder sortOrder, int... equalityFieldIds) {
     this.appender = appender;
     this.format = format;
     this.location = location;
     this.spec = spec;
     this.partition = partition;
     this.keyMetadata = keyMetadata != null ? keyMetadata.buffer() : null;
+    this.sortOrder = sortOrder;
     this.equalityFieldIds = equalityFieldIds;
   }
 
@@ -77,6 +80,7 @@ public class EqualityDeleteWriter<T> implements Closeable {
           .withEncryptionKeyMetadata(keyMetadata)
           .withFileSizeInBytes(appender.length())
           .withMetrics(appender.metrics())
+          .withSortOrder(sortOrder)
           .build();
     }
   }

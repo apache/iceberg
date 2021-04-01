@@ -94,9 +94,6 @@ abstract class BaseTableScan implements TableScan {
   }
 
   @SuppressWarnings("checkstyle:HiddenField")
-  protected abstract long targetSplitSize(TableOperations ops);
-
-  @SuppressWarnings("checkstyle:HiddenField")
   protected abstract TableScan newRefinedScan(
       TableOperations ops, Table table, Schema schema, TableScanContext context);
 
@@ -224,7 +221,7 @@ abstract class BaseTableScan implements TableScan {
     if (options.containsKey(TableProperties.SPLIT_SIZE)) {
       splitSize = Long.parseLong(options.get(TableProperties.SPLIT_SIZE));
     } else {
-      splitSize = targetSplitSize(ops);
+      splitSize = targetSplitSize();
     }
     int lookback;
     if (options.containsKey(TableProperties.SPLIT_LOOKBACK)) {

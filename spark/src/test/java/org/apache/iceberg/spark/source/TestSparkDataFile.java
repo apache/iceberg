@@ -198,6 +198,7 @@ public abstract class TestSparkDataFile {
     Assert.assertEquals("Upper bounds must match", expected.upperBounds(), actual.upperBounds());
     Assert.assertEquals("Key metadata must match", expected.keyMetadata(), actual.keyMetadata());
     Assert.assertEquals("Split offsets must match", expected.splitOffsets(), actual.splitOffsets());
+    Assert.assertEquals("Sort order id must match", expected.sortOrderId(), actual.sortOrderId());
 
     checkStructLike(expected.partition(), actual.partition());
   }

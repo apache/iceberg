@@ -23,10 +23,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.flink.table.api.DataTypes;
-import org.apache.flink.table.api.TableColumn;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.CatalogTable;
@@ -44,6 +44,8 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
@@ -77,26 +79,22 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
 
   @Test
   public void testGetTable() {
-    validationCatalog.createTable(
-        TableIdentifier.of(icebergNamespace, "tl"),
-        new Schema(
-            Types.NestedField.optional(0, "id", Types.LongType.get()),
-            Types.NestedField.optional(1, "strV", Types.StringType.get())));
-    Assert.assertEquals(
-        Arrays.asList(
-            TableColumn.of("id", DataTypes.BIGINT()),
-            TableColumn.of("strV", DataTypes.STRING())),
-        getTableEnv().from("tl").getSchema().getTableColumns());
-    Assert.assertTrue(getTableEnv().getCatalog(catalogName).get().tableExists(ObjectPath.fromString("db.tl")));
+    sql("CREATE TABLE tl(id BIGINT, strV STRING)");
+
+    Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, "tl"));
+    Schema iSchema = new Schema(
+        Types.NestedField.optional(1, "id", Types.LongType.get()),
+        Types.NestedField.optional(2, "strV", Types.StringType.get())
+    );
+    Assert.assertEquals("Should load the expected iceberg schema", iSchema.toString(), table.schema().toString());
   }
 
   @Test
   public void testRenameTable() {
     Assume.assumeFalse("HadoopCatalog does not support rename table", isHadoopCatalog);
 
-    validationCatalog.createTable(
-        TableIdentifier.of(icebergNamespace, "tl"),
-        new Schema(Types.NestedField.optional(0, "id", Types.LongType.get())));
+    final Schema tableSchema = new Schema(Types.NestedField.optional(0, "id", Types.LongType.get()));
+    validationCatalog.createTable(TableIdentifier.of(icebergNamespace, "tl"), tableSchema);
     sql("ALTER TABLE tl RENAME TO tl2");
     AssertHelpers.assertThrows(
         "Should fail if trying to get a nonexistent table",
@@ -104,9 +102,8 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         "Table `tl` was not found.",
         () -> getTableEnv().from("tl")
     );
-    Assert.assertEquals(
-        Collections.singletonList(TableColumn.of("id", DataTypes.BIGINT())),
-        getTableEnv().from("tl2").getSchema().getTableColumns());
+    Schema actualSchema = FlinkSchemaUtil.convert(getTableEnv().from("tl2").getSchema());
+    Assert.assertEquals(tableSchema.asStruct(), actualSchema.asStruct());
   }
 
   @Test
@@ -122,6 +119,34 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     CatalogTable catalogTable = catalogTable("tl");
     Assert.assertEquals(TableSchema.builder().field("id", DataTypes.BIGINT()).build(), catalogTable.getSchema());
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
+  }
+
+  @Test
+  public void testCreateTableIfNotExists() {
+    sql("CREATE TABLE tl(id BIGINT)");
+
+    // Assert that table does exist.
+    Assert.assertEquals(Maps.newHashMap(), table("tl").properties());
+
+    sql("DROP TABLE tl");
+    AssertHelpers.assertThrows("Table 'tl' should be dropped",
+        NoSuchTableException.class,
+        "Table does not exist: " + getFullQualifiedTableName("tl"),
+        () -> table("tl"));
+
+    sql("CREATE TABLE IF NOT EXISTS tl(id BIGINT)");
+    Assert.assertEquals(Maps.newHashMap(), table("tl").properties());
+
+    final String uuid = UUID.randomUUID().toString();
+    final Map<String, String> expectedProperties = ImmutableMap.of("uuid", uuid);
+    table("tl").updateProperties()
+        .set("uuid", uuid)
+        .commit();
+    Assert.assertEquals(expectedProperties, table("tl").properties());
+
+    sql("CREATE TABLE IF NOT EXISTS tl(id BIGINT)");
+    Assert.assertEquals("Should still be the old table.",
+        expectedProperties, table("tl").properties());
   }
 
   @Test

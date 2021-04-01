@@ -101,6 +101,10 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     return table;
   }
 
+  protected PartitionSpec spec() {
+    return spec;
+  }
+
   protected EncryptionManager encryptionManager() {
     return encryptionManager;
   }
@@ -226,7 +230,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
           return TableScanUtil.planTasks(splitTasks, targetSizeInBytes, splitLookback, splitOpenFileCost);
         })
         .flatMap(Streams::stream)
-        .filter(task -> task.files().size() > 1)
+        .filter(task -> task.files().size() > 1 || isPartialFileScan(task))
         .collect(Collectors.toList());
 
     if (combinedScanTasks.isEmpty()) {
@@ -270,6 +274,15 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
           .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
           .run(fileIO::deleteFile);
       throw e;
+    }
+  }
+
+  private boolean isPartialFileScan(CombinedScanTask task) {
+    if (task.files().size() == 1) {
+      FileScanTask fileScanTask = task.files().iterator().next();
+      return fileScanTask.file().fileSizeInBytes() != fileScanTask.length();
+    } else {
+      return false;
     }
   }
 

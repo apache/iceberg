@@ -27,6 +27,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -70,7 +71,7 @@ public class TestCatalogUtil {
     String name = "custom";
     AssertHelpers.assertThrows("must have no-arg constructor",
         IllegalArgumentException.class,
-        "missing no-arg constructor",
+        "NoSuchMethodException: org.apache.iceberg.TestCatalogUtil$TestCatalogBadConstructor.<init>()",
         () -> CatalogUtil.loadCatalog(TestCatalogBadConstructor.class.getName(), name, options, hadoopConf));
   }
 
@@ -87,6 +88,32 @@ public class TestCatalogUtil {
         () -> CatalogUtil.loadCatalog(TestCatalogNoInterface.class.getName(), name, options, hadoopConf));
   }
 
+  @Test
+  public void loadCustomCatalog_ConstructorErrorCatalog() {
+    Map<String, String> options = new HashMap<>();
+    options.put("key", "val");
+    Configuration hadoopConf = new Configuration();
+    String name = "custom";
+
+    String impl = TestCatalogErrorConstructor.class.getName();
+    AssertHelpers.assertThrows("must be able to initialize catalog",
+        IllegalArgumentException.class,
+        "NoClassDefFoundError: Error while initializing class",
+        () -> CatalogUtil.loadCatalog(impl, name, options, hadoopConf));
+  }
+
+  @Test
+  public void loadCustomCatalog_BadCatalogNameCatalog() {
+    Map<String, String> options = new HashMap<>();
+    options.put("key", "val");
+    Configuration hadoopConf = new Configuration();
+    String name = "custom";
+    String impl = "CatalogDoesNotExist";
+    AssertHelpers.assertThrows("catalog must exist",
+        IllegalArgumentException.class,
+        "java.lang.ClassNotFoundException: CatalogDoesNotExist",
+        () -> CatalogUtil.loadCatalog(impl, name, options, hadoopConf));
+  }
 
   @Test
   public void loadCustomFileIO_noArg() {
@@ -95,6 +122,15 @@ public class TestCatalogUtil {
     FileIO fileIO = CatalogUtil.loadFileIO(TestFileIONoArg.class.getName(), properties, null);
     Assert.assertTrue(fileIO instanceof TestFileIONoArg);
     Assert.assertEquals(properties, ((TestFileIONoArg) fileIO).map);
+  }
+
+  @Test
+  public void loadCustomFileIO_hadoopConfigConstructor() {
+    Configuration configuration = new Configuration();
+    configuration.set("key", "val");
+    FileIO fileIO = CatalogUtil.loadFileIO(HadoopFileIO.class.getName(), Maps.newHashMap(), configuration);
+    Assert.assertTrue(fileIO instanceof HadoopFileIO);
+    Assert.assertEquals("val", ((HadoopFileIO) fileIO).conf().get("key"));
   }
 
   @Test

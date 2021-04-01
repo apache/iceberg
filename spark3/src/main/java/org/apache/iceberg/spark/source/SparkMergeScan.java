@@ -121,7 +121,7 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
   }
 
   // should be accessible to the write
-  List<FileScanTask> files() {
+  synchronized List<FileScanTask> files() {
     if (files == null) {
       TableScan scan = table
           .newScan()
@@ -148,7 +148,7 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
   }
 
   @Override
-  protected List<CombinedScanTask> tasks() {
+  protected synchronized List<CombinedScanTask> tasks() {
     if (tasks == null) {
       CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(
           CloseableIterable.withNoopClose(files()),

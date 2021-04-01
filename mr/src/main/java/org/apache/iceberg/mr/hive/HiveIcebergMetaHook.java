@@ -25,7 +25,6 @@ import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.HiveMetaHook;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
-import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.PartitionSpec;
@@ -51,10 +50,15 @@ import org.slf4j.LoggerFactory;
 public class HiveIcebergMetaHook implements HiveMetaHook {
   private static final Logger LOG = LoggerFactory.getLogger(HiveIcebergMetaHook.class);
   private static final Set<String> PARAMETERS_TO_REMOVE = ImmutableSet
-      .of(InputFormatConfig.TABLE_SCHEMA, InputFormatConfig.PARTITION_SPEC, Catalogs.LOCATION, Catalogs.NAME);
+      .of(InputFormatConfig.TABLE_SCHEMA, Catalogs.LOCATION, Catalogs.NAME);
   private static final Set<String> PROPERTIES_TO_REMOVE = ImmutableSet
-      .of(InputFormatConfig.EXTERNAL_TABLE_PURGE, hive_metastoreConstants.META_TABLE_STORAGE, "EXTERNAL",
-          "bucketing_version");
+      // We don't want to push down the metadata location props to Iceberg from HMS,
+      // since the snapshot pointer in HMS would always be one step ahead
+      .of(BaseMetastoreTableOperations.METADATA_LOCATION_PROP,
+      BaseMetastoreTableOperations.PREVIOUS_METADATA_LOCATION_PROP,
+      // Initially we'd like to cache the partition spec in HMS, but not push it down later to Iceberg during alter
+      // table commands since by then the HMS info can be stale + Iceberg does not store its partition spec in the props
+      InputFormatConfig.PARTITION_SPEC);
 
   private final Configuration conf;
   private Table icebergTable = null;
@@ -167,11 +171,21 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
   @Override
   public void commitDropTable(org.apache.hadoop.hive.metastore.api.Table hmsTable, boolean deleteData) {
     if (deleteData && deleteIcebergTable) {
-      if (!Catalogs.hiveCatalog(conf)) {
-        LOG.info("Dropping with purge all the data for table {}.{}", hmsTable.getDbName(), hmsTable.getTableName());
-        Catalogs.dropTable(conf, catalogProperties);
-      } else {
-        CatalogUtil.dropTableData(deleteIo, deleteMetadata);
+      try {
+        if (!Catalogs.hiveCatalog(conf)) {
+          LOG.info("Dropping with purge all the data for table {}.{}", hmsTable.getDbName(), hmsTable.getTableName());
+          Catalogs.dropTable(conf, catalogProperties);
+        } else {
+          // do nothing if metadata folder has been deleted already (Hive 4 behaviour for purge=TRUE)
+          if (deleteIo.newInputFile(deleteMetadata.location()).exists()) {
+            CatalogUtil.dropTableData(deleteIo, deleteMetadata);
+          }
+        }
+      } catch (Exception e) {
+        // we want to successfully complete the Hive DROP TABLE command despite catalog-related exceptions here
+        // e.g. we wish to successfully delete a Hive table even if the underlying Hadoop table has already been deleted
+        LOG.warn("Exception during commitDropTable operation for table {}.{}.",
+            hmsTable.getDbName(), hmsTable.getTableName(), e);
       }
     }
   }
@@ -179,10 +193,10 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
   /**
    * Calculates the properties we would like to send to the catalog.
    * <ul>
-   * <li>The base of the properties is the properties store at the Hive Metastore for the given table
+   * <li>The base of the properties is the properties stored at the Hive Metastore for the given table
    * <li>We add the {@link Catalogs#LOCATION} as the table location
    * <li>We add the {@link Catalogs#NAME} as TableIdentifier defined by the database name and table name
-   * <li>We remove the Hive Metastore specific parameters
+   * <li>We remove some parameters that we don't want to push down to the Iceberg table props
    * </ul>
    * @param hmsTable Table for which we are calculating the properties
    * @return The properties we can provide for Iceberg functions, like {@link Catalogs}
@@ -200,33 +214,35 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
       properties.put(Catalogs.NAME, TableIdentifier.of(hmsTable.getDbName(), hmsTable.getTableName()).toString());
     }
 
-    // Remove creation related properties
+    // Remove HMS table parameters we don't want to propagate to Iceberg
     PROPERTIES_TO_REMOVE.forEach(properties::remove);
 
     return properties;
   }
 
-  private static Schema schema(Properties properties, org.apache.hadoop.hive.metastore.api.Table hmsTable) {
+  private Schema schema(Properties properties, org.apache.hadoop.hive.metastore.api.Table hmsTable) {
+    boolean autoConversion = conf.getBoolean(InputFormatConfig.SCHEMA_AUTO_CONVERSION, false);
+
     if (properties.getProperty(InputFormatConfig.TABLE_SCHEMA) != null) {
       return SchemaParser.fromJson(properties.getProperty(InputFormatConfig.TABLE_SCHEMA));
     } else if (hmsTable.isSetPartitionKeys() && !hmsTable.getPartitionKeys().isEmpty()) {
       // Add partitioning columns to the original column list before creating the Iceberg Schema
       List<FieldSchema> cols = Lists.newArrayList(hmsTable.getSd().getCols());
       cols.addAll(hmsTable.getPartitionKeys());
-      return HiveSchemaUtil.convert(cols);
+      return HiveSchemaUtil.convert(cols, autoConversion);
     } else {
-      return HiveSchemaUtil.convert(hmsTable.getSd().getCols());
+      return HiveSchemaUtil.convert(hmsTable.getSd().getCols(), autoConversion);
     }
   }
 
   private static PartitionSpec spec(Schema schema, Properties properties,
       org.apache.hadoop.hive.metastore.api.Table hmsTable) {
 
-    if (properties.getProperty(InputFormatConfig.PARTITION_SPEC) != null) {
+    if (hmsTable.getParameters().get(InputFormatConfig.PARTITION_SPEC) != null) {
       Preconditions.checkArgument(!hmsTable.isSetPartitionKeys() || hmsTable.getPartitionKeys().isEmpty(),
           "Provide only one of the following: Hive partition specification, or the " +
               InputFormatConfig.PARTITION_SPEC + " property");
-      return PartitionSpecParser.fromJson(schema, properties.getProperty(InputFormatConfig.PARTITION_SPEC));
+      return PartitionSpecParser.fromJson(schema, hmsTable.getParameters().get(InputFormatConfig.PARTITION_SPEC));
     } else if (hmsTable.isSetPartitionKeys() && !hmsTable.getPartitionKeys().isEmpty()) {
       // If the table is partitioned then generate the identity partition definitions for the Iceberg table
       return HiveSchemaUtil.spec(schema, hmsTable.getPartitionKeys());

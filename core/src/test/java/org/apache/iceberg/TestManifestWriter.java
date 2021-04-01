@@ -20,8 +20,11 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.UUID;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -65,12 +68,38 @@ public class TestManifestWriter extends TableTestBase {
     Assert.assertEquals("Deleted rows count should match", 7L, (long) manifest.deletedRowsCount());
   }
 
+  @Test
+  public void testManifestPartitionStats() throws IOException {
+    ManifestFile manifest = writeManifest(
+        "manifest.avro",
+        manifestEntry(Status.ADDED, null, newFile(10, TestHelpers.Row.of(1))),
+        manifestEntry(Status.EXISTING, null, newFile(15, TestHelpers.Row.of(2))),
+        manifestEntry(Status.DELETED, null, newFile(2, TestHelpers.Row.of(3))));
+
+    List<ManifestFile.PartitionFieldSummary> partitions = manifest.partitions();
+    Assert.assertEquals("Partition field summaries count should match", 1, partitions.size());
+    ManifestFile.PartitionFieldSummary partitionFieldSummary = partitions.get(0);
+    Assert.assertFalse("contains_null should be false", partitionFieldSummary.containsNull());
+    Assert.assertFalse("contains_nan should be false", partitionFieldSummary.containsNaN());
+    Assert.assertEquals("Lower bound should match", Integer.valueOf(1),
+        Conversions.fromByteBuffer(Types.IntegerType.get(), partitionFieldSummary.lowerBound()));
+    Assert.assertEquals("Upper bound should match", Integer.valueOf(3),
+        Conversions.fromByteBuffer(Types.IntegerType.get(), partitionFieldSummary.upperBound()));
+  }
+
   private DataFile newFile(long recordCount) {
+    return newFile(recordCount, null);
+  }
+
+  private DataFile newFile(long recordCount, StructLike partition) {
     String fileName = UUID.randomUUID().toString();
-    return DataFiles.builder(SPEC)
+    DataFiles.Builder builder = DataFiles.builder(SPEC)
         .withPath("data_bucket=0/" + fileName + ".parquet")
         .withFileSizeInBytes(1024)
-        .withRecordCount(recordCount)
-        .build();
+        .withRecordCount(recordCount);
+    if (partition != null) {
+      builder.withPartition(partition);
+    }
+    return builder.build();
   }
 }

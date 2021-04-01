@@ -21,7 +21,6 @@ import groovy.transform.Memoized
 
 buildscript {
   repositories {
-    jcenter()
     gradlePluginPortal()
     maven { url "http://palantir.bintray.com/releases" }
     maven { url "https://plugins.gradle.org/m2/" }
@@ -38,7 +37,7 @@ buildscript {
 
 plugins {
   id 'nebula.dependency-recommender' version '9.0.2'
-  id 'org.projectnessie' version '0.3.0'
+  id 'org.projectnessie' version '0.4.0'
 }
 
 try {
@@ -94,9 +93,9 @@ subprojects {
       exclude group: 'org.pentaho', module: 'pentaho-aggdesigner-algorithm'
 
       resolutionStrategy {
-        force 'com.fasterxml.jackson.module:jackson-module-scala_2.11:2.10.2'
-        force 'com.fasterxml.jackson.module:jackson-module-scala_2.12:2.10.2'
-        force 'com.fasterxml.jackson.module:jackson-module-paranamer:2.10.2'
+        force 'com.fasterxml.jackson.module:jackson-module-scala_2.11:2.11.4'
+        force 'com.fasterxml.jackson.module:jackson-module-scala_2.12:2.11.4'
+        force 'com.fasterxml.jackson.module:jackson-module-paranamer:2.11.4'
       }
     }
 
@@ -529,6 +528,9 @@ project(':iceberg-mr') {
     compileOnly("org.apache.hive:hive-metastore")
     compileOnly("org.apache.hive:hive-serde")
 
+    testCompile "org.apache.calcite:calcite-core"
+    testCompile "org.apache.calcite:calcite-druid"
+
     testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
@@ -864,7 +866,6 @@ if (jdkVersion == '8') {
     dependencies {
       compile project(':iceberg-spark2')
       compile project(':iceberg-aws')
-      compile 'org.apache.spark:spark-hive_2.11'
       compile(project(':iceberg-nessie')) {
         exclude group: 'com.google.code.findbugs', module: 'jsr305'
       }
@@ -1015,8 +1016,8 @@ project(':iceberg-spark3-runtime') {
 
   dependencies {
     compile project(':iceberg-spark3')
+    compile project(':iceberg-spark3-extensions')
     compile project(':iceberg-aws')
-    compile 'org.apache.spark:spark-hive_2.11'
     compile(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
@@ -1037,6 +1038,7 @@ project(':iceberg-spark3-runtime') {
     relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
     relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
     relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
+    relocate 'org.antlr.v4.runtime', 'org.apache.iceberg.shaded.org.antlr.v4.runtime'
     relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
     relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
     relocate 'avro.shaded', 'org.apache.iceberg.shaded.org.apache.avro.shaded'
@@ -1068,8 +1070,6 @@ project(':iceberg-pig') {
     compile project(':iceberg-core')
     compile project(':iceberg-parquet')
 
-    compile "org.apache.commons:commons-lang3"
-
     compileOnly("org.apache.pig:pig") {
       exclude group: "junit", module: "junit"
     }
@@ -1091,7 +1091,7 @@ project(':iceberg-nessie') {
     compile project(':iceberg-core')
     compile project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compile "org.projectnessie:nessie-client"
-    quarkusAppRunnerConfig "org.projectnessie:nessie-quarkus:0.2.1"
+    quarkusAppRunnerConfig "org.projectnessie:nessie-quarkus:0.4.0"
 
     compileOnly "org.apache.hadoop:hadoop-common"
 
@@ -1100,7 +1100,10 @@ project(':iceberg-nessie') {
   quarkusAppRunnerProperties {
     props = ["quarkus.http.test-port": 0]
   }
-  tasks.getByName("quarkus-start").dependsOn("compileTestJava")
+  tasks.getByName("quarkus-start")
+          // This is not doing anything with Docker or building a native image, just a quirk of Quarkus since 1.10.
+          .doFirst { System.setProperty("quarkus.native.builder-image", "quay.io/quarkus/ubi-quarkus-native-image:21.0.0-java11") }
+          .dependsOn("compileTestJava")
   tasks.test.dependsOn("quarkus-start").finalizedBy("quarkus-stop")
 
 }

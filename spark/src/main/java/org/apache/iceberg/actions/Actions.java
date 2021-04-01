@@ -22,6 +22,9 @@ package org.apache.iceberg.actions;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.spark.actions.BaseExpireSnapshotsSparkAction;
+import org.apache.iceberg.spark.actions.BaseRemoveOrphanFilesSparkAction;
+import org.apache.iceberg.spark.actions.BaseRewriteManifestsSparkAction;
 import org.apache.spark.sql.SparkSession;
 
 public class Actions {
@@ -67,11 +70,13 @@ public class Actions {
   }
 
   public RemoveOrphanFilesAction removeOrphanFiles() {
-    return new RemoveOrphanFilesAction(spark, table);
+    BaseRemoveOrphanFilesSparkAction delegate = new BaseRemoveOrphanFilesSparkAction(spark, table);
+    return new RemoveOrphanFilesAction(delegate);
   }
 
   public RewriteManifestsAction rewriteManifests() {
-    return new RewriteManifestsAction(spark, table);
+    BaseRewriteManifestsSparkAction delegate = new BaseRewriteManifestsSparkAction(spark, table);
+    return new RewriteManifestsAction(delegate);
   }
 
   public RewriteDataFilesAction rewriteDataFiles() {
@@ -79,7 +84,8 @@ public class Actions {
   }
 
   public ExpireSnapshotsAction expireSnapshots() {
-    return new ExpireSnapshotsAction(spark, table);
+    BaseExpireSnapshotsSparkAction delegate = new BaseExpireSnapshotsSparkAction(spark, table);
+    return new ExpireSnapshotsAction(delegate);
   }
 
   /**

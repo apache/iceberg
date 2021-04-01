@@ -50,43 +50,33 @@ public class AllManifestsTable extends BaseMetadataTable {
       Types.NestedField.optional(7, "deleted_data_files_count", Types.IntegerType.get()),
       Types.NestedField.optional(8, "partition_summaries", Types.ListType.ofRequired(9, Types.StructType.of(
           Types.NestedField.required(10, "contains_null", Types.BooleanType.get()),
-          Types.NestedField.optional(11, "lower_bound", Types.StringType.get()),
-          Types.NestedField.optional(12, "upper_bound", Types.StringType.get())
+          Types.NestedField.required(11, "contains_nan", Types.BooleanType.get()),
+          Types.NestedField.optional(12, "lower_bound", Types.StringType.get()),
+          Types.NestedField.optional(13, "upper_bound", Types.StringType.get())
       )))
   );
-
-  private final TableOperations ops;
-  private final Table table;
-  private final String name;
 
   AllManifestsTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".all_manifests");
   }
 
   AllManifestsTable(TableOperations ops, Table table, String name) {
-    this.ops = ops;
-    this.table = table;
-    this.name = name;
-  }
-
-  @Override
-  Table table() {
-    return table;
-  }
-
-  @Override
-  public String name() {
-    return name;
+    super(ops, table, name);
   }
 
   @Override
   public TableScan newScan() {
-    return new AllManifestsTableScan(ops, table, MANIFEST_FILE_SCHEMA);
+    return new AllManifestsTableScan(operations(), table(), MANIFEST_FILE_SCHEMA);
   }
 
   @Override
   public Schema schema() {
     return MANIFEST_FILE_SCHEMA;
+  }
+
+  @Override
+  MetadataTableType metadataTableType() {
+    return MetadataTableType.ALL_MANIFESTS;
   }
 
   public static class AllManifestsTableScan extends BaseAllMetadataTableScan {
@@ -117,8 +107,8 @@ public class AllManifestsTable extends BaseMetadataTable {
     }
 
     @Override
-    protected long targetSplitSize(TableOperations ops) {
-      return ops.current().propertyAsLong(
+    public long targetSplitSize() {
+      return tableOps().current().propertyAsLong(
           TableProperties.METADATA_SPLIT_SIZE, TableProperties.METADATA_SPLIT_SIZE_DEFAULT);
     }
 

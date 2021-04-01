@@ -52,7 +52,11 @@ public class RewriteDataFilesAction extends BaseRewriteDataFilesAction<RewriteDa
     int parallelism = Math.min(size, maxParallelism);
     DataStream<CombinedScanTask> dataStream = env.fromCollection(combinedScanTasks);
     RowDataRewriter rowDataRewriter = new RowDataRewriter(table(), caseSensitive(), fileIO(), encryptionManager());
-    return rowDataRewriter.rewriteDataForTasks(dataStream, parallelism);
+    try {
+      return rowDataRewriter.rewriteDataForTasks(dataStream, parallelism);
+    } catch (Exception e) {
+      throw new RuntimeException("Rewrite data file error.", e);
+    }
   }
 
   @Override

@@ -40,7 +40,6 @@ import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecut
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -450,6 +449,20 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(2, "hardware")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    sql("DELETE FROM %s t WHERE " +
+        "id NOT IN (SELECT * FROM deleted_id WHERE value IS NOT NULL) AND " +
+        "EXISTS (SELECT 1 FROM FROM deleted_dep WHERE t.dep = deleted_dep.value)", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(2, "hardware")),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+
+    sql("DELETE FROM %s t WHERE " +
+        "id NOT IN (SELECT * FROM deleted_id WHERE value IS NOT NULL) OR " +
+        "EXISTS (SELECT 1 FROM FROM deleted_dep WHERE t.dep = deleted_dep.value)", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
   }
 
   @Test
@@ -461,8 +474,17 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     createOrReplaceView("deleted_id", Arrays.asList(-1, -2, null), Encoders.INT());
 
     AssertHelpers.assertThrows("Should complain about NOT IN subquery",
-        AnalysisException.class, "Null-aware predicate sub-queries are not currently supported",
+        AnalysisException.class, "Null-aware predicate subqueries are not currently supported",
         () -> sql("DELETE FROM %s WHERE id NOT IN (SELECT * FROM deleted_id)", tableName));
+  }
+
+  @Test
+  public void testDeleteOnNonIcebergTableNotSupported() throws NoSuchTableException {
+    createOrReplaceView("testtable", "{ \"c1\": -100, \"c2\": -200 }");
+
+    AssertHelpers.assertThrows("Delete is not supported for non iceberg table",
+        AnalysisException.class, "DELETE is only supported with v2 tables.",
+        () -> sql("DELETE FROM %s WHERE c1 = -100", "testtable"));
   }
 
   @Test
@@ -488,6 +510,13 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     assertEquals("Should have expected rows",
         ImmutableList.of(row(2, "hardware")),
         sql("SELECT * FROM %s", tableName));
+
+    sql("DELETE FROM %s t WHERE " +
+        "EXISTS (SELECT 1 FROM deleted_id di WHERE t.id = di.value) AND " +
+        "EXISTS (SELECT 1 FROM deleted_dep dd WHERE t.dep = dd.value)", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(2, "hardware")),
+        sql("SELECT * FROM %s", tableName));
   }
 
   @Test
@@ -498,6 +527,13 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     createOrReplaceView("deleted_id", Arrays.asList(-1, -2, null), Encoders.INT());
     createOrReplaceView("deleted_dep", Arrays.asList("software", "hr"), Encoders.STRING());
+
+    sql("DELETE FROM %s t WHERE " +
+        "NOT EXISTS (SELECT 1 FROM deleted_id di WHERE t.id = di.value + 2) AND " +
+        "NOT EXISTS (SELECT 1 FROM deleted_dep dd WHERE t.dep = dd.value)", tableName);
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1, "hr"), row(null, "hr")),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
 
     sql("DELETE FROM %s t WHERE NOT EXISTS (SELECT 1 FROM deleted_id d WHERE t.id = d.value + 2)", tableName);
     assertEquals("Should have expected rows",
@@ -648,21 +684,42 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Assert.assertTrue("Timeout", executorService.awaitTermination(2, TimeUnit.MINUTES));
   }
 
-  // TODO: multiple stripes for ORC
+  @Test
+  public void testDeleteRefreshesRelationCache() throws NoSuchTableException {
+    createAndInitPartitionedTable();
 
-  protected void validateSnapshot(Snapshot snapshot, String operation, String changedPartitionCount,
-                                  String deletedDataFiles, String addedDataFiles) {
-    Assert.assertEquals("Operation must match", operation, snapshot.operation());
-    Assert.assertEquals("Changed partitions count must match",
-        changedPartitionCount,
-        snapshot.summary().get("changed-partition-count"));
-    Assert.assertEquals("Deleted data files count must match",
-        deletedDataFiles,
-        snapshot.summary().get("deleted-data-files"));
-    Assert.assertEquals("Added data files count must match",
-        addedDataFiles,
-        snapshot.summary().get("added-data-files"));
+    append(new Employee(1, "hr"), new Employee(3, "hr"));
+    append(new Employee(1, "hardware"), new Employee(2, "hardware"));
+
+    Dataset<Row> query = spark.sql("SELECT * FROM " + tableName + " WHERE id = 1");
+    query.createOrReplaceTempView("tmp");
+
+    spark.sql("CACHE TABLE tmp");
+
+    assertEquals("View should have correct data",
+        ImmutableList.of(row(1, "hardware"), row(1, "hr")),
+        sql("SELECT * FROM tmp ORDER BY id, dep"));
+
+    sql("DELETE FROM %s WHERE id = 1", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
+
+    Snapshot currentSnapshot = table.currentSnapshot();
+    validateSnapshot(currentSnapshot, "overwrite", "2", "2", "2");
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(2, "hardware"), row(3, "hr")),
+        sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+
+    assertEquals("Should refresh the relation cache",
+        ImmutableList.of(),
+        sql("SELECT * FROM tmp ORDER BY id, dep"));
+
+    spark.sql("UNCACHE TABLE tmp");
   }
+
+  // TODO: multiple stripes for ORC
 
   protected void createAndInitPartitionedTable() {
     sql("CREATE TABLE %s (id INT, dep STRING) USING iceberg PARTITIONED BY (dep)", tableName);
@@ -679,21 +736,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     initTable();
   }
 
-  protected <T> void createOrReplaceView(String name, List<T> data, Encoder<T> encoder) {
-    spark.createDataset(data, encoder).createOrReplaceTempView(name);
-  }
-
   protected void append(Employee... employees) throws NoSuchTableException {
     List<Employee> input = Arrays.asList(employees);
     Dataset<Row> inputDF = spark.createDataFrame(input, Employee.class);
     inputDF.coalesce(1).writeTo(tableName).append();
-  }
-
-  protected void sleep(long millis) {
-    try {
-      Thread.sleep(millis);
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
   }
 }

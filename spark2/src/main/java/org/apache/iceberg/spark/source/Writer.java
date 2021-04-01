@@ -278,7 +278,7 @@ class Writer implements DataSourceWriter {
           spec, format, locations, io.value(), encryptionManager.value(), partitionId, taskId);
       SparkAppenderFactory appenderFactory = new SparkAppenderFactory(properties, writeSchema, dsSchema, spec);
 
-      if (spec.fields().isEmpty()) {
+      if (spec.isUnpartitioned()) {
         return new Unpartitioned24Writer(spec, format, appenderFactory, fileFactory, io.value(), targetFileSize);
       } else if (partitionedFanoutEnabled) {
         return new PartitionedFanout24Writer(spec, format, appenderFactory, fileFactory, io.value(), targetFileSize,

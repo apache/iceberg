@@ -93,6 +93,7 @@ public class TestDataFileSerialization {
           5L, null, VALUE_COUNTS, NULL_VALUE_COUNTS, NAN_VALUE_COUNTS, LOWER_BOUNDS, UPPER_BOUNDS))
       .withSplitOffsets(ImmutableList.of(4L))
       .withEncryptionKeyMetadata(ByteBuffer.allocate(4).putInt(34))
+      .withSortOrder(SortOrder.unsorted())
       .build();
 
   @Rule

@@ -54,23 +54,41 @@ public class TestManifestFileSerialization {
   private static final Schema SCHEMA = new Schema(
       required(1, "id", Types.LongType.get()),
       optional(2, "data", Types.StringType.get()),
-      required(3, "date", Types.StringType.get()));
+      required(3, "date", Types.StringType.get()),
+      required(4, "double", Types.DoubleType.get()));
 
   private static final PartitionSpec SPEC = PartitionSpec
       .builderFor(SCHEMA)
-      .identity("date")
+      .identity("double")
       .build();
 
   private static final DataFile FILE_A = DataFiles.builder(SPEC)
       .withPath("/path/to/data-1.parquet")
       .withFileSizeInBytes(0)
-      .withPartitionPath("date=2018-06-08")
+      .withPartition(TestHelpers.Row.of(1D))
+      .withPartitionPath("double=1")
       .withMetrics(new Metrics(5L,
           null, // no column sizes
           ImmutableMap.of(1, 5L, 2, 3L), // value count
           ImmutableMap.of(1, 0L, 2, 2L), // null count
+          ImmutableMap.of(), // nan count
           ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
           ImmutableMap.of(1, longToBuffer(4L)) // upper bounds
+      ))
+      .build();
+
+  private static final DataFile FILE_B = DataFiles.builder(SPEC)
+      .withPath("/path/to/data-2.parquet")
+      .withFileSizeInBytes(0)
+      .withPartition(TestHelpers.Row.of(Double.NaN))
+      .withPartitionPath("double=NaN")
+      .withMetrics(new Metrics(1L,
+          null, // no column sizes
+          ImmutableMap.of(1, 1L, 4, 1L), // value count
+          ImmutableMap.of(1, 0L, 2, 0L), // null count
+          ImmutableMap.of(4, 1L), // nan count
+          ImmutableMap.of(1, longToBuffer(0L)), // lower bounds
+          ImmutableMap.of(1, longToBuffer(1L)) // upper bounds
       ))
       .build();
 
@@ -86,7 +104,7 @@ public class TestManifestFileSerialization {
 
     Kryo kryo = new KryoSerializer(new SparkConf()).newKryo();
 
-    ManifestFile manifest = writeManifest(FILE_A);
+    ManifestFile manifest = writeManifest(FILE_A, FILE_B);
 
     try (Output out = new Output(new FileOutputStream(data))) {
       kryo.writeClassAndObject(out, manifest);
@@ -107,7 +125,7 @@ public class TestManifestFileSerialization {
   public void testManifestFileJavaSerialization() throws Exception {
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
 
-    ManifestFile manifest = writeManifest(FILE_A);
+    ManifestFile manifest = writeManifest(FILE_A, FILE_B);
 
     try (ObjectOutputStream out = new ObjectOutputStream(bytes)) {
       out.writeObject(manifest);
@@ -144,6 +162,8 @@ public class TestManifestFileSerialization {
 
     Assert.assertEquals("Null flag in partition must match",
         expectedPartition.containsNull(), actualPartition.containsNull());
+    Assert.assertEquals("NaN flag in partition must match",
+        expectedPartition.containsNaN(), actualPartition.containsNaN());
     Assert.assertEquals("Lower bounds in partition must match",
         expectedPartition.lowerBound(), actualPartition.lowerBound());
     Assert.assertEquals("Upper bounds in partition must match",

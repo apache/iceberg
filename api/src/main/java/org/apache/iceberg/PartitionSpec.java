@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -319,7 +320,7 @@ public class PartitionSpec implements Serializable {
     private final Schema schema;
     private final List<PartitionField> fields = Lists.newArrayList();
     private final Set<String> partitionNames = Sets.newHashSet();
-    private Map<Integer, PartitionField> timeFields = Maps.newHashMap();
+    private Map<Map.Entry<Integer, String>, PartitionField> dedupFields = Maps.newHashMap();
     private int specId = 0;
     private final AtomicInteger lastAssignedFieldId = new AtomicInteger(PARTITION_DATA_ID_START - 1);
 
@@ -355,10 +356,12 @@ public class PartitionSpec implements Serializable {
     }
 
     private void checkForRedundantPartitions(PartitionField field) {
-      PartitionField timeField = timeFields.get(field.sourceId());
-      Preconditions.checkArgument(timeField == null,
-          "Cannot add redundant partition: %s conflicts with %s", timeField, field);
-      timeFields.put(field.sourceId(), field);
+      Map.Entry<Integer, String> dedupKey = new AbstractMap.SimpleEntry<>(
+          field.sourceId(), field.transform().dedupName());
+      PartitionField partitionField = dedupFields.get(dedupKey);
+      Preconditions.checkArgument(partitionField == null,
+          "Cannot add redundant partition: %s conflicts with %s", partitionField, field);
+      dedupFields.put(dedupKey, field);
     }
 
     public Builder withSpecId(int newSpecId) {
@@ -375,8 +378,10 @@ public class PartitionSpec implements Serializable {
     Builder identity(String sourceName, String targetName) {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       checkAndAddPartitionName(targetName, sourceColumn.fieldId());
-      fields.add(new PartitionField(
-          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.identity(sourceColumn.type())));
+      PartitionField field = new PartitionField(
+          sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.identity(sourceColumn.type()));
+      checkForRedundantPartitions(field);
+      fields.add(field);
       return this;
     }
 

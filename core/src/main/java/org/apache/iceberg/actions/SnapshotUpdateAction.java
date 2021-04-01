@@ -19,6 +19,6 @@
 
 package org.apache.iceberg.actions;
 
-public interface SnapshotUpdateAction<ThisT, R> extends Action<R> {
+public interface SnapshotUpdateAction<ThisT, R> extends Action<ThisT, R> {
   ThisT set(String property, String value);
 }

@@ -70,7 +70,7 @@ public class TestIcebergTimestampWithZoneObjectInspectorHive3 {
 
     Assert.assertFalse(oi.preferWritable());
 
-    Assert.assertEquals(OffsetDateTime.of(dateTimeAtUTC, ZoneOffset.UTC), oi.convert(new TimestampLocalTZWritable(ts)));
+    Assert.assertEquals(OffsetDateTime.of(dateTimeAtUTC, ZoneOffset.UTC), oi.convert(ts));
   }
 
 }

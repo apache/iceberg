@@ -61,11 +61,12 @@ public interface DataFile extends ContentFile<DataFile> {
       "Splittable offsets");
   Types.NestedField EQUALITY_IDS = optional(135, "equality_ids", ListType.ofRequired(136, IntegerType.get()),
       "Equality comparison field IDs");
+  Types.NestedField SORT_ORDER_ID = optional(140, "sort_order_id", IntegerType.get(), "Sort order ID");
 
   int PARTITION_ID = 102;
   String PARTITION_NAME = "partition";
   String PARTITION_DOC = "Partition data tuple, schema based on the partition spec";
-  // NEXT ID TO ASSIGN: 140
+  // NEXT ID TO ASSIGN: 141
 
   static StructType getType(StructType partitionType) {
     // IDs start at 100 to leave room for changes to ManifestEntry
@@ -84,7 +85,8 @@ public interface DataFile extends ContentFile<DataFile> {
         UPPER_BOUNDS,
         KEY_METADATA,
         SPLIT_OFFSETS,
-        EQUALITY_IDS
+        EQUALITY_IDS,
+        SORT_ORDER_ID
     );
   }
 

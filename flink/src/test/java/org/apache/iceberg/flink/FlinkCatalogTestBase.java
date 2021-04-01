@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import org.apache.flink.util.ArrayUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -28,6 +29,7 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.After;
@@ -101,15 +103,28 @@ public abstract class FlinkCatalogTestBase extends FlinkTestBase {
     }
     if (isHadoopCatalog) {
       config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hadoop");
-      config.put(CatalogProperties.WAREHOUSE_LOCATION, "file://" + hadoopWarehouse.getRoot());
     } else {
       config.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hive");
-      config.put(CatalogProperties.WAREHOUSE_LOCATION, "file://" + hiveWarehouse.getRoot());
-      config.put(CatalogProperties.HIVE_URI, getURI(hiveConf));
+      config.put(CatalogProperties.URI, getURI(hiveConf));
     }
+    config.put(CatalogProperties.WAREHOUSE_LOCATION, String.format("file://%s", warehouseRoot()));
 
     this.flinkDatabase = catalogName + "." + DATABASE;
     this.icebergNamespace = Namespace.of(ArrayUtils.concat(baseNamespace.levels(), new String[] {DATABASE}));
+  }
+
+  protected String warehouseRoot() {
+    if (isHadoopCatalog) {
+      return hadoopWarehouse.getRoot().getAbsolutePath();
+    } else {
+      return hiveWarehouse.getRoot().getAbsolutePath();
+    }
+  }
+
+  protected String getFullQualifiedTableName(String tableName) {
+    final List<String> levels = Lists.newArrayList(icebergNamespace.levels());
+    levels.add(tableName);
+    return Joiner.on('.').join(levels);
   }
 
   static String getURI(HiveConf conf) {

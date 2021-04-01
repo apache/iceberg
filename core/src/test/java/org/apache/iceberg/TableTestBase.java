@@ -73,6 +73,14 @@ public class TableTestBase {
       .withPartitionPath("data_bucket=0") // easy way to set partition data for now
       .withRecordCount(1)
       .build();
+  // Equality delete files.
+  static final DeleteFile FILE_A2_DELETES = FileMetadata.deleteFileBuilder(SPEC)
+      .ofEqualityDeletes(3)
+      .withPath("/path/to/data-a2-deletes.parquet")
+      .withFileSizeInBytes(10)
+      .withPartitionPath("data_bucket=0")
+      .withRecordCount(1)
+      .build();
   static final DataFile FILE_B = DataFiles.builder(SPEC)
       .withPath("/path/to/data-b.parquet")
       .withFileSizeInBytes(10)
@@ -211,6 +219,22 @@ public class TableTestBase {
       writer.close();
     }
 
+    return writer.toManifestFile();
+  }
+
+  ManifestFile writeDeleteManifest(int newFormatVersion, Long snapshotId, DeleteFile... deleteFiles)
+      throws IOException {
+    OutputFile manifestFile = org.apache.iceberg.Files
+        .localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
+    ManifestWriter<DeleteFile> writer = ManifestFiles.writeDeleteManifest(
+        newFormatVersion, SPEC, manifestFile, snapshotId);
+    try {
+      for (DeleteFile deleteFile : deleteFiles) {
+        writer.add(deleteFile);
+      }
+    } finally {
+      writer.close();
+    }
     return writer.toManifestFile();
   }
 

@@ -69,7 +69,8 @@ public class TestInclusiveMetricsEvaluator {
       optional(10, "all_nulls_double", Types.DoubleType.get()),
       optional(11, "all_nans_v1_stats", Types.FloatType.get()),
       optional(12, "nan_and_null_only", Types.DoubleType.get()),
-      optional(13, "no_nan_stats", Types.DoubleType.get())
+      optional(13, "no_nan_stats", Types.DoubleType.get()),
+      optional(14, "some_empty", Types.StringType.get())
   );
 
   private static final int INT_MIN_VALUE = 30;
@@ -88,6 +89,7 @@ public class TestInclusiveMetricsEvaluator {
           .put(11, 50L)
           .put(12, 50L)
           .put(13, 50L)
+          .put(14, 50L)
           .build(),
       // null value counts
       ImmutableMap.<Integer, Long>builder()
@@ -97,6 +99,7 @@ public class TestInclusiveMetricsEvaluator {
           .put(10, 50L)
           .put(11, 0L)
           .put(12, 1L)
+          .put(14, 0L)
           .build(),
       // nan value counts
       ImmutableMap.of(
@@ -107,12 +110,14 @@ public class TestInclusiveMetricsEvaluator {
       ImmutableMap.of(
           1, toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
           11, toByteBuffer(Types.FloatType.get(), Float.NaN),
-          12, toByteBuffer(Types.DoubleType.get(), Double.NaN)),
+          12, toByteBuffer(Types.DoubleType.get(), Double.NaN),
+          14, toByteBuffer(Types.StringType.get(), "")),
       // upper bounds
       ImmutableMap.of(
           1, toByteBuffer(IntegerType.get(), INT_MAX_VALUE),
           11, toByteBuffer(Types.FloatType.get(), Float.NaN),
-          12, toByteBuffer(Types.DoubleType.get(), Double.NaN)));
+          12, toByteBuffer(Types.DoubleType.get(), Double.NaN),
+          14, toByteBuffer(Types.StringType.get(), "房东整租霍营小区二层两居室")));
 
   private static final DataFile FILE_2 = new TestDataFile("file_2.avro", Row.of(), 50,
       // any value counts, including nulls
@@ -522,6 +527,12 @@ public class TestInclusiveMetricsEvaluator {
     Assert.assertFalse("Should not read: range doesn't match", shouldRead);
 
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, startsWith("required", "3str3x"), true).eval(FILE_3);
+    Assert.assertFalse("Should not read: range doesn't match", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, startsWith("some_empty", "房东整租霍"), true).eval(FILE);
+    Assert.assertTrue("Should read: range matches", shouldRead);
+
+    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, startsWith("all_nulls", ""), true).eval(FILE);
     Assert.assertFalse("Should not read: range doesn't match", shouldRead);
 
     String aboveMax = UnicodeUtil.truncateStringMax(Literal.of("イロハニホヘト"), 4).value().toString();

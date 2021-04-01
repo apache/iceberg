@@ -81,7 +81,7 @@ class V2Metadata {
 
     @Override
     public void put(int i, Object v) {
-      throw new UnsupportedOperationException("Cannot read using IndexedManifestFile");
+      throw new UnsupportedOperationException("Cannot modify IndexedManifestFile wrapper via put");
     }
 
     @Override
@@ -255,7 +255,8 @@ class V2Metadata {
         DataFile.UPPER_BOUNDS,
         DataFile.KEY_METADATA,
         DataFile.SPLIT_OFFSETS,
-        DataFile.EQUALITY_IDS
+        DataFile.EQUALITY_IDS,
+        DataFile.SORT_ORDER_ID
     );
   }
 
@@ -283,7 +284,7 @@ class V2Metadata {
 
     @Override
     public void put(int i, Object v) {
-      throw new UnsupportedOperationException("Cannot read using IndexedManifestEntry");
+      throw new UnsupportedOperationException("Cannot modify IndexedManifestEntry wrapper via put");
     }
 
     @Override
@@ -409,13 +410,15 @@ class V2Metadata {
           return wrapped.splitOffsets();
         case 14:
           return wrapped.equalityFieldIds();
+        case 15:
+          return wrapped.sortOrderId();
       }
       throw new IllegalArgumentException("Unknown field ordinal: " + pos);
     }
 
     @Override
     public void put(int i, Object v) {
-      throw new UnsupportedOperationException("Cannot read into IndexedDataFile");
+      throw new UnsupportedOperationException("Cannot modify IndexedDataFile wrapper via put");
     }
 
     @Override
@@ -501,6 +504,11 @@ class V2Metadata {
     @Override
     public List<Integer> equalityFieldIds() {
       return wrapped.equalityFieldIds();
+    }
+
+    @Override
+    public Integer sortOrderId() {
+      return wrapped.sortOrderId();
     }
 
     @Override

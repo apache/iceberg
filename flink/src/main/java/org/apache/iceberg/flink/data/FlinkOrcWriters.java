@@ -23,6 +23,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.stream.Stream;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.MapData;
@@ -30,6 +31,7 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -245,15 +247,21 @@ class FlinkOrcWriters {
       ListColumnVector cv = (ListColumnVector) output;
       cv.lengths[rowId] = data.size();
       cv.offsets[rowId] = cv.childCount;
-      cv.childCount += cv.lengths[rowId];
+      cv.childCount = (int) (cv.childCount + cv.lengths[rowId]);
       // make sure the child is big enough.
-      cv.child.ensureSize(cv.childCount, true);
+      growColumnVector(cv.child, cv.childCount);
 
       for (int e = 0; e < cv.lengths[rowId]; ++e) {
         Object value = elementGetter.getElementOrNull(data, e);
         elementWriter.write((int) (e + cv.offsets[rowId]), (T) value, cv.child);
       }
     }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return elementWriter.metrics();
+    }
+
   }
 
   static class MapWriter<K, V> implements OrcValueWriter<MapData> {
@@ -285,16 +293,21 @@ class FlinkOrcWriters {
       // record the length and start of the list elements
       cv.lengths[rowId] = data.size();
       cv.offsets[rowId] = cv.childCount;
-      cv.childCount += cv.lengths[rowId];
+      cv.childCount = (int) (cv.childCount + cv.lengths[rowId]);
       // make sure the child is big enough
-      cv.keys.ensureSize(cv.childCount, true);
-      cv.values.ensureSize(cv.childCount, true);
+      growColumnVector(cv.keys, cv.childCount);
+      growColumnVector(cv.values, cv.childCount);
       // Add each element
       for (int e = 0; e < cv.lengths[rowId]; ++e) {
         int pos = (int) (e + cv.offsets[rowId]);
         keyWriter.write(pos, (K) keyGetter.getElementOrNull(keyArray, e), cv.keys);
         valueWriter.write(pos, (V) valueGetter.getElementOrNull(valArray, e), cv.values);
       }
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
     }
   }
 
@@ -328,6 +341,18 @@ class FlinkOrcWriters {
         OrcValueWriter writer = writers.get(c);
         writer.write(rowId, fieldGetters.get(c).getFieldOrNull(data), cv.fields[c]);
       }
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return writers.stream().flatMap(OrcValueWriter::metrics);
+    }
+  }
+
+  private static void growColumnVector(ColumnVector cv, int requestedSize) {
+    if (cv.isNull.length < requestedSize) {
+      // Use growth factor of 3 to avoid frequent array allocations
+      cv.ensureSize(requestedSize * 3, true);
     }
   }
 }

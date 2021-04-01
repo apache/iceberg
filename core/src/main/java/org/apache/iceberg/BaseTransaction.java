@@ -499,7 +499,12 @@ class BaseTransaction implements Transaction {
     }
   }
 
-  public class TransactionTable implements Table {
+  public class TransactionTable implements Table, HasTableOperations {
+
+    @Override
+    public TableOperations operations() {
+      return transactionOps;
+    }
 
     @Override
     public String name() {

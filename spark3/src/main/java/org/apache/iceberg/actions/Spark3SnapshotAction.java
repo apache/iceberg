@@ -26,6 +26,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.StagedSparkTable;
 import org.apache.spark.sql.SparkSession;
@@ -53,8 +54,7 @@ public class Spark3SnapshotAction extends Spark3CreateAction implements Snapshot
     super(spark, sourceCatalog, sourceTableIdent, destCatalog, destTableIdent);
   }
 
-  @Override
-  public Long execute() {
+  private Long doExecute() {
     StagedSparkTable stagedTable = stageDestTable();
     Table icebergTable = stagedTable.table();
     // TODO Check table location here against source location
@@ -87,6 +87,12 @@ public class Spark3SnapshotAction extends Spark3CreateAction implements Snapshot
     long numMigratedFiles = Long.parseLong(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
     LOG.info("Successfully loaded Iceberg metadata for {} files", numMigratedFiles);
     return numMigratedFiles;
+  }
+
+  @Override
+  public Long execute() {
+    JobGroupInfo info = new JobGroupInfo("SNAPSHOT", "SNAPSHOT", false);
+    return withJobGroupInfo(info, this::doExecute);
   }
 
   @Override

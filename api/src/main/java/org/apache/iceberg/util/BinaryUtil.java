@@ -28,12 +28,23 @@ public class BinaryUtil {
   private BinaryUtil() {
   }
 
+  private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.allocate(0);
+
   /**
-   * Truncates the input byte buffer to the given length
+   * Truncates the input byte buffer to the given length.
+   * <p>
+   * We allow for a length of zero so that rows with empty string can be evaluated.
+   * Partition specs still cannot be created with a length of zero due to a constraint
+   * when parsing column truncation specs in {@code org.apache.iceberg.MetricsModes}.
+   *
+   * @param input The ByteBuffer to be truncated
+   * @param length The non-negative length to truncate input to
    */
   public static ByteBuffer truncateBinary(ByteBuffer input, int length) {
-    Preconditions.checkArgument(length > 0, "Truncate length should be positive");
-    if (length >= input.remaining()) {
+    Preconditions.checkArgument(length >= 0, "Truncate length should be non-negative");
+    if (length == 0) {
+      return EMPTY_BYTE_BUFFER;
+    } else if (length >= input.remaining()) {
       return input;
     }
     byte[] array = new byte[length];

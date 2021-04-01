@@ -19,14 +19,14 @@
 
 package org.apache.iceberg.nessie;
 
-import com.dremio.nessie.model.ContentsKey;
-import com.dremio.nessie.model.EntriesResponse;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.projectnessie.model.ContentsKey;
+import org.projectnessie.model.EntriesResponse;
 
 public final class NessieUtil {
 
@@ -78,7 +78,7 @@ public final class NessieUtil {
     }
     identifiers.add(tableIdentifier.name());
 
-    ContentsKey key = new ContentsKey(identifiers);
+    ContentsKey key = ContentsKey.of(identifiers);
     return key;
   }
 

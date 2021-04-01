@@ -387,7 +387,7 @@ public final class ORCSchemaUtil {
         .map(Integer::parseInt);
   }
 
-  static int fieldId(TypeDescription orcType) {
+  public static int fieldId(TypeDescription orcType) {
     String idStr = orcType.getAttributeValue(ICEBERG_ID_ATTRIBUTE);
     Preconditions.checkNotNull(idStr, "Missing expected '%s' property", ICEBERG_ID_ATTRIBUTE);
     return Integer.parseInt(idStr);

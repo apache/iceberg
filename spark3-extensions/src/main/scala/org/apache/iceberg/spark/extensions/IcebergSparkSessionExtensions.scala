@@ -20,8 +20,15 @@
 package org.apache.iceberg.spark.extensions
 
 import org.apache.spark.sql.SparkSessionExtensions
-import org.apache.spark.sql.catalyst.analysis.{AlignMergeIntoTable, DeleteFromTablePredicateCheck, ProcedureArgumentCoercion, ResolveProcedures}
-import org.apache.spark.sql.catalyst.optimizer.{OptimizeConditionsInRowLevelOperations, PullupCorrelatedPredicatesInRowLevelOperations, RewriteDelete}
+import org.apache.spark.sql.catalyst.analysis.AlignRowLevelOperations
+import org.apache.spark.sql.catalyst.analysis.ProcedureArgumentCoercion
+import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
+import org.apache.spark.sql.catalyst.analysis.RowLevelOperationsPredicateCheck
+import org.apache.spark.sql.catalyst.optimizer.OptimizeConditionsInRowLevelOperations
+import org.apache.spark.sql.catalyst.optimizer.PullupCorrelatedPredicatesInRowLevelOperations
+import org.apache.spark.sql.catalyst.optimizer.RewriteDelete
+import org.apache.spark.sql.catalyst.optimizer.RewriteMergeInto
+import org.apache.spark.sql.catalyst.optimizer.RewriteUpdate
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
 
@@ -34,15 +41,15 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     // analyzer extensions
     extensions.injectResolutionRule { spark => ResolveProcedures(spark) }
     extensions.injectResolutionRule { _ => ProcedureArgumentCoercion }
-    extensions.injectPostHocResolutionRule { spark => AlignMergeIntoTable(spark.sessionState.conf)}
-    extensions.injectCheckRule { _ => DeleteFromTablePredicateCheck }
+    extensions.injectPostHocResolutionRule { spark => AlignRowLevelOperations(spark.sessionState.conf)}
+    extensions.injectCheckRule { _ => RowLevelOperationsPredicateCheck }
 
     // optimizer extensions
-    // TODO: RewriteDelete should be executed after the operator optimization batch
     extensions.injectOptimizerRule { _ => OptimizeConditionsInRowLevelOperations }
-    // TODO: PullupCorrelatedPredicates should handle row-level operations
     extensions.injectOptimizerRule { _ => PullupCorrelatedPredicatesInRowLevelOperations }
-    extensions.injectOptimizerRule { _ => RewriteDelete }
+    extensions.injectOptimizerRule { spark => RewriteDelete(spark) }
+    extensions.injectOptimizerRule { spark => RewriteUpdate(spark) }
+    extensions.injectOptimizerRule { spark => RewriteMergeInto(spark) }
 
     // planner extensions
     extensions.injectPlannerStrategy { spark => ExtendedDataSourceV2Strategy(spark) }

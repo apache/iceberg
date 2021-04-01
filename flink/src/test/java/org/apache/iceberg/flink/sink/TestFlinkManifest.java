@@ -30,7 +30,6 @@ import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.table.data.RowData;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -40,6 +39,7 @@ import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
+import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -106,14 +106,14 @@ public class TestFlinkManifest {
       WriteResult result = FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io());
       Assert.assertEquals("Size of data file list are not equal.", 10, result.deleteFiles().length);
       for (int i = 0; i < dataFiles.size(); i++) {
-        checkContentFile(dataFiles.get(i), result.dataFiles()[i]);
+        TestHelpers.assertEquals(dataFiles.get(i), result.dataFiles()[i]);
       }
       Assert.assertEquals("Size of delete file list are not equal.", 10, result.dataFiles().length);
       for (int i = 0; i < 5; i++) {
-        checkContentFile(eqDeleteFiles.get(i), result.deleteFiles()[i]);
+        TestHelpers.assertEquals(eqDeleteFiles.get(i), result.deleteFiles()[i]);
       }
       for (int i = 0; i < 5; i++) {
-        checkContentFile(posDeleteFiles.get(i), result.deleteFiles()[5 + i]);
+        TestHelpers.assertEquals(posDeleteFiles.get(i), result.deleteFiles()[5 + i]);
       }
     }
   }
@@ -148,7 +148,7 @@ public class TestFlinkManifest {
 
     Assert.assertEquals("Size of data file list are not equal.", dataFiles.size(), result.dataFiles().length);
     for (int i = 0; i < dataFiles.size(); i++) {
-      checkContentFile(dataFiles.get(i), result.dataFiles()[i]);
+      TestHelpers.assertEquals(dataFiles.get(i), result.dataFiles()[i]);
     }
   }
 
@@ -173,8 +173,8 @@ public class TestFlinkManifest {
         SimpleVersionedSerialization.writeVersionAndSerialize(DeltaManifestsSerializer.INSTANCE, expected);
     DeltaManifests actual = SimpleVersionedSerialization
         .readVersionAndDeSerialize(DeltaManifestsSerializer.INSTANCE, versionedSerializeData);
-    checkManifestFile(expected.dataManifest(), actual.dataManifest());
-    checkManifestFile(expected.deleteManifest(), actual.deleteManifest());
+    TestHelpers.assertEquals(expected.dataManifest(), actual.dataManifest());
+    TestHelpers.assertEquals(expected.deleteManifest(), actual.deleteManifest());
 
     byte[] versionedSerializeData2 =
         SimpleVersionedSerialization.writeVersionAndSerialize(DeltaManifestsSerializer.INSTANCE, actual);
@@ -196,12 +196,12 @@ public class TestFlinkManifest {
         SimpleVersionedSerialization.readVersionAndDeSerialize(DeltaManifestsSerializer.INSTANCE, dataV1);
     Assert.assertNull("Serialization v1 don't include delete files.", delta.deleteManifest());
     Assert.assertNotNull("Serialization v1 should not have null data manifest.", delta.dataManifest());
-    checkManifestFile(manifest, delta.dataManifest());
+    TestHelpers.assertEquals(manifest, delta.dataManifest());
 
     List<DataFile> actualFiles = FlinkManifestUtil.readDataFiles(delta.dataManifest(), table.io());
     Assert.assertEquals(10, actualFiles.size());
     for (int i = 0; i < 10; i++) {
-      checkContentFile(dataFiles.get(i), actualFiles.get(i));
+      TestHelpers.assertEquals(dataFiles.get(i), actualFiles.get(i));
     }
   }
 
@@ -270,51 +270,5 @@ public class TestFlinkManifest {
 
   private static String newFlinkJobId() {
     return UUID.randomUUID().toString();
-  }
-
-  private static void checkManifestFile(ManifestFile expected, ManifestFile actual) {
-    if (expected == actual) {
-      return;
-    }
-    Assert.assertTrue("Should not be null.", expected != null && actual != null);
-    Assert.assertEquals("Path must match", expected.path(), actual.path());
-    Assert.assertEquals("Length must match", expected.length(), actual.length());
-    Assert.assertEquals("Spec id must match", expected.partitionSpecId(), actual.partitionSpecId());
-    Assert.assertEquals("ManifestContent must match", expected.content(), actual.content());
-    Assert.assertEquals("SequenceNumber must match", expected.sequenceNumber(), actual.sequenceNumber());
-    Assert.assertEquals("MinSequenceNumber must match", expected.minSequenceNumber(), actual.minSequenceNumber());
-    Assert.assertEquals("Snapshot id must match", expected.snapshotId(), actual.snapshotId());
-    Assert.assertEquals("Added files flag must match", expected.hasAddedFiles(), actual.hasAddedFiles());
-    Assert.assertEquals("Added files count must match", expected.addedFilesCount(), actual.addedFilesCount());
-    Assert.assertEquals("Added rows count must match", expected.addedRowsCount(), actual.addedRowsCount());
-    Assert.assertEquals("Existing files flag must match", expected.hasExistingFiles(), actual.hasExistingFiles());
-    Assert.assertEquals("Existing files count must match", expected.existingFilesCount(), actual.existingFilesCount());
-    Assert.assertEquals("Existing rows count must match", expected.existingRowsCount(), actual.existingRowsCount());
-    Assert.assertEquals("Deleted files flag must match", expected.hasDeletedFiles(), actual.hasDeletedFiles());
-    Assert.assertEquals("Deleted files count must match", expected.deletedFilesCount(), actual.deletedFilesCount());
-    Assert.assertEquals("Deleted rows count must match", expected.deletedRowsCount(), actual.deletedRowsCount());
-    Assert.assertEquals("PartitionFieldSummary must match", expected.partitions(), actual.partitions());
-  }
-
-  static void checkContentFile(ContentFile<?> expected, ContentFile<?> actual) {
-    if (expected == actual) {
-      return;
-    }
-    Assert.assertTrue("Shouldn't be null.", expected != null && actual != null);
-    Assert.assertEquals("SpecId", expected.specId(), actual.specId());
-    Assert.assertEquals("Content", expected.content(), actual.content());
-    Assert.assertEquals("Path", expected.path(), actual.path());
-    Assert.assertEquals("Format", expected.format(), actual.format());
-    Assert.assertEquals("Partition", expected.partition(), actual.partition());
-    Assert.assertEquals("Record count", expected.recordCount(), actual.recordCount());
-    Assert.assertEquals("File size in bytes", expected.fileSizeInBytes(), actual.fileSizeInBytes());
-    Assert.assertEquals("Column sizes", expected.columnSizes(), actual.columnSizes());
-    Assert.assertEquals("Value counts", expected.valueCounts(), actual.valueCounts());
-    Assert.assertEquals("Null value counts", expected.nullValueCounts(), actual.nullValueCounts());
-    Assert.assertEquals("Lower bounds", expected.lowerBounds(), actual.lowerBounds());
-    Assert.assertEquals("Upper bounds", expected.upperBounds(), actual.upperBounds());
-    Assert.assertEquals("Key metadata", expected.keyMetadata(), actual.keyMetadata());
-    Assert.assertEquals("Split offsets", expected.splitOffsets(), actual.splitOffsets());
-    Assert.assertEquals("Equality field id list", actual.equalityFieldIds(), expected.equalityFieldIds());
   }
 }

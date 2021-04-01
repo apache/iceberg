@@ -28,13 +28,14 @@ we only integrate iceberg with apache flink 1.11.x .
 | [SQL create table like](#create-table-like)                            | ✔️                 |                                                        |
 | [SQL alter table](#alter-table)                                        | ✔️                 | Only support altering table properties, Columns/PartitionKey changes are not supported now|
 | [SQL drop_table](#drop-table)                                          | ✔️                 |                                                        |
-| [SQL select](#querying-with-sql)                                       | ✔️                 | Only support batch mode now.                           |
+| [SQL select](#querying-with-sql)                                       | ✔️                 | Support both streaming and batch mode                  |
 | [SQL insert into](#insert-into)                                        | ✔️ ️               | Support both streaming and batch mode                  |
 | [SQL insert overwrite](#insert-overwrite)                              | ✔️ ️               |                                                        |
 | [DataStream read](#reading-with-datastream)                            | ✔️ ️               |                                                        |
 | [DataStream append](#appending-data)                                   | ✔️ ️               |                                                        |
 | [DataStream overwrite](#overwrite-data)                                | ✔️ ️               |                                                        |
-| [Metadata tables](#inspecting-tables)                                  |    ️               |                                                        |
+| [Metadata tables](#inspecting-tables)                                  |    ️               | Support Java API but does not support Flink SQL        |
+| [Rewrite files action](#rewrite-files-action)                          | ✔️ ️               |                                                        |
 
 ## Preparation
 
@@ -143,6 +144,18 @@ CREATE CATALOG my_catalog WITH (
 );
 ```
 
+### Create through YAML config
+
+Catalogs can be registered in `sql-client-defaults.yaml` before starting the SQL client. Here is an example:
+
+```yaml
+catalogs: 
+  - name: my_catalog
+    type: iceberg
+    catalog-type: hadoop
+    warehouse: hdfs://nn:8020/warehouse/path
+```
+
 ## DDL commands
 
 ### `CREATE DATABASE`
@@ -224,15 +237,7 @@ DROP TABLE hive_catalog.default.sample;
 
 ## Querying with SQL
 
-Iceberg does not support streaming read in flink now, it's still working in-progress. But it support batch read to scan the existing records in iceberg table.
-
-```sql
--- Execute the flink job in batch mode for current session context
-SET execution.type = batch ;
-SELECT * FROM sample       ;
-```
-
-Notice: we could execute the following sql command to switch the execute type from 'streaming' mode to 'batch' mode, and vice versa:
+Iceberg support both streaming and batch read in flink now. we could execute the following sql command to switch the execute type from 'streaming' mode to 'batch' mode, and vice versa:
 
 ```sql
 -- Execute the flink job in streaming mode for current session context
@@ -241,6 +246,39 @@ SET execution.type = streaming
 -- Execute the flink job in batch mode for current session context
 SET execution.type = batch
 ```
+
+### Flink batch read
+
+If want to check all the rows in iceberg table by submitting a flink __batch__ job, you could execute the following sentences:
+
+```sql
+-- Execute the flink job in batch mode for current session context
+SET execution.type = batch ;
+SELECT * FROM sample       ;
+```
+
+### Flink streaming read
+
+Iceberg supports processing incremental data in flink streaming jobs which starts from a historical snapshot-id:
+
+```sql
+-- Submit the flink job in streaming mode for current session.
+SET execution.type = streaming ;
+
+-- Enable this switch because streaming read SQL will provide few job options in flink SQL hint options.
+SET table.dynamic-table-options.enabled=true;
+
+-- Read all the records from the iceberg current snapshot, and then read incremental data starting from that snapshot.
+SELECT * FROM sample /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s')*/ ;
+
+-- Read all incremental data starting from the snapshot-id '3821550127947089987' (records from this snapshot will be excluded).
+SELECT * FROM sample /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'start-snapshot-id'='3821550127947089987')*/ ;
+```
+
+Those are the options that could be set in flink SQL hint options for streaming job:
+
+* monitor-interval: time interval for consecutively monitoring newly committed data files (default value: '1s').
+* start-snapshot-id: the snapshot id that streaming job starts from.
 
 ## Writing with SQL
 
@@ -276,7 +314,50 @@ For an unpartitioned iceberg table, its data will be completely overwritten by `
 
 ## Reading with DataStream
 
-Iceberg does not support streaming or batch read now, but it's working in-progress.
+Iceberg support streaming or batch read in Java API now.
+
+### Batch Read
+
+This example will read all records from iceberg table and then print to the stdout console in flink batch job:
+
+```java
+StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
+TableLoader tableLoader = TableLoader.fromHadooptable("hdfs://nn:8020/warehouse/path");
+DataStream<RowData> batch = FlinkSource.forRowData()
+     .env(env)
+     .tableLoader(loader)
+     .streaming(false)
+     .build();
+
+// Print all records to stdout.
+batch.print();
+
+// Submit and execute this batch read job.
+env.execute("Test Iceberg Batch Read");
+```
+
+### Streaming read
+
+This example will read incremental records which start from snapshot-id '3821550127947089987' and print to stdout console in flink streaming job:
+
+```java
+StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
+TableLoader tableLoader = TableLoader.fromHadooptable("hdfs://nn:8020/warehouse/path");
+DataStream<RowData> stream = FlinkSource.forRowData()
+     .env(env)
+     .tableLoader(loader)
+     .streaming(true)
+     .startSnapshotId(3821550127947089987)
+     .build();
+
+// Print all records to stdout.
+stream.print();
+
+// Submit and execute this streaming read job.
+env.execute("Test Iceberg Batch Read");
+```
+
+There are other options that we could set by Java API, please see the [FlinkSource#Builder](./javadoc/master/org/apache/iceberg/flink/source/FlinkSource.html).
 
 ## Writing with DataStream
 
@@ -328,6 +409,22 @@ env.execute("Test Iceberg DataStream");
 
 Iceberg does not support inspecting table in flink sql now, we need to use [iceberg's Java API](./api.md) to read iceberg's meta data to get those table information.
 
+## Rewrite files action.
+
+Iceberg provides API to rewrite small files into large files by submitting flink batch job. The behavior of this flink action is the same as the spark's [rewriteDataFiles](./maintenance/#compact-data-files).
+
+```java
+import org.apache.iceberg.flink.actions.Actions;
+
+TableLoader tableLoader = TableLoader.fromHadooptable("hdfs://nn:8020/warehouse/path");
+Table table = tableLoader.loadTable();
+RewriteDataFilesActionResult result = Actions.forTable(table)
+        .rewriteDataFiles()
+        .execute();
+```
+
+For more doc about options of the rewrite files action, please see [RewriteDataFilesAction](./javadoc/master/org/apache/iceberg/flink/actions/RewriteDataFilesAction.html)
+
 ## Future improvement.
 
 There are some features that we do not yet support in the current flink iceberg integration work:
@@ -336,4 +433,3 @@ There are some features that we do not yet support in the current flink iceberg 
 * Don't support creating iceberg table with computed column.
 * Don't support creating iceberg table with watermark.
 * Don't support adding columns, removing columns, renaming columns, changing columns. [FLINK-19062](https://issues.apache.org/jira/browse/FLINK-19062) is tracking this.
-* Don't support flink read iceberg table in streaming mode. [#1383](https://github.com/apache/iceberg/issues/1383) is tracking this.

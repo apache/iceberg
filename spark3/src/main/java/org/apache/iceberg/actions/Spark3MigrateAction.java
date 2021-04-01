@@ -27,6 +27,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.source.StagedSparkTable;
@@ -54,8 +55,7 @@ public class Spark3MigrateAction extends Spark3CreateAction {
     super(spark, sourceCatalog, sourceTableName, sourceCatalog, sourceTableName);
   }
 
-  @Override
-  public Long execute() {
+  private Long doExecute() {
     // Move source table to a new name, halting all modifications and allowing us to stage
     // the creation of a new Iceberg table in its place
     String backupName = sourceTableIdent().name() + BACKUP_SUFFIX;
@@ -112,6 +112,12 @@ public class Spark3MigrateAction extends Spark3CreateAction {
     long numMigratedFiles = Long.parseLong(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
     LOG.info("Successfully loaded Iceberg metadata for {} files", numMigratedFiles);
     return numMigratedFiles;
+  }
+
+  @Override
+  public Long execute() {
+    JobGroupInfo info = new JobGroupInfo("MIGRATE", "MIGRATE", false);
+    return withJobGroupInfo(info, this::doExecute);
   }
 
   @Override

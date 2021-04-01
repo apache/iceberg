@@ -139,6 +139,28 @@ public class TestHiveIcebergStorageHandlerLocalScan {
   }
 
   @Test
+  public void testScanTableCaseInsensitive() throws IOException {
+    testTables.createTable(shell, "customers",
+            HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA_WITH_UPPERCASE, fileFormat,
+            HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
+
+    List<Object[]> rows = shell.executeStatement("SELECT * FROM default.customers");
+
+    Assert.assertEquals(3, rows.size());
+    Assert.assertArrayEquals(new Object[] {0L, "Alice", "Brown"}, rows.get(0));
+    Assert.assertArrayEquals(new Object[] {1L, "Bob", "Green"}, rows.get(1));
+    Assert.assertArrayEquals(new Object[] {2L, "Trudy", "Pink"}, rows.get(2));
+
+    rows = shell.executeStatement("SELECT * FROM default.customers where CustomER_Id < 2 " +
+            "and first_name in ('Alice', 'Bob')");
+
+    Assert.assertEquals(2, rows.size());
+    Assert.assertArrayEquals(new Object[] {0L, "Alice", "Brown"}, rows.get(0));
+    Assert.assertArrayEquals(new Object[] {1L, "Bob", "Green"}, rows.get(1));
+  }
+
+
+  @Test
   public void testDecimalTableWithPredicateLiterals() throws IOException {
     Schema schema = new Schema(required(1, "decimal_field", Types.DecimalType.of(7, 2)));
     List<Record> records = TestHelper.RecordsBuilder.newInstance(schema)
@@ -225,7 +247,8 @@ public class TestHiveIcebergStorageHandlerLocalScan {
     Map<StructLike, List<Record>> data = new HashMap<>(1);
     data.put(null, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
     String createSql = "CREATE EXTERNAL TABLE " + identifier +
-        " (customer_id BIGINT, first_name STRING, last_name STRING)" +
+        " (customer_id BIGINT, first_name STRING COMMENT 'This is first name', " +
+        "last_name STRING COMMENT 'This is last name')" +
         " STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
         testTables.locationForCreateTableSQL(identifier);
     runCreateAndReadTest(identifier, createSql, HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA,
@@ -242,8 +265,9 @@ public class TestHiveIcebergStorageHandlerLocalScan {
         Row.of("Green"), Collections.singletonList(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS.get(1)),
         Row.of("Pink"), Collections.singletonList(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS.get(2)));
     String createSql = "CREATE EXTERNAL TABLE " + identifier +
-        " (customer_id BIGINT, first_name STRING) PARTITIONED BY (last_name STRING) " +
-        "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
+        " (customer_id BIGINT, first_name STRING COMMENT 'This is first name') " +
+        "PARTITIONED BY (last_name STRING COMMENT 'This is last name') STORED BY " +
+         "'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
         testTables.locationForCreateTableSQL(identifier);
     runCreateAndReadTest(identifier, createSql, HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, spec, data);
   }
@@ -276,7 +300,8 @@ public class TestHiveIcebergStorageHandlerLocalScan {
         Row.of("Bob", "Green"), Collections.singletonList(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS.get(1)),
         Row.of("Trudy", "Pink"), Collections.singletonList(HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS.get(2)));
     String createSql = "CREATE EXTERNAL TABLE " + identifier + " (customer_id BIGINT) " +
-        "PARTITIONED BY (first_name STRING, last_name STRING) " +
+        "PARTITIONED BY (first_name STRING COMMENT 'This is first name', " +
+        "last_name STRING COMMENT 'This is last name') " +
         "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
         testTables.locationForCreateTableSQL(identifier);
     runCreateAndReadTest(identifier, createSql, HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, spec, data);

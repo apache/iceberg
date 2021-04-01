@@ -17,7 +17,6 @@
 
 from setuptools import setup
 
-
 setup(
     name='iceberg',
     maintainer='Apache Iceberg Devs',
@@ -25,19 +24,19 @@ setup(
     description='Iceberg is a new table format for storing large, slow-moving tabular data',
     keywords='iceberg',
     url='https://github.com/apache/iceberg/blob/master/README.md',
-    python_requires='>=3.6',
+    python_requires='>=3.7',
     install_requires=['botocore',
                       'boto3',
-                      'fastavro',
-                      'hmsclient',
+                      'fastavro>=1.3.2<1.4.0',
+                      'hmsclient==0.1.1',
                       'mmh3',
-                      'pyparsing',
+                      'pyparsing>=2.4.7<2.5.0',
                       'python-dateutil',
                       'pytz',
                       'requests',
                       'retrying',
                       'pandas',
-                      'pyarrow>=2.0.0'
+                      'pyarrow>=3.0.0<4.0.0'
                       ],
     extras_require={
         "dev": [
@@ -49,8 +48,8 @@ setup(
     license="Apache License 2.0",
     classifiers=[
         "License :: OSI Approved :: Apache Software License",
-        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
     ],
 )

@@ -32,6 +32,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
+import org.apache.iceberg.FieldMetrics;
+import org.apache.iceberg.FloatFieldMetrics;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -77,12 +80,12 @@ public class GenericOrcWriters {
     return LongWriter.INSTANCE;
   }
 
-  public static OrcValueWriter<Float> floats() {
-    return FloatWriter.INSTANCE;
+  public static OrcValueWriter<Float> floats(int id) {
+    return new FloatWriter(id);
   }
 
-  public static OrcValueWriter<Double> doubles() {
-    return DoubleWriter.INSTANCE;
+  public static OrcValueWriter<Double> doubles(int id) {
+    return new DoubleWriter(id);
   }
 
   public static OrcValueWriter<String> strings() {
@@ -216,7 +219,13 @@ public class GenericOrcWriters {
   }
 
   private static class FloatWriter implements OrcValueWriter<Float> {
-    private static final OrcValueWriter<Float> INSTANCE = new FloatWriter();
+    private final int id;
+    private long nanCount;
+
+    private FloatWriter(int id) {
+      this.id = id;
+      this.nanCount = 0;
+    }
 
     @Override
     public Class<Float> getJavaClass() {
@@ -226,11 +235,25 @@ public class GenericOrcWriters {
     @Override
     public void nonNullWrite(int rowId, Float data, ColumnVector output) {
       ((DoubleColumnVector) output).vector[rowId] = data;
+      if (Float.isNaN(data)) {
+        nanCount++;
+      }
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.of(new FloatFieldMetrics(id, nanCount));
     }
   }
 
   private static class DoubleWriter implements OrcValueWriter<Double> {
-    private static final OrcValueWriter<Double> INSTANCE = new DoubleWriter();
+    private final int id;
+    private long nanCount;
+
+    private DoubleWriter(Integer id) {
+      this.id = id;
+      this.nanCount = 0;
+    }
 
     @Override
     public Class<Double> getJavaClass() {
@@ -240,6 +263,14 @@ public class GenericOrcWriters {
     @Override
     public void nonNullWrite(int rowId, Double data, ColumnVector output) {
       ((DoubleColumnVector) output).vector[rowId] = data;
+      if (Double.isNaN(data)) {
+        nanCount++;
+      }
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.of(new FloatFieldMetrics(id, nanCount));
     }
   }
 
@@ -428,13 +459,18 @@ public class GenericOrcWriters {
       // record the length and start of the list elements
       cv.lengths[rowId] = value.size();
       cv.offsets[rowId] = cv.childCount;
-      cv.childCount += cv.lengths[rowId];
+      cv.childCount = (int) (cv.childCount + cv.lengths[rowId]);
       // make sure the child is big enough
-      cv.child.ensureSize(cv.childCount, true);
+      growColumnVector(cv.child, cv.childCount);
       // Add each element
       for (int e = 0; e < cv.lengths[rowId]; ++e) {
         element.write((int) (e + cv.offsets[rowId]), value.get(e), cv.child);
       }
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return element.metrics();
     }
   }
 
@@ -464,16 +500,28 @@ public class GenericOrcWriters {
       // record the length and start of the list elements
       cv.lengths[rowId] = map.size();
       cv.offsets[rowId] = cv.childCount;
-      cv.childCount += cv.lengths[rowId];
+      cv.childCount = (int) (cv.childCount + cv.lengths[rowId]);
       // make sure the child is big enough
-      cv.keys.ensureSize(cv.childCount, true);
-      cv.values.ensureSize(cv.childCount, true);
+      growColumnVector(cv.keys, cv.childCount);
+      growColumnVector(cv.values, cv.childCount);
       // Add each element
       for (int e = 0; e < cv.lengths[rowId]; ++e) {
         int pos = (int) (e + cv.offsets[rowId]);
         keyWriter.write(pos, keys.get(e), cv.keys);
         valueWriter.write(pos, values.get(e), cv.values);
       }
+    }
+
+    @Override
+    public Stream<FieldMetrics> metrics() {
+      return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
+    }
+  }
+
+  private static void growColumnVector(ColumnVector cv, int requestedSize) {
+    if (cv.isNull.length < requestedSize) {
+      // Use growth factor of 3 to avoid frequent array allocations
+      cv.ensureSize(requestedSize * 3, true);
     }
   }
 }

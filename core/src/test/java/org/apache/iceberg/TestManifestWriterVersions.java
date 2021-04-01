@@ -68,15 +68,16 @@ public class TestManifestWriterVersions {
       ImmutableMap.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)),  // lower bounds
       ImmutableMap.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1))); // upper bounds
   private static final List<Long> OFFSETS = ImmutableList.of(4L);
+  private static final Integer SORT_ORDER_ID = 2;
 
   private static final DataFile DATA_FILE = new GenericDataFile(
-      0, PATH, FORMAT, PARTITION, 150972L, METRICS, null, OFFSETS);
+      0, PATH, FORMAT, PARTITION, 150972L, METRICS, null, OFFSETS, SORT_ORDER_ID);
 
   private static final List<Integer> EQUALITY_IDS = ImmutableList.of(1);
   private static final int[] EQUALITY_ID_ARR = new int[] { 1 };
 
   private static final DeleteFile DELETE_FILE = new GenericDeleteFile(
-      0, FileContent.EQUALITY_DELETES, PATH, FORMAT, PARTITION, 22905L, METRICS, EQUALITY_ID_ARR, null);
+      0, FileContent.EQUALITY_DELETES, PATH, FORMAT, PARTITION, 22905L, METRICS, EQUALITY_ID_ARR, SORT_ORDER_ID, null);
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -201,6 +202,7 @@ public class TestManifestWriterVersions {
     Assert.assertEquals("NaN value counts", METRICS.nanValueCounts(), dataFile.nanValueCounts());
     Assert.assertEquals("Lower bounds", METRICS.lowerBounds(), dataFile.lowerBounds());
     Assert.assertEquals("Upper bounds", METRICS.upperBounds(), dataFile.upperBounds());
+    Assert.assertEquals("Sort order id", SORT_ORDER_ID, dataFile.sortOrderId());
     if (dataFile.content() == FileContent.EQUALITY_DELETES) {
       Assert.assertEquals(EQUALITY_IDS, dataFile.equalityFieldIds());
     } else {

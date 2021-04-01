@@ -209,4 +209,8 @@ public interface TableScan {
    */
   boolean isCaseSensitive();
 
+  /**
+   * Returns the target split size for this scan.
+   */
+  long targetSplitSize();
 }

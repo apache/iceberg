@@ -25,14 +25,21 @@ import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import org.antlr.v4.runtime.tree.TerminalNodeImpl
 import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.catalyst.{FunctionIdentifier, TableIdentifier}
+import org.apache.spark.sql.catalyst.FunctionIdentifier
+import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.expressions.Expression
-import org.apache.spark.sql.catalyst.parser.{ParseErrorListener, ParseException, ParserInterface, UpperCaseCharStream}
-import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser._
+import org.apache.spark.sql.catalyst.parser.ParseErrorListener
+import org.apache.spark.sql.catalyst.parser.ParseException
+import org.apache.spark.sql.catalyst.parser.ParserInterface
+import org.apache.spark.sql.catalyst.parser.UpperCaseCharStream
+import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.NonReservedContext
+import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.QuotedIdentifierContext
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.trees.Origin
-import org.apache.spark.sql.internal.{SQLConf, VariableSubstitution}
-import org.apache.spark.sql.types.{DataType, StructType}
+import org.apache.spark.sql.internal.SQLConf
+import org.apache.spark.sql.internal.VariableSubstitution
+import org.apache.spark.sql.types.DataType
+import org.apache.spark.sql.types.StructType
 
 class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserInterface {
 
@@ -107,7 +114,11 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
         normalized.startsWith("alter table") && (
             normalized.contains("add partition field") ||
             normalized.contains("drop partition field") ||
-            normalized.contains("write ordered by")))
+            normalized.contains("replace partition field") ||
+            normalized.contains("write ordered by") ||
+            normalized.contains("write locally ordered by") ||
+            normalized.contains("write distributed by") ||
+            normalized.contains("write unordered")))
   }
 
   protected def parse[T](command: String)(toResult: IcebergSqlExtensionsParser => T): T = {

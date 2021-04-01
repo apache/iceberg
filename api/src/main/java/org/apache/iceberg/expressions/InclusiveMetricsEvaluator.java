@@ -33,6 +33,7 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
+import org.apache.iceberg.util.NaNUtil;
 
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
@@ -44,6 +45,11 @@ import static org.apache.iceberg.expressions.Expressions.rewriteNot;
  * Files are passed to {@link #eval(ContentFile)}, which returns true if the file may contain matching
  * rows and false if the file cannot contain matching rows. Files may be skipped if and only if the
  * return value of {@code eval} is false.
+ * <p>
+ * Due to the comparison implementation of ORC stats, for float/double columns in ORC files, if the first
+ * value in a file is NaN, metrics of this file will report NaN for both upper and lower bound despite
+ * that the column could contain non-NaN data. Thus in some scenarios explicitly checks for NaN is necessary
+ * in order to not skip files that may contain matching data.
  */
 public class InclusiveMetricsEvaluator {
   private static final int IN_PREDICATE_LIMIT = 200;
@@ -184,12 +190,17 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
 
-      if (containsNullsOnly(id)) {
+      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
         return ROWS_CANNOT_MATCH;
       }
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+
+        if (NaNUtil.isNaN(lower)) {
+          // NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
+          return ROWS_MIGHT_MATCH;
+        }
 
         int cmp = lit.comparator().compare(lower, lit.value());
         if (cmp >= 0) {
@@ -204,12 +215,17 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
 
-      if (containsNullsOnly(id)) {
+      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
         return ROWS_CANNOT_MATCH;
       }
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+
+        if (NaNUtil.isNaN(lower)) {
+          // NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
+          return ROWS_MIGHT_MATCH;
+        }
 
         int cmp = lit.comparator().compare(lower, lit.value());
         if (cmp > 0) {
@@ -224,7 +240,7 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
 
-      if (containsNullsOnly(id)) {
+      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -244,7 +260,7 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
 
-      if (containsNullsOnly(id)) {
+      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -264,12 +280,17 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
 
-      if (containsNullsOnly(id)) {
+      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
         return ROWS_CANNOT_MATCH;
       }
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+
+        if (NaNUtil.isNaN(lower)) {
+          // NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
+          return ROWS_MIGHT_MATCH;
+        }
 
         int cmp = lit.comparator().compare(lower, lit.value());
         if (cmp > 0) {
@@ -300,7 +321,7 @@ public class InclusiveMetricsEvaluator {
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
       Integer id = ref.fieldId();
 
-      if (containsNullsOnly(id)) {
+      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -313,6 +334,12 @@ public class InclusiveMetricsEvaluator {
 
       if (lowerBounds != null && lowerBounds.containsKey(id)) {
         T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+
+        if (NaNUtil.isNaN(lower)) {
+          // NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
+          return ROWS_MIGHT_MATCH;
+        }
+
         literals = literals.stream().filter(v -> ref.comparator().compare(lower, v) <= 0).collect(Collectors.toList());
         if (literals.isEmpty()) { // if all values are less than lower bound, rows cannot match.
           return ROWS_CANNOT_MATCH;

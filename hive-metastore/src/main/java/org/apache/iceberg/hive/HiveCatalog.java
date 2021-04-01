@@ -19,9 +19,6 @@
 
 package org.apache.iceberg.hive;
 
-import java.io.Closeable;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -51,121 +48,62 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces, Configurable {
+public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespaces, Configurable {
   private static final Logger LOG = LoggerFactory.getLogger(HiveCatalog.class);
 
   private String name;
-  private HiveClientPool clients;
   private Configuration conf;
-  private StackTraceElement[] createStack;
   private FileIO fileIO;
-  private boolean closed;
+  private ClientPool<HiveMetaStoreClient, TException> clients;
 
   public HiveCatalog() {
   }
 
+  /**
+   * Hive Catalog constructor.
+   *
+   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
+   * v0.13.0
+   * @param conf Hadoop Configuration
+   */
+  @Deprecated
   public HiveCatalog(Configuration conf) {
     this.name = "hive";
-    this.clients = new HiveClientPool(conf);
     this.conf = conf;
-    this.createStack = Thread.currentThread().getStackTrace();
-    this.closed = false;
     this.fileIO = new HadoopFileIO(conf);
-  }
-
-  /**
-   * Hive Catalog constructor.
-   *
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
-   * v0.12.0
-   * @param name catalog name
-   * @param uri Hive metastore uri
-   * @param clientPoolSize size of client pool
-   * @param conf Hadoop Configuration
-   */
-  @Deprecated
-  public HiveCatalog(String name, String uri, int clientPoolSize, Configuration conf) {
-    this(name, uri, null, clientPoolSize, conf);
-  }
-
-  /**
-   * Hive Catalog constructor.
-   *
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
-   * v0.12.0
-   * @param name catalog name
-   * @param uri Hive metastore uri
-   * @param warehouse location of Hive warehouse
-   * @param clientPoolSize size of client pool
-   * @param conf Hadoop Configuration
-   */
-  @Deprecated
-  public HiveCatalog(String name, String uri, String warehouse, int clientPoolSize, Configuration conf) {
-    this(name, uri, warehouse, clientPoolSize, conf, Maps.newHashMap());
-  }
-
-  /**
-   * Hive Catalog constructor.
-   *
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
-   * v0.12.0
-   * @param name catalog name
-   * @param uri Hive metastore uri
-   * @param warehouse location of Hive warehouse
-   * @param clientPoolSize size of client pool
-   * @param conf Hadoop Configuration
-   * @param properties extra Hive configuration properties
-   */
-  @Deprecated
-  public HiveCatalog(
-      String name,
-      String uri,
-      String warehouse,
-      int clientPoolSize,
-      Configuration conf,
-      Map<String, String> properties) {
-
-    Map<String, String> props = new HashMap<>(properties);
-    if (warehouse != null) {
-      props.put(CatalogProperties.WAREHOUSE_LOCATION, warehouse);
-    }
-    if (uri != null) {
-      props.put(CatalogProperties.HIVE_URI, uri);
-    }
-    props.put(CatalogProperties.HIVE_CLIENT_POOL_SIZE, Integer.toString(clientPoolSize));
-
-    setConf(conf);
-    initialize(name, props);
+    Map<String, String> properties = ImmutableMap.of(
+            CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
+            conf.get(CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS),
+            CatalogProperties.CLIENT_POOL_SIZE,
+            conf.get(CatalogProperties.CLIENT_POOL_SIZE)
+    );
+    this.clients = new CachedClientPool(conf, properties);
   }
 
   @Override
   public void initialize(String inputName, Map<String, String> properties) {
     this.name = inputName;
-    if (properties.containsKey(CatalogProperties.HIVE_URI)) {
-      this.conf.set(HiveConf.ConfVars.METASTOREURIS.varname, properties.get(CatalogProperties.HIVE_URI));
+    if (properties.containsKey(CatalogProperties.URI)) {
+      this.conf.set(HiveConf.ConfVars.METASTOREURIS.varname, properties.get(CatalogProperties.URI));
     }
 
     if (properties.containsKey(CatalogProperties.WAREHOUSE_LOCATION)) {
       this.conf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, properties.get(CatalogProperties.WAREHOUSE_LOCATION));
     }
 
-    int clientPoolSize = Integer.parseInt(
-        properties.getOrDefault(CatalogProperties.HIVE_CLIENT_POOL_SIZE, "5"));
-    this.clients = new HiveClientPool(clientPoolSize, this.conf);
-    this.createStack = Thread.currentThread().getStackTrace();
-    this.closed = false;
-
     String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(conf) : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
+
+    this.clients = new CachedClientPool(conf, properties);
   }
 
   @Override
@@ -562,30 +500,6 @@ public class HiveCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
     return database;
   }
-
-  @Override
-  public void close() {
-    if (!closed) {
-      clients.close();
-      closed = true;
-    }
-  }
-
-  @SuppressWarnings("checkstyle:NoFinalizer")
-  @Override
-  protected void finalize() throws Throwable {
-    super.finalize();
-    // todo it is possible that the Catalog is gc-ed before child table operations are done w/ the clients object.
-    // The closing of the HiveCatalog should take that into account and child TableOperations should own the clients obj
-    // or the TabaleOperations should be explicitly closed and the Catalog can't be gc-ed/closed till all children are.
-    if (!closed) {
-      close(); // releasing resources is more important than printing the warning
-      String trace = Joiner.on("\n\t").join(
-          Arrays.copyOfRange(createStack, 1, createStack.length));
-      LOG.warn("Unclosed input stream created by:\n\t{}", trace);
-    }
-  }
-
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)

@@ -54,6 +54,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.sources.Filter;
@@ -81,6 +82,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   private static final ImmutableSet<String> LOCALITY_WHITELIST_FS = ImmutableSet.of("hdfs");
 
   private final Table table;
+  private final DataSourceOptions options;
   private final Long snapshotId;
   private final Long startSnapshotId;
   private final Long endSnapshotId;
@@ -95,7 +97,6 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   private List<Expression> filterExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
   private final boolean localityPreferred;
-  private final boolean batchReadsEnabled;
   private final int batchSize;
 
   // lazy variables
@@ -107,6 +108,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   Reader(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
       boolean caseSensitive, DataSourceOptions options) {
     this.table = table;
+    this.options = options;
     this.snapshotId = options.get(SparkReadOptions.SNAPSHOT_ID).map(Long::parseLong).orElse(null);
     this.asOfTimestamp = options.get(SparkReadOptions.AS_OF_TIMESTAMP).map(Long::parseLong).orElse(null);
     if (snapshotId != null && asOfTimestamp != null) {
@@ -157,16 +159,6 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     this.io = io;
     this.encryptionManager = encryptionManager;
     this.caseSensitive = caseSensitive;
-    String batchReadsSessionConf = SparkSession.active().conf()
-        .get("spark.sql.iceberg.vectorization.enabled", null);
-    if (batchReadsSessionConf != null) {
-      this.batchReadsEnabled = Boolean.valueOf(batchReadsSessionConf);
-    } else {
-      this.batchReadsEnabled = options.get(SparkReadOptions.VECTORIZATION_ENABLED)
-          .map(Boolean::parseBoolean).orElseGet(() ->
-          PropertyUtil.propertyAsBoolean(table.properties(), TableProperties.PARQUET_VECTORIZATION_ENABLED,
-              TableProperties.PARQUET_VECTORIZATION_ENABLED_DEFAULT));
-    }
     this.batchSize = options.get(SparkReadOptions.VECTORIZATION_BATCH_SIZE).map(Integer::parseInt).orElseGet(() ->
         PropertyUtil.propertyAsInt(table.properties(),
           TableProperties.PARQUET_BATCH_SIZE, TableProperties.PARQUET_BATCH_SIZE_DEFAULT));
@@ -338,10 +330,50 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
       boolean hasNoDeleteFiles = tasks().stream().noneMatch(TableScanUtil::hasDeletes);
 
+      boolean batchReadsEnabled = batchReadsEnabled(allParquetFileScanTasks, allOrcFileScanTasks);
+
       this.readUsingBatch = batchReadsEnabled && hasNoDeleteFiles && (allOrcFileScanTasks ||
           (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives));
     }
     return readUsingBatch;
+  }
+
+  private boolean batchReadsEnabled(boolean isParquetOnly, boolean isOrcOnly) {
+    if (isParquetOnly) {
+      return isVectorizationEnabled(FileFormat.PARQUET);
+    } else if (isOrcOnly) {
+      return isVectorizationEnabled(FileFormat.ORC);
+    } else {
+      return false;
+    }
+  }
+
+  public boolean isVectorizationEnabled(FileFormat fileFormat) {
+    String readOptionValue = options.get(SparkReadOptions.VECTORIZATION_ENABLED).orElse(null);
+    if (readOptionValue != null) {
+      return Boolean.parseBoolean(readOptionValue);
+    }
+
+    RuntimeConfig sessionConf = SparkSession.active().conf();
+    String sessionConfValue = sessionConf.get("spark.sql.iceberg.vectorization.enabled", null);
+    if (sessionConfValue != null) {
+      return Boolean.parseBoolean(sessionConfValue);
+    }
+
+    switch (fileFormat) {
+      case PARQUET:
+        return PropertyUtil.propertyAsBoolean(
+            table.properties(),
+            TableProperties.PARQUET_VECTORIZATION_ENABLED,
+            TableProperties.PARQUET_VECTORIZATION_ENABLED_DEFAULT);
+      case ORC:
+        return PropertyUtil.propertyAsBoolean(
+            table.properties(),
+            TableProperties.ORC_VECTORIZATION_ENABLED,
+            TableProperties.ORC_VECTORIZATION_ENABLED_DEFAULT);
+      default:
+        return false;
+    }
   }
 
   private static void mergeIcebergHadoopConfs(

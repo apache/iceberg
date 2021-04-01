@@ -19,10 +19,16 @@
 
 package org.apache.iceberg.flink.actions;
 
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.iceberg.Table;
 
 public class Actions {
+
+  public static final Configuration CONFIG = new Configuration()
+      // disable classloader check as Avro may cache class/object in the serializers.
+      .set(CoreOptions.CHECK_LEAKED_CLASSLOADER, false);
 
   private StreamExecutionEnvironment env;
   private Table table;
@@ -37,7 +43,7 @@ public class Actions {
   }
 
   public static Actions forTable(Table table) {
-    return new Actions(StreamExecutionEnvironment.getExecutionEnvironment(), table);
+    return new Actions(StreamExecutionEnvironment.getExecutionEnvironment(CONFIG), table);
   }
 
   public RewriteDataFilesAction rewriteDataFiles() {

@@ -38,6 +38,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -52,8 +53,9 @@ import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 public class ManifestReader<F extends ContentFile<F>>
     extends CloseableGroup implements CloseableIterable<F> {
   static final ImmutableList<String> ALL_COLUMNS = ImmutableList.of("*");
-  static final Set<String> STATS_COLUMNS = Sets.newHashSet(
-      "value_counts", "null_value_counts", "nan_value_counts", "lower_bounds", "upper_bounds");
+
+  private static final Set<String> STATS_COLUMNS = ImmutableSet.of(
+      "value_counts", "null_value_counts", "nan_value_counts", "lower_bounds", "upper_bounds", "record_count");
 
   protected enum FileType {
     DATA_FILES(GenericDataFile.class.getName()),
@@ -282,16 +284,20 @@ public class ManifestReader<F extends ContentFile<F>>
 
   static boolean dropStats(Expression rowFilter, Collection<String> columns) {
     // Make sure we only drop all stats if we had projected all stats
-    // We do not drop stats even if we had partially added some stats columns
-    return rowFilter != Expressions.alwaysTrue() &&
-        columns != null &&
-        !columns.containsAll(ManifestReader.ALL_COLUMNS) &&
-        Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS).isEmpty();
+    // We do not drop stats even if we had partially added some stats columns, except for record_count column.
+    // Since we don't want to keep stats map which could be huge in size just because we select record_count, which
+    // is a primitive type.
+    if (rowFilter != Expressions.alwaysTrue() && columns != null &&
+        !columns.containsAll(ManifestReader.ALL_COLUMNS)) {
+      Set<String> intersection = Sets.intersection(Sets.newHashSet(columns), STATS_COLUMNS);
+      return intersection.isEmpty() || intersection.equals(Sets.newHashSet("record_count"));
+    }
+    return false;
   }
 
-  private static Collection<String> withStatsColumns(Collection<String> columns) {
+  static List<String> withStatsColumns(Collection<String> columns) {
     if (columns.containsAll(ManifestReader.ALL_COLUMNS)) {
-      return columns;
+      return Lists.newArrayList(columns);
     } else {
       List<String> projectColumns = Lists.newArrayList(columns);
       projectColumns.addAll(STATS_COLUMNS); // order doesn't matter

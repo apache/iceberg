@@ -20,8 +20,14 @@
 package org.apache.iceberg.avro;
 
 import java.io.IOException;
+import java.util.stream.Stream;
 import org.apache.avro.io.Encoder;
+import org.apache.iceberg.FieldMetrics;
 
 public interface ValueWriter<D> {
   void write(D datum, Encoder encoder) throws IOException;
+
+  default Stream<FieldMetrics> metrics() {
+    return Stream.empty(); // TODO will populate in following PRs
+  }
 }
