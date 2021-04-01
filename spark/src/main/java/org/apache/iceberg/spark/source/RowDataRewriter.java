@@ -120,8 +120,8 @@ public class RowDataRewriter implements Serializable {
 
     RewriteResult.Builder resultBuilder = RewriteResult.builder();
     for (FileScanTask scanTask : task.files()) {
-      resultBuilder.removeDataFiles(scanTask.file());
-      resultBuilder.removeDeleteFiles(scanTask.deletes());
+      resultBuilder.addDataFilesToDelete(scanTask.file());
+      resultBuilder.addDeleteFilesToDelete(scanTask.deletes());
     }
 
     try {
@@ -137,7 +137,7 @@ public class RowDataRewriter implements Serializable {
 
       // Add the data files only because deletions from delete files has been eliminated.
       return resultBuilder
-          .addDataFiles(writer.dataFiles())
+          .addDataFilesToAdd(writer.dataFiles())
           .build();
 
     } catch (Throwable originalThrowable) {

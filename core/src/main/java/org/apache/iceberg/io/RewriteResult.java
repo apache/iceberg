@@ -72,42 +72,42 @@ public class RewriteResult implements Serializable {
     private final Set<DataFile> dataFilesToAdd = Sets.newHashSet();
     private final Set<DeleteFile> deleteFilesToAdd = Sets.newHashSet();
 
-    public Builder removeDataFiles(DataFile... dataFiles) {
+    public Builder addDataFilesToDelete(DataFile... dataFiles) {
       Collections.addAll(dataFilesToDelete, dataFiles);
       return this;
     }
 
-    public Builder removeDataFiles(Iterable<DataFile> dataFiles) {
+    public Builder addDataFilesToDelete(Iterable<DataFile> dataFiles) {
       Iterables.addAll(dataFilesToDelete, dataFiles);
       return this;
     }
 
-    public Builder removeDeleteFiles(DeleteFile... deleteFiles) {
+    public Builder addDeleteFilesToDelete(DeleteFile... deleteFiles) {
       Collections.addAll(deleteFilesToDelete, deleteFiles);
       return this;
     }
 
-    public Builder removeDeleteFiles(Iterable<DeleteFile> deleteFiles) {
+    public Builder addDeleteFilesToDelete(Iterable<DeleteFile> deleteFiles) {
       Iterables.addAll(deleteFilesToDelete, deleteFiles);
       return this;
     }
 
-    public Builder addDataFiles(DataFile... dataFiles) {
+    public Builder addDataFilesToAdd(DataFile... dataFiles) {
       Collections.addAll(dataFilesToAdd, dataFiles);
       return this;
     }
 
-    public Builder addDataFiles(Iterable<DataFile> dataFiles) {
+    public Builder addDataFilesToAdd(Iterable<DataFile> dataFiles) {
       Iterables.addAll(dataFilesToAdd, dataFiles);
       return this;
     }
 
-    public Builder addDeleteFiles(Iterable<DeleteFile> deleteFiles) {
+    public Builder addDeleteFilesToAdd(Iterable<DeleteFile> deleteFiles) {
       Iterables.addAll(deleteFilesToAdd, deleteFiles);
       return this;
     }
 
-    public Builder addDeleteFiles(DeleteFile... deleteFiles) {
+    public Builder addDeleteFilesToAdd(DeleteFile... deleteFiles) {
       Collections.addAll(deleteFilesToAdd, deleteFiles);
       return this;
     }

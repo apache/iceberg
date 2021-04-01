@@ -20,8 +20,8 @@
 package org.apache.iceberg.actions;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -220,7 +220,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
         .filter(partitionTasks -> doPartitionNeedRewrite(partitionTasks.getValue()))
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-    // Nothing to rewrite if there's only one DataFile in each partition.
+    // Nothing to rewrite if there's only one file in each partition.
     if (filteredGroupedTasks.isEmpty()) {
       return RewriteDataFilesActionResult.empty();
     }
@@ -283,9 +283,10 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
       commit(rewriteFiles);
     } catch (Exception e) {
       // Remove all the newly produced files if possible.
-      List<ContentFile<?>> addedFiles = Lists.newArrayList();
-      Collections.addAll(addedFiles, result.dataFilesToAdd());
-      Collections.addAll(addedFiles, result.deleteFilesToAdd());
+      Iterable<ContentFile<?>> addedFiles = Iterables.concat(
+          Arrays.asList(result.dataFilesToAdd()),
+          Arrays.asList(result.deleteFilesToAdd())
+      );
 
       Tasks.foreach(Iterables.transform(addedFiles, f -> f.path().toString()))
           .noRetry()
@@ -297,9 +298,9 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     }
   }
 
-  private boolean doPartitionNeedRewrite(Collection<FileScanTask> scanTasks) {
+  private boolean doPartitionNeedRewrite(Collection<FileScanTask> partitionTasks) {
     int files = 0;
-    for (FileScanTask scanTask : scanTasks) {
+    for (FileScanTask scanTask : partitionTasks) {
       files += 1; // One for data file.
       files += scanTask.deletes().size();
     }
@@ -312,7 +313,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     if (task.files().size() == 1) {
       FileScanTask scanTask = task.files().iterator().next();
       if (scanTask.deletes().size() > 0) {
-        // There are 1 data file and few delete files, we need to rewrite them into one data file.
+        // There are 1 data file and several delete files, we need to rewrite them into one data file.
         return true;
       } else {
         // There is only 1 data file. If the rewrite data bytes happens to be a complete data file, then we don't

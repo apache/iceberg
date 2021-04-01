@@ -133,8 +133,8 @@ public class RowDataRewriter {
       // Initialize the builder of ResultWriter.
       RewriteResult.Builder resultBuilder = RewriteResult.builder();
       for (FileScanTask scanTask : task.files()) {
-        resultBuilder.removeDataFiles(scanTask.file());
-        resultBuilder.removeDeleteFiles(scanTask.deletes());
+        resultBuilder.addDataFilesToDelete(scanTask.file());
+        resultBuilder.addDeleteFilesToDelete(scanTask.deletes());
       }
 
       // Initialize the task writer.
@@ -148,7 +148,7 @@ public class RowDataRewriter {
         }
 
         // Add the data files only because deletions from delete files has been eliminated.
-        resultBuilder.addDataFiles(writer.dataFiles());
+        resultBuilder.addDataFilesToAdd(writer.dataFiles());
 
         return resultBuilder.build();
       } catch (Throwable originalThrowable) {
