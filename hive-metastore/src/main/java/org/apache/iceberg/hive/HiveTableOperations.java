@@ -60,12 +60,16 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
 
 /**
  * TODO we should be able to extract some more commonalities to BaseMetastoreTableOperations to
@@ -86,6 +90,24 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       .impl(HiveMetaStoreClient.class, "alter_table",
           String.class, String.class, Table.class, EnvironmentContext.class)
       .build();
+  private static final BiMap<String, String> ICEBERG_TO_HMS_TRANSLATION = ImmutableBiMap.of(
+      // gc.enabled in Iceberg and external.table.purge in Hive are meant to do the same things but with different names
+      GC_ENABLED, "external.table.purge"
+  );
+
+
+  /**
+   * Provides key translation where necessary between Iceberg and HMS props. Some properties have the same behaviour
+   * but are named differently in Iceberg and Hive. Example: turning the gc.enabled flag to true ensures in Iceberg
+   * that table data should be deleted upon drop table. The same behaviour is controlled by the external.table.purge
+   * property in Hive. Therefore changes to these two properties should be synchronized.
+   *
+   * @param hmsProp The HMS property that should be translated to Iceberg property
+   * @return Iceberg property equivalent to the HMS property, if such translation exists
+   */
+  public static String translateToIcebergProp(String hmsProp) {
+    return ICEBERG_TO_HMS_TRANSLATION.inverse().getOrDefault(hmsProp, hmsProp);
+  }
 
   private static class WaitingForLockException extends RuntimeException {
     WaitingForLockException(String message) {
@@ -293,14 +315,15 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private void setHmsTableParameters(String newMetadataLocation, Table tbl, Map<String, String> icebergTableProps,
                                      Set<String> obsoleteProps, boolean hiveEngineEnabled,
                                      Map<String, String> summary) {
-    Map<String, String> parameters = tbl.getParameters();
-
-    if (parameters == null) {
-      parameters = new HashMap<>();
-    }
+    Map<String, String> parameters = Optional.ofNullable(tbl.getParameters())
+        .orElseGet(HashMap::new);
 
     // push all Iceberg table properties into HMS
-    icebergTableProps.forEach(parameters::put);
+    icebergTableProps.forEach((key, value) -> {
+      // translate key names between Iceberg and HMS where needed
+      String hmsKey = ICEBERG_TO_HMS_TRANSLATION.getOrDefault(key, key);
+      parameters.put(hmsKey, value);
+    });
 
     // remove any props from HMS that are no longer present in Iceberg table props
     obsoleteProps.forEach(parameters::remove);

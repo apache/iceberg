@@ -69,6 +69,7 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.junit.runners.Parameterized.Parameter;
 import static org.junit.runners.Parameterized.Parameters;
@@ -592,6 +593,40 @@ public class TestHiveIcebergStorageHandlerNoScan {
       Assert.assertEquals(summary.get(SnapshotSummary.TOTAL_RECORDS_PROP), hmsParams.get(StatsSetupConst.ROW_COUNT));
       Assert.assertEquals(summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP), hmsParams.get(StatsSetupConst.TOTAL_SIZE));
     }
+  }
+
+  @Test
+  public void testIcebergHMSPropertiesTranslation() throws Exception {
+    Assume.assumeTrue("Iceberg - HMS property translation is only relevant for HiveCatalog",
+        Catalogs.hiveCatalog(shell.getHiveConf()));
+
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+
+    // Create table with tblproperties containing property to be translated (external.table.purge)
+    shell.executeStatement(String.format("CREATE EXTERNAL TABLE default.customers " +
+        "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' %s" +
+        "TBLPROPERTIES ('%s'='%s', '%s'='%s', '%s'='%s')",
+        testTables.locationForCreateTableSQL(identifier), // we need the location for HadoopTable based tests only
+        InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA),
+        InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(SPEC),
+        InputFormatConfig.EXTERNAL_TABLE_PURGE, "false"));
+
+    // Check that HMS table property was translated to equivalent Iceberg prop
+    org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
+    Assert.assertEquals("false", icebergTable.properties().get(GC_ENABLED));
+    Assert.assertNull(icebergTable.properties().get(InputFormatConfig.EXTERNAL_TABLE_PURGE));
+
+    // Change Iceberg prop
+    icebergTable.updateProperties()
+        .set(GC_ENABLED, "true")
+        .commit();
+
+    // Check that Iceberg property was translated to equivalent HMS prop
+    Map<String, String> hmsParams = shell.metastore().getTable("default", "customers").getParameters();
+    Assert.assertEquals("true", hmsParams.get(InputFormatConfig.EXTERNAL_TABLE_PURGE));
+    Assert.assertNull(hmsParams.get(GC_ENABLED));
+
+    // TODO: add final test for ALTER TABLE SET TBLPROPERTIES when it's implemented in the HiveMetaHook
   }
 
   @Test
