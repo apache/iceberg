@@ -97,13 +97,17 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
 
   /**
-   * Provides key translation where necessary between Iceberg and HMS props. Some properties have the same behaviour
-   * but are named differently in Iceberg and Hive. Example: turning the gc.enabled flag to true ensures in Iceberg
-   * that table data should be deleted upon drop table. The same behaviour is controlled by the external.table.purge
-   * property in Hive. Therefore changes to these two properties should be synchronized.
+   * Provides key translation where necessary between Iceberg and HMS props. This translation is needed because some
+   * properties control the same behaviour but are named differently in Iceberg and Hive. Therefore changes to these
+   * property pairs should be synchronized.
+   *
+   * Example: Deleting data files upon DROP TABLE is enabled using gc.enabled=true in Iceberg and
+   * external.table.purge=true in Hive. Hive and Iceberg users are unaware of each other's control flags, therefore
+   * inconsistent behaviour can occur from e.g. a Hive user's point of view if external.table.purge=true is set on the
+   * HMS table but gc.enabled=false is set on the Iceberg table, resulting in no data file deletion.
    *
    * @param hmsProp The HMS property that should be translated to Iceberg property
-   * @return Iceberg property equivalent to the HMS property, if such translation exists
+   * @return Iceberg property equivalent to the hmsProp. If no such translation exists, the original hmsProp is returned
    */
   public static String translateToIcebergProp(String hmsProp) {
     return ICEBERG_TO_HMS_TRANSLATION.inverse().getOrDefault(hmsProp, hmsProp);

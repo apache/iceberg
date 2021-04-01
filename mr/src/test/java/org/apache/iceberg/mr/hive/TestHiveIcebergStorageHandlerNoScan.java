@@ -602,16 +602,15 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
 
-    // Create table with tblproperties containing property to be translated (external.table.purge)
+    // Create HMS table with with a property to be translated
     shell.executeStatement(String.format("CREATE EXTERNAL TABLE default.customers " +
-        "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' %s" +
+        "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler'" +
         "TBLPROPERTIES ('%s'='%s', '%s'='%s', '%s'='%s')",
-        testTables.locationForCreateTableSQL(identifier), // we need the location for HadoopTable based tests only
         InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA),
         InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(SPEC),
         InputFormatConfig.EXTERNAL_TABLE_PURGE, "false"));
 
-    // Check that HMS table property was translated to equivalent Iceberg prop
+    // Check that HMS table prop was translated to equivalent Iceberg prop (purge -> gc.enabled)
     org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
     Assert.assertEquals("false", icebergTable.properties().get(GC_ENABLED));
     Assert.assertNull(icebergTable.properties().get(InputFormatConfig.EXTERNAL_TABLE_PURGE));
@@ -621,12 +620,10 @@ public class TestHiveIcebergStorageHandlerNoScan {
         .set(GC_ENABLED, "true")
         .commit();
 
-    // Check that Iceberg property was translated to equivalent HMS prop
+    // Check that Iceberg prop was translated to equivalent HMS prop (gc.enabled -> purge)
     Map<String, String> hmsParams = shell.metastore().getTable("default", "customers").getParameters();
     Assert.assertEquals("true", hmsParams.get(InputFormatConfig.EXTERNAL_TABLE_PURGE));
     Assert.assertNull(hmsParams.get(GC_ENABLED));
-
-    // TODO: add final test for ALTER TABLE SET TBLPROPERTIES when it's implemented in the HiveMetaHook
   }
 
   @Test
