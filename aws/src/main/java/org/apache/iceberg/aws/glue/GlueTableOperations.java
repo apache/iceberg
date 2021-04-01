@@ -35,7 +35,6 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.model.ConcurrentModificationException;
 import software.amazon.awssdk.services.glue.model.CreateTableRequest;
@@ -113,29 +112,28 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       checkMetadataLocation(glueTable, base);
       Map<String, String> properties = prepareProperties(glueTable, newMetadataLocation);
 
-      try {
-        persistGlueTable(glueTable, properties);
-        commitStatus = CommitStatus.SUCCESS;
-      } catch (Throwable persistFailure) {
-        LOG.error("Confirming if commit to {} indeed failed to persist, attempting to reconnect and check.",
-            fullTableName, persistFailure);
-        commitStatus = checkCommitStatus(newMetadataLocation, metadata);
-        switch (commitStatus) {
-          case SUCCESS:
-            break;
-          case FAILURE:
-            throw persistFailure;
-          case UNKNOWN:
-            throw new CommitStateUnknownException(persistFailure);
-        }
-      }
+      persistGlueTable(glueTable, properties);
+      commitStatus = CommitStatus.SUCCESS;
+
     } catch (ConcurrentModificationException e) {
       throw new CommitFailedException(e, "Cannot commit %s because Glue detected concurrent update", tableName());
     } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
       throw new AlreadyExistsException(e,
           "Cannot commit %s because its Glue table already exists when trying to create one", tableName());
-    } catch (SdkException e) {
-      throw new CommitFailedException(e, "Cannot commit %s because unexpected exception contacting AWS", tableName());
+    } catch (RuntimeException persistFailure) {
+      LOG.error("Confirming if commit to {} indeed failed to persist, attempting to reconnect and check.",
+          fullTableName, persistFailure);
+      commitStatus = checkCommitStatus(newMetadataLocation, metadata);
+
+      switch (commitStatus) {
+        case SUCCESS:
+          break;
+        case FAILURE:
+          throw new CommitFailedException(persistFailure,
+              "Cannot commit %s due to unexpected exception", tableName());
+        case UNKNOWN:
+          throw new CommitStateUnknownException(persistFailure);
+      }
     } finally {
       cleanupMetadataAndUnlock(commitStatus, newMetadataLocation);
     }

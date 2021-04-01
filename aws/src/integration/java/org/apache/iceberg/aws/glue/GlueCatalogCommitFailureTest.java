@@ -29,12 +29,14 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Matchers;
 import org.mockito.Mockito;
+import software.amazon.awssdk.services.glue.model.ConcurrentModificationException;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
@@ -52,9 +54,37 @@ public class GlueCatalogCommitFailureTest extends GlueTestBase {
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps);
 
-    AssertHelpers.assertThrows("We should rethrow the same error if the " +
-            "commit actually doesn't succeed", SdkBaseException.class, "Datacenter on fire",
+    AssertHelpers.assertThrows("We should wrap the error to CommitFailedException if the " +
+            "commit actually doesn't succeed", CommitFailedException.class, "unexpected exception",
         () -> spyOps.commit(metadataV2, metadataV1));
+    Mockito.verify(spyOps, Mockito.times(1)).refresh();
+
+    ops.refresh();
+    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
+    Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
+    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
+  }
+
+  @Test
+  public void testConcurrentModificationExceptionDoesNotCheckCommitStatus() {
+    Table table = setupTable();
+    GlueTableOperations ops = (GlueTableOperations) ((HasTableOperations) table).operations();
+
+    TableMetadata metadataV1 = ops.current();
+    TableMetadata metadataV2 = updateTable(table, ops);
+
+    GlueTableOperations spyOps = Mockito.spy(ops);
+    failCommitAndThrowException(spyOps, ConcurrentModificationException.builder().build());
+
+    try {
+      spyOps.commit(metadataV2, metadataV1);
+    } catch (CommitFailedException e) {
+      Assert.assertTrue("Exception message should mention concurrent exception",
+          e.getMessage().contains("Glue detected concurrent update"));
+      Assert.assertTrue("Cause should be concurrent modification exception",
+          e.getCause() instanceof ConcurrentModificationException);
+    }
+    Mockito.verify(spyOps, Mockito.times(0)).refresh();
 
     ops.refresh();
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
@@ -190,7 +220,6 @@ public class GlueCatalogCommitFailureTest extends GlueTestBase {
     }).when(spyOperations).persistGlueTable(Matchers.any(), Matchers.anyMap());
   }
 
-
   private Table setupTable() {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
@@ -220,7 +249,11 @@ public class GlueCatalogCommitFailureTest extends GlueTestBase {
   }
 
   private void failCommitAndThrowException(GlueTableOperations spyOps) {
-    Mockito.doThrow(new SdkBaseException("Datacenter on fire"))
+    failCommitAndThrowException(spyOps, new SdkBaseException("Datacenter on fire"));
+  }
+
+  private void failCommitAndThrowException(GlueTableOperations spyOps, Exception exceptionToThrow) {
+    Mockito.doThrow(exceptionToThrow)
         .when(spyOps).persistGlueTable(Matchers.any(), Matchers.anyMap());
   }
 
