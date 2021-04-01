@@ -34,11 +34,34 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
  * using a {@link StaticTableOperations}. This way no Catalog related calls are needed when reading the table data after
  * deserialization.
  */
-abstract class BaseMetadataTable implements Table, Serializable {
+abstract class BaseMetadataTable implements Table, HasTableOperations, Serializable {
   private final PartitionSpec spec = PartitionSpec.unpartitioned();
   private final SortOrder sortOrder = SortOrder.unsorted();
+  private final TableOperations ops;
+  private final Table table;
+  private final String name;
 
-  abstract Table table();
+  protected BaseMetadataTable(TableOperations ops, Table table, String name) {
+    this.ops = ops;
+    this.table = table;
+    this.name = name;
+  }
+
+  abstract MetadataTableType metadataTableType();
+
+  protected Table table() {
+    return table;
+  }
+
+  @Override
+  public TableOperations operations() {
+    return ops;
+  }
+
+  @Override
+  public String name() {
+    return name;
+  }
 
   @Override
   public FileIO io() {
@@ -195,12 +218,9 @@ abstract class BaseMetadataTable implements Table, Serializable {
     return name();
   }
 
-  abstract String metadataLocation();
-
-  abstract MetadataTableType metadataTableType();
-
   final Object writeReplace() {
-    return new TableProxy(io(), table().name(), name(), metadataLocation(), metadataTableType(), locationProvider());
+    String metadataLocation = ops.current().metadataFileLocation();
+    return new TableProxy(io(), table().name(), name(), metadataLocation, metadataTableType(), locationProvider());
   }
 
   static class TableProxy implements Serializable {
