@@ -34,8 +34,10 @@ import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
+import org.apache.flink.util.CloseableIterator;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -49,7 +51,6 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.actions.RewriteDataFilesActionResult;
-import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericAppenderFactory;
@@ -65,6 +66,7 @@ import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -102,7 +104,6 @@ public class TestRewriteDataFilesAction {
   private final int formatVersion;
   private final TableEnvironment tEnv;
 
-  private Catalog catalog;
   private Table icebergTableUnPartitioned;
   private Table icebergTablePartitioned;
 
@@ -160,7 +161,10 @@ public class TestRewriteDataFilesAction {
             "      )",
         TABLE_NAME_PARTITIONED, format.name());
 
-    catalog = new HadoopCatalog(CONF, warehouseRoot);
+    HadoopCatalog catalog = new HadoopCatalog();
+    catalog.setConf(CONF);
+    catalog.initialize("hadoop_catalog", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, warehouseRoot));
+
     icebergTableUnPartitioned = catalog.loadTable(TableIdentifier.of(DATABASE, TABLE_NAME_UNPARTITIONED));
     upgradeToFormatVersion(icebergTableUnPartitioned, formatVersion);
 
@@ -168,18 +172,20 @@ public class TestRewriteDataFilesAction {
     upgradeToFormatVersion(icebergTablePartitioned, formatVersion);
   }
 
-  private Table upgradeToFormatVersion(Table table, int version) {
+  private void upgradeToFormatVersion(Table table, int version) {
     if (version > 1) {
       TableOperations ops = ((BaseTable) table).operations();
       TableMetadata meta = ops.current();
       ops.commit(meta, meta.upgradeToFormatVersion(version));
     }
-
-    return table;
   }
 
   private List<Row> sql(String query, Object... args) {
-    return FlinkTestBase.sql(tEnv, query, args);
+    try (CloseableIterator<Row> iter = FlinkTestBase.exec(tEnv, query, args).collect()) {
+      return Lists.newArrayList(iter);
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to collect table result", e);
+    }
   }
 
   @After
