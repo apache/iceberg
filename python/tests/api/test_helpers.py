@@ -119,13 +119,13 @@ class MockTableOperations(object):
     def __init__(self, metadata, location):
         self.metadata = metadata
         self.current_metadata_location = location
-        self.deleted = set()
+        self.deleted = []
 
     def current(self):
         return self.metadata
 
     def delete_file(self, path):
-        self.deleted.add(path)
+        self.deleted.append(path)
 
 
 class MockManifest(object):

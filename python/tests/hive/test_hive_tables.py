@@ -191,9 +191,13 @@ def test_drop_tables_purge(client, current_ops, refresh_call, tmpdir):
                                    }),
                       MockSnapshot(location="snap-b.avro",
                                    manifests=[
+                                       MockManifest("b-manifest.avro"),
                                        MockManifest("c-manifest.avro"),
                                        MockManifest("d-manifest.avro")],
                                    manifest_to_entries={
+                                       "b-manifest.avro": MockReader(
+                                           [MockManifestEntry("c.parquet"),
+                                            MockManifestEntry("d.parquet")]),
                                        "c-manifest.avro": MockReader(
                                            [MockManifestEntry("e.parquet"),
                                             MockManifestEntry("f.parquet")]),
@@ -215,6 +219,7 @@ def test_drop_tables_purge(client, current_ops, refresh_call, tmpdir):
     tables = HiveTables(conf)
     tables.drop("test", "test_123", purge=True)
 
+    assert len(ops.deleted) == len(set(ops.deleted)), "Paths should only be deleted once"
     assert "a.json" in ops.deleted
     assert "snap-a.avro" in ops.deleted
     assert "snap-b.avro" in ops.deleted
