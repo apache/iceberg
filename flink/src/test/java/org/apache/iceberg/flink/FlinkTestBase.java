@@ -20,7 +20,6 @@
 package org.apache.iceberg.flink;
 
 import java.util.List;
-import java.util.stream.IntStream;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableResult;
@@ -96,15 +95,10 @@ public abstract class FlinkTestBase extends TestBaseUtils {
     return exec(getTableEnv(), query, args);
   }
 
-  protected List<Object[]> sql(String query, Object... args) {
+  protected List<Row> sql(String query, Object... args) {
     TableResult tableResult = exec(query, args);
     try (CloseableIterator<Row> iter = tableResult.collect()) {
-      List<Object[]> results = Lists.newArrayList();
-      while (iter.hasNext()) {
-        Row row = iter.next();
-        results.add(IntStream.range(0, row.getArity()).mapToObj(row::getField).toArray(Object[]::new));
-      }
-      return results;
+      return Lists.newArrayList(iter);
     } catch (Exception e) {
       throw new RuntimeException("Failed to collect table result", e);
     }
