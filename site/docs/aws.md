@@ -333,9 +333,53 @@ spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:0.11.0,software.a
 
 ## Run Iceberg on AWS
 
+### Amazon EMR
+
 [Amazon EMR](https://aws.amazon.com/emr/) can provision clusters with [Spark](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-spark.html) (EMR 6 for Spark 3, EMR 5 for Spark 2),
 [Hive](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-hive.html), [Flink](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-flink.html),
 [Trino](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-presto.html) that can run Iceberg.
+
+You can use a [bootstrap action](https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-plan-bootstrap.html) similar to the following to pre-install all necessary dependencies:
+
+```sh
+#!/bin/bash
+
+AWS_SDK_VERSION=2.15.40
+ICEBERG_VERSION=0.11.0
+MAVEN_URL=https://repo1.maven.org/maven2
+ICEBERG_MAVEN_URL=$MAVEN_URL/org/apache/iceberg
+AWS_MAVEN_URL=$MAVEN_URL/software/amazon/awssdk
+# NOTE: this is just an example shared class path between Spark and Flink,
+#  please choose a proper class path for production.
+LIB_PATH=/usr/share/aws/aws-java-sdk/
+
+AWS_PACKAGES=(
+  "bundle"
+  "url-connection-client"
+)
+
+ICEBERG_PACKAGES=(
+  "iceberg-spark3-runtime"
+  "iceberg-flink-runtime"
+)
+
+install_dependencies () {
+  install_path=$1
+  download_url=$2
+  version=$3
+  shift
+  pkgs=("$@")
+  for pkg in "${pkgs[@]}"; do
+    sudo wget -P $install_path $download_url/$pkg/$version/$pkg-$version.jar
+  done
+}
+
+install_dependencies $LIB_PATH $ICEBERG_MAVEN_URL $ICEBERG_VERSION "${ICEBERG_PACKAGES[@]}"
+install_dependencies $LIB_PATH $AWS_MAVEN_URL $AWS_SDK_VERSION "${AWS_PACKAGES[@]}"
+```
+
+
+### Amazon Kinesis
 
 [Amazon Kinesis Data Analytics](https://aws.amazon.com/about-aws/whats-new/2019/11/you-can-now-run-fully-managed-apache-flink-applications-with-apache-kafka/) provides a platform 
 to run fully managed Apache Flink applications. You can include Iceberg in your application Jar and run it in the platform.
