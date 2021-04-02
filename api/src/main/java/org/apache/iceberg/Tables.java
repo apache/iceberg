@@ -46,7 +46,17 @@ public interface Tables {
                        SortOrder order,
                        Map<String, String> properties,
                        String tableIdentifier) {
-    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement create with a sort order");
+    return create(schema, spec, order, RowKey.notIdentified(), properties, tableIdentifier);
+  }
+
+  default Table create(Schema schema,
+                       PartitionSpec spec,
+                       SortOrder order,
+                       RowKey rowKey,
+                       Map<String, String> properties,
+                       String tableIdentifier) {
+    throw new UnsupportedOperationException(this.getClass().getName() +
+        " does not implement create with a sort order and row key");
   }
 
   Table load(String tableIdentifier);

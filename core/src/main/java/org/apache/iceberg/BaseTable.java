@@ -90,6 +90,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public RowKey rowKey() {
+    return ops.current().rowKey();
+  }
+
+  @Override
   public Map<String, String> properties() {
     return ops.current().properties();
   }

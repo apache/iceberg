@@ -89,6 +89,13 @@ public interface Table {
   Map<Integer, SortOrder> sortOrders();
 
   /**
+   * Return the {@link RowKey row key} for this table.
+   *
+   * @return this table's row key.
+   */
+  RowKey rowKey();
+
+  /**
    * Return a map of string properties for this table.
    *
    * @return this table's properties map

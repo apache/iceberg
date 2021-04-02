@@ -22,6 +22,7 @@ package org.apache.iceberg.util;
 import java.io.File;
 import java.io.IOException;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RowKey;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TestTables;
@@ -80,7 +81,8 @@ public class TestSortOrderUtil {
         .withOrderId(1)
         .asc("id", NULLS_LAST)
         .build();
-    TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, spec, order, formatVersion);
+    TestTables.TestTable table = TestTables.create(
+        tableDir, "test", SCHEMA, spec, order, RowKey.notIdentified(), formatVersion);
 
     // pass PartitionSpec.unpartitioned() on purpose as it has an empty schema
     SortOrder actualOrder = SortOrderUtil.buildSortOrder(table.schema(), spec, table.sortOrder());

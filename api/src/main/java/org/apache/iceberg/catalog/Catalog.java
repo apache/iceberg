@@ -22,6 +22,7 @@ package org.apache.iceberg.catalog;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RowKey;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
@@ -359,6 +360,14 @@ public interface Catalog {
      * @return this for method chaining
      */
     TableBuilder withSortOrder(SortOrder sortOrder);
+
+    /**
+     * Sets a row key for the table.
+     *
+     * @param rowKey a row key
+     * @return this for method chaining
+     */
+    TableBuilder withRowKey(RowKey rowKey);
 
     /**
      * Sets a location for the table.

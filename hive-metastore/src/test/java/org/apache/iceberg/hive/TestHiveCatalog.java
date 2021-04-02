@@ -22,10 +22,13 @@ package org.apache.iceberg.hive;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RowKey;
+import org.apache.iceberg.RowKeyIdentifierField;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
@@ -38,6 +41,7 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
@@ -230,6 +234,55 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       Assert.assertEquals("Null order must match ", NULLS_FIRST, sortOrder.fields().get(0).nullOrder());
       Transform<?, ?> transform = Transforms.identity(Types.IntegerType.get());
       Assert.assertEquals("Transform must match", transform, sortOrder.fields().get(0).transform());
+    } finally {
+      catalog.dropTable(tableIdent);
+    }
+  }
+
+  @Test
+  public void testCreateTableDefaultRowKey() {
+    Schema schema = new Schema(
+        required(1, "id", Types.IntegerType.get(), "unique ID"),
+        required(2, "data", Types.StringType.get())
+    );
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+
+    try {
+      Table table = catalog.createTable(tableIdent, schema);
+      RowKey rowKey = table.rowKey();
+      Assert.assertTrue("Row key must be default", rowKey.isNotIdentified());
+    } finally {
+      catalog.dropTable(tableIdent);
+    }
+  }
+
+  @Test
+  public void testCreateTableCustomRowKey() {
+    Schema schema = new Schema(
+        required(11, "id", Types.IntegerType.get(), "unique ID"),
+        required(12, "data", Types.StringType.get())
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(schema)
+        .bucket("data", 16)
+        .build();
+    RowKey key = RowKey.builderFor(schema)
+        .addField("id")
+        .addField("data")
+        .build();
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "tbl");
+
+    try {
+      Table table = catalog.buildTable(tableIdent, schema)
+          .withPartitionSpec(spec)
+          .withRowKey(key)
+          .create();
+
+      RowKey actualKey = table.rowKey();
+      Assert.assertEquals("Row key must have 2 field", 2, actualKey.identifierFields().size());
+      Assert.assertEquals("Row key must have the expected field",
+          Sets.newHashSet(1, 2),
+          actualKey.identifierFields().stream().map(RowKeyIdentifierField::sourceId).collect(Collectors.toSet()));
+      Assert.assertEquals("Row key must have expected schema", table.schema(), actualKey.schema());
     } finally {
       catalog.dropTable(tableIdent);
     }

@@ -96,6 +96,7 @@ public class TableMetadataParser {
   static final String LAST_PARTITION_ID = "last-partition-id";
   static final String DEFAULT_SORT_ORDER_ID = "default-sort-order-id";
   static final String SORT_ORDERS = "sort-orders";
+  static final String ROW_KEY = "row-key";
   static final String PROPERTIES = "properties";
   static final String CURRENT_SNAPSHOT_ID = "current-snapshot-id";
   static final String SNAPSHOTS = "snapshots";
@@ -152,6 +153,7 @@ public class TableMetadataParser {
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private static void toJson(TableMetadata metadata, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
@@ -202,6 +204,10 @@ public class TableMetadataParser {
       SortOrderParser.toJson(sortOrder, generator);
     }
     generator.writeEndArray();
+
+    // write row key.
+    generator.writeFieldName(ROW_KEY);
+    RowKeyParser.toJson(metadata.rowKey(), generator);
 
     // write properties map
     generator.writeObjectFieldStart(PROPERTIES);
@@ -261,7 +267,7 @@ public class TableMetadataParser {
     }
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
   static TableMetadata fromJson(FileIO io, InputFile file, JsonNode node) {
     Preconditions.checkArgument(node.isObject(),
         "Cannot parse metadata from a non-object: %s", node);
@@ -368,6 +374,17 @@ public class TableMetadataParser {
       defaultSortOrderId = defaultSortOrder.orderId();
     }
 
+    // Parse row keys
+    RowKey rowKey;
+    JsonNode rowKeyObject = node.get(ROW_KEY);
+    if (rowKeyObject != null) {
+      rowKey = RowKeyParser.fromJson(schema, rowKeyObject);
+    } else {
+      Preconditions.checkArgument(formatVersion == 1,
+          "%s must exist in format v%s", ROW_KEY, formatVersion);
+      rowKey = RowKey.notIdentified();
+    }
+
     // parse properties map
     Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, node);
     long currentVersionId = JsonUtil.getLong(CURRENT_SNAPSHOT_ID, node);
@@ -405,7 +422,7 @@ public class TableMetadataParser {
 
     return new TableMetadata(file, formatVersion, uuid, location,
         lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, currentSchemaId, schemas, defaultSpecId, specs,
-        lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentVersionId,
-        snapshots, entries.build(), metadataEntries.build());
+        lastAssignedPartitionId, defaultSortOrderId, sortOrders, rowKey,
+        properties, currentVersionId, snapshots, entries.build(), metadataEntries.build());
   }
 }

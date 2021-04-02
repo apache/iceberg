@@ -546,6 +546,11 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
+    public RowKey rowKey() {
+      return current.rowKey();
+    }
+
+    @Override
     public Map<String, String> properties() {
       return current.properties();
     }

@@ -25,16 +25,20 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RowKey;
+import org.apache.iceberg.RowKeyIdentifierField;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
@@ -147,6 +151,37 @@ public class TestHadoopTables {
     Assert.assertEquals("Null order must match ", NULLS_FIRST, sortOrder.fields().get(0).nullOrder());
     Transform<?, ?> transform = Transforms.identity(Types.IntegerType.get());
     Assert.assertEquals("Transform must match", transform, sortOrder.fields().get(0).transform());
+  }
+
+  @Test
+  public void testDefaultRowKey() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
+        .bucket("data", 16)
+        .build();
+    Table table = TABLES.create(SCHEMA, spec, tableDir.toURI().toString());
+
+    RowKey rowKey = table.rowKey();
+    Assert.assertTrue("Row key must be default", rowKey.isNotIdentified());
+  }
+
+  @Test
+  public void testCustomRowKey() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
+        .bucket("data", 16)
+        .build();
+    RowKey key = RowKey.builderFor(SCHEMA)
+        .addField("id")
+        .addField("data")
+        .build();
+    Table table = TABLES.create(SCHEMA, spec, SortOrder.unsorted(), key,
+        Maps.newHashMap(), tableDir.toURI().toString());
+
+    RowKey actualKey = table.rowKey();
+    Assert.assertEquals("Row key must have 2 field", 2, actualKey.identifierFields().size());
+    Assert.assertEquals("Row key must have the expected field",
+        Sets.newHashSet(1, 2),
+        actualKey.identifierFields().stream().map(RowKeyIdentifierField::sourceId).collect(Collectors.toSet()));
+    Assert.assertEquals("Row key must have expected schema", table.schema(), actualKey.schema());
   }
 
   @Test

@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 abstract class BaseMetadataTable implements Table, HasTableOperations, Serializable {
   private final PartitionSpec spec = PartitionSpec.unpartitioned();
   private final SortOrder sortOrder = SortOrder.unsorted();
+  private final RowKey rowKey = RowKey.notIdentified();
   private final TableOperations ops;
   private final Table table;
   private final String name;
@@ -106,6 +107,11 @@ abstract class BaseMetadataTable implements Table, HasTableOperations, Serializa
   @Override
   public Map<Integer, SortOrder> sortOrders() {
     return ImmutableMap.of(sortOrder.orderId(), sortOrder);
+  }
+
+  @Override
+  public RowKey rowKey() {
+    return rowKey;
   }
 
   @Override

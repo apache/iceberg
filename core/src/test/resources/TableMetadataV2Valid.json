@@ -80,6 +80,16 @@
       ]
     }
   ],
+  "row-key": {
+    "identifier-fields": [
+      {
+        "source-id": 1
+      },
+      {
+        "source-id": 3
+      }
+    ]
+  },
   "properties": {},
   "current-snapshot-id": -1,
   "snapshots": [],

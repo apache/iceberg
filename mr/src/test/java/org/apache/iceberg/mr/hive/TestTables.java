@@ -34,6 +34,7 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
+import org.apache.iceberg.RowKey;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SortOrder;
@@ -271,12 +272,13 @@ abstract class TestTables {
     }
 
     @Override
-    public Table create(Schema schema, PartitionSpec spec, SortOrder sortOrder,
+    public Table create(Schema schema, PartitionSpec spec, SortOrder sortOrder, RowKey rowKey,
                         Map<String, String> properties, String tableIdentifier) {
       TableIdentifier tableIdent = TableIdentifier.parse(tableIdentifier);
       return catalog.buildTable(tableIdent, schema)
           .withPartitionSpec(spec)
           .withSortOrder(sortOrder)
+          .withRowKey(rowKey)
           .withProperties(properties)
           .create();
     }

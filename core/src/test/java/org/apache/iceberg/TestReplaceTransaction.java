@@ -24,7 +24,9 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transform;
@@ -70,7 +72,8 @@ public class TestReplaceTransaction extends TableTestBase {
         .build();
 
     Map<String, String> props = Maps.newHashMap();
-    Transaction replace = TestTables.beginReplace(tableDir, "test", schema, unpartitioned(), newSortOrder, props);
+    Transaction replace = TestTables.beginReplace(tableDir, "test", schema, unpartitioned(), newSortOrder,
+        RowKey.notIdentified(), props);
     replace.commitTransaction();
 
     table.refresh();
@@ -362,6 +365,47 @@ public class TestReplaceTransaction extends TableTestBase {
     Assert.assertEquals("Table should have one snapshot", 1, meta.snapshots().size());
 
     validateSnapshot(null, meta.currentSnapshot(), FILE_A, FILE_B);
+  }
+
+  @Test
+  public void testReplaceTransactionWithNewRowKey() {
+    Snapshot start = table.currentSnapshot();
+    Schema schema = table.schema();
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    Assert.assertEquals("Version should be 1", 1L, (long) version());
+
+    validateSnapshot(start, table.currentSnapshot(), FILE_A);
+
+    RowKey newRowKey = RowKey.builderFor(schema)
+        .addField("id")
+        .addField("data")
+        .build();
+
+    Map<String, String> props = Maps.newHashMap();
+    Transaction replace = TestTables.beginReplace(tableDir, "test", schema, unpartitioned(),
+        SortOrder.unsorted(), newRowKey, props);
+    replace.commitTransaction();
+
+    table.refresh();
+
+    Assert.assertEquals("Version should be 2", 2L, (long) version());
+    Assert.assertNull("Table should not have a current snapshot", table.currentSnapshot());
+    Assert.assertEquals("Schema should match previous schema",
+        schema.asStruct(), table.schema().asStruct());
+    Assert.assertEquals("Partition spec should have no fields",
+        0, table.spec().fields().size());
+    Assert.assertEquals("Table should have 1 orders", 1, table.sortOrders().size());
+    Assert.assertEquals("Sort order should have no fields", 0, table.sortOrder().fields().size());
+
+    RowKey rowKey = table.rowKey();
+    Assert.assertEquals("Row key must have 2 fields", 2, rowKey.identifierFields().size());
+    Assert.assertEquals("Field source column IDs must match",
+        ImmutableList.of(table.schema().findField("id").fieldId(), table.schema().findField("data").fieldId()),
+        rowKey.identifierFields().stream().map(RowKeyIdentifierField::sourceId).collect(Collectors.toList()));
   }
 
   private static Schema assignFreshIds(Schema schema) {

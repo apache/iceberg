@@ -34,6 +34,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -80,6 +81,11 @@ public class TestTableMetadata {
       .desc(Expressions.bucket("z", 4), NullOrder.NULLS_LAST)
       .build();
 
+  private static final RowKey ROW_KEY = RowKey.builderFor(TEST_SCHEMA)
+      .addField(3)
+      .addField(1)
+      .build();
+
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
@@ -108,8 +114,8 @@ public class TestTableMetadata {
         SEQ_NO, System.currentTimeMillis(), 3,
         7, ImmutableList.of(TEST_SCHEMA, schema),
         5, ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
-
-        3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
+        3, ImmutableList.of(SORT_ORDER_3), ROW_KEY,
+        ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), snapshotLog, ImmutableList.of());
 
     String asJson = TableMetadataParser.toJson(expected);
@@ -135,6 +141,8 @@ public class TestTableMetadata {
         expected.defaultSpecId(), metadata.defaultSpecId());
     Assert.assertEquals("PartitionSpec map should match",
         expected.specs(), metadata.specs());
+    Assert.assertEquals("Row key should match",
+        expected.rowKey(), metadata.rowKey());
     Assert.assertEquals("lastAssignedFieldId across all PartitionSpecs should match",
         expected.spec().lastAssignedFieldId(), metadata.lastAssignedPartitionId());
     Assert.assertEquals("Default sort ID should match",
@@ -178,7 +186,8 @@ public class TestTableMetadata {
     TableMetadata expected = new TableMetadata(null, 1, null, TEST_LOCATION,
         0, System.currentTimeMillis(), 3, TableMetadata.INITIAL_SCHEMA_ID,
         ImmutableList.of(schema), 6, ImmutableList.of(spec), spec.lastAssignedFieldId(),
-        TableMetadata.INITIAL_SORT_ORDER_ID, ImmutableList.of(sortOrder), ImmutableMap.of("property", "value"),
+        TableMetadata.INITIAL_SORT_ORDER_ID, ImmutableList.of(sortOrder), ROW_KEY,
+        ImmutableMap.of("property", "value"),
         currentSnapshotId, Arrays.asList(previousSnapshot, currentSnapshot), ImmutableList.of(), ImmutableList.of());
 
     String asJson = toJsonWithoutSpecAndSchemaList(expected);
@@ -296,7 +305,8 @@ public class TestTableMetadata {
     TableMetadata base = new TableMetadata(null, 1, UUID.randomUUID().toString(), TEST_LOCATION,
         0, System.currentTimeMillis(), 3,
         7, ImmutableList.of(TEST_SCHEMA), 5, ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
-        3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
+        3, ImmutableList.of(SORT_ORDER_3), ROW_KEY,
+        ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
 
@@ -332,7 +342,8 @@ public class TestTableMetadata {
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
         TEST_LOCATION, 0, currentTimestamp - 80, 3,
         7, ImmutableList.of(TEST_SCHEMA), 5, ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
-        3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
+        3, ImmutableList.of(SORT_ORDER_3), ROW_KEY,
+        ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
 
@@ -378,7 +389,7 @@ public class TestTableMetadata {
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
         TEST_LOCATION, 0, currentTimestamp - 50, 3,
         7, ImmutableList.of(TEST_SCHEMA), 5,
-        ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(), 3, ImmutableList.of(SORT_ORDER_3),
+        ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(), 3, ImmutableList.of(SORT_ORDER_3), ROW_KEY,
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
@@ -430,7 +441,7 @@ public class TestTableMetadata {
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
         TEST_LOCATION, 0, currentTimestamp - 50, 3, 7, ImmutableList.of(TEST_SCHEMA), 2,
         ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
-        TableMetadata.INITIAL_SORT_ORDER_ID, ImmutableList.of(SortOrder.unsorted()),
+        TableMetadata.INITIAL_SORT_ORDER_ID, ImmutableList.of(SortOrder.unsorted()), ROW_KEY,
         ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
         ImmutableList.copyOf(previousMetadataLog));
@@ -458,7 +469,8 @@ public class TestTableMetadata {
         () -> new TableMetadata(null, 2, null, TEST_LOCATION, SEQ_NO, System.currentTimeMillis(),
             LAST_ASSIGNED_COLUMN_ID, 7, ImmutableList.of(TEST_SCHEMA),
             SPEC_5.specId(), ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
-            3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of(), -1L,
+            3, ImmutableList.of(SORT_ORDER_3), ROW_KEY,
+            ImmutableMap.of(), -1L,
             ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
     );
   }
@@ -471,7 +483,8 @@ public class TestTableMetadata {
         () -> new TableMetadata(null, unsupportedVersion, null, TEST_LOCATION, SEQ_NO,
             System.currentTimeMillis(), LAST_ASSIGNED_COLUMN_ID,
             7, ImmutableList.of(TEST_SCHEMA), SPEC_5.specId(), ImmutableList.of(SPEC_5),
-            SPEC_5.lastAssignedFieldId(), 3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of(), -1L,
+            SPEC_5.lastAssignedFieldId(), 3, ImmutableList.of(SORT_ORDER_3), ROW_KEY,
+            ImmutableMap.of(), -1L,
             ImmutableList.of(), ImmutableList.of(), ImmutableList.of())
     );
   }
@@ -614,7 +627,7 @@ public class TestTableMetadata {
     SortOrder order = SortOrder.builderFor(schema).asc("x").build();
 
     TableMetadata sortedByX = TableMetadata.newTableMetadata(
-        schema, PartitionSpec.unpartitioned(), order, null, ImmutableMap.of());
+        schema, PartitionSpec.unpartitioned(), order, RowKey.notIdentified(), null, ImmutableMap.of());
     Assert.assertEquals("Should have 1 sort order", 1, sortedByX.sortOrders().size());
     Assert.assertEquals("Should use orderId 1", 1, sortedByX.sortOrder().orderId());
     Assert.assertEquals("Should be sorted by one field", 1, sortedByX.sortOrder().fields().size());
@@ -644,6 +657,55 @@ public class TestTableMetadata {
         SortDirection.DESC, sortedByXDesc.sortOrder().fields().get(0).direction());
     Assert.assertEquals("Should be nulls first",
         NullOrder.NULLS_FIRST, sortedByX.sortOrder().fields().get(0).nullOrder());
+  }
+
+  @Test
+  public void testRowKey() {
+    Schema schema = new Schema(
+        Types.NestedField.required(10, "x", Types.StringType.get())
+    );
+
+    TableMetadata meta = TableMetadata.newTableMetadata(
+        schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+    RowKey rowKey = meta.rowKey();
+    Assert.assertTrue("Row key must be default", rowKey.isNotIdentified());
+  }
+
+  @Test
+  public void testUpdateRowKey() {
+    Schema schema = new Schema(
+        Types.NestedField.required(10, "x", Types.StringType.get()),
+        Types.NestedField.required(11, "y", Types.StringType.get())
+    );
+
+    RowKey id = RowKey.builderFor(schema).addField("x").build();
+
+    TableMetadata identifiedByX = TableMetadata.newTableMetadata(
+        schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), id, null, ImmutableMap.of());
+    RowKey actualKey = identifiedByX.rowKey();
+    Assert.assertEquals("Row key must have 1 field", 1, actualKey.identifierFields().size());
+    Assert.assertEquals("Row key must have the expected field",
+        Sets.newHashSet(1),
+        actualKey.identifierFields().stream().map(RowKeyIdentifierField::sourceId).collect(Collectors.toSet()));
+
+    // build an equivalent row key with the correct schema
+    RowKey newId = RowKey.builderFor(identifiedByX.schema()).addField("x").build();
+
+    TableMetadata alsoIdentifiedByX = identifiedByX.updateRowKey(newId);
+    Assert.assertSame("Should detect current row key and not update", alsoIdentifiedByX, identifiedByX);
+
+    TableMetadata notIdentified = alsoIdentifiedByX.updateRowKey(RowKey.notIdentified());
+    Assert.assertTrue("Should be not identified", notIdentified.rowKey().isNotIdentified());
+
+    TableMetadata identifiedByXY = notIdentified.updateRowKey(
+        RowKey.builderFor(notIdentified.schema()).addField("x").addField("y").build());
+    Assert.assertEquals("Should be identified by 2 fields",
+        2, identifiedByXY.rowKey().identifierFields().size());
+    Assert.assertEquals("Row key must have the expected field",
+        Sets.newHashSet(1, 2),
+        identifiedByXY.rowKey().identifierFields().stream()
+            .map(RowKeyIdentifierField::sourceId)
+            .collect(Collectors.toSet()));
   }
 
   @Test
