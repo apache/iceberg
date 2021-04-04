@@ -61,6 +61,10 @@ public class ParquetValueReaders {
     return new PositionReader();
   }
 
+  public static ParquetValueReader<Boolean> deleteMarker() {
+    return new DeleteMarkerReader();
+  }
+
   private static class NullReader<T> implements ParquetValueReader<T> {
     private static final NullReader<Void> INSTANCE = new NullReader<>();
     private static final ImmutableList<TripleIterator<?>> COLUMNS = ImmutableList.of();
@@ -165,6 +169,27 @@ public class ParquetValueReaders {
     public void setPageSource(PageReadStore pageStore, long rowPosition) {
       this.rowGroupStart = rowPosition;
       this.rowOffset = -1;
+    }
+  }
+
+  static class DeleteMarkerReader implements ParquetValueReader<Boolean> {
+    @Override
+    public Boolean read(Boolean reuse) {
+      return false;
+    }
+
+    @Override
+    public TripleIterator<?> column() {
+      return NullReader.NULL_COLUMN;
+    }
+
+    @Override
+    public List<TripleIterator<?>> columns() {
+      return NullReader.COLUMNS;
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
     }
   }
 

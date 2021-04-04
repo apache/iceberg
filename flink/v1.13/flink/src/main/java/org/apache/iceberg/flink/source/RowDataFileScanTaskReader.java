@@ -20,8 +20,13 @@
 package org.apache.iceberg.flink.source;
 
 import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.UpdatableRowData;
+import org.apache.iceberg.CombinedScanTask;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
@@ -177,6 +182,24 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
       this.requiredRowType = FlinkSchemaUtil.convert(requiredSchema());
       this.asStructLike = new RowDataWrapper(requiredRowType, requiredSchema().asStruct());
       this.inputFilesDecryptor = inputFilesDecryptor;
+    }
+
+    @Override
+    protected Consumer<RowData> deleteMarker() {
+      return record -> {
+        if (record instanceof GenericRowData) {
+          ((GenericRowData) record).setField(deleteMarkerIndex(), true);
+        } else if (record instanceof UpdatableRowData) {
+          ((UpdatableRowData) record).setField(deleteMarkerIndex(), true);
+        } else {
+          throw new UnsupportedOperationException("Can not mark row data");
+        }
+      };
+    }
+
+    @Override
+    protected Function<RowData, Boolean> deleteChecker() {
+      return record -> record.getBoolean(deleteMarkerIndex());
     }
 
     public RowType requiredRowType() {

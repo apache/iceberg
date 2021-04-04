@@ -24,6 +24,7 @@ import java.io.UncheckedIOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.MetadataColumns;
@@ -131,10 +132,11 @@ public class Deletes {
     return new PositionStreamDeleteFilter<>(rows, rowToPosition, posDeletes);
   }
 
-  public static <T> CloseableIterable<T> streamingDeletedRowSelector(CloseableIterable<T> rows,
-                                                                     Function<T, Long> rowToPosition,
-                                                                     CloseableIterable<Long> posDeletes) {
-    return new PositionStreamDeletedRowSelector<>(rows, rowToPosition, posDeletes);
+  public static <T> CloseableIterable<T> streamingDeletedRowMarker(CloseableIterable<T> rows,
+                                                                   Function<T, Long> rowToPosition,
+                                                                   CloseableIterable<Long> posDeletes,
+                                                                   Consumer<T> deleteMarker) {
+    return new PositionStreamDeletedRowMarker<>(rows, rowToPosition, posDeletes, deleteMarker);
   }
 
   public static CloseableIterable<Long> deletePositions(CharSequence dataLocation,
@@ -262,26 +264,33 @@ public class Deletes {
     }
   }
 
-  static class PositionStreamDeletedRowSelector<T> extends PositionStreamDeleteFilter<T> {
-    private PositionStreamDeletedRowSelector(CloseableIterable<T> rows, Function<T, Long> extractPos,
-                                             CloseableIterable<Long> deletePositions) {
+  static class PositionStreamDeletedRowMarker<T> extends PositionStreamDeleteFilter<T> {
+    private final Consumer<T> deleteMarker;
+
+    private PositionStreamDeletedRowMarker(CloseableIterable<T> rows, Function<T, Long> extractPos,
+                                           CloseableIterable<Long> deletePositions,
+                                           Consumer<T> deleteMarker) {
       super(rows, extractPos, deletePositions);
+      this.deleteMarker = deleteMarker;
     }
 
     @Override
     protected FilterIterator<T> positionIterator(CloseableIterator<T> items,
                                                  CloseableIterator<Long> deletePositions) {
-      return new PositionSelectorIterator(items, deletePositions);
+      return new PositionMarkerIterator(items, deletePositions);
     }
 
-    private class PositionSelectorIterator extends PositionFilterIterator {
-      protected PositionSelectorIterator(CloseableIterator<T> items, CloseableIterator<Long> deletePositions) {
+    private class PositionMarkerIterator extends PositionFilterIterator {
+      protected PositionMarkerIterator(CloseableIterator<T> items, CloseableIterator<Long> deletePositions) {
         super(items, deletePositions);
       }
 
       @Override
       protected boolean shouldKeep(T row) {
-        return !super.shouldKeep(row);
+        if (!super.shouldKeep(row)) {
+          deleteMarker.accept(row);
+        }
+        return true;
       }
     }
   }
