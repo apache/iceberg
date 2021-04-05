@@ -51,23 +51,18 @@ public class Spark3MigrateAction extends Spark3CreateAction {
   private static final Logger LOG = LoggerFactory.getLogger(Spark3MigrateAction.class);
   private static final String BACKUP_SUFFIX = "_BACKUP_";
 
+  private final Identifier backupIdent;
+
   public Spark3MigrateAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableName) {
     super(spark, sourceCatalog, sourceTableName, sourceCatalog, sourceTableName);
+    String backupName = sourceTableIdent().name() + BACKUP_SUFFIX;
+    this.backupIdent = Identifier.of(sourceTableIdent().namespace(), backupName);
   }
 
   private Long doExecute() {
     // Move source table to a new name, halting all modifications and allowing us to stage
     // the creation of a new Iceberg table in its place
-    String backupName = sourceTableIdent().name() + BACKUP_SUFFIX;
-    Identifier backupIdentifier = Identifier.of(sourceTableIdent().namespace(), backupName);
-    try {
-      destCatalog().renameTable(sourceTableIdent(), backupIdentifier);
-    } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException e) {
-      throw new NoSuchTableException("Cannot find table '%s' to migrate", sourceTableIdent());
-    } catch (org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException e) {
-      throw new AlreadyExistsException("Cannot rename migration source '%s' to backup name '%s'." +
-          " Backup table already exists.", sourceTableIdent(), backupIdentifier);
-    }
+    renameAndBackupSourceTable();
 
     StagedSparkTable stagedTable = null;
     Table icebergTable;
@@ -81,8 +76,8 @@ public class Spark3MigrateAction extends Spark3CreateAction {
       String stagingLocation = getMetadataLocation(icebergTable);
 
       LOG.info("Beginning migration of {} using metadata location {}", sourceTableIdent(), stagingLocation);
-      Some<String> backupNamespace = Some.apply(backupIdentifier.namespace()[0]);
-      TableIdentifier v1BackupIdentifier = new TableIdentifier(backupIdentifier.name(), backupNamespace);
+      Some<String> backupNamespace = Some.apply(backupIdent.namespace()[0]);
+      TableIdentifier v1BackupIdentifier = new TableIdentifier(backupIdent.name(), backupNamespace);
       SparkTableUtil.importSparkTable(spark(), v1BackupIdentifier, icebergTable, stagingLocation);
 
       stagedTable.commitStagedChanges();
@@ -91,14 +86,7 @@ public class Spark3MigrateAction extends Spark3CreateAction {
       if (threw) {
         LOG.error("Error when attempting perform migration changes, aborting table creation and restoring backup.");
 
-        try {
-          destCatalog().renameTable(backupIdentifier, sourceTableIdent());
-        } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException nstException) {
-          LOG.error("Cannot restore backup '{}', the backup cannot be found", backupIdentifier, nstException);
-        } catch (org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException taeException) {
-          LOG.error("Cannot restore backup, a table with the original name " +
-              "exists. The backup can be found with the name '{}'", backupIdentifier, taeException);
-        }
+        restoreSourceTable();
 
         try {
           stagedTable.abortStagedChanges();
@@ -143,5 +131,34 @@ public class Spark3MigrateAction extends Spark3CreateAction {
         catalog.name(), catalog.getClass().getName());
 
     return (TableCatalog) catalog;
+  }
+
+  private void renameAndBackupSourceTable() {
+    try {
+      LOG.info("Renaming {} as {} for backup", sourceTableIdent(), backupIdent);
+      destCatalog().renameTable(sourceTableIdent(), backupIdent);
+
+    } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException e) {
+      throw new NoSuchTableException("Cannot find source table %s", sourceTableIdent());
+
+    } catch (org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException e) {
+      throw new AlreadyExistsException(
+          "Cannot rename %s as %s for backup. The backup table already exists.",
+          sourceTableIdent(), backupIdent);
+    }
+  }
+
+  private void restoreSourceTable() {
+    try {
+      LOG.info("Restoring {} from {}", sourceTableIdent(), backupIdent);
+      destCatalog().renameTable(backupIdent, sourceTableIdent());
+
+    } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException e) {
+      LOG.error("Cannot restore the original table, the backup table {} cannot be found", backupIdent, e);
+
+    } catch (org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException e) {
+      LOG.error("Cannot restore the original table, a table with the original name exists. " +
+          "Use the backup table {} to restore the original table manually.", backupIdent, e);
+    }
   }
 }
