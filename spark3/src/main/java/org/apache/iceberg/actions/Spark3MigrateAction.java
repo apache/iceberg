@@ -60,6 +60,8 @@ public class Spark3MigrateAction extends Spark3CreateAction {
   }
 
   private Long doExecute() {
+    LOG.info("Starting the migration of {} to Iceberg", sourceTableIdent());
+
     // Move source table to a new name, halting all modifications and allowing us to stage
     // the creation of a new Iceberg table in its place
     renameAndBackupSourceTable();
@@ -68,18 +70,20 @@ public class Spark3MigrateAction extends Spark3CreateAction {
     Table icebergTable;
     boolean threw = true;
     try {
+      LOG.info("Staging a new Iceberg table {}", destTableIdent());
       stagedTable = stageDestTable();
       icebergTable = stagedTable.table();
 
+      LOG.info("Ensuring {} has a valid name mapping", destTableIdent());
       ensureNameMappingPresent(icebergTable);
 
       String stagingLocation = getMetadataLocation(icebergTable);
-
-      LOG.info("Beginning migration of {} using metadata location {}", sourceTableIdent(), stagingLocation);
       Some<String> backupNamespace = Some.apply(backupIdent.namespace()[0]);
       TableIdentifier v1BackupIdentifier = new TableIdentifier(backupIdent.name(), backupNamespace);
+      LOG.info("Generating Iceberg metadata for {} in {}", destTableIdent(), stagingLocation);
       SparkTableUtil.importSparkTable(spark(), v1BackupIdentifier, icebergTable, stagingLocation);
 
+      LOG.info("Committing staged changes to {}", destTableIdent());
       stagedTable.commitStagedChanges();
       threw = false;
     } finally {

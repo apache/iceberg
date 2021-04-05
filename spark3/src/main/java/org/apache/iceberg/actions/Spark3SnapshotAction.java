@@ -55,20 +55,22 @@ public class Spark3SnapshotAction extends Spark3CreateAction implements Snapshot
   }
 
   private Long doExecute() {
+    LOG.info("Staging a new Iceberg table {} as a snapshot of {}", destTableIdent(), sourceTableIdent());
     StagedSparkTable stagedTable = stageDestTable();
     Table icebergTable = stagedTable.table();
     // TODO Check table location here against source location
 
     boolean threw = true;
     try {
+      LOG.info("Ensuring {} has a valid name mapping", destTableIdent());
       ensureNameMappingPresent(icebergTable);
 
       String stagingLocation = getMetadataLocation(icebergTable);
-      LOG.info("Beginning snapshot of {} to {} using metadata location {}", sourceTableIdent(), destTableIdent(),
-          stagingLocation);
-
       TableIdentifier v1TableIdentifier = v1SourceTable().identifier();
+      LOG.info("Generating Iceberg metadata for {} in {}", destTableIdent(), stagingLocation);
       SparkTableUtil.importSparkTable(spark(), v1TableIdentifier, icebergTable, stagingLocation);
+
+      LOG.info("Committing staged changes to {}", destTableIdent());
       stagedTable.commitStagedChanges();
       threw = false;
     } finally {
@@ -85,7 +87,7 @@ public class Spark3SnapshotAction extends Spark3CreateAction implements Snapshot
 
     Snapshot snapshot = icebergTable.currentSnapshot();
     long numMigratedFiles = Long.parseLong(snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
-    LOG.info("Successfully loaded Iceberg metadata for {} files", numMigratedFiles);
+    LOG.info("Successfully loaded Iceberg metadata for {} files to {}", numMigratedFiles, destTableIdent());
     return numMigratedFiles;
   }
 
