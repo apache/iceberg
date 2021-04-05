@@ -225,30 +225,6 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   Object writeReplace() {
-    return new TableProxy(this);
-  }
-
-  private static class TableProxy implements Serializable {
-    private FileIO io;
-    private String name;
-    private String metadataLocation;
-    private LocationProvider locationProvider;
-
-    private TableProxy(BaseTable table) {
-      io = table.io();
-      name = table.name();
-      metadataLocation = table.operations().current().metadataFileLocation();
-      locationProvider = table.locationProvider();
-    }
-
-    /**
-     * Returns a BaseTable with {@link StaticTableOperations} so after deserialization no Catalog related calls are
-     * needed for accessing the table snapshot data.
-     * @return The BaseTable object for reading the table data at the time of the serialization of the original
-     *         BaseTable object
-     */
-    private Object readResolve()  {
-      return new BaseTable(new StaticTableOperations(metadataLocation, io, locationProvider), name);
-    }
+    return SerializableTable.copyOf(this);
   }
 }

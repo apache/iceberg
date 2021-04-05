@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -499,7 +500,7 @@ class BaseTransaction implements Transaction {
     }
   }
 
-  public class TransactionTable implements Table, HasTableOperations {
+  public class TransactionTable implements Table, HasTableOperations, Serializable {
 
     @Override
     public TableOperations operations() {
@@ -678,6 +679,10 @@ class BaseTransaction implements Transaction {
     @Override
     public String toString() {
       return name();
+    }
+
+    Object writeReplace() {
+      return SerializableTable.copyOf(this);
     }
   }
 
