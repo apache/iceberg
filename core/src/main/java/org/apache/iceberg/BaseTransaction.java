@@ -682,7 +682,7 @@ class BaseTransaction implements Transaction {
     }
 
     Object writeReplace() {
-      return SerializableTableFactory.copyOf(this);
+      return SerializableTable.copyOf(this);
     }
   }
 

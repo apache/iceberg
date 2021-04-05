@@ -82,7 +82,7 @@ public class TestFileIOSerialization {
     FileIO io = table.io();
     Configuration expectedConf = ((HadoopFileIO) io).conf();
 
-    Table serializableTable = SerializableTableFactory.copyOf(table);
+    Table serializableTable = SerializableTable.copyOf(table);
     FileIO deserializedIO = KryoHelpers.roundTripSerialize(serializableTable.io());
     Configuration actualConf = ((HadoopFileIO) deserializedIO).conf();
 
@@ -96,7 +96,7 @@ public class TestFileIOSerialization {
     FileIO io = table.io();
     Configuration expectedConf = ((HadoopFileIO) io).conf();
 
-    Table serializableTable = SerializableTableFactory.copyOf(table);
+    Table serializableTable = SerializableTable.copyOf(table);
     FileIO deserializedIO = TestHelpers.roundTripSerialize(serializableTable.io());
     Configuration actualConf = ((HadoopFileIO) deserializedIO).conf();
 

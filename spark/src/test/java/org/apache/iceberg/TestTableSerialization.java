@@ -69,7 +69,7 @@ public class TestTableSerialization {
 
   @Test
   public void testSerializableTableKryoSerialization() throws IOException {
-    Table serializableTable = SerializableTableFactory.copyOf(table);
+    Table serializableTable = SerializableTable.copyOf(table);
     TestHelpers.assertSerializedAndLoadedMetadata(table, KryoHelpers.roundTripSerialize(serializableTable));
   }
 
@@ -78,7 +78,7 @@ public class TestTableSerialization {
     for (MetadataTableType type : MetadataTableType.values()) {
       TableOperations ops = ((HasTableOperations) table).operations();
       Table metadataTable = MetadataTableUtils.createMetadataTableInstance(ops, table.name(), "meta", type);
-      Table serializableMetadataTable = SerializableTableFactory.copyOf(metadataTable);
+      Table serializableMetadataTable = SerializableTable.copyOf(metadataTable);
 
       TestHelpers.assertSerializedAndLoadedMetadata(
           metadataTable,
@@ -95,7 +95,7 @@ public class TestTableSerialization {
         .commit();
 
     Table txnTable = txn.table();
-    Table serializableTxnTable = SerializableTableFactory.copyOf(txnTable);
+    Table serializableTxnTable = SerializableTable.copyOf(txnTable);
 
     TestHelpers.assertSerializedMetadata(txnTable, KryoHelpers.roundTripSerialize(serializableTxnTable));
   }

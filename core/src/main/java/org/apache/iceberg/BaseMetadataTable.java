@@ -219,6 +219,6 @@ abstract class BaseMetadataTable implements Table, HasTableOperations, Serializa
   }
 
   final Object writeReplace() {
-    return SerializableTableFactory.copyOf(this);
+    return SerializableTable.copyOf(this);
   }
 }

@@ -225,6 +225,6 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   Object writeReplace() {
-    return SerializableTableFactory.copyOf(this);
+    return SerializableTable.copyOf(this);
   }
 }
