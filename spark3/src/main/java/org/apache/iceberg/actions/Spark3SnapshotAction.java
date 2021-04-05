@@ -59,10 +59,10 @@ public class Spark3SnapshotAction extends Spark3CreateAction implements Snapshot
     Table icebergTable = stagedTable.table();
     // TODO Check table location here against source location
 
-    ensureNameMappingPresent(icebergTable);
-
     boolean threw = true;
     try {
+      ensureNameMappingPresent(icebergTable);
+
       String stagingLocation = getMetadataLocation(icebergTable);
       LOG.info("Beginning snapshot of {} to {} using metadata location {}", sourceTableIdent(), destTableIdent(),
           stagingLocation);
