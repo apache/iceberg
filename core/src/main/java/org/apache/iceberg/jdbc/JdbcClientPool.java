@@ -26,9 +26,9 @@ import java.sql.SQLNonTransientConnectionException;
 import java.util.Map;
 import java.util.Properties;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.ClientPool;
+import org.apache.iceberg.ClientPoolImpl;
 
-class JdbcClientPool extends ClientPool<Connection, SQLException> {
+class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
 
   private final String dbUrl;
   private final Map<String, String> properties;
