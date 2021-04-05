@@ -100,10 +100,12 @@ public class Spark3MigrateAction extends Spark3CreateAction {
               "exists. The backup can be found with the name '{}'", backupIdentifier, taeException);
         }
 
-        try {
-          stagedTable.abortStagedChanges();
-        } catch (Exception abortException) {
-          LOG.error("Cannot abort staged changes", abortException);
+        if (stagedTable != null) {
+          try {
+            stagedTable.abortStagedChanges();
+          } catch (Exception abortException) {
+            LOG.error("Cannot abort staged changes", abortException);
+          }
         }
       }
     }
