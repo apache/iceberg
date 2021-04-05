@@ -64,7 +64,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
   private static final Set<String> RESERVED_PROPERTIES =
-      ImmutableSet.of("provider", "format", "current-snapshot-id", "location");
+      ImmutableSet.of("provider", "format", "current-snapshot-id", "location", "sort-order");
   private static final Set<TableCapability> CAPABILITIES = ImmutableSet.of(
       TableCapability.BATCH_READ,
       TableCapability.BATCH_WRITE,
@@ -140,6 +140,10 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
         String.valueOf(icebergTable.currentSnapshot().snapshotId()) : "none";
     propsBuilder.put("current-snapshot-id", currentSnapshotId);
     propsBuilder.put("location", icebergTable.location());
+
+    if (!icebergTable.sortOrder().isUnsorted()) {
+      propsBuilder.put("sort-order", Spark3Util.describe(icebergTable.sortOrder()));
+    }
 
     icebergTable.properties().entrySet().stream()
         .filter(entry -> !RESERVED_PROPERTIES.contains(entry.getKey()))

@@ -455,8 +455,10 @@ public class TestCreateActions extends SparkCatalogTestBase {
     createSourceTable(CREATE_PARQUET, source);
     assertMigratedFileCount(Actions.snapshot(source, dest), source, dest);
     SparkTable table = loadTable(dest);
+    // set sort orders
+    table.table().replaceSortOrder().asc("id").desc("data").commit();
 
-    String[] keys = {"provider", "format", "current-snapshot-id", "location"};
+    String[] keys = {"provider", "format", "current-snapshot-id", "location", "sort-order"};
 
     for (String entry : keys) {
       Assert.assertTrue("Created table missing reserved property " + entry, table.properties().containsKey(entry));
@@ -466,6 +468,8 @@ public class TestCreateActions extends SparkCatalogTestBase {
     Assert.assertEquals("Unexpected format", "iceberg/parquet", table.properties().get("format"));
     Assert.assertNotEquals("No current-snapshot-id found", "none", table.properties().get("current-snapshot-id"));
     Assert.assertTrue("Location isn't correct", table.properties().get("location").endsWith(destTableName));
+    Assert.assertEquals("Sort-order isn't correct", "id ASC NULLS FIRST, data DESC NULLS LAST",
+        table.properties().get("sort-order"));
   }
 
   @Test
