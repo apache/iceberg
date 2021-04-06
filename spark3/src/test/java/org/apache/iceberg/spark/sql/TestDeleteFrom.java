@@ -53,7 +53,7 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
           sql("SELECT * FROM %s ORDER BY id", tableName));
 
       AssertHelpers.assertThrows("Should not delete when not all rows of a file match the filter",
-          IllegalArgumentException.class, "Failed to cleanly delete data files",
+          IllegalArgumentException.class, "Failed to cleanly delete data files matching",
           () -> sql("DELETE FROM %s WHERE id < 2", tableName));
 
       sql("DELETE FROM %s WHERE id < 4", tableName);
@@ -81,7 +81,7 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
           sql("SELECT * FROM %s ORDER BY id", tableName));
 
       AssertHelpers.assertThrows("Should not delete when not all rows of a file match the filter",
-          IllegalArgumentException.class, "Failed to cleanly delete data files",
+          IllegalArgumentException.class, "Failed to cleanly delete data files matching",
           () -> sql("DELETE FROM %s WHERE id > 2", tableName));
 
       sql("DELETE FROM %s WHERE id < 2", tableName);

@@ -205,6 +205,9 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     }
 
     Set<Integer> identitySourceIds = table().spec().identitySourceIds();
+    if (identitySourceIds.isEmpty()) {
+      return true;
+    }
     Schema schema = table().schema();
 
     for (Filter filter : filters) {

@@ -69,7 +69,7 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
   import ExtendedDataSourceV2Implicits.ScanBuilderHelper
 
   protected def spark: SparkSession
-  protected lazy val conf: SQLConf = spark.sessionState.conf
+  lazy val conf: SQLConf = spark.sessionState.conf
   protected lazy val resolver: Resolver = conf.resolver
 
   protected def buildSimpleScanPlan(
@@ -83,14 +83,14 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
     val scan = scanBuilder.asIceberg.withMetadataColumns(FILE_NAME_COL, ROW_POS_COL).build()
     val outputAttrs = toOutputAttrs(scan.readSchema(), relation.output)
     val predicates = extractFilters(cond, relation.output).reduceLeftOption(And)
-    val scanRelation = DataSourceV2ScanRelation(relation.table, scan, outputAttrs)
+    val scanRelation = DataSourceV2ScanRelation(relation, scan, outputAttrs)
 
     predicates.map(Filter(_, scanRelation)).getOrElse(scanRelation)
   }
 
   protected def buildDynamicFilterScanPlan(
       spark: SparkSession,
-      table: Table,
+      relation: DataSourceV2Relation,
       tableAttrs: Seq[AttributeReference],
       mergeBuilder: MergeBuilder,
       cond: Expression,
@@ -103,7 +103,7 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
 
     val scan = scanBuilder.asIceberg.withMetadataColumns(FILE_NAME_COL, ROW_POS_COL).build()
     val outputAttrs = toOutputAttrs(scan.readSchema(), tableAttrs)
-    val scanRelation = DataSourceV2ScanRelation(table, scan, outputAttrs)
+    val scanRelation = DataSourceV2ScanRelation(relation, scan, outputAttrs)
 
     scan match {
       case filterable: SupportsFileFilter if runCardinalityCheck =>

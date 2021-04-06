@@ -25,4 +25,11 @@ import org.apache.spark.sql.connector.write.BatchWrite
 case class ReplaceData(
     table: NamedRelation,
     write: BatchWrite,
-    query: LogicalPlan) extends V2WriteCommand
+    query: LogicalPlan) extends V2WriteCommand {
+
+  override def isByName: Boolean = true
+
+  override def withNewQuery(newQuery: LogicalPlan): V2WriteCommand = copy(query = newQuery)
+
+  override def withNewTable(newTable: NamedRelation): V2WriteCommand = copy(table = newTable)
+}

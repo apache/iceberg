@@ -36,14 +36,13 @@ import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParse
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.QuotedIdentifierContext
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.trees.Origin
-import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.VariableSubstitution
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.sql.types.StructType
 
 class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserInterface {
 
-  private lazy val substitutor = new VariableSubstitution(SQLConf.get)
+  private lazy val substitutor = new VariableSubstitution()
   private lazy val astBuilder = new IcebergSqlExtensionsAstBuilder(delegate)
 
   /**
@@ -51,13 +50,6 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
    */
   override def parseDataType(sqlText: String): DataType = {
     delegate.parseDataType(sqlText)
-  }
-
-  /**
-   * Parse a string to a raw DataType without CHAR/VARCHAR replacement.
-   */
-  override def parseRawDataType(sqlText: String): DataType = {
-    delegate.parseRawDataType(sqlText)
   }
 
   /**

@@ -53,6 +53,8 @@ case class RewriteDelete(spark: SparkSession) extends Rule[LogicalPlan] with Rew
   import ExtendedDataSourceV2Implicits._
   import RewriteRowLevelOperationHelper._
 
+  override lazy val conf: SQLConf = spark.sessionState.conf
+
   override def apply(plan: LogicalPlan): LogicalPlan = plan transform {
     // don't rewrite deletes that can be answered by passing filters to deleteWhere in SupportsDelete
     case d @ DeleteFromTable(r: DataSourceV2Relation, Some(cond))
@@ -66,7 +68,7 @@ case class RewriteDelete(spark: SparkSession) extends Rule[LogicalPlan] with Rew
       val mergeBuilder = r.table.asMergeable.newMergeBuilder("delete", writeInfo)
 
       val matchingRowsPlanBuilder = scanRelation => Filter(cond, scanRelation)
-      val scanPlan = buildDynamicFilterScanPlan(spark, r.table, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
+      val scanPlan = buildDynamicFilterScanPlan(spark, r, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
 
       val remainingRowFilter = Not(EqualNullSafe(cond, Literal(true, BooleanType)))
       val remainingRowsPlan = Filter(remainingRowFilter, scanPlan)
@@ -77,9 +79,9 @@ case class RewriteDelete(spark: SparkSession) extends Rule[LogicalPlan] with Rew
   }
 
   private def buildWritePlan(
-      remainingRowsPlan: LogicalPlan,
-      table: Table,
-      output: Seq[AttributeReference]): LogicalPlan = {
+                              remainingRowsPlan: LogicalPlan,
+                              table: Table,
+                              output: Seq[AttributeReference]): LogicalPlan = {
 
     val fileNameCol = findOutputAttr(remainingRowsPlan.output, FILE_NAME_COL)
     val rowPosCol = findOutputAttr(remainingRowsPlan.output, ROW_POS_COL)

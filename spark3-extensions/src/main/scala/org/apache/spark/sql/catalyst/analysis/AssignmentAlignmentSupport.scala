@@ -32,13 +32,14 @@ import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.NamedExpression
 import org.apache.spark.sql.catalyst.plans.logical.Assignment
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.internal.SQLConf.StoreAssignmentPolicy
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.sql.types.StructField
 import org.apache.spark.sql.types.StructType
 import scala.collection.mutable
 
-trait AssignmentAlignmentSupport extends CastSupport {
+trait AssignmentAlignmentSupport extends Rule[LogicalPlan]  with CastSupport {
 
   private case class ColumnUpdate(ref: Seq[String], expr: Expression)
 

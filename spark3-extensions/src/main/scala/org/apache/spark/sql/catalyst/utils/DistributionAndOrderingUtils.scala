@@ -118,7 +118,7 @@ object DistributionAndOrderingUtils {
     expr match {
       case s: SortOrder =>
         val catalystChild = toCatalyst(s.expression(), query, resolver)
-        catalyst.expressions.SortOrder(catalystChild, toCatalyst(s.direction), toCatalyst(s.nullOrdering), Set.empty)
+        catalyst.expressions.SortOrder(catalystChild, toCatalyst(s.direction), toCatalyst(s.nullOrdering), Seq.empty)
       case it: IdentityTransform =>
         resolve(it.ref.fieldNames)
       case BucketTransform(numBuckets, ref) =>
