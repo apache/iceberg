@@ -142,31 +142,30 @@ public class TestIcebergFilesCommitter extends TableTestBase {
   }
 
   @Test
-  public void testEmptyCommitWhenCheckpoints() throws Exception {
-    table.updateProperties().set(IcebergFilesCommitter.FLINK_MAX_EMPTY_COMMIT_IDLE_TIME, Long.MAX_VALUE + "").commit();
-    int before = snapshotCount();
-    doEmptyCommit();
-    int after = snapshotCount();
-    Assert.assertEquals(after, before);
-    table.updateProperties().set(IcebergFilesCommitter.FLINK_MAX_EMPTY_COMMIT_IDLE_TIME, "-1").commit();
-    int before1 = snapshotCount();
-    doEmptyCommit();
-    int after1 = snapshotCount();
-    Assert.assertNotEquals(after1, before1);
-  }
-
-  private void doEmptyCommit() throws Exception {
+  public void testEmptyCommits() throws Exception {
+    table.updateProperties().set(IcebergFilesCommitter.MAX_CONTINUOUS_EMPTY_COMMITS, "3").commit();
     JobID jobId = new JobID();
     long checkpointId = 0;
     long timestamp = 0;
     try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
-      harness.setup();
-      harness.open();
-      harness.processElement(WriteResult.builder().build(), ++timestamp);
-      harness.processElement(WriteResult.builder().build(), ++timestamp);
-      harness.snapshot(++checkpointId, ++timestamp);
-      harness.notifyOfCompletedCheckpoint(checkpointId);
+      int before = snapshotCount();
+      doEmptyCommit(harness, ++checkpointId, ++timestamp);
+      doEmptyCommit(harness, ++checkpointId, ++timestamp);
+      doEmptyCommit(harness, ++checkpointId, ++timestamp);
+      int after = snapshotCount();
+      Assert.assertEquals(1, after - before);
     }
+  }
+
+  private void doEmptyCommit(
+      OneInputStreamOperatorTestHarness<WriteResult, Void> harness,
+      long checkpointId,
+      long timestamp) throws Exception {
+    harness.setup();
+    harness.open();
+    harness.processElement(WriteResult.builder().build(), ++timestamp);
+    harness.snapshot(++checkpointId, ++timestamp);
+    harness.notifyOfCompletedCheckpoint(checkpointId);
   }
 
   private int snapshotCount() {
