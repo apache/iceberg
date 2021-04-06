@@ -984,8 +984,8 @@ project(":iceberg-spark3-extensions") {
     testCompile project(path: ':iceberg-spark', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-spark3', configuration: 'testArtifacts')
 
-    // Required because we remove antlr plugin dependencies from the compile configuration, see note above
-    runtime "org.antlr:antlr4-runtime:4.7.1"
+    // We use the antlr runtime version included with Spark so we only include the compiler here
+    // This version matches the Spark 3.0 runtime version, we may have to make this variable in the future
     antlr "org.antlr:antlr4:4.7.1"
   }
 
@@ -999,6 +999,15 @@ project(':iceberg-spark3-runtime') {
   apply plugin: 'com.github.johnrengelman.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
+
+  sourceSets {
+    integration {
+      java {
+        srcDir "$projectDir/src/integration/java"
+      }
+      resources.srcDir "$projectDir/src/integration/resources"
+    }
+  }
 
   configurations {
     compile {
@@ -1021,6 +1030,11 @@ project(':iceberg-spark3-runtime') {
     compile(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
+
+    integrationImplementation 'org.apache.spark:spark-hive_2.12'
+    integrationImplementation 'junit:junit'
+    integrationImplementation 'org.slf4j:slf4j-simple'
+    integrationCompileOnly "com.google.errorprone:error_prone_annotations:2.3.3"
   }
 
   shadowJar {
@@ -1038,7 +1052,6 @@ project(':iceberg-spark3-runtime') {
     relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
     relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
     relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
-    relocate 'org.antlr.v4.runtime', 'org.apache.iceberg.shaded.org.antlr.v4.runtime'
     relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
     relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
     relocate 'avro.shaded', 'org.apache.iceberg.shaded.org.apache.avro.shaded'
@@ -1057,6 +1070,16 @@ project(':iceberg-spark3-runtime') {
 
     classifier null
   }
+
+  task integrationTest(type: Test) {
+    description = "Test Spark3 Runtime Jar"
+    group = "verification"
+    testClassesDirs = sourceSets.integration.output.classesDirs
+    classpath = sourceSets.integration.runtimeClasspath + files(shadowJar.archiveFile.get().asFile.path)
+    inputs.file(shadowJar.archiveFile.get().asFile.path)
+  }
+  integrationTest.dependsOn(shadowJar)
+  check.dependsOn integrationTest
 
   jar {
     enabled = false
