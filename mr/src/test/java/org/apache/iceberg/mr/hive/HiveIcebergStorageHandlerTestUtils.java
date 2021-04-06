@@ -68,7 +68,7 @@ public class HiveIcebergStorageHandlerTestUtils {
     TestHiveShell shell = new TestHiveShell();
     shell.setHiveConfValue("hive.notification.event.poll.interval", "-1");
     shell.setHiveConfValue("hive.tez.exec.print.summary", "true");
-    configs.entrySet().forEach(e -> shell.setHiveConfValue(e.getKey(), e.getValue()));
+    configs.forEach((k, v) -> shell.setHiveConfValue(k, v));
     // We would like to make sure that ORC reading overrides this config, so reading Iceberg tables could work in
     // systems (like Hive 3.2 and higher) where this value is set to true explicitly.
     shell.setHiveConfValue(OrcConf.FORCE_POSITIONAL_EVOLUTION.getHiveConfName(), "true");

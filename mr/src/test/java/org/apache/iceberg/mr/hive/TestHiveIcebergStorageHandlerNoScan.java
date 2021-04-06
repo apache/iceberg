@@ -361,7 +361,6 @@ public class TestHiveIcebergStorageHandlerNoScan {
         Collections.emptyList());
 
     if (testTableType == TestTables.TestTableType.HIVE_CATALOG) {
-
       // In HiveCatalog we just expect an exception since the table is already exists
       AssertHelpers.assertThrows("should throw exception", IllegalArgumentException.class,
           "customers already exists", () -> {

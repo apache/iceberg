@@ -121,8 +121,8 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
       String tables = jobConf.get(InputFormatConfig.OUTPUT_TABLES);
       String catalogName = tableDesc.getProperties().getProperty(InputFormatConfig.CATALOG_NAME);
       if (catalogName != null) {
-        tables = tables == null ? catalogName + CATALOG_NAME_SEPARATOR + tableDesc.getTableName() :
-                tables + TABLE_NAME_SEPARATOR + catalogName + CATALOG_NAME_SEPARATOR + tableDesc.getTableName();
+        String tableWithCatalogName = catalogName + CATALOG_NAME_SEPARATOR + tableDesc.getTableName();
+        tables = tables == null ? tableWithCatalogName : tables + TABLE_NAME_SEPARATOR + tableWithCatalogName;
       } else {
         tables = tables == null ? tableDesc.getTableName() : tables + TABLE_NAME_SEPARATOR + tableDesc.getTableName();
       }
@@ -174,7 +174,7 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   /**
    * Returns the names of the output tables stored in the configuration.
    * @param config The configuration used to get the data from
-   * @return The collection of the table names as returned by TableDesc.getTableName()
+   * @return The collection of catalog name - table name pairs.
    */
   public static Collection<Pair<String, String>> outputTables(Configuration config) {
     Collection<String> tables = TABLE_NAME_SPLITTER.splitToList(config.get(InputFormatConfig.OUTPUT_TABLES));

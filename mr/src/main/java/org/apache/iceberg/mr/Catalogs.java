@@ -202,14 +202,13 @@ public final class Catalogs {
     if (catalogType == null) {
       throw new NoSuchNamespaceException("Catalog definition for %s is not found.", catalogName);
     }
-    String name = catalogName == null ? ICEBERG_DEFAULT_CATALOG_NAME : catalogName;
 
-    switch (catalogType.toLowerCase()) {
-      case NO_CATALOG_TYPE:
-        return Optional.empty();
-      default:
-        return Optional.of(CatalogUtil.buildIcebergCatalog(name,
-                getCatalogProperties(conf, name, catalogType), conf));
+    if (NO_CATALOG_TYPE.equalsIgnoreCase(catalogType)) {
+      return Optional.empty();
+    } else {
+      String name = catalogName == null ? ICEBERG_DEFAULT_CATALOG_NAME : catalogName;
+      return Optional.of(CatalogUtil.buildIcebergCatalog(name,
+              getCatalogProperties(conf, name, catalogType), conf));
     }
   }
 
@@ -267,18 +266,18 @@ public final class Catalogs {
    * @return type of the catalog, can be null
    */
   private static String getCatalogType(Configuration conf, String catalogName) {
-    if (catalogName == null) {
+    if (catalogName != null) {
+      String catalogType = conf.get(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName));
+      if (catalogName.equals(ICEBERG_HADOOP_TABLE_NAME) || catalogType == null) {
+        return NO_CATALOG_TYPE;
+      } else {
+        return catalogType;
+      }
+    } else {
       String catalogType = conf.get(InputFormatConfig.CATALOG);
       if (catalogType == null) {
         return HIVE_CATALOG_TYPE;
       } else if (catalogType.equals(LOCATION)) {
-        return NO_CATALOG_TYPE;
-      } else {
-        return conf.get(InputFormatConfig.CATALOG);
-      }
-    } else {
-      String catalogType = conf.get(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName));
-      if (catalogName.equals(ICEBERG_HADOOP_TABLE_NAME) || catalogType == null) {
         return NO_CATALOG_TYPE;
       } else {
         return catalogType;
