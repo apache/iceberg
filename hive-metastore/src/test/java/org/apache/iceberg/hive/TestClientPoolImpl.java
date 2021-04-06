@@ -36,7 +36,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-public class TestClientPool {
+public class TestClientPoolImpl {
 
   HiveClientPool clients;
 

@@ -34,11 +34,34 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
  * using a {@link StaticTableOperations}. This way no Catalog related calls are needed when reading the table data after
  * deserialization.
  */
-abstract class BaseMetadataTable implements Table, Serializable {
+abstract class BaseMetadataTable implements Table, HasTableOperations, Serializable {
   private final PartitionSpec spec = PartitionSpec.unpartitioned();
   private final SortOrder sortOrder = SortOrder.unsorted();
+  private final TableOperations ops;
+  private final Table table;
+  private final String name;
 
-  abstract Table table();
+  protected BaseMetadataTable(TableOperations ops, Table table, String name) {
+    this.ops = ops;
+    this.table = table;
+    this.name = name;
+  }
+
+  abstract MetadataTableType metadataTableType();
+
+  protected Table table() {
+    return table;
+  }
+
+  @Override
+  public TableOperations operations() {
+    return ops;
+  }
+
+  @Override
+  public String name() {
+    return name;
+  }
 
   @Override
   public FileIO io() {
@@ -195,41 +218,7 @@ abstract class BaseMetadataTable implements Table, Serializable {
     return name();
   }
 
-  abstract String metadataLocation();
-
-  abstract MetadataTableType metadataTableType();
-
   final Object writeReplace() {
-    return new TableProxy(io(), table().name(), name(), metadataLocation(), metadataTableType(), locationProvider());
-  }
-
-  static class TableProxy implements Serializable {
-    private FileIO io;
-    private String baseTableName;
-    private String metadataTableName;
-    private String metadataLocation;
-    private MetadataTableType type;
-    private LocationProvider locationProvider;
-
-    TableProxy(FileIO io, String baseTableName, String metadataTableName, String metadataLocation,
-               MetadataTableType type, LocationProvider locationProvider) {
-      this.io = io;
-      this.baseTableName = baseTableName;
-      this.metadataTableName = metadataTableName;
-      this.metadataLocation = metadataLocation;
-      this.type = type;
-      this.locationProvider = locationProvider;
-    }
-
-    /**
-     * Returns a table with {@link StaticTableOperations} so after deserialization no Catalog related calls are
-     * needed for accessing the table snapshot data.
-     * @return The metadata Table object for reading the table data at the time of the serialization of the original
-     *         object
-     */
-    private Object readResolve()  {
-      TableOperations ops = new StaticTableOperations(metadataLocation, io, locationProvider);
-      return MetadataTableUtils.createMetadataTableInstance(ops, baseTableName, metadataTableName, type);
-    }
+    return SerializableTable.copyOf(this);
   }
 }

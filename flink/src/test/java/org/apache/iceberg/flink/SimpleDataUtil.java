@@ -36,6 +36,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -58,6 +59,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
+import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.Assert;
 
 import static org.apache.iceberg.hadoop.HadoopOutputFile.fromPath;
@@ -213,5 +215,31 @@ public class SimpleDataUtil {
       reader.forEach(set::add);
     }
     return set;
+  }
+
+  public static List<DataFile> partitionDataFiles(Table table, Map<String, Object> partitionValues)
+      throws IOException {
+    table.refresh();
+    Types.StructType spec = table.spec().partitionType();
+
+    Record partitionRecord = GenericRecord.create(spec).copy(partitionValues);
+    StructLikeWrapper expectedWrapper = StructLikeWrapper
+        .forType(spec)
+        .set(partitionRecord);
+
+    List<DataFile> dataFiles = Lists.newArrayList();
+    try (CloseableIterable<FileScanTask> fileScanTasks = table.newScan().planFiles()) {
+      for (FileScanTask scanTask : fileScanTasks) {
+        StructLikeWrapper wrapper = StructLikeWrapper
+            .forType(spec)
+            .set(scanTask.file().partition());
+
+        if (expectedWrapper.equals(wrapper)) {
+          dataFiles.add(scanTask.file());
+        }
+      }
+    }
+
+    return dataFiles;
   }
 }

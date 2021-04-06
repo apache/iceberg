@@ -34,24 +34,97 @@ This dependency is not part of the AWS SDK bundle and needs to be added separate
 To choose a different HTTP client library such as [Apache HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/apache-client),
 see the section [client customization](#aws-client-customization) for more details.
 
+All the AWS module features can be loaded through custom catalog properties,
+you can go to the documentations of each engine to see how to load a custom catalog.
+Here are some examples.
+
+### Spark
+
 For example, to use AWS features with Spark 3 and AWS clients version 2.15.40, you can start the Spark SQL shell with:
 
 ```sh
-DEPENDENCIES="org.apache.iceberg:iceberg-spark3-runtime:0.11.0"
-DEPENDENCIES+=",software.amazon.awssdk:bundle:2.15.40"
-DEPENDENCIES+=",software.amazon.awssdk:url-connection-client:2.15.40"
+# add Iceberg dependency
+ICEBERG_VERSION=0.11.0
+DEPENDENCIES="org.apache.iceberg:iceberg-spark3-runtime:$ICEBERG_VERSION"
 
+# add AWS dependnecy
+AWS_SDK_VERSION=2.15.40
+AWS_MAVEN_GROUP=software.amazon.awssdk
+AWS_PACKAGES=(
+    "bundle"
+    "url-connection-client"
+)
+for pkg in "${AWS_PACKAGES[@]}"; do
+    DEPENDENCIES+=",$AWS_MAVEN_GROUP:$pkg:$AWS_SDK_VERSION"
+done
+
+# start Spark SQL client shell
 spark-sql --packages $DEPENDENCIES \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
     --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
+    --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
     --conf spark.sql.catalog.my_catalog.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager \
     --conf spark.sql.catalog.my_catalog.lock.table=myGlueLockTable
 ```
 
 As you can see, In the shell command, we use `--packages` to specify the additional AWS bundle and HTTP client dependencies with their version as `2.15.40`.
 
-For integration with other engines such as Flink, please read their engine documentation pages that explain how to load a custom catalog. 
+### Flink
+
+To use AWS module with Flink, you can download the necessary dependencies and specify them when starting the Flink SQL client:
+
+```sh
+# download Iceberg dependency
+ICEBERG_VERSION=0.11.0
+MAVEN_URL=https://repo1.maven.org/maven2
+ICEBERG_MAVEN_URL=$MAVEN_URL/org/apache/iceberg
+wget $ICEBERG_MAVEN_URL/iceberg-flink-runtime/$ICEBERG_VERSION/iceberg-flink-runtime-$ICEBERG_VERSION.jar
+
+# download AWS dependnecy
+AWS_SDK_VERSION=2.15.40
+AWS_MAVEN_URL=$MAVEN_URL/software/amazon/awssdk
+AWS_PACKAGES=(
+    "bundle"
+    "url-connection-client"
+)
+for pkg in "${AWS_PACKAGES[@]}"; do
+    wget $AWS_MAVEN_URL/$pkg/$AWS_SDK_VERSION/$pkg-$AWS_SDK_VERSION.jar
+done
+
+# start Flink SQL client shell
+/path/to/bin/sql-client.sh embedded \
+    -j iceberg-flink-runtime-$ICEBERG_VERSION.jar \
+    -j bundle-$AWS_SDK_VERSION.jar \
+    -j url-connection-client-$AWS_SDK_VERSION.jar \
+    shell
+```
+
+With those dependencies, you can create a Flink catalog like the following:
+
+```sql
+CREATE CATALOG my_catalog WITH (
+  'type'='iceberg',
+  'warehouse'='s3://my-bucket/my/key/prefix',
+  'catalog-impl'='org.apache.iceberg.aws.glue.GlueCatalog',
+  'io-impl'='org.apache.iceberg.aws.s3.S3FileIO',
+  'lock-impl'='org.apache.iceberg.aws.glue.DynamoLockManager',
+  'lock.table'='myGlueLockTable'
+);
+```
+
+You can also specify the catalog configurations in `sql-client-defaults.yaml` to preload it:
+
+```yaml
+catalogs: 
+  - name: my_catalog
+    type: iceberg
+    warehouse: s3://my-bucket/my/key/prefix
+    catalog-impl: org.apache.iceberg.aws.glue.GlueCatalog
+    io-impl: org.apache.iceberg.aws.s3.S3FileIO
+    lock-impl: org.apache.iceberg.aws.glue.DynamoLockManager
+    lock.table: myGlueLockTable
+```
 
 ## Glue Catalog
 
@@ -260,9 +333,53 @@ spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:0.11.0,software.a
 
 ## Run Iceberg on AWS
 
+### Amazon EMR
+
 [Amazon EMR](https://aws.amazon.com/emr/) can provision clusters with [Spark](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-spark.html) (EMR 6 for Spark 3, EMR 5 for Spark 2),
 [Hive](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-hive.html), [Flink](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-flink.html),
 [Trino](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-presto.html) that can run Iceberg.
+
+You can use a [bootstrap action](https://docs.aws.amazon.com/emr/latest/ManagementGuide/emr-plan-bootstrap.html) similar to the following to pre-install all necessary dependencies:
+
+```sh
+#!/bin/bash
+
+AWS_SDK_VERSION=2.15.40
+ICEBERG_VERSION=0.11.0
+MAVEN_URL=https://repo1.maven.org/maven2
+ICEBERG_MAVEN_URL=$MAVEN_URL/org/apache/iceberg
+AWS_MAVEN_URL=$MAVEN_URL/software/amazon/awssdk
+# NOTE: this is just an example shared class path between Spark and Flink,
+#  please choose a proper class path for production.
+LIB_PATH=/usr/share/aws/aws-java-sdk/
+
+AWS_PACKAGES=(
+  "bundle"
+  "url-connection-client"
+)
+
+ICEBERG_PACKAGES=(
+  "iceberg-spark3-runtime"
+  "iceberg-flink-runtime"
+)
+
+install_dependencies () {
+  install_path=$1
+  download_url=$2
+  version=$3
+  shift
+  pkgs=("$@")
+  for pkg in "${pkgs[@]}"; do
+    sudo wget -P $install_path $download_url/$pkg/$version/$pkg-$version.jar
+  done
+}
+
+install_dependencies $LIB_PATH $ICEBERG_MAVEN_URL $ICEBERG_VERSION "${ICEBERG_PACKAGES[@]}"
+install_dependencies $LIB_PATH $AWS_MAVEN_URL $AWS_SDK_VERSION "${AWS_PACKAGES[@]}"
+```
+
+
+### Amazon Kinesis
 
 [Amazon Kinesis Data Analytics](https://aws.amazon.com/about-aws/whats-new/2019/11/you-can-now-run-fully-managed-apache-flink-applications-with-apache-kafka/) provides a platform 
 to run fully managed Apache Flink applications. You can include Iceberg in your application Jar and run it in the platform.

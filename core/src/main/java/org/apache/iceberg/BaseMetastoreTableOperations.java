@@ -32,9 +32,13 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS_DEFAULT;
 
 public abstract class BaseMetastoreTableOperations implements TableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(BaseMetastoreTableOperations.class);
@@ -45,6 +49,8 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   public static final String PREVIOUS_METADATA_LOCATION_PROP = "previous_metadata_location";
 
   private static final String METADATA_FOLDER_NAME = "metadata";
+
+  private static final int COMMIT_STATUS_CHECK_WAIT_MS = 1000;
 
   private TableMetadata currentMetadata = null;
   private String currentMetadataLocation = null;
@@ -243,6 +249,55 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
         return BaseMetastoreTableOperations.this.newSnapshotId();
       }
     };
+  }
+
+  protected enum CommitStatus {
+    FAILURE,
+    SUCCESS,
+    UNKNOWN
+  }
+
+  /**
+   * Attempt to load the table and see if any current or past metadata location matches the one we were attempting
+   * to set. This is used as a last resort when we are dealing with exceptions that may indicate the commit has
+   * failed but are not proof that this is the case. Past locations must also be searched on the chance that a second
+   * committer was able to successfully commit on top of our commit.
+   *
+   * @param newMetadataLocation the path of the new commit file
+   * @param config metadata to use for configuration
+   * @return Commit Status of Success, Failure or Unknown
+   */
+  protected CommitStatus checkCommitStatus(String newMetadataLocation, TableMetadata config) {
+    int maxAttempts = PropertyUtil.propertyAsInt(config.properties(), COMMIT_NUM_STATUS_CHECKS,
+        COMMIT_NUM_STATUS_CHECKS_DEFAULT);
+
+    AtomicReference<CommitStatus> status = new AtomicReference<>(CommitStatus.UNKNOWN);
+
+    Tasks.foreach(newMetadataLocation)
+        .retry(maxAttempts)
+        .suppressFailureWhenFinished()
+        .exponentialBackoff(COMMIT_STATUS_CHECK_WAIT_MS, COMMIT_STATUS_CHECK_WAIT_MS, Long.MAX_VALUE, 2.0)
+        .onFailure((location, checkException) ->
+            LOG.error("Cannot check if commit to {} exists.", tableName(), checkException))
+        .run(location -> {
+          TableMetadata metadata = refresh();
+          String currentMetadataFileLocation = metadata.metadataFileLocation();
+          boolean commitSuccess = currentMetadataFileLocation.equals(newMetadataLocation) ||
+              metadata.previousFiles().stream().anyMatch(log -> log.file().equals(newMetadataLocation));
+          if (commitSuccess) {
+            LOG.info("Commit status check: Commit to {} of {} succeeded", tableName(), newMetadataLocation);
+            status.set(CommitStatus.SUCCESS);
+          } else {
+            LOG.info("Commit status check: Commit to {} of {} failed", tableName(), newMetadataLocation);
+            status.set(CommitStatus.FAILURE);
+          }
+        });
+
+    if (status.get() == CommitStatus.UNKNOWN) {
+      LOG.error("Cannot determine commit state to {}. Failed during checking {} times. " +
+              "Treating commit state as unknown.", tableName(), maxAttempts);
+    }
+    return status.get();
   }
 
   private String newTableMetadataFilePath(TableMetadata meta, int newVersion) {

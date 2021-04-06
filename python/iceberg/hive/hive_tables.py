@@ -17,11 +17,42 @@
 # under the License.
 #
 
+import logging
+from multiprocessing import cpu_count
+from multiprocessing.dummy import Pool
+import threading
+from typing import Set
 
-from hmsclient import hmsclient
+from hmsclient import HMSClient, hmsclient
 from iceberg.core import BaseMetastoreTables
+from iceberg.core.util import WORKER_THREAD_POOL_SIZE_PROP
+from iceberg.hive import HiveTableOperations
 
-from .hive_table_operations import HiveTableOperations
+_logger = logging.getLogger(__name__)
+
+
+# Handles physical deletion of files.
+# Does not delete a file if it is referred more than once via Iceberg snapshot metadata pointers.
+class DeleteFiles(object):
+
+    def __init__(self, ops: HiveTableOperations):
+        self.ops = ops
+        self.seen: Set[str] = set()
+        self.set_lock = threading.Lock()
+
+    def delete_file(self, path: str) -> None:
+        have_seen = True
+        with self.set_lock:
+            if path not in self.seen:
+                have_seen = False
+                self.seen.add(path)
+
+        if not have_seen:
+            _logger.info("Deleting file: {path}".format(path=path))
+            try:
+                self.ops.delete_file(path)
+            except OSError as e:
+                _logger.info("Error deleting file: {path}: {e}".format(path=path, e=e))
 
 
 class HiveTables(BaseMetastoreTables):
@@ -34,12 +65,33 @@ class HiveTables(BaseMetastoreTables):
     def new_table_ops(self, conf, database, table):
         return HiveTableOperations(conf, self.get_client(), database, table)
 
-    def drop(self, database, table):
-        raise RuntimeError("Not yet implemented")
-
-    def get_client(self):
+    def get_client(self) -> HMSClient:
         from urllib.parse import urlparse
         metastore_uri = urlparse(self.conf[HiveTables.THRIFT_URIS])
 
         client = hmsclient.HMSClient(host=metastore_uri.hostname, port=metastore_uri.port)
         return client
+
+    def drop(self, database: str, table: str, purge: bool = False) -> None:
+        ops = self.new_table_ops(self.conf, database, table)
+        metadata = ops.current()
+
+        # Drop from Hive Metastore
+        with self.get_client() as open_client:
+            _logger.info("Deleting {database}.{table} from Hive Metastore".format(database=database, table=table))
+            open_client.drop_table(database, table, deleteData=False)
+
+        if purge:
+            # Follow Iceberg metadata pointers to delete every file
+            if metadata is not None:
+                with Pool(self.conf.get(WORKER_THREAD_POOL_SIZE_PROP,
+                                        cpu_count())) as delete_pool:
+                    deleter = DeleteFiles(ops)
+                    for s in metadata.snapshots:
+                        for m in s.manifests:
+                            delete_pool.map(deleter.delete_file,
+                                            (i.path() for i in s.get_filtered_manifest(m.manifest_path).iterator()))
+                        delete_pool.map(deleter.delete_file, (m.manifest_path for m in s.manifests))
+                        if s.manifest_location is not None:
+                            delete_pool.map(deleter.delete_file, [s.manifest_location])
+                    delete_pool.map(deleter.delete_file, [ops.current_metadata_location])

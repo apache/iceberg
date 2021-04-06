@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.hive;
 
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
@@ -47,6 +48,7 @@ import static org.mockito.Mockito.when;
 public class TestHiveCommitLocks extends HiveTableBaseTest {
   private static HiveTableOperations spyOps = null;
   private static HiveClientPool spyClientPool = null;
+  private static CachedClientPool spyCachedClientPool = null;
   private static Configuration overriddenHiveConf = new Configuration(hiveConf);
   private static AtomicReference<HiveMetaStoreClient> spyClientRef = new AtomicReference<>();
   private static HiveMetaStoreClient spyClient = null;
@@ -75,6 +77,10 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
     });
 
     spyClientPool.run(HiveMetaStoreClient::isLocalMetaStore); // To ensure new client is created.
+
+    spyCachedClientPool = spy(new CachedClientPool(hiveConf, Collections.emptyMap()));
+    when(spyCachedClientPool.clientPool()).thenAnswer(invocation -> spyClientPool);
+
     Assert.assertNotNull(spyClientRef.get());
 
     spyClient = spyClientRef.get();
@@ -99,7 +105,7 @@ public class TestHiveCommitLocks extends HiveTableBaseTest {
 
     Assert.assertEquals(2, ops.current().schema().columns().size());
 
-    spyOps = spy(new HiveTableOperations(overriddenHiveConf, spyClientPool, ops.io(), catalog.name(),
+    spyOps = spy(new HiveTableOperations(overriddenHiveConf, spyCachedClientPool, ops.io(), catalog.name(),
             dbName, tableName));
   }
 

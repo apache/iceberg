@@ -84,7 +84,7 @@ class BaseSnapshot(Snapshot, SnapshotIterable, CloseableGroup):
 
     @property
     def manifest_location(self):
-        return self._manifest_list.location if self._manifest_list is not None else None
+        return self._manifest_list.location() if self._manifest_list is not None else None
 
     @property
     def summary(self):
@@ -106,7 +106,6 @@ class BaseSnapshot(Snapshot, SnapshotIterable, CloseableGroup):
     def iterator(self, part_filter=None, row_filter=None, columns=None):
         if part_filter is None and row_filter is None and columns is None:
             return self.iterator(Expressions.always_true(), Expressions.always_true(), Filterable.ALL_COLUMNS)
-
         return iter([self.get_filtered_manifest(path, part_filter, row_filter, columns)
                      for path in self._manifest_files])
 
@@ -127,7 +126,7 @@ class BaseSnapshot(Snapshot, SnapshotIterable, CloseableGroup):
     def __str__(self):
         return self.__repr__()
 
-    def get_filtered_manifest(self, path, part_filter, row_filter, columns):
-        reader = ManifestReader.read(self.ops.new_input_file(path))
+    def get_filtered_manifest(self, path, part_filter=None, row_filter=None, columns=None):
+        reader = ManifestReader.read(self._ops.new_input_file(path))
         self.add_closeable(reader)
         return reader

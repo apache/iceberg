@@ -39,6 +39,7 @@ import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilterWithCardinal
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.MergeInto
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
+import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
@@ -61,6 +62,9 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
 
     case DropPartitionField(IcebergCatalogAndIdentifier(catalog, ident), transform) =>
       DropPartitionFieldExec(catalog, ident, transform) :: Nil
+
+    case ReplacePartitionField(IcebergCatalogAndIdentifier(catalog, ident), transformFrom, transformTo, name) =>
+      ReplacePartitionFieldExec(catalog, ident, transformFrom, transformTo, name) :: Nil
 
     case SetWriteDistributionAndOrdering(
         IcebergCatalogAndIdentifier(catalog, ident), distributionMode, ordering) =>

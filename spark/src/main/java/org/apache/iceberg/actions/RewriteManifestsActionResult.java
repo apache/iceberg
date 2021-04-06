@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
+@Deprecated
 public class RewriteManifestsActionResult {
 
   private static final RewriteManifestsActionResult EMPTY =
@@ -34,6 +35,12 @@ public class RewriteManifestsActionResult {
   public RewriteManifestsActionResult(List<ManifestFile> deletedManifests, List<ManifestFile> addedManifests) {
     this.deletedManifests = deletedManifests;
     this.addedManifests = addedManifests;
+  }
+
+  static RewriteManifestsActionResult wrap(RewriteManifests.Result result) {
+    return new RewriteManifestsActionResult(
+        ImmutableList.copyOf(result.rewrittenManifests()),
+        ImmutableList.copyOf(result.addedManifests()));
   }
 
   static RewriteManifestsActionResult empty() {

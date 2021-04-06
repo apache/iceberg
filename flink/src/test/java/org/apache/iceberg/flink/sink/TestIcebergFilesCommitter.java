@@ -52,6 +52,7 @@ import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
+import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.TestTableLoader;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.WriteResult;
@@ -578,7 +579,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       // 2. Read the data files from manifests and assert.
       List<DataFile> dataFiles = FlinkManifestUtil.readDataFiles(createTestingManifestFile(manifestPath), table.io());
       Assert.assertEquals(1, dataFiles.size());
-      TestFlinkManifest.checkContentFile(dataFile1, dataFiles.get(0));
+      TestHelpers.assertEquals(dataFile1, dataFiles.get(0));
 
       // 3. notifyCheckpointComplete for checkpoint#1
       harness.notifyOfCompletedCheckpoint(checkpoint);
@@ -619,7 +620,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
       // 2. Read the data files from manifests and assert.
       List<DataFile> dataFiles = FlinkManifestUtil.readDataFiles(createTestingManifestFile(manifestPath), table.io());
       Assert.assertEquals(1, dataFiles.size());
-      TestFlinkManifest.checkContentFile(dataFile1, dataFiles.get(0));
+      TestHelpers.assertEquals(dataFile1, dataFiles.get(0));
 
       // 3. notifyCheckpointComplete for checkpoint#1
       harness.notifyOfCompletedCheckpoint(checkpoint);

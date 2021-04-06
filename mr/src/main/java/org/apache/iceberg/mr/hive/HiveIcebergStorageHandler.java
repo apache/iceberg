@@ -20,6 +20,7 @@
 package org.apache.iceberg.mr.hive;
 
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
@@ -41,10 +42,14 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializationUtil;
 
 public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, HiveStorageHandler {
+  private static final Splitter TABLE_NAME_SPLITTER = Splitter.on("..");
+  private static final String TABLE_NAME_SEPARATOR = "..";
 
   static final String WRITE_KEY = "HiveIcebergStorageHandler_write";
 
@@ -108,7 +113,13 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   public void configureJobConf(TableDesc tableDesc, JobConf jobConf) {
     if (tableDesc != null && tableDesc.getProperties() != null &&
         tableDesc.getProperties().get(WRITE_KEY) != null) {
+      Preconditions.checkArgument(!tableDesc.getTableName().contains(TABLE_NAME_SEPARATOR),
+          "Can not handle table " + tableDesc.getTableName() + ". Its name contains '" + TABLE_NAME_SEPARATOR + "'");
+      String tables = jobConf.get(InputFormatConfig.OUTPUT_TABLES);
+      tables = tables == null ? tableDesc.getTableName() : tables + TABLE_NAME_SEPARATOR + tableDesc.getTableName();
+
       jobConf.set("mapred.output.committer.class", HiveIcebergOutputCommitter.class.getName());
+      jobConf.set(InputFormatConfig.OUTPUT_TABLES, tables);
     }
   }
 
@@ -142,12 +153,22 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   }
 
   /**
-   * Returns the Table serialized to the configuration.
+   * Returns the Table serialized to the configuration based on the table name.
    * @param config The configuration used to get the data from
+   * @param name The name of the table we need as returned by TableDesc.getTableName()
    * @return The Table
    */
-  public static Table table(Configuration config) {
-    return SerializationUtil.deserializeFromBase64(config.get(InputFormatConfig.SERIALIZED_TABLE));
+  public static Table table(Configuration config, String name) {
+    return SerializationUtil.deserializeFromBase64(config.get(InputFormatConfig.SERIALIZED_TABLE_PREFIX + name));
+  }
+
+  /**
+   * Returns the names of the output tables stored in the configuration.
+   * @param config The configuration used to get the data from
+   * @return The collection of the table names as returned by TableDesc.getTableName()
+   */
+  public static Collection<String> outputTables(Configuration config) {
+    return TABLE_NAME_SPLITTER.splitToList(config.get(InputFormatConfig.OUTPUT_TABLES));
   }
 
   /**
@@ -190,7 +211,8 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     map.put(InputFormatConfig.TABLE_SCHEMA, schemaJson);
 
     if (table instanceof Serializable) {
-      map.put(InputFormatConfig.SERIALIZED_TABLE, SerializationUtil.serializeToBase64(table));
+      map.put(InputFormatConfig.SERIALIZED_TABLE_PREFIX + tableDesc.getTableName(),
+          SerializationUtil.serializeToBase64(table));
     }
 
     // We need to remove this otherwise the job.xml will be invalid as column comments are separated with '\0' and

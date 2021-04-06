@@ -73,6 +73,14 @@ public class TableTestBase {
       .withPartitionPath("data_bucket=0") // easy way to set partition data for now
       .withRecordCount(1)
       .build();
+  // Equality delete files.
+  static final DeleteFile FILE_A2_DELETES = FileMetadata.deleteFileBuilder(SPEC)
+      .ofEqualityDeletes(3)
+      .withPath("/path/to/data-a2-deletes.parquet")
+      .withFileSizeInBytes(10)
+      .withPartitionPath("data_bucket=0")
+      .withRecordCount(1)
+      .build();
   static final DataFile FILE_B = DataFiles.builder(SPEC)
       .withPath("/path/to/data-b.parquet")
       .withFileSizeInBytes(10)

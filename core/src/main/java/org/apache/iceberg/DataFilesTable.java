@@ -32,49 +32,29 @@ import org.apache.iceberg.types.TypeUtil;
  * A {@link Table} implementation that exposes a table's data files as rows.
  */
 public class DataFilesTable extends BaseMetadataTable {
-  private final TableOperations ops;
-  private final Table table;
-  private final String name;
 
   DataFilesTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".files");
   }
 
   DataFilesTable(TableOperations ops, Table table, String name) {
-    this.ops = ops;
-    this.table = table;
-    this.name = name;
-  }
-
-  @Override
-  Table table() {
-    return table;
-  }
-
-  @Override
-  public String name() {
-    return name;
+    super(ops, table, name);
   }
 
   @Override
   public TableScan newScan() {
-    return new FilesTableScan(ops, table, schema());
+    return new FilesTableScan(operations(), table(), schema());
   }
 
   @Override
   public Schema schema() {
-    Schema schema = new Schema(DataFile.getType(table.spec().partitionType()).fields());
-    if (table.spec().fields().size() < 1) {
+    Schema schema = new Schema(DataFile.getType(table().spec().partitionType()).fields());
+    if (table().spec().fields().size() < 1) {
       // avoid returning an empty struct, which is not always supported. instead, drop the partition field
       return TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));
     } else {
       return schema;
     }
-  }
-
-  @Override
-  String metadataLocation() {
-    return ops.current().metadataFileLocation();
   }
 
   @Override
@@ -102,8 +82,8 @@ public class DataFilesTable extends BaseMetadataTable {
     }
 
     @Override
-    protected long targetSplitSize(TableOperations ops) {
-      return ops.current().propertyAsLong(
+    public long targetSplitSize() {
+      return tableOps().current().propertyAsLong(
           TableProperties.METADATA_SPLIT_SIZE, TableProperties.METADATA_SPLIT_SIZE_DEFAULT);
     }
 

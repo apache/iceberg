@@ -40,49 +40,29 @@ import org.apache.iceberg.util.ThreadPools;
  * This table may return duplicate rows.
  */
 public class AllDataFilesTable extends BaseMetadataTable {
-  private final TableOperations ops;
-  private final Table table;
-  private final String name;
 
   AllDataFilesTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".all_data_files");
   }
 
   AllDataFilesTable(TableOperations ops, Table table, String name) {
-    this.ops = ops;
-    this.table = table;
-    this.name = name;
-  }
-
-  @Override
-  Table table() {
-    return table;
-  }
-
-  @Override
-  public String name() {
-    return name;
+    super(ops, table, name);
   }
 
   @Override
   public TableScan newScan() {
-    return new AllDataFilesTableScan(ops, table, schema());
+    return new AllDataFilesTableScan(operations(), table(), schema());
   }
 
   @Override
   public Schema schema() {
-    Schema schema = new Schema(DataFile.getType(table.spec().partitionType()).fields());
-    if (table.spec().fields().size() < 1) {
+    Schema schema = new Schema(DataFile.getType(table().spec().partitionType()).fields());
+    if (table().spec().fields().size() < 1) {
       // avoid returning an empty struct, which is not always supported. instead, drop the partition field (id 102)
       return TypeUtil.selectNot(schema, Sets.newHashSet(102));
     } else {
       return schema;
     }
-  }
-
-  @Override
-  String metadataLocation() {
-    return ops.current().metadataFileLocation();
   }
 
   @Override
@@ -120,8 +100,8 @@ public class AllDataFilesTable extends BaseMetadataTable {
     }
 
     @Override
-    protected long targetSplitSize(TableOperations ops) {
-      return ops.current().propertyAsLong(
+    public long targetSplitSize() {
+      return tableOps().current().propertyAsLong(
           TableProperties.METADATA_SPLIT_SIZE, TableProperties.METADATA_SPLIT_SIZE_DEFAULT);
     }
 

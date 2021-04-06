@@ -25,6 +25,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
@@ -146,7 +147,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
   @Override
   public String toString() {
-    return getClass().getSimpleName() + "(" + name() + ")";
+    return MoreObjects.toStringHelper(this).toString();
   }
 
   protected abstract TableOperations newTableOps(TableIdentifier tableIdentifier);

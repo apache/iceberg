@@ -69,6 +69,7 @@ nav:
   - Hive: hive.md
   - Integrations:
     - AWS: aws.md
+    - Nessie: nessie.md
   - API:
     - Javadoc: /javadoc/
     - Java API intro: api.md

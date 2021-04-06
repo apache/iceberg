@@ -41,6 +41,7 @@ import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.NamedArgument
 import org.apache.spark.sql.catalyst.plans.logical.PositionalArgument
+import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
 import org.apache.spark.sql.connector.expressions
 import org.apache.spark.sql.connector.expressions.ApplyTransform
@@ -78,6 +79,18 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     DropPartitionField(
       typedVisit[Seq[String]](ctx.multipartIdentifier),
       typedVisit[Transform](ctx.transform))
+  }
+
+
+  /**
+   * Create an CHANGE PARTITION FIELD logical command.
+   */
+  override def visitReplacePartitionField(ctx: ReplacePartitionFieldContext): ReplacePartitionField = withOrigin(ctx) {
+    ReplacePartitionField(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      typedVisit[Transform](ctx.transform(0)),
+      typedVisit[Transform](ctx.transform(1)),
+      Option(ctx.name).map(_.getText))
   }
 
   /**

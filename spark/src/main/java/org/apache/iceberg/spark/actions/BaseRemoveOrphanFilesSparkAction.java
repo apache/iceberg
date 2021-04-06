@@ -34,7 +34,6 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.BaseRemoveOrphanFilesActionResult;
-import org.apache.iceberg.actions.BaseSparkAction;
 import org.apache.iceberg.actions.RemoveOrphanFiles;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -236,7 +235,7 @@ public class BaseRemoveOrphanFilesSparkAction
       Broadcast<SerializableConfiguration> conf,
       long olderThanTimestamp) {
 
-    return (FlatMapFunction<Iterator<String>, String>) dirs -> {
+    return dirs -> {
       List<String> subDirs = Lists.newArrayList();
       List<String> files = Lists.newArrayList();
 

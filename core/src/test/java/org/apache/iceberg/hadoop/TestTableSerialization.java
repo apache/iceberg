@@ -31,16 +31,70 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class TestTableSerialization extends HadoopTableTestBase {
 
   @Test
-  public void testSerializeBaseTable() throws IOException {
+  public void testSerializableTable() throws IOException, ClassNotFoundException {
+    table.replaceSortOrder()
+        .asc("id")
+        .commit();
+
+    table.updateProperties()
+        .set("k1", "v1")
+        .set("k2", "v2")
+        .commit();
+
+    table.updateSchema()
+        .addColumn("new_col", Types.IntegerType.get())
+        .commit();
+
+    TestHelpers.assertSerializedAndLoadedMetadata(table, TestHelpers.roundTripSerialize(table));
+  }
+
+  @Test
+  public void testSerializableTxnTable() throws IOException, ClassNotFoundException {
+    table.replaceSortOrder()
+        .asc("id")
+        .commit();
+
+    table.updateProperties()
+        .set("k1", "v1")
+        .set("k2", "v2")
+        .commit();
+
+    table.updateSchema()
+        .addColumn("new_col", Types.IntegerType.get())
+        .commit();
+
+    Transaction txn = table.newTransaction();
+
+    txn.updateProperties()
+        .set("k3", "v3")
+        .commit();
+
+    // txn tables have metadata locations as null so we check only serialized metadata
+    TestHelpers.assertSerializedMetadata(txn.table(), TestHelpers.roundTripSerialize(txn.table()));
+  }
+
+  @Test
+  public void testSerializableMetadataTable() throws IOException, ClassNotFoundException {
+    for (MetadataTableType type : MetadataTableType.values()) {
+      Table metadataTable = getMetaDataTable(table, type);
+      TestHelpers.assertSerializedAndLoadedMetadata(metadataTable, TestHelpers.roundTripSerialize(metadataTable));
+    }
+  }
+
+  @Test
+  public void testSerializableTablePlanning() throws IOException {
     table.newAppend()
         .appendFile(FILE_A)
         .commit();
@@ -65,7 +119,7 @@ public class TestTableSerialization extends HadoopTableTestBase {
   }
 
   @Test
-  public void testMetadataTables() throws IOException {
+  public void testSerializableMetadataTablesPlanning() throws IOException {
     table.newAppend()
         .appendFile(FILE_A)
         .commit();

@@ -102,6 +102,24 @@ public class TestHelpers {
     );
   }
 
+  public static void assertSerializedMetadata(Table expected, Table actual) {
+    Assert.assertEquals("Name must match", expected.name(), actual.name());
+    Assert.assertEquals("Location must match", expected.location(), actual.location());
+    Assert.assertEquals("Props must match", expected.properties(), actual.properties());
+    Assert.assertEquals("Schema must match", expected.schema().asStruct(), actual.schema().asStruct());
+    Assert.assertEquals("Spec must match", expected.spec(), actual.spec());
+    Assert.assertEquals("Sort order must match", expected.sortOrder(), actual.sortOrder());
+  }
+
+  public static void assertSerializedAndLoadedMetadata(Table expected, Table actual) {
+    assertSerializedMetadata(expected, actual);
+    Assert.assertEquals("Specs must match", expected.specs(), actual.specs());
+    Assert.assertEquals("Sort orders must match", expected.sortOrders(), actual.sortOrders());
+    Assert.assertEquals("Current snapshot must match", expected.currentSnapshot(), actual.currentSnapshot());
+    Assert.assertEquals("Snapshots must match", expected.snapshots(), actual.snapshots());
+    Assert.assertEquals("History must match", expected.history(), actual.history());
+  }
+
   private static class CheckReferencesBound extends ExpressionVisitors.ExpressionVisitor<Void> {
     private final String message;
 

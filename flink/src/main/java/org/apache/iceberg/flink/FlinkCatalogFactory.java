@@ -33,8 +33,8 @@ import org.apache.flink.table.factories.CatalogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -44,13 +44,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
  * <p>
  * This supports the following catalog configuration options:
  * <ul>
- *   <li><tt>type</tt> - Flink catalog factory key, should be "iceberg"</li>
- *   <li><tt>catalog-type</tt> - iceberg catalog type, "hive" or "hadoop"</li>
- *   <li><tt>uri</tt> - the Hive Metastore URI (Hive catalog only)</li>
- *   <li><tt>clients</tt> - the Hive Client Pool Size (Hive catalog only)</li>
- *   <li><tt>warehouse</tt> - the warehouse path (Hadoop catalog only)</li>
- *   <li><tt>default-database</tt> - a database name to use as the default</li>
- *   <li><tt>base-namespace</tt> - a base namespace as the prefix for all databases (Hadoop catalog only)</li>
+ *   <li><code>type</code> - Flink catalog factory key, should be "iceberg"</li>
+ *   <li><code>catalog-type</code> - iceberg catalog type, "hive" or "hadoop"</li>
+ *   <li><code>uri</code> - the Hive Metastore URI (Hive catalog only)</li>
+ *   <li><code>clients</code> - the Hive Client Pool Size (Hive catalog only)</li>
+ *   <li><code>warehouse</code> - the warehouse path (Hadoop catalog only)</li>
+ *   <li><code>default-database</code> - a database name to use as the default</li>
+ *   <li><code>base-namespace</code> - a base namespace as the prefix for all databases (Hadoop catalog only)</li>
  * </ul>
  * <p>
  * To use a custom catalog that is not a Hive or Hadoop catalog, extend this class and override
@@ -120,9 +120,12 @@ public class FlinkCatalogFactory implements CatalogFactory {
   protected Catalog createCatalog(String name, Map<String, String> properties, Configuration hadoopConf) {
     CatalogLoader catalogLoader = createCatalogLoader(name, properties, hadoopConf);
     String defaultDatabase = properties.getOrDefault(DEFAULT_DATABASE, "default");
-    String[] baseNamespace = properties.containsKey(BASE_NAMESPACE) ?
-        Splitter.on('.').splitToList(properties.get(BASE_NAMESPACE)).toArray(new String[0]) :
-        new String[0];
+
+    Namespace baseNamespace = Namespace.empty();
+    if (properties.containsKey(BASE_NAMESPACE)) {
+      baseNamespace = Namespace.of(properties.get(BASE_NAMESPACE).split("\\."));
+    }
+
     boolean cacheEnabled = Boolean.parseBoolean(properties.getOrDefault(CACHE_ENABLED, "true"));
     return new FlinkCatalog(name, defaultDatabase, baseNamespace, catalogLoader, cacheEnabled);
   }

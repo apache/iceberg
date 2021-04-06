@@ -101,6 +101,10 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     return table;
   }
 
+  protected PartitionSpec spec() {
+    return spec;
+  }
+
   protected EncryptionManager encryptionManager() {
     return encryptionManager;
   }

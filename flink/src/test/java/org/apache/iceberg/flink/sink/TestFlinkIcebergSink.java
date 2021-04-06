@@ -21,9 +21,6 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -183,10 +180,8 @@ public class TestFlinkIcebergSink {
     SimpleDataUtil.assertTableRows(tablePath, convertToRowData(rows));
   }
 
-  private List<Path> partitionFiles(String partition) throws IOException {
-    return Files.list(Paths.get(tablePath, "data", String.format("data=%s", partition)))
-        .filter(p -> !p.toString().endsWith(".crc"))
-        .collect(Collectors.toList());
+  private int partitionFiles(String partition) throws IOException {
+    return SimpleDataUtil.partitionDataFiles(table, ImmutableMap.of("data", partition)).size();
   }
 
   @Test
@@ -209,7 +204,7 @@ public class TestFlinkIcebergSink {
 
     if (parallelism > 1) {
       if (partitioned) {
-        int files = partitionFiles("aaa").size() + partitionFiles("bbb").size() + partitionFiles("ccc").size();
+        int files = partitionFiles("aaa") + partitionFiles("bbb") + partitionFiles("ccc");
         Assert.assertTrue("Should have more than 3 files in iceberg table.", files > 3);
       }
     }
@@ -238,9 +233,9 @@ public class TestFlinkIcebergSink {
     testWriteRow(null, null);
 
     if (partitioned) {
-      Assert.assertEquals("There should be only 1 data file in partition 'aaa'", 1, partitionFiles("aaa").size());
-      Assert.assertEquals("There should be only 1 data file in partition 'bbb'", 1, partitionFiles("bbb").size());
-      Assert.assertEquals("There should be only 1 data file in partition 'ccc'", 1, partitionFiles("ccc").size());
+      Assert.assertEquals("There should be only 1 data file in partition 'aaa'", 1, partitionFiles("aaa"));
+      Assert.assertEquals("There should be only 1 data file in partition 'bbb'", 1, partitionFiles("bbb"));
+      Assert.assertEquals("There should be only 1 data file in partition 'ccc'", 1, partitionFiles("ccc"));
     }
   }
 
@@ -248,9 +243,9 @@ public class TestFlinkIcebergSink {
   public void testPartitionWriteMode() throws Exception {
     testWriteRow(null, DistributionMode.HASH);
     if (partitioned) {
-      Assert.assertEquals("There should be only 1 data file in partition 'aaa'", 1, partitionFiles("aaa").size());
-      Assert.assertEquals("There should be only 1 data file in partition 'bbb'", 1, partitionFiles("bbb").size());
-      Assert.assertEquals("There should be only 1 data file in partition 'ccc'", 1, partitionFiles("ccc").size());
+      Assert.assertEquals("There should be only 1 data file in partition 'aaa'", 1, partitionFiles("aaa"));
+      Assert.assertEquals("There should be only 1 data file in partition 'bbb'", 1, partitionFiles("bbb"));
+      Assert.assertEquals("There should be only 1 data file in partition 'ccc'", 1, partitionFiles("ccc"));
     }
   }
 
@@ -258,9 +253,9 @@ public class TestFlinkIcebergSink {
   public void testShuffleByPartitionWithSchema() throws Exception {
     testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.HASH);
     if (partitioned) {
-      Assert.assertEquals("There should be only 1 data file in partition 'aaa'", 1, partitionFiles("aaa").size());
-      Assert.assertEquals("There should be only 1 data file in partition 'bbb'", 1, partitionFiles("bbb").size());
-      Assert.assertEquals("There should be only 1 data file in partition 'ccc'", 1, partitionFiles("ccc").size());
+      Assert.assertEquals("There should be only 1 data file in partition 'aaa'", 1, partitionFiles("aaa"));
+      Assert.assertEquals("There should be only 1 data file in partition 'bbb'", 1, partitionFiles("bbb"));
+      Assert.assertEquals("There should be only 1 data file in partition 'ccc'", 1, partitionFiles("ccc"));
     }
   }
 }

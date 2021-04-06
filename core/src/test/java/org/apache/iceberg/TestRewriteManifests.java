@@ -576,7 +576,7 @@ public class TestRewriteManifests extends TableTestBase {
     // commit the new partition spec to the table manually
     table.ops().commit(base, base.updatePartitionSpec(newSpec));
 
-    DataFile newFileY = DataFiles.builder(newSpec)
+    DataFile newFileY = DataFiles.builder(table.spec())
         .withPath("/path/to/data-y.parquet")
         .withFileSizeInBytes(10)
         .withPartitionPath("data_bucket=2/id_bucket=3")
@@ -587,7 +587,7 @@ public class TestRewriteManifests extends TableTestBase {
         .appendFile(newFileY)
         .commit();
 
-    DataFile newFileZ = DataFiles.builder(newSpec)
+    DataFile newFileZ = DataFiles.builder(table.spec())
         .withPath("/path/to/data-z.parquet")
         .withFileSizeInBytes(10)
         .withPartitionPath("data_bucket=2/id_bucket=4")
@@ -649,7 +649,7 @@ public class TestRewriteManifests extends TableTestBase {
     // commit the new partition spec to the table manually
     table.ops().commit(base, base.updatePartitionSpec(newSpec));
 
-    DataFile newFileY = DataFiles.builder(newSpec)
+    DataFile newFileY = DataFiles.builder(table.spec())
         .withPath("/path/to/data-y.parquet")
         .withFileSizeInBytes(10)
         .withPartitionPath("data_bucket=2/id_bucket=3")
@@ -660,7 +660,7 @@ public class TestRewriteManifests extends TableTestBase {
         .appendFile(newFileY)
         .commit();
 
-    DataFile newFileZ = DataFiles.builder(newSpec)
+    DataFile newFileZ = DataFiles.builder(table.spec())
         .withPath("/path/to/data-z.parquet")
         .withFileSizeInBytes(10)
         .withPartitionPath("data_bucket=2/id_bucket=4")

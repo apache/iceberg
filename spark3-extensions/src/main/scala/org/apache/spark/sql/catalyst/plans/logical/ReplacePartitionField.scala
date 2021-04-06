@@ -17,29 +17,22 @@
  * under the License.
  */
 
-package org.apache.iceberg.actions;
+package org.apache.spark.sql.catalyst.plans.logical
 
-import java.util.Map;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.connector.expressions.Transform
 
-abstract class BaseSnapshotUpdateSparkAction<ThisT, R>
-    extends BaseSparkAction<ThisT, R> implements SnapshotUpdate<ThisT, R> {
+case class ReplacePartitionField(
+    table: Seq[String],
+    transformFrom: Transform,
+    transformTo: Transform,
+    name: Option[String]) extends Command {
+  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
-  private final Map<String, String> summary = Maps.newHashMap();
+  override lazy val output: Seq[Attribute] = Nil
 
-  protected BaseSnapshotUpdateSparkAction(SparkSession spark) {
-    super(spark);
-  }
-
-  @Override
-  public ThisT snapshotProperty(String property, String value) {
-    summary.put(property, value);
-    return self();
-  }
-
-  protected void commit(org.apache.iceberg.SnapshotUpdate<?> update) {
-    summary.forEach(update::set);
-    update.commit();
+  override def simpleString(maxFields: Int): String = {
+    s"ReplacePartitionField ${table.quoted} ${transformFrom.describe} " +
+        s"with ${name.map(n => s"$n=").getOrElse("")}${transformTo.describe}"
   }
 }

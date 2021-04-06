@@ -28,7 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransportException;
 
-public class HiveClientPool extends ClientPool<HiveMetaStoreClient, TException> {
+public class HiveClientPool extends ClientPoolImpl<HiveMetaStoreClient, TException> {
 
   // use appropriate ctor depending on whether we're working with Hive2 or Hive3 dependencies
   // we need to do this because there is a breaking API change between Hive2 and Hive3
