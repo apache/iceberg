@@ -53,7 +53,7 @@ public class WriteResult implements Serializable {
   public CharSequence[] referencedDataFiles() {
     return referencedDataFiles;
   }
-  
+
   public static Builder builder() {
     return new Builder();
   }
