@@ -220,5 +220,8 @@ public class TestAlterTable extends SparkCatalogTestBase {
 
     Assert.assertNull("Should not have the removed table property",
         validationCatalog.loadTable(tableIdent).properties().get("prop"));
+
+    AssertHelpers.assertThrows("'sort-order' is a reserved property.", UnsupportedOperationException.class,
+        () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('sort-order'='value')", tableName));
   }
 }
