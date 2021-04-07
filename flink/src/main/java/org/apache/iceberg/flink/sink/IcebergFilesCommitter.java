@@ -124,9 +124,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     this.tableLoader.open();
     this.table = tableLoader.loadTable();
     final Map<String, String> properties = table.properties();
-    maxContinuousEmptyCommits = PropertyUtil.propertyAsInt(properties, MAX_CONTINUOUS_EMPTY_COMMITS, 10);
-    Preconditions.checkArgument(maxContinuousEmptyCommits > 0, MAX_CONTINUOUS_EMPTY_COMMITS + " must not be " +
-        "negative");
+    maxContinuousEmptyCommits = PropertyUtil.propertyAsInt(properties, MAX_CONTINUOUS_EMPTY_COMMITS, 1);
+    Preconditions.checkArgument(maxContinuousEmptyCommits > 0, MAX_CONTINUOUS_EMPTY_COMMITS + " must be " +
+        "positive");
     int subTaskId = getRuntimeContext().getIndexOfThisSubtask();
     int attemptId = getRuntimeContext().getAttemptNumber();
     this.manifestOutputFileFactory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, subTaskId, attemptId);
