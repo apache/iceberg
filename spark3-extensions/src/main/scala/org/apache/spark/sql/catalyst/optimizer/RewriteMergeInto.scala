@@ -59,6 +59,8 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
   import ExtendedDataSourceV2Implicits._
   import RewriteMergeInto._
 
+  override def conf: SQLConf = spark.sessionState.conf
+
   override def apply(plan: LogicalPlan): LogicalPlan = {
     plan transform {
       case MergeIntoTable(target: DataSourceV2Relation, source, cond, matchedActions, notMatchedActions)
@@ -140,7 +142,7 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
         val writePlan = buildWritePlan(mergePlan, target.table)
         val batchWrite = mergeBuilder.asWriteBuilder.buildForBatch()
 
-        ReplaceData(target, batchWrite, writePlan)
+        ReplaceData(target, writePlan, true, batchWrite)
 
       case MergeIntoTable(target: DataSourceV2Relation, source, cond, matchedActions, notMatchedActions)
           if isIcebergRelation(target) =>
@@ -172,7 +174,7 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
         val writePlan = buildWritePlan(mergePlan, target.table)
         val batchWrite = mergeBuilder.asWriteBuilder.buildForBatch()
 
-        ReplaceData(target, batchWrite, writePlan)
+        ReplaceData(target, writePlan, true, batchWrite)
     }
   }
 
@@ -202,7 +204,7 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
     val output = target.output
     val matchingRowsPlanBuilder = rel => Join(source, rel, Inner, Some(cond), JoinHint.NONE)
     val runCardinalityCheck = isCardinalityCheckEnabled(table) && isCardinalityCheckNeeded(matchedActions)
-    buildDynamicFilterScanPlan(spark, table, output, mergeBuilder, cond, matchingRowsPlanBuilder, runCardinalityCheck)
+    buildDynamicFilterScanPlan(spark, target, output, mergeBuilder, cond, matchingRowsPlanBuilder, runCardinalityCheck)
   }
 
   private def rewriteMatchedActions(

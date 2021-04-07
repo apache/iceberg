@@ -77,7 +77,7 @@ class RollbackToTimestampProcedure extends BaseProcedure {
   public InternalRow[] call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     // timestamps in Spark have nanosecond precision so this conversion is lossy
-    long timestampMillis = DateTimeUtils.toMillis(args.getLong(1));
+    long timestampMillis = DateTimeUtils.microsToMillis(args.getLong(1));
 
     return modifyIcebergTable(tableIdent, table -> {
       Snapshot previousSnapshot = table.currentSnapshot();

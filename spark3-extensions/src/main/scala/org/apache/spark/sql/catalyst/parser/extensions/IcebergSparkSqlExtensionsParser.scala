@@ -41,7 +41,7 @@ import org.apache.spark.sql.types.StructType
 
 class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserInterface {
 
-  private lazy val substitutor = new VariableSubstitution(SQLConf.get)
+  private lazy val substitutor = new VariableSubstitution()
   private lazy val astBuilder = new IcebergSqlExtensionsAstBuilder(delegate)
 
   /**
@@ -49,13 +49,6 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
    */
   override def parseDataType(sqlText: String): DataType = {
     delegate.parseDataType(sqlText)
-  }
-
-  /**
-   * Parse a string to a raw DataType without CHAR/VARCHAR replacement.
-   */
-  override def parseRawDataType(sqlText: String): DataType = {
-    delegate.parseRawDataType(sqlText)
   }
 
   /**

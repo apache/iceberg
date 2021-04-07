@@ -87,7 +87,7 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
       val batchExec = ExtendedBatchScanExec(output, scan)
       withProjectAndFilter(project, filters, batchExec, !batchExec.supportsColumnar) :: Nil
 
-    case ReplaceData(relation, batchWrite, query) =>
+    case ReplaceData(relation, query, _, batchWrite) =>
       ReplaceDataExec(batchWrite, refreshCache(relation), planLater(query)) :: Nil
 
     case MergeInto(mergeIntoParams, output, child) =>

@@ -20,6 +20,7 @@
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.spark.sql.AnalysisException
+import org.apache.spark.sql.catalyst.SQLConfHelper
 import org.apache.spark.sql.catalyst.expressions.Alias
 import org.apache.spark.sql.catalyst.expressions.AnsiCast
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
@@ -38,7 +39,7 @@ import org.apache.spark.sql.types.StructField
 import org.apache.spark.sql.types.StructType
 import scala.collection.mutable
 
-trait AssignmentAlignmentSupport extends CastSupport {
+trait AssignmentAlignmentSupport extends CastSupport with SQLConfHelper {
 
   private case class ColumnUpdate(ref: Seq[String], expr: Expression)
 

@@ -77,7 +77,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
   @Override
   public InternalRow[] call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
-    Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtils.toMillis(args.getLong(1));
+    Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtils.microsToMillis(args.getLong(1));
     Integer retainLastNum = args.isNullAt(2) ? null : args.getInt(2);
 
     return modifyIcebergTable(tableIdent, table -> {

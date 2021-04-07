@@ -53,6 +53,8 @@ case class RewriteDelete(spark: SparkSession) extends Rule[LogicalPlan] with Rew
   import ExtendedDataSourceV2Implicits._
   import RewriteRowLevelOperationHelper._
 
+  override def conf: SQLConf = spark.sessionState.conf
+
   override def apply(plan: LogicalPlan): LogicalPlan = plan transform {
     // don't rewrite deletes that can be answered by passing filters to deleteWhere in SupportsDelete
     case d @ DeleteFromTable(r: DataSourceV2Relation, Some(cond))
@@ -66,14 +68,14 @@ case class RewriteDelete(spark: SparkSession) extends Rule[LogicalPlan] with Rew
       val mergeBuilder = r.table.asMergeable.newMergeBuilder("delete", writeInfo)
 
       val matchingRowsPlanBuilder = scanRelation => Filter(cond, scanRelation)
-      val scanPlan = buildDynamicFilterScanPlan(spark, r.table, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
+      val scanPlan = buildDynamicFilterScanPlan(spark, r, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
 
       val remainingRowFilter = Not(EqualNullSafe(cond, Literal(true, BooleanType)))
       val remainingRowsPlan = Filter(remainingRowFilter, scanPlan)
 
       val mergeWrite = mergeBuilder.asWriteBuilder.buildForBatch()
       val writePlan = buildWritePlan(remainingRowsPlan, r.table, r.output)
-      ReplaceData(r, mergeWrite, writePlan)
+      ReplaceData(r, writePlan, true, mergeWrite)
   }
 
   private def buildWritePlan(
