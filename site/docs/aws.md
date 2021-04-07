@@ -44,7 +44,7 @@ For example, to use AWS features with Spark 3 and AWS clients version 2.15.40, y
 
 ```sh
 # add Iceberg dependency
-ICEBERG_VERSION=0.11.0
+ICEBERG_VERSION={{ versions.iceberg }}
 DEPENDENCIES="org.apache.iceberg:iceberg-spark3-runtime:$ICEBERG_VERSION"
 
 # add AWS dependnecy
@@ -76,7 +76,7 @@ To use AWS module with Flink, you can download the necessary dependencies and sp
 
 ```sh
 # download Iceberg dependency
-ICEBERG_VERSION=0.11.0
+ICEBERG_VERSION={{ versions.iceberg }}
 MAVEN_URL=https://repo1.maven.org/maven2
 ICEBERG_MAVEN_URL=$MAVEN_URL/org/apache/iceberg
 wget $ICEBERG_MAVEN_URL/iceberg-flink-runtime/$ICEBERG_VERSION/iceberg-flink-runtime-$ICEBERG_VERSION.jar
@@ -322,7 +322,7 @@ The Glue, S3 and DynamoDB clients are then initialized with the assume-role cred
 Here is an example to start Spark shell with this client factory:
 
 ```shell
-spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:0.11.0,software.amazon.awssdk:bundle:2.15.40 \
+spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:{{ versions.iceberg }},software.amazon.awssdk:bundle:2.15.40 \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \    
     --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
@@ -345,7 +345,7 @@ You can use a [bootstrap action](https://docs.aws.amazon.com/emr/latest/Manageme
 #!/bin/bash
 
 AWS_SDK_VERSION=2.15.40
-ICEBERG_VERSION=0.11.0
+ICEBERG_VERSION={{ versions.iceberg }}
 MAVEN_URL=https://repo1.maven.org/maven2
 ICEBERG_MAVEN_URL=$MAVEN_URL/org/apache/iceberg
 AWS_MAVEN_URL=$MAVEN_URL/software/amazon/awssdk

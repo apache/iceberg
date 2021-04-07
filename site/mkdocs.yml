@@ -28,8 +28,12 @@ theme: cinder
 copyright: "Copyright 2018-2021 <a href='https://www.apache.org/'>The Apache Software Foundation</a><br />Apache Iceberg, Iceberg, Apache, the Apache feather logo, and the Apache Iceberg project logo are either registered<br />trademarks or trademarks of The Apache Software Foundation in the United States and other countries."
 extra_css:
   - css/extra.css
+extra:
+  versions:
+    iceberg: 0.11.1
 plugins:
   - redirects
+  - markdownextradata  
 markdown_extensions:
   - toc:
       permalink: True

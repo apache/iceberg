@@ -1,0 +1,4 @@
+mkdocs-cinder
+mkdocs-redirects
+pymdown-extensions
+mkdocs-markdownextradata-plugin
