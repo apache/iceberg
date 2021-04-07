@@ -907,7 +907,7 @@ public class Spark3Util {
     @Override
     public String truncate(String sourceName, int sourceId, int width,
                            org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
-      return String.format("bucket(%s, %s) %s %s", sourceName, width, direction, nullOrder);
+      return String.format("truncate(%s, %s) %s %s", sourceName, width, direction, nullOrder);
     }
 
     @Override
