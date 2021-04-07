@@ -142,40 +142,29 @@ public class TestIcebergFilesCommitter extends TableTestBase {
   }
 
   @Test
-  public void testEmptyCommits() throws Exception {
-    table.updateProperties().set(IcebergFilesCommitter.MAX_CONTINUOUS_EMPTY_COMMITS, "3").commit();
+  public void testMaxContinuousEmptyCommits() throws Exception {
+    table.updateProperties()
+        .set(IcebergFilesCommitter.MAX_CONTINUOUS_EMPTY_COMMITS, "3")
+        .commit();
+
     JobID jobId = new JobID();
     long checkpointId = 0;
     long timestamp = 0;
     try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
-      int before = snapshotCount();
-      doEmptyCommit(harness, ++checkpointId, ++timestamp);
-      doEmptyCommit(harness, ++checkpointId, ++timestamp);
-      doEmptyCommit(harness, ++checkpointId, ++timestamp);
-      int after = snapshotCount();
-      Assert.assertEquals(1, after - before);
+      harness.setup();
+      harness.open();
+
+      assertSnapshotSize(0);
+
+      for (int i = 1; i <= 9; i++) {
+        harness.snapshot(++checkpointId, ++timestamp);
+        harness.notifyOfCompletedCheckpoint(checkpointId);
+
+        assertSnapshotSize(i / 3);
+      }
     }
   }
 
-  private void doEmptyCommit(
-      OneInputStreamOperatorTestHarness<WriteResult, Void> harness,
-      long checkpointId,
-      long timestamp) throws Exception {
-    harness.setup();
-    harness.open();
-    harness.processElement(WriteResult.builder().build(), ++timestamp);
-    harness.snapshot(++checkpointId, ++timestamp);
-    harness.notifyOfCompletedCheckpoint(checkpointId);
-  }
-
-  private int snapshotCount() {
-    int count = 0;
-    table.refresh();
-    for (Snapshot snapshot : table.snapshots()) {
-      count++;
-    }
-    return count;
-  }
   private WriteResult of(DataFile dataFile) {
     return WriteResult.builder().addDataFiles(dataFile).build();
   }
