@@ -44,15 +44,12 @@ import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.SerializationUtil;
 
 public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, HiveStorageHandler {
   private static final Splitter TABLE_NAME_SPLITTER = Splitter.on("..");
   private static final String TABLE_NAME_SEPARATOR = "..";
-  public static final String CATALOG_NAME_SEPARATOR = "::";
 
   static final String WRITE_KEY = "HiveIcebergStorageHandler_write";
 
@@ -116,19 +113,18 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   public void configureJobConf(TableDesc tableDesc, JobConf jobConf) {
     if (tableDesc != null && tableDesc.getProperties() != null &&
         tableDesc.getProperties().get(WRITE_KEY) != null) {
-      Preconditions.checkArgument(!tableDesc.getTableName().contains(TABLE_NAME_SEPARATOR),
-          "Can not handle table " + tableDesc.getTableName() + ". Its name contains '" + TABLE_NAME_SEPARATOR + "'");
+      String tableName = tableDesc.getTableName();
+      Preconditions.checkArgument(!tableName.contains(TABLE_NAME_SEPARATOR),
+          "Can not handle table " + tableName + ". Its name contains '" + TABLE_NAME_SEPARATOR + "'");
       String tables = jobConf.get(InputFormatConfig.OUTPUT_TABLES);
-      String catalogName = tableDesc.getProperties().getProperty(InputFormatConfig.CATALOG_NAME);
-      if (catalogName != null) {
-        String tableWithCatalogName = catalogName + CATALOG_NAME_SEPARATOR + tableDesc.getTableName();
-        tables = tables == null ? tableWithCatalogName : tables + TABLE_NAME_SEPARATOR + tableWithCatalogName;
-      } else {
-        tables = tables == null ? tableDesc.getTableName() : tables + TABLE_NAME_SEPARATOR + tableDesc.getTableName();
-      }
-
+      tables = tables == null ? tableName : tables + TABLE_NAME_SEPARATOR + tableName;
       jobConf.set("mapred.output.committer.class", HiveIcebergOutputCommitter.class.getName());
       jobConf.set(InputFormatConfig.OUTPUT_TABLES, tables);
+
+      String catalogName = tableDesc.getProperties().getProperty(InputFormatConfig.CATALOG_NAME);
+      if (catalogName != null) {
+        jobConf.set(InputFormatConfig.TABLE_CATALOG_PREFIX + tableName, catalogName);
+      }
     }
   }
 
@@ -174,19 +170,20 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   /**
    * Returns the names of the output tables stored in the configuration.
    * @param config The configuration used to get the data from
-   * @return The collection of catalog name - table name pairs.
+   * @return The collection of the table names as returned by TableDesc.getTableName()
    */
-  public static Collection<Pair<String, String>> outputTables(Configuration config) {
-    Collection<String> tables = TABLE_NAME_SPLITTER.splitToList(config.get(InputFormatConfig.OUTPUT_TABLES));
-    Collection<Pair<String, String>> result = Lists.newArrayList();
-    tables.stream().map(t -> t.split(CATALOG_NAME_SEPARATOR, 2)).forEach(s -> {
-      if (s.length < 2) {
-        result.add(Pair.of(null, s[0]));
-      } else {
-        result.add(Pair.of(s[0], s[1]));
-      }
-    });
-    return result;
+  public static Collection<String> outputTables(Configuration config) {
+    return TABLE_NAME_SPLITTER.splitToList(config.get(InputFormatConfig.OUTPUT_TABLES));
+  }
+
+  /**
+   * Returns the catalog name serialized to the configuration.
+   * @param config The configuration used to get the data from
+   * @param name The name of the table we neeed as returned by TableDesc.getTableName()
+   * @return catalog name
+   */
+  public static String catalogName(Configuration config, String name) {
+    return config.get(InputFormatConfig.TABLE_CATALOG_PREFIX + name);
   }
 
   /**

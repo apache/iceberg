@@ -51,7 +51,6 @@ import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -94,7 +93,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
     TaskAttemptID attemptID = context.getTaskAttemptID();
     JobConf jobConf = context.getJobConf();
     Map<String, HiveIcebergRecordWriter> writers = HiveIcebergRecordWriter.getWriters(attemptID);
-    Collection<Pair<String, String>> outputs = HiveIcebergStorageHandler.outputTables(context.getJobConf());
+    Collection<String> outputs = HiveIcebergStorageHandler.outputTables(context.getJobConf());
 
     ExecutorService tableExecutor = tableExecutor(jobConf, outputs.size());
     try {
@@ -105,8 +104,8 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
           .throwFailureWhenFinished()
           .executeWith(tableExecutor)
           .run(output -> {
-            Table table = HiveIcebergStorageHandler.table(context.getJobConf(), output.second());
-            HiveIcebergRecordWriter writer = writers.get(output.second());
+            Table table = HiveIcebergStorageHandler.table(context.getJobConf(), output);
+            HiveIcebergRecordWriter writer = writers.get(output);
             DataFile[] closedFiles = writer != null ? writer.dataFiles() : new DataFile[0];
             String fileForCommitLocation = generateFileForCommitLocation(table.location(), jobConf,
                 attemptID.getJobID(), attemptID.getTaskID().getId());
@@ -158,7 +157,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
     long startTime = System.currentTimeMillis();
     LOG.info("Committing job {} has started", jobContext.getJobID());
 
-    Collection<Pair<String, String>> outputs = HiveIcebergStorageHandler.outputTables(jobContext.getJobConf());
+    Collection<String> outputs = HiveIcebergStorageHandler.outputTables(jobContext.getJobConf());
     Collection<String> jobLocations = new ConcurrentLinkedQueue<>();
 
     ExecutorService fileExecutor = fileExecutor(jobConf);
@@ -170,9 +169,10 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
           .stopOnFailure()
           .executeWith(tableExecutor)
           .run(output -> {
-            Table table = HiveIcebergStorageHandler.table(jobConf, output.second());
+            Table table = HiveIcebergStorageHandler.table(jobConf, output);
+            String catalogName = HiveIcebergStorageHandler.catalogName(jobConf, output);
             jobLocations.add(generateJobLocation(table.location(), jobConf, jobContext.getJobID()));
-            commitTable(table.io(), fileExecutor, jobContext, output.second(), table.location(), output.first());
+            commitTable(table.io(), fileExecutor, jobContext, output, table.location(), catalogName);
           });
     } finally {
       fileExecutor.shutdown();
@@ -199,7 +199,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
     JobConf jobConf = jobContext.getJobConf();
 
     LOG.info("Job {} is aborted. Data file cleaning started", jobContext.getJobID());
-    Collection<Pair<String, String>> outputs = HiveIcebergStorageHandler.outputTables(jobContext.getJobConf());
+    Collection<String> outputs = HiveIcebergStorageHandler.outputTables(jobContext.getJobConf());
     Collection<String> jobLocations = new ConcurrentLinkedQueue<>();
 
     ExecutorService fileExecutor = fileExecutor(jobConf);
@@ -213,7 +213,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
           .run(output -> {
             LOG.info("Cleaning job for table {}", jobContext.getJobID(), output);
 
-            Table table = HiveIcebergStorageHandler.table(jobConf, output.second());
+            Table table = HiveIcebergStorageHandler.table(jobConf, output);
             jobLocations.add(generateJobLocation(table.location(), jobConf, jobContext.getJobID()));
             Collection<DataFile> dataFiles = dataFiles(fileExecutor, table.location(), jobContext, table.io(), false);
 
