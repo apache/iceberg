@@ -504,6 +504,7 @@ public class TableMetadata implements Serializable {
         addPreviousFile(file, lastUpdatedMillis));
   }
 
+  // The caller is responsible to pass a newPartitionSpec with correct partition field IDs
   public TableMetadata updatePartitionSpec(PartitionSpec newPartitionSpec) {
     Schema schema = schema();
 
@@ -531,8 +532,7 @@ public class TableMetadata implements Serializable {
         .addAll(specs);
     if (!specsById.containsKey(newDefaultSpecId)) {
       // get a fresh spec to ensure the spec ID is set to the new default
-      builder.add(freshSpec(newDefaultSpecId, schema, newPartitionSpec, formatVersion,
-          specs, new AtomicInteger(lastAssignedPartitionId)));
+      builder.add(freshSpec(newDefaultSpecId, schema, newPartitionSpec));
     }
 
     return new TableMetadata(null, formatVersion, uuid, location,
@@ -706,6 +706,36 @@ public class TableMetadata implements Serializable {
         snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
+  private PartitionSpec reassignPartitionIds(PartitionSpec partitionSpec, AtomicInteger lastPartitionId) {
+    if (formatVersion > 1) {
+      Map<Pair<Integer, String>, Integer> transformToFieldId = specs.stream()
+          .flatMap(spec -> spec.fields().stream())
+          .collect(Collectors.toMap(
+              field -> Pair.of(field.sourceId(), field.transform().toString()),
+              PartitionField::fieldId,
+              (n1, n2) -> n2));
+
+      PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(partitionSpec.schema())
+          .withSpecId(partitionSpec.specId());
+
+      for (PartitionField field : partitionSpec.fields()) {
+        // reassign the partition field ids
+        Integer fieldId = transformToFieldId.computeIfAbsent(
+            Pair.of(field.sourceId(), field.transform().toString()), k -> lastPartitionId.incrementAndGet());
+        specBuilder.add(
+            field.sourceId(),
+            fieldId,
+            field.name(),
+            field.transform());
+      }
+      return specBuilder.build();
+    } else {
+      // noop for v1 table
+      return partitionSpec;
+    }
+  }
+
+  // The caller is responsible to pass a updatedPartitionSpec with correct partition field IDs
   public TableMetadata buildReplacement(Schema updatedSchema, PartitionSpec updatedPartitionSpec,
                                         SortOrder updatedSortOrder, String newLocation,
                                         Map<String, String> updatedProperties) {
@@ -720,8 +750,10 @@ public class TableMetadata implements Serializable {
     int nextSpecId = maxSpecId.orElse(TableMetadata.INITIAL_SPEC_ID) + 1;
 
     // rebuild the partition spec using the new column ids
-    PartitionSpec freshSpec = freshSpec(nextSpecId, freshSchema, updatedPartitionSpec, formatVersion,
-        specs, new AtomicInteger(lastAssignedPartitionId));
+    PartitionSpec newSpec = freshSpec(nextSpecId, freshSchema, updatedPartitionSpec);
+
+    // reassign partition field ids with existing partition specs in the table
+    PartitionSpec freshSpec = reassignPartitionIds(newSpec, new AtomicInteger(lastAssignedPartitionId));
 
     // if the spec already exists, use the same ID. otherwise, use 1 more than the highest ID.
     int specId = specs.stream()
@@ -845,42 +877,18 @@ public class TableMetadata implements Serializable {
     return builder.build();
   }
 
-  private static PartitionSpec freshSpec(int specId, Schema schema, PartitionSpec partitionSpec, int formatVersion,
-                                         List<PartitionSpec> specs, AtomicInteger lastPartitionId) {
+  private static PartitionSpec freshSpec(int specId, Schema schema, PartitionSpec partitionSpec) {
     PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(schema)
         .withSpecId(specId);
 
-    if (formatVersion > 1) {
-      Map<Pair<Integer, String>, Integer> transformToFieldId = specs.stream()
-          .flatMap(spec -> spec.fields().stream())
-          .collect(Collectors.toMap(
-              field -> Pair.of(field.sourceId(), field.transform().toString()),
-              PartitionField::fieldId,
-              (n1, n2) -> n2));
-
-      for (PartitionField field : partitionSpec.fields()) {
-        // look up the name of the source field in the old schema to get the new schema's id
-        String sourceName = partitionSpec.schema().findColumnName(field.sourceId());
-        int sourceId = schema.findField(sourceName).fieldId();
-        // reassign the partition field ids
-        Integer fieldId = transformToFieldId.computeIfAbsent(
-            Pair.of(sourceId, field.transform().toString()), k -> lastPartitionId.incrementAndGet());
-        specBuilder.add(
-            sourceId,
-            fieldId,
-            field.name(),
-            field.transform().toString());
-      }
-    } else {
-      for (PartitionField field : partitionSpec.fields()) {
-        // look up the name of the source field in the old schema to get the new schema's id
-        String sourceName = partitionSpec.schema().findColumnName(field.sourceId());
-        specBuilder.add(
-            schema.findField(sourceName).fieldId(),
-            field.fieldId(),
-            field.name(),
-            field.transform().toString());
-      }
+    for (PartitionField field : partitionSpec.fields()) {
+      // look up the name of the source field in the old schema to get the new schema's id
+      String sourceName = partitionSpec.schema().findColumnName(field.sourceId());
+      specBuilder.add(
+          schema.findField(sourceName).fieldId(),
+          field.fieldId(),
+          field.name(),
+          field.transform().toString());
     }
 
     return specBuilder.build();
