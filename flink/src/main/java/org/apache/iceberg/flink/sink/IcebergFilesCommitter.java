@@ -124,7 +124,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     this.tableLoader.open();
     this.table = tableLoader.loadTable();
 
-    maxContinuousEmptyCommits = PropertyUtil.propertyAsInt(table.properties(), MAX_CONTINUOUS_EMPTY_COMMITS, 1);
+    maxContinuousEmptyCommits = PropertyUtil.propertyAsInt(table.properties(), MAX_CONTINUOUS_EMPTY_COMMITS, 10);
     Preconditions.checkArgument(maxContinuousEmptyCommits > 0,
         MAX_CONTINUOUS_EMPTY_COMMITS + " must be positive");
 

@@ -66,6 +66,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.flink.sink.IcebergFilesCommitter.MAX_CONTINUOUS_EMPTY_COMMITS;
 import static org.apache.iceberg.flink.sink.ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION;
 
 @RunWith(Parameterized.class)
@@ -109,6 +110,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     table.updateProperties()
         .set(DEFAULT_FILE_FORMAT, format.name())
         .set(FLINK_MANIFEST_LOCATION, flinkManifestFolder.getAbsolutePath())
+        .set(MAX_CONTINUOUS_EMPTY_COMMITS, "1")
         .commit();
   }
 
@@ -143,7 +145,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
   @Test
   public void testMaxContinuousEmptyCommits() throws Exception {
     table.updateProperties()
-        .set(IcebergFilesCommitter.MAX_CONTINUOUS_EMPTY_COMMITS, "3")
+        .set(MAX_CONTINUOUS_EMPTY_COMMITS, "3")
         .commit();
 
     JobID jobId = new JobID();
