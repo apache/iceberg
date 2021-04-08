@@ -1097,16 +1097,13 @@ public class TestMergeAppend extends TableTestBase {
     fields = structType.fields();
     Assert.assertEquals(4, fields.size());
     Assert.assertEquals("id_bucket", fields.get(0).name());
-    Assert.assertEquals(999 + formatVersion, fields.get(0).fieldId());
+    Assert.assertEquals(1000, fields.get(0).fieldId());
     Assert.assertEquals("data", fields.get(1).name());
-    Assert.assertEquals(1000 + formatVersion, fields.get(1).fieldId());
+    Assert.assertEquals(1001, fields.get(1).fieldId());
     Assert.assertEquals("data_bucket", fields.get(2).name());
-    Assert.assertEquals(1001 + formatVersion, fields.get(2).fieldId());
+    Assert.assertEquals(1002, fields.get(2).fieldId());
     Assert.assertEquals("data_partition", fields.get(3).name());
-    V1Assert.assertEquals("v1 table will not reuse existing IDs for equivalent fields",
-        1003, fields.get(3).fieldId());
-    V2Assert.assertEquals("v2 table will reuse existing IDs for equivalent fields",
-        1000, fields.get(3).fieldId());
+    Assert.assertEquals(1003, fields.get(3).fieldId());
   }
 
   @Test
@@ -1170,10 +1167,10 @@ public class TestMergeAppend extends TableTestBase {
     ManifestEntry<DataFile> entry = ManifestFiles.read(committedSnapshot.allManifests().get(0), FILE_IO)
         .entries().iterator().next();
     Types.NestedField field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(0);
-    Assert.assertEquals(999 + formatVersion, field.fieldId());
+    Assert.assertEquals(1000, field.fieldId());
     Assert.assertEquals("id_bucket", field.name());
     field = ((PartitionData) entry.file().partition()).getPartitionType().fields().get(1);
-    Assert.assertEquals(1000 + formatVersion, field.fieldId());
+    Assert.assertEquals(1001, field.fieldId());
     Assert.assertEquals("data_bucket", field.name());
 
     entry = ManifestFiles.read(committedSnapshot.allManifests().get(1), FILE_IO).entries().iterator().next();
