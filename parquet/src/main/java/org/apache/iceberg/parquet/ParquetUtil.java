@@ -23,11 +23,15 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Metrics;
@@ -85,6 +89,7 @@ public class ParquetUtil {
     return footerMetrics(metadata, fieldMetrics, metricsConfig, null);
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static Metrics footerMetrics(ParquetMetadata metadata, Stream<FieldMetrics> fieldMetrics,
                                       MetricsConfig metricsConfig, NameMapping nameMapping) {
     long rowCount = 0;
@@ -98,6 +103,10 @@ public class ParquetUtil {
     // ignore metrics for fields we failed to determine reliable IDs
     MessageType parquetTypeWithIds = getParquetTypeWithIds(metadata, nameMapping);
     Schema fileSchema = ParquetSchemaUtil.convertAndPrune(parquetTypeWithIds);
+
+    Map<Integer, FieldMetrics> fieldMetricsMap = Optional.ofNullable(fieldMetrics)
+        .map(stream -> stream.collect(Collectors.toMap(FieldMetrics::id, Function.identity())))
+        .orElseGet(HashMap::new);
 
     List<BlockMetaData> blocks = metadata.getBlocks();
     for (BlockMetaData block : blocks) {
@@ -125,7 +134,9 @@ public class ParquetUtil {
         } else if (!stats.isEmpty()) {
           increment(nullValueCounts, fieldId, stats.getNumNulls());
 
-          if (metricsMode != MetricsModes.Counts.get()) {
+          // since Parquet includes NaN for upper/lower bounds of floating point column that we don't want,
+          // we have tracked metrics for such columns ourselves and thus do not need to rely on Parquet's stats.
+          if (metricsMode != MetricsModes.Counts.get() && !fieldMetricsMap.containsKey(fieldId)) {
             Types.NestedField field = fileSchema.findField(fieldId);
             if (field != null && stats.hasNonNullValue() && shouldStoreBounds(column, fileSchema)) {
               Literal<?> min = ParquetConversions.fromParquetPrimitive(
@@ -147,9 +158,40 @@ public class ParquetUtil {
       upperBounds.remove(fieldId);
     }
 
+    // populate upper and lower bounds for floating columns
+    updateFloatingColumnsBounds(fieldMetricsMap, metricsConfig, fileSchema, lowerBounds, upperBounds);
+
     return new Metrics(rowCount, columnSizes, valueCounts, nullValueCounts,
-        MetricsUtil.createNanValueCounts(fieldMetrics, metricsConfig, fileSchema),
-        toBufferMap(fileSchema, lowerBounds), toBufferMap(fileSchema, upperBounds));
+        MetricsUtil.createNanValueCounts(fieldMetricsMap.values().stream(), metricsConfig, fileSchema),
+        toBufferMap(fileSchema, lowerBounds),
+        toBufferMap(fileSchema, upperBounds));
+  }
+
+  private static void updateFloatingColumnsBounds(
+      Map<Integer, FieldMetrics> idToFieldMetricsMap, MetricsConfig metricsConfig, Schema schema,
+      Map<Integer, Literal<?>> lowerBounds, Map<Integer, Literal<?>> upperBounds) {
+    idToFieldMetricsMap.entrySet().forEach(entry -> {
+      int fieldId = entry.getKey();
+      FieldMetrics metrics = entry.getValue();
+      MetricsMode metricsMode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
+
+      // only check for MetricsModes.None, since we don't truncate float/double values.
+      if (metricsMode != MetricsModes.None.get()) {
+        if (metrics.upperBound() == null) {
+          // upper and lower bounds will both null or neither
+          lowerBounds.remove(fieldId);
+          upperBounds.remove(fieldId);
+        } else if (metrics.upperBound() instanceof Float) {
+          lowerBounds.put(fieldId, Literal.of((Float) metrics.lowerBound()));
+          upperBounds.put(fieldId, Literal.of((Float) metrics.upperBound()));
+        } else if (metrics.upperBound() instanceof Double) {
+          lowerBounds.put(fieldId, Literal.of((Double) metrics.lowerBound()));
+          upperBounds.put(fieldId, Literal.of((Double) metrics.upperBound()));
+        } else {
+          throw new IllegalStateException("[BUG] Only Float/Double column metrics should be collected by Iceberg");
+        }
+      }
+    });
   }
 
   private static MessageType getParquetTypeWithIds(ParquetMetadata metadata, NameMapping nameMapping) {

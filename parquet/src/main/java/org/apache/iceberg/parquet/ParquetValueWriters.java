@@ -170,50 +170,44 @@ public class ParquetValueWriters {
   }
 
   private static class FloatWriter extends UnboxedWriter<Float> {
-    private final int id;
-    private long nanCount;
+    private final FloatFieldMetrics.FloatFieldMetricsContext floatFieldMetricsContext;
 
     private FloatWriter(ColumnDescriptor desc) {
       super(desc);
-      this.id = desc.getPrimitiveType().getId().intValue();
-      this.nanCount = 0;
+      int id = desc.getPrimitiveType().getId().intValue();
+      this.floatFieldMetricsContext = new FloatFieldMetrics.FloatFieldMetricsContext(id);
     }
 
     @Override
     public void write(int repetitionLevel, Float value) {
       writeFloat(repetitionLevel, value);
-      if (Float.isNaN(value)) {
-        nanCount++;
-      }
+      floatFieldMetricsContext.updateMetricsContext(value);
     }
 
     @Override
     public Stream<FieldMetrics> metrics() {
-      return Stream.of(new FloatFieldMetrics(id, nanCount));
+      return Stream.of(floatFieldMetricsContext.buildMetrics());
     }
   }
 
   private static class DoubleWriter extends UnboxedWriter<Double> {
-    private final int id;
-    private long nanCount;
+    private final FloatFieldMetrics.DoubleFieldMetricsContext doubleFieldMetricsContext;
 
     private DoubleWriter(ColumnDescriptor desc) {
       super(desc);
-      this.id = desc.getPrimitiveType().getId().intValue();
-      this.nanCount = 0;
+      int id = desc.getPrimitiveType().getId().intValue();
+      this.doubleFieldMetricsContext = new FloatFieldMetrics.DoubleFieldMetricsContext(id);
     }
 
     @Override
     public void write(int repetitionLevel, Double value) {
       writeDouble(repetitionLevel, value);
-      if (Double.isNaN(value)) {
-        nanCount++;
-      }
+      doubleFieldMetricsContext.updateMetricsContext(value);
     }
 
     @Override
     public Stream<FieldMetrics> metrics() {
-      return Stream.of(new FloatFieldMetrics(id, nanCount));
+      return Stream.of(doubleFieldMetricsContext.buildMetrics());
     }
   }
 

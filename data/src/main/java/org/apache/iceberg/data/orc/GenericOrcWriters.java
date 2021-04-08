@@ -219,12 +219,10 @@ public class GenericOrcWriters {
   }
 
   private static class FloatWriter implements OrcValueWriter<Float> {
-    private final int id;
-    private long nanCount;
+    private final FloatFieldMetrics.FloatFieldMetricsContext floatFieldMetricsContext;
 
     private FloatWriter(int id) {
-      this.id = id;
-      this.nanCount = 0;
+      this.floatFieldMetricsContext = new FloatFieldMetrics.FloatFieldMetricsContext(id);
     }
 
     @Override
@@ -235,24 +233,20 @@ public class GenericOrcWriters {
     @Override
     public void nonNullWrite(int rowId, Float data, ColumnVector output) {
       ((DoubleColumnVector) output).vector[rowId] = data;
-      if (Float.isNaN(data)) {
-        nanCount++;
-      }
+      floatFieldMetricsContext.updateMetricsContext(data);
     }
 
     @Override
     public Stream<FieldMetrics> metrics() {
-      return Stream.of(new FloatFieldMetrics(id, nanCount));
+      return Stream.of(floatFieldMetricsContext.buildMetrics());
     }
   }
 
   private static class DoubleWriter implements OrcValueWriter<Double> {
-    private final int id;
-    private long nanCount;
+    private final FloatFieldMetrics.DoubleFieldMetricsContext doubleFieldMetricsContext;
 
     private DoubleWriter(Integer id) {
-      this.id = id;
-      this.nanCount = 0;
+      this.doubleFieldMetricsContext = new FloatFieldMetrics.DoubleFieldMetricsContext(id);
     }
 
     @Override
@@ -263,14 +257,12 @@ public class GenericOrcWriters {
     @Override
     public void nonNullWrite(int rowId, Double data, ColumnVector output) {
       ((DoubleColumnVector) output).vector[rowId] = data;
-      if (Double.isNaN(data)) {
-        nanCount++;
-      }
+      doubleFieldMetricsContext.updateMetricsContext(data);
     }
 
     @Override
     public Stream<FieldMetrics> metrics() {
-      return Stream.of(new FloatFieldMetrics(id, nanCount));
+      return Stream.of(doubleFieldMetricsContext.buildMetrics());
     }
   }
 

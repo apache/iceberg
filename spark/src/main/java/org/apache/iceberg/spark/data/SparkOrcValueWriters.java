@@ -141,52 +141,42 @@ class SparkOrcValueWriters {
   }
 
   private static class FloatWriter implements SparkOrcValueWriter {
-    private final int id;
-    private long nanCount;
+    private final FloatFieldMetrics.FloatFieldMetricsContext floatFieldMetricsContext;
 
     private FloatWriter(int id) {
-      this.id = id;
-      this.nanCount = 0;
+      this.floatFieldMetricsContext = new FloatFieldMetrics.FloatFieldMetricsContext(id);
     }
 
     @Override
     public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
       float floatValue = data.getFloat(column);
       ((DoubleColumnVector) output).vector[rowId] = floatValue;
-
-      if (Float.isNaN(floatValue)) {
-        nanCount++;
-      }
+      floatFieldMetricsContext.updateMetricsContext(floatValue);
     }
 
     @Override
     public Stream<FieldMetrics> metrics() {
-      return Stream.of(new FloatFieldMetrics(id, nanCount));
+      return Stream.of(floatFieldMetricsContext.buildMetrics());
     }
   }
 
   private static class DoubleWriter implements SparkOrcValueWriter {
-    private final int id;
-    private long nanCount;
+    private final FloatFieldMetrics.DoubleFieldMetricsContext doubleFieldMetricsContext;
 
     private DoubleWriter(int id) {
-      this.id = id;
-      this.nanCount = 0;
+      this.doubleFieldMetricsContext = new FloatFieldMetrics.DoubleFieldMetricsContext(id);
     }
 
     @Override
     public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
       double doubleValue = data.getDouble(column);
       ((DoubleColumnVector) output).vector[rowId] = doubleValue;
-
-      if (Double.isNaN(doubleValue)) {
-        nanCount++;
-      }
+      doubleFieldMetricsContext.updateMetricsContext(doubleValue);
     }
 
     @Override
     public Stream<FieldMetrics> metrics() {
-      return Stream.of(new FloatFieldMetrics(id, nanCount));
+      return Stream.of(doubleFieldMetricsContext.buildMetrics());
     }
   }
 

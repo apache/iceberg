@@ -19,8 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.nio.ByteBuffer;
-
 /**
  * Iceberg internally tracked field level metrics, used by Parquet and ORC writers only.
  * <p>
@@ -28,16 +26,10 @@ import java.nio.ByteBuffer;
  * This wrapper ensures that metrics not being updated by those writers will not be incorrectly used, by throwing
  * exceptions when they are accessed.
  */
-public class FloatFieldMetrics extends FieldMetrics {
+public class FloatFieldMetrics extends FieldMetrics<Number> {
 
-  /**
-   * Constructor for creating a FieldMetrics with only NaN counter.
-   * @param id field id being tracked by the writer
-   * @param nanValueCount number of NaN values, will only be non-0 for double or float field.
-   */
-  public FloatFieldMetrics(int id,
-                           long nanValueCount) {
-    super(id, 0L, 0L, nanValueCount, null, null);
+  private FloatFieldMetrics(AbstractFloatFieldMetricsContext<?> context) {
+    super(context.id, 0L, 0L, context.nanValueCount, context.lowerBound, context.upperBound);
   }
 
   @Override
@@ -50,13 +42,64 @@ public class FloatFieldMetrics extends FieldMetrics {
     throw new IllegalStateException("Shouldn't access this method, as this metric is tracked in file statistics. ");
   }
 
-  @Override
-  public ByteBuffer lowerBound() {
-    throw new IllegalStateException("Shouldn't access this method, as this metric is tracked in file statistics. ");
+  public static class FloatFieldMetricsContext extends AbstractFloatFieldMetricsContext<Float> {
+    public FloatFieldMetricsContext(int id) {
+      super(id);
+    }
+
+    @Override
+    public void updateMetricsContext(Float value) {
+      if (Float.isNaN(value)) {
+        this.nanValueCount++;
+      } else {
+        if (lowerBound == null || Float.compare(value, lowerBound) < 0) {
+          this.lowerBound = value;
+        }
+        if (upperBound == null || Float.compare(value, upperBound) > 0) {
+          this.upperBound = value;
+        }
+      }
+    }
   }
 
-  @Override
-  public ByteBuffer upperBound() {
-    throw new IllegalStateException("Shouldn't access this method, as this metric is tracked in file statistics. ");
+  public static class DoubleFieldMetricsContext extends AbstractFloatFieldMetricsContext<Double> {
+    public DoubleFieldMetricsContext(int id) {
+      super(id);
+    }
+
+    @Override
+    public void updateMetricsContext(Double value) {
+      if (Double.isNaN(value)) {
+        this.nanValueCount++;
+      } else {
+        if (lowerBound == null || Double.compare(value, lowerBound) < 0) {
+          this.lowerBound = value;
+        }
+        if (upperBound == null || Double.compare(value, upperBound) > 0) {
+          this.upperBound = value;
+        }
+      }
+    }
+  }
+
+  @SuppressWarnings("checkstyle:VisibilityModifier")
+  public abstract static class AbstractFloatFieldMetricsContext<T extends Number> {
+    private final int id;
+    protected long nanValueCount = 0;
+    protected T lowerBound = null;
+    protected T upperBound = null;
+
+    public AbstractFloatFieldMetricsContext(int id) {
+      this.id = id;
+    }
+
+    /**
+     * It is caller's responsibility to ensure input shouldn't be null
+     */
+    public abstract void updateMetricsContext(T value);
+
+    public FloatFieldMetrics buildMetrics() {
+      return new FloatFieldMetrics(this);
+    }
   }
 }
