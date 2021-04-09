@@ -38,6 +38,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hive.HiveSchemaUtil;
+import org.apache.iceberg.hive.HiveTableOperations;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
@@ -203,7 +204,12 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
    */
   private static Properties getCatalogProperties(org.apache.hadoop.hive.metastore.api.Table hmsTable) {
     Properties properties = new Properties();
-    properties.putAll(hmsTable.getParameters());
+
+    hmsTable.getParameters().forEach((key, value) -> {
+      // translate key names between HMS and Iceberg where needed
+      String icebergKey = HiveTableOperations.translateToIcebergProp(key);
+      properties.put(icebergKey, value);
+    });
 
     if (properties.get(Catalogs.LOCATION) == null &&
         hmsTable.getSd() != null && hmsTable.getSd().getLocation() != null) {
