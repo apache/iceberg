@@ -25,13 +25,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.commons.compress.utils.Sets;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 import org.apache.iceberg.types.Types;
 
@@ -255,8 +255,8 @@ public class EnvelopeConfig implements Serializable {
       return this;
     }
 
-    public Builder useAlgorithm(EncryptionAlgorithm algorithm) {
-      this.algorithm = algorithm;
+    public Builder useAlgorithm(EncryptionAlgorithm encryptionAlgorithm) {
+      this.algorithm = encryptionAlgorithm;
       return this;
     }
 

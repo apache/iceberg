@@ -19,10 +19,10 @@
 
 package org.apache.iceberg.encryption;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -37,7 +37,7 @@ public class TestEnvelopeMetadataParser {
         ByteBuffer.wrap("c".getBytes(StandardCharsets.UTF_8)),
         EncryptionAlgorithm.AES_CTR,
         ImmutableMap.of("key", "val"),
-        ImmutableSet.of(1,2),
+        ImmutableSet.of(1, 2),
         ImmutableSet.of());
 
     EnvelopeMetadata metadata = new EnvelopeMetadata(

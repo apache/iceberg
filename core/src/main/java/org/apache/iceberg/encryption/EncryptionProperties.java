@@ -24,6 +24,9 @@ package org.apache.iceberg.encryption;
  */
 public class EncryptionProperties {
 
+  private EncryptionProperties() {
+  }
+
   /**
    * Type of a static data mask that can be applied to a specific column.
    */

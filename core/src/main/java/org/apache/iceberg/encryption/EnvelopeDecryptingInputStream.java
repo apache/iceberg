@@ -20,7 +20,6 @@
 package org.apache.iceberg.encryption;
 
 import java.io.IOException;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 
 /**

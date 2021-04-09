@@ -32,6 +32,9 @@ import org.apache.iceberg.util.JsonUtil;
 
 public class EnvelopeMetadataParser {
 
+  private EnvelopeMetadataParser() {
+  }
+
   private static final String MEK_ID = "mek-id";
   private static final String KEK_ID = "kek-id";
   private static final String ENCRYPTED_KEK = "encrypted-kek";
@@ -127,9 +130,4 @@ public class EnvelopeMetadataParser {
       throw new UncheckedIOException(e);
     }
   }
-
-
-
-
-
 }

@@ -34,7 +34,6 @@
 package org.apache.iceberg.encryption;
 
 import java.util.function.Supplier;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.InputFile;
