@@ -39,7 +39,7 @@ def test_multiple_fields(assert_and_unwrap):
     expr = unbound.bind(struct)
 
     bound = assert_and_unwrap(expr)
-    assert 11 == bound.ref.field_id
+    assert 11 == bound.ref.field.field_id
     assert Operation.LT == bound.op
     assert 6 == bound.lit.value
 
@@ -60,7 +60,7 @@ def test_comparison_predicate_binding(op, assert_and_unwrap):
     bound = assert_and_unwrap(unbound.bind(struct))
 
     assert 5 == bound.lit.value
-    assert 14 == bound.ref.field_id
+    assert 14 == bound.ref.field.field_id
     assert op == bound.op
 
 
@@ -70,7 +70,7 @@ def test_literal_converison(op, assert_and_unwrap):
     bound = assert_and_unwrap(unbound.bind(struct))
 
     assert Decimal(12.40).quantize(Decimal(".01")).as_tuple() == bound.lit.value.as_tuple()
-    assert 15 == bound.ref.field_id
+    assert 15 == bound.ref.field.field_id
     assert op == bound.op
 
 
@@ -81,7 +81,7 @@ def test_invalid_conversions(op):
     try:
         unbound.bind(struct)
     except ValidationException as e:
-        assert e.args[0].startswith("Invalid value for comparison inclusive type float: 12.40")
+        assert e.args[0].startswith('Invalid Value for conversion to type float: "12.40" (StringLiteral)')
 
 
 def test_long_to_integer_conversion(assert_and_unwrap):
@@ -179,7 +179,7 @@ def test_is_null(assert_and_unwrap):
     bound = assert_and_unwrap(expr)
 
     assert Operation.IS_NULL == bound.op
-    assert 19 == bound.ref.field_id
+    assert 19 == bound.ref.field.field_id
     assert bound.lit is None
 
     required = StructType.of([NestedField.required(20, "s", StringType.get())])
@@ -192,7 +192,7 @@ def test_not_null(assert_and_unwrap):
     expr = unbound.bind(optional)
     bound = assert_and_unwrap(expr)
     assert Operation.NOT_NULL == bound.op
-    assert 21 == bound.ref.field_id
+    assert 21 == bound.ref.field.field_id
     assert bound.lit is None
 
     required = StructType.of([NestedField.required(22, "s", StringType.get())])

@@ -75,6 +75,14 @@ class Expressions(object):
         return UnboundPredicate(Operation.NOT_NULL, Expressions.ref(name))
 
     @staticmethod
+    def is_nan(name):
+        return UnboundPredicate(Operation.IS_NAN, Expressions.ref(name))
+
+    @staticmethod
+    def not_nan(name):
+        return UnboundPredicate(Operation.NOT_NAN, Expressions.ref(name))
+
+    @staticmethod
     def less_than(name, value):
         return UnboundPredicate(Operation.LT, Expressions.ref(name), value)
 
@@ -197,6 +205,12 @@ class ExpressionVisitors(object):
         def not_null(self, ref):
             return NotImplementedError()
 
+        def is_nan(self, ref):
+            return NotImplementedError()
+
+        def not_nan(self, ref):
+            return NotImplementedError()
+
         def lt(self, ref, lit):
             return NotImplementedError()
 
@@ -230,6 +244,8 @@ class ExpressionVisitors(object):
                 return self.is_null(pred.ref)
             elif pred.op == Operation.NOT_NULL:
                 return self.not_null(pred.ref)
+            elif pred.op in [Operation.IS_NAN, Operation.NOT_NAN]:
+                raise NotImplementedError("IS_NAN and NOT_NAN not fully implemented for expressions")
             elif pred.op == Operation.LT:
                 return self.lt(pred.ref, pred.lit)
             elif pred.op == Operation.LT_EQ:
