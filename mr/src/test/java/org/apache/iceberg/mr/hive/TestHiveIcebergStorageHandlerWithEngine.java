@@ -667,7 +667,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   @Test
   public void testWriteWithDefaultWriteFormat() {
     Assume.assumeTrue("Testing the default file format is enough for a single scenario.",
-       executionEngine.equals("mr") && Catalogs.hiveCatalog(shell.getHiveConf()) && fileFormat == FileFormat.ORC);
+        executionEngine.equals("mr") && Catalogs.hiveCatalog(shell.getHiveConf()) && fileFormat == FileFormat.ORC);
 
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
 
