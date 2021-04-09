@@ -160,7 +160,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     ExecMapper.setDone(false);
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testScanTable() throws IOException {
     testTables.createTable(shell, "customers", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, fileFormat,
         HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
@@ -175,7 +175,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     Assert.assertArrayEquals(new Object[] {"Alice", 0L}, descRows.get(2));
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testCBOWithSelectedColumnsNonOverlapJoin() throws IOException {
     shell.setHiveSessionValue("hive.cbo.enable", true);
 
@@ -193,7 +193,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     Assert.assertArrayEquals(new Object[] {102L, 1L, 33.33d, "watch"}, rows.get(2));
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testDescribeTable() throws IOException {
     testTables.createTable(shell, "customers", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, fileFormat,
             HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
@@ -207,7 +207,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     }
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testCBOWithSelectedColumnsOverlapJoin() throws IOException {
     shell.setHiveSessionValue("hive.cbo.enable", true);
     testTables.createTable(shell, "customers", HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, fileFormat,
@@ -226,7 +226,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     Assert.assertArrayEquals(new Object[] {"Alice", 100L}, rows.get(2));
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testCBOWithSelfJoin() throws IOException {
     shell.setHiveSessionValue("hive.cbo.enable", true);
 
@@ -243,7 +243,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     Assert.assertArrayEquals(new Object[] {102L, 1L, 33.33d}, rows.get(2));
   }
 
-  @Test
+  @Test(timeout = 100000)
   public void testJoinTablesSupportedTypes() throws IOException {
     for (int i = 0; i < SUPPORTED_TYPES.size(); i++) {
       Type type = SUPPORTED_TYPES.get(i);
@@ -266,7 +266,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     }
   }
 
-  @Test
+  @Test(timeout = 100000)
   public void testSelectDistinctFromTable() throws IOException {
     for (int i = 0; i < SUPPORTED_TYPES.size(); i++) {
       Type type = SUPPORTED_TYPES.get(i);
@@ -288,7 +288,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     }
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testInsert() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
 
@@ -309,7 +309,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     HiveIcebergTestUtils.validateData(table, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS, 0);
   }
 
-  @Test
+  @Test(timeout = 100000)
   public void testInsertSupportedTypes() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
     for (int i = 0; i < SUPPORTED_TYPES.size(); i++) {
@@ -338,7 +338,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
    * Testing map only inserts.
    * @throws IOException If there is an underlying IOException
    */
-  @Test
+  @Test(timeout = 40000)
   public void testInsertFromSelect() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
 
@@ -357,7 +357,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
    * Testing map-reduce inserts.
    * @throws IOException If there is an underlying IOException
    */
-  @Test
+  @Test(timeout = 40000)
   public void testInsertFromSelectWithOrderBy() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
 
@@ -373,7 +373,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     HiveIcebergTestUtils.validateData(table, records, 0);
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testInsertFromSelectWithProjection() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
 
@@ -392,7 +392,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     HiveIcebergTestUtils.validateData(table, expected, 0);
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testInsertUsingSourceTableWithSharedColumnsNames() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
 
@@ -417,7 +417,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     HiveIcebergTestUtils.validateData(table, expected, 0);
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testInsertFromJoiningTwoIcebergTables() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
 
@@ -436,7 +436,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     HiveIcebergTestUtils.validateData(table, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS, 0);
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testWriteArrayOfPrimitivesInTable() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
     Schema schema = new Schema(required(1, "id", Types.LongType.get()),
@@ -446,7 +446,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     testComplexTypeWrite(schema, records);
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testWriteArrayOfArraysInTable() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
     Schema schema =
@@ -458,7 +458,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     testComplexTypeWrite(schema, records);
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testWriteArrayOfMapsInTable() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
     Schema schema =
@@ -470,7 +470,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     testComplexTypeWrite(schema, records);
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testWriteArrayOfStructsInTable() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
     Schema schema =
@@ -482,7 +482,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     testComplexTypeWrite(schema, records);
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testWriteMapOfPrimitivesInTable() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
     Schema schema = new Schema(required(1, "id", Types.LongType.get()),
@@ -492,7 +492,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     testComplexTypeWrite(schema, records);
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testWriteMapOfArraysInTable() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
     Schema schema = new Schema(required(1, "id", Types.LongType.get()),
@@ -503,7 +503,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     testComplexTypeWrite(schema, records);
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testWriteMapOfMapsInTable() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
     Schema schema = new Schema(required(1, "id", Types.LongType.get()),
@@ -513,7 +513,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     testComplexTypeWrite(schema, records);
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testWriteMapOfStructsInTable() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
     Schema schema = new Schema(required(1, "id", Types.LongType.get()),
@@ -525,7 +525,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     testComplexTypeWrite(schema, records);
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testWriteStructOfPrimitivesInTable() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
     Schema schema = new Schema(required(1, "id", Types.LongType.get()),
@@ -536,7 +536,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     testComplexTypeWrite(schema, records);
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testWriteStructOfArraysInTable() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
     Schema schema = new Schema(required(1, "id", Types.LongType.get()),
@@ -548,7 +548,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     testComplexTypeWrite(schema, records);
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testWriteStructOfMapsInTable() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
     Schema schema = new Schema(required(1, "id", Types.LongType.get()),
@@ -561,7 +561,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     testComplexTypeWrite(schema, records);
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testWriteStructOfStructsInTable() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
     Schema schema = new Schema(required(1, "id", Types.LongType.get()),
@@ -572,7 +572,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     testComplexTypeWrite(schema, records);
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testPartitionedWrite() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
 
@@ -588,7 +588,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     HiveIcebergTestUtils.validateData(table, records, 0);
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testIdentityPartitionedWrite() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
 
@@ -604,7 +604,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     HiveIcebergTestUtils.validateData(table, records, 0);
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testMultilevelIdentityPartitionedWrite() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
 
@@ -621,7 +621,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     HiveIcebergTestUtils.validateData(table, records, 0);
   }
 
-  @Test
+  @Test(timeout = 40000)
   public void testMultiTableInsert() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
 
