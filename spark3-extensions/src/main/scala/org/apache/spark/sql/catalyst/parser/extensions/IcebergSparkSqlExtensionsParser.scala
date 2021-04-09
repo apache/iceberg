@@ -22,20 +22,19 @@ package org.apache.spark.sql.catalyst.parser.extensions
 import java.util.Locale
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.atn.PredictionMode
-import org.antlr.v4.runtime.misc.ParseCancellationException
+import org.antlr.v4.runtime.misc.{Interval, ParseCancellationException}
 import org.antlr.v4.runtime.tree.TerminalNodeImpl
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.expressions.Expression
-import org.apache.spark.sql.catalyst.parser.ParseErrorListener
 import org.apache.spark.sql.catalyst.parser.ParseException
 import org.apache.spark.sql.catalyst.parser.ParserInterface
-import org.apache.spark.sql.catalyst.parser.UpperCaseCharStream
+import org.apache.spark.sql.catalyst.parser.ParserUtils.position
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.NonReservedContext
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.QuotedIdentifierContext
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.trees.Origin
+import org.apache.spark.sql.catalyst.trees.{CurrentOrigin, Origin}
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.VariableSubstitution
 import org.apache.spark.sql.types.DataType
@@ -158,6 +157,38 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
         val position = Origin(e.line, e.startPosition)
         throw new ParseException(Option(command), e.message, position, position)
     }
+  }
+
+
+}
+
+/* Copied from Apache Spark's to avoid dependency on Spark Internals */
+class UpperCaseCharStream(wrapped: CodePointCharStream) extends CharStream {
+  override def consume(): Unit = wrapped.consume
+  override def getSourceName(): String = wrapped.getSourceName
+  override def index(): Int = wrapped.index
+  override def mark(): Int = wrapped.mark
+  override def release(marker: Int): Unit = wrapped.release(marker)
+  override def seek(where: Int): Unit = wrapped.seek(where)
+  override def size(): Int = wrapped.size
+
+  override def getText(interval: Interval): String = {
+    // ANTLR 4.7's CodePointCharStream implementations have bugs when
+    // getText() is called with an empty stream, or intervals where
+    // the start > end. See
+    // https://github.com/antlr/antlr4/commit/ac9f7530 for one fix
+    // that is not yet in a released ANTLR artifact.
+    if (size() > 0 && (interval.b - interval.a >= 0)) {
+      wrapped.getText(interval)
+    } else {
+      ""
+    }
+  }
+
+  override def LA(i: Int): Int = {
+    val la = wrapped.LA(i)
+    if (la == 0 || la == IntStream.EOF) la
+    else Character.toUpperCase(la)
   }
 }
 

@@ -32,7 +32,6 @@ import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.parser.ParseException
 import org.apache.spark.sql.catalyst.parser.ParserInterface
-import org.apache.spark.sql.catalyst.parser.ParserUtils._
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser._
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.CallArgument
@@ -43,12 +42,14 @@ import org.apache.spark.sql.catalyst.plans.logical.NamedArgument
 import org.apache.spark.sql.catalyst.plans.logical.PositionalArgument
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
+import org.apache.spark.sql.catalyst.trees.{CurrentOrigin, Origin}
 import org.apache.spark.sql.connector.expressions
 import org.apache.spark.sql.connector.expressions.ApplyTransform
 import org.apache.spark.sql.connector.expressions.FieldReference
 import org.apache.spark.sql.connector.expressions.IdentityTransform
 import org.apache.spark.sql.connector.expressions.LiteralValue
 import org.apache.spark.sql.connector.expressions.Transform
+
 import scala.collection.JavaConverters._
 
 class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergSqlExtensionsBaseVisitor[AnyRef] {
@@ -235,5 +236,22 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
 
   private def typedVisit[T](ctx: ParseTree): T = {
     ctx.accept(this).asInstanceOf[T]
+  }
+
+  /* Copied from Apache Spark's to avoid dependency on Spark Internals */
+  private def withOrigin[T](ctx: ParserRuleContext)(f: => T): T = {
+    val current = CurrentOrigin.get
+    CurrentOrigin.set(position(ctx.getStart))
+    try {
+      f
+    } finally {
+      CurrentOrigin.set(current)
+    }
+  }
+
+  /* Copied from Apache Spark's to avoid dependency on Spark Internals */
+  private def position(token: Token): Origin = {
+    val opt = Option(token)
+    Origin(opt.map(_.getLine), opt.map(_.getCharPositionInLine))
   }
 }

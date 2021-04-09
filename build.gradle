@@ -972,7 +972,6 @@ project(":iceberg-spark3-extensions") {
 
   dependencies {
     compileOnly project(':iceberg-spark3')
-
     compileOnly "org.scala-lang:scala-library"
     compileOnly("org.apache.spark:spark-hive_2.12") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -984,8 +983,10 @@ project(":iceberg-spark3-extensions") {
     testCompile project(path: ':iceberg-spark', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-spark3', configuration: 'testArtifacts')
 
-    // We use the antlr runtime version included with Spark so we only include the compiler here
-    // This version matches the Spark 3.0 runtime version, we may have to make this variable in the future
+
+    // Required because we remove antlr plugin dependencies from the compile configuration, see note above
+    // We shade this in Spark3 Runtime to avoid issues with Spark's Antlr Runtime
+    runtime "org.antlr:antlr4-runtime:4.7.1"
     antlr "org.antlr:antlr4:4.7.1"
   }
 
@@ -1034,7 +1035,14 @@ project(':iceberg-spark3-runtime') {
     integrationImplementation 'org.apache.spark:spark-hive_2.12'
     integrationImplementation 'junit:junit'
     integrationImplementation 'org.slf4j:slf4j-simple'
-    integrationCompileOnly "com.google.errorprone:error_prone_annotations:2.3.3"
+    integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+    integrationImplementation project(path: ':iceberg-spark', configuration: 'testArtifacts')
+    integrationImplementation project(path: ':iceberg-spark3', configuration: 'testArtifacts')
+    integrationImplementation project(path: ':iceberg-spark3-extensions', configuration: 'testArtifacts')
+    // Not allowed on our classpath, only the runtime jar is allowed
+    integrationCompileOnly project(':iceberg-spark3-extensions')
+    integrationCompileOnly project(':iceberg-spark3')
   }
 
   shadowJar {
@@ -1053,7 +1061,6 @@ project(':iceberg-spark3-runtime') {
     relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
     relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
     relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
-    relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
     relocate 'avro.shaded', 'org.apache.iceberg.shaded.org.apache.avro.shaded'
     relocate 'com.thoughtworks.paranamer', 'org.apache.iceberg.shaded.com.thoughtworks.paranamer'
     relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
@@ -1067,6 +1074,8 @@ project(':iceberg-spark3-runtime') {
     relocate 'org.apache.arrow', 'org.apache.iceberg.shaded.org.apache.arrow'
     relocate 'com.carrotsearch', 'org.apache.iceberg.shaded.com.carrotsearch'
     relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
+    // relocate Antlr runtime and related deps to shade Iceberg specific version
+    relocate 'org.antlr.v4.runtime', 'org.apache.iceberg.shaded.org.antlr.v4.runtime'
 
     classifier null
   }
