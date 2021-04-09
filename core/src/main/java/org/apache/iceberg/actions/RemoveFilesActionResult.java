@@ -19,15 +19,24 @@
 
 package org.apache.iceberg.actions;
 
-public class BaseDropTableActionResult implements DropTable.Result {
+public class RemoveFilesActionResult implements RemoveFiles.Result {
 
   private final long deletedDataFilesCount;
   private final long deletedManifestsCount;
   private final long deletedManifestListsCount;
 
-  public BaseDropTableActionResult(long deletedDataFilesCount,
-                                   long deletedManifestsCount,
-                                   long deletedManifestListsCount) {
+  public RemoveFilesActionResult(long deletedDataFilesCount,
+                                 long deletedManifestsCount,
+                                 long deletedManifestListsCount) {
+    this.deletedDataFilesCount = deletedDataFilesCount;
+    this.deletedManifestsCount = deletedManifestsCount;
+    this.deletedManifestListsCount = deletedManifestListsCount;
+  }
+
+  public RemoveFilesActionResult(long deletedDataFilesCount,
+                                 long deletedManifestsCount,
+                                 long deletedManifestListsCount,
+                                 boolean rootDeleted) {
     this.deletedDataFilesCount = deletedDataFilesCount;
     this.deletedManifestsCount = deletedManifestsCount;
     this.deletedManifestListsCount = deletedManifestListsCount;

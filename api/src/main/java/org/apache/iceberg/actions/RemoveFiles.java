@@ -25,9 +25,9 @@ import java.util.function.Consumer;
 /**
  * An action that deletes data, manifest, manifest lists in a table.
  * <p>
- * Reuires query engine to distribute parts of the work.
+ * Implementations may use a query engine to distribute parts of work.
  */
-public interface DropTable extends Action<DropTable, DropTable.Result> {
+public interface RemoveFiles extends Action<RemoveFiles, RemoveFiles.Result> {
 
   /**
    * Passes an alternative delete implementation that will be used for manifests and data files.
@@ -36,7 +36,7 @@ public interface DropTable extends Action<DropTable, DropTable.Result> {
    * @param deleteFunc a function that will be called to delete manifests and data files
    * @return this for method chaining
    */
-  DropTable deleteWith(Consumer<String> deleteFunc);
+  RemoveFiles deleteWith(Consumer<String> deleteFunc);
 
   /**
    * Passes an alternative executor service that will be used for manifests and data files deletion.
@@ -48,7 +48,7 @@ public interface DropTable extends Action<DropTable, DropTable.Result> {
    * @param executorService the service to use
    * @return this for method chaining
    */
-  DropTable executeDeleteWith(ExecutorService executorService);
+  RemoveFiles executeDeleteWith(ExecutorService executorService);
 
   /**
    * The action result that contains a summary of the execution.

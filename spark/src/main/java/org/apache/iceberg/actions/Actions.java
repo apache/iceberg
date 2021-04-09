@@ -22,8 +22,8 @@ package org.apache.iceberg.actions;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
-import org.apache.iceberg.spark.actions.BaseDropTableSparkAction;
 import org.apache.iceberg.spark.actions.BaseExpireSnapshotsSparkAction;
+import org.apache.iceberg.spark.actions.BaseRemoveFilesSparkAction;
 import org.apache.iceberg.spark.actions.BaseRemoveOrphanFilesSparkAction;
 import org.apache.iceberg.spark.actions.BaseRewriteManifestsSparkAction;
 import org.apache.spark.sql.SparkSession;
@@ -89,8 +89,8 @@ public class Actions {
     return new ExpireSnapshotsAction(delegate);
   }
 
-  public BaseDropTableSparkAction dropTableAction() {
-    return new BaseDropTableSparkAction(spark, table);
+  public BaseRemoveFilesSparkAction removeFilesAction() {
+    return new BaseRemoveFilesSparkAction(spark, table);
   }
 
   /**

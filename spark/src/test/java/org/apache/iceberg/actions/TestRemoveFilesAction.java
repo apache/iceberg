@@ -35,7 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkTestBase;
-import org.apache.iceberg.spark.actions.BaseDropTableSparkAction;
+import org.apache.iceberg.spark.actions.BaseRemoveFilesSparkAction;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Before;
@@ -45,7 +45,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public abstract class TestDropTableAction extends SparkTestBase {
+public abstract class TestRemoveFilesAction extends SparkTestBase {
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA = new Schema(
       optional(1, "c1", Types.IntegerType.get()),
@@ -95,7 +95,7 @@ public abstract class TestDropTableAction extends SparkTestBase {
   }
 
   private void checkDropTableResults(long expectedDatafiles, long expectedManifestsDeleted,
-                                     long expectedManifestListsDeleted, DropTable.Result results) {
+                                     long expectedManifestListsDeleted, RemoveFiles.Result results) {
     Assert.assertEquals("Incorrect number of manifest files deleted",
         (Long) expectedManifestsDeleted, (Long) results.deletedManifestsCount());
     Assert.assertEquals("Incorrect number of datafiles deleted",
@@ -106,7 +106,6 @@ public abstract class TestDropTableAction extends SparkTestBase {
 
   @Test
   public void dataFilesCleanupWithParallelTasks() {
-
     table.newFastAppend()
         .appendFile(FILE_A)
         .commit();
@@ -128,7 +127,7 @@ public abstract class TestDropTableAction extends SparkTestBase {
     Set<String> deleteThreads = ConcurrentHashMap.newKeySet();
     AtomicInteger deleteThreadsIndex = new AtomicInteger(0);
 
-    DropTable.Result result = Actions.forTable(table).dropTableAction()
+    RemoveFiles.Result result = Actions.forTable(table).removeFilesAction()
         .executeDeleteWith(Executors.newFixedThreadPool(4, runnable -> {
           Thread thread = new Thread(runnable);
           thread.setName("drop-table-" + deleteThreadsIndex.getAndIncrement());
@@ -171,7 +170,7 @@ public abstract class TestDropTableAction extends SparkTestBase {
         .commit();
 
 
-    DropTable.Result result = Actions.forTable(table).dropTableAction()
+    RemoveFiles.Result result = Actions.forTable(table).removeFilesAction()
         .execute();
 
     checkDropTableResults(3L, 3L, 3L, result);
@@ -179,7 +178,7 @@ public abstract class TestDropTableAction extends SparkTestBase {
 
   @Test
   public void testDropOnEmptyTable() {
-    DropTable.Result result = Actions.forTable(table).dropTableAction()
+    RemoveFiles.Result result = Actions.forTable(table).removeFilesAction()
         .execute();
 
     checkDropTableResults(0, 0, 0, result);
@@ -195,9 +194,9 @@ public abstract class TestDropTableAction extends SparkTestBase {
         .appendFile(FILE_B)
         .commit();
 
-    BaseDropTableSparkAction baseDropTableSparkAction = Actions.forTable(table)
-        .dropTableAction();
-    DropTable.Result result = baseDropTableSparkAction.execute();
+    BaseRemoveFilesSparkAction baseRemoveFilesSparkAction = Actions.forTable(table)
+        .removeFilesAction();
+    RemoveFiles.Result result = baseRemoveFilesSparkAction.execute();
 
     checkDropTableResults(2, 2, 2, result);
   }
@@ -219,7 +218,7 @@ public abstract class TestDropTableAction extends SparkTestBase {
 
     int jobsBefore = spark.sparkContext().dagScheduler().nextJobId().get();
 
-    DropTable.Result results = Actions.forTable(table).dropTableAction().option("stream-results", "true").execute();
+    RemoveFiles.Result results = Actions.forTable(table).removeFilesAction().option("stream-results", "true").execute();
 
     int jobsAfter = spark.sparkContext().dagScheduler().nextJobId().get();
     int totalJobsRun = jobsAfter - jobsBefore;

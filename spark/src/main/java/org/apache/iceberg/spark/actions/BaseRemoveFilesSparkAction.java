@@ -27,8 +27,8 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.actions.BaseDropTableActionResult;
-import org.apache.iceberg.actions.DropTable;
+import org.apache.iceberg.actions.RemoveFiles;
+import org.apache.iceberg.actions.RemoveFilesActionResult;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.PropertyUtil;
@@ -42,15 +42,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * An action that performs the same operation as {@link DropTable} but uses Spark
+ * An action that performs the same operation as {@link RemoveFiles} but uses Spark
  * to determine the files that needs to be deleted. The action uses metadata tables to
  * find the files to be deleted.
  * Deletes are performed locally after retrieving the results from the Spark executors.
  */
 @SuppressWarnings("UnnecessaryAnonymousClass")
-public class BaseDropTableSparkAction
-    extends BaseSparkAction<DropTable, DropTable.Result> implements DropTable {
-  private static final Logger LOG = LoggerFactory.getLogger(BaseDropTableSparkAction.class);
+public class BaseRemoveFilesSparkAction
+    extends BaseSparkAction<RemoveFiles, RemoveFiles.Result> implements RemoveFiles {
+  private static final Logger LOG = LoggerFactory.getLogger(BaseRemoveFilesSparkAction.class);
 
   private static final String DATA_FILE = "Data File";
   private static final String MANIFEST = "Manifest";
@@ -73,14 +73,14 @@ public class BaseDropTableSparkAction
   private Consumer<String> deleteFunc = defaultDelete;
   private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
 
-  public BaseDropTableSparkAction(SparkSession spark, Table table) {
+  public BaseRemoveFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
     this.ops = ((HasTableOperations) table).operations();
   }
 
   @Override
-  protected DropTable self() {
+  protected RemoveFiles self() {
     return this;
   }
 
@@ -93,11 +93,13 @@ public class BaseDropTableSparkAction
   private Result doExecute() {
     boolean streamResults = PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, false);
     Dataset<Row> validFileDataset = buildValidFileDF(ops.current());
+    RemoveFilesActionResult result;
     if (streamResults) {
-      return deleteFiles(validFileDataset.toLocalIterator());
+      result = deleteFiles(validFileDataset.toLocalIterator());
     } else {
-      return deleteFiles(validFileDataset.collectAsList().iterator());
+      result = deleteFiles(validFileDataset.collectAsList().iterator());
     }
+    return result;
   }
 
   private Dataset<Row> appendTypeString(Dataset<Row> ds, String type) {
@@ -117,7 +119,7 @@ public class BaseDropTableSparkAction
    * @param deleted an Iterator of Spark Rows of the structure (path: String, type: String)
    * @return Statistics on which files were deleted
    */
-  private BaseDropTableActionResult deleteFiles(Iterator<Row> deleted) {
+  private RemoveFilesActionResult deleteFiles(Iterator<Row> deleted) {
     AtomicLong dataFileCount = new AtomicLong(0L);
     AtomicLong manifestCount = new AtomicLong(0L);
     AtomicLong manifestListCount = new AtomicLong(0L);
@@ -151,18 +153,18 @@ public class BaseDropTableSparkAction
         });
 
     LOG.info("Deleted {} total files", dataFileCount.get() + manifestCount.get() + manifestListCount.get());
-    return new BaseDropTableActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get());
+    return new RemoveFilesActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get());
   }
 
   @Override
-  public DropTable deleteWith(Consumer<String> deleteFn) {
+  public RemoveFiles deleteWith(Consumer<String> deleteFn) {
     this.deleteFunc = deleteFn;
     return this;
 
   }
 
   @Override
-  public DropTable executeDeleteWith(ExecutorService executorService) {
+  public RemoveFiles executeDeleteWith(ExecutorService executorService) {
     this.deleteExecutorService = executorService;
     return this;
   }

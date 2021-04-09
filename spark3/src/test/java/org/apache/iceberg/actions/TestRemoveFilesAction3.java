@@ -19,5 +19,5 @@
 
 package org.apache.iceberg.actions;
 
-public class TestDropTableAction3 extends TestDropTableAction {
+public class TestRemoveFilesAction3 extends TestRemoveFilesAction {
 }
