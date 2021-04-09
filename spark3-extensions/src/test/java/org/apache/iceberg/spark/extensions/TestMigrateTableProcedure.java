@@ -116,6 +116,25 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testMigrateWithConflictingProps() throws IOException {
+    Assume.assumeTrue(catalogName.equals("spark_catalog"));
+
+    String location = temp.newFolder().toString();
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", tableName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    Object result = scalarSql("CALL %s.system.migrate('%s', map('migrated', 'false'))", catalogName, tableName);
+    Assert.assertEquals("Should have added one file", 1L, result);
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1L, "a")),
+        sql("SELECT * FROM %s", tableName));
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("Should override user value", "true", table.properties().get("migrated"));
+  }
+
+  @Test
   public void testInvalidMigrateCases() {
     AssertHelpers.assertThrows("Should reject calls without all required args",
         AnalysisException.class, "Missing required parameters",

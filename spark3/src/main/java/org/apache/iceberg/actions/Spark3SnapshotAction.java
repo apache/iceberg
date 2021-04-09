@@ -101,17 +101,22 @@ public class Spark3SnapshotAction extends Spark3CreateAction implements Snapshot
   protected Map<String, String> targetTableProps() {
     Map<String, String> properties = Maps.newHashMap();
 
-    // Remove any possible location properties from origin properties
+    // copy over relevant source table props
     properties.putAll(JavaConverters.mapAsJavaMapConverter(v1SourceTable().properties()).asJava());
+    EXCLUDED_PROPERTIES.forEach(properties::remove);
+
+    // Remove any possible location properties from origin properties
     properties.remove(LOCATION);
     properties.remove(TableProperties.WRITE_METADATA_LOCATION);
     properties.remove(TableProperties.WRITE_NEW_DATA_LOCATION);
 
-    EXCLUDED_PROPERTIES.forEach(properties::remove);
+    // set default and user-provided props
     properties.put(TableCatalog.PROP_PROVIDER, "iceberg");
+    properties.putAll(additionalProperties());
+
+    // make sure we mark this table as a snapshot table
     properties.put(TableProperties.GC_ENABLED, "false");
     properties.put("snapshot", "true");
-    properties.putAll(additionalProperties());
 
     // Don't use the default location for the destination table if an alternate has be set
     if (destTableLocation != null) {

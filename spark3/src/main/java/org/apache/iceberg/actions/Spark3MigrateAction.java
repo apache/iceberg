@@ -118,12 +118,18 @@ public class Spark3MigrateAction extends Spark3CreateAction {
   protected Map<String, String> targetTableProps() {
     Map<String, String> properties = Maps.newHashMap();
 
+    // copy over relevant source table props
     properties.putAll(JavaConverters.mapAsJavaMapConverter(v1SourceTable().properties()).asJava());
     EXCLUDED_PROPERTIES.forEach(properties::remove);
 
+    // set default and user-provided props
     properties.put(TableCatalog.PROP_PROVIDER, "iceberg");
-    properties.put("migrated", "true");
     properties.putAll(additionalProperties());
+
+    // make sure we mark this table as migrated
+    properties.put("migrated", "true");
+
+    // inherit the source table location
     properties.putIfAbsent(LOCATION, sourceTableLocation());
 
     return properties;
