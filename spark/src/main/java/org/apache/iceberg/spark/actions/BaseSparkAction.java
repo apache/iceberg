@@ -159,7 +159,7 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
         .repartition(spark.sessionState().conf().numShufflePartitions()) // avoid adaptive execution combining tasks
         .as(Encoders.bean(ManifestFileBean.class));
 
-    return allManifests.flatMap(new ReadManifest(ioBroadcast), Encoders.STRING()).toDF("file_path");
+    return allManifests.flatMap(new ReadManifest(ioBroadcast), Encoders.STRING()).toDF("file_path").distinct();
   }
 
   protected Dataset<Row> buildManifestFileDF(Table table) {
@@ -173,7 +173,7 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
   protected Dataset<Row> buildOtherMetadataFileDF(TableOperations ops) {
     List<String> otherMetadataFiles = getOtherMetadataFilePaths(ops);
-    return spark.createDataset(otherMetadataFiles, Encoders.STRING()).toDF("file_path");
+    return spark.createDataset(otherMetadataFiles, Encoders.STRING()).toDF("file_path").distinct();
   }
 
   protected Dataset<Row> buildValidMetadataFileDF(Table table, TableOperations ops) {
