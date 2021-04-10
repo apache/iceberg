@@ -20,6 +20,7 @@
 package org.apache.spark.sql.catalyst.parser.extensions
 
 import org.antlr.v4.runtime._
+import org.antlr.v4.runtime.misc.Interval
 import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime.tree.TerminalNode
 import org.apache.iceberg.DistributionMode
@@ -30,8 +31,8 @@ import org.apache.iceberg.spark.Spark3Util
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.Literal
-import org.apache.spark.sql.catalyst.parser.ParseException
 import org.apache.spark.sql.catalyst.parser.ParserInterface
+import org.apache.spark.sql.catalyst.parser.extensions.IcebergParserUtils.withOrigin
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser._
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.CallArgument
@@ -237,9 +238,12 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   private def typedVisit[T](ctx: ParseTree): T = {
     ctx.accept(this).asInstanceOf[T]
   }
+}
 
-  /* Copied from Apache Spark's to avoid dependency on Spark Internals */
-  private def withOrigin[T](ctx: ParserRuleContext)(f: => T): T = {
+/* Partially copied from Apache Spark's Parser to avoid dependency on Spark Internals */
+object IcebergParserUtils {
+
+  private[sql] def withOrigin[T](ctx: ParserRuleContext)(f: => T): T = {
     val current = CurrentOrigin.get
     CurrentOrigin.set(position(ctx.getStart))
     try {
@@ -249,9 +253,14 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     }
   }
 
-  /* Copied from Apache Spark's to avoid dependency on Spark Internals */
-  private def position(token: Token): Origin = {
+  private[sql] def position(token: Token): Origin = {
     val opt = Option(token)
     Origin(opt.map(_.getLine), opt.map(_.getCharPositionInLine))
+  }
+
+  /** Get the command which created the token. */
+  private[sql] def command(ctx: ParserRuleContext): String = {
+    val stream = ctx.getStart.getInputStream
+    stream.getText(Interval.of(0, stream.size() - 1))
   }
 }

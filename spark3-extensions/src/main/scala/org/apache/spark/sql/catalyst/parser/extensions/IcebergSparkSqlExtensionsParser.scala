@@ -29,7 +29,6 @@ import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.expressions.Expression
-import org.apache.spark.sql.catalyst.parser.ParseException
 import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.NonReservedContext
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.QuotedIdentifierContext
@@ -197,8 +196,6 @@ class UpperCaseCharStream(wrapped: CodePointCharStream) extends CharStream {
 /**
  * The post-processor validates & cleans-up the parse tree during the parse process.
  */
-// while we reuse ParseErrorListener and ParseException, we have to copy and modify PostProcessor
-// as it directly depends on classes generated from the extensions grammar file
 case object IcebergSqlExtensionsPostProcessor extends IcebergSqlExtensionsBaseListener {
 
   /** Remove the back ticks from an Identifier. */
@@ -229,5 +226,72 @@ case object IcebergSqlExtensionsPostProcessor extends IcebergSqlExtensionsBaseLi
       token.getStartIndex + stripMargins,
       token.getStopIndex - stripMargins)
     parent.addChild(new TerminalNodeImpl(f(newToken)))
+  }
+}
+
+
+/* Partially copied from Apache Spark's Parser to avoid dependency on Spark Internals */
+case object ParseErrorListener extends BaseErrorListener {
+  override def syntaxError(
+                            recognizer: Recognizer[_, _],
+                            offendingSymbol: scala.Any,
+                            line: Int,
+                            charPositionInLine: Int,
+                            msg: String,
+                            e: RecognitionException): Unit = {
+    val (start, stop) = offendingSymbol match {
+      case token: CommonToken =>
+        val start = Origin(Some(line), Some(token.getCharPositionInLine))
+        val length = token.getStopIndex - token.getStartIndex + 1
+        val stop = Origin(Some(line), Some(token.getCharPositionInLine + length))
+        (start, stop)
+      case _ =>
+        val start = Origin(Some(line), Some(charPositionInLine))
+        (start, start)
+    }
+    throw new ParseException(None, msg, start, stop)
+  }
+}
+
+/**
+ * A [[ParseException]] is an [[AnalysisException]] that is thrown during the parse process. It
+ * contains fields and an extended error message that make reporting and diagnosing errors easier.
+ */
+class ParseException(
+                      val command: Option[String],
+                      message: String,
+                      val start: Origin,
+                      val stop: Origin) extends AnalysisException(message, start.line, start.startPosition) {
+
+  def this(message: String, ctx: ParserRuleContext) = {
+    this(Option(IcebergParserUtils.command(ctx)),
+      message,
+      IcebergParserUtils.position(ctx.getStart),
+      IcebergParserUtils.position(ctx.getStop))
+  }
+
+  override def getMessage: String = {
+    val builder = new StringBuilder
+    builder ++= "\n" ++= message
+    start match {
+      case Origin(Some(l), Some(p)) =>
+        builder ++= s"(line $l, pos $p)\n"
+        command.foreach { cmd =>
+          val (above, below) = cmd.split("\n").splitAt(l)
+          builder ++= "\n== SQL ==\n"
+          above.foreach(builder ++= _ += '\n')
+          builder ++= (0 until p).map(_ => "-").mkString("") ++= "^^^\n"
+          below.foreach(builder ++= _ += '\n')
+        }
+      case _ =>
+        command.foreach { cmd =>
+          builder ++= "\n== SQL ==\n" ++= cmd
+        }
+    }
+    builder.toString
+  }
+
+  def withCommand(cmd: String): ParseException = {
+    new ParseException(Option(cmd), message, start, stop)
   }
 }
