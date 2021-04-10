@@ -184,7 +184,7 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
         .map(visitConstant)
         .map(lit => LiteralValue(lit.value, lit.dataType))
     reference.orElse(literal)
-        .getOrElse(throw new ParseException(s"Invalid transform argument", ctx))
+        .getOrElse(throw new IcebergParseException(s"Invalid transform argument", ctx))
   }
 
   /**

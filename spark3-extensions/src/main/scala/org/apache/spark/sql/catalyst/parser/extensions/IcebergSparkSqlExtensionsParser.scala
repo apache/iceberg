@@ -148,13 +148,13 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
       }
     }
     catch {
-      case e: ParseException if e.command.isDefined =>
+      case e: IcebergParseException if e.command.isDefined =>
         throw e
-      case e: ParseException =>
+      case e: IcebergParseException =>
         throw e.withCommand(command)
       case e: AnalysisException =>
         val position = Origin(e.line, e.startPosition)
-        throw new ParseException(Option(command), e.message, position, position)
+        throw new IcebergParseException(Option(command), e.message, position, position)
     }
   }
 
@@ -249,15 +249,16 @@ case object ParseErrorListener extends BaseErrorListener {
         val start = Origin(Some(line), Some(charPositionInLine))
         (start, start)
     }
-    throw new ParseException(None, msg, start, stop)
+    throw new IcebergParseException(None, msg, start, stop)
   }
 }
 
 /**
+ * Copied from Apache Spark
  * A [[ParseException]] is an [[AnalysisException]] that is thrown during the parse process. It
  * contains fields and an extended error message that make reporting and diagnosing errors easier.
  */
-class ParseException(
+class IcebergParseException(
                       val command: Option[String],
                       message: String,
                       val start: Origin,
@@ -291,7 +292,7 @@ class ParseException(
     builder.toString
   }
 
-  def withCommand(cmd: String): ParseException = {
-    new ParseException(Option(cmd), message, start, stop)
+  def withCommand(cmd: String): IcebergParseException = {
+    new IcebergParseException(Option(cmd), message, start, stop)
   }
 }
