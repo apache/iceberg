@@ -293,6 +293,12 @@ public class Spark3Util {
           }
 
           @Override
+          public Transform alwaysNull(int fieldId, String sourceName, int sourceId) {
+            // do nothing for alwaysNull, it doesn't need to be converted to a transform
+            return null;
+          }
+
+          @Override
           public Transform unknown(int fieldId, String sourceName, int sourceId, String transform) {
             return Expressions.apply(transform, Expressions.column(sourceName));
           }

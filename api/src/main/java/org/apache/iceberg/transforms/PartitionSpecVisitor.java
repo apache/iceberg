@@ -20,10 +20,11 @@
 package org.apache.iceberg.transforms;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public interface PartitionSpecVisitor<T> {
   default T identity(int fieldId, String sourceName, int sourceId) {
@@ -114,13 +115,10 @@ public interface PartitionSpecVisitor<T> {
    */
   @Deprecated
   static <R> List<R> visit(Schema schema, PartitionSpec spec, PartitionSpecVisitor<R> visitor) {
-    List<R> results = Lists.newArrayListWithExpectedSize(spec.fields().size());
-
-    for (PartitionField field : spec.fields()) {
-      results.add(visit(schema, field, visitor));
-    }
-
-    return results;
+    return spec.fields().stream()
+        .map(field -> visit(schema, field, visitor))
+        .filter(Objects::nonNull)
+        .collect(Collectors.toList());
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
