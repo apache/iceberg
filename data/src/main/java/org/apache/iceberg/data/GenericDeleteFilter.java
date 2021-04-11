@@ -20,7 +20,6 @@
 package org.apache.iceberg.data;
 
 import java.util.function.Consumer;
-import java.util.function.Function;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
@@ -48,8 +47,8 @@ public class GenericDeleteFilter extends DeleteFilter<Record> {
   }
 
   @Override
-  protected Function<Record, Boolean> deleteChecker() {
-    return record -> record.get(deleteMarkerIndex(), Boolean.class);
+  protected boolean isDeletedRow(Record record) {
+    return record.get(deleteMarkerIndex(), Boolean.class);
   }
 
   @Override

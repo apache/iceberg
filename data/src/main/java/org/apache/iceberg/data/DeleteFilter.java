@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.DataFile;
@@ -71,6 +70,7 @@ public abstract class DeleteFilter<T> {
   private final List<DeleteFile> eqDeletes;
   private final Schema requiredSchema;
   private final Accessor<StructLike> posAccessor;
+  private Integer deleteMarkerIndex = null;
 
   private PositionDeleteIndex deleteRowPositions = null;
 
@@ -104,6 +104,10 @@ public abstract class DeleteFilter<T> {
   }
 
   protected int deleteMarkerIndex() {
+    if (deleteMarkerIndex != null) {
+      return deleteMarkerIndex;
+    }
+
     int index = 0;
     for (Types.NestedField field : requiredSchema().columns()) {
       if (field.fieldId() != MetadataColumns.IS_DELETED.fieldId()) {
@@ -113,12 +117,14 @@ public abstract class DeleteFilter<T> {
       }
     }
 
-    return index;
+    deleteMarkerIndex = index;
+
+    return deleteMarkerIndex;
   }
 
   protected abstract Consumer<T> deleteMarker();
 
-  protected abstract Function<T, Boolean> deleteChecker();
+  protected abstract boolean isDeletedRow(T row);
 
   public boolean hasPosDeletes() {
     return !posDeletes.isEmpty();
@@ -138,6 +144,15 @@ public abstract class DeleteFilter<T> {
 
   public CloseableIterable<T> filter(CloseableIterable<T> records) {
     return applyEqDeletes(applyPosDeletes(records));
+  }
+
+  private Filter<T> deletedRowsSelector() {
+    return new Filter<T>() {
+      @Override
+      protected boolean shouldKeep(T item) {
+        return isDeletedRow(item);
+      }
+    };
   }
 
   private Predicate<T> buildEqDeletePredicate() {
@@ -218,20 +233,13 @@ public abstract class DeleteFilter<T> {
       List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
       markedRecords = CloseableIterable.transform(Deletes.streamingDeletedRowMarker(records, this::pos,
           Deletes.deletePositions(dataFile.path(), deletes), deleteMarker()), record -> {
-          if (isDeletedFromEqDeletes.test(record)) {
+          if (!isDeletedRow(record) && isDeletedFromEqDeletes.test(record)) {
             deleteMarker().accept(record);
           }
           return record;
         });
     }
-
-    Filter<T> deletedRowsSelector = new Filter<T>() {
-      @Override
-      protected boolean shouldKeep(T item) {
-        return deleteChecker().apply(item);
-      }
-    };
-    return deletedRowsSelector.filter(markedRecords);
+    return deletedRowsSelector().filter(markedRecords);
   }
 
   private CloseableIterable<T> selectRowsFromDeletes(CloseableIterable<T> records, Predicate<T> isDeleted) {
@@ -242,13 +250,7 @@ public abstract class DeleteFilter<T> {
       return record;
     });
 
-    Filter<T> deletedRowsSelector = new Filter<T>() {
-      @Override
-      protected boolean shouldKeep(T item) {
-        return deleteChecker().apply(item);
-      }
-    };
-    return deletedRowsSelector.filter(markedRecords);
+    return deletedRowsSelector().filter(markedRecords);
   }
 
   public CloseableIterable<T> keepRowsFromEqualityDeletes(CloseableIterable<T> records) {
@@ -275,14 +277,7 @@ public abstract class DeleteFilter<T> {
       CloseableIterable<T> markedRecords = Deletes.streamingDeletedRowMarker(records, this::pos,
               Deletes.deletePositions(dataFile.path(), deletes), deleteMarker());
 
-      Filter<T> deleteRowsSelector = new Filter<T>() {
-        @Override
-        protected boolean shouldKeep(T item) {
-          return deleteChecker().apply(item);
-        }
-      };
-
-      return deleteRowsSelector.filter(markedRecords);
+      return deletedRowsSelector().filter(markedRecords);
     }
   }
 
@@ -303,7 +298,7 @@ public abstract class DeleteFilter<T> {
     Filter<T> remainingRowsFilter = new Filter<T>() {
       @Override
       protected boolean shouldKeep(T item) {
-        return !deleteChecker().apply(item);
+        return !isDeletedRow(item);
       }
     };
 
@@ -342,7 +337,7 @@ public abstract class DeleteFilter<T> {
     Filter<T> remainingRowsFilter = new Filter<T>() {
       @Override
       protected boolean shouldKeep(T item) {
-        return !deleteChecker().apply(item);
+        return !isDeletedRow(item);
       }
     };
 
