@@ -33,6 +33,9 @@ import org.projectnessie.model.Contents;
 import org.projectnessie.model.ContentsKey;
 import org.projectnessie.model.IcebergTable;
 import org.projectnessie.model.ImmutableIcebergTable;
+import org.projectnessie.model.ImmutableOperations;
+import org.projectnessie.model.Operation;
+import org.projectnessie.model.Operations;
 
 /**
  * Nessie implementation of Iceberg TableOperations.
@@ -91,11 +94,10 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
     boolean threw = true;
     try {
       IcebergTable newTable = ImmutableIcebergTable.builder().metadataLocation(newMetadataLocation).build();
-      client.getContentsApi().setContents(key,
-                                          reference.getAsBranch().getName(),
-                                          reference.getHash(),
-                                          String.format("iceberg commit%s", applicationId()),
-                                          newTable);
+      Operations op = ImmutableOperations.builder().addOperations(Operation.Put.of(key, newTable)).build();
+      client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(), reference.getHash(),
+          String.format("iceberg commit%s", applicationId()), op);
+
       threw = false;
     } catch (NessieConflictException ex) {
       throw new CommitFailedException(ex, "Commit failed: Reference hash is out of date. " +
