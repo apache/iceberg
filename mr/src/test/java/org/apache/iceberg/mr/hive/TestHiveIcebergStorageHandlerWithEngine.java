@@ -34,7 +34,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hive.HiveSchemaUtil;
-import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -667,7 +666,8 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   @Test
   public void testWriteWithDefaultWriteFormat() {
     Assume.assumeTrue("Testing the default file format is enough for a single scenario.",
-        executionEngine.equals("mr") && Catalogs.hiveCatalog(shell.getHiveConf()) && fileFormat == FileFormat.ORC);
+        executionEngine.equals("mr") && testTableType == TestTables.TestTableType.HIVE_CATALOG &&
+                fileFormat == FileFormat.ORC);
 
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
 

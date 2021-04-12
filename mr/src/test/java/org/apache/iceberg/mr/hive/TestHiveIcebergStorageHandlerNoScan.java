@@ -653,7 +653,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
   @Test
   public void testIcebergHMSPropertiesTranslation() throws Exception {
     Assume.assumeTrue("Iceberg - HMS property translation is only relevant for HiveCatalog",
-        Catalogs.hiveCatalog(shell.getHiveConf()));
+        testTableType == TestTables.TestTableType.HIVE_CATALOG);
 
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
 
