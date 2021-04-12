@@ -49,7 +49,9 @@ import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.DataCompactionJobCoordinator;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -144,6 +146,10 @@ class SparkWrite {
 
   BatchWrite asCopyOnWriteMergeWrite(SparkMergeScan scan, IsolationLevel isolationLevel) {
     return new CopyOnWriteMergeWrite(scan, isolationLevel);
+  }
+
+  BatchWrite asCompactionWrite(String jobID) {
+    return new CompactionWrite(jobID);
   }
 
   StreamingWrite asStreamingAppend() {
@@ -365,6 +371,23 @@ class SparkWrite {
           "overwrite of %d data files with %d new data files",
           numOverwrittenFiles, numAddedFiles);
       commitOperation(overwriteFiles, commitMsg);
+    }
+  }
+
+  private class CompactionWrite extends BaseBatchWrite {
+    private final String jobID;
+
+    private CompactionWrite(String jobID) {
+      this.jobID = jobID;
+    }
+
+    @Override
+    public void commit(WriterCommitMessage[] messages) {
+      List<DataFile> newDataFiles = Lists.newArrayListWithExpectedSize(messages.length);
+      for (DataFile file : files(messages)) {
+        newDataFiles.add(file);
+      }
+      DataCompactionJobCoordinator.commitJob(table, jobID, newDataFiles);
     }
   }
 

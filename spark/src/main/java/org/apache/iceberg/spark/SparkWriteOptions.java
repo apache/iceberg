@@ -47,4 +47,7 @@ public class SparkWriteOptions {
 
   // Checks if input schema and table schema are same(default: true)
   public static final String CHECK_ORDERING = "check-ordering";
+
+  // Compaction job ID that is used to assign new files
+  public static final String COMPACTION_JOB_ID = "compaction-job-id";
 }

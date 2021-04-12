@@ -47,4 +47,7 @@ public class SparkReadOptions {
 
   // Overrides the table's read.parquet.vectorization.batch-size
   public static final String VECTORIZATION_BATCH_SIZE = "batch-size";
+
+  // Compaction job ID that is used to fetch planned tasks
+  public static final String COMPACTION_JOB_ID = "compaction-job-id";
 }
