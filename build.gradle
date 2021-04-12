@@ -22,8 +22,9 @@ import groovy.transform.Memoized
 buildscript {
   repositories {
     gradlePluginPortal()
-    maven { url "http://palantir.bintray.com/releases" }
-    maven { url "https://plugins.gradle.org/m2/" }
+    mavenCentral()
+    // TODO get rid of the whole binary-deps folder - see https://github.com/apache/iceberg/issues/2462
+    maven { url "file://${rootProject.rootDir}/binary-deps" }
   }
   dependencies {
     classpath 'com.github.jengelman.gradle.plugins:shadow:5.0.0'
@@ -63,9 +64,10 @@ allprojects {
   group = "org.apache.iceberg"
   version = getProjectVersion()
   repositories {
-    maven { url  "http://palantir.bintray.com/releases" }
     mavenCentral()
     mavenLocal()
+    // TODO get rid of the whole binary-deps folder - see https://github.com/apache/iceberg/issues/2462
+    maven { url "file://${rootProject.rootDir}/binary-deps" }
   }
 }
 
