@@ -38,6 +38,7 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
@@ -103,6 +104,7 @@ public class TestIcebergInputFormats {
   @Before
   public void before() throws IOException {
     conf = new Configuration();
+    conf.set(InputFormatConfig.CATALOG, Catalogs.LOCATION);
     HadoopTables tables = new HadoopTables(conf);
 
     File location = temp.newFolder(testInputFormat.name(), fileFormat.name());
@@ -344,18 +346,17 @@ public class TestIcebergInputFormats {
     }
   }
 
-  public static class HadoopCatalogLoader implements CatalogLoader {
-    @Override
-    public Catalog load(Configuration conf) {
-      return new HadoopCatalog(conf, conf.get("warehouse.location"));
-    }
-  }
-
   @Test
   public void testCustomCatalog() throws IOException {
-    conf.set("warehouse.location", temp.newFolder("hadoop_catalog").getAbsolutePath());
+    String warehouseLocation = temp.newFolder("hadoop_catalog").getAbsolutePath();
+    conf.set("warehouse.location", warehouseLocation);
+    conf.set(InputFormatConfig.CATALOG_NAME, Catalogs.ICEBERG_DEFAULT_CATALOG_NAME);
+    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, Catalogs.ICEBERG_DEFAULT_CATALOG_NAME),
+            CatalogUtil.ICEBERG_CATALOG_TYPE_HADOOP);
+    conf.set(String.format(InputFormatConfig.CATALOG_WAREHOUSE_TEMPLATE, Catalogs.ICEBERG_DEFAULT_CATALOG_NAME),
+            warehouseLocation);
 
-    Catalog catalog = new HadoopCatalogLoader().load(conf);
+    Catalog catalog = new HadoopCatalog(conf, conf.get("warehouse.location"));
     TableIdentifier identifier = TableIdentifier.of("db", "t");
     Table table = catalog.createTable(identifier, SCHEMA, SPEC, helper.properties());
     helper.setTable(table);
@@ -364,8 +365,7 @@ public class TestIcebergInputFormats {
     expectedRecords.get(0).set(2, "2020-03-20");
     helper.appendToTable(Row.of("2020-03-20", 0), expectedRecords);
 
-    builder.catalogLoader(HadoopCatalogLoader.class)
-           .readFrom(identifier);
+    builder.readFrom(identifier);
 
     testInputFormat.create(builder.conf()).validate(expectedRecords);
   }

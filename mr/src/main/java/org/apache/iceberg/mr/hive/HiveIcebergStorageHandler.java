@@ -113,13 +113,18 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   public void configureJobConf(TableDesc tableDesc, JobConf jobConf) {
     if (tableDesc != null && tableDesc.getProperties() != null &&
         tableDesc.getProperties().get(WRITE_KEY) != null) {
-      Preconditions.checkArgument(!tableDesc.getTableName().contains(TABLE_NAME_SEPARATOR),
-          "Can not handle table " + tableDesc.getTableName() + ". Its name contains '" + TABLE_NAME_SEPARATOR + "'");
+      String tableName = tableDesc.getTableName();
+      Preconditions.checkArgument(!tableName.contains(TABLE_NAME_SEPARATOR),
+          "Can not handle table " + tableName + ". Its name contains '" + TABLE_NAME_SEPARATOR + "'");
       String tables = jobConf.get(InputFormatConfig.OUTPUT_TABLES);
-      tables = tables == null ? tableDesc.getTableName() : tables + TABLE_NAME_SEPARATOR + tableDesc.getTableName();
-
+      tables = tables == null ? tableName : tables + TABLE_NAME_SEPARATOR + tableName;
       jobConf.set("mapred.output.committer.class", HiveIcebergOutputCommitter.class.getName());
       jobConf.set(InputFormatConfig.OUTPUT_TABLES, tables);
+
+      String catalogName = tableDesc.getProperties().getProperty(InputFormatConfig.CATALOG_NAME);
+      if (catalogName != null) {
+        jobConf.set(InputFormatConfig.TABLE_CATALOG_PREFIX + tableName, catalogName);
+      }
     }
   }
 
@@ -169,6 +174,16 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
    */
   public static Collection<String> outputTables(Configuration config) {
     return TABLE_NAME_SPLITTER.splitToList(config.get(InputFormatConfig.OUTPUT_TABLES));
+  }
+
+  /**
+   * Returns the catalog name serialized to the configuration.
+   * @param config The configuration used to get the data from
+   * @param name The name of the table we neeed as returned by TableDesc.getTableName()
+   * @return catalog name
+   */
+  public static String catalogName(Configuration config, String name) {
+    return config.get(InputFormatConfig.TABLE_CATALOG_PREFIX + name);
   }
 
   /**

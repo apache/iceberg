@@ -50,6 +50,7 @@ import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.mr.mapred.Container;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializationUtil;
@@ -108,6 +109,7 @@ public class TestHiveIcebergOutputCommitter {
   public void testSuccessfulUnpartitionedWrite() throws IOException {
     HiveIcebergOutputCommitter committer = new HiveIcebergOutputCommitter();
     Table table = table(temp.getRoot().getPath(), false);
+
     JobConf conf = jobConf(table, 1);
     List<Record> expected = writeRecords(table.name(), 1, 0, true, false, conf);
     committer.commitJob(new JobContextImpl(conf, JOB_ID));
@@ -217,7 +219,9 @@ public class TestHiveIcebergOutputCommitter {
 
   private Table table(String location, boolean partitioned) {
     HadoopTables tables = new HadoopTables();
-    return tables.create(CUSTOMER_SCHEMA, partitioned ? PARTITIONED_SPEC : PartitionSpec.unpartitioned(), location);
+
+    return tables.create(CUSTOMER_SCHEMA, partitioned ? PARTITIONED_SPEC : PartitionSpec.unpartitioned(),
+            ImmutableMap.of(InputFormatConfig.CATALOG_NAME, Catalogs.ICEBERG_HADOOP_TABLE_NAME), location);
   }
 
   private JobConf jobConf(Table table, int taskNum) {
@@ -226,6 +230,8 @@ public class TestHiveIcebergOutputCommitter {
     conf.setNumReduceTasks(0);
     conf.set(HiveConf.ConfVars.HIVEQUERYID.varname, QUERY_ID);
     conf.set(InputFormatConfig.OUTPUT_TABLES, table.name());
+    conf.set(InputFormatConfig.TABLE_CATALOG_PREFIX + table.name(),
+            table.properties().get(InputFormatConfig.CATALOG_NAME));
     conf.set(InputFormatConfig.SERIALIZED_TABLE_PREFIX + table.name(), SerializationUtil.serializeToBase64(table));
 
     Map<String, String> propMap = Maps.newHashMap();
@@ -233,6 +239,8 @@ public class TestHiveIcebergOutputCommitter {
     tableDesc.setProperties(new Properties());
     tableDesc.getProperties().setProperty(Catalogs.NAME, table.name());
     tableDesc.getProperties().setProperty(Catalogs.LOCATION, table.location());
+    tableDesc.getProperties().setProperty(InputFormatConfig.CATALOG_NAME, table.properties()
+            .get(InputFormatConfig.CATALOG_NAME));
     HiveIcebergStorageHandler.overlayTableProperties(conf, tableDesc, propMap);
     propMap.forEach((key, value) -> conf.set(key, value));
     return conf;

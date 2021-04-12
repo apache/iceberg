@@ -47,6 +47,7 @@ public class InputFormatConfig {
   public static final String TABLE_SCHEMA = "iceberg.mr.table.schema";
   public static final String PARTITION_SPEC = "iceberg.mr.table.partition.spec";
   public static final String SERIALIZED_TABLE_PREFIX = "iceberg.mr.serialized.table.";
+  public static final String TABLE_CATALOG_PREFIX = "iceberg.mr.table.catalog.";
   public static final String LOCALITY = "iceberg.mr.locality";
   public static final String CATALOG = "iceberg.mr.catalog";
   public static final String HADOOP_CATALOG_WAREHOUSE_LOCATION = "iceberg.mr.catalog.hadoop.warehouse.location";
@@ -71,6 +72,11 @@ public class InputFormatConfig {
   public static final String ICEBERG_SNAPSHOTS_TABLE_SUFFIX = ".snapshots";
   public static final String SNAPSHOT_TABLE = "iceberg.snapshots.table";
   public static final String SNAPSHOT_TABLE_SUFFIX = "__snapshots";
+
+  public static final String CATALOG_CONFIG_PREFIX = "iceberg.catalog.";
+  public static final String CATALOG_TYPE_TEMPLATE = "iceberg.catalog.%s.type";
+  public static final String CATALOG_WAREHOUSE_TEMPLATE = "iceberg.catalog.%s.warehouse";
+  public static final String CATALOG_CLASS_TEMPLATE = "iceberg.catalog.%s.catalog-impl";
 
   public enum InMemoryDataModel {
     PIG,
@@ -159,11 +165,6 @@ public class InputFormatConfig {
      */
     public ConfigBuilder preferLocality() {
       conf.setBoolean(LOCALITY, true);
-      return this;
-    }
-
-    public ConfigBuilder catalogLoader(Class<? extends CatalogLoader> catalogLoader) {
-      conf.setClass(CATALOG_LOADER_CLASS, catalogLoader, CatalogLoader.class);
       return this;
     }
 

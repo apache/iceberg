@@ -170,8 +170,9 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
           .executeWith(tableExecutor)
           .run(output -> {
             Table table = HiveIcebergStorageHandler.table(jobConf, output);
+            String catalogName = HiveIcebergStorageHandler.catalogName(jobConf, output);
             jobLocations.add(generateJobLocation(table.location(), jobConf, jobContext.getJobID()));
-            commitTable(table.io(), fileExecutor, jobContext, output, table.location());
+            commitTable(table.io(), fileExecutor, jobContext, output, table.location(), catalogName);
           });
     } finally {
       fileExecutor.shutdown();
@@ -245,12 +246,17 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
    * @param jobContext The job context
    * @param name The name of the table used for loading from the catalog
    * @param location The location of the table used for loading from the catalog
+   * @param catalogName The name of the catalog that contains the table
    */
-  private void commitTable(FileIO io, ExecutorService executor, JobContext jobContext, String name, String location) {
+  private void commitTable(FileIO io, ExecutorService executor, JobContext jobContext, String name, String location,
+                           String catalogName) {
     JobConf conf = jobContext.getJobConf();
     Properties catalogProperties = new Properties();
     catalogProperties.put(Catalogs.NAME, name);
     catalogProperties.put(Catalogs.LOCATION, location);
+    if (catalogName != null) {
+      catalogProperties.put(InputFormatConfig.CATALOG_NAME, catalogName);
+    }
     Table table = Catalogs.loadTable(conf, catalogProperties);
 
     long startTime = System.currentTimeMillis();
