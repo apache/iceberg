@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.stream.Collectors;
 import org.apache.hadoop.hive.ql.exec.mr.ExecMapper;
 import org.apache.iceberg.FileFormat;
@@ -667,7 +668,8 @@ public class TestHiveIcebergStorageHandlerWithEngine {
   @Test
   public void testWriteWithDefaultWriteFormat() {
     Assume.assumeTrue("Testing the default file format is enough for a single scenario.",
-        executionEngine.equals("mr") && Catalogs.hiveCatalog(shell.getHiveConf()) && fileFormat == FileFormat.ORC);
+        executionEngine.equals("mr") && Catalogs.hiveCatalog(shell.getHiveConf(),
+            new Properties()) && fileFormat == FileFormat.ORC);
 
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
 
