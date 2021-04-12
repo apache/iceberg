@@ -37,6 +37,7 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,11 +54,20 @@ public class BaseSnapshotTableSparkAction
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseSnapshotTableSparkAction.class);
 
+  private StagingTableCatalog destCatalog;
+  private Identifier destTableIdent;
   private String destTableLocation = null;
 
+  BaseSnapshotTableSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
+    super(spark, sourceCatalog, sourceTableIdent);
+  }
+
+  // used by the old constructor
   public BaseSnapshotTableSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent,
                                       CatalogPlugin destCatalog, Identifier destTableIdent) {
-    super(spark, sourceCatalog, sourceTableIdent, destCatalog, destTableIdent);
+    super(spark, sourceCatalog, sourceTableIdent);
+    this.destCatalog = checkDestinationCatalog(destCatalog);
+    this.destTableIdent = destTableIdent;
   }
 
   @Override
@@ -66,11 +76,22 @@ public class BaseSnapshotTableSparkAction
   }
 
   @Override
+  protected StagingTableCatalog destCatalog() {
+    return destCatalog;
+  }
+
+  @Override
+  protected Identifier destTableIdent() {
+    return destTableIdent;
+  }
+
+  @Override
   public SnapshotTable as(String ident) {
     String ctx = "snapshot destination";
     CatalogPlugin defaultCatalog = spark().sessionState().catalogManager().currentCatalog();
     CatalogAndIdentifier catalogAndIdent = Spark3Util.catalogAndIdentifier(ctx, spark(), ident, defaultCatalog);
-    setDestCatalogAndIdent(catalogAndIdent.catalog(), catalogAndIdent.identifier());
+    this.destCatalog = checkDestinationCatalog(catalogAndIdent.catalog());
+    this.destTableIdent = catalogAndIdent.identifier();
     return this;
   }
 
@@ -135,7 +156,7 @@ public class BaseSnapshotTableSparkAction
   }
 
   @Override
-  protected Map<String, String> targetTableProps() {
+  protected Map<String, String> destTableProps() {
     Map<String, String> properties = Maps.newHashMap();
 
     // copy over relevant source table props

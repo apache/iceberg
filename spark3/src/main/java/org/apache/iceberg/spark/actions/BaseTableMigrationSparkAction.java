@@ -63,21 +63,14 @@ abstract class BaseTableMigrationSparkAction<ThisT, R> extends BaseSparkAction<T
   private final TableCatalog sourceCatalog;
   private final Identifier sourceTableIdent;
 
-  // Destination Fields
-  private StagingTableCatalog destCatalog;
-  private Identifier destTableIdent;
-
   // Optional Parameters for destination
   private final Map<String, String> additionalProperties = Maps.newHashMap();
 
-  BaseTableMigrationSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent,
-                                CatalogPlugin destCatalog, Identifier destTableIdent) {
+  BaseTableMigrationSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
     super(spark);
 
     this.sourceCatalog = checkSourceCatalog(sourceCatalog);
     this.sourceTableIdent = sourceTableIdent;
-    this.destCatalog = destCatalog != null ? checkDestinationCatalog(destCatalog) : null;
-    this.destTableIdent = destTableIdent;
 
     try {
       this.sourceTable = (V1Table) this.sourceCatalog.loadTable(sourceTableIdent);
@@ -93,18 +86,13 @@ abstract class BaseTableMigrationSparkAction<ThisT, R> extends BaseSparkAction<T
     this.sourceTableLocation = CatalogUtils.URIToString(sourceCatalogTable.storage().locationUri().get());
   }
 
-  protected void setDestCatalogAndIdent(CatalogPlugin catalog, Identifier ident) {
-    this.destCatalog = checkDestinationCatalog(catalog);
-    this.destTableIdent = ident;
-  }
+  protected abstract TableCatalog checkSourceCatalog(CatalogPlugin catalog);
 
-  protected void setProperties(Map<String, String> properties) {
-    this.additionalProperties.putAll(properties);
-  }
+  protected abstract StagingTableCatalog destCatalog();
 
-  protected void setProperty(String key, String value) {
-    this.additionalProperties.put(key, value);
-  }
+  protected abstract Identifier destTableIdent();
+
+  protected abstract Map<String, String> destTableProps();
 
   protected String sourceTableLocation() {
     return sourceTableLocation;
@@ -122,12 +110,12 @@ abstract class BaseTableMigrationSparkAction<ThisT, R> extends BaseSparkAction<T
     return sourceTableIdent;
   }
 
-  protected StagingTableCatalog destCatalog() {
-    return destCatalog;
+  protected void setProperties(Map<String, String> properties) {
+    additionalProperties.putAll(properties);
   }
 
-  protected Identifier destTableIdent() {
-    return destTableIdent;
+  protected void setProperty(String key, String value) {
+    additionalProperties.put(key, value);
   }
 
   protected Map<String, String> additionalProperties() {
@@ -142,7 +130,7 @@ abstract class BaseTableMigrationSparkAction<ThisT, R> extends BaseSparkAction<T
         "Cannot create an Iceberg table from a source without an explicit location");
   }
 
-  private StagingTableCatalog checkDestinationCatalog(CatalogPlugin catalog) {
+  protected StagingTableCatalog checkDestinationCatalog(CatalogPlugin catalog) {
     Preconditions.checkArgument(catalog instanceof SparkSessionCatalog || catalog instanceof SparkCatalog,
         "Cannot create Iceberg table in non-Iceberg Catalog. " +
             "Catalog '%s' was of class '%s' but '%s' or '%s' are required",
@@ -154,15 +142,14 @@ abstract class BaseTableMigrationSparkAction<ThisT, R> extends BaseSparkAction<T
 
   protected StagedSparkTable stageDestTable() {
     try {
-      Map<String, String> props = targetTableProps();
+      Map<String, String> props = destTableProps();
       StructType schema = sourceTable.schema();
       Transform[] partitioning = sourceTable.partitioning();
-      return (StagedSparkTable) destCatalog.stageCreate(destTableIdent, schema, partitioning, props);
+      return (StagedSparkTable) destCatalog().stageCreate(destTableIdent(), schema, partitioning, props);
     } catch (org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException e) {
-      throw new NoSuchNamespaceException("Cannot create a table '%s' because the namespace does not exist",
-          destTableIdent);
+      throw new NoSuchNamespaceException("Cannot create table %s as the namespace does not exist", destTableIdent());
     } catch (org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException e) {
-      throw new AlreadyExistsException("Cannot create table '%s' because it already exists", destTableIdent);
+      throw new AlreadyExistsException("Cannot create table %s as it already exists", destTableIdent());
     }
   }
 
@@ -178,8 +165,4 @@ abstract class BaseTableMigrationSparkAction<ThisT, R> extends BaseSparkAction<T
     return table.properties().getOrDefault(TableProperties.WRITE_METADATA_LOCATION,
         table.location() + "/" + ICEBERG_METADATA_FOLDER);
   }
-
-  protected abstract Map<String, String> targetTableProps();
-
-  protected abstract TableCatalog checkSourceCatalog(CatalogPlugin catalog);
 }

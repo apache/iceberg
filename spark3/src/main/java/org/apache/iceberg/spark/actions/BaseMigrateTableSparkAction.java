@@ -37,6 +37,7 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,17 +57,31 @@ public class BaseMigrateTableSparkAction
   private static final Logger LOG = LoggerFactory.getLogger(BaseMigrateTableSparkAction.class);
   private static final String BACKUP_SUFFIX = "_BACKUP_";
 
+  private final StagingTableCatalog destCatalog;
+  private final Identifier destTableIdent;
   private final Identifier backupIdent;
 
   public BaseMigrateTableSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
-    super(spark, sourceCatalog, sourceTableIdent, sourceCatalog, sourceTableIdent);
-    String backupName = sourceTableIdent().name() + BACKUP_SUFFIX;
-    this.backupIdent = Identifier.of(sourceTableIdent().namespace(), backupName);
+    super(spark, sourceCatalog, sourceTableIdent);
+    this.destCatalog = checkDestinationCatalog(sourceCatalog);
+    this.destTableIdent = sourceTableIdent;
+    String backupName = sourceTableIdent.name() + BACKUP_SUFFIX;
+    this.backupIdent = Identifier.of(sourceTableIdent.namespace(), backupName);
   }
 
   @Override
   protected MigrateTable self() {
     return this;
+  }
+
+  @Override
+  protected StagingTableCatalog destCatalog() {
+    return destCatalog;
+  }
+
+  @Override
+  protected Identifier destTableIdent() {
+    return destTableIdent;
   }
 
   @Override
@@ -137,7 +152,7 @@ public class BaseMigrateTableSparkAction
   }
 
   @Override
-  protected Map<String, String> targetTableProps() {
+  protected Map<String, String> destTableProps() {
     Map<String, String> properties = Maps.newHashMap();
 
     // copy over relevant source table props
