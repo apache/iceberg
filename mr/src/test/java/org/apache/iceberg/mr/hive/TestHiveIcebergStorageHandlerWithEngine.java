@@ -30,9 +30,11 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hive.HiveSchemaUtil;
+import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -660,6 +662,28 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     // Check that everything is as expected
     HiveIcebergTestUtils.validateData(target1, target1Records, 0);
     HiveIcebergTestUtils.validateData(target2, target2Records, 1);
+  }
+
+  @Test
+  public void testWriteWithDefaultWriteFormat() {
+    Assume.assumeTrue("Testing the default file format is enough for a single scenario.",
+        executionEngine.equals("mr") && Catalogs.hiveCatalog(shell.getHiveConf()) && fileFormat == FileFormat.ORC);
+
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+
+    // create Iceberg table without specifying a write format in the tbl properties
+    // it should fall back to using the default file format
+    shell.executeStatement(String.format("CREATE EXTERNAL TABLE %s (id bigint, name string) STORED BY '%s' %s",
+        identifier,
+        HiveIcebergStorageHandler.class.getName(),
+        testTables.locationForCreateTableSQL(identifier)));
+
+    shell.executeStatement(String.format("INSERT INTO %s VALUES (10, 'Linda')", identifier));
+    List<Object[]> results = shell.executeStatement(String.format("SELECT * FROM %s", identifier));
+
+    Assert.assertEquals(1, results.size());
+    Assert.assertEquals(10L, results.get(0)[0]);
+    Assert.assertEquals("Linda", results.get(0)[1]);
   }
 
   private void testComplexTypeWrite(Schema schema, List<Record> records) throws IOException {
