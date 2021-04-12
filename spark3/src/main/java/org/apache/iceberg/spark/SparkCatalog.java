@@ -199,6 +199,9 @@ public class SparkCatalog extends BaseCatalog {
           setSnapshotId = set;
         } else if ("cherry-pick-snapshot-id".equalsIgnoreCase(set.property())) {
           pickSnapshotId = set;
+        } else if ("sort-order".equalsIgnoreCase(set.property())) {
+          throw new UnsupportedOperationException("Cannot specify the 'sort-order' because it's a reserved table " +
+              "property. Please use the command 'ALTER TABLE ... WRITE ORDERED BY' to specify write sort-orders.");
         } else {
           propertyChanges.add(set);
         }
