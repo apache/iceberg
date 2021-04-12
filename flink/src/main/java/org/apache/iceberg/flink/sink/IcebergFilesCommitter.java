@@ -55,6 +55,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,6 +74,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // avoiding committing the same data files twice. This id will be attached to iceberg's meta when committing the
   // iceberg transaction.
   private static final String MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed-checkpoint-id";
+  static final String MAX_CONTINUOUS_EMPTY_COMMITS = "flink.max-continuous-empty-commits";
 
   // TableLoader to load iceberg table lazily.
   private final TableLoader tableLoader;
@@ -95,7 +97,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private transient Table table;
   private transient ManifestOutputFileFactory manifestOutputFileFactory;
   private transient long maxCommittedCheckpointId;
-
+  private transient int continuousEmptyCheckpoints;
+  private transient int maxContinuousEmptyCommits;
   // There're two cases that we restore from flink checkpoints: the first case is restoring from snapshot created by the
   // same flink job; another case is restoring from snapshot created by another different job. For the second case, we
   // need to maintain the old flink job's id in flink state backend to find the max-committed-checkpoint-id when
@@ -120,6 +123,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     // Open the table loader and load the table.
     this.tableLoader.open();
     this.table = tableLoader.loadTable();
+
+    maxContinuousEmptyCommits = PropertyUtil.propertyAsInt(table.properties(), MAX_CONTINUOUS_EMPTY_COMMITS, 10);
+    Preconditions.checkArgument(maxContinuousEmptyCommits > 0,
+        MAX_CONTINUOUS_EMPTY_COMMITS + " must be positive");
 
     int subTaskId = getRuntimeContext().getIndexOfThisSubtask();
     int attemptId = getRuntimeContext().getAttemptNumber();
@@ -157,7 +164,6 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     // Update the checkpoint state.
     dataFilesPerCheckpoint.put(checkpointId, writeToManifest(checkpointId));
-
     // Reset the snapshot state to the latest state.
     checkpointsState.clear();
     checkpointsState.add(dataFilesPerCheckpoint);
@@ -189,7 +195,6 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
                                     String newFlinkJobId,
                                     long checkpointId) throws IOException {
     NavigableMap<Long, byte[]> pendingMap = deltaManifestsMap.headMap(checkpointId, true);
-
     List<ManifestFile> manifests = Lists.newArrayList();
     NavigableMap<Long, WriteResult> pendingResults = Maps.newTreeMap();
     for (Map.Entry<Long, byte[]> e : pendingMap.entrySet()) {
@@ -204,12 +209,17 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       manifests.addAll(deltaManifests.manifests());
     }
 
-    if (replacePartitions) {
-      replacePartitions(pendingResults, newFlinkJobId, checkpointId);
-    } else {
-      commitDeltaTxn(pendingResults, newFlinkJobId, checkpointId);
+    int totalFiles = pendingResults.values().stream()
+        .mapToInt(r -> r.dataFiles().length + r.deleteFiles().length).sum();
+    continuousEmptyCheckpoints = totalFiles == 0 ? continuousEmptyCheckpoints + 1 : 0;
+    if (totalFiles != 0 || continuousEmptyCheckpoints % maxContinuousEmptyCommits == 0) {
+      if (replacePartitions) {
+        replacePartitions(pendingResults, newFlinkJobId, checkpointId);
+      } else {
+        commitDeltaTxn(pendingResults, newFlinkJobId, checkpointId);
+      }
+      continuousEmptyCheckpoints = 0;
     }
-
     pendingMap.clear();
 
     // Delete the committed manifests.
