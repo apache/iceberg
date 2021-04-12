@@ -236,7 +236,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     return filterRefs.stream().anyMatch(ref -> {
       Types.NestedField field = schema.findField(ref);
       ValidationException.check(field != null, "Cannot find field %s in schema", ref);
-      return !identitySourceIds.contains(field.fieldId());
+      return !(identitySourceIds.isEmpty() || identitySourceIds.contains(field.fieldId()));
     });
   }
 
