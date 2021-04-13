@@ -122,13 +122,13 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
   protected def parse[T](command: String)(toResult: IcebergSqlExtensionsParser => T): T = {
     val lexer = new IcebergSqlExtensionsLexer(new UpperCaseCharStream(CharStreams.fromString(command)))
     lexer.removeErrorListeners()
-    lexer.addErrorListener(ParseErrorListener)
+    lexer.addErrorListener(IcebergParseErrorListener)
 
     val tokenStream = new CommonTokenStream(lexer)
     val parser = new IcebergSqlExtensionsParser(tokenStream)
     parser.addParseListener(IcebergSqlExtensionsPostProcessor)
     parser.removeErrorListeners()
-    parser.addErrorListener(ParseErrorListener)
+    parser.addErrorListener(IcebergParseErrorListener)
 
     try {
       try {
@@ -157,8 +157,6 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
         throw new IcebergParseException(Option(command), e.message, position, position)
     }
   }
-
-
 }
 
 /* Copied from Apache Spark's to avoid dependency on Spark Internals */
@@ -229,16 +227,15 @@ case object IcebergSqlExtensionsPostProcessor extends IcebergSqlExtensionsBaseLi
   }
 }
 
-
 /* Partially copied from Apache Spark's Parser to avoid dependency on Spark Internals */
-case object ParseErrorListener extends BaseErrorListener {
+case object IcebergParseErrorListener extends BaseErrorListener {
   override def syntaxError(
-                            recognizer: Recognizer[_, _],
-                            offendingSymbol: scala.Any,
-                            line: Int,
-                            charPositionInLine: Int,
-                            msg: String,
-                            e: RecognitionException): Unit = {
+      recognizer: Recognizer[_, _],
+      offendingSymbol: scala.Any,
+      line: Int,
+      charPositionInLine: Int,
+      msg: String,
+      e: RecognitionException): Unit = {
     val (start, stop) = offendingSymbol match {
       case token: CommonToken =>
         val start = Origin(Some(line), Some(token.getCharPositionInLine))
@@ -259,10 +256,10 @@ case object ParseErrorListener extends BaseErrorListener {
  * contains fields and an extended error message that make reporting and diagnosing errors easier.
  */
 class IcebergParseException(
-                      val command: Option[String],
-                      message: String,
-                      val start: Origin,
-                      val stop: Origin) extends AnalysisException(message, start.line, start.startPosition) {
+    val command: Option[String],
+    message: String,
+    val start: Origin,
+    val stop: Origin) extends AnalysisException(message, start.line, start.startPosition) {
 
   def this(message: String, ctx: ParserRuleContext) = {
     this(Option(IcebergParserUtils.command(ctx)),

@@ -972,6 +972,7 @@ project(":iceberg-spark3-extensions") {
 
   dependencies {
     compileOnly project(':iceberg-spark3')
+
     compileOnly "org.scala-lang:scala-library"
     compileOnly("org.apache.spark:spark-hive_2.12") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -982,7 +983,6 @@ project(":iceberg-spark3-extensions") {
     testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-spark', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-spark3', configuration: 'testArtifacts')
-
 
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
     // We shade this in Spark3 Runtime to avoid issues with Spark's Antlr Runtime
@@ -1003,9 +1003,7 @@ project(':iceberg-spark3-runtime') {
 
   sourceSets {
     integration {
-      java {
-        srcDir "$projectDir/src/integration/java"
-      }
+      java.srcDir "$projectDir/src/integration/java"
       resources.srcDir "$projectDir/src/integration/resources"
     }
   }
@@ -1088,7 +1086,7 @@ project(':iceberg-spark3-runtime') {
     classpath = sourceSets.integration.runtimeClasspath + files(shadowJar.archiveFile.get().asFile.path)
     inputs.file(shadowJar.archiveFile.get().asFile.path)
   }
-  integrationTest.dependsOn(shadowJar)
+  integrationTest.dependsOn shadowJar
   check.dependsOn integrationTest
 
   jar {
