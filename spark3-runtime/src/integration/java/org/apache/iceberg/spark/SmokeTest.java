@@ -27,14 +27,9 @@ import org.apache.iceberg.spark.extensions.SparkExtensionsTestBase;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 public class SmokeTest extends SparkExtensionsTestBase {
-
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
 
   public SmokeTest(String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
