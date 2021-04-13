@@ -19,7 +19,16 @@
 
 package org.apache.iceberg.actions;
 
-@Deprecated
-public interface SnapshotAction extends CreateAction {
-  SnapshotAction withLocation(String location);
+public class BaseSnapshotTableActionResult implements SnapshotTable.Result {
+
+  private final long importedDataFilesCount;
+
+  public BaseSnapshotTableActionResult(long importedDataFilesCount) {
+    this.importedDataFilesCount = importedDataFilesCount;
+  }
+
+  @Override
+  public long importedDataFilesCount() {
+    return importedDataFilesCount;
+  }
 }
