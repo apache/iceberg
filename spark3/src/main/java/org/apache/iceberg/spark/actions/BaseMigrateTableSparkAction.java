@@ -51,7 +51,7 @@ import scala.collection.JavaConverters;
  * table.
  */
 public class BaseMigrateTableSparkAction
-    extends BaseTableMigrationSparkAction<MigrateTable, MigrateTable.Result>
+    extends BaseTableCreationSparkAction<MigrateTable, MigrateTable.Result>
     implements MigrateTable {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseMigrateTableSparkAction.class);

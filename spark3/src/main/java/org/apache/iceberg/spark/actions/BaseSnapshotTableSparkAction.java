@@ -49,7 +49,7 @@ import scala.collection.JavaConverters;
  * source table.
  */
 public class BaseSnapshotTableSparkAction
-    extends BaseTableMigrationSparkAction<SnapshotTable, SnapshotTable.Result>
+    extends BaseTableCreationSparkAction<SnapshotTable, SnapshotTable.Result>
     implements SnapshotTable {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseSnapshotTableSparkAction.class);

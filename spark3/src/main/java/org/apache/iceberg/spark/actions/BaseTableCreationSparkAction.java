@@ -49,7 +49,7 @@ import org.apache.spark.sql.connector.catalog.V1Table;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 
-abstract class BaseTableMigrationSparkAction<ThisT, R> extends BaseSparkAction<ThisT, R> {
+abstract class BaseTableCreationSparkAction<ThisT, R> extends BaseSparkAction<ThisT, R> {
   private static final Set<String> ALLOWED_SOURCES = ImmutableSet.of("parquet", "avro", "orc", "hive");
   protected static final String LOCATION = "location";
   protected static final String ICEBERG_METADATA_FOLDER = "metadata";
@@ -66,7 +66,7 @@ abstract class BaseTableMigrationSparkAction<ThisT, R> extends BaseSparkAction<T
   // Optional Parameters for destination
   private final Map<String, String> additionalProperties = Maps.newHashMap();
 
-  BaseTableMigrationSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
+  BaseTableCreationSparkAction(SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
     super(spark);
 
     this.sourceCatalog = checkSourceCatalog(sourceCatalog);
