@@ -30,7 +30,9 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
@@ -247,8 +249,10 @@ public class ArrowReaderTest {
                     Expressions.greaterThanOrEqual("timestamp", timestampToMicros(beginTime)),
                     Expressions.lessThan("timestamp", timestampToMicros(endTime))));
     int numRoots = 0;
-    for (ArrowBatch batch : new VectorizedTableScanIterable(scan, NUM_ROWS_PER_MONTH, false)) {
-      numRoots++;
+    try (VectorizedTableScanIterable itr = new VectorizedTableScanIterable(scan, NUM_ROWS_PER_MONTH, false)) {
+      for (ColumnarBatch batch : itr) {
+        numRoots++;
+      }
     }
     assertEquals(0, numRoots);
   }
@@ -289,19 +293,185 @@ public class ArrowReaderTest {
       TableScan scan,
       int numRowsPerRoot,
       int expectedTotalRows,
-      List<String> columns) {
+      List<String> columns) throws IOException {
     Set<String> columnSet = ImmutableSet.copyOf(columns);
     int rowIndex = 0;
     int totalRows = 0;
-    for (ArrowBatch batch : new VectorizedTableScanIterable(scan, numRowsPerRoot, false)) {
-      VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
-      assertEquals(createExpectedArrowSchema(columnSet), root.getSchema());
-      checkAllVectorTypes(root, columnSet);
-      checkAllVectorValues(numRowsPerRoot, rowsWritten.subList(rowIndex, rowIndex + numRowsPerRoot), root, columnSet);
-      rowIndex += numRowsPerRoot;
-      totalRows += root.getRowCount();
+    try (VectorizedTableScanIterable itr = new VectorizedTableScanIterable(scan, numRowsPerRoot, false)) {
+      for (ColumnarBatch batch : itr) {
+        List<GenericRecord> expectedRows = rowsWritten.subList(rowIndex, rowIndex + numRowsPerRoot);
+        checkColumnarBatch(numRowsPerRoot, expectedRows, batch, columns);
+        VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
+        assertEquals(createExpectedArrowSchema(columnSet), root.getSchema());
+        checkAllVectorTypes(root, columnSet);
+        checkAllVectorValues(numRowsPerRoot, expectedRows, root, columnSet);
+        rowIndex += numRowsPerRoot;
+        totalRows += root.getRowCount();
+      }
     }
     assertEquals(expectedTotalRows, totalRows);
+  }
+
+  private void checkColumnarBatch(
+      int expectedNumRows,
+      List<GenericRecord> expectedRows,
+      ColumnarBatch batch,
+      List<String> columns) {
+
+    Map<String, Integer> columnNameToIndex = new HashMap<>();
+    for (int i = 0; i < columns.size(); i++) {
+      columnNameToIndex.put(columns.get(i), i);
+    }
+    Set<String> columnSet = columnNameToIndex.keySet();
+
+    assertEquals(expectedNumRows, batch.numRows());
+    assertEquals(columns.size(), batch.numCols());
+
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("timestamp"),
+        columnSet, "timestamp",
+        (records, i) -> records.get(i).getField("timestamp"),
+        (array, i) -> timestampFromMicros(array.getLong(i))
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("timestamp_nullable"),
+        columnSet, "timestamp_nullable",
+        (records, i) -> records.get(i).getField("timestamp_nullable"),
+        (array, i) -> timestampFromMicros(array.getLong(i))
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("boolean"),
+        columnSet, "boolean",
+        (records, i) -> records.get(i).getField("boolean"),
+        ColumnVector::getBoolean
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("boolean_nullable"),
+        columnSet, "boolean_nullable",
+        (records, i) -> records.get(i).getField("boolean_nullable"),
+        ColumnVector::getBoolean
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("int"),
+        columnSet, "int",
+        (records, i) -> records.get(i).getField("int"),
+        ColumnVector::getInt
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("int_nullable"),
+        columnSet, "int_nullable",
+        (records, i) -> records.get(i).getField("int_nullable"),
+        ColumnVector::getInt
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("long"),
+        columnSet, "long",
+        (records, i) -> records.get(i).getField("long"),
+        ColumnVector::getLong
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("long_nullable"),
+        columnSet, "long_nullable",
+        (records, i) -> records.get(i).getField("long_nullable"),
+        ColumnVector::getLong
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("float"),
+        columnSet, "float",
+        (records, i) -> Float.floatToIntBits((float) records.get(i).getField("float")),
+        (array, i) -> Float.floatToIntBits(array.getFloat(i))
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("float_nullable"),
+        columnSet, "float_nullable",
+        (records, i) -> Float.floatToIntBits((float) records.get(i).getField("float_nullable")),
+        (array, i) -> Float.floatToIntBits(array.getFloat(i))
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("double"),
+        columnSet, "double",
+        (records, i) -> Double.doubleToLongBits((double) records.get(i).getField("double")),
+        (array, i) -> Double.doubleToLongBits(array.getDouble(i))
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("double_nullable"),
+        columnSet, "double_nullable",
+        (records, i) -> Double.doubleToLongBits((double) records.get(i).getField("double_nullable")),
+        (array, i) -> Double.doubleToLongBits(array.getDouble(i))
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("timestamp_tz"),
+        columnSet, "timestamp_tz",
+        (records, i) -> timestampToMicros((OffsetDateTime) records.get(i).getField("timestamp_tz")),
+        ColumnVector::getLong
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("timestamp_tz_nullable"),
+        columnSet, "timestamp_tz_nullable",
+        (records, i) -> timestampToMicros((OffsetDateTime) records.get(i).getField("timestamp_tz_nullable")),
+        ColumnVector::getLong
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("string"),
+        columnSet, "string",
+        (records, i) -> records.get(i).getField("string"),
+        ColumnVector::getString
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("string_nullable"),
+        columnSet, "string_nullable",
+        (records, i) -> records.get(i).getField("string_nullable"),
+        ColumnVector::getString
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("bytes"),
+        columnSet, "bytes",
+        (records, i) -> records.get(i).getField("bytes"),
+        (array, i) -> ByteBuffer.wrap(array.getBinary(i))
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("bytes_nullable"),
+        columnSet, "bytes_nullable",
+        (records, i) -> records.get(i).getField("bytes_nullable"),
+        (array, i) -> ByteBuffer.wrap(array.getBinary(i))
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("date"),
+        columnSet, "date",
+        (records, i) -> records.get(i).getField("date"),
+        (array, i) -> dateFromDay(array.getInt(i))
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("date_nullable"),
+        columnSet, "date_nullable",
+        (records, i) -> records.get(i).getField("date_nullable"),
+        (array, i) -> dateFromDay(array.getInt(i))
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("int_promotion"),
+        columnSet, "int_promotion",
+        (records, i) -> records.get(i).getField("int_promotion"),
+        ColumnVector::getInt
+    );
+  }
+
+  private static void checkColumnarArrayValues(
+      int expectedNumRows,
+      List<GenericRecord> expectedRows,
+      ColumnarBatch columnBatch,
+      Integer columnIndex,
+      Set<String> columnSet,
+      String columnName,
+      BiFunction<List<GenericRecord>, Integer, Object> expectedValueExtractor,
+      BiFunction<ColumnVector, Integer, Object> vectorValueExtractor) {
+    if (columnSet.contains(columnName)) {
+      ColumnVector columnVector = columnBatch.column(columnIndex);
+      for (int i = 0; i < expectedNumRows; i++) {
+        Object expectedValue = expectedValueExtractor.apply(expectedRows, i);
+        Object actualValue = vectorValueExtractor.apply(columnVector, i);
+        assertEquals("Row#" + i + " mismatches", expectedValue, actualValue);
+      }
+    }
   }
 
   private void writeTableWithConstantRecords() throws Exception {

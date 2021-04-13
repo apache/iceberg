@@ -22,17 +22,23 @@ package org.apache.iceberg.arrow.vectorized;
 import java.util.Arrays;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * This class is inspired by Spark's {@code ColumnarBatch}.
  * This class wraps a columnar batch in the result set of an Iceberg table query.
  */
-public class ArrowBatch implements AutoCloseable {
+public class ColumnarBatch implements AutoCloseable {
 
   private final int numRows;
-  private final ArrowVector[] columns;
+  private final ColumnVector[] columns;
 
-  ArrowBatch(int numRows, ArrowVector[] columns) {
+  ColumnarBatch(int numRows, ColumnVector[] columns) {
+    for (int i = 0; i < columns.length; i++) {
+      int columnValueCount = columns[i].getFieldVector().getValueCount();
+      Preconditions.checkArgument(numRows == columnValueCount,
+          "Number of rows (=" + numRows + ") != column[" + i + "] size (=" + columnValueCount + ")");
+    }
     this.numRows = numRows;
     this.columns = columns;
   }
@@ -44,7 +50,7 @@ public class ArrowBatch implements AutoCloseable {
    */
   public VectorSchemaRoot createVectorSchemaRootFromVectors() {
     return VectorSchemaRoot.of(Arrays.stream(columns)
-        .map(ArrowVector::getFieldVector)
+        .map(ColumnVector::getFieldVector)
         .toArray(FieldVector[]::new));
   }
 
@@ -54,7 +60,7 @@ public class ArrowBatch implements AutoCloseable {
    */
   @Override
   public void close() {
-    for (ArrowVector c : columns) {
+    for (ColumnVector c : columns) {
       c.close();
     }
   }
@@ -76,7 +82,7 @@ public class ArrowBatch implements AutoCloseable {
   /**
    * Returns the column at `ordinal`.
    */
-  public ArrowVector column(int ordinal) {
+  public ColumnVector column(int ordinal) {
     return columns[ordinal];
   }
 }

@@ -30,7 +30,7 @@ import org.apache.iceberg.io.CloseableIterator;
  * A vectorized implementation of the Iceberg reader that iterates over the table scan.
  * See {@link ArrowReader} for details.
  */
-public class VectorizedTableScanIterable extends CloseableGroup implements CloseableIterable<ArrowBatch> {
+public class VectorizedTableScanIterable extends CloseableGroup implements CloseableIterable<ColumnarBatch> {
 
   private static final int BATCH_SIZE_IN_NUM_ROWS = 1 << 16;
 
@@ -59,8 +59,8 @@ public class VectorizedTableScanIterable extends CloseableGroup implements Close
   }
 
   @Override
-  public CloseableIterator<ArrowBatch> iterator() {
-    CloseableIterator<ArrowBatch> iter = reader.open(tasks);
+  public CloseableIterator<ColumnarBatch> iterator() {
+    CloseableIterator<ColumnarBatch> iter = reader.open(tasks);
     addCloseable(iter);
     return iter;
   }

@@ -31,7 +31,7 @@ import org.apache.parquet.hadoop.metadata.ColumnPath;
  * A collection of vectorized readers per column (in the expected read schema) and Arrow Vector holders. This class owns
  * the Arrow vectors and is responsible for closing the Arrow vectors.
  */
-class ArrowBatchReader implements VectorizedReader<ArrowBatch> {
+class ArrowBatchReader implements VectorizedReader<ColumnarBatch> {
 
   private final VectorizedArrowReader[] readers;
   private final VectorHolder[] vectorHolders;
@@ -54,14 +54,14 @@ class ArrowBatchReader implements VectorizedReader<ArrowBatch> {
   }
 
   @Override
-  public final ArrowBatch read(ArrowBatch reuse, int numRowsToRead) {
+  public final ColumnarBatch read(ColumnarBatch reuse, int numRowsToRead) {
     Preconditions.checkArgument(numRowsToRead > 0, "Invalid number of rows to read: %s", numRowsToRead);
 
     if (reuse == null) {
       closeVectors();
     }
 
-    ArrowVector[] arrowVectors = new ArrowVector[readers.length];
+    ColumnVector[] columnVectors = new ColumnVector[readers.length];
     for (int i = 0; i < readers.length; i += 1) {
       vectorHolders[i] = readers[i].read(vectorHolders[i], numRowsToRead);
       int numRowsInVector = vectorHolders[i].numValues();
@@ -70,9 +70,9 @@ class ArrowBatchReader implements VectorizedReader<ArrowBatch> {
           "Number of rows in the vector %s didn't match expected %s ", numRowsInVector,
           numRowsToRead);
       // Handle null vector for constant case
-      arrowVectors[i] = new ArrowVector(vectorHolders[i]);
+      columnVectors[i] = new ColumnVector(vectorHolders[i]);
     }
-    return new ArrowBatch(numRowsToRead, arrowVectors);
+    return new ColumnarBatch(numRowsToRead, columnVectors);
   }
 
   private void closeVectors() {
