@@ -54,19 +54,18 @@ public class MetricsConfig implements Serializable {
     } else {
       Map<String, String> updatedProperties = Maps.newHashMap();
       // Put all of the non metrics columns we aren't modifying
-      props.keySet().stream().forEach(key -> {
+      props.keySet().forEach(key -> {
         if (key.startsWith(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX)) {
           String columnAlias = key.replaceFirst(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX, "");
-          if (deletes.contains(columnAlias)) {
-            // Drop the key by not copying it
-          } else if (renames.get(columnAlias) != null) {
+          if (renames.get(columnAlias) != null) {
             // The name has changed.
             String newKey = TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + renames.get(columnAlias);
             updatedProperties.put(newKey, props.get(key));
-          } else {
-            // We didn't modify it in a way we care about
+          } else if (!deletes.contains(columnAlias)) {
+            // Copy over the original
             updatedProperties.put(key, props.get(key));
           }
+          // Implicit drop if deleted
         } else {
           // Not a metric property
           updatedProperties.put(key, props.get(key));
