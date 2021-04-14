@@ -64,7 +64,7 @@ jobs:
     - uses: actions/setup-java@v1
       with:
         java-version: 8
-    - run: ./gradlew build -x test -x javadoc
+    - run: ./gradlew build -x test -x javadoc -x integrationTest
 
   build-javadoc:
     runs-on: ubuntu-latest
