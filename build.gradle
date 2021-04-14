@@ -892,8 +892,6 @@ if (jdkVersion == '8') {
       relocate 'com.thoughtworks.paranamer', 'org.apache.iceberg.shaded.com.thoughtworks.paranamer'
       relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
       relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
-      // relocate Avro's jackson dependency to share parquet-jackson locations
-      relocate 'org.codehaus.jackson', 'org.apache.iceberg.shaded.org.apache.parquet.shaded.org.codehaus.jackson'
       relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
       relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
       // relocate Arrow and related deps to shade Iceberg specific version
@@ -1064,8 +1062,6 @@ project(':iceberg-spark3-runtime') {
     relocate 'com.thoughtworks.paranamer', 'org.apache.iceberg.shaded.com.thoughtworks.paranamer'
     relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
     relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
-    // relocate Avro's jackson dependency to share parquet-jackson locations
-    relocate 'org.codehaus.jackson', 'org.apache.iceberg.shaded.org.apache.parquet.shaded.org.codehaus.jackson'
     relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
     relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
     // relocate Arrow and related deps to shade Iceberg specific version
