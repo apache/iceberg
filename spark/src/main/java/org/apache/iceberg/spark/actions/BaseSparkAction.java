@@ -128,7 +128,7 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
   }
 
   protected Dataset<Row> buildManifestFileDF(Table table) {
-    return loadMetadataTable(table, ALL_MANIFESTS).selectExpr("path as file_path").distinct();
+    return loadMetadataTable(table, ALL_MANIFESTS).selectExpr("path as file_path");
   }
 
   protected Dataset<Row> buildManifestListDF(Table table) {

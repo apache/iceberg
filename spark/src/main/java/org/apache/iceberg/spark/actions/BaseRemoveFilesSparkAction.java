@@ -86,13 +86,13 @@ public class BaseRemoveFilesSparkAction
 
   @Override
   public Result execute() {
-    JobGroupInfo info = newJobGroupInfo("DROP-TABLE", "DROP-TABLE");
+    JobGroupInfo info = newJobGroupInfo("REMOVE-FILES", "REMOVE-FILES");
     return withJobGroupInfo(info, this::doExecute);
   }
 
   private Result doExecute() {
     boolean streamResults = PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, false);
-    Dataset<Row> validFileDataset = buildValidFileDF(ops.current());
+    Dataset<Row> validFileDataset = buildValidFileDF(ops.current()).distinct();
     RemoveFilesActionResult result;
     if (streamResults) {
       result = deleteFiles(validFileDataset.toLocalIterator());
