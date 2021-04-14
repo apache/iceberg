@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.hadoop.hive.ql.exec.mr.ExecMapper;
 import org.apache.iceberg.FileFormat;
@@ -48,6 +49,7 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -134,6 +136,9 @@ public class TestHiveIcebergStorageHandlerWithEngine {
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
+
+  @Rule
+  public Timeout timeout = new Timeout(40000, TimeUnit.MILLISECONDS);
 
   @BeforeClass
   public static void beforeClass() {
@@ -244,7 +249,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     Assert.assertArrayEquals(new Object[] {102L, 1L, 33.33d}, rows.get(2));
   }
 
-  @Test
+  @Test(timeout = 100000)
   public void testJoinTablesSupportedTypes() throws IOException {
     for (int i = 0; i < SUPPORTED_TYPES.size(); i++) {
       Type type = SUPPORTED_TYPES.get(i);
@@ -267,7 +272,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     }
   }
 
-  @Test
+  @Test(timeout = 100000)
   public void testSelectDistinctFromTable() throws IOException {
     for (int i = 0; i < SUPPORTED_TYPES.size(); i++) {
       Type type = SUPPORTED_TYPES.get(i);
@@ -310,7 +315,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     HiveIcebergTestUtils.validateData(table, HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS, 0);
   }
 
-  @Test
+  @Test(timeout = 100000)
   public void testInsertSupportedTypes() throws IOException {
     Assume.assumeTrue("Tez write is not implemented yet", executionEngine.equals("mr"));
     for (int i = 0; i < SUPPORTED_TYPES.size(); i++) {
