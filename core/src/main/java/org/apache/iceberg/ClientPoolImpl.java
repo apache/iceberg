@@ -138,8 +138,7 @@ public abstract class ClientPoolImpl<C, E extends Exception> implements Closeabl
     }
   }
 
-  @VisibleForTesting
-  int poolSize() {
+  public int poolSize() {
     return poolSize;
   }
 }
