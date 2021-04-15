@@ -22,7 +22,6 @@ package org.apache.iceberg;
 import java.io.Closeable;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
