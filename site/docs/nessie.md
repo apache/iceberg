@@ -31,7 +31,7 @@ See [Project Nessie](https://projectnessie.org) for more information on Nessie. 
 
 The `iceberg-nessie` module is bundled with Spark and Flink runtimes for all versions from `0.11.0`. To get started
 with nessie and iceberg simply add the iceberg runtime to your process. Eg: `spark-sql --packages
-org.apache.iceberg:iceberg-spark3-runtiume:0.11.0`. 
+org.apache.iceberg:iceberg-spark3-runtiume:{{ versions.iceberg }}`. 
 
 ## Nessie Catalog
 

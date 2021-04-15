@@ -106,7 +106,7 @@ spark.sql.catalog.custom_prod.my-additional-catalog-config = my-value
 
 ### Catalogs in Spark 2.4
 
-When using Iceberg 0.11.0, Spark 2.4 can load tables from multiple Iceberg catalogs or from table locations.
+When using Iceberg 0.11.0 and later, Spark 2.4 can load tables from multiple Iceberg catalogs or from table locations.
 
 Catalogs in 2.4 are configured just like catalogs in 3.0, but only Iceberg catalogs are supported.
 

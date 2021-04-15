@@ -30,10 +30,7 @@ This directory contains the source for the Iceberg site.
 The site is built using mkdocs. To install mkdocs and the theme, run:
 
 ```
-pip install mkdocs
-pip install mkdocs-cinder
-pip install mkdocs-redirects
-pip install pymdown-extensions
+pip install -r requirements.txt
 ```
 
 ### Local Changes
