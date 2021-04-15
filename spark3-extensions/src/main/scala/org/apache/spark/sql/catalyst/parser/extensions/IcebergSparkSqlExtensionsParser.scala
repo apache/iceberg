@@ -22,16 +22,14 @@ package org.apache.spark.sql.catalyst.parser.extensions
 import java.util.Locale
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.atn.PredictionMode
+import org.antlr.v4.runtime.misc.Interval
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import org.antlr.v4.runtime.tree.TerminalNodeImpl
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.expressions.Expression
-import org.apache.spark.sql.catalyst.parser.ParseErrorListener
-import org.apache.spark.sql.catalyst.parser.ParseException
 import org.apache.spark.sql.catalyst.parser.ParserInterface
-import org.apache.spark.sql.catalyst.parser.UpperCaseCharStream
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.NonReservedContext
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.QuotedIdentifierContext
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -124,13 +122,13 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
   protected def parse[T](command: String)(toResult: IcebergSqlExtensionsParser => T): T = {
     val lexer = new IcebergSqlExtensionsLexer(new UpperCaseCharStream(CharStreams.fromString(command)))
     lexer.removeErrorListeners()
-    lexer.addErrorListener(ParseErrorListener)
+    lexer.addErrorListener(IcebergParseErrorListener)
 
     val tokenStream = new CommonTokenStream(lexer)
     val parser = new IcebergSqlExtensionsParser(tokenStream)
     parser.addParseListener(IcebergSqlExtensionsPostProcessor)
     parser.removeErrorListeners()
-    parser.addErrorListener(ParseErrorListener)
+    parser.addErrorListener(IcebergParseErrorListener)
 
     try {
       try {
@@ -150,22 +148,52 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
       }
     }
     catch {
-      case e: ParseException if e.command.isDefined =>
+      case e: IcebergParseException if e.command.isDefined =>
         throw e
-      case e: ParseException =>
+      case e: IcebergParseException =>
         throw e.withCommand(command)
       case e: AnalysisException =>
         val position = Origin(e.line, e.startPosition)
-        throw new ParseException(Option(command), e.message, position, position)
+        throw new IcebergParseException(Option(command), e.message, position, position)
     }
   }
+}
+
+/* Copied from Apache Spark's to avoid dependency on Spark Internals */
+class UpperCaseCharStream(wrapped: CodePointCharStream) extends CharStream {
+  override def consume(): Unit = wrapped.consume
+  override def getSourceName(): String = wrapped.getSourceName
+  override def index(): Int = wrapped.index
+  override def mark(): Int = wrapped.mark
+  override def release(marker: Int): Unit = wrapped.release(marker)
+  override def seek(where: Int): Unit = wrapped.seek(where)
+  override def size(): Int = wrapped.size
+
+  override def getText(interval: Interval): String = {
+    // ANTLR 4.7's CodePointCharStream implementations have bugs when
+    // getText() is called with an empty stream, or intervals where
+    // the start > end. See
+    // https://github.com/antlr/antlr4/commit/ac9f7530 for one fix
+    // that is not yet in a released ANTLR artifact.
+    if (size() > 0 && (interval.b - interval.a >= 0)) {
+      wrapped.getText(interval)
+    } else {
+      ""
+    }
+  }
+
+  // scalastyle:off
+  override def LA(i: Int): Int = {
+    val la = wrapped.LA(i)
+    if (la == 0 || la == IntStream.EOF) la
+    else Character.toUpperCase(la)
+  }
+  // scalastyle:on
 }
 
 /**
  * The post-processor validates & cleans-up the parse tree during the parse process.
  */
-// while we reuse ParseErrorListener and ParseException, we have to copy and modify PostProcessor
-// as it directly depends on classes generated from the extensions grammar file
 case object IcebergSqlExtensionsPostProcessor extends IcebergSqlExtensionsBaseListener {
 
   /** Remove the back ticks from an Identifier. */
@@ -196,5 +224,72 @@ case object IcebergSqlExtensionsPostProcessor extends IcebergSqlExtensionsBaseLi
       token.getStartIndex + stripMargins,
       token.getStopIndex - stripMargins)
     parent.addChild(new TerminalNodeImpl(f(newToken)))
+  }
+}
+
+/* Partially copied from Apache Spark's Parser to avoid dependency on Spark Internals */
+case object IcebergParseErrorListener extends BaseErrorListener {
+  override def syntaxError(
+      recognizer: Recognizer[_, _],
+      offendingSymbol: scala.Any,
+      line: Int,
+      charPositionInLine: Int,
+      msg: String,
+      e: RecognitionException): Unit = {
+    val (start, stop) = offendingSymbol match {
+      case token: CommonToken =>
+        val start = Origin(Some(line), Some(token.getCharPositionInLine))
+        val length = token.getStopIndex - token.getStartIndex + 1
+        val stop = Origin(Some(line), Some(token.getCharPositionInLine + length))
+        (start, stop)
+      case _ =>
+        val start = Origin(Some(line), Some(charPositionInLine))
+        (start, start)
+    }
+    throw new IcebergParseException(None, msg, start, stop)
+  }
+}
+
+/**
+ * Copied from Apache Spark
+ * A [[ParseException]] is an [[AnalysisException]] that is thrown during the parse process. It
+ * contains fields and an extended error message that make reporting and diagnosing errors easier.
+ */
+class IcebergParseException(
+    val command: Option[String],
+    message: String,
+    val start: Origin,
+    val stop: Origin) extends AnalysisException(message, start.line, start.startPosition) {
+
+  def this(message: String, ctx: ParserRuleContext) = {
+    this(Option(IcebergParserUtils.command(ctx)),
+      message,
+      IcebergParserUtils.position(ctx.getStart),
+      IcebergParserUtils.position(ctx.getStop))
+  }
+
+  override def getMessage: String = {
+    val builder = new StringBuilder
+    builder ++= "\n" ++= message
+    start match {
+      case Origin(Some(l), Some(p)) =>
+        builder ++= s"(line $l, pos $p)\n"
+        command.foreach { cmd =>
+          val (above, below) = cmd.split("\n").splitAt(l)
+          builder ++= "\n== SQL ==\n"
+          above.foreach(builder ++= _ += '\n')
+          builder ++= (0 until p).map(_ => "-").mkString("") ++= "^^^\n"
+          below.foreach(builder ++= _ += '\n')
+        }
+      case _ =>
+        command.foreach { cmd =>
+          builder ++= "\n== SQL ==\n" ++= cmd
+        }
+    }
+    builder.toString
+  }
+
+  def withCommand(cmd: String): IcebergParseException = {
+    new IcebergParseException(Option(cmd), message, start, stop)
   }
 }
