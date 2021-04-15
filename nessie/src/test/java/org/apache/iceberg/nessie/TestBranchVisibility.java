@@ -22,9 +22,9 @@ package org.apache.iceberg.nessie;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 
@@ -39,7 +39,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
     super("main");
   }
 
-  @Before
+  @BeforeEach
   public void before() throws NessieNotFoundException, NessieConflictException {
     createTable(tableIdentifier1, 1); // table 1
     createTable(tableIdentifier2, 1); // table 2
@@ -48,7 +48,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
     testCatalog = initCatalog("test");
   }
 
-  @After
+  @AfterEach
   public void after() throws NessieNotFoundException, NessieConflictException {
     catalog.dropTable(tableIdentifier1);
     catalog.dropTable(tableIdentifier2);

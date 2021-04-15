@@ -44,9 +44,9 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
@@ -78,13 +78,13 @@ public class TestNessieTable extends BaseTestIceberg {
     super(BRANCH);
   }
 
-  @Before
+  @BeforeEach
   public void beforeEach() throws IOException {
     super.beforeEach();
     this.tableLocation = new Path(catalog.createTable(TABLE_IDENTIFIER, schema).location());
   }
 
-  @After
+  @AfterEach
   public void afterEach() throws Exception {
     // drop the table data
     if (tableLocation != null) {
@@ -112,7 +112,7 @@ public class TestNessieTable extends BaseTestIceberg {
     icebergTable.updateSchema().addColumn("mother", Types.LongType.get()).commit();
     IcebergTable table = getTable(KEY);
     // check parameters are in expected state
-    String expected = (temp.getRoot().toURI() + DB_NAME + "/" + tableName).replace("//", "/");
+    String expected = (temp.toUri() + DB_NAME + "/" + tableName).replace("///", "/");
     Assertions.assertThat(getTableLocation(tableName)).isEqualTo(expected);
 
     // Only 1 snapshotFile Should exist and no manifests should exist
@@ -291,7 +291,7 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   private String getTableBasePath(String tableName) {
-    String databasePath = temp.getRoot().toString() + "/" + DB_NAME;
+    String databasePath = temp.toString() + "/" + DB_NAME;
     return Paths.get(databasePath, tableName).toAbsolutePath().toString();
   }
 

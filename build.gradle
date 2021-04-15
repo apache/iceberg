@@ -35,7 +35,6 @@ buildscript {
 
 plugins {
   id 'nebula.dependency-recommender' version '9.0.2'
-  id 'org.projectnessie' version '0.5.1'
 }
 
 try {
@@ -127,6 +126,7 @@ subprojects {
     compile 'com.github.stephenc.findbugs:findbugs-annotations'
 
     testCompile 'org.junit.vintage:junit-vintage-engine'
+    testCompile 'org.junit.jupiter:junit-jupiter-engine'
     testCompile 'org.junit.jupiter:junit-jupiter'
     testCompile 'org.slf4j:slf4j-simple'
     testCompile 'org.mockito:mockito-core'
@@ -1266,19 +1266,18 @@ project(':iceberg-pig') {
 }
 
 project(':iceberg-nessie') {
-  apply plugin: 'org.projectnessie'
+  test {
+    useJUnitPlatform()
+  }
 
   dependencies {
     compile project(':iceberg-core')
     compile project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compile "org.projectnessie:nessie-client"
 
-    // dependency version "recommendation" via nebula.dependency-recommender don't work here "immediately",
-    // so pull the Quarkus + Nessie versions from the root-project
-    def quarkusVersion = rootProject.dependencyRecommendations.getRecommendedVersion("io.quarkus", "quarkus-bom")
-    def nessieVersion = rootProject.dependencyRecommendations.getRecommendedVersion("org.projectnessie", "nessie-quarkus")
-    nessieQuarkusRuntime(enforcedPlatform("io.quarkus:quarkus-bom:${quarkusVersion}"))
-    nessieQuarkusServer "org.projectnessie:nessie-quarkus:${nessieVersion}"
+    testImplementation "org.projectnessie:nessie-jaxrs-testextension"
+    // Need to "pull in" el-api explicitly :(
+    testImplementation "jakarta.el:jakarta.el-api"
 
     compileOnly "org.apache.hadoop:hadoop-common"
 
