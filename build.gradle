@@ -37,7 +37,7 @@ buildscript {
 
 plugins {
   id 'nebula.dependency-recommender' version '9.0.2'
-  id 'org.projectnessie' version '0.4.0'
+  id 'org.projectnessie' version '0.5.1'
 }
 
 try {
@@ -1122,21 +1122,18 @@ project(':iceberg-nessie') {
     compile project(':iceberg-core')
     compile project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compile "org.projectnessie:nessie-client"
-    quarkusAppRunnerConfig "org.projectnessie:nessie-quarkus:0.4.0"
+
+    // dependency version "recommendation" via nebula.dependency-recommender don't work here "immediately",
+    // so pull the Quarkus + Nessie versions from the root-project
+    def quarkusVersion = rootProject.dependencyRecommendations.getRecommendedVersion("io.quarkus", "quarkus-bom")
+    def nessieVersion = rootProject.dependencyRecommendations.getRecommendedVersion("org.projectnessie", "nessie-quarkus")
+    nessieQuarkusRuntime(enforcedPlatform("io.quarkus:quarkus-bom:${quarkusVersion}"))
+    nessieQuarkusServer "org.projectnessie:nessie-quarkus:${nessieVersion}"
 
     compileOnly "org.apache.hadoop:hadoop-common"
 
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
-  quarkusAppRunnerProperties {
-    props = ["quarkus.http.test-port": 0]
-  }
-  tasks.getByName("quarkus-start")
-          // This is not doing anything with Docker or building a native image, just a quirk of Quarkus since 1.10.
-          .doFirst { System.setProperty("quarkus.native.builder-image", "quay.io/quarkus/ubi-quarkus-native-image:21.0.0-java11") }
-          .dependsOn("compileTestJava")
-  tasks.test.dependsOn("quarkus-start").finalizedBy("quarkus-stop")
-
 }
 
 @Memoized

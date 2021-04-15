@@ -29,6 +29,7 @@ import org.apache.iceberg.io.FileIO;
 import org.projectnessie.client.NessieClient;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
+import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.Contents;
 import org.projectnessie.model.ContentsKey;
 import org.projectnessie.model.IcebergTable;
@@ -94,9 +95,10 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
     boolean threw = true;
     try {
       IcebergTable newTable = ImmutableIcebergTable.builder().metadataLocation(newMetadataLocation).build();
-      Operations op = ImmutableOperations.builder().addOperations(Operation.Put.of(key, newTable)).build();
-      client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(), reference.getHash(),
-          String.format("iceberg commit%s", applicationId()), op);
+      Operations op = ImmutableOperations.builder().addOperations(Operation.Put.of(key, newTable))
+          .commitMeta(CommitMeta.fromMessage(String.format("iceberg commit%s", applicationId())))
+          .build();
+      client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(), reference.getHash(), op);
 
       threw = false;
     } catch (NessieConflictException ex) {

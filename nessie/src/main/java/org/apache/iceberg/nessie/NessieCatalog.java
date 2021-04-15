@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.nessie;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,6 +51,7 @@ import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.error.BaseNessieClientServerException;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
+import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.Contents;
 import org.projectnessie.model.IcebergTable;
 import org.projectnessie.model.ImmutableDelete;
@@ -179,6 +181,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     Operations contents = ImmutableOperations.builder()
         .addOperations(ImmutablePut.builder().key(NessieUtil.toKey(to)).contents(existingFromTable).build(),
             ImmutableDelete.builder().key(NessieUtil.toKey(from)).build())
+        .commitMeta(CommitMeta.fromMessage("iceberg rename table"))
         .build();
 
     try {
@@ -187,8 +190,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
           .stopRetryOn(NessieNotFoundException.class)
           .throwFailureWhenFinished()
           .run(c -> {
-            client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(), reference.getHash(),
-                "iceberg rename table", c);
+            client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(), reference.getHash(), c);
             refresh();
           }, BaseNessieClientServerException.class);
 
@@ -325,7 +327,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   private Stream<TableIdentifier> tableStream(Namespace namespace) {
     try {
       return client.getTreeApi()
-          .getEntries(reference.getHash())
+          .getEntries(reference.getHash(), null, null, Collections.emptyList())
           .getEntries()
           .stream()
           .filter(NessieUtil.namespacePredicate(namespace))
