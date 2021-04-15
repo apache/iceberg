@@ -226,7 +226,7 @@ public abstract class TestRemoveFilesAction extends SparkTestBase {
     checkDropTableResults(3L, 4L, 3L, results);
 
     Assert.assertTrue(
-        String.format("Expected total jobs to be equal to total number of shuffle partitions", SHUFFLE_PARTITIONS, totalJobsRun),
-        totalJobsRun == SHUFFLE_PARTITIONS);
+        String.format("Expected total jobs to be equal to total number of shuffle partitions",
+            SHUFFLE_PARTITIONS, totalJobsRun), totalJobsRun == SHUFFLE_PARTITIONS);
   }
 }
