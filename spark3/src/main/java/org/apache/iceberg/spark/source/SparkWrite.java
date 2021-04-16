@@ -47,8 +47,10 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -143,6 +145,10 @@ class SparkWrite {
 
   BatchWrite asCopyOnWriteMergeWrite(SparkMergeScan scan, IsolationLevel isolationLevel) {
     return new CopyOnWriteMergeWrite(scan, isolationLevel);
+  }
+
+  BatchWrite asRewrite(String fileSetID) {
+    return new RewriteFiles(fileSetID);
   }
 
   StreamingWrite asStreamingAppend() {
@@ -364,6 +370,27 @@ class SparkWrite {
           "overwrite of %d data files with %d new data files",
           numOverwrittenFiles, numAddedFiles);
       commitOperation(overwriteFiles, commitMsg);
+    }
+  }
+
+  private class RewriteFiles extends BaseBatchWrite {
+    private final String fileSetID;
+
+    private RewriteFiles(String fileSetID) {
+      this.fileSetID = fileSetID;
+    }
+
+    @Override
+    public void commit(WriterCommitMessage[] messages) {
+      FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
+
+      ImmutableSet.Builder<DataFile> newDataFileSetBuilder = ImmutableSet.builder();
+      for (DataFile file : files(messages)) {
+        newDataFileSetBuilder.add(file);
+      }
+      ImmutableSet<DataFile> newDataFiles = newDataFileSetBuilder.build();
+
+      coordinator.stageRewrite(table, fileSetID, newDataFiles);
     }
   }
 
