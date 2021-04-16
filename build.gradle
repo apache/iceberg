@@ -735,13 +735,9 @@ project(':iceberg-arrow') {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
     compile("org.apache.arrow:arrow-memory-netty") {
-      exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
-    testCompile("org.apache.arrow:arrow-memory-netty") {
-      exclude group: 'com.google.code.findbugs', module: 'jsr305'
-    }
     testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
     testCompile("org.apache.hadoop:hadoop-common")
     testCompile("org.apache.hadoop:hadoop-mapreduce-client-core")

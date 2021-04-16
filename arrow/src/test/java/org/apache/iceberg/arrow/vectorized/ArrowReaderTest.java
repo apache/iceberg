@@ -132,7 +132,7 @@ public class ArrowReaderTest {
   public void testReadAll() throws Exception {
     writeTableWithIncrementalRecords();
     Table table = tables.load(tableLocation);
-    readAndCheckVectorSchemaRoots(table.newScan(), NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, ALL_COLUMNS);
+    readAndCheckQueryResult(table.newScan(), NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, ALL_COLUMNS);
   }
 
   /**
@@ -199,7 +199,7 @@ public class ArrowReaderTest {
   public void testReadAllWithConstantRecords() throws Exception {
     writeTableWithConstantRecords();
     Table table = tables.load(tableLocation);
-    readAndCheckVectorSchemaRoots(table.newScan(), NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, ALL_COLUMNS);
+    readAndCheckQueryResult(table.newScan(), NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, ALL_COLUMNS);
   }
 
   /**
@@ -213,7 +213,7 @@ public class ArrowReaderTest {
     writeTableWithIncrementalRecords();
     Table table = tables.load(tableLocation);
     TableScan scan = table.newScan();
-    readAndCheckVectorSchemaRoots(scan, 10, 12 * NUM_ROWS_PER_MONTH, ALL_COLUMNS);
+    readAndCheckQueryResult(scan, 10, 12 * NUM_ROWS_PER_MONTH, ALL_COLUMNS);
   }
 
   /**
@@ -231,7 +231,7 @@ public class ArrowReaderTest {
         .filter(Expressions.and(
             Expressions.greaterThanOrEqual("timestamp", timestampToMicros(beginTime)),
             Expressions.lessThan("timestamp", timestampToMicros(endTime))));
-    readAndCheckVectorSchemaRoots(scan, NUM_ROWS_PER_MONTH, NUM_ROWS_PER_MONTH, ALL_COLUMNS);
+    readAndCheckQueryResult(scan, NUM_ROWS_PER_MONTH, NUM_ROWS_PER_MONTH, ALL_COLUMNS);
   }
 
   /**
@@ -268,7 +268,7 @@ public class ArrowReaderTest {
     Table table = tables.load(tableLocation);
     TableScan scan = table.newScan()
         .select("timestamp", "int", "string");
-    readAndCheckVectorSchemaRoots(
+    readAndCheckQueryResult(
         scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH,
         ImmutableList.of("timestamp", "int", "string"));
   }
@@ -284,12 +284,44 @@ public class ArrowReaderTest {
     Table table = tables.load(tableLocation);
     TableScan scan = table.newScan()
         .select("timestamp");
-    readAndCheckVectorSchemaRoots(
+    readAndCheckQueryResult(
         scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH,
         ImmutableList.of("timestamp"));
   }
 
-  private void readAndCheckVectorSchemaRoots(
+  /**
+   * Run the following verifications:
+   * <ol>
+   *   <li>Read the data and verify that the returned ColumnarBatches match expected rows.</li>
+   *   <li>Read the data and verify that the returned Arrow VectorSchemaRoots match expected rows.</li>
+   * </ol>
+   */
+  private void readAndCheckQueryResult(
+      TableScan scan,
+      int numRowsPerRoot,
+      int expectedTotalRows,
+      List<String> columns) throws IOException {
+    // Read the data and verify that the returned ColumnarBatches match expected rows.
+    readAndCheckColumnarBatch(scan, numRowsPerRoot, columns);
+    // Read the data and verify that the returned Arrow VectorSchemaRoots match expected rows.
+    readAndCheckArrowResult(scan, numRowsPerRoot, expectedTotalRows, columns);
+  }
+
+  private void readAndCheckColumnarBatch(
+      TableScan scan,
+      int numRowsPerRoot,
+      List<String> columns) throws IOException {
+    int rowIndex = 0;
+    try (VectorizedTableScanIterable itr = new VectorizedTableScanIterable(scan, numRowsPerRoot, false)) {
+      for (ColumnarBatch batch : itr) {
+        List<GenericRecord> expectedRows = rowsWritten.subList(rowIndex, rowIndex + numRowsPerRoot);
+        checkColumnarBatch(numRowsPerRoot, expectedRows, batch, columns);
+        rowIndex += numRowsPerRoot;
+      }
+    }
+  }
+
+  private void readAndCheckArrowResult(
       TableScan scan,
       int numRowsPerRoot,
       int expectedTotalRows,
@@ -300,7 +332,6 @@ public class ArrowReaderTest {
     try (VectorizedTableScanIterable itr = new VectorizedTableScanIterable(scan, numRowsPerRoot, false)) {
       for (ColumnarBatch batch : itr) {
         List<GenericRecord> expectedRows = rowsWritten.subList(rowIndex, rowIndex + numRowsPerRoot);
-        checkColumnarBatch(numRowsPerRoot, expectedRows, batch, columns);
         VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
         assertEquals(createExpectedArrowSchema(columnSet), root.getSchema());
         checkAllVectorTypes(root, columnSet);

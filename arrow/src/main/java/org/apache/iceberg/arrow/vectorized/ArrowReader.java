@@ -78,14 +78,20 @@ import org.slf4j.LoggerFactory;
  * <p>Features that don't work in this implementation:
  * <ul>
  *     <li>Type promotion: In case of type promotion, the Arrow vector corresponding to
- *     the data type in the parquet file is returned instead of the data type in the latest schema.</li>
+ *     the data type in the parquet file is returned instead of the data type in the latest schema.
+ *     See https://github.com/apache/iceberg/issues/2483.</li>
  *     <li>Columns with constant values are physically encoded as a dictionary. The Arrow vector
- *     type is int32 instead of the type as per the schema.</li>
+ *     type is int32 instead of the type as per the schema.
+ *     See https://github.com/apache/iceberg/issues/2484.</li>
  *     <li>Data types: {@link Types.TimeType}, {@link Types.ListType}, {@link Types.MapType},
- *     {@link Types.StructType}</li>
+ *     {@link Types.StructType}.
+ *     See https://github.com/apache/iceberg/issues/2485.</li>
+ *     <li>Iceberg v2 spec is not supported.
+ *     See https://github.com/apache/iceberg/issues/2487.</li>
  * </ul>
  *
  * <p>Data types not tested: {@link Types.UUIDType}, {@link Types.FixedType}, {@link Types.DecimalType}.
+ * See https://github.com/apache/iceberg/issues/2486.
  */
 public class ArrowReader extends CloseableGroup {
 
