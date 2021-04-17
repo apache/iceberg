@@ -19,12 +19,11 @@
 
 package org.apache.iceberg.spark.procedures;
 
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.actions.Actions;
-import org.apache.iceberg.actions.RemoveOrphanFilesAction;
+import org.apache.iceberg.actions.RemoveOrphanFiles;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
-import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -85,13 +84,10 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
     boolean dryRun = args.isNullAt(3) ? false : args.getBoolean(3);
 
     return withIcebergTable(tableIdent, table -> {
-      SparkSession spark = SparkSession.active();
-      Actions actions = Actions.forTable(spark, table);
-
-      RemoveOrphanFilesAction action = actions.removeOrphanFiles();
+      RemoveOrphanFiles action = actions().removeOrphanFiles(table);
 
       if (olderThanMillis != null) {
-        boolean isTesting = Boolean.parseBoolean(spark.conf().get("spark.testing", "false"));
+        boolean isTesting = Boolean.parseBoolean(spark().conf().get("spark.testing", "false"));
         if (!isTesting) {
           validateInterval(olderThanMillis);
         }
@@ -106,15 +102,25 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
         action.deleteWith(file -> { });
       }
 
-      List<String> orphanFileLocations = action.execute();
+      RemoveOrphanFiles.Result result = action.execute();
 
-      InternalRow[] outputRows = new InternalRow[orphanFileLocations.size()];
-      for (int index = 0; index < orphanFileLocations.size(); index++) {
-        String fileLocation = orphanFileLocations.get(index);
-        outputRows[index] = newInternalRow(UTF8String.fromString(fileLocation));
-      }
-      return outputRows;
+      return toOutputRows(result);
     });
+  }
+
+  private InternalRow[] toOutputRows(RemoveOrphanFiles.Result result) {
+    Iterable<String> orphanFileLocations = result.orphanFileLocations();
+
+    int orphanFileLocationsCount = Iterables.size(orphanFileLocations);
+    InternalRow[] rows = new InternalRow[orphanFileLocationsCount];
+
+    int index = 0;
+    for (String fileLocation : orphanFileLocations) {
+      rows[index] = newInternalRow(UTF8String.fromString(fileLocation));
+      index++;
+    }
+
+    return rows;
   }
 
   private void validateInterval(long olderThanMillis) {
