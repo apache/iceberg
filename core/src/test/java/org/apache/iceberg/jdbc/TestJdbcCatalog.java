@@ -527,13 +527,13 @@ public class TestJdbcCatalog {
     AssertHelpers.assertThrows("Should fail to drop namespace doesn't exist", NoSuchNamespaceException.class,
         "it is not found", () -> catalog.dropNamespace(Namespace.of("db", "ns1_not_exitss")));
 
+    TableIdentifier tbl0 = TableIdentifier.of("db", "ns1", "ns2", "tbl2");
     TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "tbl1");
-    TableIdentifier tbl1_2 = TableIdentifier.of("db", "ns1", "ns2", "tbl2");
     TableIdentifier tbl2 = TableIdentifier.of("db", "ns1", "tbl2");
     TableIdentifier tbl3 = TableIdentifier.of("db", "ns3", "tbl4");
     TableIdentifier tbl4 = TableIdentifier.of("db", "tbl");
 
-    Lists.newArrayList(tbl1, tbl1_2, tbl2, tbl3, tbl4).forEach(t ->
+    Lists.newArrayList(tbl0, tbl1, tbl2, tbl3, tbl4).forEach(t ->
         catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())
     );
 
