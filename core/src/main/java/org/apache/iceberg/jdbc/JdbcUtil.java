@@ -22,6 +22,7 @@ package org.apache.iceberg.jdbc;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
@@ -48,7 +49,7 @@ final class JdbcUtil {
           PREVIOUS_METADATA_LOCATION + " VARCHAR(32768)," +
           "PRIMARY KEY (" + CATALOG_NAME + ", " + TABLE_NAMESPACE + ", " + TABLE_NAME + ")" +
           ")";
-  protected static final String LOAD_TABLE_SQL = "SELECT * FROM " + CATALOG_TABLE_NAME +
+  protected static final String GET_TABLE_SQL = "SELECT * FROM " + CATALOG_TABLE_NAME +
       " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " = ? AND " + TABLE_NAME + " = ? ";
   protected static final String LIST_TABLES_SQL = "SELECT * FROM " + CATALOG_TABLE_NAME +
       " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " = ?";
@@ -62,7 +63,7 @@ final class JdbcUtil {
   protected static final String LIST_NAMESPACES_SQL = "SELECT DISTINCT " + TABLE_NAMESPACE +
       " FROM " + CATALOG_TABLE_NAME +
       " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " LIKE ?";
-  protected static final String DO_COMMIT_CREATE_SQL = "INSERT INTO " + CATALOG_TABLE_NAME +
+  protected static final String DO_COMMIT_CREATE_TABLE_SQL = "INSERT INTO " + CATALOG_TABLE_NAME +
       " (" + CATALOG_NAME + ", " + TABLE_NAMESPACE + ", " + TABLE_NAME +
       ", " + METADATA_LOCATION + ", " + PREVIOUS_METADATA_LOCATION + ") " +
       " VALUES (?,?,?,?,null)";
@@ -72,12 +73,9 @@ final class JdbcUtil {
   private JdbcUtil() {
   }
 
-  public static Namespace stringToNamespace(String string) {
-    if (string == null) {
-      return null;
-    }
-
-    return Namespace.of(Iterables.toArray(SPLITTER_DOT.split(string), String.class));
+  public static Namespace stringToNamespace(String namespace) {
+    Preconditions.checkArgument(namespace != null && !namespace.isEmpty(), "Invalid namespace %s", namespace);
+    return Namespace.of(Iterables.toArray(SPLITTER_DOT.split(namespace), String.class));
   }
 
   public static String namespaceToString(Namespace namespace) {

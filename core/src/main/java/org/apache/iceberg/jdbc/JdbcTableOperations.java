@@ -67,7 +67,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       Thread.currentThread().interrupt();
       throw new RuntimeException("Interrupted during refresh", e);
     } catch (SQLException e) {
-      // unknown exception happened when getting table from catalog
+      // SQL exception happened when getting table from catalog
       throw new UncheckedSQLException(
           String.format("Failed to get table %s from catalog %s", tableIdentifier, catalogName), e);
     }
@@ -103,14 +103,16 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
         validateMetadataLocation(table, base);
         String oldMetadataLocation = base.metadataFileLocation();
         // Start atomic update
+        LOG.debug("Committing existing table: {}", tableName());
         updateTable(newMetadataLocation, oldMetadataLocation);
       } else {
-        // table not exists create it!
+        // table not exists create it
+        LOG.debug("Committing new table: {}", tableName());
         createTable(newMetadataLocation);
       }
 
     } catch (SQLIntegrityConstraintViolationException e) {
-      throw new AlreadyExistsException(e, "Table already exists! maybe another process created it!");
+      throw new AlreadyExistsException(e, "Table already exists, maybe another process created it");
     } catch (SQLTimeoutException e) {
       throw new UncheckedSQLException("Database Connection timeout", e);
     } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
@@ -154,7 +156,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
 
   private void createTable(String newMetadataLocation) throws SQLException, InterruptedException {
     int insertRecord = connections.run(conn -> {
-      try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.DO_COMMIT_CREATE_SQL)) {
+      try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.DO_COMMIT_CREATE_TABLE_SQL)) {
         sql.setString(1, catalogName);
         sql.setString(2, JdbcUtil.namespaceToString(tableIdentifier.namespace()));
         sql.setString(3, tableIdentifier.name());
@@ -166,7 +168,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     if (insertRecord == 1) {
       LOG.debug("Successfully committed to new table: {}", tableIdentifier);
     } else {
-      throw new CommitFailedException("Failed to create the table %s from catalog %s", tableIdentifier, catalogName);
+      throw new CommitFailedException("Failed to create table %s catalog %s", tableIdentifier, catalogName);
     }
   }
 
@@ -195,7 +197,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     return connections.run(conn -> {
       Map<String, String> table = Maps.newHashMap();
 
-      try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.LOAD_TABLE_SQL)) {
+      try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.GET_TABLE_SQL)) {
         sql.setString(1, catalogName);
         sql.setString(2, JdbcUtil.namespaceToString(tableIdentifier.namespace()));
         sql.setString(3, tableIdentifier.name());

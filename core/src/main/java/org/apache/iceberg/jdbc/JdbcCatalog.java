@@ -91,7 +91,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
     try {
       LOG.debug("Connecting to Jdbc database {}", properties.get(CatalogProperties.URI));
-      connections = new JdbcClientPool(properties.get(CatalogProperties.URI), properties);
+      connections = new JdbcClientPool(uri, properties);
       initializeCatalogTables();
     } catch (SQLTimeoutException e) {
       throw new UncheckedSQLException("Database Connection timeout", e);
@@ -106,23 +106,17 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
   }
 
   private void initializeCatalogTables() throws InterruptedException, SQLException {
+    LOG.trace("Creating tables(if missing) to store iceberg catalog");
     connections.run(conn -> {
-      boolean catalogTableExists = false;
       DatabaseMetaData dbMeta = conn.getMetaData();
-      ResultSet tablesUpper = dbMeta.getTables(null, null, JdbcUtil.CATALOG_TABLE_NAME, null);
+      ResultSet tableExists = dbMeta.getTables(null, null, JdbcUtil.CATALOG_TABLE_NAME, null);
 
-      if (tablesUpper.next()) {
-        catalogTableExists = true;
+      if (tableExists.next()) {
+        return true;
       }
 
-      tablesUpper.close();
-
-      if (!catalogTableExists) {
-        conn.prepareStatement(JdbcUtil.CREATE_CATALOG_TABLE).execute();
-        LOG.debug("Created table {} to store iceberg tables!", JdbcUtil.CATALOG_TABLE_NAME);
-      }
-
-      return catalogTableExists;
+      LOG.debug("Creating table {} to store iceberg catalog!", JdbcUtil.CATALOG_TABLE_NAME);
+      return conn.prepareStatement(JdbcUtil.CREATE_CATALOG_TABLE).execute();
     });
   }
 
@@ -161,9 +155,9 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     }
 
     if (deletedRecords > 0) {
-      LOG.debug("Successfully dropped table {}.", identifier);
+      LOG.info("Successfully dropped table {}.", identifier);
     } else {
-      LOG.debug("Cannot drop table: {}! table not found in the catalog.", identifier);
+      LOG.info("Cannot drop table: {}! table not found in the catalog.", identifier);
       return false;
     }
 
@@ -341,10 +335,11 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     List<TableIdentifier> tableIdentifiers = listTables(namespace);
     if (tableIdentifiers != null && !tableIdentifiers.isEmpty()) {
       throw new NamespaceNotEmptyException("Cannot drop namespace %s because it is not empty. " +
-          "The following tables still exist under the namespace: %s", namespace, tableIdentifiers);
+          "Namespace contains %s tables", namespace, tableIdentifiers.size());
     }
 
     // namespaces are created/deleted by tables by default return true
+    // when there is no tables with namespace then its considered dropped
     return true;
   }
 
