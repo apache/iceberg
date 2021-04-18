@@ -17,12 +17,11 @@
  * under the License.
  */
 
-package org.apache.iceberg.hive;
+package org.apache.iceberg;
 
 import java.io.Closeable;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,7 +36,7 @@ public abstract class ClientPoolImpl<C, E extends Exception> implements Closeabl
   private volatile int currentSize;
   private boolean closed;
 
-  ClientPoolImpl(int poolSize, Class<? extends E> reconnectExc) {
+  public ClientPoolImpl(int poolSize, Class<? extends E> reconnectExc) {
     this.poolSize = poolSize;
     this.reconnectExc = reconnectExc;
     this.clients = new ArrayDeque<>(poolSize);
@@ -138,8 +137,7 @@ public abstract class ClientPoolImpl<C, E extends Exception> implements Closeabl
     }
   }
 
-  @VisibleForTesting
-  int poolSize() {
+  public int poolSize() {
     return poolSize;
   }
 }

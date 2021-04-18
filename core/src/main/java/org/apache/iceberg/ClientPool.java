@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.hive;
+package org.apache.iceberg;
 
 public interface ClientPool<C, E extends Exception> {
   interface Action<R, C, E extends Exception> {
