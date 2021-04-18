@@ -20,8 +20,8 @@
 package org.apache.iceberg.spark.procedures;
 
 import org.apache.iceberg.actions.Actions;
-import org.apache.iceberg.actions.RewriteManifestsAction;
-import org.apache.iceberg.actions.RewriteManifestsActionResult;
+import org.apache.iceberg.actions.RewriteManifests;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -81,21 +81,23 @@ class RewriteManifestsProcedure extends BaseProcedure {
     Boolean useCaching = args.isNullAt(1) ? null : args.getBoolean(1);
 
     return modifyIcebergTable(tableIdent, table -> {
-      Actions actions = Actions.forTable(table);
-
-      RewriteManifestsAction action = actions.rewriteManifests();
+      RewriteManifests action = actions().rewriteManifests(table);
 
       if (useCaching != null) {
-        action.useCaching(useCaching);
+        action.option("use-caching", "true");
       }
 
-      RewriteManifestsActionResult result = action.execute();
+      RewriteManifests.Result result = action.execute();
 
-      int numRewrittenManifests = result.deletedManifests().size();
-      int numAddedManifests = result.addedManifests().size();
-      InternalRow outputRow = newInternalRow(numRewrittenManifests, numAddedManifests);
-      return new InternalRow[]{outputRow};
+      return toOutputRows(result);
     });
+  }
+
+  private InternalRow[] toOutputRows(RewriteManifests.Result result) {
+    int rewrittenManifestsCount = Iterables.size(result.rewrittenManifests());
+    int addedManifestsCount = Iterables.size(result.addedManifests());
+    InternalRow row = newInternalRow(rewrittenManifestsCount, addedManifestsCount);
+    return new InternalRow[]{row};
   }
 
   @Override

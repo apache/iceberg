@@ -20,8 +20,7 @@
 package org.apache.iceberg.spark.procedures;
 
 import org.apache.iceberg.actions.Actions;
-import org.apache.iceberg.actions.ExpireSnapshotsAction;
-import org.apache.iceberg.actions.ExpireSnapshotsActionResult;
+import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
@@ -82,9 +81,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
     Integer retainLastNum = args.isNullAt(2) ? null : args.getInt(2);
 
     return modifyIcebergTable(tableIdent, table -> {
-      Actions actions = Actions.forTable(table);
-
-      ExpireSnapshotsAction action = actions.expireSnapshots();
+      ExpireSnapshots action = actions().expireSnapshots(table);
 
       if (olderThanMillis != null) {
         action.expireOlderThan(olderThanMillis);
@@ -94,14 +91,19 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
         action.retainLast(retainLastNum);
       }
 
-      ExpireSnapshotsActionResult result = action.execute();
+      ExpireSnapshots.Result result = action.execute();
 
-      InternalRow outputRow = newInternalRow(
-          result.dataFilesDeleted(),
-          result.manifestFilesDeleted(),
-          result.manifestListsDeleted());
-      return new InternalRow[]{outputRow};
+      return toOutputRows(result);
     });
+  }
+
+  private InternalRow[] toOutputRows(ExpireSnapshots.Result result) {
+    InternalRow row = newInternalRow(
+        result.deletedDataFilesCount(),
+        result.deletedManifestsCount(),
+        result.deletedManifestListsCount()
+    );
+    return new InternalRow[]{row};
   }
 
   @Override
