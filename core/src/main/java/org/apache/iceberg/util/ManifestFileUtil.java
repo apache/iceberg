@@ -42,7 +42,7 @@ public class ManifestFileUtil {
     private final T lowerBound;
     private final T upperBound;
     private final boolean containsNull;
-    private final boolean containsNaN;
+    private final Boolean containsNaN;
 
     @SuppressWarnings("unchecked")
     FieldSummary(Type.PrimitiveType primitive, ManifestFile.PartitionFieldSummary summary) {
@@ -60,7 +60,7 @@ public class ManifestFileUtil {
       }
 
       if (NaNUtil.isNaN(value)) {
-        return containsNaN;
+        return containsNaN == null ? true : containsNaN;
       }
 
       // if lower bound is null, then there are no non-null values
