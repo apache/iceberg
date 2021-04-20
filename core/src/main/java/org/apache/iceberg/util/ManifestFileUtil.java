@@ -51,7 +51,7 @@ public class ManifestFileUtil {
       this.lowerBound = Conversions.fromByteBuffer(primitive, summary.lowerBound());
       this.upperBound = Conversions.fromByteBuffer(primitive, summary.upperBound());
       this.containsNull = summary.containsNull();
-      this.containsNaN = summary.containsNaN();
+      this.containsNaN = summary.containsNaN() == null ? true : summary.containsNaN();
     }
 
     boolean canContain(Object value) {
