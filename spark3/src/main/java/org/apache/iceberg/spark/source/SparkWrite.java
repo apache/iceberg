@@ -103,7 +103,7 @@ class SparkWrite {
   SparkWrite(SparkSession spark, Table table, LogicalWriteInfo writeInfo,
              String applicationId, String wapId,
              Schema writeSchema, StructType dsSchema) {
-    this.sparkContext = new JavaSparkContext(spark.sparkContext());
+    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.queryId = writeInfo.queryId();
     this.format = getFileFormat(table.properties(), writeInfo.options());

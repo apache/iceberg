@@ -95,7 +95,7 @@ class Writer implements DataSourceWriter {
 
   Writer(SparkSession spark, Table table, DataSourceOptions options, boolean replacePartitions,
          String applicationId, String wapId, Schema writeSchema, StructType dsSchema) {
-    this.sparkContext = new JavaSparkContext(spark.sparkContext());
+    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.format = getFileFormat(table.properties(), options);
     this.replacePartitions = replacePartitions;

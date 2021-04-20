@@ -103,7 +103,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   private Boolean readUsingBatch = null;
 
   Reader(SparkSession spark, Table table, boolean caseSensitive, DataSourceOptions options) {
-    this.sparkContext = new JavaSparkContext(spark.sparkContext());
+    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.options = options;
     this.snapshotId = options.get(SparkReadOptions.SNAPSHOT_ID).map(Long::parseLong).orElse(null);
