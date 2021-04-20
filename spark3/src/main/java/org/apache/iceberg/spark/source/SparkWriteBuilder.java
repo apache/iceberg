@@ -23,18 +23,14 @@ import java.util.Locale;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.write.BatchWrite;
@@ -62,9 +58,6 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
   private SparkMergeScan mergeScan = null;
   private IsolationLevel isolationLevel = null;
 
-  // lazy variables
-  private JavaSparkContext lazySparkContext = null;
-
   SparkWriteBuilder(SparkSession spark, Table table, LogicalWriteInfo info) {
     this.spark = spark;
     this.table = table;
@@ -73,13 +66,6 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     this.options = info.options();
     this.overwriteMode = options.containsKey("overwrite-mode") ?
         options.get("overwrite-mode").toLowerCase(Locale.ROOT) : null;
-  }
-
-  private JavaSparkContext lazySparkContext() {
-    if (lazySparkContext == null) {
-      this.lazySparkContext = new JavaSparkContext(spark.sparkContext());
-    }
-    return lazySparkContext;
   }
 
   public WriteBuilder overwriteFiles(Scan scan, IsolationLevel writeIsolationLevel) {
@@ -128,10 +114,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     // Get write-audit-publish id
     String wapId = spark.conf().get("spark.wap.id", null);
 
-    Broadcast<FileIO> io = lazySparkContext().broadcast(SparkUtil.serializableFileIO(table));
-    Broadcast<EncryptionManager> encryptionManager = lazySparkContext().broadcast(table.encryption());
-
-    SparkWrite write = new SparkWrite(table, io, encryptionManager, writeInfo, appId, wapId, writeSchema, dsSchema);
+    SparkWrite write = new SparkWrite(spark, table, writeInfo, appId, wapId, writeSchema, dsSchema);
     if (overwriteByFilter) {
       return write.asOverwriteByFilter(overwriteExpr);
     } else if (overwriteDynamic) {
@@ -163,10 +146,7 @@ class SparkWriteBuilder implements WriteBuilder, SupportsDynamicOverwrite, Suppo
     // Get write-audit-publish id
     String wapId = spark.conf().get("spark.wap.id", null);
 
-    Broadcast<FileIO> io = lazySparkContext().broadcast(SparkUtil.serializableFileIO(table));
-    Broadcast<EncryptionManager> encryptionManager = lazySparkContext().broadcast(table.encryption());
-
-    SparkWrite write = new SparkWrite(table, io, encryptionManager, writeInfo, appId, wapId, writeSchema, dsSchema);
+    SparkWrite write = new SparkWrite(spark, table, writeInfo, appId, wapId, writeSchema, dsSchema);
     if (overwriteByFilter) {
       return write.asStreamingOverwrite();
     } else {

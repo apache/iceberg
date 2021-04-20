@@ -35,16 +35,15 @@ import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -53,7 +52,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.DataWriter;
@@ -87,11 +88,10 @@ import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DE
 class SparkWrite {
   private static final Logger LOG = LoggerFactory.getLogger(SparkWrite.class);
 
+  private final JavaSparkContext sparkContext;
   private final Table table;
   private final String queryId;
   private final FileFormat format;
-  private final Broadcast<FileIO> io;
-  private final Broadcast<EncryptionManager> encryptionManager;
   private final String applicationId;
   private final String wapId;
   private final long targetFileSize;
@@ -100,14 +100,13 @@ class SparkWrite {
   private final Map<String, String> extraSnapshotMetadata;
   private final boolean partitionedFanoutEnabled;
 
-  SparkWrite(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
-             LogicalWriteInfo writeInfo, String applicationId, String wapId,
+  SparkWrite(SparkSession spark, Table table, LogicalWriteInfo writeInfo,
+             String applicationId, String wapId,
              Schema writeSchema, StructType dsSchema) {
+    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.queryId = writeInfo.queryId();
     this.format = getFileFormat(table.properties(), writeInfo.options());
-    this.io = io;
-    this.encryptionManager = encryptionManager;
     this.applicationId = applicationId;
     this.wapId = wapId;
     this.writeSchema = writeSchema;
@@ -168,9 +167,9 @@ class SparkWrite {
 
   // the writer factory works for both batch and streaming
   private WriterFactory createWriterFactory() {
-    return new WriterFactory(
-        table.spec(), format, table.locationProvider(), table.properties(), io, encryptionManager, targetFileSize,
-        writeSchema, dsSchema, partitionedFanoutEnabled);
+    // broadcast the table metadata as the writer factory will be sent to executors
+    Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
+    return new WriterFactory(tableBroadcast, format, targetFileSize, writeSchema, dsSchema, partitionedFanoutEnabled);
   }
 
   private void commitOperation(SnapshotUpdate<?> operation, String description) {
@@ -207,7 +206,7 @@ class SparkWrite {
             2.0 /* exponential */)
         .throwFailureWhenFinished()
         .run(file -> {
-          io.value().deleteFile(file.path().toString());
+          table.io().deleteFile(file.path().toString());
         });
   }
 
@@ -479,27 +478,17 @@ class SparkWrite {
   }
 
   private static class WriterFactory implements DataWriterFactory, StreamingDataWriterFactory {
-    private final PartitionSpec spec;
+    private final Broadcast<Table> tableBroadcast;
     private final FileFormat format;
-    private final LocationProvider locations;
-    private final Map<String, String> properties;
-    private final Broadcast<FileIO> io;
-    private final Broadcast<EncryptionManager> encryptionManager;
     private final long targetFileSize;
     private final Schema writeSchema;
     private final StructType dsSchema;
     private final boolean partitionedFanoutEnabled;
 
-    protected WriterFactory(PartitionSpec spec, FileFormat format, LocationProvider locations,
-                            Map<String, String> properties, Broadcast<FileIO> io,
-                            Broadcast<EncryptionManager> encryptionManager, long targetFileSize,
+    protected WriterFactory(Broadcast<Table> tableBroadcast, FileFormat format, long targetFileSize,
                             Schema writeSchema, StructType dsSchema, boolean partitionedFanoutEnabled) {
-      this.spec = spec;
+      this.tableBroadcast = tableBroadcast;
       this.format = format;
-      this.locations = locations;
-      this.properties = properties;
-      this.io = io;
-      this.encryptionManager = encryptionManager;
       this.targetFileSize = targetFileSize;
       this.writeSchema = writeSchema;
       this.dsSchema = dsSchema;
@@ -513,17 +502,22 @@ class SparkWrite {
 
     @Override
     public DataWriter<InternalRow> createWriter(int partitionId, long taskId, long epochId) {
-      OutputFileFactory fileFactory = new OutputFileFactory(
-          spec, format, locations, io.value(), encryptionManager.value(), partitionId, taskId);
-      SparkAppenderFactory appenderFactory = new SparkAppenderFactory(properties, writeSchema, dsSchema, spec);
+      Table table = tableBroadcast.value();
+
+      OutputFileFactory fileFactory = new OutputFileFactory(table, format, partitionId, taskId);
+      SparkAppenderFactory appenderFactory = new SparkAppenderFactory(table, writeSchema, dsSchema);
+
+      PartitionSpec spec = table.spec();
+      FileIO io = table.io();
+
       if (spec.isUnpartitioned()) {
-        return new Unpartitioned3Writer(spec, format, appenderFactory, fileFactory, io.value(), targetFileSize);
+        return new Unpartitioned3Writer(spec, format, appenderFactory, fileFactory, io, targetFileSize);
       } else if (partitionedFanoutEnabled) {
         return new PartitionedFanout3Writer(
-            spec, format, appenderFactory, fileFactory, io.value(), targetFileSize, writeSchema, dsSchema);
+            spec, format, appenderFactory, fileFactory, io, targetFileSize, writeSchema, dsSchema);
       } else {
         return new Partitioned3Writer(
-            spec, format, appenderFactory, fileFactory, io.value(), targetFileSize, writeSchema, dsSchema);
+            spec, format, appenderFactory, fileFactory, io, targetFileSize, writeSchema, dsSchema);
       }
     }
   }

@@ -24,9 +24,8 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -34,9 +33,8 @@ import org.apache.spark.sql.catalyst.InternalRow;
 public class EqualityDeleteRowReader extends RowDataReader {
   private final Schema expectedSchema;
 
-  public EqualityDeleteRowReader(CombinedScanTask task, Schema schema, Schema expectedSchema, String nameMapping,
-                                 FileIO io, EncryptionManager encryptionManager, boolean caseSensitive) {
-    super(task, schema, schema, nameMapping, io, encryptionManager, caseSensitive);
+  public EqualityDeleteRowReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
+    super(task, table, table.schema(), caseSensitive);
     this.expectedSchema = expectedSchema;
   }
 

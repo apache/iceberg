@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 
@@ -43,6 +44,17 @@ public class OutputFileFactory {
   // with a recursive listing and grep.
   private final String operationId;
   private final AtomicInteger fileCount = new AtomicInteger(0);
+
+  // TODO: expose a builder like OutputFileFactory.forTable()
+  public OutputFileFactory(Table table, FileFormat format, int partitionId, long taskId) {
+    this(table.spec(), format, table.locationProvider(), table.io(), table.encryption(),
+        partitionId, taskId, UUID.randomUUID().toString());
+  }
+
+  public OutputFileFactory(Table table, PartitionSpec spec, FileFormat format, int partitionId, long taskId) {
+    this(spec, format, table.locationProvider(), table.io(), table.encryption(),
+        partitionId, taskId, UUID.randomUUID().toString());
+  }
 
   /**
    * Constructor where a generated UUID is used as the operationId to ensure uniqueness.
