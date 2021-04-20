@@ -42,7 +42,7 @@ public class ManifestFileUtil {
     private final T lowerBound;
     private final T upperBound;
     private final boolean containsNull;
-    private final Boolean containsNaN;
+    private final boolean containsNaN;
 
     @SuppressWarnings("unchecked")
     FieldSummary(Type.PrimitiveType primitive, ManifestFile.PartitionFieldSummary summary) {
@@ -51,7 +51,7 @@ public class ManifestFileUtil {
       this.lowerBound = Conversions.fromByteBuffer(primitive, summary.lowerBound());
       this.upperBound = Conversions.fromByteBuffer(primitive, summary.upperBound());
       this.containsNull = summary.containsNull();
-      this.containsNaN = summary.containsNaN();
+      this.containsNaN = summary.containsNaN() == null ? true : summary.containsNaN();
     }
 
     boolean canContain(Object value) {
@@ -60,7 +60,7 @@ public class ManifestFileUtil {
       }
 
       if (NaNUtil.isNaN(value)) {
-        return containsNaN == null ? true : containsNaN;
+        return containsNaN;
       }
 
       // if lower bound is null, then there are no non-null values
