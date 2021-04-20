@@ -169,18 +169,7 @@ class UpperCaseCharStream(wrapped: CodePointCharStream) extends CharStream {
   override def seek(where: Int): Unit = wrapped.seek(where)
   override def size(): Int = wrapped.size
 
-  override def getText(interval: Interval): String = {
-    // ANTLR 4.7's CodePointCharStream implementations have bugs when
-    // getText() is called with an empty stream, or intervals where
-    // the start > end. See
-    // https://github.com/antlr/antlr4/commit/ac9f7530 for one fix
-    // that is not yet in a released ANTLR artifact.
-    if (size() > 0 && (interval.b - interval.a >= 0)) {
-      wrapped.getText(interval)
-    } else {
-      ""
-    }
-  }
+  override def getText(interval: Interval): String = wrapped.getText(interval)
 
   // scalastyle:off
   override def LA(i: Int): Int = {
