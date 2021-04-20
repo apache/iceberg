@@ -663,7 +663,6 @@ public class TestTableMetadata {
 
     TableMetadata meta = TableMetadata.newTableMetadata(
         schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
-    Assert.assertTrue("Should default to no identifier field", meta.schema().identifierFieldIds().isEmpty());
 
     Schema newSchema = new Schema(
         Lists.newArrayList(Types.NestedField.required(1, "x", Types.StringType.get())),

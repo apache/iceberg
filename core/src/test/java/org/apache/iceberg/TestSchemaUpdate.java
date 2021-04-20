@@ -1225,7 +1225,7 @@ public class TestSchemaUpdate {
   }
 
   @Test
-  public void testSetIdentifierFields() {
+  public void testSetExistingIdentifierFields() {
     Schema newSchema = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
         .setIdentifierFields(Sets.newHashSet("id"))
         .apply();
@@ -1233,8 +1233,11 @@ public class TestSchemaUpdate {
     Assert.assertEquals("add an existing field as identifier field should succeed",
         Sets.newHashSet(newSchema.findField("id").fieldId()),
         newSchema.identifierFieldIds());
+  }
 
-    newSchema = new SchemaUpdate(newSchema, SCHEMA_LAST_COLUMN_ID)
+  @Test
+  public void testSetNewIdentifierFieldColumns() {
+    Schema newSchema = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
         .addColumn("new_field", Types.StringType.get())
         .setIdentifierFields(Sets.newHashSet("id", "new_field"))
         .apply();
@@ -1242,22 +1245,42 @@ public class TestSchemaUpdate {
     Assert.assertEquals("add a new field as identifier should succeed",
         Sets.newHashSet(newSchema.findField("id").fieldId(), newSchema.findField("new_field").fieldId()),
         newSchema.identifierFieldIds());
+  }
 
-    newSchema = new SchemaUpdate(newSchema, SCHEMA_LAST_COLUMN_ID)
-        .setIdentifierFields(Sets.newHashSet("new_field"))
-        .apply();
-
-    Assert.assertEquals("remove an identifier field should succeed",
-        Sets.newHashSet(newSchema.findField("new_field").fieldId()),
-        newSchema.identifierFieldIds());
-
-    newSchema = new SchemaUpdate(newSchema, SCHEMA_LAST_COLUMN_ID + 1)
+  @Test
+  public void testAddDottedIdentifierFieldColumns() {
+    Schema newSchema = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID + 1)
         .addColumn(null, "dot.field", Types.StringType.get())
         .setIdentifierFields(Sets.newHashSet("id", "dot.field"))
         .apply();
 
     Assert.assertEquals("add a field with dot as identifier should succeed",
         Sets.newHashSet(newSchema.findField("id").fieldId(), newSchema.findField("dot.field").fieldId()),
+        newSchema.identifierFieldIds());
+  }
+
+  @Test
+  public void testRemoveIdentifierFields() {
+    Schema newSchema = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+        .addColumn("new_field", Types.StringType.get())
+        .addColumn("new_field2", Types.StringType.get())
+        .setIdentifierFields(Sets.newHashSet("id", "new_field", "new_field2"))
+        .apply();
+
+    newSchema = new SchemaUpdate(newSchema, SCHEMA_LAST_COLUMN_ID)
+        .setIdentifierFields(Sets.newHashSet("new_field", "new_field2"))
+        .apply();
+
+    Assert.assertEquals("remove an identifier field should succeed",
+        Sets.newHashSet(newSchema.findField("new_field").fieldId(), newSchema.findField("new_field2").fieldId()),
+        newSchema.identifierFieldIds());
+
+    newSchema = new SchemaUpdate(newSchema, SCHEMA_LAST_COLUMN_ID)
+        .setIdentifierFields(Sets.newHashSet())
+        .apply();
+
+    Assert.assertEquals("remove all identifier fields should succeed",
+        Sets.newHashSet(),
         newSchema.identifierFieldIds());
   }
 
@@ -1293,7 +1316,7 @@ public class TestSchemaUpdate {
   }
 
   @Test
-  public void testDeleteIdentifierField() {
+  public void testDeleteIdentifierFieldColumns() {
     Schema schemaWithIdentifierFields = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
         .setIdentifierFields(Sets.newHashSet("id"))
         .apply();
@@ -1309,6 +1332,13 @@ public class TestSchemaUpdate {
         new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID)
             .setIdentifierFields(Sets.newHashSet()).deleteColumn("id").apply()
             .identifierFieldIds());
+  }
+
+  @Test
+  public void testDeleteIdentifierFieldColumnsFails() {
+    Schema schemaWithIdentifierFields = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+        .setIdentifierFields(Sets.newHashSet("id"))
+        .apply();
 
     AssertHelpers.assertThrows("delete an identifier column without setting identifier fields should fail",
         IllegalArgumentException.class,
@@ -1318,7 +1348,7 @@ public class TestSchemaUpdate {
   }
 
   @Test
-  public void testRenameIdentifierField() {
+  public void testRenameIdentifierFields() {
     Schema schemaWithIdentifierFields = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
         .setIdentifierFields(Sets.newHashSet("id"))
         .apply();
@@ -1333,7 +1363,7 @@ public class TestSchemaUpdate {
   }
 
   @Test
-  public void testMoveIdentifierField() {
+  public void testMoveIdentifierFields() {
     Schema schemaWithIdentifierFields = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
         .allowIncompatibleChanges()
         .setIdentifierFields(Sets.newHashSet("id"))
