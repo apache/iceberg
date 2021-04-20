@@ -40,7 +40,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.data.DataUtil;
+import org.apache.iceberg.data.TableMigrationUtil;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
@@ -270,8 +270,8 @@ public class SparkTableUtil {
   public static List<DataFile> listPartition(SparkPartition partition, PartitionSpec spec,
                                              SerializableConfiguration conf, MetricsConfig metricsConfig,
                                              NameMapping mapping) {
-    return DataUtil.listPartition(partition.values, partition.uri, partition.format, spec, conf.get(), metricsConfig,
-            mapping);
+    return TableMigrationUtil.listPartition(partition.values, partition.uri, partition.format, spec, conf.get(),
+        metricsConfig, mapping);
   }
 
 
@@ -416,7 +416,7 @@ public class SparkTableUtil {
       String nameMappingString = targetTable.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
       NameMapping nameMapping = nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
 
-      List<DataFile> files = DataUtil.listPartition(
+      List<DataFile> files = TableMigrationUtil.listPartition(
           partition, Util.uriToString(sourceTable.location()), format.get(), spec, conf, metricsConfig, nameMapping);
 
       AppendFiles append = targetTable.newAppend();
