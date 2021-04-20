@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -40,6 +41,7 @@ public class SchemaParser {
   }
 
   private static final String SCHEMA_ID = "schema-id";
+  private static final String IDENTIFIER_FIELD_IDS = "identifier-field-ids";
   private static final String TYPE = "type";
   private static final String STRUCT = "struct";
   private static final String LIST = "list";
@@ -59,15 +61,24 @@ public class SchemaParser {
   private static final String VALUE_REQUIRED = "value-required";
 
   private static void toJson(Types.StructType struct, JsonGenerator generator) throws IOException {
-    toJson(struct, null, generator);
+    toJson(struct, null, null, generator);
   }
 
-  private static void toJson(Types.StructType struct, Integer schemaId, JsonGenerator generator) throws IOException {
+  private static void toJson(Types.StructType struct, Integer schemaId, Set<Integer> identifierFieldIds,
+                             JsonGenerator generator) throws IOException {
     generator.writeStartObject();
 
     generator.writeStringField(TYPE, STRUCT);
     if (schemaId != null) {
       generator.writeNumberField(SCHEMA_ID, schemaId);
+    }
+
+    if (identifierFieldIds != null && !identifierFieldIds.isEmpty()) {
+      generator.writeArrayFieldStart(IDENTIFIER_FIELD_IDS);
+      for (int id : identifierFieldIds) {
+        generator.writeNumber(id);
+      }
+      generator.writeEndArray();
     }
 
     generator.writeArrayFieldStart(FIELDS);
@@ -144,7 +155,7 @@ public class SchemaParser {
   }
 
   public static void toJson(Schema schema, JsonGenerator generator) throws IOException {
-    toJson(schema.asStruct(), schema.schemaId(), generator);
+    toJson(schema.asStruct(), schema.schemaId(), schema.identifierFieldIds(), generator);
   }
 
   public static String toJson(Schema schema) {
@@ -158,7 +169,7 @@ public class SchemaParser {
       if (pretty) {
         generator.useDefaultPrettyPrinter();
       }
-      toJson(schema.asStruct(), generator);
+      toJson(schema.asStruct(), schema.schemaId(), schema.identifierFieldIds(), generator);
       generator.flush();
       return writer.toString();
 
@@ -247,11 +258,12 @@ public class SchemaParser {
     Preconditions.checkArgument(type.isNestedType() && type.asNestedType().isStructType(),
         "Cannot create schema, not a struct type: %s", type);
     Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, json);
+    Set<Integer> identifierFieldIds = JsonUtil.getIntegerSetOrNull(IDENTIFIER_FIELD_IDS, json);
 
     if (schemaId == null) {
-      return new Schema(type.asNestedType().asStructType().fields());
+      return new Schema(type.asNestedType().asStructType().fields(), identifierFieldIds);
     } else {
-      return new Schema(schemaId, type.asNestedType().asStructType().fields());
+      return new Schema(schemaId, type.asNestedType().asStructType().fields(), identifierFieldIds);
     }
   }
 

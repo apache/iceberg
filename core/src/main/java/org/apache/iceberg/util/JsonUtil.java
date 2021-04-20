@@ -25,9 +25,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 public class JsonUtil {
 
@@ -117,18 +119,80 @@ public class JsonUtil {
 
   public static List<String> getStringList(String property, JsonNode node) {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing list %s", property);
-    JsonNode pNode = node.get(property);
-    Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isArray(),
-        "Cannot parse %s from non-array value: %s", property, pNode);
+    return ImmutableList.<String>builder()
+        .addAll(new JsonStringArrayIterator(property, node))
+        .build();
+  }
 
-    ImmutableList.Builder<String> builder = ImmutableList.builder();
-    Iterator<JsonNode> elements = pNode.elements();
-    while (elements.hasNext()) {
-      JsonNode element = elements.next();
-      Preconditions.checkArgument(element.isTextual(),
-          "Cannot parse string from non-text value: %s", element);
-      builder.add(element.asText());
+  public static Set<Integer> getIntegerSetOrNull(String property, JsonNode node) {
+    if (!node.has(property)) {
+      return null;
     }
-    return builder.build();
+
+    return ImmutableSet.<Integer>builder()
+        .addAll(new JsonIntegerArrayIterator(property, node))
+        .build();
+  }
+
+  abstract static class JsonArrayIterator<T> implements Iterator<T> {
+
+    private final Iterator<JsonNode> elements;
+
+    JsonArrayIterator(String property, JsonNode node) {
+      JsonNode pNode = node.get(property);
+      Preconditions.checkArgument(pNode != null && !pNode.isNull() && pNode.isArray(),
+          "Cannot parse %s from non-array value: %s", property, pNode);
+      this.elements = pNode.elements();
+    }
+
+    @Override
+    public boolean hasNext() {
+      return elements.hasNext();
+    }
+
+    @Override
+    public T next() {
+      JsonNode element = elements.next();
+      validate(element);
+      return convert(element);
+    }
+
+    abstract T convert(JsonNode element);
+
+    abstract void validate(JsonNode element);
+  }
+
+  static class JsonStringArrayIterator extends JsonArrayIterator<String> {
+
+    JsonStringArrayIterator(String property, JsonNode node) {
+      super(property, node);
+    }
+
+    @Override
+    String convert(JsonNode element) {
+      return element.asText();
+    }
+
+    @Override
+    void validate(JsonNode element) {
+      Preconditions.checkArgument(element.isTextual(), "Cannot parse string from non-text value: %s", element);
+    }
+  }
+
+  static class JsonIntegerArrayIterator extends JsonArrayIterator<Integer> {
+
+    JsonIntegerArrayIterator(String property, JsonNode node) {
+      super(property, node);
+    }
+
+    @Override
+    Integer convert(JsonNode element) {
+      return element.asInt();
+    }
+
+    @Override
+    void validate(JsonNode element) {
+      Preconditions.checkArgument(element.isInt(), "Cannot parse integer from non-int value: %s", element);
+    }
   }
 }

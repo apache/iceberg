@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.Set;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.types.Type;
 
@@ -384,4 +385,21 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    *                                  with other additions, renames, or updates.
    */
   UpdateSchema unionByNameWith(Schema newSchema);
+
+  /**
+   * Set the identifier fields given a set of column names.
+   * <p>
+   * Identifier field is a similar concept as primary key in a relational database system.
+   * A row should be unique based on the values of the identifier fields.
+   * However, unlike a primary key, Iceberg does not enforce the uniqueness of a row based on this information.
+   * It is used for operations like upsert to define the default upsert key.
+   * <p>
+   * A column in the identifier fields must be of a primitive type.
+   * Each column set in this operation must exist in the current schema to update,
+   * or is added as a part of this update.
+   *
+   * @param names names of the columns to set as identifier fields
+   * @return this for method chaining
+   */
+  UpdateSchema setIdentifierFields(Set<String> names);
 }
