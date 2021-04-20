@@ -32,6 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.SparkSession;
@@ -159,6 +160,11 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   @Override
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
+    if (options.containsKey(SparkReadOptions.FILE_SCAN_TASK_SET_ID)) {
+      // skip planning the job and fetch already staged file scan tasks
+      return new SparkFilesScanBuilder(sparkSession(), icebergTable, options);
+    }
+
     if (refreshEagerly) {
       icebergTable.refresh();
     }
