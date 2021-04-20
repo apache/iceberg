@@ -19,22 +19,29 @@
 
 package org.apache.iceberg.spark.actions;
 
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.RemoveFiles;
 import org.apache.iceberg.actions.RemoveFilesActionResult;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.functions;
@@ -55,6 +62,7 @@ public class BaseRemoveFilesSparkAction
   private static final String DATA_FILE = "Data File";
   private static final String MANIFEST = "Manifest";
   private static final String MANIFEST_LIST = "Manifest List";
+  private static final String OTHERS = "Others";
 
   private static final String STREAM_RESULTS = "stream-results";
 
@@ -110,7 +118,38 @@ public class BaseRemoveFilesSparkAction
     Table staticTable = newStaticTable(metadata, this.table.io());
     return appendTypeString(buildValidDataFileDF(staticTable), DATA_FILE)
         .union(appendTypeString(buildManifestFileDF(staticTable), MANIFEST))
-        .union(appendTypeString(buildManifestListDF(staticTable), MANIFEST_LIST));
+        .union(appendTypeString(buildManifestListDF(staticTable), MANIFEST_LIST))
+        .union(appendTypeString(buildOtherMetadataFileDF(ops), OTHERS));
+  }
+
+  protected Dataset<Row> buildOtherMetadataFileDF(TableOperations tableOps) {
+    List<String> otherMetadataFiles = Lists.newArrayList();
+    otherMetadataFiles.add(tableOps.metadataFileLocation("version-hint.text"));
+
+    Set<String> metadataFiles = new HashSet<>();
+    TableMetadata metadata = tableOps.current();
+    String location = metadata.metadataFileLocation();
+    metadataFiles.add(location);
+    getMetadataFiles(location, metadataFiles, tableOps.io());
+    otherMetadataFiles.addAll(metadataFiles);
+    return spark().createDataset(otherMetadataFiles, Encoders.STRING()).toDF("file_path");
+  }
+
+  private void getMetadataFiles(String metadataFileLocation, Set<String> metaFiles, FileIO io) {
+    if (metadataFileLocation == null) {
+      return;
+    }
+    long minTimeStamp = Long.MAX_VALUE;
+    String minMetadataLocation = null;
+    TableMetadata metadata = TableMetadataParser.read(io, metadataFileLocation);
+    for (TableMetadata.MetadataLogEntry previousMetadataFile : metadata.previousFiles()) {
+      metaFiles.add(previousMetadataFile.file());
+      if (previousMetadataFile.timestampMillis() < minTimeStamp) {
+        minTimeStamp = previousMetadataFile.timestampMillis();
+        minMetadataLocation = previousMetadataFile.file();
+      }
+    }
+    getMetadataFiles(minMetadataLocation, metaFiles, io);
   }
 
   /**
@@ -123,6 +162,7 @@ public class BaseRemoveFilesSparkAction
     AtomicLong dataFileCount = new AtomicLong(0L);
     AtomicLong manifestCount = new AtomicLong(0L);
     AtomicLong manifestListCount = new AtomicLong(0L);
+    AtomicLong otherFilesCount = new AtomicLong(0L);
 
     Tasks.foreach(deleted)
         .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
@@ -149,11 +189,16 @@ public class BaseRemoveFilesSparkAction
               manifestListCount.incrementAndGet();
               LOG.debug("Deleted Manifest List: {}", file);
               break;
+            case OTHERS:
+              otherFilesCount.incrementAndGet();
+              LOG.debug("Others: {}", file);
+              break;
           }
         });
 
     LOG.info("Deleted {} total files", dataFileCount.get() + manifestCount.get() + manifestListCount.get());
-    return new RemoveFilesActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get());
+    return new RemoveFilesActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get(),
+        otherFilesCount.get());
   }
 
   @Override

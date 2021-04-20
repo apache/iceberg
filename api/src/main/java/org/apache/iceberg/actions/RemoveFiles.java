@@ -68,5 +68,10 @@ public interface RemoveFiles extends Action<RemoveFiles, RemoveFiles.Result> {
      * Returns the number of deleted manifest lists.
      */
     long deletedManifestListsCount();
+
+    /**
+     * Returns the number of files deleted other than data, manifest and manifest list.
+     */
+    long otherDeletedFilesCount();
   }
 }

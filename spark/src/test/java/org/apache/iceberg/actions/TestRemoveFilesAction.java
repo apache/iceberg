@@ -30,6 +30,7 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -94,14 +95,16 @@ public abstract class TestRemoveFilesAction extends SparkTestBase {
     spark.conf().set("spark.sql.shuffle.partitions", SHUFFLE_PARTITIONS);
   }
 
-  private void checkDropTableResults(long expectedDatafiles, long expectedManifestsDeleted,
-                                     long expectedManifestListsDeleted, RemoveFiles.Result results) {
+  private void checkRemoveFilesResults(long expectedDatafiles, long expectedManifestsDeleted,
+      long expectedManifestListsDeleted, long expectedOtherFilesDeleted, RemoveFiles.Result results) {
     Assert.assertEquals("Incorrect number of manifest files deleted",
         (Long) expectedManifestsDeleted, (Long) results.deletedManifestsCount());
     Assert.assertEquals("Incorrect number of datafiles deleted",
         (Long) expectedDatafiles, (Long) results.deletedDataFilesCount());
     Assert.assertEquals("Incorrect number of manifest lists deleted",
         (Long) expectedManifestListsDeleted, (Long) results.deletedManifestListsCount());
+    Assert.assertEquals("Incorrect number of other lists deleted",
+        (Long) expectedOtherFilesDeleted, (Long) results.otherDeletedFilesCount());
   }
 
   @Test
@@ -147,7 +150,8 @@ public abstract class TestRemoveFilesAction extends SparkTestBase {
     Assert.assertTrue("FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString()));
     Assert.assertTrue("FILE_B should be deleted", deletedFiles.contains(FILE_B.path().toString()));
 
-    checkDropTableResults(4L, 6L, 4L, result);
+    checkRemoveFilesResults(4L, 6L, 4L,
+        6, result);
   }
 
   @Test
@@ -173,19 +177,50 @@ public abstract class TestRemoveFilesAction extends SparkTestBase {
     RemoveFiles.Result result = Actions.forTable(table).removeFilesAction()
         .execute();
 
-    checkDropTableResults(3L, 3L, 3L, result);
+    checkRemoveFilesResults(3L, 3L, 3L, 5, result);
   }
 
   @Test
-  public void testDropOnEmptyTable() {
+  public void testRemoveFileActionOnEmptyTable() {
     RemoveFiles.Result result = Actions.forTable(table).removeFilesAction()
         .execute();
 
-    checkDropTableResults(0, 0, 0, result);
+    checkRemoveFilesResults(0, 0, 0, 2, result);
   }
 
   @Test
-  public void testDropAction() {
+  public void testRemoveFilesActionWithReducedVersionsTable() {
+    table.updateProperties()
+        .set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "2").commit();
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    table.newAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    table.newAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    table.newAppend()
+        .appendFile(FILE_C)
+        .commit();
+
+    table.newAppend()
+        .appendFile(FILE_D)
+        .commit();
+
+    BaseRemoveFilesSparkAction baseRemoveFilesSparkAction = Actions.forTable(table)
+        .removeFilesAction();
+    RemoveFiles.Result result = baseRemoveFilesSparkAction.execute();
+
+    checkRemoveFilesResults(4, 5, 5, 8, result);
+  }
+
+  @Test
+  public void testRemoveFilesAction() {
     table.newAppend()
         .appendFile(FILE_A)
         .commit();
@@ -198,7 +233,7 @@ public abstract class TestRemoveFilesAction extends SparkTestBase {
         .removeFilesAction();
     RemoveFiles.Result result = baseRemoveFilesSparkAction.execute();
 
-    checkDropTableResults(2, 2, 2, result);
+    checkRemoveFilesResults(2, 2, 2, 4,  result);
   }
 
   @Test
@@ -223,10 +258,9 @@ public abstract class TestRemoveFilesAction extends SparkTestBase {
     int jobsAfter = spark.sparkContext().dagScheduler().nextJobId().get();
     int totalJobsRun = jobsAfter - jobsBefore;
 
-    checkDropTableResults(3L, 4L, 3L, results);
+    checkRemoveFilesResults(3L, 4L, 3L, 5, results);
 
-    Assert.assertTrue(
-        String.format("Expected total jobs to be equal to total number of shuffle partitions",
-            SHUFFLE_PARTITIONS, totalJobsRun), totalJobsRun == SHUFFLE_PARTITIONS);
+    Assert.assertEquals(
+        "Expected total jobs to be equal to total number of shuffle partitions", totalJobsRun, SHUFFLE_PARTITIONS);
   }
 }

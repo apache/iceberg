@@ -24,22 +24,16 @@ public class RemoveFilesActionResult implements RemoveFiles.Result {
   private final long deletedDataFilesCount;
   private final long deletedManifestsCount;
   private final long deletedManifestListsCount;
+  private final long deletedOtherFilesCount;
 
   public RemoveFilesActionResult(long deletedDataFilesCount,
-                                 long deletedManifestsCount,
-                                 long deletedManifestListsCount) {
+      long deletedManifestsCount,
+      long deletedManifestListsCount,
+      long otherDeletedFilesCount) {
     this.deletedDataFilesCount = deletedDataFilesCount;
     this.deletedManifestsCount = deletedManifestsCount;
     this.deletedManifestListsCount = deletedManifestListsCount;
-  }
-
-  public RemoveFilesActionResult(long deletedDataFilesCount,
-                                 long deletedManifestsCount,
-                                 long deletedManifestListsCount,
-                                 boolean rootDeleted) {
-    this.deletedDataFilesCount = deletedDataFilesCount;
-    this.deletedManifestsCount = deletedManifestsCount;
-    this.deletedManifestListsCount = deletedManifestListsCount;
+    this.deletedOtherFilesCount = otherDeletedFilesCount;
   }
 
   @Override
@@ -55,5 +49,10 @@ public class RemoveFilesActionResult implements RemoveFiles.Result {
   @Override
   public long deletedManifestListsCount() {
     return deletedManifestListsCount;
+  }
+
+  @Override
+  public long otherDeletedFilesCount() {
+    return deletedOtherFilesCount;
   }
 }
