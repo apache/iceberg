@@ -659,9 +659,10 @@ public class TestHiveIcebergStorageHandlerWithEngine {
     Table target1 = testTables.createTable(shell, "target1", target1Schema, fileFormat, ImmutableList.of());
     Table target2 = testTables.createTable(shell, "target2", target2Schema, fileFormat, ImmutableList.of());
 
+    // simple insert: should create a single vertex writing to both target tables
     shell.executeStatement("FROM customers " +
-            "INSERT INTO target1 SELECT customer_id, first_name " +
-            "INSERT INTO target2 SELECT last_name, customer_id");
+        "INSERT INTO target1 SELECT customer_id, first_name " +
+        "INSERT INTO target2 SELECT last_name, customer_id");
 
     // Check that everything is as expected
     HiveIcebergTestUtils.validateData(target1, target1Records, 0);
@@ -673,8 +674,8 @@ public class TestHiveIcebergStorageHandlerWithEngine {
 
     // complex insert: should use a different vertex for each target table
     shell.executeStatement("FROM customers " +
-            "INSERT INTO target1 SELECT customer_id, first_name ORDER BY first_name " +
-            "INSERT INTO target2 SELECT last_name, customer_id ORDER BY last_name");
+        "INSERT INTO target1 SELECT customer_id, first_name ORDER BY first_name " +
+        "INSERT INTO target2 SELECT last_name, customer_id ORDER BY last_name");
 
     // Check that everything is as expected
     HiveIcebergTestUtils.validateData(target1, target1Records, 0);
