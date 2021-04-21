@@ -20,12 +20,12 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -38,7 +38,6 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.encryption.EncryptedFiles;
-import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
@@ -50,11 +49,8 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.schema.MessageType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Vectorized reader that returns an iterator of {@link ColumnarBatch}.
@@ -92,8 +88,6 @@ import org.slf4j.LoggerFactory;
  * </ul>
  */
 public class ArrowReader extends CloseableGroup {
-
-  private static final Logger LOG = LoggerFactory.getLogger(ArrowReader.class);
 
   private final Schema schema;
   private final FileIO io;
@@ -168,6 +162,7 @@ public class ArrowReader extends CloseableGroup {
    */
   private static final class VectorizedCombinedScanIterator implements CloseableIterator<ColumnarBatch> {
 
+    private final List<FileScanTask> fileTasks;
     private final Iterator<FileScanTask> fileItr;
     private final Map<String, InputFile> inputFiles;
     private final Schema expectedSchema;
@@ -210,25 +205,16 @@ public class ArrowReader extends CloseableGroup {
         boolean caseSensitive,
         int batchSize,
         boolean reuseContainers) {
-      List<FileScanTask> fileTasks = StreamSupport.stream(tasks.spliterator(), false)
+      this.fileTasks = StreamSupport.stream(tasks.spliterator(), false)
           .map(CombinedScanTask::files)
           .flatMap(Collection::stream)
           .collect(Collectors.toList());
       this.fileItr = fileTasks.iterator();
-      Map<String, ByteBuffer> keyMetadata = Maps.newHashMap();
-      fileTasks.stream()
+      this.inputFiles = Collections.unmodifiableMap(fileTasks.stream()
           .flatMap(fileScanTask -> Stream.concat(Stream.of(fileScanTask.file()), fileScanTask.deletes().stream()))
-          .forEach(file -> keyMetadata.put(file.path().toString(), file.keyMetadata()));
-      Stream<EncryptedInputFile> encrypted = keyMetadata.entrySet().stream()
-          .map(entry -> EncryptedFiles.encryptedInput(io.newInputFile(entry.getKey()), entry.getValue()));
-
-      // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
-      Iterable<InputFile> decryptedFiles = encryptionManager.decrypt(encrypted::iterator);
-
-      Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(fileTasks.size());
-      decryptedFiles.forEach(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
-      this.inputFiles = Collections.unmodifiableMap(files);
-
+          .map(file -> EncryptedFiles.encryptedInput(io.newInputFile(file.path().toString()), file.keyMetadata()))
+          .map(encryptionManager::decrypt)
+          .collect(Collectors.toMap(InputFile::location, Function.identity())));
       this.currentIterator = CloseableIterator.empty();
       this.expectedSchema = expectedSchema;
       this.nameMapping = nameMapping;
@@ -255,9 +241,17 @@ public class ArrowReader extends CloseableGroup {
         }
       } catch (IOException | RuntimeException e) {
         if (currentTask != null && !currentTask.isDataTask()) {
-          LOG.error("Error reading file: {}", getInputFile(currentTask).location(), e);
+          throw new RuntimeException(
+              "Error reading file: " + getInputFile(currentTask).location() +
+                  ". Reason: the current task is not a data task, i.e. it cannot read data rows. " +
+                  "Ensure that the tasks passed to the constructor are data tasks. " +
+                  "The file scan tasks are: " + fileTasks,
+              e);
+        } else {
+          throw new RuntimeException(
+              "An error occurred while iterating through the file scan tasks or closing the iterator," +
+                  " see the stacktrace for further information. The file scan tasks are: " + fileTasks, e);
         }
-        throw new RuntimeException(e);
       }
     }
 

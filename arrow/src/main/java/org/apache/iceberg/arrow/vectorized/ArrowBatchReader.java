@@ -47,9 +47,7 @@ class ArrowBatchReader implements VectorizedReader<ColumnarBatch> {
   public final void setRowGroupInfo(
       PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData, long rowPosition) {
     for (VectorizedArrowReader reader : readers) {
-      if (reader != null) {
-        reader.setRowGroupInfo(pageStore, metaData, rowPosition);
-      }
+      reader.setRowGroupInfo(pageStore, metaData, rowPosition);
     }
   }
 

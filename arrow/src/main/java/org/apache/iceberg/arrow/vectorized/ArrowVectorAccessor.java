@@ -21,7 +21,8 @@ package org.apache.iceberg.arrow.vectorized;
 
 import org.apache.arrow.vector.ValueVector;
 
-public class ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable> {
+public class ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
+    implements AutoCloseable {
   private final ValueVector vector;
   private final ChildVectorT[] childColumns;
 
@@ -34,7 +35,8 @@ public class ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT ext
     this.childColumns = children;
   }
 
-  public final void close() {
+  @Override
+  public void close() {
     if (childColumns != null) {
       for (ChildVectorT column : childColumns) {
         try {

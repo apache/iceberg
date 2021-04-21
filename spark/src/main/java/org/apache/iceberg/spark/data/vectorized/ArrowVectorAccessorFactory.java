@@ -47,11 +47,6 @@ final class ArrowVectorAccessorFactory
     }
 
     @Override
-    public Decimal ofInt(int value, int precision, int scale) {
-      return Decimal.apply(value, precision, scale);
-    }
-
-    @Override
     public Decimal ofLong(long value, int precision, int scale) {
       return Decimal.apply(value, precision, scale);
     }

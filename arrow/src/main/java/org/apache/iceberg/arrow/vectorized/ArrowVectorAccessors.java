@@ -44,9 +44,8 @@ final class ArrowVectorAccessors {
   }
 
   private ArrowVectorAccessors() {
-    throw new UnsupportedOperationException();
+    throw new UnsupportedOperationException(ArrowVectorAccessors.class.getName() + " cannot be instantiated.");
   }
-
 
   static ArrowVectorAccessor<?, String, ?, ?> getVectorAccessor(VectorHolder holder) {
     return factory.getVectorAccessor(holder);
