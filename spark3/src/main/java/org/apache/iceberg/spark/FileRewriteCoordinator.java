@@ -56,7 +56,6 @@ public class FileRewriteCoordinator {
 
   public void stageRewrite(Table table, String fileSetID, Set<DataFile> newDataFiles) {
     Preconditions.checkArgument(newDataFiles != null && newDataFiles.size() > 0, "Cannot stage null or empty file set");
-    LOG.info("Staging results of rewriting file set {} for table {}", fileSetID, table);
     Pair<String, String> id = toID(table, fileSetID);
     resultMap.put(id, newDataFiles);
   }
@@ -66,16 +65,12 @@ public class FileRewriteCoordinator {
   }
 
   public void commitRewrite(Table table, Set<String> fileSetIDs) {
-    LOG.info("Committing rewrite of file sets {} for table {}", fileSetIDs, table);
-
     Set<DataFile> rewrittenDataFiles = fetchRewrittenDataFiles(table, fileSetIDs);
     Set<DataFile> newDataFiles = fetchNewDataFiles(table, fileSetIDs);
 
     table.newRewrite()
         .rewriteFiles(rewrittenDataFiles, newDataFiles)
         .commit();
-
-    LOG.info("Successfully committed rewrite of file sets {} for table {}", fileSetIDs, table);
   }
 
   private Set<DataFile> fetchRewrittenDataFiles(Table table, Set<String> fileSetIDs) {
@@ -120,11 +115,10 @@ public class FileRewriteCoordinator {
   }
 
   public void abortRewrite(Table table, String fileSetID) {
-    LOG.info("Aborting rewrite of file set {} for table {}", fileSetID, table);
     Pair<String, String> id = toID(table, fileSetID);
     Set<DataFile> dataFiles = resultMap.remove(id);
     if (dataFiles != null) {
-      LOG.info("Deleting {} uncommitted data files", dataFiles.size());
+      LOG.info("Deleting {} uncommitted data files for rewriting file set {}", dataFiles.size(), fileSetID);
       deleteFiles(table.io(), dataFiles);
     }
   }
