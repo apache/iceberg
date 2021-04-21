@@ -142,7 +142,8 @@ public class BaseRewriteManifestsSparkAction
 
   @Override
   public RewriteManifests.Result execute() {
-    JobGroupInfo info = newJobGroupInfo("REWRITE-MANIFESTS", "REWRITE-MANIFESTS");
+    JobGroupInfo info = newJobGroupInfo("REWRITE-MANIFESTS",
+        String.format("Rewriting manifests(staging location=%s) of %s", stagingLocation, table.name()));
     return withJobGroupInfo(info, this::doExecute);
   }
 

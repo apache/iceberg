@@ -21,11 +21,13 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -140,8 +142,18 @@ public class BaseRemoveOrphanFilesSparkAction
 
   @Override
   public RemoveOrphanFiles.Result execute() {
-    JobGroupInfo info = newJobGroupInfo("REMOVE-ORPHAN-FILES", "REMOVE-ORPHAN-FILES");
+    JobGroupInfo info = newJobGroupInfo("REMOVE-ORPHAN-FILES",
+        String.format("Removing orphan files(%s) from %s", getDescription(), table.name()));
     return withJobGroupInfo(info, this::doExecute);
+  }
+
+  private String getDescription() {
+    List<String> msg = new ArrayList<>();
+    msg.add("older_than=" + olderThanTimestamp);
+    if (location != null) {
+      msg.add("location=" + location);
+    }
+    return String.format("Removing orphan files(%s) from %s", StringUtils.join(msg, ","), table.name());
   }
 
   private RemoveOrphanFiles.Result doExecute() {

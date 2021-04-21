@@ -19,11 +19,14 @@
 
 package org.apache.iceberg.spark.actions;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -181,8 +184,23 @@ public class BaseExpireSnapshotsSparkAction
 
   @Override
   public ExpireSnapshots.Result execute() {
-    JobGroupInfo info = newJobGroupInfo("EXPIRE-SNAPSHOTS", "EXPIRE-SNAPSHOTS");
+    JobGroupInfo info = newJobGroupInfo("EXPIRE-SNAPSHOTS", getDescription());
     return withJobGroupInfo(info, this::doExecute);
+  }
+
+  private String getDescription() {
+    List<String> msgs = new ArrayList<>();
+    if (expireOlderThanValue != null) {
+      msgs.add("older than=" + expireOlderThanValue);
+    }
+    if (retainLastValue != null) {
+      msgs.add("retain last=" + retainLastValue);
+    }
+    if (expiredSnapshotIds != null) {
+      msgs.add("Snapshot ids =" + StringUtils.join(expiredSnapshotIds, ","));
+    }
+    return String.format("Expiring snapshots(%s) in %s", StringUtils.join(msgs, ","), table.name());
+
   }
 
   private ExpireSnapshots.Result doExecute() {
