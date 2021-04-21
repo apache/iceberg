@@ -19,11 +19,10 @@
 
 package org.apache.iceberg.spark;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.HasTableOperations;
@@ -46,7 +45,6 @@ public class FileRewriteCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(FileRewriteCoordinator.class);
   private static final FileRewriteCoordinator INSTANCE = new FileRewriteCoordinator();
 
-  private final Map<String, Lock> lockMap = Maps.newConcurrentMap();
   private final Map<Pair<String, String>, Set<DataFile>> resultMap = Maps.newConcurrentMap();
 
   private FileRewriteCoordinator() {
@@ -57,7 +55,7 @@ public class FileRewriteCoordinator {
   }
 
   public void stageRewrite(Table table, String fileSetID, Set<DataFile> newDataFiles) {
-    Preconditions.checkArgument(newDataFiles != null && newDataFiles.size() > 0, "Cannot stage null or empty files");
+    Preconditions.checkArgument(newDataFiles != null && newDataFiles.size() > 0, "Cannot stage null or empty file set");
     LOG.info("Staging results of rewriting file set {} for table {}", fileSetID, table);
     Pair<String, String> id = toID(table, fileSetID);
     resultMap.put(id, newDataFiles);
@@ -73,23 +71,11 @@ public class FileRewriteCoordinator {
     Set<DataFile> rewrittenDataFiles = fetchRewrittenDataFiles(table, fileSetIDs);
     Set<DataFile> newDataFiles = fetchNewDataFiles(table, fileSetIDs);
 
-    String tableUUID = tableUUID(table);
-    Lock tableLock = lockMap.computeIfAbsent(tableUUID, uuid -> new ReentrantLock());
+    table.newRewrite()
+        .rewriteFiles(rewrittenDataFiles, newDataFiles)
+        .commit();
 
-    try {
-      LOG.info("Locking table {} to commit rewrite of file sets {}", table, fileSetIDs);
-      tableLock.lock();
-
-      table.newRewrite()
-          .rewriteFiles(rewrittenDataFiles, newDataFiles)
-          .commit();
-
-      LOG.info("Successfully committed rewrite of file sets {} for table {}", fileSetIDs, table);
-
-    } finally {
-      LOG.info("Unlocking table {}", table);
-      tableLock.unlock();
-    }
+    LOG.info("Successfully committed rewrite of file sets {} for table {}", fileSetIDs, table);
   }
 
   private Set<DataFile> fetchRewrittenDataFiles(Table table, Set<String> fileSetIDs) {
@@ -109,7 +95,7 @@ public class FileRewriteCoordinator {
       }
     }
 
-    return rewrittenDataFiles;
+    return Collections.unmodifiableSet(rewrittenDataFiles);
   }
 
   private Set<DataFile> fetchNewDataFiles(Table table, Set<String> fileSetIDs) {
@@ -119,7 +105,7 @@ public class FileRewriteCoordinator {
       Pair<String, String> id = toID(table, fileSetID);
       Set<DataFile> result = resultMap.get(id);
       ValidationException.check(result != null,
-          "No results for compacting file set %s in table %s",
+          "No results for rewrite of file set %s in table %s",
           fileSetID, table);
 
       results.add(result);
@@ -134,7 +120,7 @@ public class FileRewriteCoordinator {
   }
 
   public void abortRewrite(Table table, String fileSetID) {
-    LOG.info("Aborting compaction of file set {} for table {}", fileSetID, table);
+    LOG.info("Aborting rewrite of file set {} for table {}", fileSetID, table);
     Pair<String, String> id = toID(table, fileSetID);
     Set<DataFile> dataFiles = resultMap.remove(id);
     if (dataFiles != null) {

@@ -27,6 +27,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.source.SimpleRecord;
@@ -50,7 +51,7 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
   }
 
   @Test
-  public void testBinPacking() throws NoSuchTableException, IOException {
+  public void testBinPackRewrite() throws NoSuchTableException, IOException {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
 
     Dataset<Row> df = newDF(1000);
@@ -100,7 +101,7 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
   }
 
   @Test
-  public void testSortBasedRewrite() throws NoSuchTableException, IOException {
+  public void testSortRewrite() throws NoSuchTableException, IOException {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
 
     Dataset<Row> df = newDF(1000);
@@ -148,6 +149,72 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
     }
 
     table.refresh();
+
+    Map<String, String> summary = table.currentSnapshot().summary();
+    Assert.assertEquals("Deleted files count must match", "4", summary.get("deleted-data-files"));
+    Assert.assertEquals("Added files count must match", "2", summary.get("added-data-files"));
+
+    Object rowCount = scalarSql("SELECT count(*) FROM %s", tableName);
+    Assert.assertEquals("Row count must match", 4000L, rowCount);
+  }
+
+  @Test
+  public void testCommitMultipleRewrites() throws NoSuchTableException, IOException {
+    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+
+    Dataset<Row> df = newDF(1000);
+
+    // add first two files
+    df.coalesce(1).writeTo(tableName).append();
+    df.coalesce(1).writeTo(tableName).append();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    String firstFileSetID = UUID.randomUUID().toString();
+    long firstFileSetSnapshotId = table.currentSnapshot().snapshotId();
+
+    FileScanTaskSetManager taskSetManager = FileScanTaskSetManager.get();
+
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      // stage first 2 files for compaction
+      taskSetManager.stageTasks(table, firstFileSetID, Lists.newArrayList(tasks));
+    }
+
+    // add two more files
+    df.coalesce(1).writeTo(tableName).append();
+    df.coalesce(1).writeTo(tableName).append();
+
+    table.refresh();
+
+    String secondFileSetID = UUID.randomUUID().toString();
+
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().appendsAfter(firstFileSetSnapshotId).planFiles()) {
+      // stage 2 more files for compaction
+      taskSetManager.stageTasks(table, secondFileSetID, Lists.newArrayList(tasks));
+    }
+
+    ImmutableSet<String> fileSetIDs = ImmutableSet.of(firstFileSetID, secondFileSetID);
+
+    for (String fileSetID : fileSetIDs) {
+      // read and pack 2 files into 1 split
+      Dataset<Row> scanDF = spark.read().format("iceberg")
+          .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, fileSetID)
+          .option(SparkReadOptions.SPLIT_SIZE, Long.MAX_VALUE)
+          .load(tableName);
+
+      // write the combined data as one file
+      scanDF.writeTo(tableName)
+          .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, fileSetID)
+          .append();
+    }
+
+    // commit both rewrites at the same time
+    FileRewriteCoordinator rewriteCoordinator = FileRewriteCoordinator.get();
+    rewriteCoordinator.commitRewrite(table, fileSetIDs);
+
+    table.refresh();
+
+    Assert.assertEquals("Should produce 5 snapshots", 5, Iterables.size(table.snapshots()));
 
     Map<String, String> summary = table.currentSnapshot().summary();
     Assert.assertEquals("Deleted files count must match", "4", summary.get("deleted-data-files"));

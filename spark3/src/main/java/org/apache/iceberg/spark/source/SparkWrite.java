@@ -21,10 +21,12 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
@@ -47,9 +49,9 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.util.PropertyUtil;
@@ -384,13 +386,12 @@ class SparkWrite {
     public void commit(WriterCommitMessage[] messages) {
       FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
 
-      ImmutableSet.Builder<DataFile> newDataFileSetBuilder = ImmutableSet.builder();
+      Set<DataFile> newDataFiles = Sets.newHashSetWithExpectedSize(messages.length);
       for (DataFile file : files(messages)) {
-        newDataFileSetBuilder.add(file);
+        newDataFiles.add(file);
       }
-      ImmutableSet<DataFile> newDataFiles = newDataFileSetBuilder.build();
 
-      coordinator.stageRewrite(table, fileSetID, newDataFiles);
+      coordinator.stageRewrite(table, fileSetID, Collections.unmodifiableSet(newDataFiles));
     }
   }
 
