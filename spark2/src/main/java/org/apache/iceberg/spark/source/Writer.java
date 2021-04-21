@@ -264,7 +264,7 @@ class Writer implements DataSourceWriter {
       Table table = tableBroadcast.value();
 
       OutputFileFactory fileFactory = new OutputFileFactory(table, format, partitionId, taskId);
-      SparkAppenderFactory appenderFactory = new SparkAppenderFactory(table, writeSchema, dsSchema);
+      SparkAppenderFactory appenderFactory = SparkAppenderFactory.builderFor(table, writeSchema, dsSchema).build();
 
       PartitionSpec spec = table.spec();
       FileIO io = table.io();
