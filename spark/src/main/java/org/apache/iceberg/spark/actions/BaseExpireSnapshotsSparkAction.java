@@ -191,13 +191,13 @@ public class BaseExpireSnapshotsSparkAction
   private String getDescription() {
     List<String> msgs = new ArrayList<>();
     if (expireOlderThanValue != null) {
-      msgs.add("older than=" + expireOlderThanValue);
+      msgs.add("older_than=" + expireOlderThanValue);
     }
     if (retainLastValue != null) {
-      msgs.add("retain last=" + retainLastValue);
+      msgs.add("retain_last=" + retainLastValue);
     }
     if (expiredSnapshotIds != null) {
-      msgs.add("Snapshot ids =" + StringUtils.join(expiredSnapshotIds, ","));
+      msgs.add("Snapshot_ids =" + StringUtils.join(expiredSnapshotIds, ","));
     }
     return String.format("Expiring snapshots(%s) in %s", StringUtils.join(msgs, ","), table.name());
 
