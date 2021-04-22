@@ -389,13 +389,7 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
 
   /**
    * Set the identifier fields given a set of field names.
-   * <p>
-   * A field can be set as an identifier only if:
-   * <ul>
-   * <li>its type is primitive</li>
-   * <li>it exists in the current schema, or have been added in this update</li>
-   * <li>it is at root, or nested in a chain of structs (no maps or lists)</li>
-   * </ul>
+   * See {@link Schema#identifierFieldIds()} to learn more about Iceberg identifier.
    *
    * @param names names of the columns to set as identifier fields
    * @return this for method chaining
@@ -403,7 +397,7 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
   UpdateSchema setIdentifierFields(Set<String> names);
 
   /**
-   * Set the identifier fields given some column names.
+   * Set the identifier fields given some field names.
    * See {@link UpdateSchema#setIdentifierFields(Set)} for more details.
    *
    * @param names names of the columns to set as identifier fields

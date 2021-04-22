@@ -189,15 +189,22 @@ public class Schema implements Serializable {
   /**
    * The set of identifier field IDs.
    * <p>
-   * Identifier field is a similar concept as primary key in a relational database system.
-   * A row should be unique based on the values of the identifier fields.
-   * However, unlike a primary key, Iceberg identifier field differs in the following ways:
+   * Identifier is a concept similar to primary key in a relational database system.
+   * A row should be unique in a table based on the values of the identifier fields.
+   * However, unlike a primary key, Iceberg identifier differs in the following ways:
    * <ul>
    * <li>Iceberg does not enforce the uniqueness of a row based on this identifier information.
    * It is used for operations like upsert to define the default upsert key.</li>
    * <li>NULL can be used as value of an identifier field. Iceberg ensures null-safe equality check.</li>
    * <li>A nested field in a struct can be used as an identifier. For example, if there is a "last_name" field
-   * inside a "user" struct in a schema, field "user.last_name" can be set as an identifier field.</li>
+   * inside a "user" struct in a schema, field "user.last_name" can be set as a part of the identifier field.</li>
+   * </ul>
+   * <p>
+   * A field can be used as a part of the identifier only if:
+   * <ul>
+   * <li>its type is primitive</li>
+   * <li>it exists in the current schema, or have been added in this update</li>
+   * <li>it is at root, or nested in a chain of structs (no maps or lists)</li>
    * </ul>
    *
    * @return the set of identifier field IDs in this schema.
