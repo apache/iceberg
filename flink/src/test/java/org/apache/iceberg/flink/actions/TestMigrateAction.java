@@ -45,6 +45,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkCatalogTestBase;
 import org.apache.iceberg.flink.SimpleDataUtil;
+import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -181,7 +182,7 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
 
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
-    List<Object[]> list = sql("SELECT * FROM %s", TARGET_ICEBERG_TABLE_NAME);
+    List<Row> list = sql("SELECT * FROM %s", TARGET_ICEBERG_TABLE_NAME);
     Assert.assertEquals("Should produce the expected records count.", 0, list.size());
   }
 
@@ -203,12 +204,12 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
     URL url = new URL(location + File.separator + "test." + format.name());
     File dataFile = new File(url.getPath());
 
-    List<Object[]> expected = Lists.newArrayList();
+    List<Row> expected = Lists.newArrayList();
     try (FileAppender<Record> fileAppender = genericAppenderFactory.newAppender(Files.localOutput(dataFile), format)) {
       for (int i = 0; i < 10; i++) {
         Record record = SimpleDataUtil.createRecord(i, "iceberg");
         fileAppender.add(record);
-        expected.add(new Object[] {i, "iceberg"});
+        expected.add(Row.of(i, "iceberg"));
       }
     }
 
@@ -219,9 +220,9 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
 
     sql("USE CATALOG %s", catalogName);
     sql("USE %s", DATABASE);
-    List<Object[]> list = sql("SELECT * FROM %s", TARGET_ICEBERG_TABLE_NAME);
+    List<Row> list = sql("SELECT * FROM %s", TARGET_ICEBERG_TABLE_NAME);
     Assert.assertEquals("Should produce the expected records count.", 10, list.size());
-    Assert.assertArrayEquals("Should produce the expected records.", expected.toArray(), list.toArray());
+    TestHelpers.assertRows(list, expected);
   }
 
   @Test
@@ -304,7 +305,7 @@ public class TestMigrateAction extends FlinkCatalogTestBase {
     sql("USE %s", DATABASE);
     List<Row> results = executeSql("SELECT * FROM %s", TARGET_ICEBERG_TABLE_NAME);
     Assert.assertEquals("Should produce the expected records count.", 20, results.size());
-    SimpleDataUtil.assertRecords(results, expected, icebergSchema);
+    TestHelpers.assertRecords(results, expected, icebergSchema);
   }
 
   private Partition createHivePartition(FileFormat fileFormat, String hivePartitionPath, String partitionValue) {

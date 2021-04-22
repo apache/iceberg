@@ -35,7 +35,6 @@ import org.apache.flink.table.catalog.CatalogPartitionSpec;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.hive.HiveCatalog;
-import org.apache.flink.util.ArrayUtils;
 import org.apache.flink.util.Collector;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
@@ -78,6 +77,7 @@ import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.ObjectArrays;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -97,7 +97,7 @@ import org.slf4j.LoggerFactory;
  * to reading and writing iceberg table,If migrate failed, we will clean the iceberg table and metadata.If unfortunately
  * the clean failed, you may need to manually clean the iceberg table and manifests.
  */
-public class MigrateAction implements Action<List<ManifestFile>> {
+public class MigrateAction implements Action<MigrateAction, List<ManifestFile>> {
   private static final Logger LOGGER = LoggerFactory.getLogger(MigrateAction.class);
 
   private static final String PARQUET_INPUT_FORMAT = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat";
@@ -150,7 +150,9 @@ public class MigrateAction implements Action<List<ManifestFile>> {
 
     FileFormat fileFormat = getHiveFileFormat(hiveTable);
 
-    Namespace namespace = Namespace.of(ArrayUtils.concat(baseNamespace.levels(), new String[] {icebergDatabaseName}));
+
+    Namespace namespace =
+        Namespace.of(ObjectArrays.concat(baseNamespace.levels(), new String[] {icebergDatabaseName}, String.class));
     TableIdentifier identifier = TableIdentifier.of(namespace, icebergTableName);
     String hiveLocation = hiveTable.getSd().getLocation();
 
@@ -160,10 +162,10 @@ public class MigrateAction implements Action<List<ManifestFile>> {
       properties.put(FlinkCatalogFactory.BASE_NAMESPACE, baseNamespace.toString());
     }
 
-    Table icebergTable;
+    Table icebergTable = null;
     if (icebergCatalog instanceof HadoopCatalog) {
       icebergTable = icebergCatalog.createTable(identifier, icebergSchema, spec, properties);
-    } else {
+    } else if (icebergCatalog instanceof org.apache.iceberg.hive.HiveCatalog) {
       icebergTable = icebergCatalog.createTable(identifier, icebergSchema, spec, hiveLocation, properties);
     }
 

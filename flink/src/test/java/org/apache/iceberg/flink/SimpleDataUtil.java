@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.flink;
 
-import static org.apache.iceberg.hadoop.HadoopOutputFile.fromPath;
-
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -63,6 +61,8 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.Assert;
+
+import static org.apache.iceberg.hadoop.HadoopOutputFile.fromPath;
 
 public class SimpleDataUtil {
 
@@ -241,20 +241,5 @@ public class SimpleDataUtil {
     }
 
     return dataFiles;
-  }
-
-  public static void assertRecords(List<Row> results, List<Record> expectedRecords, Schema schema) {
-    List<Row> expected = Lists.newArrayList();
-    @SuppressWarnings("unchecked")
-    DataStructureConverter<RowData, Row> converter = (DataStructureConverter) DataStructureConverters.getConverter(
-        TypeConversions.fromLogicalToDataType(FlinkSchemaUtil.convert(schema)));
-    expectedRecords.forEach(r -> expected.add(converter.toExternal(RowDataConverter.convert(schema, r))));
-    assertRows(results, expected);
-  }
-
-  public static void assertRows(List<Row> results, List<Row> expected) {
-    expected.sort(Comparator.comparing(Row::toString));
-    results.sort(Comparator.comparing(Row::toString));
-    Assert.assertEquals(expected, results);
   }
 }
