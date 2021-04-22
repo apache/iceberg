@@ -464,6 +464,17 @@ License text:
 
 --------------------------------------------------------------------------------
 
+This binary artifact includes Project Nessie with the following in its NOTICE
+file:
+
+| Dremio
+| Copyright 2015-2017 Dremio Corporation
+|
+| This product includes software developed at
+| The Apache Software Foundation (http://www.apache.org/).
+
+--------------------------------------------------------------------------------
+
 This binary includes code from Apache Commons.
 
 * Core ArrayUtil.
