@@ -150,7 +150,6 @@ public class MigrateAction implements Action<MigrateAction, List<ManifestFile>> 
 
     FileFormat fileFormat = getHiveFileFormat(hiveTable);
 
-
     Namespace namespace =
         Namespace.of(ObjectArrays.concat(baseNamespace.levels(), new String[] {icebergDatabaseName}, String.class));
     TableIdentifier identifier = TableIdentifier.of(namespace, icebergTableName);
