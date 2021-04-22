@@ -444,7 +444,7 @@ class SchemaUpdate implements UpdateSchema {
         .visit(schema, new ApplyChanges(deletes, updates, adds, moves))
         .asNestedType().asStructType();
 
-    // validate
+    // validate identifier requirements based on latest schema
     Schema noIdentifierSchema = new Schema(struct.fields());
     Set<Integer> validatedIdentifiers = identifierNames.stream()
         .map(n -> validateIdentifierField(n, noIdentifierSchema))
@@ -473,7 +473,7 @@ class SchemaUpdate implements UpdateSchema {
         validateIdentifierFieldParent(identifierName, parent.fieldId(), idToParent, schema);
       } else {
         throw new IllegalArgumentException(String.format(
-            "Cannot add field %s as an identifier: must not be nested in %s", identifierName, parent));
+            "Cannot add field %s as an identifier field: must not be nested in %s", identifierName, parent));
       }
     }
   }
