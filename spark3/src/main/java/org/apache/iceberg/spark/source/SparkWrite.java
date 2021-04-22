@@ -21,10 +21,12 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
@@ -49,6 +51,8 @@ import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -143,6 +147,10 @@ class SparkWrite {
 
   BatchWrite asCopyOnWriteMergeWrite(SparkMergeScan scan, IsolationLevel isolationLevel) {
     return new CopyOnWriteMergeWrite(scan, isolationLevel);
+  }
+
+  BatchWrite asRewrite(String fileSetID) {
+    return new RewriteFiles(fileSetID);
   }
 
   StreamingWrite asStreamingAppend() {
@@ -364,6 +372,26 @@ class SparkWrite {
           "overwrite of %d data files with %d new data files",
           numOverwrittenFiles, numAddedFiles);
       commitOperation(overwriteFiles, commitMsg);
+    }
+  }
+
+  private class RewriteFiles extends BaseBatchWrite {
+    private final String fileSetID;
+
+    private RewriteFiles(String fileSetID) {
+      this.fileSetID = fileSetID;
+    }
+
+    @Override
+    public void commit(WriterCommitMessage[] messages) {
+      FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
+
+      Set<DataFile> newDataFiles = Sets.newHashSetWithExpectedSize(messages.length);
+      for (DataFile file : files(messages)) {
+        newDataFiles.add(file);
+      }
+
+      coordinator.stageRewrite(table, fileSetID, Collections.unmodifiableSet(newDataFiles));
     }
   }
 
