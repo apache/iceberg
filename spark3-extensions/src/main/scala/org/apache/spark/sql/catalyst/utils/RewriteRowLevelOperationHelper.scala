@@ -19,7 +19,9 @@
 package org.apache.spark.sql.catalyst.utils
 
 import java.util.UUID
+import org.apache.iceberg.common.DynConstructors
 import org.apache.iceberg.spark.Spark3Util
+import org.apache.iceberg.spark.Spark3VersionUtil
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
@@ -48,6 +50,7 @@ import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.iceberg.distributions.OrderedDistribution
 import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter
 import org.apache.spark.sql.connector.iceberg.write.MergeBuilder
+import org.apache.spark.sql.connector.read.Scan
 import org.apache.spark.sql.connector.read.ScanBuilder
 import org.apache.spark.sql.connector.write.LogicalWriteInfo
 import org.apache.spark.sql.connector.write.LogicalWriteInfoImpl
@@ -69,7 +72,7 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
   import ExtendedDataSourceV2Implicits.ScanBuilderHelper
 
   protected def spark: SparkSession
-  protected lazy val conf: SQLConf = spark.sessionState.conf
+  def conf: SQLConf
   protected lazy val resolver: Resolver = conf.resolver
 
   protected def buildSimpleScanPlan(
@@ -83,14 +86,14 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
     val scan = scanBuilder.asIceberg.withMetadataColumns(FILE_NAME_COL, ROW_POS_COL).build()
     val outputAttrs = toOutputAttrs(scan.readSchema(), relation.output)
     val predicates = extractFilters(cond, relation.output).reduceLeftOption(And)
-    val scanRelation = DataSourceV2ScanRelation(relation.table, scan, outputAttrs)
+    val scanRelation = createScanRelation(relation, scan, outputAttrs)
 
     predicates.map(Filter(_, scanRelation)).getOrElse(scanRelation)
   }
 
   protected def buildDynamicFilterScanPlan(
       spark: SparkSession,
-      table: Table,
+      relation: DataSourceV2Relation,
       tableAttrs: Seq[AttributeReference],
       mergeBuilder: MergeBuilder,
       cond: Expression,
@@ -103,7 +106,7 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
 
     val scan = scanBuilder.asIceberg.withMetadataColumns(FILE_NAME_COL, ROW_POS_COL).build()
     val outputAttrs = toOutputAttrs(scan.readSchema(), tableAttrs)
-    val scanRelation = DataSourceV2ScanRelation(table, scan, outputAttrs)
+    val scanRelation = createScanRelation(relation, scan, outputAttrs)
 
     scan match {
       case filterable: SupportsFileFilter if runCardinalityCheck =>
@@ -229,4 +232,26 @@ object RewriteRowLevelOperationHelper {
   private final val AFFECTED_FILES_ACC_NAME = "internal.metrics.merge.affectedFiles"
   private final val AFFECTED_FILES_ACC_ALIAS_NAME = "_affectedFiles_"
   private final val SUM_ROW_ID_ALIAS_NAME = "_sum_"
+
+  def createScanRelation(
+      relation: DataSourceV2Relation,
+      scan: Scan,
+      outputAttrs: Seq[AttributeReference]): DataSourceV2ScanRelation = {
+    val ctor: DynConstructors.Ctor[DataSourceV2ScanRelation] =
+      DynConstructors.builder()
+        .impl(classOf[DataSourceV2ScanRelation],
+          classOf[DataSourceV2Relation],
+          classOf[Scan],
+          classOf[Seq[AttributeReference]])
+        .impl(classOf[DataSourceV2ScanRelation],
+          classOf[Table],
+          classOf[Scan],
+          classOf[Seq[AttributeReference]])
+        .build()
+    if (Spark3VersionUtil.isSpark31) {
+      ctor.newInstance(relation, scan, outputAttrs)
+    } else {
+      ctor.newInstance(relation.table, scan, outputAttrs)
+    }
+  }
 }

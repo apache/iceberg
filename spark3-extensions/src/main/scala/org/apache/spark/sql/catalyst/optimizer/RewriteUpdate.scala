@@ -40,11 +40,14 @@ import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 import org.apache.spark.sql.catalyst.utils.RewriteRowLevelOperationHelper
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implicits
+import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.BooleanType
 
 case class RewriteUpdate(spark: SparkSession) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper {
 
   import ExtendedDataSourceV2Implicits._
+
+  override def conf: SQLConf = SQLConf.get
 
   // TODO: can we do any better for no-op updates? when conditions evaluate to false/true?
   override def apply(plan: LogicalPlan): LogicalPlan = plan transform {
@@ -59,7 +62,7 @@ case class RewriteUpdate(spark: SparkSession) extends Rule[LogicalPlan] with Rew
       // so the first job uses DynamicFileFilter and the second one uses the underlying scan plan
       // both jobs share the same SparkMergeScan instance to ensure they operate on same files
       val matchingRowsPlanBuilder = scanRelation => Filter(cond, scanRelation)
-      val scanPlan = buildDynamicFilterScanPlan(spark, r.table, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
+      val scanPlan = buildDynamicFilterScanPlan(spark, r, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
       val underlyingScanPlan = scanPlan match {
         case DynamicFileFilter(plan, _, _) => plan.clone()
         case _ => scanPlan.clone()
@@ -85,7 +88,7 @@ case class RewriteUpdate(spark: SparkSession) extends Rule[LogicalPlan] with Rew
       val mergeBuilder = r.table.asMergeable.newMergeBuilder("update", writeInfo)
 
       val matchingRowsPlanBuilder = scanRelation => Filter(cond, scanRelation)
-      val scanPlan = buildDynamicFilterScanPlan(spark, r.table, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
+      val scanPlan = buildDynamicFilterScanPlan(spark, r, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
 
       val updateProjection = buildUpdateProjection(r, scanPlan, assignments, cond)
 

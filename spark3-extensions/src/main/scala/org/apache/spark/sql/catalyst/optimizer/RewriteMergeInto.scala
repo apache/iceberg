@@ -55,9 +55,11 @@ import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implici
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.BooleanType
 
-case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper  {
+case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper {
   import ExtendedDataSourceV2Implicits._
   import RewriteMergeInto._
+
+  override def conf: SQLConf = SQLConf.get
 
   override def apply(plan: LogicalPlan): LogicalPlan = {
     plan transform {
@@ -202,7 +204,7 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
     val output = target.output
     val matchingRowsPlanBuilder = rel => Join(source, rel, Inner, Some(cond), JoinHint.NONE)
     val runCardinalityCheck = isCardinalityCheckEnabled(table) && isCardinalityCheckNeeded(matchedActions)
-    buildDynamicFilterScanPlan(spark, table, output, mergeBuilder, cond, matchingRowsPlanBuilder, runCardinalityCheck)
+    buildDynamicFilterScanPlan(spark, target, output, mergeBuilder, cond, matchingRowsPlanBuilder, runCardinalityCheck)
   }
 
   private def rewriteMatchedActions(

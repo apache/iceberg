@@ -33,6 +33,7 @@ public class DateTimeUtil {
 
   public static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   public static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
+  public static final long MICROS_PER_MILLIS = 1000L;
 
   public static LocalDate dateFromDays(int daysFromEpoch) {
     return ChronoUnit.DAYS.addTo(EPOCH_DAY, daysFromEpoch);
@@ -64,6 +65,13 @@ public class DateTimeUtil {
 
   public static long microsFromTimestamp(LocalDateTime dateTime) {
     return ChronoUnit.MICROS.between(EPOCH, dateTime.atOffset(ZoneOffset.UTC));
+  }
+
+  public static long microsToMillis(long micros) {
+    // When the timestamp is negative, i.e before 1970, we need to adjust the milliseconds portion.
+    // Example - 1965-01-01 10:11:12.123456 is represented as (-157700927876544) in micro precision.
+    // In millis precision the above needs to be represented as (-157700927877).
+    return Math.floorDiv(micros, MICROS_PER_MILLIS);
   }
 
   public static OffsetDateTime timestamptzFromMicros(long microsFromEpoch) {
