@@ -53,6 +53,8 @@ case class RewriteDelete(spark: SparkSession) extends Rule[LogicalPlan] with Rew
   import ExtendedDataSourceV2Implicits._
   import RewriteRowLevelOperationHelper._
 
+  override def conf: SQLConf = SQLConf.get
+
   override def apply(plan: LogicalPlan): LogicalPlan = plan transform {
     // don't rewrite deletes that can be answered by passing filters to deleteWhere in SupportsDelete
     case d @ DeleteFromTable(r: DataSourceV2Relation, Some(cond))
@@ -66,7 +68,7 @@ case class RewriteDelete(spark: SparkSession) extends Rule[LogicalPlan] with Rew
       val mergeBuilder = r.table.asMergeable.newMergeBuilder("delete", writeInfo)
 
       val matchingRowsPlanBuilder = scanRelation => Filter(cond, scanRelation)
-      val scanPlan = buildDynamicFilterScanPlan(spark, r.table, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
+      val scanPlan = buildDynamicFilterScanPlan(spark, r, r.output, mergeBuilder, cond, matchingRowsPlanBuilder)
 
       val remainingRowFilter = Not(EqualNullSafe(cond, Literal(true, BooleanType)))
       val remainingRowsPlan = Filter(remainingRowFilter, scanPlan)
@@ -91,7 +93,7 @@ case class RewriteDelete(spark: SparkSession) extends Rule[LogicalPlan] with Rew
         remainingRowsPlan
       case _ =>
         // apply hash partitioning by file if the distribution mode is hash or range
-        val numShufflePartitions = SQLConf.get.numShufflePartitions
+        val numShufflePartitions = conf.numShufflePartitions
         RepartitionByExpression(Seq(fileNameCol), remainingRowsPlan, numShufflePartitions)
     }
 
