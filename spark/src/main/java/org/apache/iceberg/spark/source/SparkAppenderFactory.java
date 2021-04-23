@@ -26,7 +26,6 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
@@ -55,7 +54,6 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   private final Schema writeSchema;
   private final StructType dsSchema;
   private final PartitionSpec spec;
-  private final SortOrder sortOrder;
   private final int[] equalityFieldIds;
   private final Schema eqDeleteRowSchema;
   private final Schema posDeleteRowSchema;
@@ -64,13 +62,11 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   private StructType posDeleteSparkType = null;
 
   SparkAppenderFactory(Map<String, String> properties, Schema writeSchema, StructType dsSchema, PartitionSpec spec,
-                       SortOrder sortOrder, int[] equalityFieldIds, Schema eqDeleteRowSchema,
-                       Schema posDeleteRowSchema) {
+                       int[] equalityFieldIds, Schema eqDeleteRowSchema, Schema posDeleteRowSchema) {
     this.properties = properties;
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
     this.spec = spec;
-    this.sortOrder = sortOrder;
     this.equalityFieldIds = equalityFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
     this.posDeleteRowSchema = posDeleteRowSchema;
@@ -85,7 +81,6 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
     private final Schema writeSchema;
     private final StructType dsSchema;
     private PartitionSpec spec;
-    private SortOrder sortOrder;
     private int[] equalityFieldIds;
     private Schema eqDeleteRowSchema;
     private Schema posDeleteRowSchema;
@@ -93,7 +88,6 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
     SparkAppenderFactoryBuilder(Table table, Schema writeSchema, StructType dsSchema) {
       this.properties = table.properties();
       this.spec = table.spec();
-      this.sortOrder = table.sortOrder();
       this.writeSchema = writeSchema;
       this.dsSchema = dsSchema;
     }
@@ -119,8 +113,8 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
     }
 
     public SparkAppenderFactory build() {
-      return new SparkAppenderFactory(properties, writeSchema, dsSchema, spec,
-          sortOrder, equalityFieldIds, eqDeleteRowSchema, posDeleteRowSchema);
+      return new SparkAppenderFactory(properties, writeSchema, dsSchema, spec, equalityFieldIds,
+          eqDeleteRowSchema, posDeleteRowSchema);
     }
   }
 
