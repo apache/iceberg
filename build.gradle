@@ -643,6 +643,9 @@ project(':iceberg-hive-runtime') {
     if (jdkVersion == '8') {
       compile project(':iceberg-hive3')
     }
+    compile(project(':iceberg-nessie')) {
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
   }
   
   shadowJar {
