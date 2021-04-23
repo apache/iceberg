@@ -196,11 +196,15 @@ public class BaseExpireSnapshotsSparkAction
     if (retainLastValue != null) {
       msgs.add("retain_last=" + retainLastValue);
     }
-    if (expiredSnapshotIds != null) {
-      msgs.add("Snapshot_ids =" + StringUtils.join(expiredSnapshotIds, ","));
+    if (!expiredSnapshotIds.isEmpty()) {
+      Long first = expiredSnapshotIds.stream().findFirst().get();
+      if (expiredSnapshotIds.size() > 1) {
+        msgs.add(String.format("snapshot_ids: %s(%s more...)", first, expiredSnapshotIds.size() - 1));
+      } else {
+        msgs.add(String.format("snapshot_id: %s", first));
+      }
     }
     return String.format("Expiring snapshots(%s) in %s", StringUtils.join(msgs, ","), table.name());
-
   }
 
   private ExpireSnapshots.Result doExecute() {

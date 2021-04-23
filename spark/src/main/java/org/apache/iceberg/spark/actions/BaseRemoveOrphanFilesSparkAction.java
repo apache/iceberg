@@ -142,8 +142,7 @@ public class BaseRemoveOrphanFilesSparkAction
 
   @Override
   public RemoveOrphanFiles.Result execute() {
-    JobGroupInfo info = newJobGroupInfo("REMOVE-ORPHAN-FILES",
-        String.format("Removing orphan files(%s) from %s", getDescription(), table.name()));
+    JobGroupInfo info = newJobGroupInfo("REMOVE-ORPHAN-FILES", getDescription());
     return withJobGroupInfo(info, this::doExecute);
   }
 
