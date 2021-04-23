@@ -145,4 +145,67 @@ public class TestManifestReader extends TableTestBase {
       }
     }
   }
+
+  @Test
+  public void testReadDataManifestTable() throws IOException {
+    PartitionSpec spec = PartitionSpec.builderFor(table.schema())
+        .bucket("id", 8)
+        .bucket("data", 16)
+        .build();
+    table.ops().commit(table.ops().current(), table.ops().current().updatePartitionSpec(spec));
+
+    ManifestFile manifestFile = writeManifest(1000L,  FILE_A);
+    StaticDataTask.Row actual = ManifestsTable.manifestFileToRow(spec, manifestFile);
+
+    Assert.assertEquals(manifestFile.path(), actual.get(0, String.class));
+    Assert.assertEquals(manifestFile.length(), (long) actual.get(1, Long.class));
+    Assert.assertEquals(manifestFile.partitionSpecId(), (int) actual.get(2, Integer.class));
+    Assert.assertEquals(1000L, (long) actual.get(3, Long.class));
+    Assert.assertEquals(1, (int) actual.get(4, Integer.class));
+    Assert.assertEquals(0, (int) actual.get(5, Integer.class));
+    Assert.assertEquals(0, (int) actual.get(6, Integer.class));
+
+    List<StaticDataTask.Row> summary = actual.get(7, List.class);
+    Assert.assertEquals(2, summary.size());
+    Assert.assertEquals(false, summary.get(0).get(0, Boolean.class));
+    Assert.assertEquals(false, summary.get(0).get(1, Boolean.class));
+    Assert.assertEquals("0", summary.get(0).get(2, String.class));
+    Assert.assertEquals("0", summary.get(0).get(3, String.class));
+    Assert.assertEquals(true, summary.get(1).get(0, Boolean.class));
+    Assert.assertEquals(false, summary.get(1).get(1, Boolean.class));
+    Assert.assertEquals("null", summary.get(1).get(2, String.class));
+    Assert.assertEquals("null", summary.get(1).get(3, String.class));
+
+    Assert.assertEquals(ManifestContent.DATA.id(), (int) actual.get(8, Integer.class));
+  }
+
+  @Test
+  public void testReadDeletedManifestTable() throws IOException {
+    Assume.assumeTrue("Delete files only work for format version 2", formatVersion == 2);
+    PartitionSpec spec = PartitionSpec.builderFor(table.schema())
+        .bucket("id", 8)
+        .bucket("data", 16)
+        .build();
+    table.ops().commit(table.ops().current(), table.ops().current().updatePartitionSpec(spec));
+
+    ManifestFile manifestFile = writeDeleteManifest(formatVersion, 1000L, FILE_A_DELETES);
+    StaticDataTask.Row actual = ManifestsTable.manifestFileToRow(spec, manifestFile);
+
+    Assert.assertEquals(manifestFile.path(), actual.get(0, String.class));
+    Assert.assertEquals(manifestFile.length(), (long) actual.get(1, Long.class));
+    Assert.assertEquals(manifestFile.partitionSpecId(), (int) actual.get(2, Integer.class));
+    Assert.assertEquals(1000L, (long) actual.get(3, Long.class));
+    Assert.assertEquals(1, (int) actual.get(4, Integer.class));
+    Assert.assertEquals(0, (int) actual.get(5, Integer.class));
+    Assert.assertEquals(0, (int) actual.get(6, Integer.class));
+
+    List<StaticDataTask.Row> summary = actual.get(7, List.class);
+    Assert.assertEquals(1, summary.size());
+    Assert.assertEquals(false, summary.get(0).get(0, Boolean.class));
+    Assert.assertEquals(false, summary.get(0).get(1, Boolean.class));
+    Assert.assertEquals("0", summary.get(0).get(2, String.class));
+    Assert.assertEquals("0", summary.get(0).get(3, String.class));
+
+    Assert.assertEquals(ManifestContent.DELETES.id(), (int) actual.get(8, Integer.class));
+  }
 }
