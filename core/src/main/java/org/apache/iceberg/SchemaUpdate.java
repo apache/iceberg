@@ -65,22 +65,23 @@ class SchemaUpdate implements UpdateSchema {
   private Set<String> identifierNames;
 
   SchemaUpdate(TableOperations ops) {
-    this.ops = ops;
-    this.base = ops.current();
-    this.schema = base.schema();
-    this.lastColumnId = base.lastColumnId();
-    this.idToParent = Maps.newHashMap(TypeUtil.indexParents(schema.asStruct()));
-    this.identifierNames = schema.identifierFieldIds().stream()
-        .map(id -> schema.findField(id).name())
-        .collect(Collectors.toSet());
+    this(ops, ops.current());
   }
 
   /**
    * For testing only.
    */
   SchemaUpdate(Schema schema, int lastColumnId) {
-    this.ops = null;
-    this.base = null;
+    this(null, null, schema, lastColumnId);
+  }
+
+  private SchemaUpdate(TableOperations ops, TableMetadata base) {
+    this(ops, base, base.schema(), base.lastColumnId());
+  }
+
+  private SchemaUpdate(TableOperations ops, TableMetadata base, Schema schema, int lastColumnId) {
+    this.ops = ops;
+    this.base = base;
     this.schema = schema;
     this.lastColumnId = lastColumnId;
     this.idToParent = Maps.newHashMap(TypeUtil.indexParents(schema.asStruct()));
@@ -459,23 +460,18 @@ class SchemaUpdate implements UpdateSchema {
         "Cannot add field %s as an identifier field, not found in current schema or added columns");
     Preconditions.checkArgument(field.type().isPrimitiveType(),
         "Cannot add field %s as an identifier field: not a primitive type field", name);
-    Map<Integer, Integer> newIdToParent = TypeUtil.indexParents(schema.asStruct());
-    validateIdentifierFieldParent(field.name(), field.fieldId(), newIdToParent, schema);
-    return field.fieldId();
-  }
 
-  private static void validateIdentifierFieldParent(String identifierName, int fieldId,
-                                                    Map<Integer, Integer> idToParent, Schema schema) {
-    Integer parentId = idToParent.get(fieldId);
-    if (parentId != null) {
+    // check whether the nested field is in a chain of struct fields
+    Map<Integer, Integer> newIdToParent = TypeUtil.indexParents(schema.asStruct());
+    Integer parentId = newIdToParent.get(field.fieldId());
+    while (parentId != null) {
       Types.NestedField parent = schema.findField(parentId);
-      if (parent.type().isStructType()) {
-        validateIdentifierFieldParent(identifierName, parent.fieldId(), idToParent, schema);
-      } else {
-        throw new IllegalArgumentException(String.format(
-            "Cannot add field %s as an identifier field: must not be nested in %s", identifierName, parent));
-      }
+      Preconditions.checkArgument(parent.type().isStructType(),
+          "Cannot add field %s as an identifier field: must not be nested in %s", name, parent);
+      parentId = newIdToParent.get(parent.fieldId());
     }
+
+    return field.fieldId();
   }
 
   private static class ApplyChanges extends TypeUtil.SchemaVisitor<Type> {
