@@ -110,7 +110,7 @@ public class ManifestsTable extends BaseMetadataTable {
       ManifestFile.PartitionFieldSummary summary = summaries.get(i);
       rows.add(StaticDataTask.Row.of(
           summary.containsNull(),
-          summary.containsNaN(),
+          summary.containsNaN() == null || summary.containsNaN(),
           spec.fields().get(i).transform().toHumanString(
               Conversions.fromByteBuffer(spec.partitionType().fields().get(i).type(), summary.lowerBound())),
           spec.fields().get(i).transform().toHumanString(
