@@ -45,6 +45,7 @@ import org.apache.iceberg.Tables;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveCatalog;
@@ -273,6 +274,14 @@ abstract class TestTables {
     if (!records.isEmpty()) {
       helper.appendToTable(helper.writeFile(partition, records));
     }
+  }
+
+  /**
+   * Truncates an Iceberg table.
+   * @param table The iceberg table to truncate
+   */
+  public void truncateIcebergTable(Table table) {
+    table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
   }
 
   private static class CatalogToTables implements Tables {
