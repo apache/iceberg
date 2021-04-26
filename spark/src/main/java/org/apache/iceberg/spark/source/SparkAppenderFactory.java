@@ -72,12 +72,12 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
     this.posDeleteRowSchema = posDeleteRowSchema;
   }
 
-  public static SparkAppenderFactoryBuilder builderFor(Table table, Schema writeSchema, StructType dsSchema) {
-    return new SparkAppenderFactoryBuilder(table, writeSchema, dsSchema);
+  public static Builder builderFor(Table table, Schema writeSchema, StructType dsSchema) {
+    return new Builder(table, writeSchema, dsSchema);
   }
 
-  public static class SparkAppenderFactoryBuilder {
-    private final Map<String, String> properties;
+  static class Builder {
+    private final Table table;
     private final Schema writeSchema;
     private final StructType dsSchema;
     private PartitionSpec spec;
@@ -85,35 +85,48 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
     private Schema eqDeleteRowSchema;
     private Schema posDeleteRowSchema;
 
-    SparkAppenderFactoryBuilder(Table table, Schema writeSchema, StructType dsSchema) {
-      this.properties = table.properties();
+
+    Builder(Table table, Schema writeSchema, StructType dsSchema) {
+      this.table = table;
       this.spec = table.spec();
       this.writeSchema = writeSchema;
       this.dsSchema = dsSchema;
     }
 
-    public SparkAppenderFactoryBuilder spec(PartitionSpec newSpec) {
+    public Builder spec(PartitionSpec newSpec) {
       this.spec = newSpec;
       return this;
     }
 
-    public SparkAppenderFactoryBuilder equalityFieldIds(int[] newEqualityFieldIds) {
+    public Builder equalityFieldIds(int[] newEqualityFieldIds) {
       this.equalityFieldIds = newEqualityFieldIds;
       return this;
     }
 
-    public SparkAppenderFactoryBuilder eqDeleteRowSchema(Schema newEqDeleteRowSchema) {
+    public Builder eqDeleteRowSchema(Schema newEqDeleteRowSchema) {
       this.eqDeleteRowSchema = newEqDeleteRowSchema;
       return this;
     }
 
-    public SparkAppenderFactoryBuilder posDelRowSchema(Schema newPosDelRowSchema) {
+    public Builder posDelRowSchema(Schema newPosDelRowSchema) {
       this.posDeleteRowSchema = newPosDelRowSchema;
       return this;
     }
 
     public SparkAppenderFactory build() {
-      return new SparkAppenderFactory(properties, writeSchema, dsSchema, spec, equalityFieldIds,
+      Preconditions.checkNotNull(table, "Table must not be null");
+      Preconditions.checkNotNull(writeSchema, "Write Schema must not be null");
+      Preconditions.checkNotNull(dsSchema, "DS Schema must not be null");
+      if (equalityFieldIds != null) {
+        Preconditions.checkNotNull(eqDeleteRowSchema, "Equality Field Ids and Equality Delete Row Schema" +
+            " must be set together");
+      }
+      if (eqDeleteRowSchema != null) {
+        Preconditions.checkNotNull(equalityFieldIds, "Equality Field Ids and Equality Delete Row Schema" +
+            " must be set together");
+      }
+
+      return new SparkAppenderFactory(table.properties(), writeSchema, dsSchema, spec, equalityFieldIds,
           eqDeleteRowSchema, posDeleteRowSchema);
     }
   }
