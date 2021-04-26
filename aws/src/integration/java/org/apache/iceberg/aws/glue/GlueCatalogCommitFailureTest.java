@@ -203,9 +203,9 @@ public class GlueCatalogCommitFailureTest extends GlueTestBase {
                                                  Table table) {
     // Simulate a communication error after a successful commit
     Mockito.doAnswer(i -> {
-      Map<String, String> mapProperties = i.getArgumentAt(1, Map.class);
+      Map<String, String> mapProperties = i.getArgument(1, Map.class);
       realOps.persistGlueTable(
-          i.getArgumentAt(0, software.amazon.awssdk.services.glue.model.Table.class),
+          i.getArgument(0, software.amazon.awssdk.services.glue.model.Table.class),
           mapProperties);
 
       // new metadata location is stored in map property, and used for locking
@@ -242,8 +242,8 @@ public class GlueCatalogCommitFailureTest extends GlueTestBase {
   private void commitAndThrowException(GlueTableOperations realOps, GlueTableOperations spyOps) {
     Mockito.doAnswer(i -> {
       realOps.persistGlueTable(
-          i.getArgumentAt(0, software.amazon.awssdk.services.glue.model.Table.class),
-          i.getArgumentAt(1, Map.class));
+          i.getArgument(0, software.amazon.awssdk.services.glue.model.Table.class),
+          i.getArgument(1, Map.class));
       throw new SdkBaseException("Datacenter on fire");
     }).when(spyOps).persistGlueTable(Matchers.any(), Matchers.anyMap());
   }
