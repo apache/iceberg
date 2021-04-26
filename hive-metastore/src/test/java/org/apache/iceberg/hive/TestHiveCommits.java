@@ -278,7 +278,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
     // Simulate a communication error after a successful commit
     doAnswer(i -> {
       org.apache.hadoop.hive.metastore.api.Table tbl =
-          i.getArgumentAt(0, org.apache.hadoop.hive.metastore.api.Table.class);
+          i.getArgument(0, org.apache.hadoop.hive.metastore.api.Table.class);
       realOperations.persistTable(tbl, true);
       throw new TException("Datacenter on fire");
     }).when(spyOperations).persistTable(any(), anyBoolean());
@@ -290,7 +290,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
     // Simulate a communication error after a successful commit
     doAnswer(i -> {
       org.apache.hadoop.hive.metastore.api.Table tbl =
-          i.getArgumentAt(0, org.apache.hadoop.hive.metastore.api.Table.class);
+          i.getArgument(0, org.apache.hadoop.hive.metastore.api.Table.class);
       realOperations.persistTable(tbl, true);
       // Simulate lock expiration or removal
       realOperations.doUnlock(lockId.get());
