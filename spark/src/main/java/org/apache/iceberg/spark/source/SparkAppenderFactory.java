@@ -72,7 +72,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
     this.posDeleteRowSchema = posDeleteRowSchema;
   }
 
-  public static Builder builderFor(Table table, Schema writeSchema, StructType dsSchema) {
+  static Builder builderFor(Table table, Schema writeSchema, StructType dsSchema) {
     return new Builder(table, writeSchema, dsSchema);
   }
 
@@ -93,27 +93,27 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
       this.dsSchema = dsSchema;
     }
 
-    public Builder spec(PartitionSpec newSpec) {
+    Builder spec(PartitionSpec newSpec) {
       this.spec = newSpec;
       return this;
     }
 
-    public Builder equalityFieldIds(int[] newEqualityFieldIds) {
+    Builder equalityFieldIds(int[] newEqualityFieldIds) {
       this.equalityFieldIds = newEqualityFieldIds;
       return this;
     }
 
-    public Builder eqDeleteRowSchema(Schema newEqDeleteRowSchema) {
+    Builder eqDeleteRowSchema(Schema newEqDeleteRowSchema) {
       this.eqDeleteRowSchema = newEqDeleteRowSchema;
       return this;
     }
 
-    public Builder posDelRowSchema(Schema newPosDelRowSchema) {
+    Builder posDelRowSchema(Schema newPosDelRowSchema) {
       this.posDeleteRowSchema = newPosDelRowSchema;
       return this;
     }
 
-    public SparkAppenderFactory build() {
+    SparkAppenderFactory build() {
       Preconditions.checkNotNull(table, "Table must not be null");
       Preconditions.checkNotNull(writeSchema, "Write Schema must not be null");
       Preconditions.checkNotNull(dsSchema, "DS Schema must not be null");
