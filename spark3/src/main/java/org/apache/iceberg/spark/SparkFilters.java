@@ -21,6 +21,8 @@ package org.apache.iceberg.spark;
 
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -198,6 +200,10 @@ public class SparkFilters {
       return DateTimeUtils.fromJavaTimestamp((Timestamp) value);
     } else if (value instanceof Date) {
       return DateTimeUtils.fromJavaDate((Date) value);
+    } else if (value instanceof Instant) {
+      return DateTimeUtils.instantToMicros((Instant) value);
+    } else if (value instanceof LocalDate) {
+      return DateTimeUtils.localDateToDays((LocalDate) value);
     }
     return value;
   }
