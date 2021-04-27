@@ -20,9 +20,14 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TestMergingMetrics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileAppender;
@@ -37,9 +42,24 @@ public class TestSparkMergingMetrics extends TestMergingMetrics<InternalRow> {
 
   @Override
   protected FileAppender<InternalRow> writeAndGetAppender(List<Record> records) throws IOException {
+    Table testTable = new BaseTable(null, "dummy") {
+      @Override
+      public Map<String, String> properties() {
+        return Collections.emptyMap();
+      }
+      @Override
+      public SortOrder sortOrder() {
+        return SortOrder.unsorted();
+      }
+      @Override
+      public PartitionSpec spec() {
+        return PartitionSpec.unpartitioned();
+      }
+    };
+
     FileAppender<InternalRow> appender =
-        new SparkAppenderFactory(new HashMap<>(), SCHEMA, SparkSchemaUtil.convert(SCHEMA)).newAppender(
-            org.apache.iceberg.Files.localOutput(temp.newFile()), fileFormat);
+        SparkAppenderFactory.builderFor(testTable, SCHEMA, SparkSchemaUtil.convert(SCHEMA)).build()
+            .newAppender(org.apache.iceberg.Files.localOutput(temp.newFile()), fileFormat);
     try (FileAppender<InternalRow> fileAppender = appender) {
       records.stream().map(r -> new StructInternalRow(SCHEMA.asStruct()).setStruct(r)).forEach(fileAppender::add);
     }
