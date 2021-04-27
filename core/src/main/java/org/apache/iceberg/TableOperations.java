@@ -117,7 +117,7 @@ public interface TableOperations {
     UUID uuid = UUID.randomUUID();
     long mostSignificantBits = uuid.getMostSignificantBits();
     long leastSignificantBits = uuid.getLeastSignificantBits();
-    return Math.abs(mostSignificantBits ^ leastSignificantBits);
+    return (mostSignificantBits ^ leastSignificantBits) & Long.MAX_VALUE;
   }
 
 }
