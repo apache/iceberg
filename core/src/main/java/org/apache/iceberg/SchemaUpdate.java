@@ -62,7 +62,7 @@ class SchemaUpdate implements UpdateSchema {
   private final Multimap<Integer, Move> moves = Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
   private int lastColumnId;
   private boolean allowIncompatibleChanges = false;
-  private Set<String> identifierNames;
+  private Set<String> identifierFieldNames;
 
   SchemaUpdate(TableOperations ops) {
     this(ops, ops.current());
@@ -85,7 +85,7 @@ class SchemaUpdate implements UpdateSchema {
     this.schema = schema;
     this.lastColumnId = lastColumnId;
     this.idToParent = Maps.newHashMap(TypeUtil.indexParents(schema.asStruct()));
-    this.identifierNames = schema.identifierFieldIds().stream()
+    this.identifierFieldNames = schema.identifierFieldIds().stream()
         .map(id -> schema.findField(id).name())
         .collect(Collectors.toSet());
   }
@@ -202,9 +202,9 @@ class SchemaUpdate implements UpdateSchema {
       updates.put(fieldId, Types.NestedField.of(fieldId, field.isOptional(), newName, field.type(), field.doc()));
     }
 
-    if (identifierNames.contains(name)) {
-      identifierNames.remove(name);
-      identifierNames.add(newName);
+    if (identifierFieldNames.contains(name)) {
+      identifierFieldNames.remove(name);
+      identifierFieldNames.add(newName);
     }
 
     return this;
@@ -333,7 +333,7 @@ class SchemaUpdate implements UpdateSchema {
 
   @Override
   public UpdateSchema setIdentifierFields(Set<String> names) {
-    this.identifierNames = Sets.newHashSet(names);
+    this.identifierFieldNames = Sets.newHashSet(names);
     return this;
   }
 
@@ -379,7 +379,7 @@ class SchemaUpdate implements UpdateSchema {
    */
   @Override
   public Schema apply() {
-    Schema newSchema = applyChanges(schema, deletes, updates, adds, moves, identifierNames);
+    Schema newSchema = applyChanges(schema, deletes, updates, adds, moves, identifierFieldNames);
 
     // Validate the metrics if we have existing properties.
     if (base != null && base.properties() != null) {
@@ -429,9 +429,9 @@ class SchemaUpdate implements UpdateSchema {
                                      Map<Integer, Types.NestedField> updates,
                                      Multimap<Integer, Types.NestedField> adds,
                                      Multimap<Integer, Move> moves,
-                                     Set<String> identifierNames) {
+                                     Set<String> identifierFieldNames) {
     // validate existing identifier fields are not deleted
-    for (String name : identifierNames) {
+    for (String name : identifierFieldNames) {
       Types.NestedField field = schema.findField(name);
       if (field != null) {
         Preconditions.checkArgument(!deletes.contains(field.fieldId()),
@@ -448,7 +448,7 @@ class SchemaUpdate implements UpdateSchema {
     // validate identifier requirements based on the latest schema
     Map<String, Integer> nameToId = TypeUtil.indexByName(struct);
     Set<Integer> freshIdentifierFieldIds = Sets.newHashSet();
-    for (String name : identifierNames) {
+    for (String name : identifierFieldNames) {
       Preconditions.checkArgument(nameToId.containsKey(name),
           "Cannot add field %s as an identifier field: not found in current schema or added columns");
       freshIdentifierFieldIds.add(nameToId.get(name));
