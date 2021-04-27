@@ -445,33 +445,36 @@ class SchemaUpdate implements UpdateSchema {
         .visit(schema, new ApplyChanges(deletes, updates, adds, moves))
         .asNestedType().asStructType();
 
-    // validate identifier requirements based on latest schema
-    Schema noIdentifierSchema = new Schema(struct.fields());
-    Set<Integer> validatedIdentifiers = identifierNames.stream()
-        .map(n -> validateIdentifierField(n, noIdentifierSchema))
-        .collect(Collectors.toSet());
-
-    return new Schema(struct.fields(), validatedIdentifiers);
-  }
-
-  private static int validateIdentifierField(String name, Schema schema) {
-    Types.NestedField field = schema.findField(name);
-    Preconditions.checkArgument(field != null,
-        "Cannot add field %s as an identifier field, not found in current schema or added columns");
-    Preconditions.checkArgument(field.type().isPrimitiveType(),
-        "Cannot add field %s as an identifier field: not a primitive type field", name);
-
-    // check whether the nested field is in a chain of struct fields
-    Map<Integer, Integer> newIdToParent = TypeUtil.indexParents(schema.asStruct());
-    Integer parentId = newIdToParent.get(field.fieldId());
-    while (parentId != null) {
-      Types.NestedField parent = schema.findField(parentId);
-      Preconditions.checkArgument(parent.type().isStructType(),
-          "Cannot add field %s as an identifier field: must not be nested in %s", name, parent);
-      parentId = newIdToParent.get(parent.fieldId());
+    // validate identifier requirements based on the latest schema
+    Map<String, Integer> nameToId = TypeUtil.indexByName(struct);
+    Set<Integer> freshIdentifierFieldIds = Sets.newHashSet();
+    for (String name : identifierNames) {
+      Preconditions.checkArgument(nameToId.containsKey(name),
+          "Cannot add field %s as an identifier field: not found in current schema or added columns");
+      freshIdentifierFieldIds.add(nameToId.get(name));
     }
 
-    return field.fieldId();
+    Map<Integer, Integer> idToParent = TypeUtil.indexParents(schema.asStruct());
+    Map<Integer, Types.NestedField> idToField = TypeUtil.indexById(struct);
+    freshIdentifierFieldIds.forEach(id -> validateIdentifierField(id, idToField, idToParent));
+
+    return new Schema(struct.fields(), freshIdentifierFieldIds);
+  }
+
+  private static void validateIdentifierField(int fieldId, Map<Integer, Types.NestedField> idToField,
+                                              Map<Integer, Integer> idToParent) {
+    Types.NestedField field = idToField.get(fieldId);
+    Preconditions.checkArgument(field.type().isPrimitiveType(),
+        "Cannot add field %s as an identifier field: not a primitive type field", field.name());
+
+    // check whether the nested field is in a chain of struct fields
+    Integer parentId = idToParent.get(field.fieldId());
+    while (parentId != null) {
+      Types.NestedField parent = idToField.get(parentId);
+      Preconditions.checkArgument(parent.type().isStructType(),
+          "Cannot add field %s as an identifier field: must not be nested in %s", field.name(), parent);
+      parentId = idToParent.get(parent.fieldId());
+    }
   }
 
   private static class ApplyChanges extends TypeUtil.SchemaVisitor<Type> {
