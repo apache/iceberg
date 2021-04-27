@@ -335,33 +335,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
   @Override
   public boolean enableBatchRead() {
-    if (readUsingBatch == null) {
-      boolean allParquetFileScanTasks =
-          tasks().stream()
-              .allMatch(combinedScanTask -> !combinedScanTask.isDataTask() && combinedScanTask.files()
-                  .stream()
-                  .allMatch(fileScanTask -> fileScanTask.file().format().equals(
-                      FileFormat.PARQUET)));
-
-      boolean allOrcFileScanTasks =
-          tasks().stream()
-              .allMatch(combinedScanTask -> !combinedScanTask.isDataTask() && combinedScanTask.files()
-                  .stream()
-                  .allMatch(fileScanTask -> fileScanTask.file().format().equals(
-                      FileFormat.ORC)));
-
-      boolean atLeastOneColumn = lazySchema().columns().size() > 0;
-
-      boolean onlyPrimitives = lazySchema().columns().stream().allMatch(c -> c.type().isPrimitiveType());
-
-      boolean hasNoDeleteFiles = tasks().stream().noneMatch(TableScanUtil::hasDeletes);
-
-      boolean batchReadsEnabled = batchReadsEnabled(allParquetFileScanTasks, allOrcFileScanTasks);
-
-      this.readUsingBatch = batchReadsEnabled && hasNoDeleteFiles && (allOrcFileScanTasks ||
-          (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives));
-    }
-    return readUsingBatch;
+    return readUsingBatch == null ? checkEnableBatchRead(tasks()) : readUsingBatch;
   }
 
   private boolean batchReadsEnabled(boolean isParquetOnly, boolean isOrcOnly) {

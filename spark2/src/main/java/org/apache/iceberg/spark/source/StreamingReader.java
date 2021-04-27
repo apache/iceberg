@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.commons.collections.CollectionUtils;
@@ -80,7 +81,9 @@ class StreamingReader extends Reader implements MicroBatchReader {
   private final long splitOpenFileCost;
   private Boolean readUsingBatch = null;
 
-  // Used to cache the pending batches for this streaming batch interval.
+  /**
+   * Used to cache the pending batches for this streaming batch interval.
+   */
   private Pair<StreamingOffset, List<MicroBatch>> cachedPendingBatches = null;
 
   StreamingReader(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
@@ -324,7 +327,7 @@ class StreamingReader extends Reader implements MicroBatchReader {
 
       // If the current request size is already satisfied, or none of the DataFile size can satisfy the current left
       // size, break the current loop.
-      if (currentLeftSize <= 0L || !lastBatch.lastIndexOfSnapshot()) {
+      if (currentLeftSize <= 0L || !Objects.requireNonNull(lastBatch).lastIndexOfSnapshot()) {
         break;
       }
     }

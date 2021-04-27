@@ -21,11 +21,11 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -198,7 +198,7 @@ public class MicroBatches {
 
         try (CloseableIterable<FileScanTask> taskIterable = open(indexedManifests.get(idx).first(),
             scanAllFiles)) {
-          CloseableIterator<FileScanTask> taskIter = taskIterable.iterator();
+          Iterator<FileScanTask> taskIter = taskIterable.iterator();
           while (taskIter.hasNext()) {
             FileScanTask task = taskIter.next();
             if (currentFileIndex >= startFileIndex) {
