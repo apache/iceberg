@@ -245,7 +245,7 @@ public class OrcValueReaders {
 
     @Override
     public Boolean nonNullRead(ColumnVector ignored, int row) {
-      throw new UnsupportedOperationException("Use RowPositionReader.read()");
+      throw new UnsupportedOperationException("Use DeleteMarkReader.read()");
     }
   }
 }
