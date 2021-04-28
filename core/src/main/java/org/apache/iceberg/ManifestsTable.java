@@ -38,7 +38,7 @@ public class ManifestsTable extends BaseMetadataTable {
       Types.NestedField.required(7, "deleted_data_files_count", Types.IntegerType.get()),
       Types.NestedField.required(8, "partition_summaries", Types.ListType.ofRequired(9, Types.StructType.of(
           Types.NestedField.required(10, "contains_null", Types.BooleanType.get()),
-          Types.NestedField.required(11, "contains_nan", Types.BooleanType.get()),
+          Types.NestedField.optional(11, "contains_nan", Types.BooleanType.get()),
           Types.NestedField.optional(12, "lower_bound", Types.StringType.get()),
           Types.NestedField.optional(13, "upper_bound", Types.StringType.get())
       )))
