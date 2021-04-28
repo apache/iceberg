@@ -357,10 +357,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     return new PositionVectorReader();
   }
 
-  public static VectorizedArrowReader deleteMarks() {
-    return DeleteMarkerVectorReader.INSTANCE;
-  }
-
   private static final class NullVectorReader extends VectorizedArrowReader {
     private static final NullVectorReader INSTANCE = new NullVectorReader();
 
@@ -416,28 +412,6 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     @Override
     public void setRowGroupInfo(PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {
       this.rowStart = rowPosition;
-    }
-
-    @Override
-    public String toString() {
-      return getClass().toString();
-    }
-
-    @Override
-    public void setBatchSize(int batchSize) {
-    }
-  }
-
-  private static final class DeleteMarkerVectorReader extends VectorizedArrowReader {
-    private static final DeleteMarkerVectorReader INSTANCE = new DeleteMarkerVectorReader();
-
-    @Override
-    public VectorHolder read(VectorHolder reuse, int numValsToRead) {
-      return VectorHolder.constantHolder(numValsToRead, false);
-    }
-
-    @Override
-    public void setRowGroupInfo(PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {
     }
 
     @Override
