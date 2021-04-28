@@ -33,7 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
  * Note: Path-style access is deprecated and not supported by this
  * implementation.
  */
-public class S3URI {
+class S3URI {
   private static final String SCHEME_DELIM = "://";
   private static final String PATH_DELIM = "/";
   private static final String QUERY_DELIM = "\\?";
@@ -53,7 +53,7 @@ public class S3URI {
    *
    * @param location fully qualified URI
    */
-  public S3URI(String location) {
+  S3URI(String location) {
     Preconditions.checkNotNull(location, "Location cannot be null.");
 
     this.location = location;
