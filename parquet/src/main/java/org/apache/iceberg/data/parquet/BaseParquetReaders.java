@@ -158,6 +158,9 @@ public abstract class BaseParquetReaders<T> {
         } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
           reorderedFields.add(ParquetValueReaders.position());
           types.add(null);
+        } else if (id == MetadataColumns.DELETE_MARK.fieldId()) {
+          reorderedFields.add(ParquetValueReaders.deleteMarker());
+          types.add(null);
         } else {
           ParquetValueReader<?> reader = readersById.get(id);
           if (reader != null) {

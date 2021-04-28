@@ -591,6 +591,8 @@ public class ValueReaders {
         if (AvroSchemaUtil.getFieldId(field) == MetadataColumns.ROW_POSITION.fieldId()) {
           // track where the _pos field is located for setRowPositionSupplier
           this.posField = pos;
+        } else if (AvroSchemaUtil.getFieldId(field) == MetadataColumns.DELETE_MARK.fieldId()) {
+          this.readers[pos] = new DeleteMarkReader();
         }
       }
     }
@@ -609,6 +611,8 @@ public class ValueReaders {
         } else if (field.fieldId() == MetadataColumns.ROW_POSITION.fieldId()) {
           // track where the _pos field is located for setRowPositionSupplier
           this.posField = pos;
+        } else if (field.fieldId() == MetadataColumns.DELETE_MARK.fieldId()) {
+          this.readers[pos] = new DeleteMarkReader();
         }
       }
 
@@ -746,6 +750,13 @@ public class ValueReaders {
     public Long read(Decoder ignored, Object reuse) throws IOException {
       currentPosition += 1;
       return currentPosition;
+    }
+  }
+
+  static class DeleteMarkReader implements ValueReader<Boolean> {
+    @Override
+    public Boolean read(Decoder ignored, Object reuse) throws IOException {
+      return false;
     }
   }
 }
