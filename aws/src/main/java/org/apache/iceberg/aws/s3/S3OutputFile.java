@@ -29,12 +29,12 @@ import org.apache.iceberg.io.PositionOutputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 
 public class S3OutputFile extends BaseS3File implements OutputFile {
-  public S3OutputFile(S3Client client, S3URI uri) {
+  public S3OutputFile(S3Client client, String uri) {
     this(client, uri, new AwsProperties());
   }
 
-  public S3OutputFile(S3Client client, S3URI uri, AwsProperties awsProperties) {
-    super(client, uri, awsProperties);
+  public S3OutputFile(S3Client client, String uri, AwsProperties awsProperties) {
+    super(client, new S3URI(uri), awsProperties);
   }
 
   /**
