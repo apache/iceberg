@@ -25,12 +25,12 @@ import org.apache.iceberg.io.SeekableInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 
 public class S3InputFile extends BaseS3File implements InputFile {
-  public S3InputFile(S3Client client, String uri) {
-    this(client, uri, new AwsProperties());
+  public static S3InputFile fromLocation(String location, S3Client client) {
+    return new S3InputFile(client, new S3URI(location), new AwsProperties());
   }
 
-  public S3InputFile(S3Client client, String uri, AwsProperties awsProperties) {
-    super(client, new S3URI(uri), awsProperties);
+  public static S3InputFile fromLocation(String location, S3Client client, AwsProperties awsProperties) {
+    return new S3InputFile(client, new S3URI(location), awsProperties);
   }
 
   S3InputFile(S3Client client, S3URI uri, AwsProperties awsProperties) {
