@@ -737,9 +737,17 @@ project(':iceberg-arrow') {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
     compile("org.apache.arrow:arrow-memory-netty") {
-      exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'io.netty', module: 'netty-common'
     }
+
+    testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
+    // To run ArrowReaderTest test cases, :netty-common is needed.
+    // We import :netty-common through :arrow-memory-netty
+    // so that the same version as used by the :arrow-memory-netty module is picked.
+    testCompile("org.apache.arrow:arrow-memory-netty")
+    testCompile("org.apache.hadoop:hadoop-common")
+    testCompile("org.apache.hadoop:hadoop-mapreduce-client-core")
   }
 }
 

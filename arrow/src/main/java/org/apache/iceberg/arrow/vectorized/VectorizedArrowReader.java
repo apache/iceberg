@@ -31,6 +31,7 @@ import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.TimeStampMicroTZVector;
+import org.apache.arrow.vector.TimeStampMicroVector;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -231,7 +232,11 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
             break;
           case TIMESTAMP_MICROS:
             this.vec = arrowField.createVector(rootAlloc);
-            ((TimeStampMicroTZVector) vec).allocateNew(batchSize);
+            if (((Types.TimestampType) icebergField.type()).shouldAdjustToUTC()) {
+              ((TimeStampMicroTZVector) vec).allocateNew(batchSize);
+            } else {
+              ((TimeStampMicroVector) vec).allocateNew(batchSize);
+            }
             this.readType = ReadType.LONG;
             this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
             break;
