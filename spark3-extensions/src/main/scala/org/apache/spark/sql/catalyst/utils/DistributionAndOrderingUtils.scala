@@ -133,10 +133,10 @@ object DistributionAndOrderingUtils {
               classOf[catalyst.expressions.NullOrdering],
               classOf[Set[catalyst.expressions.Expression]])
             .build()
-        if (Spark3VersionUtil.isSpark31) {
-          ctor.newInstance(catalystChild, toCatalyst(s.direction), toCatalyst(s.nullOrdering), Seq.empty)
-        } else {
+        if (Spark3VersionUtil.isSpark30) {
           ctor.newInstance(catalystChild, toCatalyst(s.direction), toCatalyst(s.nullOrdering), Set.empty)
+        } else {
+          ctor.newInstance(catalystChild, toCatalyst(s.direction), toCatalyst(s.nullOrdering), Seq.empty)
         }
       case it: IdentityTransform =>
         resolve(it.ref.fieldNames)

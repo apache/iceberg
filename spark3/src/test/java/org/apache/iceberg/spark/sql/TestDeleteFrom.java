@@ -43,7 +43,7 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
 
   @Test
   public void testDeleteFromUnpartitionedTable() {
-    Assume.assumeFalse(Spark3VersionUtil.isSpark31());
+    Assume.assumeTrue(Spark3VersionUtil.isSpark30());
     // set the shuffle partitions to 1 to force the write to use a single task and produce 1 file
     String originalParallelism = spark.conf().get("spark.sql.shuffle.partitions");
     spark.conf().set("spark.sql.shuffle.partitions", "1");
@@ -71,7 +71,7 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
 
   @Test
   public void testDeleteFromPartitionedTable() {
-    Assume.assumeFalse(Spark3VersionUtil.isSpark31());
+    Assume.assumeTrue(Spark3VersionUtil.isSpark30());
     // set the shuffle partitions to 1 to force the write to use a single task and produce 1 file per partition
     String originalParallelism = spark.conf().get("spark.sql.shuffle.partitions");
     spark.conf().set("spark.sql.shuffle.partitions", "1");

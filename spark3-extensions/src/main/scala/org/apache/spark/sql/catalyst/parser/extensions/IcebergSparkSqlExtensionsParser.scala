@@ -43,16 +43,16 @@ import org.apache.spark.sql.types.StructType
 
 class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserInterface {
 
-  private val substitutorCtor: DynConstructors.Ctor[VariableSubstitution] =
+  private lazy val substitutorCtor: DynConstructors.Ctor[VariableSubstitution] =
     DynConstructors.builder()
       .impl(classOf[VariableSubstitution])
       .impl(classOf[VariableSubstitution], classOf[SQLConf])
       .build()
   private lazy val substitutor =
-    if (Spark3VersionUtil.isSpark31) {
-      substitutorCtor.newInstance()
-    } else {
+    if (Spark3VersionUtil.isSpark30) {
       substitutorCtor.newInstance(SQLConf.get)
+    } else {
+      substitutorCtor.newInstance()
     }
   private lazy val astBuilder = new IcebergSqlExtensionsAstBuilder(delegate)
 

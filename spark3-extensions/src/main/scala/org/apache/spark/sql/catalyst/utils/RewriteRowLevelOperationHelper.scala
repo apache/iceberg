@@ -248,10 +248,10 @@ object RewriteRowLevelOperationHelper {
           classOf[Scan],
           classOf[Seq[AttributeReference]])
         .build()
-    if (Spark3VersionUtil.isSpark31) {
-      ctor.newInstance(relation, scan, outputAttrs)
-    } else {
+    if (Spark3VersionUtil.isSpark30) {
       ctor.newInstance(relation.table, scan, outputAttrs)
+    } else {
+      ctor.newInstance(relation, scan, outputAttrs)
     }
   }
 }
