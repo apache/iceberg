@@ -20,16 +20,14 @@
 package org.apache.iceberg.actions.compaction;
 
 import java.io.Serializable;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.expressions.Expression;
 
-public interface DataCompactionStrategy extends Serializable {
+interface DataCompactionStrategy extends Serializable {
   /**
    * Returns the name of this compaction strategy
    */
@@ -44,23 +42,13 @@ public interface DataCompactionStrategy extends Serializable {
   DataCompactionStrategy withOptions(Map<String, String> options);
 
   /**
-   * Before the compaction strategy rules are applied, the underlying action has the ability to use this expression to
-   * filter the FileScanTasks which will be created when planning file reads that will later be run through this
-   * compaction strategy. This would be used for pushing down filter expressions to the manifest entry scanning phase.
-   *
-   * @return an Iceberg expression to use when discovering file scan tasks
-   */
-  Expression preFilter();
-
-  /**
    * Removes all file references which this plan will not rewrite or change. Unlike the preFilter, this method can
-   * execute arbitrary code and isn't restricted to just Iceberg Expressions. This should be serializable so that
-   * Actions which run remotely can utilize the method.
+   * execute arbitrary code and isn't restricted to just Iceberg Expressions.
    *
    * @param dataFiles iterator of live datafiles in a given partition
    * @return iterator containing only files to be rewritten
    */
-  Iterator<FileScanTask> filesToCompact(Iterator<FileScanTask> dataFiles);
+  Iterable<FileScanTask> selectFilesToCompact(Iterable<FileScanTask> dataFiles);
 
   /**
    * Groups file scans into lists which will be processed in a single executable unit. Each group will end up being
@@ -70,7 +58,7 @@ public interface DataCompactionStrategy extends Serializable {
    * @param dataFiles iterator of files to be rewritten
    * @return iterator of sets of files to be processed together
    */
-  Iterator<List<FileScanTask>> groupFilesIntoChunks(Iterator<FileScanTask> dataFiles);
+  Iterable<List<FileScanTask>> groupFilesIntoChunks(Iterable<FileScanTask> dataFiles);
 
   /**
    * Method which will rewrite files based on this particular DataCompactionStrategy's Algorithm.
@@ -80,6 +68,6 @@ public interface DataCompactionStrategy extends Serializable {
    * @param filesToRewrite a group of files to be rewritten together
    * @return a list of newly written files
    */
-  List<DataFile> rewriteFiles(Table table, List<FileScanTask> filesToRewrite);
+  List<DataFile> rewriteFiles(Table table, Set<FileScanTask> filesToRewrite);
 
 }
