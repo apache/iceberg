@@ -271,23 +271,22 @@ class StreamingReader extends Reader implements MicroBatchReader {
   }
 
   /**
-   * Streaming Read control is performed by changing the startOffset and maxSize.
+   * Streaming Read control is performed by changing the offset and maxSize.
    *
-   * @param startOffset The start offset to scan from
+   * @param offset The start offset to scan from
    * @param maxSize     The maximum size of Bytes can calculate how many batches
    * @return MicroBatch of list
    */
   @VisibleForTesting
-  @SuppressWarnings("checkstyle:HiddenField")
-  List<MicroBatch> getChangesWithRateLimit(StreamingOffset startOffset, long maxSize) {
+  List<MicroBatch> getChangesWithRateLimit(StreamingOffset offset, long maxSize) {
     List<MicroBatch> batches = Lists.newArrayList();
     long currentLeftSize = maxSize;
     MicroBatch lastBatch = null;
 
-    assertNoOverwrite(table.snapshot(startOffset.snapshotId()));
-    if (shouldGenerateFromStartOffset(startOffset)) {
-      MicroBatch batch = generateMicroBatch(startOffset.snapshotId(), startOffset.position(),
-          startOffset.shouldScanAllFiles(), currentLeftSize);
+    assertNoOverwrite(table.snapshot(offset.snapshotId()));
+    if (shouldGenerateFromStartOffset(offset)) {
+      MicroBatch batch = generateMicroBatch(offset.snapshotId(), offset.position(),
+          offset.shouldScanAllFiles(), currentLeftSize);
       if (!batch.tasks().isEmpty()) {
         batches.add(batch);
         currentLeftSize -= batch.sizeInBytes();
@@ -301,13 +300,13 @@ class StreamingReader extends Reader implements MicroBatchReader {
     }
 
     long currentSnapshotId = table.currentSnapshot().snapshotId();
-    if (currentSnapshotId == startOffset.snapshotId()) {
+    if (currentSnapshotId == offset.snapshotId()) {
       // the snapshot of current offset is already the latest snapshot of this table.
       return batches;
     }
 
     ImmutableList<Long> snapshotIds = ImmutableList.<Long>builder()
-        .addAll(SnapshotUtil.snapshotIdsBetween(table, startOffset.snapshotId(), currentSnapshotId))
+        .addAll(SnapshotUtil.snapshotIdsBetween(table, offset.snapshotId(), currentSnapshotId))
         .build()
         .reverse();
 
