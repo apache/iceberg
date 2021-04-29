@@ -45,13 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 /**
  * Class for catalog resolution and accessing the common functions for {@link Catalog} API.
  * <p>
- * Catalog resolution happens in this order:
- * <ol>
- * <li>Custom catalog if specified by {@link InputFormatConfig#CATALOG_CLASS_TEMPLATE}
- * <li>Hadoop or Hive catalog if specified by {@link InputFormatConfig#CATALOG_TYPE_TEMPLATE}
- * or {@link InputFormatConfig#CATALOG}</li>
- * <li>Hadoop Tables
- * </ol>
+ * See {@link Catalogs#getCatalogType(Configuration, String)} for catalog type resolution strategy.
  */
 public final class Catalogs {
 

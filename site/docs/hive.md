@@ -18,7 +18,15 @@
 # Hive
 
 Iceberg supports reading and writing Iceberg tables through [Hive](https://hive.apache.org) by using a [StorageHandler](https://cwiki.apache.org/confluence/display/Hive/StorageHandlers).
-Only Hive 2.x versions are currently supported. 
+Here is the current compatibility matrix for Iceberg Hive support: 
+
+| Feature                  | Hive 2.x               | Hive 3.1.2             |
+| ------------------------ | ---------------------- | ---------------------- |
+| CREATE EXTERNAL TABLE    | ✔️                     | ✔️                     |
+| CREATE TABLE             | ✔️                     | ✔️                     |
+| DROP TABLE               | ✔️                     | ✔️                     |
+| SELECT                   | ✔️ (MapReduce and Tez) | ✔️ (MapReduce and Tez) |
+| INSERT INTO              | ✔️ (MapReduce only)️    | ✔️ (MapReduce only)    |
 
 ## Enabling Iceberg support in Hive
 
@@ -83,9 +91,9 @@ To globally register different catalogs, set the following Hadoop configurations
 
 | Config Key                                    | Description                                            |
 | --------------------------------------------- | ------------------------------------------------------ |
-| iceberg.catalog.<catalog_name\>.type           | type of catalog: `hive`,`hadoop` or `custom`           |
-| iceberg.catalog.<catalog_name\>.catalog-impl   | catalog implementation, must not be null if type is `custom` |
-| iceberg.catalog.<catalog_name\>.<key\>         | any config key and value pairs for the catalog         |
+| iceberg.catalog.<catalog_name\>.type          | type of catalog: `hive`,`hadoop` or `custom`             |
+| iceberg.catalog.<catalog_name\>.catalog-impl  | catalog implementation, must not be null if type is `custom` |
+| iceberg.catalog.<catalog_name\>.<key\>        | any config key and value pairs for the catalog         |
 
 Here are some examples using Hive CLI:
 
@@ -124,67 +132,108 @@ Iceberg tables are created using either a [`Catalog`](./javadoc/master/index.htm
 or an implementation of the [`Tables`](./javadoc/master/index.html?org/apache/iceberg/Tables.html) interface,
 and Hive needs to be configured accordingly to operate on these different types of table.
 
-#### Path-based Hadoop tables
-
-Iceberg tables created using `HadoopTables` are stored entirely in a directory in a filesystem like HDFS.
-You can use other compute engines or the Java/Python API to create such a table. 
-
-Suppose there is a table `table_a` and the table location is `hdfs://some_path/table_a`. 
-Now overlay a Hive table on top of this Iceberg table by issuing Hive DDL like so:
-
-```sql
-CREATE EXTERNAL TABLE table_a 
-STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' 
-LOCATION 'hdfs://some_bucket/some_path/table_a';
-```
-
-#### Hadoop catalog tables
-
-Iceberg tables created using `HadoopCatalog` are stored entirely in a directory in a filesystem like HDFS, 
-similar to the tables created through `HadoopTables`.
-You can use other compute engines or Java/Python API to create such as table. 
-
-Suppose there is a table `table_b` and the table location is `hdfs://some_path/table_b`. 
-
-Now overlay a Hive table on top of this Iceberg table by issuing Hive DDL like so:
-
-```sql
-CREATE EXTERNAL TABLE database_a.table_b
-STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' 
-LOCATION 'hdfs://some_path/table_b'
-TBLPROPERTIES (
-  'iceberg.mr.catalog'='hadoop', 
-  'iceberg.mr.catalog.hadoop.warehouse.location'='hdfs://some_bucket/path_to_hadoop_warehouse'
-);
-```
-
-Note that the Hive database and table name *must* match the values used in the Iceberg `TableIdentifier` when the table was created. 
-
-It is possible to omit either or both of the table properties but instead you will then need to set these when reading from the table.
-Generally it is recommended to set them at table creation time, so you can query tables created by different catalogs. 
-
 #### Hive catalog tables
 
 As described before, tables created by the `HiveCatalog` with Hive engine feature enabled are directly visible by the Hive engine, so there is no need to create an overlay.
 
 #### Custom catalog tables
 
-For a registered catalog, simply specify the catalog name in the statement using table property `iceberg.catalog`.
-For example, the SQL below creates an overlay for a table in the `glue` catalog.
+For a table in a registered catalog, specify the catalog name in the statement using table property `iceberg.catalog`.
+For example, the SQL below creates an overlay for a table in a `hadoop` type catalog named `hadoop_cat`:
 
 ```sql
-CREATE EXTERNAL TABLE database_a.table_c
+SET iceberg.catalog.hadoop_cat.type=hadoop;
+SET iceberg.catalog.hadoop_cat.warehouse=hdfs://example.com:8020/hadoop_cat;
+
+CREATE EXTERNAL TABLE database_a.table_a
 STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler'
-TBLPROPERTIES ('iceberg.catalog'='glue');
+TBLPROPERTIES ('iceberg.catalog'='hadoop_cat');
 ```
+
+When `iceberg.catalog` is missing from both table properties and the global Hadoop configuration, `HiveCatalog` will be used as default.
+
+#### Path-based Hadoop tables
+
+Iceberg tables created using `HadoopTables` are stored entirely in a directory in a filesystem like HDFS.
+These tables are considered to have no catalog. 
+To indicate that, set `iceberg.catalog` property to `location_based_table`. For example:
+```sql
+CREATE EXTERNAL TABLE table_a 
+STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' 
+LOCATION 'hdfs://some_bucket/some_path/table_a'
+TBLPROPERTIES ('iceberg.catalog'='location_based_table');
+```
+
+### CREATE TABLE
+
+Hive also supports directly creating a new Iceberg table through `CREATE TABLE` statement. For example:
+
+```sql
+CREATE TABLE database_a.table_a (
+  id bigint, name string
+) PARTITIONED BY (
+  dept string
+) STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler';
+```
+
+The following Hive types have direct Iceberg types mapping:
+
+- boolean
+- float
+- double
+- integer
+- long
+- decimal
+- string
+- binary
+- date
+- timestamp (maps to Iceberg timestamp without timezone)
+- timestamplocaltz (Hive 3 only, maps to Iceberg timestamp with timezone)
+- struct
+- map
+- list
+
+The following Hive types are not supported by Iceberg:
+
+- interval_year_month
+- interval_day_time
+- union
+
+The following Hive types do not have direct Iceberg types mapping, but we can perform auto-conversion:
+
+| Hive type  | Iceberg type |
+| ---------- | ------------ |
+| byte       | integer      |
+| short      | integer      |
+| char       | string       |
+| varchar    | string       |
+
+You can enable this feature through Hadoop configuration (default not enabled):
+
+| Config key                               | Default                     | Description                                         |
+| -----------------------------------------| --------------------------- | --------------------------------------------------- |
+| iceberg.mr.schema.auto.conversion        | false                       | if CREATE TABLE should perform type auto-conversion |
 
 ### DROP TABLE
 
-When dropping the Hive table overlay, one can perform the following configurations:
+Tables can be dropped using the `DROP TABLE` command:
 
-| Config key                  | Default                    | Description                                            |
-| ----------------------------| ---------------------------| ------------------------------------------------------ |
-| external.table.purge        | true                       | if all data and metadata should be purged in the table  |
+```sql
+DROP TABLE [IF EXISTS] table_name [PURGE];
+```
+
+You can configure global purge behavior through Hadoop configuration:
+
+| Config key                  | Default                    | Description                                                     |
+| ----------------------------| ---------------------------| --------------------------------------------------------------- |
+| external.table.purge        | true                       | if all data and metadata should be purged in a table by default |
+
+Each table's default purge behavior can be further configured through table properties:
+
+| Property                    | Default                    | Description                                                       |
+| ----------------------------| ---------------------------| ----------------------------------------------------------------- |
+| gc.enabled                  | true                       | if all data and metadata should be purged in the table by default |
+
 
 ## Querying with SQL
 
@@ -194,7 +243,22 @@ Here are the features highlights for Iceberg Hive read support:
 2. **Column projection**: Columns from the Hive SQL `SELECT` clause are projected down to the Iceberg readers to reduce the number of columns read.
 3. **Hive query engines**: Both the MapReduce and Tez query execution engines are supported.
 
-You should now be able to issue Hive SQL `SELECT` queries and see the results returned from the underlying Iceberg table:
+### Configurations
+
+!!! Warning
+    When reading with Tez, you also have to disable vectorization for now (`hive.vectorized.execution.enabled=false`)
+
+Here are the Hadoop configurations that one can adjust for the Hive reader:
+
+| Config key                   | Default                 | Description                                            |
+| ---------------------------- | ----------------------- | ------------------------------------------------------ |
+| iceberg.mr.reuse.containers  | false                   | if Avro reader should reuse containers                 |
+| iceberg.mr.case.sensitive    | true                    | if the query is case-sensitive                         |
+
+
+### SELECT
+
+You should now be able to issue Hive SQL `SELECT` queries and see the results returned from the underlying Iceberg table, for example:
 
 ```sql
 SELECT * from table_a;
@@ -204,11 +268,10 @@ SELECT * from table_a;
 
 ### Configurations
 
-Here is a table of Hadoop configurations that one can adjust for the Hive writer:
+Here are the Hadoop configurations that one can adjust for the Hive writer:
 
 | Config key                                        | Default                                  | Description                                            |
 | ------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------ |
-| iceberg.mr.output.tables                          | the current table in the job             | a list of tables delimited by `..`                     |
 | iceberg.mr.commit.table.thread.pool.size          | 10                                       | the number of threads of a shared thread pool to execute parallel commits for output tables |
 | iceberg.mr.commit.file.thread.pool.size           | 10                                       | the number of threads of a shared thread pool to execute parallel commits for files in each output table |
 
