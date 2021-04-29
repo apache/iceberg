@@ -176,6 +176,14 @@ CREATE TABLE database_a.table_a (
 ) STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler';
 ```
 
+!!! Note
+    This creates an unpartitioned HMS table, while the underlying Iceberg table is partitioned.
+
+!!! Note
+    Due to the limitation of Hive `PARTITIONED BY` syntax, currently you can only partition by columns, 
+    which is translated to Iceberg identity partition transform.
+    You cannot partition by other Iceberg partition transforms such as `days(timestamp)`.
+
 The following Hive types have direct Iceberg types mapping:
 
 - boolean
