@@ -47,8 +47,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
  * <p>
  * Catalog resolution happens in this order:
  * <ol>
- * <li>Custom catalog if specified by {@link InputFormatConfig#CATALOG_LOADER_CLASS}
- * <li>Hadoop or Hive catalog if specified by {@link InputFormatConfig#CATALOG}
+ * <li>Custom catalog if specified by {@link InputFormatConfig#CATALOG_CLASS_TEMPLATE}
+ * <li>Hadoop or Hive catalog if specified by {@link InputFormatConfig#CATALOG_TYPE_TEMPLATE
+ *   or {@link InputFormatConfig#CATALOG}
  * <li>Hadoop Tables
  * </ol>
  */
