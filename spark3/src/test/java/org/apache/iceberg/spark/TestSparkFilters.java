@@ -44,7 +44,8 @@ public class TestSparkFilters {
 
     Assert.assertEquals("Generated Timestamp expression should be correct",
         rawExpression.toString(), timestampExpression.toString());
-    Assert.assertEquals("Generated Instant expression should be correct", rawExpression.toString(), instantExpression.toString());
+    Assert.assertEquals("Generated Instant expression should be correct",
+        rawExpression.toString(), instantExpression.toString());
   }
 
   @Test
@@ -60,6 +61,7 @@ public class TestSparkFilters {
     Assert.assertEquals("Generated localdate expression should be correct",
         rawExpression.toString(), localDateExpression.toString());
 
-    Assert.assertEquals("Generated date expression should be correct", rawExpression.toString(), dateExpression.toString());
+    Assert.assertEquals("Generated date expression should be correct",
+        rawExpression.toString(), dateExpression.toString());
   }
 }
