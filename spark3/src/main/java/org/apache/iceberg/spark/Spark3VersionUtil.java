@@ -19,24 +19,18 @@
 
 package org.apache.iceberg.spark;
 
+import org.apache.spark.package$;
+
 public class Spark3VersionUtil {
-
-  private static final String CLASS_NEW_TO_SPARK_3_1 = "org.apache.spark.sql.catalyst.SQLConfHelper";
-  private static final boolean SPARK_3_1_DETECTED = spark31Detected();
-
-  private static boolean spark31Detected() {
-    try {
-      Class.forName(CLASS_NEW_TO_SPARK_3_1);
-      return true;
-    } catch (ClassNotFoundException e) {
-      return false;
-    }
-  }
 
   private Spark3VersionUtil() {
   }
 
+  public static boolean isSpark30() {
+    return package$.MODULE$.SPARK_VERSION_SHORT().startsWith("3.0");
+  }
+
   public static boolean isSpark31() {
-    return SPARK_3_1_DETECTED;
+    return package$.MODULE$.SPARK_VERSION_SHORT().startsWith("3.1");
   }
 }
