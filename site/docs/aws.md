@@ -126,6 +126,36 @@ catalogs:
     lock.table: myGlueLockTable
 ```
 
+### Hive
+
+To use AWS module with Hive, you can download the necessary dependencies similar to the Flink example,
+and then add them to the Hive classpath or add the jars at runtime in CLI:
+
+```
+add jar /my/path/to/iceberg-hive-runtime.jar;
+add jar /my/path/to/aws/bundle.jar;
+add jar /my/path/to/aws/url-connection-client.jar;
+```
+
+With those dependencies, you can register a Glue catalog and create external tables in Hive at runtime in CLI by:
+
+```sql
+SET iceberg.engine.hive.enabled=true;
+SET hive.vectorized.execution.enabled=false;
+SET iceberg.catalog.glue.type=custom;
+SET iceberg.catalog.glue.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog;
+SET iceberg.catalog.glue.warehouse=s3://my-bucket/my/key/prefix;
+SET iceberg.catalog.glue.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager;
+SET iceberg.catalog.glue.lock.table=myGlueLockTable;
+
+-- suppose you have an Iceberg table database_a.table_a created by GlueCatalog
+CREATE EXTERNAL TABLE database_a.table_a
+STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler'
+TBLPROPERTIES ('iceberg.catalog'='glue');
+```
+
+You can also preload the catalog by setting the configurations above in `hive-site.xml`.
+
 ## Glue Catalog
 
 Iceberg enables the use of [AWS Glue](https://aws.amazon.com/glue) as the `Catalog` implementation.
