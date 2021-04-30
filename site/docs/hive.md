@@ -235,18 +235,25 @@ Tables can be dropped using the `DROP TABLE` command:
 DROP TABLE [IF EXISTS] table_name [PURGE];
 ```
 
-You can configure global purge behavior through Hadoop configuration:
+You can configure purge behavior through global Hadoop configuration or Hive metastore table properties:
 
 | Config key                  | Default                    | Description                                                     |
 | ----------------------------| ---------------------------| --------------------------------------------------------------- |
 | external.table.purge        | true                       | if all data and metadata should be purged in a table by default |
 
-Each table's default purge behavior can be further configured through table properties:
+Each Iceberg table's default purge behavior can also be configured through Iceberg table properties:
 
 | Property                    | Default                    | Description                                                       |
 | ----------------------------| ---------------------------| ----------------------------------------------------------------- |
 | gc.enabled                  | true                       | if all data and metadata should be purged in the table by default |
 
+When changing `gc.enabled` on the Iceberg table via `UpdateProperties`, `external.table.purge` is also updated on HMS table accordingly.
+When setting `external.table.purge` as a table prop during Hive `CREATE TABLE`, `gc.enabled` is pushed down accordingly to the Iceberg table properties.
+This makes sure that the 2 properties are always consistent at table level between Hive and Iceberg.
+
+!!! Warning
+    Changing `external.table.purge` via Hive `ALTER TABLE SET TBLPROPERTIES` does not update `gc.enabled` on the Iceberg table. 
+    This is a limitation on Hive 3.1.2 because the `HiveMetaHook` doesn't have all the hooks for alter tables yet.
 
 ## Querying with SQL
 
