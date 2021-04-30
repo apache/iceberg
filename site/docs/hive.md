@@ -124,7 +124,7 @@ SET iceberg.catalog.glue.type=custom;
 SET iceberg.catalog.glue.catalog-impl=org.apache.iceberg.aws.GlueCatalog;
 SET iceberg.catalog.glue.warehouse=s3://my-bucket/my/key/prefix;
 SET iceberg.catalog.glue.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager;
-SET iceberg.catalog.glue.lock.table=myGlueLockTable
+SET iceberg.catalog.glue.lock.table=myGlueLockTable;
 ```
 
 ## DDL Commands
@@ -309,5 +309,5 @@ Here is an example of inserting into multiple tables at once in Hive SQL:
 ```sql
 FROM customers
     INSERT INTO target1 SELECT customer_id, first_name
-    INSERT INTO target2 SELECT last_name, customer_id
+    INSERT INTO target2 SELECT last_name, customer_id;
 ```
