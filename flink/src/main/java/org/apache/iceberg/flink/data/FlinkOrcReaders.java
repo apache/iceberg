@@ -49,11 +49,11 @@ import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 import org.apache.orc.storage.serde2.io.HiveDecimalWritable;
 
-class FlinkOrcReaders {
+public class FlinkOrcReaders {
   private FlinkOrcReaders() {
   }
 
-  static OrcValueReader<StringData> strings() {
+  public static OrcValueReader<StringData> strings() {
     return StringReader.INSTANCE;
   }
 
@@ -61,7 +61,7 @@ class FlinkOrcReaders {
     return DateReader.INSTANCE;
   }
 
-  static OrcValueReader<DecimalData> decimals(int precision, int scale) {
+  public static OrcValueReader<DecimalData> decimals(int precision, int scale) {
     if (precision <= 18) {
       return new Decimal18Reader(precision, scale);
     } else if (precision <= 38) {
@@ -79,7 +79,7 @@ class FlinkOrcReaders {
     return TimestampReader.INSTANCE;
   }
 
-  static OrcValueReader<TimestampData> timestampTzs() {
+  public static OrcValueReader<TimestampData> timestampTzs() {
     return TimestampTzReader.INSTANCE;
   }
 

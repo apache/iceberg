@@ -25,11 +25,16 @@ import org.apache.flink.api.common.io.InputFormat;
 import org.apache.flink.api.common.io.RichInputFormat;
 import org.apache.flink.api.common.io.statistics.BaseStatistics;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.core.io.InputSplitAssigner;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.flink.FlinkTableOptions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -46,17 +51,23 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   private final FileIO io;
   private final EncryptionManager encryption;
   private final ScanContext context;
+  private final FileFormat fileFormat;
+  private final DataType[] dataTypes;
+  private final ReadableConfig readableConfig;
 
-  private transient RowDataIterator iterator;
+  private transient BaseDataIterator iterator;
   private transient long currentReadCount = 0L;
 
   FlinkInputFormat(TableLoader tableLoader, Schema tableSchema, FileIO io, EncryptionManager encryption,
-                   ScanContext context) {
+                   ScanContext context, FileFormat fileFormat, DataType[] dataTypes, ReadableConfig readableConfig) {
     this.tableLoader = tableLoader;
     this.tableSchema = tableSchema;
     this.io = io;
     this.encryption = encryption;
     this.context = context;
+    this.fileFormat = fileFormat;
+    this.dataTypes = dataTypes;
+    this.readableConfig = readableConfig;
   }
 
   @VisibleForTesting
@@ -91,9 +102,75 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
 
   @Override
   public void open(FlinkInputSplit split) {
+    boolean enableVectorizedRead = readableConfig.get(FlinkTableOptions.ENABLE_VECTORIZED_READ);
+
+    if (enableVectorizedRead) {
+      if (useOrcVectorizedRead()) {
+        this.iterator = new BatchRowDataIterator(
+            split.getTask(), io, encryption, tableSchema, context.project(), context.nameMapping(),
+            context.caseSensitive());
+      } else {
+        throw new UnsupportedOperationException("Unsupported data type for vectorized read");
+      }
+    } else {
+      setDefaultIterator(split);
+    }
+  }
+
+  private void setDefaultIterator(FlinkInputSplit split) {
     this.iterator = new RowDataIterator(
         split.getTask(), io, encryption, tableSchema, context.project(), context.nameMapping(),
         context.caseSensitive());
+  }
+
+  private boolean useOrcVectorizedRead() {
+    if (!fileFormat.equals(FileFormat.ORC)) {
+      return false;
+    }
+
+    for (DataType dataType : dataTypes) {
+      if (isVectorizationUnsupported(dataType.getLogicalType())) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private static boolean isVectorizationUnsupported(LogicalType logicalType) {
+    switch (logicalType.getTypeRoot()) {
+      case CHAR:
+      case VARCHAR:
+      case BOOLEAN:
+      case BINARY:
+      case VARBINARY:
+      case DECIMAL:
+      case TINYINT:
+      case SMALLINT:
+      case INTEGER:
+      case BIGINT:
+      case FLOAT:
+      case DOUBLE:
+      case DATE:
+      case TIME_WITHOUT_TIME_ZONE:
+      case TIMESTAMP_WITHOUT_TIME_ZONE:
+      case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
+      case ROW:
+      case ARRAY:
+        return false;
+      case TIMESTAMP_WITH_TIME_ZONE:
+      case INTERVAL_YEAR_MONTH:
+      case INTERVAL_DAY_TIME:
+      case MULTISET:
+      case MAP:
+      case DISTINCT_TYPE:
+      case STRUCTURED_TYPE:
+      case NULL:
+      case RAW:
+      case SYMBOL:
+      default:
+        return true;
+    }
   }
 
   @Override
