@@ -32,10 +32,14 @@ Here is the current compatibility matrix for Iceberg Hive support:
 
 ### Loading runtime jar
 
-To enable Iceberg support in Hive, the `HiveIcebergStorageHandler` and supporting classes need to be made available on Hive's classpath. These are provided by the `iceberg-hive-runtime` jar file. For example, if using the Hive shell, this can be achieved by issuing a statement like so:
-```sql
+To enable Iceberg support in Hive, the `HiveIcebergStorageHandler` and supporting classes need to be made available on Hive's classpath. 
+These are provided by the `iceberg-hive-runtime` jar file. 
+For example, if using the Hive shell, this can be achieved by issuing a statement like so:
+
+```
 add jar /path/to/iceberg-hive-runtime.jar;
 ```
+
 There are many others ways to achieve this including adding the jar file to Hive's auxiliary classpath so it is available by default.
 Please refer to Hive's documentation for more information.
 
@@ -43,7 +47,7 @@ Please refer to Hive's documentation for more information.
 
 #### Hadoop configuration
 
-The value `iceberg.engine.hive.enabled` needs to be set to `true` in the Hadoop configuraiton in the environment.
+The value `iceberg.engine.hive.enabled` needs to be set to `true` in the Hadoop configuration in the environment.
 For example, it can be added to the Hive configuration file on the classpath of the application creating or modifying (altering, inserting etc.) the table by modifying the relevant `hive-site.xml`.
 You can also do it programmatically like so:
 
@@ -157,6 +161,7 @@ When `iceberg.catalog` is missing from both table properties and the global Hado
 Iceberg tables created using `HadoopTables` are stored entirely in a directory in a filesystem like HDFS.
 These tables are considered to have no catalog. 
 To indicate that, set `iceberg.catalog` property to `location_based_table`. For example:
+
 ```sql
 CREATE EXTERNAL TABLE table_a 
 STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' 
@@ -262,7 +267,6 @@ Here are the Hadoop configurations that one can adjust for the Hive reader:
 | ---------------------------- | ----------------------- | ------------------------------------------------------ |
 | iceberg.mr.reuse.containers  | false                   | if Avro reader should reuse containers                 |
 | iceberg.mr.case.sensitive    | true                    | if the query is case-sensitive                         |
-
 
 ### SELECT
 
