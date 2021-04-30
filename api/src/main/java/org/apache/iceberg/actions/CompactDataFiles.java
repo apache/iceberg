@@ -26,7 +26,7 @@ import org.apache.iceberg.expressions.Expression;
 public interface CompactDataFiles extends Action<CompactDataFiles, CompactDataFiles.Result> {
 
   /**
-   * Enable committing groups of chunks prior to the entire compaction completing. This will produce additional commits
+   * Enable committing groups of chunks prior see max-chunk-size to the entire compaction completing. This will produce additional commits
    * but allow for progress even if some chunks fail to commit. The default is false, which produces a single commit
    * when the entire job has completed.
    */
@@ -43,8 +43,12 @@ public interface CompactDataFiles extends Action<CompactDataFiles, CompactDataFi
   // String COMPACTION_STRATEGY_DEFAULT;
 
   /**
-   * The largest amount of data that should be compacted in a single chunk by the underlying framework. This bounds the
-   * amount of data that would be used in a single shuffle for example.
+   * The entire compaction operation is broken down into pieces based on partitioning and within partitions based
+   * on size. These sub-units of compaction are referred to as chunks. The largest amount of data that should be
+   * compacted in a single chunk is controlled by MAX_CHUNK_SIZE_BYTES. When grouping files, the underlying
+   * compaction strategy will use this value to but an upper bound on the number of files included in a single
+   * chunk. A chunk will be processed by a single framework "job". For example, in Spark this means that each chunk
+   * would be processed in it's own Spark action. A chunk will never contain files for multiple output partitions.
    */
   String MAX_CHUNK_SIZE_BYTES = "max-chunk-size-bytes";
   long MAX_CHUNK_SIZE_BYTES_DEFAULT = 1024L * 1024L * 1024L * 100L; // 100 Gigabytes
@@ -58,7 +62,7 @@ public interface CompactDataFiles extends Action<CompactDataFiles, CompactDataFi
   /**
    * The max number of chunks to be simultaneously rewritten by the compaction strategy. The structure and
    * contents of the chunk is determined by the compaction strategy. When running each job chunk will be run
-   * be run independently and asynchronously.
+   * independently and asynchronously.
    **/
   String MAX_CONCURRENT_CHUNKS = "max-concurrent-chunks";
   int MAX_CONCURRENT_CHUNKS_DEFAULT = 1;
@@ -104,7 +108,7 @@ public interface CompactDataFiles extends Action<CompactDataFiles, CompactDataFi
     /**
      * returns which chunk this is out of the total set of chunks for this compaction
      */
-    int chunkIndex();
+    int globalIndex();
 
     /**
      * returns which chunk this is out of the set of chunks for this partition

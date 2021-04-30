@@ -42,8 +42,7 @@ interface DataCompactionStrategy extends Serializable {
   DataCompactionStrategy withOptions(Map<String, String> options);
 
   /**
-   * Removes all file references which this plan will not rewrite or change. Unlike the preFilter, this method can
-   * execute arbitrary code and isn't restricted to just Iceberg Expressions.
+   * Selects files which this strategy believes are valid targets to be rewritten.
    *
    * @param dataFiles iterator of live datafiles in a given partition
    * @return iterator containing only files to be rewritten
@@ -58,11 +57,11 @@ interface DataCompactionStrategy extends Serializable {
    * @param dataFiles iterator of files to be rewritten
    * @return iterator of sets of files to be processed together
    */
-  Iterable<List<FileScanTask>> groupFilesIntoChunks(Iterable<FileScanTask> dataFiles);
+  Iterable<Set<FileScanTask>> groupFilesIntoChunks(Iterable<FileScanTask> dataFiles);
 
   /**
-   * Method which will rewrite files based on this particular DataCompactionStrategy's Algorithm.
-   * This will most likely be Action framework specific.
+   * Method which will rewrite files based on this particular DataCompactionStrategy's algorithm.
+   * This will most likely be Action framework specific (Spark/Presto/Flink ....).
    *
    * @param table          table being modified
    * @param filesToRewrite a group of files to be rewritten together
