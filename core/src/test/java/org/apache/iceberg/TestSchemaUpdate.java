@@ -1223,4 +1223,239 @@ public class TestSchemaUpdate {
                 .moveBefore("s2.x", "s1.a")
                 .apply());
   }
+
+  @Test
+  public void testAddExistingIdentifierFields() {
+    Schema newSchema = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+        .setIdentifierFields("id")
+        .apply();
+
+    Assert.assertEquals("add an existing field as identifier field should succeed",
+        Sets.newHashSet(newSchema.findField("id").fieldId()),
+        newSchema.identifierFieldIds());
+  }
+
+  @Test
+  public void testAddNewIdentifierFieldColumns() {
+    Schema newSchema = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+        .addColumn("new_field", Types.StringType.get())
+        .setIdentifierFields("id", "new_field")
+        .apply();
+
+    Assert.assertEquals("add column then set as identifier should succeed",
+        Sets.newHashSet(newSchema.findField("id").fieldId(), newSchema.findField("new_field").fieldId()),
+        newSchema.identifierFieldIds());
+
+    newSchema = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+        .setIdentifierFields("id", "new_field")
+        .addColumn("new_field", Types.StringType.get())
+        .apply();
+
+    Assert.assertEquals("set identifier then add column should succeed",
+        Sets.newHashSet(newSchema.findField("id").fieldId(), newSchema.findField("new_field").fieldId()),
+        newSchema.identifierFieldIds());
+  }
+
+  @Test
+  public void testAddNestedIdentifierFieldColumns() {
+    Schema newSchema = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+        .setIdentifierFields("preferences.feature1")
+        .apply();
+
+    Assert.assertEquals("set existing nested field as identifier should succeed",
+        Sets.newHashSet(newSchema.findField("preferences.feature1").fieldId()),
+        newSchema.identifierFieldIds());
+
+    newSchema = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+        .addColumn("new", Types.StructType.of(
+            Types.NestedField.optional(SCHEMA_LAST_COLUMN_ID + 1, "field", Types.StringType.get())
+        ))
+        .setIdentifierFields("new.field")
+        .apply();
+
+    Assert.assertEquals("set newly added nested field as identifier should succeed",
+        Sets.newHashSet(newSchema.findField("new.field").fieldId()),
+        newSchema.identifierFieldIds());
+
+    newSchema = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+        .addColumn("new", Types.StructType.of(
+            Types.NestedField.optional(SCHEMA_LAST_COLUMN_ID + 1, "field", Types.StructType.of(
+                Types.NestedField.optional(SCHEMA_LAST_COLUMN_ID + 2, "nested", Types.StringType.get())))))
+        .setIdentifierFields("new.field.nested")
+        .apply();
+
+    Assert.assertEquals("set newly added multi-layer nested field as identifier should succeed",
+        Sets.newHashSet(newSchema.findField("new.field.nested").fieldId()),
+        newSchema.identifierFieldIds());
+  }
+
+  @Test
+  public void testAddDottedIdentifierFieldColumns() {
+    Schema newSchema = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+        .addColumn(null, "dot.field", Types.StringType.get())
+        .setIdentifierFields("id", "dot.field")
+        .apply();
+
+    Assert.assertEquals("add a field with dot as identifier should succeed",
+        Sets.newHashSet(newSchema.findField("id").fieldId(), newSchema.findField("dot.field").fieldId()),
+        newSchema.identifierFieldIds());
+  }
+
+  @Test
+  public void testRemoveIdentifierFields() {
+    Schema newSchema = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+        .addColumn("new_field", Types.StringType.get())
+        .addColumn("new_field2", Types.StringType.get())
+        .setIdentifierFields("id", "new_field", "new_field2")
+        .apply();
+
+    newSchema = new SchemaUpdate(newSchema, SCHEMA_LAST_COLUMN_ID)
+        .setIdentifierFields("new_field", "new_field2")
+        .apply();
+
+    Assert.assertEquals("remove an identifier field should succeed",
+        Sets.newHashSet(newSchema.findField("new_field").fieldId(), newSchema.findField("new_field2").fieldId()),
+        newSchema.identifierFieldIds());
+
+    newSchema = new SchemaUpdate(newSchema, SCHEMA_LAST_COLUMN_ID)
+        .setIdentifierFields(Sets.newHashSet())
+        .apply();
+
+    Assert.assertEquals("remove all identifier fields should succeed",
+        Sets.newHashSet(),
+        newSchema.identifierFieldIds());
+  }
+
+  @Test
+  public void testSetIdentifierFieldsFails() {
+    AssertHelpers.assertThrows("add a field with name not exist should fail",
+        IllegalArgumentException.class,
+        "not found in current schema or added columns",
+        () -> new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+            .setIdentifierFields("unknown")
+            .apply());
+
+    AssertHelpers.assertThrows("add a field of non-primitive type should fail",
+        IllegalArgumentException.class,
+        "not a primitive type field",
+        () -> new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+            .setIdentifierFields("locations")
+            .apply());
+
+    AssertHelpers.assertThrows("add a map key nested field should fail",
+        IllegalArgumentException.class,
+        "must not be nested in " + SCHEMA.findField("locations"),
+        () -> new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+            .setIdentifierFields("locations.key.zip")
+            .apply());
+
+    AssertHelpers.assertThrows("add a map value nested field should fail",
+        IllegalArgumentException.class,
+        "must not be nested in " + SCHEMA.findField("locations"),
+        () -> new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+            .setIdentifierFields("locations.value.lat")
+            .apply());
+
+    AssertHelpers.assertThrows("add a nested field in list should fail",
+        IllegalArgumentException.class,
+        "must not be nested in " + SCHEMA.findField("points"),
+        () -> new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+            .setIdentifierFields("points.element.x")
+            .apply());
+
+    Schema newSchema = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+        .addColumn("new", Types.StructType.of(
+            Types.NestedField.optional(SCHEMA_LAST_COLUMN_ID + 1, "fields", Types.ListType.ofOptional(
+                SCHEMA_LAST_COLUMN_ID + 2, Types.StructType.of(
+                    Types.NestedField.optional(SCHEMA_LAST_COLUMN_ID + 3, "nested", Types.StringType.get())
+                ))
+            )
+        ))
+        .apply();
+
+    AssertHelpers.assertThrows("add a nested field in struct of a map should fail",
+        IllegalArgumentException.class,
+        "must not be nested in " + newSchema.findField("new.fields"),
+        () -> new SchemaUpdate(newSchema, SCHEMA_LAST_COLUMN_ID + 3)
+            .setIdentifierFields("new.fields.element.nested")
+            .apply());
+  }
+
+  @Test
+  public void testDeleteIdentifierFieldColumns() {
+    Schema schemaWithIdentifierFields = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+        .setIdentifierFields("id")
+        .apply();
+
+    Assert.assertEquals("delete column and then reset identifier field should succeed",
+        Sets.newHashSet(),
+        new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID)
+            .deleteColumn("id").setIdentifierFields(Sets.newHashSet()).apply()
+            .identifierFieldIds());
+
+    Assert.assertEquals("delete reset identifier field and then delete column should succeed",
+        Sets.newHashSet(),
+        new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID)
+            .setIdentifierFields(Sets.newHashSet()).deleteColumn("id").apply()
+            .identifierFieldIds());
+  }
+
+  @Test
+  public void testDeleteIdentifierFieldColumnsFails() {
+    Schema schemaWithIdentifierFields = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+        .setIdentifierFields("id")
+        .apply();
+
+    AssertHelpers.assertThrows("delete an identifier column without setting identifier fields should fail",
+        IllegalArgumentException.class,
+        "Cannot delete identifier field 1: id: required int. To force deletion, " +
+            "also call setIdentifierFields to update identifier fields.",
+        () -> new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID).deleteColumn("id").apply());
+  }
+
+  @Test
+  public void testRenameIdentifierFields() {
+    Schema schemaWithIdentifierFields = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+        .setIdentifierFields("id")
+        .apply();
+
+    Schema newSchema = new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID)
+        .renameColumn("id", "id2")
+        .apply();
+
+    Assert.assertEquals("rename should not affect identifier fields",
+        Sets.newHashSet(SCHEMA.findField("id").fieldId()),
+        newSchema.identifierFieldIds());
+  }
+
+  @Test
+  public void testMoveIdentifierFields() {
+    Schema schemaWithIdentifierFields = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
+        .setIdentifierFields("id")
+        .apply();
+
+    Schema newSchema = new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID)
+        .moveAfter("id", "locations")
+        .apply();
+
+    Assert.assertEquals("move after should not affect identifier fields",
+        Sets.newHashSet(SCHEMA.findField("id").fieldId()),
+        newSchema.identifierFieldIds());
+
+    newSchema = new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID)
+        .moveBefore("id", "locations")
+        .apply();
+
+    Assert.assertEquals("move before should not affect identifier fields",
+        Sets.newHashSet(SCHEMA.findField("id").fieldId()),
+        newSchema.identifierFieldIds());
+
+    newSchema = new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID)
+        .moveFirst("id")
+        .apply();
+
+    Assert.assertEquals("move first should not affect identifier fields",
+        Sets.newHashSet(SCHEMA.findField("id").fieldId()),
+        newSchema.identifierFieldIds());
+  }
 }

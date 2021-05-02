@@ -22,6 +22,10 @@
     {
       "type": "struct",
       "schema-id": 1,
+      "identifier-field-ids": [
+        1,
+        2
+      ],
       "fields": [
         {
           "id": 1,
