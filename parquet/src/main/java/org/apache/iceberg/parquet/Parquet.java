@@ -107,6 +107,7 @@ public class Parquet {
     private Function<MessageType, ParquetValueWriter<?>> createWriterFunc = null;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
+    private WriterVersion writerVersion = WriterVersion.PARQUET_1_0;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -189,6 +190,12 @@ public class Parquet {
       }
     }
 
+    // Required for testing purposes
+    WriteBuilder withWriterVersion(WriterVersion version) {
+      this.writerVersion = version;
+      return this;
+    }
+
     public <D> FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
@@ -221,8 +228,6 @@ public class Parquet {
             // compression level is not supported; ignore it
         }
       }
-
-      WriterVersion writerVersion = WriterVersion.PARQUET_1_0;
 
       set("parquet.avro.write-old-list-structure", "false");
       MessageType type = ParquetSchemaUtil.convert(schema, name);
