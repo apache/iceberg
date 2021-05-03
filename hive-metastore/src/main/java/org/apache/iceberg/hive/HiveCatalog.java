@@ -83,9 +83,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     this.fileIO = new HadoopFileIO(conf);
     Map<String, String> properties = ImmutableMap.of(
             CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
-            conf.get(CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS),
+            conf.get(CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
+                    String.valueOf(CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS_DEFAULT)),
             CatalogProperties.CLIENT_POOL_SIZE,
-            conf.get(CatalogProperties.CLIENT_POOL_SIZE)
+            conf.get(CatalogProperties.CLIENT_POOL_SIZE,
+                    String.valueOf(CatalogProperties.CLIENT_POOL_SIZE_DEFAULT))
     );
     this.clients = new CachedClientPool(conf, properties);
   }
