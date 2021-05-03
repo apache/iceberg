@@ -59,6 +59,9 @@ HiveCatalog catalog = new HiveCatalog(hadoopConfiguration);
 catalog.createTable(tableId, schema, spec);
 ```
 
+!!! Warning
+    When using Tez, you also have to disable vectorization for now (`hive.vectorized.execution.enabled=false`)
+
 #### Table property configuration
 
 Alternatively, the property `engine.hive.enabled` can be set to `true` and added to the table properties when creating the Iceberg table. 
@@ -264,9 +267,6 @@ Here are the features highlights for Iceberg Hive read support:
 3. **Hive query engines**: Both the MapReduce and Tez query execution engines are supported.
 
 ### Configurations
-
-!!! Warning
-    When reading with Tez, you also have to disable vectorization for now (`hive.vectorized.execution.enabled=false`)
 
 Here are the Hadoop configurations that one can adjust for the Hive reader:
 
