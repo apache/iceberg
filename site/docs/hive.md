@@ -72,21 +72,24 @@ catalog.createTable(tableId, schema, spec, tableProperties);
 
 The table level configuration overrides the global Hadoop configuration.
 
-## Iceberg and Hive catalog compatibility
+## Catalog Management
 
 ### Global Hive catalog
 
 From the Hive engine's perspective, there is only one global data catalog that is defined in the Hadoop configuration in the runtime environment.
 On contrast, Iceberg supports multiple different data catalog types such as Hive, Hadoop, AWS Glue, or custom catalog implementations.
-Users might want to read tables in anther catalog through the Hive engine, or perform cross-catalog operations like join.
+Iceberg also allows loading a table directly based on its path in the file system. Those tables do not belong to any catalog.
+Users might want to read these cross-catalog and path-based tables through the Hive engine for use cases like join.
 
-Iceberg handles this issue in the following way:
+To support this, a table in the Hive metastore can represent three different ways of loading an Iceberg table,
+depending on the table's `iceberg.catalog` configuration:
 
-1. All tables created by Iceberg's `HiveCatalog` with Hive engine feature enabled are automatically visible by the Hive engine.
-2. For Iceberg tables created in other catalogs, the catalog information is registered through Hadoop configuration.
-A Hive external table overlay needs to be created in the Hive metastore, 
-and the actual catalog name is recorded as a part of the overlay table properties.
-See [CREATE EXTERNAL TABLE](#create-external-table) section for more details.
+1. The table will be loaded using a `HiveCatalog` that corresponds to the metastore configured in the Hive environment if no `iceberg.catalog` is set.
+2. The table will be loaded using a custom catalog if `iceberg.catalog` is set to a catalog name (see below)
+3. The table can be loaded using the table's location if `iceberg.catalog` is set to `location_based_table`
+
+For cases 2 and 3 above, users can create an overlay of an Iceberg table using [CREATE EXTERNAL TABLE](#create-external-table) in the Hive metastore,
+so that different table types can work together under the same Hive environment.
 
 ### Custom Iceberg catalogs
 
@@ -126,6 +129,8 @@ SET iceberg.catalog.glue.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager
 SET iceberg.catalog.glue.lock.table=myGlueLockTable;
 ```
 
+See [CREATE EXTERNAL TABLE](#create-external-table) section for more details.
+
 ## DDL Commands
 
 ### CREATE EXTERNAL TABLE
@@ -134,13 +139,6 @@ The `CREATE EXTERNAL TABLE` command is used to overlay a Hive table "on top of" 
 Iceberg tables are created using either a [`Catalog`](./javadoc/master/index.html?org/apache/iceberg/catalog/Catalog.html),
 or an implementation of the [`Tables`](./javadoc/master/index.html?org/apache/iceberg/Tables.html) interface,
 and Hive needs to be configured accordingly to operate on these different types of table.
-
-A table in the Hive metastore can represent three different ways of loading an Iceberg table, 
-depending on the table's `iceberg.catalog` configuration:
-
-1. The table will be loaded using a `HiveCatalog` that corresponds to the metastore configured in the Hive environment if no `iceberg.catalog` is set.
-2. The table will be loaded using a custom catalog if `iceberg.catalog` is set to a catalog name
-3. The table can be loaded using the table's location if `iceberg.catalog` is set to `location_based_table`
 
 #### Hive catalog tables
 
