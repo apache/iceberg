@@ -45,19 +45,15 @@ Please refer to Hive's documentation for more information.
 
 ### Enabling support
 
+If the Iceberg storage handler is not in Hive's classpath, then Hive cannot load or update the metadata for an Iceberg table when the storage handler is set.
+To avoid the appearance of broken tables in Hive, Iceberg will not add the storage handler to a table unless Hive support is enabled.
+The storage handler is kept in sync (added or removed) every time a table is updated.
+There are two ways to enable Hive support: globally in Hadoop Configuration and per-table using a table property.
+
 #### Hadoop configuration
 
-The value `iceberg.engine.hive.enabled` needs to be set to `true` in the Hadoop configuration in the environment.
-For example, it can be added to the Hive configuration file on the classpath of the application creating or modifying (altering, inserting etc.) the table by modifying the relevant `hive-site.xml`.
-You can also do it programmatically like so:
-
-```java
-Configuration hadoopConfiguration = spark.sparkContext().hadoopConfiguration();
-hadoopConfiguration.set(ConfigProperties.ENGINE_HIVE_ENABLED, "true"); // iceberg.engine.hive.enabled=true
-HiveCatalog catalog = new HiveCatalog(hadoopConfiguration);
-...
-catalog.createTable(tableId, schema, spec);
-```
+To enable Hive support globally for an application, set `iceberg.engine.hive.enabled=true` in its Hadoop configuration. 
+For example, setting this in the `hive-site.xml` loaded by Spark will enable the storage handler for all tables created by Spark.
 
 !!! Warning
     When using Tez, you also have to disable vectorization for now (`hive.vectorized.execution.enabled=false`)
@@ -74,14 +70,14 @@ tableProperties.put(TableProperties.ENGINE_HIVE_ENABLED, "true"); // engine.hive
 catalog.createTable(tableId, schema, spec, tableProperties);
 ```
 
-The table level configuration overwrites the global Hadoop configuration.
+The table level configuration overrides the global Hadoop configuration.
 
 ## Iceberg and Hive catalog compatibility
 
 ### Global Hive catalog
 
-From the Hive engine's perspective, there is only 1 global data catalog, which is the Hive metastore defined in the Hadoop configuration in the runtime environment.
-On contrast, Iceberg supports multiple different data catalog types such as Hive, Hadoop, AWS Glue, and also allow any custom catalog implementations.
+From the Hive engine's perspective, there is only one global data catalog that is defined in the Hadoop configuration in the runtime environment.
+On contrast, Iceberg supports multiple different data catalog types such as Hive, Hadoop, AWS Glue, or custom catalog implementations.
 Users might want to read tables in anther catalog through the Hive engine, or perform cross-catalog operations like join.
 
 Iceberg handles this issue in the following way:
@@ -89,7 +85,7 @@ Iceberg handles this issue in the following way:
 1. All tables created by Iceberg's `HiveCatalog` with Hive engine feature enabled are automatically visible by the Hive engine.
 2. For Iceberg tables created in other catalogs, the catalog information is registered through Hadoop configuration.
 A Hive external table overlay needs to be created in the Hive metastore, 
-and the actual catalog name is recorded as a part of the overlay table properties. 
+and the actual catalog name is recorded as a part of the overlay table properties.
 See [CREATE EXTERNAL TABLE](#create-external-table) section for more details.
 
 ### Custom Iceberg catalogs
@@ -139,6 +135,13 @@ Iceberg tables are created using either a [`Catalog`](./javadoc/master/index.htm
 or an implementation of the [`Tables`](./javadoc/master/index.html?org/apache/iceberg/Tables.html) interface,
 and Hive needs to be configured accordingly to operate on these different types of table.
 
+A table in the Hive metastore can represent three different ways of loading an Iceberg table, 
+depending on the table's `iceberg.catalog` configuration:
+
+1. The table will be loaded using a `HiveCatalog` that corresponds to the metastore configured in the Hive environment if no `iceberg.catalog` is set.
+2. The table will be loaded using a custom catalog if `iceberg.catalog` is set to a catalog name
+3. The table can be loaded using the table's location if `iceberg.catalog` is set to `location_based_table`
+
 #### Hive catalog tables
 
 As described before, tables created by the `HiveCatalog` with Hive engine feature enabled are directly visible by the Hive engine, so there is no need to create an overlay.
@@ -185,7 +188,7 @@ CREATE TABLE database_a.table_a (
 ```
 
 !!! Note
-    This creates an unpartitioned HMS table, while the underlying Iceberg table is partitioned.
+    to Hive, the table appears to be unpartitioned although the underlying Iceberg table is partitioned.
 
 !!! Note
     Due to the limitation of Hive `PARTITIONED BY` syntax, currently you can only partition by columns, 
@@ -224,7 +227,7 @@ The following Hive types do not have direct Iceberg types mapping, but we can pe
 | char       | string       |
 | varchar    | string       |
 
-You can enable this feature through Hadoop configuration (default not enabled):
+You can enable this feature through Hadoop configuration (not enabled by default):
 
 | Config key                               | Default                     | Description                                         |
 | -----------------------------------------| --------------------------- | --------------------------------------------------- |
