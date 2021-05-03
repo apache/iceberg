@@ -89,7 +89,7 @@ depending on the table's `iceberg.catalog` configuration:
 3. The table can be loaded using the table's location if `iceberg.catalog` is set to `location_based_table`
 
 For cases 2 and 3 above, users can create an overlay of an Iceberg table using [CREATE EXTERNAL TABLE](#create-external-table) in the Hive metastore,
-so that different table types can work together under the same Hive environment.
+so that different table types can work together in the same Hive environment.
 
 ### Custom Iceberg catalogs
 
