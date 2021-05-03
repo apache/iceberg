@@ -396,7 +396,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     long snapshotId = snapshotId();
     Snapshot justSaved = ops.refresh().snapshot(snapshotId);
     long sequenceNumber = 0;
-    if( justSaved == null) {
+    if (justSaved == null) {
       // The snapshot just saved may not be present if the latest metadata couldn't be loaded due to eventual
       // consistency problems in refresh.
       LOG.warn("Failed to load committed snapshot, leave sequence number to 0");
