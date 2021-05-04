@@ -270,15 +270,11 @@ public class TestHiveIcebergOutputCommitter {
     for (int i = 0; i < taskNum; ++i) {
       List<Record> records = TestHelper.generateRandomRecords(schema, RECORD_NUM, i + attemptNum);
       TaskAttemptID taskId = new TaskAttemptID(JOB_ID.getJtIdentifier(), JOB_ID.getId(), TaskType.MAP, i, attemptNum);
-      int partitionId = taskId.getTaskID().getId();
-      String operationId = QUERY_ID + "-" + JOB_ID;
-      FileFormat fileFormat = FileFormat.PARQUET;
-      OutputFileFactory outputFileFactory = OutputFileFactory.builderFor(table, partitionId, attemptNum)
-          .format(fileFormat)
-          .operationId(operationId)
-          .build();
-      HiveIcebergRecordWriter testWriter = new HiveIcebergRecordWriter(schema, spec, fileFormat,
-          new GenericAppenderFactory(schema), outputFileFactory, io, TARGET_FILE_SIZE,
+      OutputFileFactory outputFileFactory =
+          new OutputFileFactory(spec, FileFormat.PARQUET, location, io, encryption, taskId.getTaskID().getId(),
+              attemptNum, QUERY_ID + "-" + JOB_ID);
+      HiveIcebergRecordWriter testWriter = new HiveIcebergRecordWriter(schema, spec, FileFormat.PARQUET,
+          new GenericAppenderFactory(table), outputFileFactory, io, TARGET_FILE_SIZE,
           TezUtil.taskAttemptWrapper(taskId), conf.get(Catalogs.NAME));
 
       Container<Record> container = new Container<>();

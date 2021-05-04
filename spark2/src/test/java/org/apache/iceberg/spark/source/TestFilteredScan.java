@@ -188,7 +188,7 @@ public class TestFilteredScan {
     // create records using the table's schema
     this.records = testRecords(tableSchema);
 
-    try (FileAppender<Record> writer = new GenericAppenderFactory(tableSchema).newAppender(
+    try (FileAppender<Record> writer = new GenericAppenderFactory(table).newAppender(
         localOutput(testFile), fileFormat)) {
       writer.addAll(records);
     }

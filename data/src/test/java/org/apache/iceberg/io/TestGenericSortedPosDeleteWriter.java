@@ -134,8 +134,7 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
         createRow(4, "eee")
     );
 
-    FileAppenderFactory<Record> appenderFactory = new GenericAppenderFactory(table.schema(), table.spec(),
-        table.sortOrder(), null, null, null);
+    FileAppenderFactory<Record> appenderFactory = new GenericAppenderFactory(table, null, null, null);
     DataFile dataFile = prepareDataFile(appenderFactory, rowSet);
 
     SortedPosDeleteWriter<Record> writer = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, null, 100);
@@ -182,8 +181,7 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
     );
 
     // Create a FileAppenderFactory which requires pos-delete row schema.
-    FileAppenderFactory<Record> appenderFactory = new GenericAppenderFactory(table.schema(), table.spec(),
-        table.sortOrder(), null, null, table.schema());
+    FileAppenderFactory<Record> appenderFactory = new GenericAppenderFactory(table, null, null, table.schema());
     DataFile dataFile = prepareDataFile(appenderFactory, rowSet);
 
     SortedPosDeleteWriter<Record> writer = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, null, 1);
@@ -206,8 +204,7 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
         createRow(4, "eee")
     );
 
-    FileAppenderFactory<Record> appenderFactory = new GenericAppenderFactory(table.schema(), table.spec(),
-        table.sortOrder(), null, null, table.schema());
+    FileAppenderFactory<Record> appenderFactory = new GenericAppenderFactory(table, null, null, table.schema());
     DataFile dataFile = prepareDataFile(appenderFactory, rowSet);
 
     SortedPosDeleteWriter<Record> writer = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, null, 100);
@@ -247,8 +244,7 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
 
   @Test
   public void testMultipleFlush() throws IOException {
-    FileAppenderFactory<Record> appenderFactory = new GenericAppenderFactory(table.schema(), table.spec(),
-        table.sortOrder(), null, null, null);
+    FileAppenderFactory<Record> appenderFactory = new GenericAppenderFactory(table, null, null, null);
 
     // It will produce 5 record lists, each list will write into a separate data file:
     // The 1th file has: <0  , val-0>   , <1  , val-1>   , ... , <99 , val-99>
