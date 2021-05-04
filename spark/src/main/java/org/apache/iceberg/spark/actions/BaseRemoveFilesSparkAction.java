@@ -141,15 +141,19 @@ public class BaseRemoveFilesSparkAction
     }
     long minTimeStamp = Long.MAX_VALUE;
     String minMetadataLocation = null;
-    TableMetadata metadata = TableMetadataParser.read(io, metadataFileLocation);
-    for (TableMetadata.MetadataLogEntry previousMetadataFile : metadata.previousFiles()) {
-      metaFiles.add(previousMetadataFile.file());
-      if (previousMetadataFile.timestampMillis() < minTimeStamp) {
-        minTimeStamp = previousMetadataFile.timestampMillis();
-        minMetadataLocation = previousMetadataFile.file();
+    try {
+      TableMetadata metadata = TableMetadataParser.read(io, metadataFileLocation);
+      for (TableMetadata.MetadataLogEntry previousMetadataFile : metadata.previousFiles()) {
+        metaFiles.add(previousMetadataFile.file());
+        if (previousMetadataFile.timestampMillis() < minTimeStamp) {
+          minTimeStamp = previousMetadataFile.timestampMillis();
+          minMetadataLocation = previousMetadataFile.file();
+        }
       }
+      getMetadataFiles(minMetadataLocation, metaFiles, io);
+    } catch (NotFoundException e) {
+      LOG.info("File not found", e);
     }
-    getMetadataFiles(minMetadataLocation, metaFiles, io);
   }
 
   /**

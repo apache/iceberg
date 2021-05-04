@@ -31,9 +31,9 @@ public interface RemoveFiles extends Action<RemoveFiles, RemoveFiles.Result> {
 
   /**
    * Passes an alternative delete implementation that will be used for manifests and data files.
-   * <p>
    *
-   * @param deleteFunc a function that will be called to delete manifests and data files
+   * @param deleteFunc a function that will be called to delete manifests and data files.
+   *                  The function accepts path to file as an argument.
    * @return this for method chaining
    */
   RemoveFiles deleteWith(Consumer<String> deleteFunc);

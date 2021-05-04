@@ -20,6 +20,7 @@
 package org.apache.iceberg.actions;
 
 import java.io.File;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -133,7 +134,7 @@ public abstract class TestRemoveFilesAction extends SparkTestBase {
     RemoveFiles.Result result = Actions.forTable(table).removeFilesAction()
         .executeDeleteWith(Executors.newFixedThreadPool(4, runnable -> {
           Thread thread = new Thread(runnable);
-          thread.setName("drop-table-" + deleteThreadsIndex.getAndIncrement());
+          thread.setName("remove-files-" + deleteThreadsIndex.getAndIncrement());
           thread.setDaemon(true); // daemon threads will be terminated abruptly when the JVM exits
           return thread;
         }))
@@ -262,5 +263,29 @@ public abstract class TestRemoveFilesAction extends SparkTestBase {
 
     Assert.assertEquals(
         "Expected total jobs to be equal to total number of shuffle partitions", totalJobsRun, SHUFFLE_PARTITIONS);
+  }
+
+  @Test
+  public void testIgnoreMetadataFilesNotFound() {
+    table.updateProperties()
+        .set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "1").commit();
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+    // There are three metadata json files at this point
+    List<String> result = Actions.forTable(table)
+        .removeOrphanFiles()
+        .olderThan(System.currentTimeMillis()).execute();
+
+    Assert.assertEquals("Should delete 1 file", 1, result.size());
+    Assert.assertTrue("Should remove v1 file", result.get(0).contains("v1.metadata.json"));
+
+    BaseRemoveFilesSparkAction baseRemoveFilesSparkAction = Actions.forTable(table)
+        .removeFilesAction();
+    RemoveFiles.Result res = baseRemoveFilesSparkAction.execute();
+
+    checkRemoveFilesResults(1, 1, 1, 4,  res);
+
   }
 }

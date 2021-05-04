@@ -54,8 +54,7 @@ public abstract class TestIcebergSourceHiveTables extends TestIcebergSourceTable
   @Override
   public Table createTable(TableIdentifier ident, Schema schema, PartitionSpec spec) {
     TestIcebergSourceHiveTables.currentIdentifier = ident;
-    Table table = TestIcebergSourceHiveTables.catalog.createTable(ident, schema, spec);
-    return table;
+    return TestIcebergSourceHiveTables.catalog.createTable(ident, schema, spec);
   }
 
   @Override
