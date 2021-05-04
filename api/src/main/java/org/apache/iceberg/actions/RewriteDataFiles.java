@@ -19,92 +19,119 @@
 
 package org.apache.iceberg.actions;
 
-import org.apache.iceberg.DataFile;
+import java.util.Map;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.Expression;
 
 /**
- * An action that rewrites data files.
+ * An action for rewriting datafiles according to a Compaction Strategy. Generally used for
+ * optimizing the sizing and layout of datafiles within a table.
  */
-public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, RewriteDataFiles.Result> {
-  /**
-   * Pass a row filter to filter {@link DataFile}s to be rewritten.
-   * <p>
-   * Note that all files that may contain data matching the filter may be rewritten.
-   * <p>
-   * If not set, all files will be rewritten.
-   *
-   * @param expr a row filter to filter out data files
-   * @return this for method chaining
-   */
-  RewriteDataFiles filter(Expression expr);
+public interface RewriteDataFiles extends Action<RewriteDataFiles, RewriteDataFiles.Result> {
 
   /**
-   * Enables or disables case sensitive expression binding.
-   * <p>
-   * If not set, defaults to false.
-   *
-   * @param caseSensitive caseSensitive
-   * @return this for method chaining
+   * Enable committing groups of files (see max-file-group-size) prior to the entire compaction completing. This will produce additional commits
+   * but allow for progress even if some groups fail to commit. The default is false, which produces a single commit
+   * when the entire job has completed.
    */
-  RewriteDataFiles caseSensitive(boolean caseSensitive);
+  String PARTIAL_PROGRESS_ENABLED = "partial-progress.enabled";
+  boolean PARTIAL_PROGRESS_ENABLED_DEFAULT = false;
 
   /**
-   * Pass a PartitionSpec id to specify which PartitionSpec should be used in DataFile rewrite
-   * <p>
-   * If not set, defaults to the table's default spec ID.
-   *
-   * @param specId PartitionSpec id to rewrite
-   * @return this for method chaining
+   * The maximum amount of Iceberg commits that compaction is allowed to produce if partial progress is enabled.
    */
-  RewriteDataFiles outputSpecId(int specId);
+  String PARTIAL_PROGRESS_MAX_COMMITS = "partial-progress.max-commits";
+  int PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT = 10;
 
   /**
-   * Specify the target data file size in bytes.
-   * <p>
-   * If not set, defaults to the table's target file size.
-   *
-   * @param targetSizeInBytes size in bytes of rewrite data file
-   * @return this for method chaining
+   * The entire compaction operation is broken down into pieces based on partitioning and within partitions based
+   * on size into groups. These sub-units of compaction are referred to as file groups. The largest amount of data that
+   * should be compacted in a single group is controlled by MAX_FILE_GROUP_SIZE_BYTES. When grouping files, the
+   * underlying compaction strategy will use this value as to limit the files which will be included in a single file
+   * group. A group will be processed by a single framework "action". For example, in Spark this means that each group
+   * would be rewritten in its own Spark action. A group will never contain files for multiple output partitions.
    */
-  RewriteDataFiles targetSizeInBytes(long targetSizeInBytes);
+  String MAX_FILE_GROUP_SIZE_BYTES = "max-file-group-size-bytes";
+  long MAX_FILE_GROUP_SIZE_BYTES_DEFAULT = 1024L * 1024L * 1024L * 100L; // 100 Gigabytes
 
   /**
-   * Specify the number of "bins" considered when trying to pack the next file split into a task. Increasing this
-   * usually makes tasks a bit more even by considering more ways to pack file regions into a single task with extra
-   * planning cost.
-   * <p>
-   * This configuration can reorder the incoming file regions, to preserve order for lower/upper bounds in file
-   * metadata, user can use a lookback of 1.
-   *
-   * @param splitLookback number of "bins" considered when trying to pack the next file split into a task.
-   * @return this for method chaining
-   */
-  RewriteDataFiles splitLookback(int splitLookback);
+   * The max number of file groups to be simultaneously rewritten by the compaction strategy. The structure and
+   * contents of the group is determined by the compaction strategy. Each file group will be rewritten
+   * independently and asynchronously.
+   **/
+  String MAX_CONCURRENT_FILE_GROUP_ACTIONS = "max-concurrent-file-group-actions";
+  int MAX_CONCURRENT_FILE_GROUP_ACTIONS_DEFAULT = 1;
 
   /**
-   * Specify the cost of opening a file that will be taken into account during packing files into
-   * bins. If the size of the file is smaller than the cost of opening, then this value will be used
-   * instead of the actual file size.
-   * <p>
-   * If not set, defaults to the table's open file cost.
-   *
-   * @param splitOpenFileCost minimum file size to count to pack into one "bin".
-   * @return this for method chaining
+   * The output file size that this compaction strategy will attempt to generate when rewriting files. By default this
+   * will use the write.target-size value in the table properties of the table being updated.
    */
-  RewriteDataFiles splitOpenFileCost(long splitOpenFileCost);
+  String TARGET_FILE_SIZE_BYTES = "target-file-size-bytes";
 
   /**
-   * The action result that contains a summary of the execution.
+   * The partition spec to use when writing the output data from this operation. By default uses the
+   * current table partition spec.
+   */
+  String PARTITION_SPEC_ID = "partition-spec-id";
+
+  enum CompactionStrategyName {
+    BinPack,
+    Sort
+  }
+
+  /**
+   * The name of the compaction strategy to be used when compacting data files. Currently we only support BINPACK and
+   * SORT as options.
+   *
+   * @param strategyName name of the strategy
+   * @return this for method chaining
+   */
+  RewriteDataFiles strategy(CompactionStrategyName strategyName);
+
+  /**
+   * A user provided filter for determining which files will be considered by the compaction strategy. This will be used
+   * in addition to whatever rules the compaction strategy generates. For example this would be used for providing a
+   * restriction to only run compaction on a specific partition.
+   *
+   * @param expression only entries that pass this filter will be compacted
+   * @return this for chaining
+   */
+  RewriteDataFiles filter(Expression expression);
+
+  /**
+   * A pairing of file group information to the result of the rewriting that file group. If the results are null then
+   * that particular chunk failed. We should only have failed groups if partial progress is enabled otherwise we will
+   * report a total failure for the job.
    */
   interface Result {
-    /**
-     * Returns rewritten data files.
-     */
-    Iterable<DataFile> rewrittenDataFiles();
+    Map<FileGroupInfo, FileGroupResult> resultMap();
+  }
+
+  interface FileGroupResult {
+    int addedDataFilesCount();
+
+    int rewrittenDataFilesCount();
+  }
+
+  /**
+   * A description of a file group, when it was processed, and within which partition. For use
+   * tracking rewrite operations and for returning results.
+   */
+  interface FileGroupInfo {
 
     /**
-     * Returns added data files.
+     * returns which chunk this is out of the total set of chunks for this compaction
      */
-    Iterable<DataFile> addedDataFiles();
+    int globalIndex();
+
+    /**
+     * returns which chunk this is out of the set of chunks for this partition
+     */
+    int partitionIndex();
+
+    /**
+     * returns which partition this chunk contains files from
+     */
+    StructLike partition();
   }
 }
