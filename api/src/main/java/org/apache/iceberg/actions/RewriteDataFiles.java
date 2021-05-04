@@ -30,8 +30,9 @@ import org.apache.iceberg.expressions.Expression;
 public interface RewriteDataFiles extends Action<RewriteDataFiles, RewriteDataFiles.Result> {
 
   /**
-   * Enable committing groups of files (see max-file-group-size) prior to the entire compaction completing. This will produce additional commits
-   * but allow for progress even if some groups fail to commit. The default is false, which produces a single commit
+   * Enable committing groups of files (see max-file-group-size) prior to the entire compaction completing.
+   * This will produce additional commits but allow for progress even if some groups fail to commit. This setting
+   * will not change the correctness of the rewrite operation. The default is false, which produces a single commit
    * when the entire job has completed.
    */
   String PARTIAL_PROGRESS_ENABLED = "partial-progress.enabled";
