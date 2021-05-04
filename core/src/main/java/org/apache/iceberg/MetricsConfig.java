@@ -47,9 +47,9 @@ public class MetricsConfig implements Serializable {
     return spec;
   }
 
-  public static Map<String, String> updateProperties(Map<String, String> props, List<String> deletes,
-                                                     Map<String, String> renames) {
-    if (!props.keySet().stream().anyMatch(key -> key.startsWith(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX))) {
+  public static Map<String, String> updateProperties(Map<String, String> props, List<String> deletedColumns,
+                                                     Map<String, String> renamedColumns) {
+    if (props.keySet().stream().noneMatch(key -> key.startsWith(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX))) {
       return props;
     } else {
       Map<String, String> updatedProperties = Maps.newHashMap();
@@ -57,11 +57,12 @@ public class MetricsConfig implements Serializable {
       props.keySet().forEach(key -> {
         if (key.startsWith(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX)) {
           String columnAlias = key.replaceFirst(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX, "");
-          if (renames.get(columnAlias) != null) {
+          if (renamedColumns.get(columnAlias) != null) {
             // The name has changed.
-            String newKey = TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + renames.get(columnAlias);
+            String newKey = TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX +
+                renamedColumns.get(columnAlias);
             updatedProperties.put(newKey, props.get(key));
-          } else if (!deletes.contains(columnAlias)) {
+          } else if (!deletedColumns.contains(columnAlias)) {
             // Copy over the original
             updatedProperties.put(key, props.get(key));
           }
