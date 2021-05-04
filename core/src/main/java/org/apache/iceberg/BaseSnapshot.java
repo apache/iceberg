@@ -33,8 +33,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class BaseSnapshot implements Snapshot {
-  private static final long INITIAL_SEQUENCE_NUMBER = 0;
-
   private final FileIO io;
   private final long snapshotId;
   private final Long parentId;
@@ -87,7 +85,7 @@ class BaseSnapshot implements Snapshot {
                String operation,
                Map<String, String> summary,
                List<ManifestFile> dataManifests) {
-    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, null);
+    this(io, TableMetadata.INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, null);
     this.allManifests = dataManifests;
   }
 
