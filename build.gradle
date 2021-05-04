@@ -551,6 +551,60 @@ project(':iceberg-mr') {
 }
 
 if (jdkVersion == '8') {
+  // The purpose of this module is to re-shade org.apache.orc.storage to the original org.apache.hadoop.hive package
+  // name. This is to be used by Hive3 for features including e.g. vectorization.
+  project(':iceberg-hive3-orc-bundle') {
+
+    apply plugin: 'com.github.johnrengelman.shadow'
+
+    tasks.jar.dependsOn tasks.shadowJar
+
+    dependencies {
+      compile project(':iceberg-data')
+      compile project(':iceberg-orc')
+
+      testCompileOnly project(path: ':iceberg-data', configuration: 'testArtifacts')
+      testCompileOnly project(path: ':iceberg-orc', configuration: 'testArtifacts')
+    }
+
+    shadowJar {
+      configurations = [project.configurations.compile, project.configurations.compileOnly, project.configurations.testCompileOnly]
+
+      zip64 true
+
+      // include the LICENSE and NOTICE files for the shaded Jar
+      from(projectDir) {
+        include 'LICENSE'
+        include 'NOTICE'
+      }
+
+      // Relocate dependencies to avoid conflicts
+      relocate 'org.apache.orc.storage', 'org.apache.hadoop.hive'
+
+      // We really only need Iceberg and Orc classes, but with relocated references for storage-api classes (see above)
+      // Unfortunately the include list feature of this shader plugin doesn't work as expected
+      exclude 'com/**/*'
+      exclude 'edu/**/*'
+      exclude 'io/**'
+      exclude 'javax/**'
+      exclude 'org/apache/avro/**/*'
+      exclude 'org/apache/commons/**/*'
+      exclude 'org/checkerframework/**/*'
+      exclude 'org/codehaus/**/*'
+      exclude 'org/intellij/**/*'
+      exclude 'org/jetbrains/**/*'
+      exclude 'org/slf4j/**/*'
+      exclude 'org/threeten/**/*'
+
+      classifier null
+    }
+
+    jar {
+      enabled = false
+    }
+
+  }
+
   project(':iceberg-hive3') {
 
     // run the tests in iceberg-mr with Hive3 dependencies
@@ -569,13 +623,13 @@ if (jdkVersion == '8') {
     }
 
     dependencies {
-      compile project(':iceberg-api')
-      compile project(':iceberg-core')
-      compile project(':iceberg-data')
-      compile project(':iceberg-hive-metastore')
-      compile project(':iceberg-orc')
-      compile project(':iceberg-parquet')
-      compile project(':iceberg-mr')
+      compileOnly project(':iceberg-api')
+      compileOnly project(':iceberg-core')
+      compileOnly project(':iceberg-hive-metastore')
+      compileOnly project(':iceberg-parquet')
+      compileOnly project(':iceberg-hive3-orc-bundle')
+      compileOnly project(':iceberg-mr')
+
 
       compileOnly("org.apache.hadoop:hadoop-client:3.1.0") {
         exclude group: 'org.apache.avro', module: 'avro'
@@ -592,10 +646,13 @@ if (jdkVersion == '8') {
         exclude group: 'org.pentaho' // missing dependency
         exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       }
-      compileOnly("org.apache.hive:hive-metastore:3.1.2")
-      compileOnly("org.apache.hive:hive-serde:3.1.2")
+      compileOnly("org.apache.hive:hive-metastore:3.1.2") {
+        exclude group: 'org.apache.orc'
+      }
+      compileOnly("org.apache.hive:hive-serde:3.1.2") {
+        exclude group: 'org.apache.orc'
+      }
 
-      testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
       testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
       testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
       testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
@@ -606,6 +663,7 @@ if (jdkVersion == '8') {
       testCompile("com.fasterxml.jackson.core:jackson-annotations:2.6.5")
       testCompile("org.apache.hive:hive-service:3.1.2") {
         exclude group: 'org.apache.hive', module: 'hive-exec'
+        exclude group: 'org.apache.orc'
       }
       testCompile("org.apache.tez:tez-dag:0.9.1")
       testCompile("org.apache.tez:tez-mapreduce:0.9.1")
@@ -628,7 +686,7 @@ project(':iceberg-hive-runtime') {
       exclude group: 'com.github.stephenc.findbugs'
       exclude group: 'commons-pool'
       exclude group: 'javax.annotation'
-      exclude group: 'javax.xml.bind'      
+      exclude group: 'javax.xml.bind'
       exclude group: 'org.apache.commons'
       exclude group: 'org.slf4j'
       exclude group: 'org.xerial.snappy'
@@ -645,7 +703,7 @@ project(':iceberg-hive-runtime') {
     }
     compile project(':iceberg-aws')
   }
-  
+
   shadowJar {
     configurations = [project.configurations.compile]
 
@@ -659,7 +717,7 @@ project(':iceberg-hive-runtime') {
 
     // Relocate dependencies to avoid conflicts
     relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
-    relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'  
+    relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
     relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
     relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
     relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
