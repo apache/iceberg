@@ -82,14 +82,15 @@ Iceberg also allows loading a table directly based on its path in the file syste
 Users might want to read these cross-catalog and path-based tables through the Hive engine for use cases like join.
 
 To support this, a table in the Hive metastore can represent three different ways of loading an Iceberg table,
-depending on the table's `iceberg.catalog` configuration:
+depending on the table's `iceberg.catalog` property:
 
-1. The table will be loaded using a `HiveCatalog` that corresponds to the metastore configured in the Hive environment if no `iceberg.catalog` is set.
+1. The table will be loaded using a `HiveCatalog` that corresponds to the metastore configured in the Hive environment if no `iceberg.catalog` is set
 2. The table will be loaded using a custom catalog if `iceberg.catalog` is set to a catalog name (see below)
-3. The table can be loaded using the table's location if `iceberg.catalog` is set to `location_based_table`
+3. The table can be loaded directly using the table's root location if `iceberg.catalog` is set to `location_based_table`
 
-For cases 2 and 3 above, users can create an overlay of an Iceberg table using [CREATE EXTERNAL TABLE](#create-external-table) in the Hive metastore,
+For cases 2 and 3 above, users can create an overlay of an Iceberg table in the Hive metastore,
 so that different table types can work together in the same Hive environment.
+See [CREATE EXTERNAL TABLE](#create-external-table) for more details.
 
 ### Custom Iceberg catalogs
 
@@ -128,8 +129,6 @@ SET iceberg.catalog.glue.warehouse=s3://my-bucket/my/key/prefix;
 SET iceberg.catalog.glue.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager;
 SET iceberg.catalog.glue.lock.table=myGlueLockTable;
 ```
-
-See [CREATE EXTERNAL TABLE](#create-external-table) section for more details.
 
 ## DDL Commands
 
@@ -189,9 +188,36 @@ CREATE TABLE database_a.table_a (
     to Hive, the table appears to be unpartitioned although the underlying Iceberg table is partitioned.
 
 !!! Note
-    Due to the limitation of Hive `PARTITIONED BY` syntax, currently you can only partition by columns, 
-    which is translated to Iceberg identity partition transform.
+    Due to the limitation of Hive `PARTITIONED BY` syntax, if you use Hive `CRRATE TABLE`, 
+    currently you can only partition by columns, which is translated to Iceberg identity partition transform.
     You cannot partition by other Iceberg partition transforms such as `days(timestamp)`.
+    To create table with all partition transforms, you need to create the table with other engines like Spark or Flink.
+
+#### Custom catalog table
+
+You can also create a new table that is managed by a custom catalog. 
+For example, the following code creates a table in a custom Hadoop catalog:
+
+```sql
+SET iceberg.catalog.hadoop_cat.type=hadoop;
+SET iceberg.catalog.hadoop_cat.warehouse=hdfs://example.com:8020/hadoop_cat;
+
+CREATE TABLE database_a.table_a (
+  id bigint, name string
+) PARTITIONED BY (
+  dept string
+) STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler'
+TBLPROPERTIES ('iceberg.catalog'='hadoop_cat');
+```
+
+!!! Warning
+    If the table to create already exists in the custom catalog, this will create a managed overlay table.
+    This means technically you can omit the `EXTERNAL` keyword when creating an overlay table.
+    However, this is **not recommended** because creating managed overlay tables could pose a risk
+    to the shared data files in case of accidental drop table commands from the Hive side, 
+    which would unintentionally remove all the data in the table.
+
+#### Types
 
 The following Hive types have direct Iceberg types mapping:
 
