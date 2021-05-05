@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.actions.compaction;
+package org.apache.iceberg.actions.rewrite;
 
 import java.io.Serializable;
 import java.util.List;
@@ -27,7 +27,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 
-interface DataCompactionStrategy extends Serializable {
+interface RewriteStrategy extends Serializable {
   /**
    * Returns the name of this compaction strategy
    */
@@ -39,13 +39,13 @@ interface DataCompactionStrategy extends Serializable {
    */
   Set<String> validOptions();
 
-  DataCompactionStrategy withOptions(Map<String, String> options);
+  RewriteStrategy withOptions(Map<String, String> options);
 
   /**
    * Selects files which this strategy believes are valid targets to be rewritten.
    *
-   * @param dataFiles iterator of live datafiles in a given partition
-   * @return iterator containing only files to be rewritten
+   * @param dataFiles iterable of FileScanTasks for files in a given partition
+   * @return iterable containing only FileScanTasks to be rewritten
    */
   Iterable<FileScanTask> selectFilesToCompact(Iterable<FileScanTask> dataFiles);
 
@@ -54,19 +54,18 @@ interface DataCompactionStrategy extends Serializable {
    * committed as an independent set of changes. This creates the jobs which will eventually be run as by the underlying
    * Action.
    *
-   * @param dataFiles iterator of files to be rewritten
-   * @return iterator of sets of files to be processed together
+   * @param dataFiles iterable of FileScanTasks to be rewritten
+   * @return iterable of lists of FileScanTasks which will be processed together
    */
-  Iterable<Set<FileScanTask>> groupFilesIntoChunks(Iterable<FileScanTask> dataFiles);
+  Iterable<List<FileScanTask>> planFileGroups(Iterable<FileScanTask> dataFiles);
 
   /**
-   * Method which will rewrite files based on this particular DataCompactionStrategy's algorithm.
+   * Method which will rewrite files based on this particular RewriteStrategy's algorithm.
    * This will most likely be Action framework specific (Spark/Presto/Flink ....).
    *
    * @param table          table being modified
    * @param filesToRewrite a group of files to be rewritten together
    * @return a list of newly written files
    */
-  List<DataFile> rewriteFiles(Table table, Set<FileScanTask> filesToRewrite);
-
+  List<DataFile> rewriteFiles(Table table, List<FileScanTask> filesToRewrite);
 }

@@ -24,7 +24,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.Expression;
 
 /**
- * An action for rewriting datafiles according to a Compaction Strategy. Generally used for
+ * An action for rewriting datafiles according to a Rewrite Strategy. Generally used for
  * optimizing the sizing and layout of datafiles within a table.
  */
 public interface RewriteDataFiles extends Action<RewriteDataFiles, RewriteDataFiles.Result> {
@@ -75,9 +75,9 @@ public interface RewriteDataFiles extends Action<RewriteDataFiles, RewriteDataFi
    */
   String PARTITION_SPEC_ID = "partition-spec-id";
 
-  enum CompactionStrategyName {
-    BinPack,
-    Sort
+  enum RewriteStrategyName {
+    BINPACK,
+    SORT
   }
 
   /**
@@ -87,7 +87,7 @@ public interface RewriteDataFiles extends Action<RewriteDataFiles, RewriteDataFi
    * @param strategyName name of the strategy
    * @return this for method chaining
    */
-  RewriteDataFiles strategy(CompactionStrategyName strategyName);
+  RewriteDataFiles strategy(RewriteStrategyName strategyName);
 
   /**
    * A user provided filter for determining which files will be considered by the compaction strategy. This will be used
@@ -101,14 +101,14 @@ public interface RewriteDataFiles extends Action<RewriteDataFiles, RewriteDataFi
 
   /**
    * A pairing of file group information to the result of the rewriting that file group. If the results are null then
-   * that particular chunk failed. We should only have failed groups if partial progress is enabled otherwise we will
-   * report a total failure for the job.
+   * that particular file group failed. We should only have failed groups if partial progress is enabled otherwise we
+   * will report a total failure for the job.
    */
   interface Result {
-    Map<FileGroupInfo, FileGroupResult> resultMap();
+    Map<FileGroupInfo, FileGroupRewriteResult> resultMap();
   }
 
-  interface FileGroupResult {
+  interface FileGroupRewriteResult {
     int addedDataFilesCount();
 
     int rewrittenDataFilesCount();
@@ -121,17 +121,17 @@ public interface RewriteDataFiles extends Action<RewriteDataFiles, RewriteDataFi
   interface FileGroupInfo {
 
     /**
-     * returns which chunk this is out of the total set of chunks for this compaction
+     * returns which file group this is out of the total set of file groups for this compaction
      */
     int globalIndex();
 
     /**
-     * returns which chunk this is out of the set of chunks for this partition
+     * returns which file group this is out of the set of file groups for this partition
      */
     int partitionIndex();
 
     /**
-     * returns which partition this chunk contains files from
+     * returns which partition this file group contains files from
      */
     StructLike partition();
   }
