@@ -24,7 +24,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.Expression;
 
 /**
- * An action for rewriting data files according to a {@link org.apache.iceberg.actions.rewrite.RewriteStrategy}.
+ * An action for rewriting data files according to a rewrite strategy.
  * Generally used for optimizing the sizing and layout of data files within a table.
  */
 public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, RewriteDataFiles.Result> {
