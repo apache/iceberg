@@ -332,7 +332,7 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   @Override
-  public UpdateSchema setIdentifierFields(Set<String> names) {
+  public UpdateSchema setIdentifierFields(Collection<String> names) {
     this.identifierFieldNames = Sets.newHashSet(names);
     return this;
   }
