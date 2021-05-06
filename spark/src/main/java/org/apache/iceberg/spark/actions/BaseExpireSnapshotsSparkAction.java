@@ -19,14 +19,12 @@
 
 package org.apache.iceberg.spark.actions;
 
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -35,7 +33,9 @@ import org.apache.iceberg.actions.BaseExpireSnapshotsActionResult;
 import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.PropertyUtil;
@@ -184,27 +184,30 @@ public class BaseExpireSnapshotsSparkAction
 
   @Override
   public ExpireSnapshots.Result execute() {
-    JobGroupInfo info = newJobGroupInfo("EXPIRE-SNAPSHOTS", getDescription());
+    JobGroupInfo info = newJobGroupInfo("EXPIRE-SNAPSHOTS", jobDesc());
     return withJobGroupInfo(info, this::doExecute);
   }
 
-  private String getDescription() {
-    List<String> msgs = new ArrayList<>();
+  private String jobDesc() {
+    List<String> options = Lists.newArrayList();
     if (expireOlderThanValue != null) {
-      msgs.add("older_than=" + expireOlderThanValue);
+      options.add("older_than=" + expireOlderThanValue);
     }
+
     if (retainLastValue != null) {
-      msgs.add("retain_last=" + retainLastValue);
+      options.add("retain_last=" + retainLastValue);
     }
+
     if (!expiredSnapshotIds.isEmpty()) {
       Long first = expiredSnapshotIds.stream().findFirst().get();
       if (expiredSnapshotIds.size() > 1) {
-        msgs.add(String.format("snapshot_ids: %s(%s more...)", first, expiredSnapshotIds.size() - 1));
+        options.add(String.format("snapshot_ids: %s (%s more...)", first, expiredSnapshotIds.size() - 1));
       } else {
-        msgs.add(String.format("snapshot_id: %s", first));
+        options.add(String.format("snapshot_id: %s", first));
       }
     }
-    return String.format("Expiring snapshots(%s) in %s", StringUtils.join(msgs, ","), table.name());
+
+    return String.format("Expiring snapshots(%s) in %s", Joiner.on(',').join(options), table.name());
   }
 
   private ExpireSnapshots.Result doExecute() {

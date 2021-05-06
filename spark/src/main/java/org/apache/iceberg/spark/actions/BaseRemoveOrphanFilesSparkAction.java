@@ -21,13 +21,11 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -40,6 +38,7 @@ import org.apache.iceberg.actions.RemoveOrphanFiles;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.PropertyUtil;
@@ -142,17 +141,17 @@ public class BaseRemoveOrphanFilesSparkAction
 
   @Override
   public RemoveOrphanFiles.Result execute() {
-    JobGroupInfo info = newJobGroupInfo("REMOVE-ORPHAN-FILES", getDescription());
+    JobGroupInfo info = newJobGroupInfo("REMOVE-ORPHAN-FILES", jobDesc());
     return withJobGroupInfo(info, this::doExecute);
   }
 
-  private String getDescription() {
-    List<String> msg = new ArrayList<>();
-    msg.add("older_than=" + olderThanTimestamp);
+  private String jobDesc() {
+    List<String> options = Lists.newArrayList();
+    options.add("older_than=" + olderThanTimestamp);
     if (location != null) {
-      msg.add("location=" + location);
+      options.add("location=" + location);
     }
-    return String.format("Removing orphan files(%s) from %s", StringUtils.join(msg, ","), table.name());
+    return String.format("Removing orphan files (%s) from %s", Joiner.on(',').join(options), table.name());
   }
 
   private RemoveOrphanFiles.Result doExecute() {
