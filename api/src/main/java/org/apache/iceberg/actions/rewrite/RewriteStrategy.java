@@ -25,15 +25,21 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.Table;
 
 interface RewriteStrategy extends Serializable {
   /**
-   * Returns the name of this compaction strategy
+   * Returns the name of this rewrite strategy
    */
   String name();
 
   /**
-   * Returns a set of options which this compaction strategy can use. This is an allowed-list and any options not
+   * Returns the table being modified by this rewrite strategy
+   */
+  Table table();
+
+  /**
+   * Returns a set of options which this rewrite strategy can use. This is an allowed-list and any options not
    * specified here will be rejected at runtime.
    */
   Set<String> validOptions();
