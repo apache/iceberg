@@ -197,8 +197,7 @@ public class TypeUtil {
    */
   public static Set<Integer> refreshIdentifierFields(Types.StructType freshSchema, Schema baseSchema) {
     Map<String, Integer> nameToId = TypeUtil.indexByName(freshSchema);
-    Set<String> identifierFieldNames = baseSchema.identifierFieldNames();
-    return identifierFieldNames.stream()
+    return baseSchema.identifierFieldNames().stream()
             .map(nameToId::get)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
