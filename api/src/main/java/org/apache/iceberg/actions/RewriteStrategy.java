@@ -27,7 +27,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 
-interface RewriteStrategy extends Serializable {
+public interface RewriteStrategy extends Serializable {
   /**
    * Returns the name of this rewrite strategy
    */
