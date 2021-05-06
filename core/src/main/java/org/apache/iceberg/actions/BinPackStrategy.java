@@ -42,7 +42,7 @@ import org.apache.iceberg.util.PropertyUtil;
  * more files than {@link MIN_INPUT_FILES} or would produce at least one file of
  * {@link RewriteDataFiles#TARGET_FILE_SIZE_BYTES}.
  */
-abstract class BinPackStrategy implements RewriteStrategy {
+public abstract class BinPackStrategy implements RewriteStrategy {
 
   /**
    * The minimum number of files that need to be in a file group for it to be considered for
@@ -161,5 +161,9 @@ abstract class BinPackStrategy implements RewriteStrategy {
     Preconditions.checkArgument(minInputFiles > 0,
         "Cannot set %s is less than 1. All values less than 1 have the same effect as 1. %d < 1",
         MIN_INPUT_FILES, minInputFiles);
+  }
+
+  protected long targetFileSize() {
+    return this.targetFileSize;
   }
 }

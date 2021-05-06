@@ -93,7 +93,7 @@ public class FileRewriteCoordinator {
     return Collections.unmodifiableSet(rewrittenDataFiles);
   }
 
-  private Set<DataFile> fetchNewDataFiles(Table table, Set<String> fileSetIDs) {
+  public Set<DataFile> fetchNewDataFiles(Table table, Set<String> fileSetIDs) {
     List<Set<DataFile>> results = Lists.newArrayList();
 
     for (String fileSetID : fileSetIDs) {

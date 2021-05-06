@@ -27,7 +27,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 
-interface RewriteStrategy extends Serializable {
+public interface RewriteStrategy extends Serializable {
   /**
    * Returns the name of this rewrite strategy
    */
@@ -71,8 +71,9 @@ interface RewriteStrategy extends Serializable {
    * Method which will rewrite files based on this particular RewriteStrategy's algorithm.
    * This will most likely be Action framework specific (Spark/Presto/Flink ....).
    *
+   * @param setId an identifier for this set of files
    * @param filesToRewrite a group of files to be rewritten together
    * @return a list of newly written files
    */
-  List<DataFile> rewriteFiles(List<FileScanTask> filesToRewrite);
+  Set<DataFile> rewriteFiles(String setId, List<FileScanTask> filesToRewrite);
 }

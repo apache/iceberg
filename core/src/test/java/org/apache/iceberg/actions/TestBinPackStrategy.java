@@ -22,6 +22,7 @@ package org.apache.iceberg.actions;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
@@ -59,7 +60,7 @@ public class TestBinPackStrategy extends TableTestBase {
     }
 
     @Override
-    public List<DataFile> rewriteFiles(List<FileScanTask> filesToRewrite) {
+    public Set<DataFile> rewriteFiles(String setId, List<FileScanTask> filesToRewrite) {
       throw new UnsupportedOperationException();
     }
   }
