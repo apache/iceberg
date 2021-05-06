@@ -24,48 +24,55 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.Expression;
 
 /**
- * An action for rewriting datafiles according to a Rewrite Strategy. Generally used for
- * optimizing the sizing and layout of datafiles within a table.
+ * An action for rewriting data files according to a {@link org.apache.iceberg.actions.rewrite.RewriteStrategy}.
+ * Generally used for optimizing the sizing and layout of data files within a table.
  */
-public interface RewriteDataFiles extends Action<RewriteDataFiles, RewriteDataFiles.Result> {
+public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, RewriteDataFiles.Result> {
 
   /**
-   * Enable committing groups of files (see max-file-group-size) prior to the entire compaction completing.
+   * Enable committing groups of files (see max-file-group-size) prior to the entire rewrite completing.
    * This will produce additional commits but allow for progress even if some groups fail to commit. This setting
-   * will not change the correctness of the rewrite operation. The default is false, which produces a single commit
-   * when the entire job has completed.
+   * will not change the correctness of the rewrite operation as file groups can be compacted independently.
+   * <p>
+   * The default is false, which produces a single commit when the entire job has completed.
    */
   String PARTIAL_PROGRESS_ENABLED = "partial-progress.enabled";
   boolean PARTIAL_PROGRESS_ENABLED_DEFAULT = false;
 
   /**
-   * The maximum amount of Iceberg commits that compaction is allowed to produce if partial progress is enabled.
+   * The maximum amount of Iceberg commits that this rewrite is allowed to produce if partial progress is enabled. This
+   * setting has no effect if partial progress is disabled.
    */
   String PARTIAL_PROGRESS_MAX_COMMITS = "partial-progress.max-commits";
   int PARTIAL_PROGRESS_MAX_COMMITS_DEFAULT = 10;
 
   /**
-   * The entire compaction operation is broken down into pieces based on partitioning and within partitions based
-   * on size into groups. These sub-units of compaction are referred to as file groups. The largest amount of data that
-   * should be compacted in a single group is controlled by MAX_FILE_GROUP_SIZE_BYTES. When grouping files, the
-   * underlying compaction strategy will use this value as to limit the files which will be included in a single file
-   * group. A group will be processed by a single framework "action". For example, in Spark this means that each group
-   * would be rewritten in its own Spark action. A group will never contain files for multiple output partitions.
+   * The entire rewrite operation is broken down into pieces based on partitioning and within partitions based
+   * on size into groups. These sub-units of the rewrite are referred to as file groups. The largest amount of data that
+   * should be compacted in a single group is controlled by MAX_FILE_GROUP_SIZE_BYTES. This helps with breaking down the
+   * rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the
+   * cluster. For example a sort based rewrite may not scale to terabyte sized partitions, those partitions need to be
+   * worked on in small subsections to avoid exhaustion of resources.
+   * <p>
+   * When grouping files, the underlying rewrite strategy will use this value as to limit the files which
+   * will be included in a single file group. A group will be processed by a single framework "action". For example,
+   * in Spark this means that each group would be rewritten in its own Spark action. A group will never contain files
+   * for multiple output partitions.
    */
   String MAX_FILE_GROUP_SIZE_BYTES = "max-file-group-size-bytes";
   long MAX_FILE_GROUP_SIZE_BYTES_DEFAULT = 1024L * 1024L * 1024L * 100L; // 100 Gigabytes
 
   /**
-   * The max number of file groups to be simultaneously rewritten by the compaction strategy. The structure and
-   * contents of the group is determined by the compaction strategy. Each file group will be rewritten
+   * The max number of file groups to be simultaneously rewritten by the rewrite strategy. The structure and
+   * contents of the group is determined by the rewrite strategy. Each file group will be rewritten
    * independently and asynchronously.
    **/
-  String MAX_CONCURRENT_FILE_GROUP_ACTIONS = "max-concurrent-file-group-actions";
+  String MAX_CONCURRENT_FILE_GROUP_ACTIONS = "max-concurrent-file-group-rewrites";
   int MAX_CONCURRENT_FILE_GROUP_ACTIONS_DEFAULT = 1;
 
   /**
-   * The output file size that this compaction strategy will attempt to generate when rewriting files. By default this
-   * will use the write.target-size value in the table properties of the table being updated.
+   * The output file size that this rewrite strategy will attempt to generate when rewriting files. By default this
+   * will use the "write.target-file-size-bytes value" in the table properties of the table being updated.
    */
   String TARGET_FILE_SIZE_BYTES = "target-file-size-bytes";
 
@@ -73,34 +80,32 @@ public interface RewriteDataFiles extends Action<RewriteDataFiles, RewriteDataFi
    * The partition spec to use when writing the output data from this operation. By default uses the
    * current table partition spec.
    */
-  String PARTITION_SPEC_ID = "partition-spec-id";
+  String OUTPUT_PARTITION_SPEC_ID = "output-partition-spec-id";
 
-  enum RewriteStrategyName {
+  enum Strategy {
     BINPACK,
     SORT
   }
 
   /**
-   * The name of the compaction strategy to be used when compacting data files. Currently we only support BINPACK and
-   * SORT as options.
-   *
-   * @param strategyName name of the strategy
+   * Sets the strategy to be used by this rewrite action
+   * @param strategy the strategy to use
    * @return this for method chaining
    */
-  RewriteDataFiles strategy(RewriteStrategyName strategyName);
+  RewriteDataFiles strategy(Strategy strategy);
 
   /**
-   * A user provided filter for determining which files will be considered by the compaction strategy. This will be used
-   * in addition to whatever rules the compaction strategy generates. For example this would be used for providing a
-   * restriction to only run compaction on a specific partition.
+   * A user provided filter for determining which files will be considered by the rewrite strategy. This will be used
+   * in addition to whatever rules the rewrite strategy generates. For example this would be used for providing a
+   * restriction to only run rewrite on a specific partition.
    *
-   * @param expression only entries that pass this filter will be compacted
+   * @param expression An iceberg expression used to determine which files will be considered for rewriting
    * @return this for chaining
    */
   RewriteDataFiles filter(Expression expression);
 
   /**
-   * A pairing of file group information to the result of the rewriting that file group. If the results are null then
+   * A map of file group information to the results of rewriting that file group. If the results are null then
    * that particular file group failed. We should only have failed groups if partial progress is enabled otherwise we
    * will report a total failure for the job.
    */
@@ -108,6 +113,10 @@ public interface RewriteDataFiles extends Action<RewriteDataFiles, RewriteDataFi
     Map<FileGroupInfo, FileGroupRewriteResult> resultMap();
   }
 
+  /**
+   *  For a particular file group, the number of files which are newly created and the number of files
+   *  which were formerly part of the table but have been rewritten.
+   */
   interface FileGroupRewriteResult {
     int addedDataFilesCount();
 
@@ -121,7 +130,7 @@ public interface RewriteDataFiles extends Action<RewriteDataFiles, RewriteDataFi
   interface FileGroupInfo {
 
     /**
-     * returns which file group this is out of the total set of file groups for this compaction
+     * returns which file group this is out of the total set of file groups for this rewrite
      */
     int globalIndex();
 

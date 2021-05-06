@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.Table;
 
 interface RewriteStrategy extends Serializable {
   /**
@@ -39,7 +38,10 @@ interface RewriteStrategy extends Serializable {
    */
   Set<String> validOptions();
 
-  RewriteStrategy withOptions(Map<String, String> options);
+  /**
+   * Sets options to be used with this strategy
+   */
+  RewriteStrategy options(Map<String, String> options);
 
   /**
    * Selects files which this strategy believes are valid targets to be rewritten.
@@ -47,7 +49,7 @@ interface RewriteStrategy extends Serializable {
    * @param dataFiles iterable of FileScanTasks for files in a given partition
    * @return iterable containing only FileScanTasks to be rewritten
    */
-  Iterable<FileScanTask> selectFilesToCompact(Iterable<FileScanTask> dataFiles);
+  Iterable<FileScanTask> selectFilesToRewrite(Iterable<FileScanTask> dataFiles);
 
   /**
    * Groups file scans into lists which will be processed in a single executable unit. Each group will end up being
@@ -63,9 +65,8 @@ interface RewriteStrategy extends Serializable {
    * Method which will rewrite files based on this particular RewriteStrategy's algorithm.
    * This will most likely be Action framework specific (Spark/Presto/Flink ....).
    *
-   * @param table          table being modified
    * @param filesToRewrite a group of files to be rewritten together
    * @return a list of newly written files
    */
-  List<DataFile> rewriteFiles(Table table, List<FileScanTask> filesToRewrite);
+  List<DataFile> rewriteFiles(List<FileScanTask> filesToRewrite);
 }
