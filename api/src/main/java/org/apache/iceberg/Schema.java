@@ -210,6 +210,16 @@ public class Schema implements Serializable {
   }
 
   /**
+   * Returns the set of identifier field names.
+   */
+  public Set<String> identifierFieldNames() {
+    return identifierFieldIds()
+            .stream()
+            .map(id -> findField(id).name())
+            .collect(Collectors.toSet());
+  }
+
+  /**
    * Returns the {@link Type} of a sub-field identified by the field name.
    *
    * @param name a field name
