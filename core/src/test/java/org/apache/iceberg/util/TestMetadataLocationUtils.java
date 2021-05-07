@@ -29,6 +29,7 @@ import org.apache.iceberg.MetadataLocationUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -41,7 +42,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public class TesMetadataLocationUtils {
+public class TestMetadataLocationUtils {
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA = new Schema(
       optional(1, "c1", Types.IntegerType.get()),
@@ -109,5 +110,29 @@ public class TesMetadataLocationUtils {
     miscMetadataFilePaths = MetadataLocationUtils
         .miscMetadataFiles(((HasTableOperations) table).operations(), false);
     Assert.assertEquals(miscMetadataFilePaths.size(), 3);
+  }
+
+  @Test
+  public void testMiscMetadataFilesWithMissingFiles() {
+    table.updateProperties()
+        .set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "2")
+        .commit();
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    TableOperations operations = ((HasTableOperations) table).operations();
+    String location = operations.current().metadataFileLocation();
+    table.newAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    // delete v3.metadata.json making v2.metadata.json and v1.metadata.json inaccessible
+    table.io().deleteFile(location);
+
+    List<String> miscMetadataFilePaths = MetadataLocationUtils
+        .miscMetadataFiles(operations, true);
+    Assert.assertEquals(miscMetadataFilePaths.size(), 5);
   }
 }

@@ -24,17 +24,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIO;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class MetadataLocationUtils {
 
   private MetadataLocationUtils() {
   }
-
-  private static final Logger LOG = LoggerFactory.getLogger(MetadataLocationUtils.class);
 
   /**
    * Returns all Metadata file paths which may not be in the current metadata. Specifically
@@ -58,17 +53,22 @@ public class MetadataLocationUtils {
     if (metadataFileLocation == null) {
       return;
     }
-    try {
-      TableMetadata metadata = TableMetadataParser.read(io, metadataFileLocation);
-      List<TableMetadata.MetadataLogEntry> metadataLogEntries = metadata.previousFiles();
-      List<String> previousMetadataFiles =
-          metadataLogEntries.stream().map(TableMetadata.MetadataLogEntry::file).collect(Collectors.toList());
+    TableMetadata metadata = TableMetadataParser.read(io, metadataFileLocation);
+    List<TableMetadata.MetadataLogEntry> metadataLogEntries = metadata.previousFiles();
+    List<String> previousMetadataFiles =
+        metadataLogEntries.stream().map(TableMetadata.MetadataLogEntry::file)
+            .collect(Collectors.toList());
+    if (previousMetadataFiles.size() > 0) {
       metaFiles.addAll(previousMetadataFiles);
-      if (isRecursive && previousMetadataFiles.size() > 0) {
-        miscMetadataFiles(previousMetadataFiles.get(0), metaFiles, io, isRecursive);
+      if (isRecursive) {
+        for (String fileName : previousMetadataFiles) {
+          // Find the first existent metadata json file and recurse
+          if (io.newInputFile(fileName).exists()) {
+            miscMetadataFiles(fileName, metaFiles, io, isRecursive);
+            break;
+          }
+        }
       }
-    } catch (NotFoundException e) {
-      LOG.info("File not found", e);
     }
   }
 
