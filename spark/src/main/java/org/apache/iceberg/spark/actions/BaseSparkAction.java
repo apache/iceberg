@@ -26,8 +26,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.MetadataLocationUtils;
 import org.apache.iceberg.MetadataTableType;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -38,7 +38,6 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.JobGroupUtils;
@@ -109,40 +108,6 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     return new JobGroupInfo(groupId + "-" + JOB_COUNTER.incrementAndGet(), desc, false);
   }
 
-  /**
-   * Returns all the path locations of all Manifest Lists for a given list of snapshots
-   * @param snapshots snapshots
-   * @return the paths of the Manifest Lists
-   */
-  private List<String> getManifestListPaths(Iterable<Snapshot> snapshots) {
-    List<String> manifestLists = Lists.newArrayList();
-    for (Snapshot snapshot : snapshots) {
-      String manifestListLocation = snapshot.manifestListLocation();
-      if (manifestListLocation != null) {
-        manifestLists.add(manifestListLocation);
-      }
-    }
-    return manifestLists;
-  }
-
-  /**
-   * Returns all Metadata file paths which may not be in the current metadata. Specifically
-   * this includes "version-hint" files as well as entries in metadata.previousFiles.
-   * @param ops TableOperations for the table we will be getting paths from
-   * @return a list of paths to metadata files
-   */
-  private List<String> getOtherMetadataFilePaths(TableOperations ops) {
-    List<String> otherMetadataFiles = Lists.newArrayList();
-    otherMetadataFiles.add(ops.metadataFileLocation("version-hint.text"));
-
-    TableMetadata metadata = ops.current();
-    otherMetadataFiles.add(metadata.metadataFileLocation());
-    for (TableMetadata.MetadataLogEntry previousMetadataFile : metadata.previousFiles()) {
-      otherMetadataFiles.add(previousMetadataFile.file());
-    }
-    return otherMetadataFiles;
-  }
-
   protected Table newStaticTable(TableMetadata metadata, FileIO io) {
     String metadataFileLocation = metadata.metadataFileLocation();
     StaticTableOperations ops = new StaticTableOperations(metadataFileLocation, io);
@@ -167,12 +132,12 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
   }
 
   protected Dataset<Row> buildManifestListDF(Table table) {
-    List<String> manifestLists = getManifestListPaths(table.snapshots());
+    List<String> manifestLists = MetadataLocationUtils.manifestListPaths(table);
     return spark.createDataset(manifestLists, Encoders.STRING()).toDF("file_path");
   }
 
   protected Dataset<Row> buildOtherMetadataFileDF(TableOperations ops) {
-    List<String> otherMetadataFiles = getOtherMetadataFilePaths(ops);
+    List<String> otherMetadataFiles = MetadataLocationUtils.miscMetadataFiles(ops, false);
     return spark.createDataset(otherMetadataFiles, Encoders.STRING()).toDF("file_path");
   }
 
