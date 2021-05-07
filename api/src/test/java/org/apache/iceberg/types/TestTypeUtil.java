@@ -63,6 +63,25 @@ public class TestTypeUtil {
     Assert.assertEquals(sourceSchema.identifierFieldIds(), actualSchema.identifierFieldIds());
   }
 
+  @Test
+  public void testAssignIncreasingFreshIdWithIdentifier() {
+    Schema schema = new Schema(
+        Lists.newArrayList(
+            required(10, "a", Types.IntegerType.get()),
+            required(11, "A", Types.IntegerType.get())),
+        Sets.newHashSet(10)
+    );
+    Schema sourceSchema = new Schema(
+        Lists.newArrayList(
+            required(1, "a", Types.IntegerType.get()),
+            required(2, "A", Types.IntegerType.get())),
+        Sets.newHashSet(1)
+    );
+    final Schema actualSchema = TypeUtil.assignIncreasingFreshIds(schema);
+    Assert.assertEquals(sourceSchema.asStruct(), actualSchema.asStruct());
+    Assert.assertEquals(sourceSchema.identifierFieldIds(), actualSchema.identifierFieldIds());
+  }
+
   @Test(expected = IllegalArgumentException.class)
   public void testReassignIdsIllegalArgumentException() {
     Schema schema = new Schema(

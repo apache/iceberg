@@ -22,7 +22,6 @@ package org.apache.iceberg.types;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
@@ -153,10 +152,8 @@ public class TypeUtil {
    * @return a structurally identical schema with new ids assigned by the nextId function
    */
   public static Schema assignFreshIds(Schema schema, NextID nextId) {
-    return new Schema(TypeUtil
-        .visit(schema.asStruct(), new AssignFreshIds(nextId))
-        .asNestedType()
-        .fields());
+    Types.StructType struct = TypeUtil.visit(schema.asStruct(), new AssignFreshIds(nextId)).asStructType();
+    return new Schema(struct.fields(), refreshIdentifierFields(struct, schema));
   }
 
   /**
@@ -168,10 +165,8 @@ public class TypeUtil {
    * @return a structurally identical schema with new ids assigned by the nextId function
    */
   public static Schema assignFreshIds(int schemaId, Schema schema, NextID nextId) {
-    return new Schema(schemaId, TypeUtil
-        .visit(schema.asStruct(), new AssignFreshIds(nextId))
-        .asNestedType()
-        .fields());
+    Types.StructType struct = TypeUtil.visit(schema.asStruct(), new AssignFreshIds(nextId)).asStructType();
+    return new Schema(schemaId, struct.fields(), refreshIdentifierFields(struct, schema));
   }
 
   /**
@@ -183,10 +178,10 @@ public class TypeUtil {
    * @return a structurally identical schema with new ids assigned by the nextId function
    */
   public static Schema assignFreshIds(Schema schema, Schema baseSchema, NextID nextId) {
-    Types.StructType freshSchemaStruct = TypeUtil
+    Types.StructType struct = TypeUtil
             .visit(schema.asStruct(), new AssignFreshIds(schema, baseSchema, nextId))
             .asStructType();
-    return new Schema(freshSchemaStruct.fields(), refreshIdentifierFields(freshSchemaStruct, schema));
+    return new Schema(struct.fields(), refreshIdentifierFields(struct, schema));
   }
 
   /**
@@ -197,10 +192,10 @@ public class TypeUtil {
    */
   public static Set<Integer> refreshIdentifierFields(Types.StructType freshSchema, Schema baseSchema) {
     Map<String, Integer> nameToId = TypeUtil.indexByName(freshSchema);
-    return baseSchema.identifierFieldNames().stream()
-            .map(nameToId::get)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
+    Set<String> identifierFieldNames = baseSchema.identifierFieldNames();
+    identifierFieldNames.forEach(name -> Preconditions.checkArgument(nameToId.containsKey(name),
+        "Cannot find ID for identifier field %s in schema %s", name, freshSchema));
+    return identifierFieldNames.stream().map(nameToId::get).collect(Collectors.toSet());
   }
 
   /**
