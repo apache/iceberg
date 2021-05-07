@@ -431,6 +431,7 @@ Manifest list files store `manifest_file`, a struct with the following fields:
 | v1         | v2         | Field id, name          | Type          | Description |
 | ---------- | ---------- |-------------------------|---------------|-------------|
 | _required_ | _required_ | **`509 contains_null`** | `boolean`     | Whether the manifest contains at least one partition with a null value for the field |
+| _optional_ | _required_ | **`518 contains_nan`**  | `boolean`     | Whether the manifest contains at least one partition with a NaN value for the field |
 | _optional_ | _optional_ | **`510 lower_bound`**   | `bytes`   [1] | Lower bound for the non-null, non-NaN values in the partition field, or null if all values are null or NaN [2] |
 | _optional_ | _optional_ | **`511 upper_bound`**   | `bytes`   [1] | Upper bound for the non-null, non-NaN values in the partition field, or null if all values are null or NaN [2] |
 
@@ -952,7 +953,7 @@ Writing v2 metadata:
 * Table metadata now requires field `default-spec-id`.
 * Table metadata now requires field `last-partition-id`.
 * Table metadata field `partition-spec` is no longer required and may be omitted.
-* Snapshot added required field field `sequence-number`.
+* Snapshot added required field `sequence-number`.
 * Snapshot now requires field `manifest-list`.
 * Snapshot field `manifests` is no longer allowed.
 * Table metadata now requires field `sort-orders`.

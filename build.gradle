@@ -22,8 +22,6 @@ import groovy.transform.Memoized
 buildscript {
   repositories {
     gradlePluginPortal()
-    maven { url "http://palantir.bintray.com/releases" }
-    maven { url "https://plugins.gradle.org/m2/" }
   }
   dependencies {
     classpath 'com.github.jengelman.gradle.plugins:shadow:5.0.0'
@@ -63,7 +61,6 @@ allprojects {
   group = "org.apache.iceberg"
   version = getProjectVersion()
   repositories {
-    maven { url  "http://palantir.bintray.com/releases" }
     mavenCentral()
     mavenLocal()
   }
@@ -646,6 +643,7 @@ project(':iceberg-hive-runtime') {
     compile(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
+    compile project(':iceberg-aws')
   }
   
   shadowJar {
@@ -737,9 +735,17 @@ project(':iceberg-arrow') {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
     compile("org.apache.arrow:arrow-memory-netty") {
-      exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'io.netty', module: 'netty-common'
     }
+
+    testCompile project(path: ':iceberg-core', configuration: 'testArtifacts')
+    // To run ArrowReaderTest test cases, :netty-common is needed.
+    // We import :netty-common through :arrow-memory-netty
+    // so that the same version as used by the :arrow-memory-netty module is picked.
+    testCompile("org.apache.arrow:arrow-memory-netty")
+    testCompile("org.apache.hadoop:hadoop-common")
+    testCompile("org.apache.hadoop:hadoop-mapreduce-client-core")
   }
 }
 

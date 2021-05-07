@@ -32,9 +32,12 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 
@@ -51,29 +54,47 @@ public class Schema implements Serializable {
 
   private final StructType struct;
   private final int schemaId;
+  private final int[] identifierFieldIds;
+
   private transient BiMap<String, Integer> aliasToId = null;
   private transient Map<Integer, NestedField> idToField = null;
   private transient Map<String, Integer> nameToId = null;
   private transient Map<String, Integer> lowerCaseNameToId = null;
   private transient Map<Integer, Accessor<StructLike>> idToAccessor = null;
   private transient Map<Integer, String> idToName = null;
+  private transient Set<Integer> identifierFieldIdSet = null;
 
   public Schema(List<NestedField> columns, Map<String, Integer> aliases) {
-    this.schemaId = DEFAULT_SCHEMA_ID;
-    this.struct = StructType.of(columns);
-    this.aliasToId = aliases != null ? ImmutableBiMap.copyOf(aliases) : null;
+    this(columns, aliases, ImmutableSet.of());
+  }
 
-    // validate the schema through IndexByName visitor
-    lazyIdToName();
+  public Schema(List<NestedField> columns, Map<String, Integer> aliases, Set<Integer> identifierFieldIds) {
+    this(DEFAULT_SCHEMA_ID, columns, aliases, identifierFieldIds);
   }
 
   public Schema(List<NestedField> columns) {
-    this(DEFAULT_SCHEMA_ID, columns);
+    this(columns, ImmutableSet.of());
+  }
+
+  public Schema(List<NestedField> columns, Set<Integer> identifierFieldIds) {
+    this(DEFAULT_SCHEMA_ID, columns, identifierFieldIds);
   }
 
   public Schema(int schemaId, List<NestedField> columns) {
+    this(schemaId, columns, ImmutableSet.of());
+  }
+
+  public Schema(int schemaId, List<NestedField> columns, Set<Integer> identifierFieldIds) {
+    this(schemaId, columns, null, identifierFieldIds);
+  }
+
+  private Schema(int schemaId, List<NestedField> columns, Map<String, Integer> aliases,
+                 Set<Integer> identifierFieldIds) {
     this.schemaId = schemaId;
     this.struct = StructType.of(columns);
+    this.aliasToId = aliases != null ? ImmutableBiMap.copyOf(aliases) : null;
+    this.identifierFieldIds = identifierFieldIds != null ? Ints.toArray(identifierFieldIds) : new int[0];
+
     lazyIdToName();
   }
 
@@ -120,6 +141,13 @@ public class Schema implements Serializable {
     return idToAccessor;
   }
 
+  private Set<Integer> lazyIdentifierFieldIdSet() {
+    if (identifierFieldIdSet == null) {
+      identifierFieldIdSet = ImmutableSet.copyOf(Ints.asList(identifierFieldIds));
+    }
+    return identifierFieldIdSet;
+  }
+
   /**
    * Returns the schema ID for this schema.
    * <p>
@@ -156,6 +184,29 @@ public class Schema implements Serializable {
    */
   public List<NestedField> columns() {
     return struct.fields();
+  }
+
+  /**
+   * The set of identifier field IDs.
+   * <p>
+   * Identifier is a concept similar to primary key in a relational database system.
+   * It consists of a unique set of primitive fields in the schema.
+   * An identifier field must be at root, or nested in a chain of structs (no maps or lists).
+   * A row should be unique in a table based on the values of the identifier fields.
+   * However, Iceberg identifier differs from primary key in the following ways:
+   * <ul>
+   * <li>Iceberg does not enforce the uniqueness of a row based on this identifier information.
+   * It is used for operations like upsert to define the default upsert key.</li>
+   * <li>NULL can be used as value of an identifier field. Iceberg ensures null-safe equality check.</li>
+   * <li>A nested field in a struct can be used as an identifier. For example, if there is a "last_name" field
+   * inside a "user" struct in a schema, field "user.last_name" can be set as a part of the identifier field.</li>
+   * </ul>
+   * <p>
+   *
+   * @return the set of identifier field IDs in this schema.
+   */
+  public Set<Integer> identifierFieldIds() {
+    return lazyIdentifierFieldIdSet();
   }
 
   /**
@@ -331,6 +382,16 @@ public class Schema implements Serializable {
     return internalSelect(names, false);
   }
 
+  /**
+   * Checks whether this schema is equivalent to another schema while ignoring the schema ID.
+   * @param anotherSchema another schema
+   * @return true if this schema is equivalent to the given schema
+   */
+  public boolean sameSchema(Schema anotherSchema) {
+    return asStruct().equals(anotherSchema.asStruct()) &&
+        identifierFieldIds().equals(anotherSchema.identifierFieldIds());
+  }
+
   private Schema internalSelect(Collection<String> names, boolean caseSensitive) {
     if (names.contains(ALL_COLUMNS)) {
       return this;
@@ -353,11 +414,15 @@ public class Schema implements Serializable {
     return TypeUtil.select(this, selected);
   }
 
+  private String identifierFieldToString(Types.NestedField field) {
+    return "  " + field + (identifierFieldIds().contains(field.fieldId()) ? " (id)" : "");
+  }
+
   @Override
   public String toString() {
     return String.format("table {\n%s\n}",
         NEWLINE.join(struct.fields().stream()
-            .map(f -> "  " + f)
+            .map(this::identifierFieldToString)
             .collect(Collectors.toList())));
   }
 }

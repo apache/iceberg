@@ -491,7 +491,7 @@ public class TableMetadata implements Serializable {
 
     ImmutableList.Builder<Schema> builder = ImmutableList.<Schema>builder().addAll(schemas);
     if (!schemasById.containsKey(newSchemaId)) {
-      builder.add(new Schema(newSchemaId, newSchema.columns()));
+      builder.add(new Schema(newSchemaId, newSchema.columns(), newSchema.identifierFieldIds()));
     }
 
     return new TableMetadata(null, formatVersion, uuid, location,
@@ -760,7 +760,7 @@ public class TableMetadata implements Serializable {
     ImmutableList.Builder<Schema> schemasBuilder = ImmutableList.<Schema>builder().addAll(schemas);
 
     if (!schemasById.containsKey(freshSchemaId)) {
-      schemasBuilder.add(new Schema(freshSchemaId, freshSchema.columns()));
+      schemasBuilder.add(new Schema(freshSchemaId, freshSchema.columns(), freshSchema.identifierFieldIds()));
     }
 
     return new TableMetadata(null, formatVersion, uuid, newLocation,
@@ -916,7 +916,7 @@ public class TableMetadata implements Serializable {
     // if the schema already exists, use its id; otherwise use the highest id + 1
     int newSchemaId = currentSchemaId;
     for (Schema schema : schemas) {
-      if (schema.asStruct().equals(newSchema.asStruct())) {
+      if (schema.sameSchema(newSchema)) {
         newSchemaId = schema.schemaId();
         break;
       } else if (schema.schemaId() >= newSchemaId) {
