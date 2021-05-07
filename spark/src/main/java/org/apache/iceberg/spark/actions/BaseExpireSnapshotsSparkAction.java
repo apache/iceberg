@@ -190,6 +190,7 @@ public class BaseExpireSnapshotsSparkAction
 
   private String jobDesc() {
     List<String> options = Lists.newArrayList();
+
     if (expireOlderThanValue != null) {
       options.add("older_than=" + expireOlderThanValue);
     }
@@ -207,7 +208,7 @@ public class BaseExpireSnapshotsSparkAction
       }
     }
 
-    return String.format("Expiring snapshots(%s) in %s", Joiner.on(',').join(options), table.name());
+    return String.format("Expiring snapshots (%s) in %s", Joiner.on(',').join(options), table.name());
   }
 
   private ExpireSnapshots.Result doExecute() {
