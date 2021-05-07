@@ -41,7 +41,7 @@ public class MetadataLocationUtils {
    * this includes "version-hint" files as well as entries in metadata.previousFiles.
    * @param ops TableOperations of the table to get paths from
    * @param isRecursive when true, recursively retrieves all the metadata.json files using metadata.previousFiles
-   *                    when false, gets the all the metadata.json files pointed to by the only current metadata.json
+   * <p>when false, gets the all the metadata.json files pointed to by the only current metadata.json
    * @return a list of paths to metadata files
    */
   public static List<String> miscMetadataFiles(TableOperations ops, boolean isRecursive) {
