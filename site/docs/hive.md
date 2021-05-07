@@ -47,7 +47,7 @@ Please refer to Hive's documentation for more information.
 
 If the Iceberg storage handler is not in Hive's classpath, then Hive cannot load or update the metadata for an Iceberg table when the storage handler is set.
 To avoid the appearance of broken tables in Hive, Iceberg will not add the storage handler to a table unless Hive support is enabled.
-The storage handler is kept in sync (added or removed) every time a table is updated.
+The storage handler is kept in sync (added or removed) every time Hive engine support for the table is updated, i.e. turned on or off in the table properties.
 There are two ways to enable Hive support: globally in Hadoop Configuration and per-table using a table property.
 
 #### Hadoop configuration
@@ -77,7 +77,7 @@ The table level configuration overrides the global Hadoop configuration.
 ### Global Hive catalog
 
 From the Hive engine's perspective, there is only one global data catalog that is defined in the Hadoop configuration in the runtime environment.
-On contrast, Iceberg supports multiple different data catalog types such as Hive, Hadoop, AWS Glue, or custom catalog implementations.
+In contrast, Iceberg supports multiple different data catalog types such as Hive, Hadoop, AWS Glue, or custom catalog implementations.
 Iceberg also allows loading a table directly based on its path in the file system. Those tables do not belong to any catalog.
 Users might want to read these cross-catalog and path-based tables through the Hive engine for use cases like join.
 
@@ -90,7 +90,7 @@ depending on the table's `iceberg.catalog` property:
 
 For cases 2 and 3 above, users can create an overlay of an Iceberg table in the Hive metastore,
 so that different table types can work together in the same Hive environment.
-See [CREATE EXTERNAL TABLE](#create-external-table) for more details.
+See [CREATE EXTERNAL TABLE](#create-external-table) and [CREATE TABLE](#create-table) for more details.
 
 ### Custom Iceberg catalogs
 
@@ -188,7 +188,7 @@ CREATE TABLE database_a.table_a (
     to Hive, the table appears to be unpartitioned although the underlying Iceberg table is partitioned.
 
 !!! Note
-    Due to the limitation of Hive `PARTITIONED BY` syntax, if you use Hive `CRRATE TABLE`, 
+    Due to the limitation of Hive `PARTITIONED BY` syntax, if you use Hive `CREATE TABLE`, 
     currently you can only partition by columns, which is translated to Iceberg identity partition transform.
     You cannot partition by other Iceberg partition transforms such as `days(timestamp)`.
     To create table with all partition transforms, you need to create the table with other engines like Spark or Flink.
@@ -216,46 +216,6 @@ TBLPROPERTIES ('iceberg.catalog'='hadoop_cat');
     However, this is **not recommended** because creating managed overlay tables could pose a risk
     to the shared data files in case of accidental drop table commands from the Hive side, 
     which would unintentionally remove all the data in the table.
-
-#### Types
-
-The following Hive types have direct Iceberg types mapping:
-
-- boolean
-- float
-- double
-- integer
-- long
-- decimal
-- string
-- binary
-- date
-- timestamp (maps to Iceberg timestamp without timezone)
-- timestamplocaltz (Hive 3 only, maps to Iceberg timestamp with timezone)
-- struct
-- map
-- list
-
-The following Hive types are not supported by Iceberg:
-
-- interval_year_month
-- interval_day_time
-- union
-
-The following Hive types do not have direct Iceberg types mapping, but we can perform auto-conversion:
-
-| Hive type  | Iceberg type |
-| ---------- | ------------ |
-| byte       | integer      |
-| short      | integer      |
-| char       | string       |
-| varchar    | string       |
-
-You can enable this feature through Hadoop configuration (not enabled by default):
-
-| Config key                               | Default                     | Description                                         |
-| -----------------------------------------| --------------------------- | --------------------------------------------------- |
-| iceberg.mr.schema.auto.conversion        | false                       | if CREATE TABLE should perform type auto-conversion |
 
 ### DROP TABLE
 
@@ -338,3 +298,69 @@ FROM customers
     INSERT INTO target1 SELECT customer_id, first_name
     INSERT INTO target2 SELECT last_name, customer_id;
 ```
+
+
+## Type compatibility
+
+Hive and Iceberg support different set of types. Iceberg can perform type conversion automatically, but not for all combinations,
+so you may want to understand the type conversion in Iceberg in prior to design the types of columns in your tables.
+You can enable auto-conversion through Hadoop configuration (not enabled by default):
+
+| Config key                               | Default                     | Description                                         |
+| -----------------------------------------| --------------------------- | --------------------------------------------------- |
+| iceberg.mr.schema.auto.conversion        | false                       | if Hive should perform type auto-conversion         |
+
+### Hive type to Iceberg type
+
+This type conversion table describes how Hive types are converted to the Iceberg types.
+The conversion applies on both creating Iceberg table and writing to Iceberg table via Hive.
+
+| Hive             | Iceberg                 | Notes |
+|------------------|-------------------------|-------|
+| boolean          | boolean                 |       |
+| short            | integer                 | auto-conversion |
+| byte             | integer                 | auto-conversion |
+| integer          | integer                 |       |
+| long             | long                    |       |
+| float            | float                   |       |
+| double           | double                  |       |
+| date             | date                    |       |
+| timestamp        | timestamp without timezone |    |
+| timestamplocaltz | timestamp with timezone | Hive 3 only |
+| interval_year_month |                      | not supported |
+| interval_day_time |                        | not supported |
+| char             | string                  | auto-conversion |
+| varchar          | string                  | auto-conversion |
+| string           | string                  |       |
+| binary           | binary                  |       |
+| decimal          | decimal                 |       |
+| struct           | struct                  |       |
+| list             | list                    |       |
+| map              | map                     |       |
+| union            |                         | not supported |
+
+### Iceberg type to Hive type
+
+This type conversion table describes how Iceberg types are converted to the Hive types. 
+The conversion applies on reading from Iceberg table via Hive.
+
+| Iceberg                    | Hive                    | Note          |
+|----------------------------|-------------------------|---------------|
+| boolean                    | boolean                 |               |
+| integer                    | integer                 |               |
+| long                       | long                    |               |
+| float                      | float                   |               |
+| double                     | double                  |               |
+| date                       | date                    |               |
+| time                       | string                  |               |
+| timestamp with timezone    | timestamp               |               |
+| timestamp without timezone | timestamp               |               |
+| string                     | string                  |               |
+| uuid                       | string                  |               |
+| fixed                      | binary                  |               |
+| binary                     | binary                  |               |
+| decimal                    | decimal                 |               |
+| struct                     | struct                  |               |
+| list                       | list                    |               |
+| map                        | map                     |               |
+
