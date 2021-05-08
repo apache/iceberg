@@ -98,7 +98,8 @@ public class BaseMigrateTableSparkAction
 
   @Override
   public MigrateTable.Result execute() {
-    JobGroupInfo info = newJobGroupInfo("MIGRATE-TABLE", "MIGRATE-TABLE");
+    String desc = String.format("Migrating table %s", destTableIdent().toString());
+    JobGroupInfo info = newJobGroupInfo("MIGRATE-TABLE", desc);
     return withJobGroupInfo(info, this::doExecute);
   }
 
