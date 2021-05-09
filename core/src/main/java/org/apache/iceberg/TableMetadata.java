@@ -705,7 +705,7 @@ public class TableMetadata implements Serializable {
         snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
-  private PartitionSpec reassignPartitionIds(PartitionSpec partitionSpec, AtomicInteger lastPartitionId) {
+  private PartitionSpec reassignPartitionIds(PartitionSpec partitionSpec, TypeUtil.NextID nextID) {
     if (formatVersion > 1) {
       Map<Pair<Integer, String>, Integer> transformToFieldId = specs.stream()
           .flatMap(spec -> spec.fields().stream())
@@ -719,8 +719,8 @@ public class TableMetadata implements Serializable {
 
       for (PartitionField field : partitionSpec.fields()) {
         // reassign the partition field ids
-        Integer fieldId = transformToFieldId.computeIfAbsent(
-            Pair.of(field.sourceId(), field.transform().toString()), k -> lastPartitionId.incrementAndGet());
+        int fieldId = transformToFieldId.computeIfAbsent(
+            Pair.of(field.sourceId(), field.transform().toString()), k -> nextID.get());
         specBuilder.add(
             field.sourceId(),
             fieldId,
@@ -752,7 +752,8 @@ public class TableMetadata implements Serializable {
     PartitionSpec newSpec = freshSpec(nextSpecId, freshSchema, updatedPartitionSpec);
 
     // reassign partition field ids with existing partition specs in the table
-    PartitionSpec freshSpec = reassignPartitionIds(newSpec, new AtomicInteger(lastAssignedPartitionId));
+    AtomicInteger lastPartitionId = new AtomicInteger(lastAssignedPartitionId);
+    PartitionSpec freshSpec = reassignPartitionIds(newSpec, lastPartitionId::incrementAndGet);
 
     // if the spec already exists, use the same ID. otherwise, use 1 more than the highest ID.
     int specId = specs.stream()
