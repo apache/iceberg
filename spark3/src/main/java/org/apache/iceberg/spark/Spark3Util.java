@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
@@ -304,7 +305,7 @@ public class Spark3Util {
           }
         });
 
-    return transforms.toArray(new Transform[0]);
+    return transforms.stream().filter(Objects::nonNull).toArray(Transform[]::new);
   }
 
   public static Distribution buildRequiredDistribution(org.apache.iceberg.Table table) {
