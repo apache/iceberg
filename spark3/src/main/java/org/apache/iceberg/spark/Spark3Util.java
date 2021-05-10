@@ -579,7 +579,7 @@ public class Spark3Util {
 
     @Override
     public String list(Types.ListType list, String elementResult) {
-      return "map<" + elementResult + ">";
+      return "list<" + elementResult + ">";
     }
 
     @Override
