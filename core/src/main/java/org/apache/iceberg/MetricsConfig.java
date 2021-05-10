@@ -117,8 +117,4 @@ public class MetricsConfig implements Serializable {
   public MetricsMode columnMode(String columnAlias) {
     return columnModes.getOrDefault(columnAlias, defaultMode);
   }
-
-  public boolean allDefault() {
-    return columnModes.isEmpty();
-  }
 }

@@ -178,9 +178,22 @@ public class TestSchemaAndMappingUpdate extends TableTestBase {
 
     // Re-naming a column with metrics succeeds;
     table.updateSchema().renameColumn("id", "bloop").commit();
+    Assert.assertNotNull(
+        "Make sure the metrics config now has bloop",
+        table.properties().get(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "bloop"));
+    Assert.assertNull(
+        "Make sure the metrics config no longer has id",
+        table.properties().get(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id"));
 
     // Deleting a column with metrics succeeds
     table.updateSchema().deleteColumn("bloop").commit();
+    // Make sure no more reference to bloop in the metrics config
+    Assert.assertNull(
+        "Make sure the metrics config no longer has id",
+        table.properties().get(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id"));
+    Assert.assertNull(
+        "Make sure the metrics config no longer has bloop",
+        table.properties().get(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "bloop"));
   }
 
   @Test
