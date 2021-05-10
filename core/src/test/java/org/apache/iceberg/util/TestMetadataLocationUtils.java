@@ -20,6 +20,7 @@
 package org.apache.iceberg.util;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
@@ -134,5 +135,33 @@ public class TestMetadataLocationUtils {
     List<String> miscMetadataFilePaths = MetadataLocationUtils
         .miscMetadataFiles(operations, true);
     Assert.assertEquals(miscMetadataFilePaths.size(), 5);
+  }
+
+  @Test
+  public void testMiscMetadataFilesWithUnreachableFiles() {
+    List<String> metadataLocs = new ArrayList<>();
+    table.updateProperties()
+        .set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "2")
+        .commit();
+    TableOperations operations = ((HasTableOperations) table).operations();
+    metadataLocs.add(operations.current().metadataFileLocation());
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+    operations.refresh();
+    metadataLocs.add(operations.current().metadataFileLocation());
+
+    table.newAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    for (String metadataLoc : metadataLocs) {
+      table.io().deleteFile(metadataLoc);
+    }
+
+    List<String> miscMetadataFilePaths = MetadataLocationUtils
+        .miscMetadataFiles(operations, true);
+    Assert.assertEquals(miscMetadataFilePaths.size(), 4);
   }
 }

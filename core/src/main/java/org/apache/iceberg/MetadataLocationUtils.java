@@ -73,7 +73,7 @@ public class MetadataLocationUtils {
   }
 
   /**
-   * Returns all the path locations of all Manifest Lists for a given list of snapshots
+   * Returns all the path locations of all Manifest Lists for a given table
    * @param table table for which manifestList needs to be fetched
    * @return the paths of the Manifest Lists
    */
