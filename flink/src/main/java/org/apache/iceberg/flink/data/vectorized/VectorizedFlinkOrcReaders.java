@@ -29,9 +29,6 @@ import org.apache.flink.orc.nohive.vector.OrcNoHiveTimestampVector;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.ColumnarArrayData;
 import org.apache.flink.table.data.ColumnarRowData;
-import org.apache.flink.table.data.DecimalData;
-import org.apache.flink.table.data.TimestampData;
-import org.apache.flink.table.data.binary.BinaryStringData;
 import org.apache.flink.table.data.vector.ArrayColumnVector;
 import org.apache.flink.table.data.vector.ColumnVector;
 import org.apache.flink.table.data.vector.RowColumnVector;
@@ -65,9 +62,8 @@ public class VectorizedFlinkOrcReaders {
 
       @Override
       public VectorizedColumnBatch read(VectorizedRowBatch batch) {
-        StructConverter.FlinkRowColumnVector cv =
-            (StructConverter.FlinkRowColumnVector) converter.convert(new StructColumnVector(batch.size, batch.cols),
-                batch.size, batchOffsetInFile);
+        FlinkRowColumnVector cv = (FlinkRowColumnVector) converter.convert(
+            new StructColumnVector(batch.size, batch.cols), batch.size, batchOffsetInFile);
 
         VectorizedColumnBatch columnarBatch = new VectorizedColumnBatch(cv.getFieldVectors());
         columnarBatch.setNumRows(batch.size);
@@ -130,6 +126,24 @@ public class VectorizedFlinkOrcReaders {
     }
   }
 
+  private static class LongOrcColumnVector implements org.apache.flink.table.data.vector.LongColumnVector {
+    private long batchOffsetInFile;
+
+    LongOrcColumnVector(long batchOffsetInFile) {
+      this.batchOffsetInFile = batchOffsetInFile;
+    }
+
+    @Override
+    public boolean isNullAt(int i) {
+      return false;
+    }
+
+    @Override
+    public long getLong(int i) {
+      return batchOffsetInFile + i;
+    }
+  }
+
   private static class StructConverter implements Converter {
     private final Types.StructType structType;
     private final List<Converter> fieldConverters;
@@ -153,18 +167,7 @@ public class VectorizedFlinkOrcReaders {
         if (idToConstant.containsKey(field.fieldId())) {
           fieldVectors[pos] = getConstantVectors(field.type(), idToConstant.get(field.fieldId()));
         } else if (field.equals(MetadataColumns.ROW_POSITION)) {
-          fieldVectors[pos] = new org.apache.flink.table.data.vector.LongColumnVector() {
-
-            @Override
-            public boolean isNullAt(int i) {
-              return false;
-            }
-
-            @Override
-            public long getLong(int i) {
-              return batchOffsetInFile + i;
-            }
-          };
+          fieldVectors[pos] = new LongOrcColumnVector(batchOffsetInFile);
         } else {
           fieldVectors[pos] = fieldConverters.get(pos)
               .convert(structVector.fields[pos], batchSize, batchOffsetInFile);
@@ -179,169 +182,36 @@ public class VectorizedFlinkOrcReaders {
         Type.TypeID typeID = type.typeId();
         switch (typeID) {
           case INTEGER:
-            return new org.apache.flink.table.data.vector.IntColumnVector() {
-              @Override
-              public boolean isNullAt(int i) {
-                return false;
-              }
-
-              @Override
-              public int getInt(int i) {
-                return (int) constant;
-              }
-            };
+          case DATE:
+          case TIME:
+            return ConstantColumnVectors.ints(constant);
 
           case LONG:
-            return new org.apache.flink.table.data.vector.LongColumnVector() {
-              @Override
-              public long getLong(int i) {
-                return (long) constant;
-              }
-
-              @Override
-              public boolean isNullAt(int i) {
-                return false;
-              }
-            };
+            return ConstantColumnVectors.longs(constant);
 
           case BOOLEAN:
-            return new org.apache.flink.table.data.vector.BooleanColumnVector() {
-              @Override
-              public boolean getBoolean(int i) {
-                return (boolean) constant;
-              }
-
-              @Override
-              public boolean isNullAt(int i) {
-                return false;
-              }
-            };
+            return ConstantColumnVectors.booleans(constant);
 
           case DOUBLE:
-            return new org.apache.flink.table.data.vector.DoubleColumnVector() {
-              @Override
-              public double getDouble(int i) {
-                return (double) constant;
-              }
-
-              @Override
-              public boolean isNullAt(int i) {
-                return false;
-              }
-            };
+            return ConstantColumnVectors.doubles(constant);
 
           case FLOAT:
-            return new org.apache.flink.table.data.vector.FloatColumnVector() {
-              @Override
-              public float getFloat(int i) {
-                return (float) constant;
-              }
-
-              @Override
-              public boolean isNullAt(int i) {
-                return false;
-              }
-            };
+            return ConstantColumnVectors.floats(constant);
 
           case DECIMAL:
-            return new org.apache.flink.table.data.vector.DecimalColumnVector() {
-              @Override
-              public DecimalData getDecimal(int i, int precision, int scale) {
-                return (DecimalData) constant;
-              }
-
-              @Override
-              public boolean isNullAt(int i) {
-                return false;
-              }
-            };
-
-          case DATE:
-            return new org.apache.flink.table.data.vector.IntColumnVector() {
-              @Override
-              public int getInt(int i) {
-                return (int) constant;
-              }
-
-              @Override
-              public boolean isNullAt(int i) {
-                return false;
-              }
-            };
-
-          case TIME:
-            return new org.apache.flink.table.data.vector.IntColumnVector() {
-              @Override
-              public int getInt(int i) {
-                return (int) constant;
-              }
-
-              @Override
-              public boolean isNullAt(int i) {
-                return false;
-              }
-            };
+            return ConstantColumnVectors.decimals(constant);
 
           case TIMESTAMP:
-            return new org.apache.flink.table.data.vector.TimestampColumnVector() {
-              @Override
-              public TimestampData getTimestamp(int i, int precision) {
-                return (TimestampData) constant;
-              }
-
-              @Override
-              public boolean isNullAt(int i) {
-                return false;
-              }
-            };
+            return ConstantColumnVectors.timestamps(constant);
 
           case STRING:
-            return new org.apache.flink.table.data.vector.BytesColumnVector() {
-              @Override
-              public Bytes getBytes(int i) {
-                BinaryStringData str = (BinaryStringData) constant;
-                return new Bytes(str.toBytes(), 0, str.getSizeInBytes());
-              }
-
-              @Override
-              public boolean isNullAt(int i) {
-                return false;
-              }
-            };
-
+            return ConstantColumnVectors.bytes(constant);
 
           default:
             throw new UnsupportedOperationException("Unsupported data type for constant.");
         }
       } else {
         throw new UnsupportedOperationException("ConstantColumnVector only supports primitives.");
-      }
-    }
-
-    private static class FlinkRowColumnVector implements RowColumnVector {
-
-      private ColumnVector[] fieldVectors;
-      private StructColumnVector structVector;
-
-      FlinkRowColumnVector(ColumnVector[] fieldVectors,
-                           StructColumnVector structVector) {
-        this.fieldVectors = fieldVectors;
-        this.structVector = structVector;
-      }
-
-      @Override
-      public ColumnarRowData getRow(int i) {
-        VectorizedColumnBatch vectorizedColumnBatch = new VectorizedColumnBatch(fieldVectors);
-        return new ColumnarRowData(vectorizedColumnBatch, i);
-      }
-
-      @Override
-      public boolean isNullAt(int i) {
-        return structVector.isNull[i];
-      }
-
-      public ColumnVector[] getFieldVectors() {
-        return fieldVectors;
       }
     }
 
@@ -376,6 +246,33 @@ public class VectorizedFlinkOrcReaders {
           }
         };
       }
+    }
+  }
+
+  private static class FlinkRowColumnVector implements RowColumnVector {
+
+    private ColumnVector[] fieldVectors;
+    private StructColumnVector structVector;
+
+    FlinkRowColumnVector(ColumnVector[] fieldVectors,
+                         StructColumnVector structVector) {
+      this.fieldVectors = fieldVectors;
+      this.structVector = structVector;
+    }
+
+    @Override
+    public ColumnarRowData getRow(int i) {
+      VectorizedColumnBatch vectorizedColumnBatch = new VectorizedColumnBatch(fieldVectors);
+      return new ColumnarRowData(vectorizedColumnBatch, i);
+    }
+
+    @Override
+    public boolean isNullAt(int i) {
+      return structVector.isNull[i];
+    }
+
+    public ColumnVector[] getFieldVectors() {
+      return fieldVectors;
     }
   }
 }

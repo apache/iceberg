@@ -22,7 +22,6 @@ package org.apache.iceberg.flink.source;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
@@ -33,7 +32,6 @@ import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.config.ExecutionConfigOptions;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.DataType;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
@@ -46,19 +44,16 @@ import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
-
 public class FlinkSource {
   private FlinkSource() {
   }
 
   /**
-   * Initialize a {@link Builder} to read the data from iceberg table. Equivalent to {@link TableScan}.
-   * See more options in {@link ScanContext}.
+   * Initialize a {@link Builder} to read the data from iceberg table. Equivalent to {@link TableScan}. See more options
+   * in {@link ScanContext}.
    * <p>
-   * The Source can be read static data in bounded mode. It can also continuously check the arrival of new data and
-   * read records incrementally.
+   * The Source can be read static data in bounded mode. It can also continuously check the arrival of new data and read
+   * records incrementally.
    * <ul>
    *   <li>Without startSnapshotId: Bounded</li>
    *   <li>With startSnapshotId and with endSnapshotId: Bounded</li>
@@ -202,16 +197,10 @@ public class FlinkSource {
         contextBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
       }
 
-      FileFormat fileFormat = getFileFormat(table.properties());
       DataType[] dataTypes = projectedSchema != null ? projectedSchema.getFieldDataTypes() :
           FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(table.schema())).getFieldDataTypes();
-      return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, contextBuilder.build(), fileFormat,
-          dataTypes, readableConfig);
-    }
-
-    private FileFormat getFileFormat(Map<String, String> properties) {
-      String formatString = properties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
-      return FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
+      return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, contextBuilder.build(), dataTypes,
+          readableConfig);
     }
 
     public DataStream<RowData> build() {

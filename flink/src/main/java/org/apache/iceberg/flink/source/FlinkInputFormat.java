@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
+import java.util.Collection;
 import org.apache.flink.api.common.io.DefaultInputSplitAssigner;
 import org.apache.flink.api.common.io.InputFormat;
 import org.apache.flink.api.common.io.RichInputFormat;
@@ -30,7 +31,11 @@ import org.apache.flink.core.io.InputSplitAssigner;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -51,7 +56,6 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   private final FileIO io;
   private final EncryptionManager encryption;
   private final ScanContext context;
-  private final FileFormat fileFormat;
   private final DataType[] dataTypes;
   private final ReadableConfig readableConfig;
 
@@ -59,13 +63,12 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   private transient long currentReadCount = 0L;
 
   FlinkInputFormat(TableLoader tableLoader, Schema tableSchema, FileIO io, EncryptionManager encryption,
-                   ScanContext context, FileFormat fileFormat, DataType[] dataTypes, ReadableConfig readableConfig) {
+                   ScanContext context, DataType[] dataTypes, ReadableConfig readableConfig) {
     this.tableLoader = tableLoader;
     this.tableSchema = tableSchema;
     this.io = io;
     this.encryption = encryption;
     this.context = context;
-    this.fileFormat = fileFormat;
     this.dataTypes = dataTypes;
     this.readableConfig = readableConfig;
   }
@@ -105,7 +108,7 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
     boolean enableVectorizedRead = readableConfig.get(FlinkTableOptions.ENABLE_VECTORIZED_READ);
 
     if (enableVectorizedRead) {
-      if (useOrcVectorizedRead()) {
+      if (useOrcVectorizedRead(split.getTask())) {
         this.iterator = new BatchRowDataIterator(
             split.getTask(), io, encryption, tableSchema, context.project(), context.nameMapping(),
             context.caseSensitive());
@@ -123,9 +126,17 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
         context.caseSensitive());
   }
 
-  private boolean useOrcVectorizedRead() {
-    if (!fileFormat.equals(FileFormat.ORC)) {
-      return false;
+  private boolean useOrcVectorizedRead(CombinedScanTask task) {
+    Collection<FileScanTask> fileScanTasks = task.files();
+    for (FileScanTask fileScanTask : fileScanTasks) {
+      DataFile dataFile = fileScanTask.file();
+      if (!FileContent.DATA.equals(dataFile.content())) {
+        return false;
+      }
+
+      if (!FileFormat.ORC.equals(dataFile.format())) {
+        return false;
+      }
     }
 
     for (DataType dataType : dataTypes) {
