@@ -45,11 +45,11 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -77,7 +77,6 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   private static final Logger LOG = LoggerFactory.getLogger(Reader.class);
 
   private static final Filter[] NO_FILTERS = new Filter[0];
-  private static final ImmutableSet<String> LOCALITY_WHITELIST_FS = ImmutableSet.of("hdfs");
 
   private final JavaSparkContext sparkContext;
   private final Table table;
@@ -146,8 +145,8 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
         LOG.warn("Failed to get Hadoop Filesystem", ioe);
       }
       String scheme = fsscheme; // Makes an effectively final version of scheme
-      this.localityPreferred = options.get("locality").map(Boolean::parseBoolean)
-          .orElseGet(() -> LOCALITY_WHITELIST_FS.contains(scheme));
+      this.localityPreferred = options.get(SparkReadOptions.LOCALITY_ENABLED).map(Boolean::parseBoolean)
+          .orElseGet(() -> SparkUtil.isLocalityEnabledDefault(table.properties(), scheme));
     } else {
       this.localityPreferred = false;
     }

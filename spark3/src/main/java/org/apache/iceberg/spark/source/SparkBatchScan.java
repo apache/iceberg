@@ -80,7 +80,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     this.caseSensitive = caseSensitive;
     this.expectedSchema = expectedSchema;
     this.filterExpressions = filters != null ? filters : Collections.emptyList();
-    this.localityPreferred = Spark3Util.isLocalityEnabled(table.io(), table.location(), options);
+    this.localityPreferred = Spark3Util.isLocalityEnabled(table.io(), table.location(), table.properties(), options);
     this.batchSize = Spark3Util.batchSize(table.properties(), options);
     this.options = options;
   }
