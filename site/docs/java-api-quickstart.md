@@ -19,7 +19,7 @@
 
 ## Create a table
 
-Tables are created using either a [`Catalog`](./javadoc/master/index.html?org/apache/iceberg/catalog/Catalog.html) or an implementation of the [`Tables`](./javadoc/master/index.html?org/apache/iceberg/Tables.html) interface.
+Tables are created using either a [`Catalog`](./javadoc/0.11.1/index.html?org/apache/iceberg/catalog/Catalog.html) or an implementation of the [`Tables`](./javadoc/0.11.1/index.html?org/apache/iceberg/Tables.html) interface.
 
 ### Using a Hive catalog
 
