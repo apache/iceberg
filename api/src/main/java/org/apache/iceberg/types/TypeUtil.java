@@ -179,8 +179,8 @@ public class TypeUtil {
    */
   public static Schema assignFreshIds(Schema schema, Schema baseSchema, NextID nextId) {
     Types.StructType struct = TypeUtil
-            .visit(schema.asStruct(), new AssignFreshIds(schema, baseSchema, nextId))
-            .asStructType();
+        .visit(schema.asStruct(), new AssignFreshIds(schema, baseSchema, nextId))
+        .asStructType();
     return new Schema(struct.fields(), refreshIdentifierFields(struct, schema));
   }
 
@@ -188,7 +188,7 @@ public class TypeUtil {
    * Get the identifier fields in the fresh schema based on the identifier fields in the base schema.
    * @param freshSchema fresh schema
    * @param baseSchema base schema
-   * @return idnetifier fields in the fresh schema
+   * @return identifier fields in the fresh schema
    */
   public static Set<Integer> refreshIdentifierFields(Types.StructType freshSchema, Schema baseSchema) {
     Map<String, Integer> nameToId = TypeUtil.indexByName(freshSchema);

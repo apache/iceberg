@@ -60,7 +60,8 @@ public class TestTypeUtil {
     );
     final Schema actualSchema = TypeUtil.reassignIds(schema, sourceSchema);
     Assert.assertEquals(sourceSchema.asStruct(), actualSchema.asStruct());
-    Assert.assertEquals(sourceSchema.identifierFieldIds(), actualSchema.identifierFieldIds());
+    Assert.assertEquals("identifier field ID should change based on source schema",
+        sourceSchema.identifierFieldIds(), actualSchema.identifierFieldIds());
   }
 
   @Test
@@ -71,15 +72,35 @@ public class TestTypeUtil {
             required(11, "A", Types.IntegerType.get())),
         Sets.newHashSet(10)
     );
-    Schema sourceSchema = new Schema(
+    Schema expectedSchema = new Schema(
         Lists.newArrayList(
             required(1, "a", Types.IntegerType.get()),
             required(2, "A", Types.IntegerType.get())),
         Sets.newHashSet(1)
     );
     final Schema actualSchema = TypeUtil.assignIncreasingFreshIds(schema);
+    Assert.assertEquals(expectedSchema.asStruct(), actualSchema.asStruct());
+    Assert.assertEquals("identifier field ID should change based on source schema",
+        expectedSchema.identifierFieldIds(), actualSchema.identifierFieldIds());
+  }
+
+  @Test
+  public void testAssignIncreasingFreshIdNewIdentifier() {
+    Schema schema = new Schema(
+        Lists.newArrayList(
+            required(10, "a", Types.IntegerType.get()),
+            required(11, "A", Types.IntegerType.get())),
+        Sets.newHashSet(10)
+    );
+    Schema sourceSchema = new Schema(
+        Lists.newArrayList(
+            required(1, "a", Types.IntegerType.get()),
+            required(2, "A", Types.IntegerType.get()))
+    );
+    final Schema actualSchema = TypeUtil.reassignIds(schema, sourceSchema);
     Assert.assertEquals(sourceSchema.asStruct(), actualSchema.asStruct());
-    Assert.assertEquals(sourceSchema.identifierFieldIds(), actualSchema.identifierFieldIds());
+    Assert.assertEquals("source schema missing identifier should not impact refreshing new identifier",
+        Sets.newHashSet(sourceSchema.findField("a").fieldId()), actualSchema.identifierFieldIds());
   }
 
   @Test(expected = IllegalArgumentException.class)
