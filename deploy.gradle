@@ -113,8 +113,8 @@ subprojects {
         // upload to the releases repository using ./gradlew -Prelease publish
         def apacheSnapshotsRepoUrl = 'https://repository.apache.org/content/repositories/snapshots'
         def apacheReleasesRepoUrl = 'https://repository.apache.org/service/local/staging/deploy/maven2'
-        def snapshotsRepoUrl = project.hasProperty('mavenSnapshotsRepo') ? project.property('mavenSnapshotsRepo') : "$apacheSnapshotsRepoUrl"
-        def releasesRepoUrl = project.hasProperty('mavenReleasesRepo') ? project.property('mavenReleasesRepo') : "$apacheReleasesRepoUrl"
+        def snapshotsRepoUrl = project.hasProperty('mavenSnapshotsRepo') ? "$mavenSnapshotsRepo" : "$apacheSnapshotsRepoUrl"
+        def releasesRepoUrl = project.hasProperty('mavenReleasesRepo') ? "$mavenReleasesRepo" : "$apacheReleasesRepoUrl"
         url = project.hasProperty('release') ? releasesRepoUrl : snapshotsRepoUrl
       }
     }
