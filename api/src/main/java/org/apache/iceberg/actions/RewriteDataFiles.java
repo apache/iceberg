@@ -30,7 +30,7 @@ import org.apache.iceberg.expressions.Expression;
 public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, RewriteDataFiles.Result> {
 
   /**
-   * Enable committing groups of files (see max-file-group-size) prior to the entire rewrite completing.
+   * Enable committing groups of files (see max-file-group-size-bytes) prior to the entire rewrite completing.
    * This will produce additional commits but allow for progress even if some groups fail to commit. This setting
    * will not change the correctness of the rewrite operation as file groups can be compacted independently.
    * <p>
@@ -83,8 +83,7 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
   String OUTPUT_PARTITION_SPEC_ID = "output-partition-spec-id";
 
   enum Strategy {
-    BINPACK,
-    SORT
+    BINPACK
   }
 
   /**
