@@ -55,6 +55,7 @@ import static org.apache.iceberg.TableProperties.MERGE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
+import static org.apache.spark.sql.functions.column;
 import static org.apache.spark.sql.functions.lit;
 
 public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
@@ -1433,5 +1434,35 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               "WHEN MATCHED THEN " +
               "  UPDATE SET *");
         });
+  }
+
+  /**
+   * Tests a merge where both the source and target are evaluated to be partitioned by SingePartition at planning time
+   * but DynamicFileFilterExec will return an empty target.
+   */
+  @Test
+  public void testMergeSinglePartitionPartitioning() {
+    // This table will only have a single file and a single partition
+    createAndInitTable("id INT", "{\"id\": -1}");
+
+    // Coalesce forces our source into a SinglePartition distribution
+    spark.range(0,5).coalesce(1).createOrReplaceTempView("source");
+
+    sql("MERGE INTO %s t USING source s ON t.id = s.id "
+            + "WHEN MATCHED THEN UPDATE SET *"
+            + "WHEN NOT MATCHED THEN INSERT *",
+        tableName);
+
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(
+        row(-1),
+        row(0),
+        row(1),
+        row(2),
+        row(3),
+        row(4)
+    );
+
+    List<Object[]> result = sql("SELECT * FROM %s ORDER BY id", tableName);
+    assertEquals("Should correctly add the non-matching rows", expectedRows, result);
   }
 }
