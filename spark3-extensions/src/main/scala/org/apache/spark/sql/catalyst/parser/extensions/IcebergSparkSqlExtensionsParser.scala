@@ -43,17 +43,9 @@ import org.apache.spark.sql.types.StructType
 
 class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserInterface {
 
-  private lazy val substitutorCtor: DynConstructors.Ctor[VariableSubstitution] =
-    DynConstructors.builder()
-      .impl(classOf[VariableSubstitution])
-      .impl(classOf[VariableSubstitution], classOf[SQLConf])
-      .build()
-  private lazy val substitutor =
-    if (Spark3VersionUtil.isSpark30) {
-      substitutorCtor.newInstance(SQLConf.get)
-    } else {
-      substitutorCtor.newInstance()
-    }
+  import IcebergSparkSqlExtensionsParser._
+
+  private lazy val substitutor = substitutorCtor.newInstance(SQLConf.get)
   private lazy val astBuilder = new IcebergSqlExtensionsAstBuilder(delegate)
 
   /**
@@ -66,14 +58,7 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
   /**
    * Parse a string to a raw DataType without CHAR/VARCHAR replacement.
    */
-  def parseRawDataType(sqlText: String): DataType = {
-    try {
-      val method = delegate.getClass.getMethod("parseRawDataType", classOf[String])
-      method.invoke(delegate, sqlText).asInstanceOf[DataType]
-    } catch {
-      case _: NoSuchMethodException => throw new UnsupportedOperationException()
-    }
-  }
+  def parseRawDataType(sqlText: String): DataType = throw new UnsupportedOperationException()
 
   /**
    * Parse a string to an Expression.
@@ -174,6 +159,14 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
         throw new IcebergParseException(Option(command), e.message, position, position)
     }
   }
+}
+
+object IcebergSparkSqlExtensionsParser {
+  private val substitutorCtor: DynConstructors.Ctor[VariableSubstitution] =
+    DynConstructors.builder()
+      .impl(classOf[VariableSubstitution])
+      .impl(classOf[VariableSubstitution], classOf[SQLConf])
+      .build()
 }
 
 /* Copied from Apache Spark's to avoid dependency on Spark Internals */

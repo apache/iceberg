@@ -43,6 +43,9 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
 
   @Test
   public void testDeleteFromUnpartitionedTable() {
+    // This test fails in Spark 3.1. `canDeleteWhere` was added to `SupportsDelete` in Spark 3.1,
+    // but logic to rewrite the query if `canDeleteWhere` returns false was left to be implemented
+    // later.
     Assume.assumeTrue(Spark3VersionUtil.isSpark30());
     // set the shuffle partitions to 1 to force the write to use a single task and produce 1 file
     String originalParallelism = spark.conf().get("spark.sql.shuffle.partitions");
@@ -71,6 +74,9 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
 
   @Test
   public void testDeleteFromPartitionedTable() {
+    // This test fails in Spark 3.1. `canDeleteWhere` was added to `SupportsDelete` in Spark 3.1,
+    // but logic to rewrite the query if `canDeleteWhere` returns false was left to be implemented
+    // later.
     Assume.assumeTrue(Spark3VersionUtil.isSpark30());
     // set the shuffle partitions to 1 to force the write to use a single task and produce 1 file per partition
     String originalParallelism = spark.conf().get("spark.sql.shuffle.partitions");

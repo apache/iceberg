@@ -100,6 +100,20 @@ object DistributionAndOrderingUtils {
     queryWithDistributionAndOrdering
   }
 
+  private val sortOrderCtor: DynConstructors.Ctor[catalyst.expressions.SortOrder] =
+    DynConstructors.builder()
+      .impl(classOf[catalyst.expressions.SortOrder],
+        classOf[catalyst.expressions.Expression],
+        classOf[catalyst.expressions.SortDirection],
+        classOf[catalyst.expressions.NullOrdering],
+        classOf[Seq[catalyst.expressions.Expression]])
+      .impl(classOf[catalyst.expressions.SortOrder],
+        classOf[catalyst.expressions.Expression],
+        classOf[catalyst.expressions.SortDirection],
+        classOf[catalyst.expressions.NullOrdering],
+        classOf[Set[catalyst.expressions.Expression]])
+      .build()
+
   private def toCatalyst(
       expr: Expression,
       query: LogicalPlan,
@@ -120,23 +134,10 @@ object DistributionAndOrderingUtils {
     expr match {
       case s: SortOrder =>
         val catalystChild = toCatalyst(s.expression(), query, resolver)
-        val ctor: DynConstructors.Ctor[catalyst.expressions.SortOrder] =
-          DynConstructors.builder()
-            .impl(classOf[catalyst.expressions.SortOrder],
-              classOf[catalyst.expressions.Expression],
-              classOf[catalyst.expressions.SortDirection],
-              classOf[catalyst.expressions.NullOrdering],
-              classOf[Seq[catalyst.expressions.Expression]])
-            .impl(classOf[catalyst.expressions.SortOrder],
-              classOf[catalyst.expressions.Expression],
-              classOf[catalyst.expressions.SortDirection],
-              classOf[catalyst.expressions.NullOrdering],
-              classOf[Set[catalyst.expressions.Expression]])
-            .build()
         if (Spark3VersionUtil.isSpark30) {
-          ctor.newInstance(catalystChild, toCatalyst(s.direction), toCatalyst(s.nullOrdering), Set.empty)
+          sortOrderCtor.newInstance(catalystChild, toCatalyst(s.direction), toCatalyst(s.nullOrdering), Set.empty)
         } else {
-          ctor.newInstance(catalystChild, toCatalyst(s.direction), toCatalyst(s.nullOrdering), Seq.empty)
+          sortOrderCtor.newInstance(catalystChild, toCatalyst(s.direction), toCatalyst(s.nullOrdering), Seq.empty)
         }
       case it: IdentityTransform =>
         resolve(it.ref.fieldNames)

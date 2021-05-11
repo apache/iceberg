@@ -233,25 +233,26 @@ object RewriteRowLevelOperationHelper {
   private final val AFFECTED_FILES_ACC_ALIAS_NAME = "_affectedFiles_"
   private final val SUM_ROW_ID_ALIAS_NAME = "_sum_"
 
+  private val scanRelationCtor: DynConstructors.Ctor[DataSourceV2ScanRelation] =
+    DynConstructors.builder()
+      .impl(classOf[DataSourceV2ScanRelation],
+        classOf[DataSourceV2Relation],
+        classOf[Scan],
+        classOf[Seq[AttributeReference]])
+      .impl(classOf[DataSourceV2ScanRelation],
+        classOf[Table],
+        classOf[Scan],
+        classOf[Seq[AttributeReference]])
+      .build()
+
   def createScanRelation(
       relation: DataSourceV2Relation,
       scan: Scan,
       outputAttrs: Seq[AttributeReference]): DataSourceV2ScanRelation = {
-    val ctor: DynConstructors.Ctor[DataSourceV2ScanRelation] =
-      DynConstructors.builder()
-        .impl(classOf[DataSourceV2ScanRelation],
-          classOf[DataSourceV2Relation],
-          classOf[Scan],
-          classOf[Seq[AttributeReference]])
-        .impl(classOf[DataSourceV2ScanRelation],
-          classOf[Table],
-          classOf[Scan],
-          classOf[Seq[AttributeReference]])
-        .build()
     if (Spark3VersionUtil.isSpark30) {
-      ctor.newInstance(relation.table, scan, outputAttrs)
+      scanRelationCtor.newInstance(relation.table, scan, outputAttrs)
     } else {
-      ctor.newInstance(relation, scan, outputAttrs)
+      scanRelationCtor.newInstance(relation, scan, outputAttrs)
     }
   }
 }
