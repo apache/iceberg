@@ -195,7 +195,7 @@ public class TestHiveMetastore {
   }
 
   public Table getTable(TableIdentifier identifier) throws TException, InterruptedException {
-   return getTable(identifier.namespace().toString(), identifier.name());
+    return getTable(identifier.namespace().toString(), identifier.name());
   }
 
   private TServer newThriftServer(TServerSocket socket, int poolSize, HiveConf conf) throws Exception {
