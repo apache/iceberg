@@ -20,14 +20,14 @@
 package org.apache.iceberg.util;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.HasTableOperations;
-import org.apache.iceberg.MetadataLocationUtils;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.ReachableFileUtils;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
@@ -43,7 +43,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public class TestMetadataLocationUtils {
+public class TestReachableFileUtils {
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA = new Schema(
       optional(1, "c1", Types.IntegerType.get()),
@@ -77,7 +77,7 @@ public class TestMetadataLocationUtils {
 
 
   @Test
-  public void testManifestListPaths() {
+  public void testManifestListLocations() {
     table.newAppend()
         .appendFile(FILE_A)
         .commit();
@@ -86,12 +86,12 @@ public class TestMetadataLocationUtils {
         .appendFile(FILE_B)
         .commit();
 
-    List<String> manifestListPaths = MetadataLocationUtils.manifestListPaths(table);
+    List<String> manifestListPaths = ReachableFileUtils.manifestListLocations(table);
     Assert.assertEquals(manifestListPaths.size(), 2);
   }
 
   @Test
-  public void testMiscMetadataFiles() {
+  public void testMetadataFileLocations() {
     table.updateProperties()
         .set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "1")
         .commit();
@@ -104,17 +104,15 @@ public class TestMetadataLocationUtils {
         .appendFile(FILE_B)
         .commit();
 
-    List<String> miscMetadataFilePaths = MetadataLocationUtils
-        .miscMetadataFiles(((HasTableOperations) table).operations(), true);
-    Assert.assertEquals(miscMetadataFilePaths.size(), 5);
+    Set<String> metadataFileLocations = ReachableFileUtils.metadataFileLocations(table, true);
+    Assert.assertEquals(metadataFileLocations.size(), 4);
 
-    miscMetadataFilePaths = MetadataLocationUtils
-        .miscMetadataFiles(((HasTableOperations) table).operations(), false);
-    Assert.assertEquals(miscMetadataFilePaths.size(), 3);
+    metadataFileLocations = ReachableFileUtils.metadataFileLocations(table, false);
+    Assert.assertEquals(metadataFileLocations.size(), 2);
   }
 
   @Test
-  public void testMiscMetadataFilesWithMissingFiles() {
+  public void testMetadatFileLocationsWithMissingFiles() {
     table.updateProperties()
         .set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "2")
         .commit();
@@ -132,36 +130,7 @@ public class TestMetadataLocationUtils {
     // delete v3.metadata.json making v2.metadata.json and v1.metadata.json inaccessible
     table.io().deleteFile(location);
 
-    List<String> miscMetadataFilePaths = MetadataLocationUtils
-        .miscMetadataFiles(operations, true);
-    Assert.assertEquals(miscMetadataFilePaths.size(), 5);
-  }
-
-  @Test
-  public void testMiscMetadataFilesWithUnreachableFiles() {
-    List<String> metadataLocs = new ArrayList<>();
-    table.updateProperties()
-        .set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "2")
-        .commit();
-    TableOperations operations = ((HasTableOperations) table).operations();
-    metadataLocs.add(operations.current().metadataFileLocation());
-
-    table.newAppend()
-        .appendFile(FILE_A)
-        .commit();
-    operations.refresh();
-    metadataLocs.add(operations.current().metadataFileLocation());
-
-    table.newAppend()
-        .appendFile(FILE_B)
-        .commit();
-
-    for (String metadataLoc : metadataLocs) {
-      table.io().deleteFile(metadataLoc);
-    }
-
-    List<String> miscMetadataFilePaths = MetadataLocationUtils
-        .miscMetadataFiles(operations, true);
-    Assert.assertEquals(miscMetadataFilePaths.size(), 4);
+    Set<String> metadataFileLocations = ReachableFileUtils.metadataFileLocations(table, true);
+    Assert.assertEquals(metadataFileLocations.size(), 4);
   }
 }

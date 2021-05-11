@@ -22,12 +22,13 @@ package org.apache.iceberg.spark.actions;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ManifestFiles;
-import org.apache.iceberg.MetadataLocationUtils;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.ReachableFileUtils;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -38,6 +39,7 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.JobGroupUtils;
@@ -132,19 +134,22 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
   }
 
   protected Dataset<Row> buildManifestListDF(Table table) {
-    List<String> manifestLists = MetadataLocationUtils.manifestListPaths(table);
+    List<String> manifestLists = ReachableFileUtils.manifestListLocations(table);
     return spark.createDataset(manifestLists, Encoders.STRING()).toDF("file_path");
   }
 
-  protected Dataset<Row> buildOtherMetadataFileDF(TableOperations ops) {
-    List<String> otherMetadataFiles = MetadataLocationUtils.miscMetadataFiles(ops, false);
-    return spark.createDataset(otherMetadataFiles, Encoders.STRING()).toDF("file_path");
+  protected Dataset<Row> buildOtherMetadataFileDF(Table table) {
+    Set<String> otherMetadataFiles = ReachableFileUtils.metadataFileLocations(table, false);
+    String versionHintLocation = ReachableFileUtils.versionHintLocation(table);
+    otherMetadataFiles.add(versionHintLocation);
+    List<String> otherFiles = Lists.newArrayList(otherMetadataFiles);
+    return spark.createDataset(otherFiles, Encoders.STRING()).toDF("file_path");
   }
 
   protected Dataset<Row> buildValidMetadataFileDF(Table table, TableOperations ops) {
     Dataset<Row> manifestDF = buildManifestFileDF(table);
     Dataset<Row> manifestListDF = buildManifestListDF(table);
-    Dataset<Row> otherMetadataFileDF = buildOtherMetadataFileDF(ops);
+    Dataset<Row> otherMetadataFileDF = buildOtherMetadataFileDF(table);
 
     return manifestDF.union(otherMetadataFileDF).union(manifestListDF);
   }
