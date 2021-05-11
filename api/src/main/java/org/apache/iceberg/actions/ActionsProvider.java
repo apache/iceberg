@@ -57,7 +57,7 @@ public interface ActionsProvider {
   /**
    * Instantiates an action to rewrite data files.
    */
-  default RewriteDataFilesV1 rewriteDataFiles(Table table) {
+  default RewriteDataFiles rewriteDataFiles(Table table) {
     throw new UnsupportedOperationException(this.getClass().getName() + " does not implement rewriteDataFiles");
   }
 
