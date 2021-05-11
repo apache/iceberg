@@ -1187,44 +1187,46 @@ project(':iceberg-spark3-runtime') {
   }
 
   ext {
-    prop = findProperty('spark31Runtime')
-    spark31Runtime = prop != null
-  }
+    commonDependencies = {
+      compile project(':iceberg-aws')
+      compile(project(':iceberg-nessie')) {
+        exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      }
 
-  dependencies {
-    if (spark31Runtime) {
-      compile project(':iceberg-spark31')
-      compile project(':iceberg-spark31-extensions')
-    } else {
+      integrationImplementation 'junit:junit'
+      integrationImplementation 'org.slf4j:slf4j-simple'
+      integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+      integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+      integrationImplementation project(path: ':iceberg-spark', configuration: 'testArtifacts')
+      integrationImplementation project(path: ':iceberg-spark3', configuration: 'testArtifacts')
+      integrationImplementation project(path: ':iceberg-spark3-extensions', configuration: 'testArtifacts')
+    }
+
+    spark30Dependencies = {
       compile project(':iceberg-spark3')
       compile project(':iceberg-spark3-extensions')
-    }
-    compile project(':iceberg-aws')
-    compile(project(':iceberg-nessie')) {
-      exclude group: 'com.google.code.findbugs', module: 'jsr305'
-    }
 
-    if (spark31Runtime) {
-      integrationImplementation 'org.apache.spark:spark-hive_2.12:3.1.1'
-    } else {
       integrationImplementation 'org.apache.spark:spark-hive_2.12:3.0.1'
-    }
-    integrationImplementation 'junit:junit'
-    integrationImplementation 'org.slf4j:slf4j-simple'
-    integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-spark', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-spark3', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-spark3-extensions', configuration: 'testArtifacts')
-    // Not allowed on our classpath, only the runtime jar is allowed
-    if (spark31Runtime) {
-      integrationCompileOnly project(':iceberg-spark31-extensions')
-      integrationCompileOnly project(':iceberg-spark31')
-    } else {
+
+      // Not allowed on our classpath, only the runtime jar is allowed
       integrationCompileOnly project(':iceberg-spark3-extensions')
       integrationCompileOnly project(':iceberg-spark3')
     }
+
+    spark31Dependencies = {
+      compile project(':iceberg-spark31')
+      compile project(':iceberg-spark31-extensions')
+
+      integrationImplementation 'org.apache.spark:spark-hive_2.12:3.1.1'
+
+      // Not allowed on our classpath, only the runtime jar is allowed
+      integrationCompileOnly project(':iceberg-spark31-extensions')
+      integrationCompileOnly project(':iceberg-spark31')
+    }
   }
+
+  dependencies project.ext.commonDependencies
+  dependencies project.ext.spark30Dependencies
 
   shadowJar {
     configurations = [project.configurations.compile]
@@ -1233,6 +1235,84 @@ project(':iceberg-spark3-runtime') {
 
     // include the LICENSE and NOTICE files for the shaded Jar
     from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    // Relocate dependencies to avoid conflicts
+    relocate 'com.google', 'org.apache.iceberg.shaded.com.google'
+    relocate 'com.fasterxml', 'org.apache.iceberg.shaded.com.fasterxml'
+    relocate 'com.github.benmanes', 'org.apache.iceberg.shaded.com.github.benmanes'
+    relocate 'org.checkerframework', 'org.apache.iceberg.shaded.org.checkerframework'
+    relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
+    relocate 'avro.shaded', 'org.apache.iceberg.shaded.org.apache.avro.shaded'
+    relocate 'com.thoughtworks.paranamer', 'org.apache.iceberg.shaded.com.thoughtworks.paranamer'
+    relocate 'org.apache.parquet', 'org.apache.iceberg.shaded.org.apache.parquet'
+    relocate 'shaded.parquet', 'org.apache.iceberg.shaded.org.apache.parquet.shaded'
+    relocate 'org.apache.orc', 'org.apache.iceberg.shaded.org.apache.orc'
+    relocate 'io.airlift', 'org.apache.iceberg.shaded.io.airlift'
+    // relocate Arrow and related deps to shade Iceberg specific version
+    relocate 'io.netty.buffer', 'org.apache.iceberg.shaded.io.netty.buffer'
+    relocate 'org.apache.arrow', 'org.apache.iceberg.shaded.org.apache.arrow'
+    relocate 'com.carrotsearch', 'org.apache.iceberg.shaded.com.carrotsearch'
+    relocate 'org.threeten.extra', 'org.apache.iceberg.shaded.org.threeten.extra'
+    // relocate Antlr runtime and related deps to shade Iceberg specific version
+    relocate 'org.antlr.v4.runtime', 'org.apache.iceberg.shaded.org.antlr.v4.runtime'
+
+    classifier null
+  }
+
+  task integrationTest(type: Test) {
+    description = "Test Spark3 Runtime Jar"
+    group = "verification"
+    testClassesDirs = sourceSets.integration.output.classesDirs
+    classpath = sourceSets.integration.runtimeClasspath + files(shadowJar.archiveFile.get().asFile.path)
+    inputs.file(shadowJar.archiveFile.get().asFile.path)
+  }
+  integrationTest.dependsOn shadowJar
+  check.dependsOn integrationTest
+
+  jar {
+    enabled = false
+  }
+}
+
+project(':iceberg-spark31-runtime') {
+  apply plugin: 'com.github.johnrengelman.shadow'
+
+  tasks.jar.dependsOn tasks.shadowJar
+
+  sourceSets {
+    integration {
+      java.srcDirs = ['../spark3-runtime/src/integration/java']
+      resources.srcDirs = ['../spark3-runtime/src/integration/resources']
+    }
+  }
+
+  configurations {
+    compile {
+      exclude group: 'org.apache.spark'
+      // included in Spark
+      exclude group: 'org.slf4j'
+      exclude group: 'org.apache.commons'
+      exclude group: 'commons-pool'
+      exclude group: 'commons-codec'
+      exclude group: 'org.xerial.snappy'
+      exclude group: 'javax.xml.bind'
+      exclude group: 'javax.annotation'
+    }
+  }
+
+  dependencies project(':iceberg-spark3-runtime').ext.commonDependencies
+  dependencies project(':iceberg-spark3-runtime').ext.spark31Dependencies
+
+  shadowJar {
+    configurations = [project.configurations.compile]
+
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the shaded Jar
+    from(project(':iceberg-spark3-runtime').projectDir) {
       include 'LICENSE'
       include 'NOTICE'
     }
