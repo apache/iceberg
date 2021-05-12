@@ -61,17 +61,17 @@ public class ReachableFileUtil {
   }
 
   private static void metadataFileLocations(TableMetadata metadata, Set<String> metaFiles,
-                                            FileIO io, boolean isRecursive) {
+                                            FileIO io, boolean recursive) {
     List<TableMetadata.MetadataLogEntry> metadataLogEntries = metadata.previousFiles();
     if (metadataLogEntries.size() > 0) {
       for (TableMetadata.MetadataLogEntry metadataLogEntry : metadataLogEntries) {
         metaFiles.add(metadataLogEntry.file());
       }
-      if (isRecursive) {
+      if (recursive) {
         String metadataFileLocation = metadataLogEntries.get(0).file();
         try {
           TableMetadata newMetadata = TableMetadataParser.read(io, metadataFileLocation);
-          metadataFileLocations(newMetadata, metaFiles, io, isRecursive);
+          metadataFileLocations(newMetadata, metaFiles, io, recursive);
         } catch (Exception e) {
           LOG.error("Failed to load {}", metadataFileLocation, e);
         }

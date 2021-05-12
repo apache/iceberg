@@ -23,7 +23,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 
 public class MetadataTableUtils {
-
   private MetadataTableUtils() {
   }
 
