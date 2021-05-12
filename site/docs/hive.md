@@ -56,7 +56,7 @@ To enable Hive support globally for an application, set `iceberg.engine.hive.ena
 For example, setting this in the `hive-site.xml` loaded by Spark will enable the storage handler for all tables created by Spark.
 
 !!! Warning
-    When using Tez, you also have to disable vectorization for now (`hive.vectorized.execution.enabled=false`)
+    When using Hive with Tez in `0.11.x` releases, you also have to disable vectorization (`hive.vectorized.execution.enabled=false`)
 
 #### Table property configuration
 
@@ -338,29 +338,3 @@ The conversion applies on both creating Iceberg table and writing to Iceberg tab
 | list             | list                    |       |
 | map              | map                     |       |
 | union            |                         | not supported |
-
-### Iceberg type to Hive type
-
-This type conversion table describes how Iceberg types are converted to the Hive types. 
-The conversion applies on reading from Iceberg table via Hive.
-
-| Iceberg                    | Hive                    | Note          |
-|----------------------------|-------------------------|---------------|
-| boolean                    | boolean                 |               |
-| integer                    | integer                 |               |
-| long                       | long                    |               |
-| float                      | float                   |               |
-| double                     | double                  |               |
-| date                       | date                    |               |
-| time                       | string                  |               |
-| timestamp with timezone    | timestamp               |               |
-| timestamp without timezone | timestamp               |               |
-| string                     | string                  |               |
-| uuid                       | string                  |               |
-| fixed                      | binary                  |               |
-| binary                     | binary                  |               |
-| decimal                    | decimal                 |               |
-| struct                     | struct                  |               |
-| list                       | list                    |               |
-| map                        | map                     |               |
-
