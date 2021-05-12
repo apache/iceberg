@@ -50,12 +50,12 @@ abstract class DynamicFileFilterExecBase(
 
   /*
   If both target and source have the same partitioning we can have a problem here if our filter exec actually
-  changes the partition. Currently this can only occur in the SinglePartition distribution is in use which only
-  happens if both the target and source have a single partition, but if it does we have the potential of eliminating
-  the only partition in the target. If there are no partitions in the target then we will throw an exception because
-  the partitioning was assumed to be the same 1 partition in source and target. We fix this by making sure that
-  we always return at least 1 empty partition, in the future we may need to handle more complicated partitioner
-  scenarios.
+  changes the output partitioning of the node. Currently this can only occur in the SinglePartition distribution is
+  in use which only happens if both the target and source have a single partition, but if it does we have the potential
+  of eliminating the only partition in the target. If there are no partitions in the target then we will throw an
+  exception because the partitioning was assumed to be the same 1 partition in source and target. We fix this by making
+  sure that we always return at least 1 empty partition, in the future we may need to handle more complicated
+  partitioner scenarios.
    */
 
   override protected def doExecute(): RDD[InternalRow] = {
