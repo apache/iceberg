@@ -22,6 +22,7 @@ package org.apache.iceberg;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
@@ -41,7 +42,7 @@ public class ReachableFileUtil {
    * @return the location of the version hint file
    */
   public static String versionHintLocation(TableOperations ops) {
-    return ops.metadataFileLocation("version-hint.text");
+    return ops.metadataFileLocation(Util.VERSION_HINT_TXT_FILENAME);
   }
 
   /**
