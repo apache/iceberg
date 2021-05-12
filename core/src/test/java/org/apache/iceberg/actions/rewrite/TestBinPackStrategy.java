@@ -1,15 +1,20 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package org.apache.iceberg.actions.rewrite;
@@ -34,12 +39,13 @@ import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
 public class TestBinPackStrategy extends TableTestBase {
+
   @Parameterized.Parameters(name = "formatVersion = {0}")
   public static Object[] parameters() {
-    return new Object[] { 2 }; // We don't actually use the format version since everything is mock
+    return new Object[] {2}; // We don't actually use the format version since everything is mock
   }
 
-  private long MB = 1024 * 1024;
+  private static final long MB = 1024 * 1024;
 
   public TestBinPackStrategy(int formatVersion) {
     super(formatVersion);
@@ -69,7 +75,7 @@ public class TestBinPackStrategy extends TableTestBase {
   @Test
   public void testFilteringAllValid() {
     RewriteStrategy strategy = defaultBinPack();
-    Iterable<FileScanTask> testFiles = filesOfSize( 100, 100, 100, 100, 1000);
+    Iterable<FileScanTask> testFiles = filesOfSize(100, 100, 100, 100, 1000);
 
     Iterable<FileScanTask> filtered = strategy.selectFilesToRewrite(testFiles);
 
@@ -79,7 +85,7 @@ public class TestBinPackStrategy extends TableTestBase {
   @Test
   public void testFilteringRemoveInvalid() {
     RewriteStrategy strategy = defaultBinPack();
-    Iterable<FileScanTask> testFiles = filesOfSize( 500, 500, 500, 600, 600);
+    Iterable<FileScanTask> testFiles = filesOfSize(500, 500, 500, 600, 600);
 
     Iterable<FileScanTask> filtered = strategy.selectFilesToRewrite(testFiles);
 
@@ -93,7 +99,7 @@ public class TestBinPackStrategy extends TableTestBase {
         BinPackStrategy.MIN_FILE_SIZE_BYTES, Long.toString(490 * MB)
     ));
 
-    Iterable<FileScanTask> testFiles = filesOfSize( 500, 500, 480, 480, 560, 520);
+    Iterable<FileScanTask> testFiles = filesOfSize(500, 500, 480, 480, 560, 520);
     Iterable<FileScanTask> expectedFiles = filesOfSize(480, 480, 560);
 
     Iterable<FileScanTask> filtered = strategy.selectFilesToRewrite(testFiles);
@@ -107,7 +113,7 @@ public class TestBinPackStrategy extends TableTestBase {
         BinPackStrategy.MIN_NUM_INPUT_FILES, Integer.toString(5)
     ));
 
-    Iterable<FileScanTask> testFiles = filesOfSize( 1, 1, 1, 1);
+    Iterable<FileScanTask> testFiles = filesOfSize(1, 1, 1, 1);
 
     Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
 
@@ -121,7 +127,7 @@ public class TestBinPackStrategy extends TableTestBase {
         BinPackStrategy.MIN_NUM_INPUT_FILES, Integer.toString(5)
     ));
 
-    Iterable<FileScanTask> testFiles = filesOfSize( 1, 1, 1, 1, 1);
+    Iterable<FileScanTask> testFiles = filesOfSize(1, 1, 1, 1, 1);
 
     Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
 
@@ -135,8 +141,7 @@ public class TestBinPackStrategy extends TableTestBase {
         BinPackStrategy.MIN_NUM_OUTPUT_FILES, Integer.toString(3)
     ));
 
-
-    Iterable<FileScanTask> testFiles = filesOfSize( 200, 200, 200, 200, 200);
+    Iterable<FileScanTask> testFiles = filesOfSize(200, 200, 200, 200, 200);
 
     Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
 
@@ -150,7 +155,7 @@ public class TestBinPackStrategy extends TableTestBase {
         BinPackStrategy.MIN_NUM_OUTPUT_FILES, Integer.toString(2)
     ));
 
-    Iterable<FileScanTask> testFiles = filesOfSize( 200, 200, 200, 200, 200);
+    Iterable<FileScanTask> testFiles = filesOfSize(200, 200, 200, 200, 200);
 
     Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
 
@@ -164,7 +169,7 @@ public class TestBinPackStrategy extends TableTestBase {
         RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Long.toString(1000 * MB)
     ));
 
-    Iterable<FileScanTask> testFiles = filesOfSize( 300, 300, 300, 300, 300, 300);
+    Iterable<FileScanTask> testFiles = filesOfSize(300, 300, 300, 300, 300, 300);
 
     Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
 
