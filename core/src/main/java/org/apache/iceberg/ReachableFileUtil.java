@@ -20,42 +20,40 @@
 package org.apache.iceberg;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class ReachableFileUtils {
+public class ReachableFileUtil {
 
-  private static final Logger LOG = LoggerFactory.getLogger(ReachableFileUtils.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ReachableFileUtil.class);
 
-  private ReachableFileUtils() {
+  private ReachableFileUtil() {
   }
 
   /**
-   * Returns the location of version.text file
-   * @param table table whose version.text path needs to be retrieved
-   * @return the path to version.text
+   * Returns the location of the version.text file
+   *
+   * @param ops tableOperation for which version.text path needs to be retrieved
+   * @return the location of the version hint file
    */
-  public static String versionHintLocation(Table table) {
-    TableOperations ops = ((HasTableOperations) table).operations();
+  public static String versionHintLocation(TableOperations ops) {
     return ops.metadataFileLocation("version-hint.text");
   }
 
   /**
-   * Returns the metadata.json files associated with {@code table}
-   * @param table table to get the metadata json files from
-   * @param recursive
-   * <p>When true, recursively retrieves all the reachable metadata.json files.
-   * <p>when false, gets the all the metadata.json files only from the current metadata.
-   * @return a list of paths to metadata files
+   * Returns locations of JSON metadata files in a table.
+   *
+   * @param ops       TableOperations to get JSON metadata files from
+   * @param recursive When true, recursively retrieves all the reachable JSON metadata files.
+   *                 When false, gets the all the JSON metadata files only from the current metadata.
+   * @return locations of JSON metadata files
    */
-  public static Set<String> metadataFileLocations(Table table, boolean recursive) {
-    Set<String> metadataFileLocations = new HashSet<>();
-    TableOperations ops = ((HasTableOperations) table).operations();
+  public static Set<String> metadataFileLocations(TableOperations ops, boolean recursive) {
+    Set<String> metadataFileLocations = Sets.newHashSet();
     TableMetadata tableMetadata = ops.current();
     metadataFileLocations.add(tableMetadata.metadataFileLocation());
     metadataFileLocations(tableMetadata, metadataFileLocations, ops.io(), recursive);
@@ -65,28 +63,25 @@ public class ReachableFileUtils {
   private static void metadataFileLocations(TableMetadata metadata, Set<String> metaFiles,
                                             FileIO io, boolean isRecursive) {
     List<TableMetadata.MetadataLogEntry> metadataLogEntries = metadata.previousFiles();
-    List<String> previousMetadataFiles =
-        metadataLogEntries.stream().map(TableMetadata.MetadataLogEntry::file)
-            .collect(Collectors.toList());
-    if (previousMetadataFiles.size() > 0) {
-      metaFiles.addAll(previousMetadataFiles);
-      // Find the first existent metadata json file and recurse
+    if (metadataLogEntries.size() > 0) {
+      for (TableMetadata.MetadataLogEntry metadataLogEntry : metadataLogEntries) {
+        metaFiles.add(metadataLogEntry.file());
+      }
       if (isRecursive) {
-        for (String metadataFileLocation : previousMetadataFiles) {
-          try {
-            TableMetadata newMetadata = TableMetadataParser.read(io, metadataFileLocation);
-            metadataFileLocations(newMetadata, metaFiles, io, isRecursive);
-            break;
-          } catch (Exception e) {
-            LOG.error("Failed to load {}", metadataFileLocation, e);
-          }
+        String metadataFileLocation = metadataLogEntries.get(0).file();
+        try {
+          TableMetadata newMetadata = TableMetadataParser.read(io, metadataFileLocation);
+          metadataFileLocations(newMetadata, metaFiles, io, isRecursive);
+        } catch (Exception e) {
+          LOG.error("Failed to load {}", metadataFileLocation, e);
         }
       }
     }
   }
 
   /**
-   * Returns all the path locations of all Manifest Lists for a given table
+   * Returns locations of manifest lists in a table.
+   *
    * @param table table for which manifestList needs to be fetched
    * @return the paths of the Manifest Lists
    */

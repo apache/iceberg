@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.MetadataTableType;
-import org.apache.iceberg.ReachableFileUtils;
+import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -134,22 +134,21 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
   }
 
   protected Dataset<Row> buildManifestListDF(Table table) {
-    List<String> manifestLists = ReachableFileUtils.manifestListLocations(table);
+    List<String> manifestLists = ReachableFileUtil.manifestListLocations(table);
     return spark.createDataset(manifestLists, Encoders.STRING()).toDF("file_path");
   }
 
-  protected Dataset<Row> buildOtherMetadataFileDF(Table table) {
-    Set<String> otherMetadataFiles = ReachableFileUtils.metadataFileLocations(table, false);
-    String versionHintLocation = ReachableFileUtils.versionHintLocation(table);
+  protected Dataset<Row> buildOtherMetadataFileDF(TableOperations ops) {
+    Set<String> otherMetadataFiles = ReachableFileUtil.metadataFileLocations(ops, false);
+    String versionHintLocation = ReachableFileUtil.versionHintLocation(ops);
     otherMetadataFiles.add(versionHintLocation);
-    List<String> otherFiles = Lists.newArrayList(otherMetadataFiles);
-    return spark.createDataset(otherFiles, Encoders.STRING()).toDF("file_path");
+    return spark.createDataset(Lists.newArrayList(otherMetadataFiles), Encoders.STRING()).toDF("file_path");
   }
 
   protected Dataset<Row> buildValidMetadataFileDF(Table table, TableOperations ops) {
     Dataset<Row> manifestDF = buildManifestFileDF(table);
     Dataset<Row> manifestListDF = buildManifestListDF(table);
-    Dataset<Row> otherMetadataFileDF = buildOtherMetadataFileDF(table);
+    Dataset<Row> otherMetadataFileDF = buildOtherMetadataFileDF(ops);
 
     return manifestDF.union(otherMetadataFileDF).union(manifestListDF);
   }

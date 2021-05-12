@@ -27,7 +27,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.ReachableFileUtils;
+import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
@@ -43,7 +43,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public class TestReachableFileUtils {
+public class TestReachableFileUtil {
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA = new Schema(
       optional(1, "c1", Types.IntegerType.get()),
@@ -86,7 +86,7 @@ public class TestReachableFileUtils {
         .appendFile(FILE_B)
         .commit();
 
-    List<String> manifestListPaths = ReachableFileUtils.manifestListLocations(table);
+    List<String> manifestListPaths = ReachableFileUtil.manifestListLocations(table);
     Assert.assertEquals(manifestListPaths.size(), 2);
   }
 
@@ -104,17 +104,18 @@ public class TestReachableFileUtils {
         .appendFile(FILE_B)
         .commit();
 
-    Set<String> metadataFileLocations = ReachableFileUtils.metadataFileLocations(table, true);
+    TableOperations operations = ((HasTableOperations) table).operations();
+    Set<String> metadataFileLocations = ReachableFileUtil.metadataFileLocations(operations, true);
     Assert.assertEquals(metadataFileLocations.size(), 4);
 
-    metadataFileLocations = ReachableFileUtils.metadataFileLocations(table, false);
+    metadataFileLocations = ReachableFileUtil.metadataFileLocations(operations, false);
     Assert.assertEquals(metadataFileLocations.size(), 2);
   }
 
   @Test
-  public void testMetadatFileLocationsWithMissingFiles() {
+  public void testMetadataFileLocationsWithMissingFiles() {
     table.updateProperties()
-        .set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "2")
+        .set(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "1")
         .commit();
 
     table.newAppend()
@@ -130,7 +131,7 @@ public class TestReachableFileUtils {
     // delete v3.metadata.json making v2.metadata.json and v1.metadata.json inaccessible
     table.io().deleteFile(location);
 
-    Set<String> metadataFileLocations = ReachableFileUtils.metadataFileLocations(table, true);
-    Assert.assertEquals(metadataFileLocations.size(), 4);
+    Set<String> metadataFileLocations = ReachableFileUtil.metadataFileLocations(operations, true);
+    Assert.assertEquals(metadataFileLocations.size(), 2);
   }
 }
