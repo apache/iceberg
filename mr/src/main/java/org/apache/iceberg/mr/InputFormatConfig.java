@@ -49,9 +49,26 @@ public class InputFormatConfig {
   public static final String SERIALIZED_TABLE_PREFIX = "iceberg.mr.serialized.table.";
   public static final String TABLE_CATALOG_PREFIX = "iceberg.mr.table.catalog.";
   public static final String LOCALITY = "iceberg.mr.locality";
+
+  /**
+   * @deprecated please use {@link InputFormatConfig#CATALOG_TYPE_TEMPLATE} to specify the type of a catalog,
+   * and set {@link InputFormatConfig#CATALOG_NAME} in table property.
+   */
+  @Deprecated
   public static final String CATALOG = "iceberg.mr.catalog";
+
+  /**
+   * @deprecated please use {@link InputFormatConfig#CATALOG_WAREHOUSE_TEMPLATE} to specify the warehouse location.
+   */
+  @Deprecated
   public static final String HADOOP_CATALOG_WAREHOUSE_LOCATION = "iceberg.mr.catalog.hadoop.warehouse.location";
+
+  /**
+   * @deprecated please use {@link InputFormatConfig#CATALOG_CLASS_TEMPLATE} to set catalog implementation.
+   */
+  @Deprecated
   public static final String CATALOG_LOADER_CLASS = "iceberg.mr.catalog.loader.class";
+
   public static final String SELECTED_COLUMNS = "iceberg.mr.selected.columns";
   public static final String EXTERNAL_TABLE_PURGE = "external.table.purge";
 
