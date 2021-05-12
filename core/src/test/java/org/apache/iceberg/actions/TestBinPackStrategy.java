@@ -17,18 +17,18 @@
  * under the License.
  */
 
-package org.apache.iceberg.actions.rewrite;
+package org.apache.iceberg.actions;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MockFileScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableTestBase;
-import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -110,7 +110,7 @@ public class TestBinPackStrategy extends TableTestBase {
   @Test
   public void testGroupingMinInputFilesInvalid() {
     RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
-        BinPackStrategy.MIN_NUM_INPUT_FILES, Integer.toString(5)
+        BinPackStrategy.MIN_INPUT_FILES, Integer.toString(5)
     ));
 
     Iterable<FileScanTask> testFiles = filesOfSize(1, 1, 1, 1);
@@ -124,7 +124,7 @@ public class TestBinPackStrategy extends TableTestBase {
   @Test
   public void testGroupingMinInputFilesValid() {
     RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
-        BinPackStrategy.MIN_NUM_INPUT_FILES, Integer.toString(5)
+        BinPackStrategy.MIN_INPUT_FILES, Integer.toString(5)
     ));
 
     Iterable<FileScanTask> testFiles = filesOfSize(1, 1, 1, 1, 1);
@@ -138,21 +138,21 @@ public class TestBinPackStrategy extends TableTestBase {
   @Test
   public void testGroupingMinOutputFilesInvalid() {
     RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
-        BinPackStrategy.MIN_NUM_OUTPUT_FILES, Integer.toString(3)
+        BinPackStrategy.MIN_OUTPUT_FILES, Integer.toString(3)
     ));
 
     Iterable<FileScanTask> testFiles = filesOfSize(200, 200, 200, 200, 200);
 
     Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
 
-    Assert.assertEquals("Should plan 1 groups since there would be 2 output files",
+    Assert.assertEquals("Shouldn't plan any groups because we only would produce 2 files and require 3",
         Collections.emptyList(), grouped);
   }
 
   @Test
   public void testGroupingMinOutputFilesValid() {
     RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
-        BinPackStrategy.MIN_NUM_OUTPUT_FILES, Integer.toString(2)
+        BinPackStrategy.MIN_OUTPUT_FILES, Integer.toString(2)
     ));
 
     Iterable<FileScanTask> testFiles = filesOfSize(200, 200, 200, 200, 200);
@@ -175,5 +175,39 @@ public class TestBinPackStrategy extends TableTestBase {
 
     Assert.assertEquals("Should plan 2 groups since there is enough data for two groups",
         2, Iterables.size(grouped));
+  }
+
+  @Test
+  public void testInvalidOptions() {
+    AssertHelpers.assertThrows("Should not allow max size smaller than target",
+        IllegalArgumentException.class, () -> {
+            defaultBinPack().options(ImmutableMap.of(
+                BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(1 * MB)));
+        });
+
+    AssertHelpers.assertThrows("Should not allow min size larger than target",
+        IllegalArgumentException.class, () -> {
+          defaultBinPack().options(ImmutableMap.of(
+              BinPackStrategy.MIN_FILE_SIZE_BYTES, Long.toString(1000 * MB)));
+        });
+
+    AssertHelpers.assertThrows("Should not allow min input size smaller tha 1",
+        IllegalArgumentException.class, () -> {
+          defaultBinPack().options(ImmutableMap.of(
+              BinPackStrategy.MIN_INPUT_FILES, Long.toString(-5)));
+        });
+
+    AssertHelpers.assertThrows("Should not allow min output size smaller than target",
+        IllegalArgumentException.class, () -> {
+          defaultBinPack().options(ImmutableMap.of(
+              BinPackStrategy.MIN_OUTPUT_FILES, Long.toString(-5)));
+        });
+
+    AssertHelpers.assertThrows("Should not allow negative target size",
+        IllegalArgumentException.class, () -> {
+          defaultBinPack().options(ImmutableMap.of(
+              RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(-5)));
+        });
+
   }
 }

@@ -48,7 +48,6 @@ public class MockFileScanTask extends BaseFileScanTask {
     }
 
     MockFileScanTask that = (MockFileScanTask) o;
-
     return length == that.length;
   }
 
