@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.actions;
 
+import java.util.Set;
 import java.util.function.Predicate;
 import org.apache.iceberg.ManifestFile;
 
@@ -56,6 +57,26 @@ public interface RewriteManifests extends SnapshotUpdate<RewriteManifests, Rewri
    */
   RewriteManifests stagingLocation(String stagingLocation);
 
+
+  /**
+   * Allows reading of data files to repair them.
+   * @param mode repair mode
+   * @return this for method chaining
+   */
+  RewriteManifests repair(RepairMode mode);
+
+  enum RepairMode {
+    /**
+     * Rewrite manifest entries as is.
+     */
+    NONE,
+
+    /**
+     * For each manifest entry, repair with latest information from actual data file.
+     */
+    REPAIR_ENTRIES
+  }
+
   /**
    * The action result that contains a summary of the execution.
    */
@@ -69,5 +90,25 @@ public interface RewriteManifests extends SnapshotUpdate<RewriteManifests, Rewri
      * Returns added manifests.
      */
     Iterable<ManifestFile> addedManifests();
+
+    /**
+     * Represents a manifest file repaired when rewritten.
+     */
+    interface RepairedManifest {
+      /**
+       * Repaired manifest file.
+       */
+      ManifestFile manifest();
+
+      /**
+       * Names of fields of manifest file that have been repaired.
+       */
+      Set<String> fields();
+    }
+
+    /**
+     * Returns information on repaired manifests.
+     */
+    Iterable<RepairedManifest> repairedManifests();
   }
 }

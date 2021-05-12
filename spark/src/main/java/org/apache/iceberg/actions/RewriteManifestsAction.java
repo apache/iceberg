@@ -78,6 +78,16 @@ public class RewriteManifestsAction implements Action<RewriteManifestsAction, Re
     return this;
   }
 
+  /**
+   * Allows reading of data files to repair them.
+   * @param mode repair mode
+   * @return this for method chaining
+   */
+  public RewriteManifestsAction repair(org.apache.iceberg.actions.RewriteManifests.RepairMode mode) {
+    delegate.repair(mode);
+    return this;
+  }
+
   @Override
   public RewriteManifestsActionResult execute() {
     RewriteManifests.Result result = delegate.execute();

@@ -27,20 +27,26 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 public class RewriteManifestsActionResult {
 
   private static final RewriteManifestsActionResult EMPTY =
-      new RewriteManifestsActionResult(ImmutableList.of(), ImmutableList.of());
+      new RewriteManifestsActionResult(ImmutableList.of(), ImmutableList.of(), ImmutableList.of());
 
   private List<ManifestFile> deletedManifests;
   private List<ManifestFile> addedManifests;
+  private List<RewriteManifests.Result.RepairedManifest> repairedManifests;
 
-  public RewriteManifestsActionResult(List<ManifestFile> deletedManifests, List<ManifestFile> addedManifests) {
+  public RewriteManifestsActionResult(
+          List<ManifestFile> deletedManifests,
+          List<ManifestFile> addedManifests,
+          List<RewriteManifests.Result.RepairedManifest> repairedManifests) {
     this.deletedManifests = deletedManifests;
     this.addedManifests = addedManifests;
+    this.repairedManifests = repairedManifests;
   }
 
   static RewriteManifestsActionResult wrap(RewriteManifests.Result result) {
     return new RewriteManifestsActionResult(
         ImmutableList.copyOf(result.rewrittenManifests()),
-        ImmutableList.copyOf(result.addedManifests()));
+        ImmutableList.copyOf(result.addedManifests()),
+        ImmutableList.copyOf(result.repairedManifests()));
   }
 
   static RewriteManifestsActionResult empty() {
@@ -53,5 +59,9 @@ public class RewriteManifestsActionResult {
 
   public List<ManifestFile> addedManifests() {
     return addedManifests;
+  }
+
+  public List<RewriteManifests.Result.RepairedManifest> repairedManifests() {
+    return repairedManifests;
   }
 }
