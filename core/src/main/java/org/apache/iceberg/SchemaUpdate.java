@@ -417,7 +417,7 @@ class SchemaUpdate implements UpdateSchema {
 
     // Transform the metrics if they exist
     if (base != null && base.properties() != null) {
-      Schema newSchema = metadata.schema();
+      Schema newSchema = newMetadata.schema();
       List<String> deletedColumns = deletes.stream()
           .map(schema::findColumnName)
           .collect(Collectors.toList());
