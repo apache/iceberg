@@ -75,9 +75,9 @@ public class TestBinPackStrategy extends TableTestBase {
   @Test
   public void testFilteringAllValid() {
     RewriteStrategy strategy = defaultBinPack();
-    Iterable<FileScanTask> testFiles = filesOfSize(100, 100, 100, 100, 1000);
 
-    Iterable<FileScanTask> filtered = strategy.selectFilesToRewrite(testFiles);
+    Iterable<FileScanTask> testFiles = filesOfSize(100, 100, 100, 100, 1000);
+    Iterable<FileScanTask> filtered = ImmutableList.copyOf(strategy.selectFilesToRewrite(testFiles));
 
     Assert.assertEquals("No files should be removed from the set", testFiles, filtered);
   }
@@ -85,9 +85,9 @@ public class TestBinPackStrategy extends TableTestBase {
   @Test
   public void testFilteringRemoveInvalid() {
     RewriteStrategy strategy = defaultBinPack();
-    Iterable<FileScanTask> testFiles = filesOfSize(500, 500, 500, 600, 600);
 
-    Iterable<FileScanTask> filtered = strategy.selectFilesToRewrite(testFiles);
+    Iterable<FileScanTask> testFiles = filesOfSize(500, 500, 500, 600, 600);
+    Iterable<FileScanTask> filtered = ImmutableList.copyOf(strategy.selectFilesToRewrite(testFiles));
 
     Assert.assertEquals("All files should be removed from the set", Collections.emptyList(), filtered);
   }
@@ -101,8 +101,7 @@ public class TestBinPackStrategy extends TableTestBase {
 
     Iterable<FileScanTask> testFiles = filesOfSize(500, 500, 480, 480, 560, 520);
     Iterable<FileScanTask> expectedFiles = filesOfSize(480, 480, 560);
-
-    Iterable<FileScanTask> filtered = strategy.selectFilesToRewrite(testFiles);
+    Iterable<FileScanTask> filtered = ImmutableList.copyOf(strategy.selectFilesToRewrite(testFiles));
 
     Assert.assertEquals("Should remove files that exceed or are smaller than new bounds", expectedFiles, filtered);
   }

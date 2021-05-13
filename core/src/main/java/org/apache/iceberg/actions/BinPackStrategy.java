@@ -23,10 +23,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.RewriteDataFiles.Strategy;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.BinPacking;
@@ -34,7 +34,7 @@ import org.apache.iceberg.util.BinPacking.ListPacker;
 import org.apache.iceberg.util.PropertyUtil;
 
 /**
- * A rewrite strategy for datafiles which determines which files to rewrite
+ * A rewrite strategy for data files which determines which files to rewrite
  * based on their size. If files are either smaller than the min-file-size-bytes threshold or
  * larger than the max-file-size-bytes threshold, they are considered targets for being rewritten.
  * <p>
@@ -156,42 +156,28 @@ abstract class BinPackStrategy implements RewriteStrategy {
   }
 
   private void validateOptions() {
-    if (minFileSize >= maxFileSize) {
-      throw new IllegalArgumentException(
-          String.format("Cannot use bin pack when %s is greater than %s, %d >= %d",
-              MIN_FILE_SIZE_BYTES, MAX_FILE_SIZE_BYTES, minFileSize, maxFileSize));
-    }
-    if (minFileSize > targetFileSize) {
-      throw new IllegalArgumentException(
-          String.format("Cannot use bin pack when %s is greater than %s, " +
-                  "all files written will be smaller than the threshold, %d >= %d",
-              MIN_FILE_SIZE_BYTES, RewriteDataFiles.TARGET_FILE_SIZE_BYTES, minFileSize, targetFileSize));
-    }
-    if (maxFileSize < targetFileSize) {
-      throw new IllegalArgumentException(
-          String.format("Cannot use bin pack when %s is greater than %s, " +
-                  "all files written will be larger than the threshold, %d >= %d",
-              MAX_FILE_SIZE_BYTES, RewriteDataFiles.TARGET_FILE_SIZE_BYTES, maxFileSize, targetFileSize));
-    }
-    if (minInputFiles < 1) {
-      throw new IllegalArgumentException(
-          String.format("Cannot use bin pack when %s is less than 1. All values less than 1" +
-                  "have the same effect as 1. %d < 1",
-              MIN_INPUT_FILES, minInputFiles)
-      );
-    }
-    if (minOutputFiles < 1) {
-      throw new IllegalArgumentException(
-          String.format("Cannot use bin pack when %s is less than 1. All values less than 1" +
-                  "have the same effect as 1. %d < 1",
-              MIN_OUTPUT_FILES, minOutputFiles)
-      );
-    }
-    if (targetFileSize <= 0) {
-      throw new IllegalArgumentException(
-          String.format("Cannot use a non-positive number for %s. %d <= 0",
-              RewriteDataFiles.TARGET_FILE_SIZE_BYTES, targetFileSize)
-      );
-    }
+    Preconditions.checkArgument(maxFileSize > minFileSize,
+        "Cannot set %s greater than %s, %d >= %d",
+        MIN_FILE_SIZE_BYTES, MAX_FILE_SIZE_BYTES, minFileSize, maxFileSize);
+
+    Preconditions.checkArgument(targetFileSize > minFileSize,
+        "Cannot set %s greater than %s, all files written will be smaller than the threshold, %d >= %d",
+        MIN_FILE_SIZE_BYTES, RewriteDataFiles.TARGET_FILE_SIZE_BYTES, minFileSize, targetFileSize);
+
+    Preconditions.checkArgument(targetFileSize < maxFileSize,
+        "Cannot set %s is greater than %s, all files written will be larger than the threshold, %d >= %d",
+        MAX_FILE_SIZE_BYTES, RewriteDataFiles.TARGET_FILE_SIZE_BYTES, maxFileSize, targetFileSize);
+
+    Preconditions.checkArgument(minInputFiles > 0,
+        "Cannot set %s is less than 1. All values less than 1 have the same effect as 1. %d < 1",
+        MIN_INPUT_FILES, minInputFiles);
+
+    Preconditions.checkArgument(minOutputFiles > 0,
+        "Cannot set %s to less than 1. All values less than 1 have the same effect as 1. %d < 1",
+        MIN_OUTPUT_FILES, minOutputFiles);
+
+    Preconditions.checkArgument(targetFileSize > 0,
+        "Cannot set %s to a value less than 1. %d <= 0",
+        RewriteDataFiles.TARGET_FILE_SIZE_BYTES, targetFileSize);
   }
 }
