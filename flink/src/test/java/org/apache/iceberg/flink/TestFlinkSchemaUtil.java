@@ -277,6 +277,26 @@ public class TestFlinkSchemaUtil {
   }
 
   @Test
+  public void testConvertFlinkSchemaBaseOnIcebergSchema() {
+    Schema baseSchema = new Schema(
+        Lists.newArrayList(
+            Types.NestedField.required(101, "int", Types.IntegerType.get()),
+            Types.NestedField.optional(102, "string", Types.StringType.get())
+        ),
+        Sets.newHashSet(101, 102)
+    );
+
+    TableSchema flinkSchema = TableSchema.builder()
+        .field("int", DataTypes.INT().notNull())
+        .field("string", DataTypes.STRING().nullable())
+        .primaryKey("int")
+        .build();
+    Schema convertedSchema = FlinkSchemaUtil.convert(baseSchema, flinkSchema);
+    Assert.assertEquals(baseSchema.asStruct(), convertedSchema.asStruct());
+    Assert.assertEquals(ImmutableSet.of(101), convertedSchema.identifierFieldIds());
+  }
+
+  @Test
   public void testConvertFlinkSchemaWithPrimaryKeys() {
     Schema iSchema = new Schema(
         Lists.newArrayList(
