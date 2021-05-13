@@ -100,24 +100,24 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
   public void testSqlChangeLogOnIdKey() throws Exception {
     List<List<Row>> inputRowsPerCheckpoint = ImmutableList.of(
         ImmutableList.of(
-            row("+I", 1, "aaa"),
-            row("-D", 1, "aaa"),
-            row("+I", 1, "bbb"),
-            row("+I", 2, "aaa"),
-            row("-D", 2, "aaa"),
-            row("+I", 2, "bbb")
+            insertRow(1, "aaa"),
+            deleteRow(1, "aaa"),
+            insertRow(1, "bbb"),
+            insertRow(2, "aaa"),
+            deleteRow(2, "aaa"),
+            insertRow(2, "bbb")
         ),
         ImmutableList.of(
-            row("-U", 2, "bbb"),
-            row("+U", 2, "ccc"),
-            row("-D", 2, "ccc"),
-            row("+I", 2, "ddd")
+            updateBeforeRow(2, "bbb"),
+            updateAfterRow(2, "ccc"),
+            deleteRow(2, "ccc"),
+            insertRow(2, "ddd")
         ),
         ImmutableList.of(
-            row("-D", 1, "bbb"),
-            row("+I", 1, "ccc"),
-            row("-D", 1, "ccc"),
-            row("+I", 1, "ddd")
+            deleteRow(1, "bbb"),
+            insertRow(1, "ccc"),
+            deleteRow(1, "ccc"),
+            insertRow(1, "ddd")
         )
     );
 
@@ -135,21 +135,21 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
   public void testChangeLogOnDataKey() throws Exception {
     List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
         ImmutableList.of(
-            row("+I", 1, "aaa"),
-            row("-D", 1, "aaa"),
-            row("+I", 2, "bbb"),
-            row("+I", 1, "bbb"),
-            row("+I", 2, "aaa")
+            insertRow(1, "aaa"),
+            deleteRow(1, "aaa"),
+            insertRow(2, "bbb"),
+            insertRow(1, "bbb"),
+            insertRow(2, "aaa")
         ),
         ImmutableList.of(
-            row("-U", 2, "aaa"),
-            row("+U", 1, "ccc"),
-            row("+I", 1, "aaa")
+            updateBeforeRow(2, "aaa"),
+            updateAfterRow(1, "ccc"),
+            insertRow(1, "aaa")
         ),
         ImmutableList.of(
-            row("-D", 1, "bbb"),
-            row("+I", 2, "aaa"),
-            row("+I", 2, "ccc")
+            deleteRow(1, "bbb"),
+            insertRow(2, "aaa"),
+            insertRow(2, "ccc")
         )
     );
 
@@ -166,20 +166,20 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
   public void testChangeLogOnIdDataKey() throws Exception {
     List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
         ImmutableList.of(
-            row("+I", 1, "aaa"),
-            row("-D", 1, "aaa"),
-            row("+I", 2, "bbb"),
-            row("+I", 1, "bbb"),
-            row("+I", 2, "aaa")
+            insertRow(1, "aaa"),
+            deleteRow(1, "aaa"),
+            insertRow(2, "bbb"),
+            insertRow(1, "bbb"),
+            insertRow(2, "aaa")
         ),
         ImmutableList.of(
-            row("-U", 2, "aaa"),
-            row("+U", 1, "ccc"),
-            row("+I", 1, "aaa")
+            updateBeforeRow(2, "aaa"),
+            updateAfterRow(1, "ccc"),
+            insertRow(1, "aaa")
         ),
         ImmutableList.of(
-            row("-D", 1, "bbb"),
-            row("+I", 2, "aaa")
+            deleteRow(1, "bbb"),
+            insertRow(2, "aaa")
         )
     );
 
@@ -196,16 +196,16 @@ public class TestChangeLogTable extends ChangeLogTableTestBase {
   public void testPureInsertOnIdKey() throws Exception {
     List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
         ImmutableList.of(
-            row("+I", 1, "aaa"),
-            row("+I", 2, "bbb")
+            insertRow(1, "aaa"),
+            insertRow(2, "bbb")
         ),
         ImmutableList.of(
-            row("+I", 3, "ccc"),
-            row("+I", 4, "ddd")
+            insertRow(3, "ccc"),
+            insertRow(4, "ddd")
         ),
         ImmutableList.of(
-            row("+I", 5, "eee"),
-            row("+I", 6, "fff")
+            insertRow(5, "eee"),
+            insertRow(6, "fff")
         )
     );
 

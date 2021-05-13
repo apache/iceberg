@@ -47,24 +47,24 @@ public class TestBoundedTableFactory extends ChangeLogTableTestBase {
     String table = name.getMethodName();
     List<List<Row>> dataSet = ImmutableList.of(
         ImmutableList.of(
-            row("+I", 1, "aaa"),
-            row("-D", 1, "aaa"),
-            row("+I", 1, "bbb"),
-            row("+I", 2, "aaa"),
-            row("-D", 2, "aaa"),
-            row("+I", 2, "bbb")
+            insertRow(1, "aaa"),
+            deleteRow(1, "aaa"),
+            insertRow(1, "bbb"),
+            insertRow(2, "aaa"),
+            deleteRow(2, "aaa"),
+            insertRow(2, "bbb")
         ),
         ImmutableList.of(
-            row("-U", 2, "bbb"),
-            row("+U", 2, "ccc"),
-            row("-D", 2, "ccc"),
-            row("+I", 2, "ddd")
+            updateBeforeRow(2, "bbb"),
+            updateAfterRow(2, "ccc"),
+            deleteRow(2, "ccc"),
+            insertRow(2, "ddd")
         ),
         ImmutableList.of(
-            row("-D", 1, "bbb"),
-            row("+I", 1, "ccc"),
-            row("-D", 1, "ccc"),
-            row("+I", 1, "ddd")
+            deleteRow(1, "bbb"),
+            insertRow(1, "ccc"),
+            deleteRow(1, "ccc"),
+            insertRow(1, "ddd")
         )
     );
 

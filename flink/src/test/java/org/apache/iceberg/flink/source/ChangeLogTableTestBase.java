@@ -20,7 +20,6 @@
 package org.apache.iceberg.flink.source;
 
 import java.util.List;
-import java.util.Map;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
@@ -29,7 +28,6 @@ import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
 import org.apache.iceberg.flink.FlinkTestBase;
 import org.apache.iceberg.flink.MiniClusterResource;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.After;
 import org.junit.Rule;
@@ -71,19 +69,20 @@ public class ChangeLogTableTestBase extends FlinkTestBase {
     return tEnv;
   }
 
-  private static final Map<String, RowKind> ROW_KIND_MAP = ImmutableMap.of(
-      "+I", RowKind.INSERT,
-      "-D", RowKind.DELETE,
-      "-U", RowKind.UPDATE_BEFORE,
-      "+U", RowKind.UPDATE_AFTER);
+  protected static Row insertRow(Object... values) {
+    return Row.ofKind(RowKind.INSERT, values);
+  }
 
-  protected Row row(String rowKind, int id, String data) {
-    RowKind kind = ROW_KIND_MAP.get(rowKind);
-    if (kind == null) {
-      throw new IllegalArgumentException("Unknown row kind: " + rowKind);
-    }
+  protected static Row deleteRow(Object... values) {
+    return Row.ofKind(RowKind.DELETE, values);
+  }
 
-    return Row.ofKind(kind, id, data);
+  protected static Row updateBeforeRow(Object... values) {
+    return Row.ofKind(RowKind.UPDATE_BEFORE, values);
+  }
+
+  protected static Row updateAfterRow(Object... values) {
+    return Row.ofKind(RowKind.UPDATE_AFTER, values);
   }
 
   protected static <T> List<T> listJoin(List<List<T>> lists) {

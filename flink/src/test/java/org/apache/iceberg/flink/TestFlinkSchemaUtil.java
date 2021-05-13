@@ -21,6 +21,7 @@ package org.apache.iceberg.flink;
 
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.types.logical.BinaryType;
 import org.apache.flink.table.types.logical.CharType;
 import org.apache.flink.table.types.logical.LocalZonedTimestampType;
@@ -30,7 +31,11 @@ import org.apache.flink.table.types.logical.TimeType;
 import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.table.types.logical.VarBinaryType;
 import org.apache.flink.table.types.logical.VarCharType;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -269,5 +274,35 @@ public class TestFlinkSchemaUtil {
     Assert.assertEquals(
         Types.StructType.of(Types.NestedField.optional(0, "f0", icebergExpectedType)),
         FlinkSchemaUtil.convert(FlinkSchemaUtil.toSchema(RowType.of(flinkType))).asStruct());
+  }
+
+  @Test
+  public void testConvertFlinkSchemaWithPrimaryKeys() {
+    Schema iSchema = new Schema(
+        Lists.newArrayList(
+            Types.NestedField.required(1, "int", Types.IntegerType.get()),
+            Types.NestedField.required(2, "string", Types.StringType.get())
+        ),
+        Sets.newHashSet(1, 2)
+    );
+
+    TableSchema tableSchema = FlinkSchemaUtil.toSchema(iSchema);
+    Assert.assertTrue(tableSchema.getPrimaryKey().isPresent());
+    Assert.assertEquals(ImmutableSet.of("int", "string"),
+        ImmutableSet.copyOf(tableSchema.getPrimaryKey().get().getColumns()));
+  }
+
+  @Test
+  public void testConvertFlinkSchemaWithNestedColumnInPrimaryKeys() {
+    Schema iSchema = new Schema(
+        Lists.newArrayList(Types.NestedField.required(1, "struct",
+            Types.StructType.of(Types.NestedField.required(2, "inner", Types.LongType.get())))
+        ),
+        Sets.newHashSet(1, 2)
+    );
+    AssertHelpers.assertThrows("Does not support the nested columns in flink schema's primary keys",
+        ValidationException.class,
+        "Column 'struct.inner' does not exist",
+        () -> FlinkSchemaUtil.toSchema(iSchema));
   }
 }
