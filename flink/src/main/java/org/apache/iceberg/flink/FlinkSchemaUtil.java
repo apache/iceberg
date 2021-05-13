@@ -75,7 +75,8 @@ public class FlinkSchemaUtil {
     if (schema.getPrimaryKey().isPresent()) {
       for (String column : schema.getPrimaryKey().get().getColumns()) {
         Types.NestedField field = iSchema.findField(column);
-        Preconditions.checkNotNull(field, "Column %s does not found in schema %s", column, iSchema);
+        Preconditions.checkNotNull(field,
+            "Cannot find field ID for the primary key column %s in schema %s", column, iSchema);
         identifierFieldIds.add(field.fieldId());
       }
     }
