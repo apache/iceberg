@@ -38,15 +38,15 @@ import org.apache.iceberg.util.PropertyUtil;
  * based on their size. If files are either smaller than the {@link MIN_FILE_SIZE_BYTES} threshold or
  * larger than the {@link MAX_FILE_SIZE_BYTES} threshold, they are considered targets for being rewritten.
  * <p>
- * Once filtered files are grouped based on a {@link BinPacking} into groups defined
- * by max group size. Groups will be considered for rewriting if they contain more files
- * than {@link MIN_INPUT_FILES} and would produce more files than {@link MIN_OUTPUT_FILES}.
+ * Once selected files are grouped based on a {@link BinPacking} into groups defined
+ * by {@link RewriteDataFiles#MAX_FILE_GROUP_SIZE_BYTES}. Groups will be considered for rewriting if they contain
+ * more files than {@link MIN_INPUT_FILES} and would produce more files than {@link MIN_OUTPUT_FILES}.
  */
 abstract class BinPackStrategy implements RewriteStrategy {
 
   /**
    * Minimum number of files that need to be in a file group to be considered
-   * for rewriting. This is considered in conjunction with {@link MIN_INPUT_FILES}, both
+   * for rewriting. This is considered in conjunction with {@link MIN_OUTPUT_FILES}, both
    * conditions must pass to consider a group of files to be rewritten.
    */
   public static final String MIN_INPUT_FILES = "min-input-files";
@@ -54,7 +54,7 @@ abstract class BinPackStrategy implements RewriteStrategy {
 
   /**
    * Minimum number of files we want to be created by file group when being
-   * rewritten. This is considered in conjunction with {@link MIN_OUTPUT_FILES}, both
+   * rewritten. This is considered in conjunction with {@link MIN_INPUT_FILES}, both
    * conditions must pass to consider a group of files to be rewritten.
    */
   public static final String MIN_OUTPUT_FILES = "min-output-files";
@@ -161,15 +161,15 @@ abstract class BinPackStrategy implements RewriteStrategy {
         MIN_FILE_SIZE_BYTES, minFileSize);
 
     Preconditions.checkArgument(maxFileSize > minFileSize,
-        "Cannot set %s greater than %s, %d >= %d",
+        "Cannot set %s greater than or equal to %s, %d >= %d",
         MIN_FILE_SIZE_BYTES, MAX_FILE_SIZE_BYTES, minFileSize, maxFileSize);
 
     Preconditions.checkArgument(targetFileSize > minFileSize,
-        "Cannot set %s greater than %s, all files written will be smaller than the threshold, %d >= %d",
+        "Cannot set %s greater than or equal to %s, all files written will be smaller than the threshold, %d >= %d",
         MIN_FILE_SIZE_BYTES, RewriteDataFiles.TARGET_FILE_SIZE_BYTES, minFileSize, targetFileSize);
 
     Preconditions.checkArgument(targetFileSize < maxFileSize,
-        "Cannot set %s is greater than %s, all files written will be larger than the threshold, %d >= %d",
+        "Cannot set %s is greater than or equal to %s, all files written will be larger than the threshold, %d >= %d",
         MAX_FILE_SIZE_BYTES, RewriteDataFiles.TARGET_FILE_SIZE_BYTES, maxFileSize, targetFileSize);
 
     Preconditions.checkArgument(minInputFiles > 0,
