@@ -156,6 +156,10 @@ abstract class BinPackStrategy implements RewriteStrategy {
   }
 
   private void validateOptions() {
+    Preconditions.checkArgument(minFileSize >= 0,
+        "Cannot set %s to a negative number, %d < 0",
+        MIN_FILE_SIZE_BYTES, minFileSize);
+
     Preconditions.checkArgument(maxFileSize > minFileSize,
         "Cannot set %s greater than %s, %d >= %d",
         MIN_FILE_SIZE_BYTES, MAX_FILE_SIZE_BYTES, minFileSize, maxFileSize);
@@ -175,9 +179,5 @@ abstract class BinPackStrategy implements RewriteStrategy {
     Preconditions.checkArgument(minOutputFiles > 0,
         "Cannot set %s to less than 1. All values less than 1 have the same effect as 1. %d < 1",
         MIN_OUTPUT_FILES, minOutputFiles);
-
-    Preconditions.checkArgument(targetFileSize > 0,
-        "Cannot set %s to a value less than 1. %d <= 0",
-        RewriteDataFiles.TARGET_FILE_SIZE_BYTES, targetFileSize);
   }
 }
