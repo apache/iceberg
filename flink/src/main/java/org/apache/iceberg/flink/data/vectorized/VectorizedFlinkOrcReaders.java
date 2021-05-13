@@ -102,7 +102,7 @@ public class VectorizedFlinkOrcReaders {
 
     @Override
     public Converter map(Types.MapType iMap, TypeDescription map, Converter key, Converter value) {
-      throw new UnsupportedOperationException();
+      throw new UnsupportedOperationException("Unsupported vectorized read for map type.");
     }
 
     @Override
@@ -126,10 +126,10 @@ public class VectorizedFlinkOrcReaders {
     }
   }
 
-  private static class LongOrcColumnVector implements org.apache.flink.table.data.vector.LongColumnVector {
-    private long batchOffsetInFile;
+  private static class RowPositionColumnVector implements org.apache.flink.table.data.vector.LongColumnVector {
+    private final long batchOffsetInFile;
 
-    LongOrcColumnVector(long batchOffsetInFile) {
+    RowPositionColumnVector(long batchOffsetInFile) {
       this.batchOffsetInFile = batchOffsetInFile;
     }
 
@@ -165,9 +165,9 @@ public class VectorizedFlinkOrcReaders {
       for (int pos = 0; pos < fields.size(); pos++) {
         Types.NestedField field = fields.get(pos);
         if (idToConstant.containsKey(field.fieldId())) {
-          fieldVectors[pos] = getConstantVectors(field.type(), idToConstant.get(field.fieldId()));
+          fieldVectors[pos] = toConstantColumnVector(field.type(), idToConstant.get(field.fieldId()));
         } else if (field.equals(MetadataColumns.ROW_POSITION)) {
-          fieldVectors[pos] = new LongOrcColumnVector(batchOffsetInFile);
+          fieldVectors[pos] = new RowPositionColumnVector(batchOffsetInFile);
         } else {
           fieldVectors[pos] = fieldConverters.get(pos)
               .convert(structVector.fields[pos], batchSize, batchOffsetInFile);
@@ -177,41 +177,40 @@ public class VectorizedFlinkOrcReaders {
       return new FlinkRowColumnVector(fieldVectors, structVector);
     }
 
-    private ColumnVector getConstantVectors(Type type, Object constant) {
-      if (type.isPrimitiveType()) {
-        Type.TypeID typeID = type.typeId();
-        switch (typeID) {
-          case INTEGER:
-          case DATE:
-          case TIME:
-            return ConstantColumnVectors.ints(constant);
+    private ColumnVector toConstantColumnVector(Type type, Object constant) {
+      Type.TypeID typeID = type.typeId();
+      switch (typeID) {
+        case INTEGER:
+        case DATE:
+        case TIME:
+          return ConstantColumnVectors.ints(constant);
 
-          case LONG:
-            return ConstantColumnVectors.longs(constant);
+        case LONG:
+          return ConstantColumnVectors.longs(constant);
 
-          case BOOLEAN:
-            return ConstantColumnVectors.booleans(constant);
+        case BOOLEAN:
+          return ConstantColumnVectors.booleans(constant);
 
-          case DOUBLE:
-            return ConstantColumnVectors.doubles(constant);
+        case DOUBLE:
+          return ConstantColumnVectors.doubles(constant);
 
-          case FLOAT:
-            return ConstantColumnVectors.floats(constant);
+        case FLOAT:
+          return ConstantColumnVectors.floats(constant);
 
-          case DECIMAL:
-            return ConstantColumnVectors.decimals(constant);
+        case DECIMAL:
+          return ConstantColumnVectors.decimals(constant);
 
-          case TIMESTAMP:
-            return ConstantColumnVectors.timestamps(constant);
+        case TIMESTAMP:
+          return ConstantColumnVectors.timestamps(constant);
 
-          case STRING:
-            return ConstantColumnVectors.bytes(constant);
+        case FIXED:
+        case UUID:
+        case BINARY:
+        case STRING:
+          return ConstantColumnVectors.bytes(constant);
 
-          default:
-            throw new UnsupportedOperationException("Unsupported data type for constant.");
-        }
-      } else {
-        throw new UnsupportedOperationException("ConstantColumnVector only supports primitives.");
+        default:
+          throw new UnsupportedOperationException("Unsupported data type for constant.");
       }
     }
 
@@ -251,18 +250,19 @@ public class VectorizedFlinkOrcReaders {
 
   private static class FlinkRowColumnVector implements RowColumnVector {
 
-    private ColumnVector[] fieldVectors;
-    private StructColumnVector structVector;
+    private final ColumnVector[] fieldVectors;
+    private final StructColumnVector structVector;
+    private final VectorizedColumnBatch vectorizedColumnBatch;
 
     FlinkRowColumnVector(ColumnVector[] fieldVectors,
                          StructColumnVector structVector) {
       this.fieldVectors = fieldVectors;
       this.structVector = structVector;
+      vectorizedColumnBatch = new VectorizedColumnBatch(fieldVectors);
     }
 
     @Override
     public ColumnarRowData getRow(int i) {
-      VectorizedColumnBatch vectorizedColumnBatch = new VectorizedColumnBatch(fieldVectors);
       return new ColumnarRowData(vectorizedColumnBatch, i);
     }
 
@@ -271,7 +271,7 @@ public class VectorizedFlinkOrcReaders {
       return structVector.isNull[i];
     }
 
-    public ColumnVector[] getFieldVectors() {
+    ColumnVector[] getFieldVectors() {
       return fieldVectors;
     }
   }

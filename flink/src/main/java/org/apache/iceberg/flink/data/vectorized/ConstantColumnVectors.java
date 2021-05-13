@@ -24,6 +24,7 @@ import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.data.binary.BinaryStringData;
 import org.apache.flink.table.data.vector.BooleanColumnVector;
 import org.apache.flink.table.data.vector.BytesColumnVector;
+import org.apache.flink.table.data.vector.ColumnVector;
 import org.apache.flink.table.data.vector.DecimalColumnVector;
 import org.apache.flink.table.data.vector.DoubleColumnVector;
 import org.apache.flink.table.data.vector.FloatColumnVector;
@@ -35,49 +36,49 @@ class ConstantColumnVectors {
   private ConstantColumnVectors() {
   }
 
-  static IntOrcColumnVector ints(Object constant) {
-    return new IntOrcColumnVector(constant);
+  static ColumnVector ints(Object constant) {
+    return new ConstantIntColumnVector(constant);
   }
 
-  static LongOrcColumnVector longs(Object constant) {
-    return new LongOrcColumnVector(constant);
+  static ColumnVector longs(Object constant) {
+    return new ConstantLongColumnVongector(constant);
   }
 
-  static BooleanOrcColumnVector booleans(Object constant) {
-    return new BooleanOrcColumnVector(constant);
+  static ColumnVector booleans(Object constant) {
+    return new ConstantBooleanColumnVector(constant);
   }
 
-  static DoubleOrcColumnVector doubles(Object constant) {
-    return new DoubleOrcColumnVector(constant);
+  static ColumnVector doubles(Object constant) {
+    return new ConstantDoubleColumnVector(constant);
   }
 
-  static FloatOrcColumnVector floats(Object constant) {
-    return new FloatOrcColumnVector(constant);
+  static ColumnVector floats(Object constant) {
+    return new ConstantFloatColumnVector(constant);
   }
 
-  static DecimalOrcColumnVector decimals(Object constant) {
-    return new DecimalOrcColumnVector(constant);
+  static ColumnVector decimals(Object constant) {
+    return new ConstantDecimalColumnVector(constant);
   }
 
-  static TimestampOrcColumnVector timestamps(Object constant) {
-    return new TimestampOrcColumnVector(constant);
+  static ColumnVector timestamps(Object constant) {
+    return new ConstantTimestampColumnVector(constant);
   }
 
-  static BytesOrcColumnVector bytes(Object constant) {
-    return new BytesOrcColumnVector(constant);
+  static ColumnVector bytes(Object constant) {
+    return new ConstantBytesColumnVector(constant);
   }
 
-  private static class IntOrcColumnVector implements IntColumnVector {
+  private static class ConstantIntColumnVector implements IntColumnVector {
 
-    private Object constant;
+    private final Object constant;
 
-    private IntOrcColumnVector(Object constant) {
+    private ConstantIntColumnVector(Object constant) {
       this.constant = constant;
     }
 
     @Override
     public boolean isNullAt(int i) {
-      return false;
+      return constant == null;
     }
 
     @Override
@@ -86,11 +87,11 @@ class ConstantColumnVectors {
     }
   }
 
-  private static class LongOrcColumnVector implements LongColumnVector {
+  private static class ConstantLongColumnVongector implements LongColumnVector {
 
-    private Object constant;
+    private final Object constant;
 
-    private LongOrcColumnVector(Object constant) {
+    private ConstantLongColumnVongector(Object constant) {
       this.constant = constant;
     }
 
@@ -101,14 +102,14 @@ class ConstantColumnVectors {
 
     @Override
     public boolean isNullAt(int i) {
-      return false;
+      return constant == null;
     }
   }
 
-  private static class BooleanOrcColumnVector implements BooleanColumnVector {
-    private Object constant;
+  private static class ConstantBooleanColumnVector implements BooleanColumnVector {
+    private final Object constant;
 
-    private BooleanOrcColumnVector(Object constant) {
+    private ConstantBooleanColumnVector(Object constant) {
       this.constant = constant;
     }
 
@@ -119,20 +120,20 @@ class ConstantColumnVectors {
 
     @Override
     public boolean isNullAt(int i) {
-      return false;
+      return constant == null;
     }
   }
 
-  private static class DoubleOrcColumnVector implements DoubleColumnVector {
-    private Object constant;
+  private static class ConstantDoubleColumnVector implements DoubleColumnVector {
+    private final Object constant;
 
-    private DoubleOrcColumnVector(Object constant) {
+    private ConstantDoubleColumnVector(Object constant) {
       this.constant = constant;
     }
 
     @Override
     public boolean isNullAt(int i) {
-      return false;
+      return constant == null;
     }
 
     @Override
@@ -141,10 +142,10 @@ class ConstantColumnVectors {
     }
   }
 
-  private static class FloatOrcColumnVector implements FloatColumnVector {
-    private Object constant;
+  private static class ConstantFloatColumnVector implements FloatColumnVector {
+    private final Object constant;
 
-    private FloatOrcColumnVector(Object constant) {
+    private ConstantFloatColumnVector(Object constant) {
       this.constant = constant;
     }
 
@@ -155,14 +156,14 @@ class ConstantColumnVectors {
 
     @Override
     public boolean isNullAt(int i) {
-      return false;
+      return constant == null;
     }
   }
 
-  private static class DecimalOrcColumnVector implements DecimalColumnVector {
-    private Object constant;
+  private static class ConstantDecimalColumnVector implements DecimalColumnVector {
+    private final Object constant;
 
-    private DecimalOrcColumnVector(Object constant) {
+    private ConstantDecimalColumnVector(Object constant) {
       this.constant = constant;
     }
 
@@ -173,14 +174,14 @@ class ConstantColumnVectors {
 
     @Override
     public boolean isNullAt(int i) {
-      return false;
+      return constant == null;
     }
   }
 
-  private static class TimestampOrcColumnVector implements TimestampColumnVector {
-    private Object constant;
+  private static class ConstantTimestampColumnVector implements TimestampColumnVector {
+    private final Object constant;
 
-    private TimestampOrcColumnVector(Object constant) {
+    private ConstantTimestampColumnVector(Object constant) {
       this.constant = constant;
     }
 
@@ -191,14 +192,14 @@ class ConstantColumnVectors {
 
     @Override
     public boolean isNullAt(int i) {
-      return false;
+      return constant == null;
     }
   }
 
-  private static class BytesOrcColumnVector implements BytesColumnVector {
-    private Object constant;
+  private static class ConstantBytesColumnVector implements BytesColumnVector {
+    private final Object constant;
 
-    private BytesOrcColumnVector(Object constant) {
+    private ConstantBytesColumnVector(Object constant) {
       this.constant = constant;
     }
 
@@ -210,7 +211,7 @@ class ConstantColumnVectors {
 
     @Override
     public boolean isNullAt(int i) {
-      return false;
+      return constant == null;
     }
   }
 }

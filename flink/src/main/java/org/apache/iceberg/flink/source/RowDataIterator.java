@@ -47,7 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
 
-class RowDataIterator extends BaseDataIterator {
+class RowDataIterator extends DataIterator<RowData> {
 
   private final Schema tableSchema;
   private final Schema projectedSchema;

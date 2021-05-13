@@ -20,7 +20,6 @@
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
-import java.util.Collection;
 import org.apache.flink.api.common.io.DefaultInputSplitAssigner;
 import org.apache.flink.api.common.io.InputFormat;
 import org.apache.flink.api.common.io.RichInputFormat;
@@ -30,12 +29,6 @@ import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.core.io.InputSplitAssigner;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.DataType;
-import org.apache.flink.table.types.logical.LogicalType;
-import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.FileContent;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -59,7 +52,7 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   private final DataType[] dataTypes;
   private final ReadableConfig readableConfig;
 
-  private transient BaseDataIterator iterator;
+  private transient DataIterator<RowData> iterator;
   private transient long currentReadCount = 0L;
 
   FlinkInputFormat(TableLoader tableLoader, Schema tableSchema, FileIO io, EncryptionManager encryption,
@@ -108,79 +101,13 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
     boolean enableVectorizedRead = readableConfig.get(FlinkTableOptions.ENABLE_VECTORIZED_READ);
 
     if (enableVectorizedRead) {
-      if (useOrcVectorizedRead(split.getTask())) {
-        this.iterator = new BatchRowDataIterator(
-            split.getTask(), io, encryption, tableSchema, context.project(), context.nameMapping(),
-            context.caseSensitive());
-      } else {
-        throw new UnsupportedOperationException("Unsupported data type for vectorized read");
-      }
+      this.iterator = new BatchRowDataIterator(
+          split.getTask(), io, encryption, tableSchema, context.project(), context.nameMapping(),
+          context.caseSensitive(), dataTypes);
     } else {
-      setDefaultIterator(split);
-    }
-  }
-
-  private void setDefaultIterator(FlinkInputSplit split) {
-    this.iterator = new RowDataIterator(
-        split.getTask(), io, encryption, tableSchema, context.project(), context.nameMapping(),
-        context.caseSensitive());
-  }
-
-  private boolean useOrcVectorizedRead(CombinedScanTask task) {
-    Collection<FileScanTask> fileScanTasks = task.files();
-    for (FileScanTask fileScanTask : fileScanTasks) {
-      DataFile dataFile = fileScanTask.file();
-      if (!FileContent.DATA.equals(dataFile.content())) {
-        return false;
-      }
-
-      if (!FileFormat.ORC.equals(dataFile.format())) {
-        return false;
-      }
-    }
-
-    for (DataType dataType : dataTypes) {
-      if (isVectorizationUnsupported(dataType.getLogicalType())) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  private static boolean isVectorizationUnsupported(LogicalType logicalType) {
-    switch (logicalType.getTypeRoot()) {
-      case CHAR:
-      case VARCHAR:
-      case BOOLEAN:
-      case BINARY:
-      case VARBINARY:
-      case DECIMAL:
-      case TINYINT:
-      case SMALLINT:
-      case INTEGER:
-      case BIGINT:
-      case FLOAT:
-      case DOUBLE:
-      case DATE:
-      case TIME_WITHOUT_TIME_ZONE:
-      case TIMESTAMP_WITHOUT_TIME_ZONE:
-      case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
-      case ROW:
-      case ARRAY:
-        return false;
-      case TIMESTAMP_WITH_TIME_ZONE:
-      case INTERVAL_YEAR_MONTH:
-      case INTERVAL_DAY_TIME:
-      case MULTISET:
-      case MAP:
-      case DISTINCT_TYPE:
-      case STRUCTURED_TYPE:
-      case NULL:
-      case RAW:
-      case SYMBOL:
-      default:
-        return true;
+      this.iterator = new RowDataIterator(
+          split.getTask(), io, encryption, tableSchema, context.project(), context.nameMapping(),
+          context.caseSensitive());
     }
   }
 
