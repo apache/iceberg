@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.actions.rewrite;
+package org.apache.iceberg.actions;
 
 import java.io.Serializable;
 import java.util.List;
