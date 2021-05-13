@@ -35,18 +35,18 @@ import org.apache.iceberg.util.PropertyUtil;
 
 /**
  * A rewrite strategy for data files which determines which files to rewrite
- * based on their size. If files are either smaller than the min-file-size-bytes threshold or
- * larger than the max-file-size-bytes threshold, they are considered targets for being rewritten.
+ * based on their size. If files are either smaller than the {@link MIN_FILE_SIZE_BYTES} threshold or
+ * larger than the {@link MAX_FILE_SIZE_BYTES} threshold, they are considered targets for being rewritten.
  * <p>
  * Once filtered files are grouped based on a {@link BinPacking} into groups defined
  * by max group size. Groups will be considered for rewriting if they contain more files
- * than min-input-files and would produce more files than min-output-files.
+ * than {@link MIN_INPUT_FILES} and would produce more files than {@link MIN_OUTPUT_FILES}.
  */
 abstract class BinPackStrategy implements RewriteStrategy {
 
   /**
    * Minimum number of files that need to be in a file group to be considered
-   * for rewriting. This is considered in conjunction with min-num-output-files, both
+   * for rewriting. This is considered in conjunction with {@link MIN_INPUT_FILES}, both
    * conditions must pass to consider a group of files to be rewritten.
    */
   public static final String MIN_INPUT_FILES = "min-input-files";
@@ -54,7 +54,7 @@ abstract class BinPackStrategy implements RewriteStrategy {
 
   /**
    * Minimum number of files we want to be created by file group when being
-   * rewritten. This is considered in conjunction with min-num-input-files, both
+   * rewritten. This is considered in conjunction with {@link MIN_OUTPUT_FILES}, both
    * conditions must pass to consider a group of files to be rewritten.
    */
   public static final String MIN_OUTPUT_FILES = "min-output-files";
@@ -62,8 +62,8 @@ abstract class BinPackStrategy implements RewriteStrategy {
 
   /**
    * Adjusts files which will be considered for rewriting. Files smaller than
-   * min-file-size-bytes will be considered for rewriting. This functions independently
-   * of max-file-size-bytes.
+   * {@link MIN_FILE_SIZE_BYTES} will be considered for rewriting. This functions independently
+   * of {@link MAX_FILE_SIZE_BYTES}.
    * <p>
    * Defaults to 75% of the target file size
    */
@@ -72,8 +72,8 @@ abstract class BinPackStrategy implements RewriteStrategy {
 
   /**
    * Adjusts files which will be considered for rewriting. Files larger than
-   * max-file-size-bytes will be considered for rewriting. This functions independently
-   * of min-file-size-bytes.
+   * {@link MAX_FILE_SIZE_BYTES} will be considered for rewriting. This functions independently
+   * of {@link MIN_FILE_SIZE_BYTES}.
    * <p>
    * Defaults to 180% of the target file size
    */
