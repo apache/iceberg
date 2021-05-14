@@ -298,7 +298,7 @@ public class TestFlinkSchemaUtil {
 
   @Test
   public void testConvertFlinkSchemaWithPrimaryKeys() {
-    Schema iSchema = new Schema(
+    Schema icebergSchema = new Schema(
         Lists.newArrayList(
             Types.NestedField.required(1, "int", Types.IntegerType.get()),
             Types.NestedField.required(2, "string", Types.StringType.get())
@@ -306,7 +306,7 @@ public class TestFlinkSchemaUtil {
         Sets.newHashSet(1, 2)
     );
 
-    TableSchema tableSchema = FlinkSchemaUtil.toSchema(iSchema);
+    TableSchema tableSchema = FlinkSchemaUtil.toSchema(icebergSchema);
     Assert.assertTrue(tableSchema.getPrimaryKey().isPresent());
     Assert.assertEquals(ImmutableSet.of("int", "string"),
         ImmutableSet.copyOf(tableSchema.getPrimaryKey().get().getColumns()));
@@ -314,7 +314,7 @@ public class TestFlinkSchemaUtil {
 
   @Test
   public void testConvertFlinkSchemaWithNestedColumnInPrimaryKeys() {
-    Schema iSchema = new Schema(
+    Schema icebergSchema = new Schema(
         Lists.newArrayList(Types.NestedField.required(1, "struct",
             Types.StructType.of(Types.NestedField.required(2, "inner", Types.LongType.get())))
         ),
@@ -323,6 +323,6 @@ public class TestFlinkSchemaUtil {
     AssertHelpers.assertThrows("Does not support the nested columns in flink schema's primary keys",
         ValidationException.class,
         "Column 'struct.inner' does not exist",
-        () -> FlinkSchemaUtil.toSchema(iSchema));
+        () -> FlinkSchemaUtil.toSchema(icebergSchema));
   }
 }

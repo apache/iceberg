@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink.source;
 
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
@@ -28,7 +29,6 @@ import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
 import org.apache.iceberg.flink.FlinkTestBase;
 import org.apache.iceberg.flink.MiniClusterResource;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.rules.TestName;
@@ -86,10 +86,8 @@ public class ChangeLogTableTestBase extends FlinkTestBase {
   }
 
   protected static <T> List<T> listJoin(List<List<T>> lists) {
-    List<T> result = Lists.newArrayList();
-    for (List<T> list : lists) {
-      result.addAll(list);
-    }
-    return result;
+    return lists.stream()
+        .flatMap(List::stream)
+        .collect(Collectors.toList());
   }
 }

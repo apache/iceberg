@@ -63,6 +63,12 @@ public final class BoundedTestSource<T> implements SourceFunction<T>, Checkpoint
 
       final int checkpointToAwait;
       synchronized (ctx.getCheckpointLock()) {
+        // Let's say checkpointToAwait = numCheckpointsComplete.get() + delta, in fact the value of delta should not
+        // affect the final table records because we only need to make sure that there will be exactly
+        // elementsPerCheckpoint.size() checkpoints to emit each records buffer from the original elementsPerCheckpoint.
+        // Even if the checkpoints that emitted results are not continuous, the correctness of the data should not be
+        // affected in the end. Setting the delta to be 2 is introducing the variable that produce un-continuous
+        // checkpoints that emit the records buffer from elementsPerCheckpoints.
         checkpointToAwait = numCheckpointsComplete.get() + 2;
         for (T element : elementsPerCheckpoint.get(checkpoint)) {
           ctx.collect(element);

@@ -47,6 +47,10 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+/**
+ * In this test case, we mainly cover the impact of primary key selection, multiple operations within a single
+ * transaction, and multiple operations between different txn on the correctness of the data.
+ */
 @RunWith(Parameterized.class)
 public class TestChangeLogTable extends ChangeLogTableTestBase {
   private static final Configuration CONF = new Configuration();
