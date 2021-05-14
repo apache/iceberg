@@ -47,21 +47,21 @@ public class BaseRewriteDataFilesSpark3Action extends BaseRewriteDataFilesSparkA
   }
 
   @Override
-  protected void commitFileGroups(Set<String> completedGroups) {
+  protected void commitFileGroups(Set<String> completedGroupIDs) {
     try {
-      coordinator.commitRewrite(table(), completedGroups);
+      coordinator.commitRewrite(table(), completedGroupIDs);
     } catch (Exception e) {
-      completedGroups.forEach(this::abortFileGroup);
+      completedGroupIDs.forEach(this::abortFileGroup);
       throw e;
     }
   }
 
   @Override
-  protected void abortFileGroup(String setId) {
+  protected void abortFileGroup(String groupID) {
     try {
-      coordinator.abortRewrite(table(), setId);
+      coordinator.abortRewrite(table(), groupID);
     } catch (Exception e) {
-      LOG.error("Unable to cleanup rewrite file group {} for table {}", setId, table().name(), e);
+      LOG.error("Unable to cleanup rewrite file group {} for table {}", groupID, table().name(), e);
     }
   }
 

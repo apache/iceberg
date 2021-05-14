@@ -94,16 +94,16 @@ abstract class BaseRewriteDataFilesSparkAction
   /**
    * Perform a commit operation on the table adding and removing files as required for this set of file groups,
    * on failure should clean up and rethrow exception
-   * @param completedSetIds fileSets to commit
+   * @param completedGroupIDs fileSets to commit
    */
-  protected abstract void commitFileGroups(Set<String> completedSetIds);
+  protected abstract void commitFileGroups(Set<String> completedGroupIDs);
 
   /**
    * Clean up a specified file set by removing any files created for that operation, should
    * not throw any exceptions
-   * @param setId fileSet to clean
+   * @param groupID fileSet to clean
    */
-  protected abstract void abortFileGroup(String setId);
+  protected abstract void abortFileGroup(String groupID);
 
 
   @Override
@@ -145,19 +145,19 @@ abstract class BaseRewriteDataFilesSparkAction
       ConcurrentLinkedQueue<String> completedRewrite,
       ConcurrentHashMap<String, Pair<FileGroupInfo, FileGroupRewriteResult>> results) {
 
-    String setId = infoListPair.first().setId();
+    String groupID = infoListPair.first().groupID();
     String desc = jobDesc(infoListPair.first(), totalGroups, infoListPair.second().size(),
         numGroupsPerPartition.get(infoListPair.first().partition), strategy.name());
 
     Set<DataFile> addedFiles =
-        withJobGroupInfo(newJobGroupInfo(setId, desc),
-            () -> strategy.rewriteFiles(setId, infoListPair.second()));
+        withJobGroupInfo(newJobGroupInfo(groupID, desc),
+            () -> strategy.rewriteFiles(groupID, infoListPair.second()));
 
-    completedRewrite.offer(setId);
+    completedRewrite.offer(groupID);
     FileGroupRewriteResult fileGroupResult =
         new FileGroupRewriteResult(addedFiles.size(), infoListPair.second().size());
 
-    results.put(setId, Pair.of(infoListPair.first(), fileGroupResult));
+    results.put(groupID, Pair.of(infoListPair.first(), fileGroupResult));
   }
 
   private Result doExecute(Stream<Pair<FileGroupInfo, List<FileScanTask>>> jobStream,
@@ -242,7 +242,7 @@ abstract class BaseRewriteDataFilesSparkAction
         .noRetry()
         .onFailure((info, exception) -> {
           LOG.error("Failure during rewrite process for group {}", info.first(), exception);
-          abortFileGroup(info.first().setId);
+          abortFileGroup(info.first().groupID);
         })
         .run(infoListPair ->
             rewriteFiles(infoListPair, totalGroups, numGroupsPerPartition, strategy, completedRewriteIds, results));
@@ -293,8 +293,8 @@ abstract class BaseRewriteDataFilesSparkAction
             e -> e.getValue().stream().map(tasks -> {
               int myJobIndex = jobIndex.getAndIncrement();
               int myPartIndex = partitionIndex.merge(e.getKey(), 1, Integer::sum);
-              String setID = UUID.randomUUID().toString();
-              return Pair.of(new FileGroupInfo(setID, myJobIndex, myPartIndex, e.getKey()), tasks);
+              String groupID = UUID.randomUUID().toString();
+              return Pair.of(new FileGroupInfo(groupID, myJobIndex, myPartIndex, e.getKey()), tasks);
             }));
 
     if (partialProgressEnabled) {
@@ -360,13 +360,13 @@ abstract class BaseRewriteDataFilesSparkAction
 
   class FileGroupInfo implements RewriteDataFiles.FileGroupInfo {
 
-    private final String setId;
+    private final String groupID;
     private final int globalIndex;
     private final int partitionIndex;
     private final StructLike partition;
 
-    FileGroupInfo(String setId, int globalIndex, int partitionIndex, StructLike partition) {
-      this.setId = setId;
+    FileGroupInfo(String groupID, int globalIndex, int partitionIndex, StructLike partition) {
+      this.groupID = groupID;
       this.globalIndex = globalIndex;
       this.partitionIndex = partitionIndex;
       this.partition = partition;
@@ -390,15 +390,15 @@ abstract class BaseRewriteDataFilesSparkAction
     @Override
     public String toString() {
       return "FileGroupInfo{" +
-          "setId=" + setId +
+          "groupID=" + groupID +
           ", globalIndex=" + globalIndex +
           ", partitionIndex=" + partitionIndex +
           ", partition=" + partition +
           '}';
     }
 
-    public String setId() {
-      return setId;
+    public String groupID() {
+      return groupID;
     }
   }
 
