@@ -26,11 +26,14 @@ import org.apache.iceberg.actions.RewriteStrategy;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.actions.rewrite.Spark3BinPackStrategy;
 import org.apache.spark.sql.SparkSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class RewriteDataFilesSpark3 extends BaseRewriteDataFilesSparkAction {
-  private FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
+public class BaseRewriteDataFilesSpark3Action extends BaseRewriteDataFilesSparkAction {
+  private static final Logger LOG = LoggerFactory.getLogger(BaseRewriteDataFilesSpark3Action.class);
+  private final FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
 
-  protected RewriteDataFilesSpark3(SparkSession spark, Table table) {
+  protected BaseRewriteDataFilesSpark3Action(SparkSession spark, Table table) {
     super(spark, table);
   }
 
@@ -38,9 +41,9 @@ public class RewriteDataFilesSpark3 extends BaseRewriteDataFilesSparkAction {
   protected RewriteStrategy rewriteStrategy(Strategy type) {
     switch (type) {
       case BINPACK: return new Spark3BinPackStrategy(table(), spark());
+      default: throw new IllegalArgumentException(String.format(
+          "Cannot create rewrite strategy for %s because %s is not yet supported in Spark3", type, type));
     }
-    throw new IllegalArgumentException(String.format(
-        "Cannot create rewrite strategy for %s because %s is not yet supported in Spark3", type, type));
   }
 
   @Override
@@ -55,7 +58,11 @@ public class RewriteDataFilesSpark3 extends BaseRewriteDataFilesSparkAction {
 
   @Override
   protected void abortFileGroup(String setId) {
-    coordinator.abortRewrite(table(), setId);
+    try {
+      coordinator.abortRewrite(table(), setId);
+    } catch (Exception e) {
+      LOG.error("Unable to cleanup rewrite file group {} for table {}", setId, table().name(), e);
+    }
   }
 
   @Override
