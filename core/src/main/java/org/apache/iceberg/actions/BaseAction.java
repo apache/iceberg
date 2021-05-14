@@ -77,7 +77,7 @@ abstract class BaseAction<ThisT, R> implements Action<ThisT, R> {
    */
   protected List<String> getOtherMetadataFilePaths(TableOperations ops) {
     List<String> otherMetadataFiles = Lists.newArrayList();
-    otherMetadataFiles.add(ops.metadataFileLocation(Util.VERSION_HINT_TXT_FILENAME));
+    otherMetadataFiles.add(ops.metadataFileLocation(Util.VERSION_HINT_FILENAME));
 
     TableMetadata metadata = ops.current();
     otherMetadataFiles.add(metadata.metadataFileLocation());

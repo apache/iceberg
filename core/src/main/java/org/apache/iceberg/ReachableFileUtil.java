@@ -19,11 +19,12 @@
 
 package org.apache.iceberg;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,59 +37,71 @@ public class ReachableFileUtil {
   }
 
   /**
-   * Returns the location of the version.text file
+   * Returns the location of the version hint file
    *
-   * @param ops tableOperation for which version.text path needs to be retrieved
+   * @param table table for which version hint file's path needs to be retrieved
    * @return the location of the version hint file
    */
-  public static String versionHintLocation(TableOperations ops) {
-    return ops.metadataFileLocation(Util.VERSION_HINT_TXT_FILENAME);
+  public static String versionHintLocation(Table table) {
+    TableOperations ops = ((HasTableOperations) table).operations();
+    return ops.metadataFileLocation(Util.VERSION_HINT_FILENAME);
   }
 
   /**
    * Returns locations of JSON metadata files in a table.
    *
-   * @param ops       TableOperations to get JSON metadata files from
+   * @param table     Table to get JSON metadata files from
    * @param recursive When true, recursively retrieves all the reachable JSON metadata files.
-   *                 When false, gets the all the JSON metadata files only from the current metadata.
+   *                  When false, gets the all the JSON metadata files only from the current metadata.
    * @return locations of JSON metadata files
    */
-  public static Set<String> metadataFileLocations(TableOperations ops, boolean recursive) {
+  public static Set<String> metadataFileLocations(Table table, boolean recursive) {
     Set<String> metadataFileLocations = Sets.newHashSet();
+    TableOperations ops = ((HasTableOperations) table).operations();
     TableMetadata tableMetadata = ops.current();
     metadataFileLocations.add(tableMetadata.metadataFileLocation());
     metadataFileLocations(tableMetadata, metadataFileLocations, ops.io(), recursive);
     return metadataFileLocations;
   }
 
-  private static void metadataFileLocations(TableMetadata metadata, Set<String> metaFiles,
+  private static void metadataFileLocations(TableMetadata metadata, Set<String> metadataFileLocations,
                                             FileIO io, boolean recursive) {
     List<TableMetadata.MetadataLogEntry> metadataLogEntries = metadata.previousFiles();
     if (metadataLogEntries.size() > 0) {
-      for (TableMetadata.MetadataLogEntry metadataLogEntry : metadataLogEntries) {
-        metaFiles.add(metadataLogEntry.file());
-      }
+      List<String> metadataLocations = metadataLogEntries.stream()
+          .map(TableMetadata.MetadataLogEntry::file)
+          .collect(Collectors.toList());
+      metadataFileLocations.addAll(metadataLocations);
       if (recursive) {
-        String metadataFileLocation = metadataLogEntries.get(0).file();
-        try {
-          TableMetadata newMetadata = TableMetadataParser.read(io, metadataFileLocation);
-          metadataFileLocations(newMetadata, metaFiles, io, recursive);
-        } catch (Exception e) {
-          LOG.error("Failed to load {}", metadataFileLocation, e);
+        TableMetadata previousMetadata = findFirstExistentPreviousMetadata(metadataLocations, io);
+        if (previousMetadata != null) {
+          metadataFileLocations(previousMetadata, metadataFileLocations, io, recursive);
         }
       }
     }
+  }
+
+  private static TableMetadata findFirstExistentPreviousMetadata(List<String> metadataLocations, FileIO io) {
+    TableMetadata metadata = null;
+    for (String metadataLocation : metadataLocations) {
+      try {
+        metadata =  TableMetadataParser.read(io, metadataLocation);
+      } catch (Exception e) {
+        LOG.error("Failed to load {}", metadataLocation, e);
+      }
+    }
+    return metadata;
   }
 
   /**
    * Returns locations of manifest lists in a table.
    *
    * @param table table for which manifestList needs to be fetched
-   * @return the paths of the Manifest Lists
+   * @return the location of manifest Lists
    */
   public static List<String> manifestListLocations(Table table) {
     Iterable<Snapshot> snapshots = table.snapshots();
-    List<String> manifestListLocations = new ArrayList<>();
+    List<String> manifestListLocations = Lists.newArrayList();
     for (Snapshot snapshot : snapshots) {
       String manifestListLocation = snapshot.manifestListLocation();
       if (manifestListLocation != null) {

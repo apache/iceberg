@@ -39,7 +39,7 @@ import org.slf4j.LoggerFactory;
 
 public class Util {
 
-  public static final String VERSION_HINT_TXT_FILENAME = "version-hint.text";
+  public static final String VERSION_HINT_FILENAME = "version-hint.text";
 
   private static final Logger LOG = LoggerFactory.getLogger(Util.class);
 

@@ -32,7 +32,6 @@ import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.Action;
 import org.apache.iceberg.actions.ManifestFileBean;
 import org.apache.iceberg.common.DynMethods;
@@ -138,17 +137,17 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     return spark.createDataset(manifestLists, Encoders.STRING()).toDF("file_path");
   }
 
-  protected Dataset<Row> buildOtherMetadataFileDF(TableOperations ops) {
-    Set<String> otherMetadataFiles = ReachableFileUtil.metadataFileLocations(ops, false);
-    String versionHintLocation = ReachableFileUtil.versionHintLocation(ops);
+  protected Dataset<Row> buildOtherMetadataFileDF(Table table) {
+    Set<String> otherMetadataFiles = ReachableFileUtil.metadataFileLocations(table, false);
+    String versionHintLocation = ReachableFileUtil.versionHintLocation(table);
     otherMetadataFiles.add(versionHintLocation);
     return spark.createDataset(Lists.newArrayList(otherMetadataFiles), Encoders.STRING()).toDF("file_path");
   }
 
-  protected Dataset<Row> buildValidMetadataFileDF(Table table, TableOperations ops) {
+  protected Dataset<Row> buildValidMetadataFileDF(Table table) {
     Dataset<Row> manifestDF = buildManifestFileDF(table);
     Dataset<Row> manifestListDF = buildManifestListDF(table);
-    Dataset<Row> otherMetadataFileDF = buildOtherMetadataFileDF(ops);
+    Dataset<Row> otherMetadataFileDF = buildOtherMetadataFileDF(table);
 
     return manifestDF.union(otherMetadataFileDF).union(manifestListDF);
   }

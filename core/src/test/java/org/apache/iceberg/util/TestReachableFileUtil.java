@@ -75,7 +75,6 @@ public class TestReachableFileUtil {
     this.table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
   }
 
-
   @Test
   public void testManifestListLocations() {
     table.newAppend()
@@ -104,11 +103,10 @@ public class TestReachableFileUtil {
         .appendFile(FILE_B)
         .commit();
 
-    TableOperations operations = ((HasTableOperations) table).operations();
-    Set<String> metadataFileLocations = ReachableFileUtil.metadataFileLocations(operations, true);
+    Set<String> metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, true);
     Assert.assertEquals(metadataFileLocations.size(), 4);
 
-    metadataFileLocations = ReachableFileUtil.metadataFileLocations(operations, false);
+    metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, false);
     Assert.assertEquals(metadataFileLocations.size(), 2);
   }
 
@@ -131,7 +129,7 @@ public class TestReachableFileUtil {
     // delete v3.metadata.json making v2.metadata.json and v1.metadata.json inaccessible
     table.io().deleteFile(location);
 
-    Set<String> metadataFileLocations = ReachableFileUtil.metadataFileLocations(operations, true);
+    Set<String> metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, true);
     Assert.assertEquals(metadataFileLocations.size(), 2);
   }
 }
