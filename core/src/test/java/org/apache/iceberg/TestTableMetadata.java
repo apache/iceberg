@@ -650,7 +650,7 @@ public class TestTableMetadata {
   public void testParseSchemaIdentifierFields() throws Exception {
     String data = readTableMetadataInputFile("TableMetadataV2Valid.json");
     TableMetadata parsed = TableMetadataParser.fromJson(
-        ops.io(), null, JsonUtil.mapper().readValue(data, JsonNode.class));
+        ops.io(), ops.encryption(), null, JsonUtil.mapper().readValue(data, JsonNode.class));
     Assert.assertEquals(Sets.newHashSet(), parsed.schemasById().get(0).identifierFieldIds());
     Assert.assertEquals(Sets.newHashSet(1, 2), parsed.schemasById().get(1).identifierFieldIds());
   }
