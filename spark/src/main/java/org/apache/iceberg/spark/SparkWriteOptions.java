@@ -50,5 +50,4 @@ public class SparkWriteOptions {
 
   // File scan task set ID that indicates which files must be replaced
   public static final String REWRITTEN_FILE_SCAN_TASK_SET_ID = "rewritten-file-scan-task-set-id";
-
 }
