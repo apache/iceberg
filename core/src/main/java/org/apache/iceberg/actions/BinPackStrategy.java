@@ -78,6 +78,7 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   private long maxFileSize;
   private long targetFileSize;
   private long maxGroupSize;
+  private long specId;
 
   @Override
   public String name() {
@@ -117,6 +118,10 @@ public abstract class BinPackStrategy implements RewriteStrategy {
     minInputFiles = PropertyUtil.propertyAsInt(options,
         MIN_INPUT_FILES,
         MIN_INPUT_FILES_DEFAULT);
+
+    specId = PropertyUtil.propertyAsInt(options,
+        RewriteDataFiles.OUTPUT_PARTITION_SPEC_ID,
+        table().spec().specId());
 
     validateOptions();
     return this;
@@ -165,5 +170,9 @@ public abstract class BinPackStrategy implements RewriteStrategy {
 
   protected long targetFileSize() {
     return this.targetFileSize;
+  }
+
+  protected long specId() {
+    return this.specId;
   }
 }

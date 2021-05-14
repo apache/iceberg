@@ -67,6 +67,6 @@ public class SparkActions extends BaseSparkActions {
 
   @Override
   public RewriteDataFiles rewriteDataFiles(Table table) {
-    return new RewriteDataFilesSpark3(spark(), table);
+    return new BaseRewriteDataFilesSpark3Action(spark(), table);
   }
 }
