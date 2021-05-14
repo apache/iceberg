@@ -17,37 +17,37 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.source.orc;
+package org.apache.iceberg.spark.source.parquet;
 
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.source.IcebergSourceNestedListDataBenchmark;
+import org.apache.iceberg.spark.source.IcebergSourceFlatDataBenchmark;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
+import org.apache.spark.sql.internal.SQLConf;
 import org.openjdk.jmh.annotations.Benchmark;
-import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 
-import static org.apache.spark.sql.functions.array_repeat;
 import static org.apache.spark.sql.functions.expr;
-import static org.apache.spark.sql.functions.struct;
 
 /**
- * A benchmark that evaluates the performance of writing nested Parquet data using Iceberg
- * and the built-in file source in Spark.
+ * A benchmark that evaluates the performance of writing Parquet data with a flat schema
+ * using Iceberg and the built-in file source in Spark.
  *
- * To run this benchmark:
+ * To run this benchmark for either spark-2 or spark-3:
  * <code>
- *   ./gradlew :iceberg-spark2:jmh
- *       -PjmhIncludeRegex=IcebergSourceNestedListORCDataWriteBenchmark
- *       -PjmhOutputPath=benchmark/iceberg-source-nested-list-orc-data-write-benchmark-result.txt
+ *   ./gradlew :iceberg-spark[2|3]:jmh
+ *       -PjmhIncludeRegex=IcebergSourceFlatParquetDataWriteBenchmark
+ *       -PjmhOutputPath=benchmark/iceberg-source-flat-parquet-data-write-benchmark-result.txt
  * </code>
  */
-public class IcebergSourceNestedListORCDataWriteBenchmark extends IcebergSourceNestedListDataBenchmark {
+public class IcebergSourceFlatParquetDataWriteBenchmark extends IcebergSourceFlatDataBenchmark {
+
+  private static final int NUM_ROWS = 5000000;
 
   @Setup
   public void setupBenchmark() {
@@ -60,40 +60,31 @@ public class IcebergSourceNestedListORCDataWriteBenchmark extends IcebergSourceN
     cleanupFiles();
   }
 
-  @Param({"2000", "20000"})
-  private int numRows;
-
   @Benchmark
   @Threads(1)
   public void writeIceberg() {
     String tableLocation = table().location();
-    benchmarkData().write().format("iceberg").option("write-format", "orc")
-        .mode(SaveMode.Append).save(tableLocation);
-  }
-
-  @Benchmark
-  @Threads(1)
-  public void writeIcebergDictionaryOff() {
-    Map<String, String> tableProperties = Maps.newHashMap();
-    tableProperties.put("orc.dictionary.key.threshold", "0");
-    withTableProperties(tableProperties, () -> {
-      String tableLocation = table().location();
-      benchmarkData().write().format("iceberg").option("write-format", "orc")
-          .mode(SaveMode.Append).save(tableLocation);
-    });
+    benchmarkData().write().format("iceberg").mode(SaveMode.Append).save(tableLocation);
   }
 
   @Benchmark
   @Threads(1)
   public void writeFileSource() {
-    benchmarkData().write().mode(SaveMode.Append).orc(dataLocation());
+    Map<String, String> conf = Maps.newHashMap();
+    conf.put(SQLConf.PARQUET_COMPRESSION().key(), "gzip");
+    withSQLConf(conf, () -> benchmarkData().write().mode(SaveMode.Append).parquet(dataLocation()));
   }
 
   private Dataset<Row> benchmarkData() {
-    return spark().range(numRows)
-        .withColumn("outerlist", array_repeat(struct(
-            expr("array_repeat(CAST(id AS string), 1000) AS innerlist")),
-            10))
+    return spark().range(NUM_ROWS)
+        .withColumnRenamed("id", "longCol")
+        .withColumn("intCol", expr("CAST(longCol AS INT)"))
+        .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
+        .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
+        .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(20, 5))"))
+        .withColumn("dateCol", expr("DATE_ADD(CURRENT_DATE(), (longCol % 20))"))
+        .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
+        .withColumn("stringCol", expr("CAST(dateCol AS STRING)"))
         .coalesce(1);
   }
 }

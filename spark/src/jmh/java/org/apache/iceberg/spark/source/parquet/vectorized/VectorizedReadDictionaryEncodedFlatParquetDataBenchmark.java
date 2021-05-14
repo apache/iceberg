@@ -41,10 +41,11 @@ import static org.apache.spark.sql.functions.when;
  * Benchmark to compare performance of reading Parquet dictionary encoded data with a flat schema using vectorized
  * Iceberg read path and the built-in file source in Spark.
  * <p>
- * To run the benchmark:
+ * To run this benchmark for either spark-2 or spark-3:
  * <code>
- * ./gradlew :iceberg-spark2:jmh -PjmhIncludeRegex=VectorizedReadDictionaryEncodedFlatParquetDataBenchmark
- * -PjmhOutputPath=benchmark/results.txt
+ *   ./gradlew :iceberg-spark[2|3]:jmh
+ *       -PjmhIncludeRegex=VectorizedReadDictionaryEncodedFlatParquetDataBenchmark
+ *       -PjmhOutputPath=benchmark/results.txt
  * </code>
  */
 public class VectorizedReadDictionaryEncodedFlatParquetDataBenchmark extends VectorizedReadFlatParquetDataBenchmark {

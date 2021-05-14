@@ -48,14 +48,14 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 /**
- * A benchmark that evaluates the performance of writing Parquet data with a flat schema using
+ * A benchmark that evaluates the performance of writing nested Parquet data using
  * Iceberg and Spark Parquet writers.
  *
- * To run this benchmark:
+ * To run this benchmark for either spark-2 or spark-3:
  * <code>
- *   ./gradlew :iceberg-spark2:jmh
- *       -PjmhIncludeRegex=SparkParquetWritersFlatDataBenchmark
- *       -PjmhOutputPath=benchmark/spark-parquet-writers-flat-data-benchmark-result.txt
+ *   ./gradlew :iceberg-spark[2|3]:jmh
+ *       -PjmhIncludeRegex=SparkParquetWritersNestedDataBenchmark
+ *       -PjmhOutputPath=benchmark/spark-parquet-writers-nested-data-benchmark-result.txt
  * </code>
  */
 @Fork(1)
@@ -63,17 +63,16 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 @Warmup(iterations = 3)
 @Measurement(iterations = 5)
 @BenchmarkMode(Mode.SingleShotTime)
-public class SparkParquetWritersFlatDataBenchmark {
+public class SparkParquetWritersNestedDataBenchmark {
 
   private static final Schema SCHEMA = new Schema(
-      required(1, "longCol", Types.LongType.get()),
-      required(2, "intCol", Types.IntegerType.get()),
-      required(3, "floatCol", Types.FloatType.get()),
-      optional(4, "doubleCol", Types.DoubleType.get()),
-      optional(5, "decimalCol", Types.DecimalType.of(20, 5)),
-      optional(6, "dateCol", Types.DateType.get()),
-      optional(7, "timestampCol", Types.TimestampType.withZone()),
-      optional(8, "stringCol", Types.StringType.get()));
+      required(0, "id", Types.LongType.get()),
+      optional(4, "nested", Types.StructType.of(
+          required(1, "col1", Types.StringType.get()),
+          required(2, "col2", Types.DoubleType.get()),
+          required(3, "col3", Types.LongType.get())
+      ))
+  );
   private static final int NUM_RECORDS = 1000000;
   private Iterable<InternalRow> rows;
   private File dataFile;
@@ -81,7 +80,7 @@ public class SparkParquetWritersFlatDataBenchmark {
   @Setup
   public void setupBenchmark() throws IOException {
     rows = RandomData.generateSpark(SCHEMA, NUM_RECORDS, 0L);
-    dataFile = File.createTempFile("parquet-flat-data-benchmark", ".parquet");
+    dataFile = File.createTempFile("parquet-nested-data-benchmark", ".parquet");
     dataFile.delete();
   }
 

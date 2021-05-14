@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.source.avro;
+package org.apache.iceberg.spark.source.parquet;
 
 import java.io.IOException;
 import java.util.Map;
@@ -31,27 +31,31 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.spark.sql.functions.current_date;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 
 /**
- * A benchmark that evaluates the performance of reading Avro data with a flat schema
- * using Iceberg and the built-in file source in Spark.
+ * A benchmark that evaluates the file skipping capabilities in the Spark data source for Iceberg.
  *
- * To run this benchmark:
+ * This class uses a dataset with a flat schema, where the records are clustered according to the
+ * column used in the filter predicate.
+ *
+ * The performance is compared to the built-in file source in Spark.
+ *
+ * To run this benchmark for either spark-2 or spark-3:
  * <code>
- *   ./gradlew :iceberg-spark2:jmh
- *       -PjmhIncludeRegex=IcebergSourceFlatAvroDataReadBenchmark
- *       -PjmhOutputPath=benchmark/iceberg-source-flat-avro-data-read-benchmark-result.txt
+ *   ./gradlew :iceberg-spark[2|3]:jmh
+ *       -PjmhIncludeRegex=IcebergSourceFlatParquetDataFilterBenchmark
+ *       -PjmhOutputPath=benchmark/iceberg-source-flat-parquet-data-filter-benchmark-result.txt
  * </code>
  */
-public class IcebergSourceFlatAvroDataReadBenchmark extends IcebergSourceFlatDataBenchmark {
+public class IcebergSourceFlatParquetDataFilterBenchmark extends IcebergSourceFlatDataBenchmark {
 
-  private static final int NUM_FILES = 10;
-  private static final int NUM_ROWS = 1000000;
+  private static final String FILTER_COND = "dateCol == date_add(current_date(), 1)";
+  private static final int NUM_FILES = 500;
+  private static final int NUM_ROWS = 10000;
 
   @Setup
   public void setupBenchmark() {
@@ -67,66 +71,52 @@ public class IcebergSourceFlatAvroDataReadBenchmark extends IcebergSourceFlatDat
 
   @Benchmark
   @Threads(1)
-  public void readIceberg() {
+  public void readWithFilterIceberg() {
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
     withTableProperties(tableProperties, () -> {
       String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg").load(tableLocation);
+      Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).filter(FILTER_COND);
       materialize(df);
     });
   }
 
   @Benchmark
   @Threads(1)
-  public void readFileSource() {
+  public void readWithFilterFileSourceVectorized() {
     Map<String, String> conf = Maps.newHashMap();
+    conf.put(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "true");
     conf.put(SQLConf.FILES_OPEN_COST_IN_BYTES().key(), Integer.toString(128 * 1024 * 1024));
     withSQLConf(conf, () -> {
-      Dataset<Row> df = spark().read().format("avro").load(dataLocation());
+      Dataset<Row> df = spark().read().parquet(dataLocation()).filter(FILTER_COND);
       materialize(df);
     });
   }
 
   @Benchmark
   @Threads(1)
-  public void readWithProjectionIceberg() {
-    Map<String, String> tableProperties = Maps.newHashMap();
-    tableProperties.put(SPLIT_OPEN_FILE_COST, Integer.toString(128 * 1024 * 1024));
-    withTableProperties(tableProperties, () -> {
-      String tableLocation = table().location();
-      Dataset<Row> df = spark().read().format("iceberg").load(tableLocation).select("longCol");
-      materialize(df);
-    });
-  }
-
-  @Benchmark
-  @Threads(1)
-  public void readWithProjectionFileSource() {
+  public void readWithFilterFileSourceNonVectorized() {
     Map<String, String> conf = Maps.newHashMap();
+    conf.put(SQLConf.PARQUET_VECTORIZED_READER_ENABLED().key(), "false");
     conf.put(SQLConf.FILES_OPEN_COST_IN_BYTES().key(), Integer.toString(128 * 1024 * 1024));
     withSQLConf(conf, () -> {
-      Dataset<Row> df = spark().read().format("avro").load(dataLocation()).select("longCol");
+      Dataset<Row> df = spark().read().parquet(dataLocation()).filter(FILTER_COND);
       materialize(df);
     });
   }
 
   private void appendData() {
-    Map<String, String> tableProperties = Maps.newHashMap();
-    tableProperties.put(DEFAULT_FILE_FORMAT, "avro");
-    withTableProperties(tableProperties, () -> {
-      for (int fileNum = 1; fileNum <= NUM_FILES; fileNum++) {
-        Dataset<Row> df = spark().range(NUM_ROWS)
-            .withColumnRenamed("id", "longCol")
-            .withColumn("intCol", expr("CAST(longCol AS INT)"))
-            .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
-            .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
-            .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(20, 5))"))
-            .withColumn("dateCol", date_add(current_date(), fileNum))
-            .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
-            .withColumn("stringCol", expr("CAST(dateCol AS STRING)"));
-        appendAsFile(df);
-      }
-    });
+    for (int fileNum = 1; fileNum < NUM_FILES; fileNum++) {
+      Dataset<Row> df = spark().range(NUM_ROWS)
+          .withColumnRenamed("id", "longCol")
+          .withColumn("intCol", expr("CAST(longCol AS INT)"))
+          .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
+          .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
+          .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(20, 5))"))
+          .withColumn("dateCol", date_add(current_date(), fileNum))
+          .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
+          .withColumn("stringCol", expr("CAST(dateCol AS STRING)"));
+      appendAsFile(df);
+    }
   }
 }

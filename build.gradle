@@ -799,7 +799,6 @@ project(':iceberg-spark') {
 }
 
 if (jdkVersion == '8') {
-  apply from: 'jmh.gradle'
 
   project(':iceberg-spark2') {
     configurations.all {
@@ -1176,6 +1175,7 @@ String getJavadocVersion() {
   }
 }
 
+apply from: 'jmh.gradle'
 apply from: 'baseline.gradle'
 apply from: 'deploy.gradle'
 apply from: 'tasks.gradle'

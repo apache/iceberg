@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.source.parquet;
+package org.apache.iceberg.spark.source.orc;
 
 import java.io.IOException;
 import java.util.Map;
@@ -26,7 +26,6 @@ import org.apache.iceberg.spark.source.IcebergSourceNestedListDataBenchmark;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
-import org.apache.spark.sql.internal.SQLConf;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Setup;
@@ -41,14 +40,14 @@ import static org.apache.spark.sql.functions.struct;
  * A benchmark that evaluates the performance of writing nested Parquet data using Iceberg
  * and the built-in file source in Spark.
  *
- * To run this benchmark:
+ * To run this benchmark for either spark-2 or spark-3:
  * <code>
- *   ./gradlew :iceberg-spark2:jmh
- *       -PjmhIncludeRegex=IcebergSourceNestedListParquetDataWriteBenchmark
- *       -PjmhOutputPath=benchmark/iceberg-source-nested-list-parquet-data-write-benchmark-result.txt
+ *   ./gradlew :iceberg-spark[2|3]:jmh
+ *       -PjmhIncludeRegex=IcebergSourceNestedListORCDataWriteBenchmark
+ *       -PjmhOutputPath=benchmark/iceberg-source-nested-list-orc-data-write-benchmark-result.txt
  * </code>
  */
-public class IcebergSourceNestedListParquetDataWriteBenchmark extends IcebergSourceNestedListDataBenchmark {
+public class IcebergSourceNestedListORCDataWriteBenchmark extends IcebergSourceNestedListDataBenchmark {
 
   @Setup
   public void setupBenchmark() {
@@ -68,15 +67,26 @@ public class IcebergSourceNestedListParquetDataWriteBenchmark extends IcebergSou
   @Threads(1)
   public void writeIceberg() {
     String tableLocation = table().location();
-    benchmarkData().write().format("iceberg").mode(SaveMode.Append).save(tableLocation);
+    benchmarkData().write().format("iceberg").option("write-format", "orc")
+        .mode(SaveMode.Append).save(tableLocation);
+  }
+
+  @Benchmark
+  @Threads(1)
+  public void writeIcebergDictionaryOff() {
+    Map<String, String> tableProperties = Maps.newHashMap();
+    tableProperties.put("orc.dictionary.key.threshold", "0");
+    withTableProperties(tableProperties, () -> {
+      String tableLocation = table().location();
+      benchmarkData().write().format("iceberg").option("write-format", "orc")
+          .mode(SaveMode.Append).save(tableLocation);
+    });
   }
 
   @Benchmark
   @Threads(1)
   public void writeFileSource() {
-    Map<String, String> conf = Maps.newHashMap();
-    conf.put(SQLConf.PARQUET_COMPRESSION().key(), "gzip");
-    withSQLConf(conf, () -> benchmarkData().write().mode(SaveMode.Append).parquet(dataLocation()));
+    benchmarkData().write().mode(SaveMode.Append).orc(dataLocation());
   }
 
   private Dataset<Row> benchmarkData() {

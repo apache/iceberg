@@ -22,7 +22,7 @@ package org.apache.iceberg.spark.source.parquet;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.source.IcebergSourceFlatDataBenchmark;
+import org.apache.iceberg.spark.source.IcebergSourceNestedDataBenchmark;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
@@ -33,19 +33,20 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 
 import static org.apache.spark.sql.functions.expr;
+import static org.apache.spark.sql.functions.struct;
 
 /**
- * A benchmark that evaluates the performance of writing Parquet data with a flat schema
- * using Iceberg and the built-in file source in Spark.
+ * A benchmark that evaluates the performance of writing nested Parquet data using Iceberg
+ * and the built-in file source in Spark.
  *
- * To run this benchmark:
+ * To run this benchmark for either spark-2 or spark-3:
  * <code>
- *   ./gradlew :iceberg-spark2:jmh
- *       -PjmhIncludeRegex=IcebergSourceFlatParquetDataWriteBenchmark
- *       -PjmhOutputPath=benchmark/iceberg-source-flat-parquet-data-write-benchmark-result.txt
+ *   ./gradlew :iceberg-spark[2|3]:jmh
+ *       -PjmhIncludeRegex=IcebergSourceNestedParquetDataWriteBenchmark
+ *       -PjmhOutputPath=benchmark/iceberg-source-nested-parquet-data-write-benchmark-result.txt
  * </code>
  */
-public class IcebergSourceFlatParquetDataWriteBenchmark extends IcebergSourceFlatDataBenchmark {
+public class IcebergSourceNestedParquetDataWriteBenchmark extends IcebergSourceNestedDataBenchmark {
 
   private static final int NUM_ROWS = 5000000;
 
@@ -77,14 +78,13 @@ public class IcebergSourceFlatParquetDataWriteBenchmark extends IcebergSourceFla
 
   private Dataset<Row> benchmarkData() {
     return spark().range(NUM_ROWS)
-        .withColumnRenamed("id", "longCol")
-        .withColumn("intCol", expr("CAST(longCol AS INT)"))
-        .withColumn("floatCol", expr("CAST(longCol AS FLOAT)"))
-        .withColumn("doubleCol", expr("CAST(longCol AS DOUBLE)"))
-        .withColumn("decimalCol", expr("CAST(longCol AS DECIMAL(20, 5))"))
-        .withColumn("dateCol", expr("DATE_ADD(CURRENT_DATE(), (longCol % 20))"))
-        .withColumn("timestampCol", expr("TO_TIMESTAMP(dateCol)"))
-        .withColumn("stringCol", expr("CAST(dateCol AS STRING)"))
+        .withColumn(
+            "nested",
+            struct(
+                expr("CAST(id AS string) AS col1"),
+                expr("CAST(id AS double) AS col2"),
+                expr("id AS col3")
+            ))
         .coalesce(1);
   }
 }

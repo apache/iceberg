@@ -40,9 +40,9 @@ import static org.apache.spark.sql.functions.struct;
  * A benchmark that evaluates the performance of reading nested Parquet data using Iceberg
  * and the built-in file source in Spark.
  *
- * To run this benchmark:
+ * To run this benchmark for either spark-2 or spark-3:
  * <code>
- *   ./gradlew :iceberg-spark2:jmh
+ *   ./gradlew :iceberg-spark[2|3]:jmh
  *       -PjmhIncludeRegex=IcebergSourceNestedParquetDataReadBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-nested-parquet-data-read-benchmark-result.txt
  * </code>
