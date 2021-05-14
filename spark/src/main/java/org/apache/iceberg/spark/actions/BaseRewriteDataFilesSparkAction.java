@@ -20,7 +20,6 @@
 package org.apache.iceberg.spark.actions;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.math.RoundingMode;
 import java.util.Collections;
 import java.util.HashMap;
@@ -46,6 +45,7 @@ import org.apache.iceberg.actions.RewriteStrategy;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -94,9 +94,21 @@ abstract class BaseRewriteDataFilesSparkAction
    */
   protected abstract RewriteStrategy rewriteStrategy(Strategy type);
 
+  private void commitOrClean(Set<String> completedGroupIDs) {
+    try {
+      commitFileGroups(completedGroupIDs);
+    } catch (Exception e) {
+      LOG.error("Cannot commit groups {}, attempting to clean up written files", e);
+      Tasks.foreach(completedGroupIDs)
+          .suppressFailureWhenFinished()
+          .run(this::abortFileGroup);
+      throw e;
+    }
+  }
+
   /**
-   * Perform a commit operation on the table adding and removing files as required for this set of file groups,
-   * on failure should clean up and rethrow exception
+   * Perform a commit operation on the table adding and removing files as
+   * required for this set of file groups
    * @param completedGroupIDs fileSets to commit
    */
   protected abstract void commitFileGroups(Set<String> completedGroupIDs);
@@ -143,7 +155,8 @@ abstract class BaseRewriteDataFilesSparkAction
         }));
   }
 
-  private void rewriteFiles(Pair<FileGroupInfo, List<FileScanTask>> infoListPair, int totalGroups,
+  @VisibleForTesting
+  void rewriteFiles(Pair<FileGroupInfo, List<FileScanTask>> infoListPair, int totalGroups,
       Map<StructLike, Integer> numGroupsPerPartition, RewriteStrategy strategy,
       ConcurrentLinkedQueue<String> completedRewrite,
       ConcurrentHashMap<String, Pair<FileGroupInfo, FileGroupRewriteResult>> results) {
@@ -163,7 +176,7 @@ abstract class BaseRewriteDataFilesSparkAction
     results.put(groupID, Pair.of(infoListPair.first(), fileGroupResult));
   }
 
-  private Result doExecute(Stream<Pair<FileGroupInfo, List<FileScanTask>>> jobStream,
+  private Result doExecute(Stream<Pair<FileGroupInfo, List<FileScanTask>>> groupStream,
       RewriteStrategy strategy, int totalGroups, Map<StructLike, Integer> numGroupsPerPartition) {
 
     ExecutorService rewriteService = Executors.newFixedThreadPool(maxConcurrentFileGroupActions,
@@ -172,7 +185,7 @@ abstract class BaseRewriteDataFilesSparkAction
     ConcurrentLinkedQueue<String> completedRewrite = new ConcurrentLinkedQueue<>();
     ConcurrentHashMap<String, Pair<FileGroupInfo, FileGroupRewriteResult>> results = new ConcurrentHashMap<>();
 
-    Tasks.Builder<Pair<FileGroupInfo, List<FileScanTask>>> rewriteTaskBuilder = Tasks.foreach(jobStream.iterator())
+    Tasks.Builder<Pair<FileGroupInfo, List<FileScanTask>>> rewriteTaskBuilder = Tasks.foreach(groupStream.iterator())
         .executeWith(rewriteService)
         .stopOnFailure()
         .noRetry()
@@ -187,19 +200,19 @@ abstract class BaseRewriteDataFilesSparkAction
     } catch (Exception e) {
       // At least one rewrite group failed, clean up all completed rewrites
       LOG.error("Cannot complete rewrite, partial progress is not enabled and one of the file set groups failed to " +
-          "be rewritten. Cleaning up all groups which finished being written.", e);
+          "be rewritten. Cleaning up {} groups which finished being written.", completedRewrite.size(), e);
       Tasks.foreach(completedRewrite)
           .suppressFailureWhenFinished()
           .run(this::abortFileGroup);
       throw e;
     }
 
-    commitFileGroups(ImmutableSet.copyOf(completedRewrite));
+    commitOrClean(ImmutableSet.copyOf(completedRewrite));
 
     return new Result(results.values().stream().collect(Collectors.toMap(Pair::first, Pair::second)));
   }
 
-  private Result doExecutePartialProgress(Stream<Pair<FileGroupInfo, List<FileScanTask>>> jobStream,
+  private Result doExecutePartialProgress(Stream<Pair<FileGroupInfo, List<FileScanTask>>> groupStream,
       RewriteStrategy strategy, int totalGroups, Map<StructLike, Integer> numGroupsPerPartition) {
 
     ExecutorService rewriteService = Executors.newFixedThreadPool(maxConcurrentFileGroupActions,
@@ -231,9 +244,10 @@ abstract class BaseRewriteDataFilesSparkAction
           }
 
           try {
-            commitFileGroups(batch);
+            commitOrClean(batch);
             completedCommitIds.addAll(batch);
           } catch (Exception e) {
+            batch.forEach(results::remove);
             LOG.error("Failure during rewrite commit process, partial progress enabled. Ignoring", e);
           }
         }
@@ -241,7 +255,7 @@ abstract class BaseRewriteDataFilesSparkAction
     });
 
     // Start rewrite tasks
-    Tasks.foreach(jobStream.iterator())
+    Tasks.foreach(groupStream.iterator())
         .suppressFailureWhenFinished()
         .executeWith(rewriteService)
         .noRetry()
@@ -276,7 +290,7 @@ abstract class BaseRewriteDataFilesSparkAction
     try {
       files.close();
     } catch (IOException io) {
-      throw new UncheckedIOException("Cannot properly close file iterable while planning for rewrite", io);
+      LOG.error("Cannot properly close file iterable while planning for rewrite", io);
     }
 
     Map<StructLike, Integer> numGroupsPerPartition = fileGroupsByPartition.entrySet().stream()
@@ -293,7 +307,7 @@ abstract class BaseRewriteDataFilesSparkAction
     AtomicInteger jobIndex = new AtomicInteger(1);
 
     // Todo Check if we need to randomize the order in which we do jobs, instead of being partition centric
-    Stream<Pair<FileGroupInfo, List<FileScanTask>>> jobStream = fileGroupsByPartition.entrySet().stream()
+    Stream<Pair<FileGroupInfo, List<FileScanTask>>> groupStream = fileGroupsByPartition.entrySet().stream()
         .flatMap(
             e -> e.getValue().stream().map(tasks -> {
               int myJobIndex = jobIndex.getAndIncrement();
@@ -303,9 +317,9 @@ abstract class BaseRewriteDataFilesSparkAction
             }));
 
     if (partialProgressEnabled) {
-      return doExecutePartialProgress(jobStream, strategy, totalGroups, numGroupsPerPartition);
+      return doExecutePartialProgress(groupStream, strategy, totalGroups, numGroupsPerPartition);
     } else {
-      return doExecute(jobStream, strategy, totalGroups, numGroupsPerPartition);
+      return doExecute(groupStream, strategy, totalGroups, numGroupsPerPartition);
     }
   }
 
