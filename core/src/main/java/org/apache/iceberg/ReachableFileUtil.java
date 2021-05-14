@@ -86,6 +86,7 @@ public class ReachableFileUtil {
     for (String metadataLocation : metadataLocations) {
       try {
         metadata =  TableMetadataParser.read(io, metadataLocation);
+        break;
       } catch (Exception e) {
         LOG.error("Failed to load {}", metadataLocation, e);
       }
