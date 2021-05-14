@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.actions;
 
+import com.google.common.collect.Iterables;
 import java.io.File;
 import java.util.Collections;
 import java.util.Comparator;
@@ -37,6 +38,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
@@ -351,6 +353,117 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
 
     Assert.assertEquals(originalNumRecords, postRewriteNumRecords);
     assertEquals("Rows should be unchanged", originalRecords, rewrittenRecords);
+  }
+
+  @Test
+  public void testPartialProgressEnabled() {
+    Table table = createTable(20);
+    int fileSize = averageFileSize(table);
+
+    List<Object[]> originalData = currentData();
+
+    // Perform a rewrite but only allow 2 files to be compacted at a time
+    RewriteDataFiles.Result result =
+        actions().rewriteDataFiles(table)
+            .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
+            .option(RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 100))
+            .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "10")
+            .execute();
+
+    Assert.assertEquals("Should have 10 fileGroups", result.resultMap().keySet().size(), 10);
+
+    table.refresh();
+
+    shouldHaveSnapshots(table, 11);
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+  }
+
+  @Test
+  public void testMultipleGroups() {
+    Table table = createTable(20);
+    int fileSize = averageFileSize(table);
+
+    List<Object[]> originalData = currentData();
+
+    // Perform a rewrite but only allow 2 files to be compacted at a time
+    RewriteDataFiles.Result result =
+        actions().rewriteDataFiles(table)
+            .option(RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 100))
+            .execute();
+
+    Assert.assertEquals("Should have 10 fileGroups", result.resultMap().keySet().size(), 10);
+
+    table.refresh();
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 2);
+  }
+
+  @Test
+  public void testPartialProgressMaxCommits() {
+    Table table = createTable(20);
+    int fileSize = averageFileSize(table);
+
+    List<Object[]> originalData = currentData();
+
+    // Perform a rewrite but only allow 2 files to be compacted at a time
+    RewriteDataFiles.Result result =
+        actions().rewriteDataFiles(table)
+            .option(RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 100))
+            .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
+            .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "3")
+            .execute();
+
+    Assert.assertEquals("Should have 10 fileGroups", result.resultMap().keySet().size(), 10);
+
+    table.refresh();
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 4);
+  }
+
+  private List<Object[]> currentData() {
+    return rowsToJava(spark.read().format("iceberg").load(tableLocation).sort("c1").collectAsList());
+  }
+
+  private void shouldHaveSnapshots(Table table, int expectedSnapshots) {
+    int actualSnapshots = Iterables.size(table.snapshots());
+    Assert.assertEquals("Table did not have the expected number of snapshots",
+        expectedSnapshots, actualSnapshots);
+  }
+
+  /**
+   * Create a table with a certain number of files, returns the size of a file
+   * @param files number of files to create
+   * @return size of a file
+   */
+  private Table createTable(int files) {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> options = Maps.newHashMap();
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+    Assert.assertNull("Table must be empty", table.currentSnapshot());
+
+    List<ThreeColumnRecord> records1 = Lists.newArrayList();
+
+    IntStream.range(0, 2000).forEach(i -> records1.add(new ThreeColumnRecord(i, "foo" + i, "bar" + i)));
+    Dataset<Row> df = spark.createDataFrame(records1, ThreeColumnRecord.class).repartition(files);
+    writeDF(df);
+    table.refresh();
+
+    return table;
+  }
+
+  private int averageFileSize(Table table) {
+    return (int) Streams.stream(table.currentSnapshot().addedFiles().iterator())
+        .mapToLong(DataFile::fileSizeInBytes)
+        .average()
+        .getAsDouble();
   }
 
   private void writeRecords(List<ThreeColumnRecord> records) {

@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.math.RoundingMode;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -50,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
@@ -66,6 +68,7 @@ abstract class BaseRewriteDataFilesSparkAction
       MAX_CONCURRENT_FILE_GROUP_ACTIONS,
       MAX_FILE_GROUP_SIZE_BYTES,
       PARTIAL_PROGRESS_ENABLED,
+      PARTIAL_PROGRESS_MAX_COMMITS,
       TARGET_FILE_SIZE_BYTES
   );
 
@@ -205,7 +208,9 @@ abstract class BaseRewriteDataFilesSparkAction
     ExecutorService committerService = Executors.newSingleThreadExecutor(
         new ThreadFactoryBuilder().setNameFormat("Committer-Service").build());
 
-    int groupsPerCommit = partialProgressEnabled ? totalGroups / maxCommits : totalGroups;
+    int groupsPerCommit = partialProgressEnabled ?
+        IntMath.divide(totalGroups, maxCommits, RoundingMode.CEILING) :
+        totalGroups;
 
     AtomicBoolean stillRewriting = new AtomicBoolean(true);
     ConcurrentHashMap<String, Pair<FileGroupInfo, FileGroupRewriteResult>> results = new ConcurrentHashMap<>();
