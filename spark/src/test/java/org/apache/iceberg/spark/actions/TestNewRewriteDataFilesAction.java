@@ -41,6 +41,7 @@ import org.apache.iceberg.actions.RewriteDataFiles.Result;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -69,7 +70,6 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.when;
 
 public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
 
@@ -655,6 +655,30 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     shouldHaveNoOrphans(table);
   }
 
+  @Test
+  public void testInvalidOptions() {
+    Table table = createTable(20);
+
+    AssertHelpers.assertThrows("No negative values for partial progress max commits",
+        IllegalArgumentException.class,
+        () -> actions().rewriteDataFiles(table)
+            .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
+            .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "-5")
+            .execute());
+
+    AssertHelpers.assertThrows("No negative values for max concurrent groups",
+        IllegalArgumentException.class,
+        () -> actions().rewriteDataFiles(table)
+            .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_ACTIONS, "-5")
+            .execute());
+
+    AssertHelpers.assertThrows("No unknown options allowed",
+        IllegalArgumentException.class,
+        () -> actions().rewriteDataFiles(table)
+            .option("foobarity", "-5")
+            .execute());
+  }
+
   private List<Object[]> currentData() {
     return rowsToJava(spark.read().format("iceberg").load(tableLocation).sort("c1").collectAsList());
   }
@@ -666,7 +690,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
   }
 
   private void shouldHaveNoOrphans(Table table) {
-    Assert.assertEquals("Should not have found any orphan files", Collections.EMPTY_LIST,
+    Assert.assertEquals("Should not have found any orphan files", ImmutableList.of(),
         actions().removeOrphanFiles(table).execute().orphanFileLocations());
   }
 

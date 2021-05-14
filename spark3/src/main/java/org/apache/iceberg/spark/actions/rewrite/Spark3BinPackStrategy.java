@@ -45,7 +45,6 @@ public class Spark3BinPackStrategy extends BinPackStrategy {
     this.spark = spark;
   }
 
-
   @Override
   public Table table() {
     return table;
