@@ -97,6 +97,10 @@ public abstract class SparkTestBase {
       return ImmutableList.of();
     }
 
+    return rowsToJava(rows);
+  }
+
+  protected List<Object[]> rowsToJava(List<Row> rows) {
     return rows.stream().map(this::toJava).collect(Collectors.toList());
   }
 
