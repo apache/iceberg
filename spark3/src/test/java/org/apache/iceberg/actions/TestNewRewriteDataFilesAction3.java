@@ -20,6 +20,7 @@
 package org.apache.iceberg.actions;
 
 import org.apache.iceberg.spark.actions.SparkActions;
+import org.apache.iceberg.spark.actions.TestNewRewriteDataFilesAction;
 
 public class TestNewRewriteDataFilesAction3 extends TestNewRewriteDataFilesAction {
 

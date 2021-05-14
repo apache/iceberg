@@ -17,31 +17,40 @@
  * under the License.
  */
 
-package org.apache.iceberg.actions;
+package org.apache.iceberg.spark.actions;
 
-import com.google.common.collect.Iterables;
 import java.io.File;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.actions.ActionsProvider;
+import org.apache.iceberg.actions.BinPackStrategy;
+import org.apache.iceberg.actions.RewriteDataFiles;
+import org.apache.iceberg.actions.RewriteDataFiles.Result;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.actions.BaseRewriteDataFilesSparkAction.FileGroupInfo;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -51,8 +60,16 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.mockito.ArgumentMatcher;
+import org.mockito.Mockito;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.when;
 
 public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
 
@@ -113,7 +130,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
     Assert.assertEquals("Should have 4 data files before rewrite", 4, dataFiles.size());
 
-    RewriteDataFiles.Result result = actions().rewriteDataFiles(table).execute();
+    Result result = actions().rewriteDataFiles(table).execute();
     Assert.assertEquals("Action should rewrite 4 data files", 4, result.rewrittenDataFilesCount());
     Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFilesCount());
 
@@ -174,7 +191,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
     Assert.assertEquals("Should have 8 data files before rewrite", 8, dataFiles.size());
 
-    RewriteDataFiles.Result result = actions().rewriteDataFiles(table).execute();
+    Result result = actions().rewriteDataFiles(table).execute();
     Assert.assertEquals("Action should rewrite 8 data files", 8, result.rewrittenDataFilesCount());
     Assert.assertEquals("Action should add 4 data file", 4, result.addedDataFilesCount());
 
@@ -237,7 +254,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
     Assert.assertEquals("Should have 8 data files before rewrite", 8, dataFiles.size());
 
-    RewriteDataFiles.Result result = actions().rewriteDataFiles(table)
+    Result result = actions().rewriteDataFiles(table)
         .filter(Expressions.equal("c1", 1))
         .filter(Expressions.startsWith("c2", "AA"))
         .execute();
@@ -291,7 +308,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
     Assert.assertEquals("Should have 2 data files before rewrite", 2, dataFiles.size());
 
-    RewriteDataFiles.Result result = actions().rewriteDataFiles(table)
+    Result result = actions().rewriteDataFiles(table)
         .filter(Expressions.equal("c3", "0"))
         .execute();
     Assert.assertEquals("Action should rewrite 2 data files", 2, result.rewrittenDataFilesCount());
@@ -338,7 +355,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     List<Object[]> originalRecords = sql("SELECT * from origin sort by c2");
 
     long targetSizeInBytes = maxSizeFile.fileSizeInBytes() - 10;
-    RewriteDataFiles.Result result = actions().rewriteDataFiles(table)
+    Result result = actions().rewriteDataFiles(table)
         .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(targetSizeInBytes))
         .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, Long.toString(targetSizeInBytes - 1))
         .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(targetSizeInBytes + 1))
@@ -428,6 +445,216 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     shouldHaveSnapshots(table, 4);
   }
 
+  @Test
+  public void testSingleCommitWithRewriteFailure() {
+    Table table = createTable(20);
+    int fileSize = averageFileSize(table);
+
+    List<Object[]> originalData = currentData();
+
+    BaseRewriteDataFilesSparkAction realRewrite =
+        (org.apache.iceberg.spark.actions.BaseRewriteDataFilesSparkAction)
+            actions().rewriteDataFiles(table)
+                .option(RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 100));
+
+    BaseRewriteDataFilesSparkAction spyRewrite = Mockito.spy(realRewrite);
+
+    // Fail groups 1, 3, and 7 during rewrite
+    GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
+    doThrow(new RuntimeException("Rewrite Failed"))
+        .when(spyRewrite)
+        .rewriteFiles(argThat(failGroup), anyInt(), any(), any(), any(), any());
+
+    AssertHelpers.assertThrows("Should fail entire rewrite if part fails", RuntimeException.class,
+        () -> spyRewrite.execute());
+
+    table.refresh();
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 1);
+    shouldHaveNoOrphans(table);
+  }
+
+  @Test
+  public void testSingleCommitWithCommitFailure() {
+    Table table = createTable(20);
+    int fileSize = averageFileSize(table);
+
+    List<Object[]> originalData = currentData();
+
+    BaseRewriteDataFilesSparkAction realRewrite =
+        (org.apache.iceberg.spark.actions.BaseRewriteDataFilesSparkAction)
+            actions().rewriteDataFiles(table)
+                .option(RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 100));
+
+    BaseRewriteDataFilesSparkAction spyRewrite = Mockito.spy(realRewrite);
+
+    // Fail to commit
+    doThrow(new RuntimeException("Commit Failure"))
+        .when(spyRewrite)
+        .commitFileGroups(any());
+
+    AssertHelpers.assertThrows("Should fail entire rewrite if commit fails", RuntimeException.class,
+        () -> spyRewrite.execute());
+
+    table.refresh();
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 1);
+    shouldHaveNoOrphans(table);
+  }
+
+  @Test
+  public void testParallelSingleCommitWithRewriteFailure() {
+    Table table = createTable(20);
+    int fileSize = averageFileSize(table);
+
+    List<Object[]> originalData = currentData();
+
+    BaseRewriteDataFilesSparkAction realRewrite =
+        (org.apache.iceberg.spark.actions.BaseRewriteDataFilesSparkAction)
+            actions().rewriteDataFiles(table)
+                .option(RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 100))
+                .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_ACTIONS, "3");
+
+    BaseRewriteDataFilesSparkAction spyRewrite = Mockito.spy(realRewrite);
+
+    // Fail groups 1, 3, and 7 during rewrite
+    GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
+    doThrow(new RuntimeException("Rewrite Failed"))
+        .when(spyRewrite)
+        .rewriteFiles(argThat(failGroup), anyInt(), any(), any(), any(), any());
+
+    AssertHelpers.assertThrows("Should fail entire rewrite if part fails", RuntimeException.class,
+        () -> spyRewrite.execute());
+
+    table.refresh();
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 1);
+    shouldHaveNoOrphans(table);
+  }
+
+  @Test
+  public void testPartialProgressWithRewriteFailure() {
+    Table table = createTable(20);
+    int fileSize = averageFileSize(table);
+
+    List<Object[]> originalData = currentData();
+
+    BaseRewriteDataFilesSparkAction realRewrite =
+        (org.apache.iceberg.spark.actions.BaseRewriteDataFilesSparkAction)
+            actions().rewriteDataFiles(table)
+                .option(RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 100))
+                .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
+                .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "3");
+
+    BaseRewriteDataFilesSparkAction spyRewrite = Mockito.spy(realRewrite);
+
+    // Fail groups 1, 3, and 7 during rewrite
+    GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
+    doThrow(new RuntimeException("Rewrite Failed"))
+        .when(spyRewrite)
+        .rewriteFiles(argThat(failGroup), anyInt(), any(), any(), any(), any());
+
+    RewriteDataFiles.Result result = spyRewrite.execute();
+
+    Assert.assertEquals("Should have 7 fileGroups", result.resultMap().keySet().size(), 7);
+
+    table.refresh();
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    // With 10 original groups and Max Commits of 3, we should have commits with 4, 4, and 2.
+    // removing 3 groups leaves us with only 2 new commits, 4 and 3
+    shouldHaveSnapshots(table, 3);
+    shouldHaveNoOrphans(table);
+  }
+
+  @Test
+  public void testParallelPartialProgressWithRewriteFailure() {
+    Table table = createTable(20);
+    int fileSize = averageFileSize(table);
+
+    List<Object[]> originalData = currentData();
+
+    BaseRewriteDataFilesSparkAction realRewrite =
+        (org.apache.iceberg.spark.actions.BaseRewriteDataFilesSparkAction)
+            actions().rewriteDataFiles(table)
+                .option(RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 100))
+                .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_ACTIONS, "3")
+                .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
+                .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "3");
+
+    BaseRewriteDataFilesSparkAction spyRewrite = Mockito.spy(realRewrite);
+
+    // Fail groups 1, 3, and 7 during rewrite
+    GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
+    doThrow(new RuntimeException("Rewrite Failed"))
+        .when(spyRewrite)
+        .rewriteFiles(argThat(failGroup), anyInt(), any(), any(), any(), any());
+
+    RewriteDataFiles.Result result = spyRewrite.execute();
+
+    Assert.assertEquals("Should have 7 fileGroups", result.resultMap().keySet().size(), 7);
+
+    table.refresh();
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    // With 10 original groups and Max Commits of 3, we should have commits with 4, 4, and 2.
+    // removing 3 groups leaves us with only 2 new commits, 4 and 3
+    shouldHaveSnapshots(table, 3);
+    shouldHaveNoOrphans(table);
+  }
+
+  @Test
+  public void testParallelPartialProgressWithCommitFailure() {
+    Table table = createTable(20);
+    int fileSize = averageFileSize(table);
+
+    List<Object[]> originalData = currentData();
+
+    BaseRewriteDataFilesSparkAction realRewrite =
+        (org.apache.iceberg.spark.actions.BaseRewriteDataFilesSparkAction)
+            actions().rewriteDataFiles(table)
+                .option(RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 100))
+                .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_ACTIONS, "3")
+                .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
+                .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "3");
+
+    BaseRewriteDataFilesSparkAction spyRewrite = Mockito.spy(realRewrite);
+
+    // First and Third commits work, second does not
+    doCallRealMethod()
+        .doThrow(new RuntimeException("Commit Failed"))
+        .doCallRealMethod()
+        .when(spyRewrite)
+        .commitFileGroups(any());
+
+    RewriteDataFiles.Result result = spyRewrite.execute();
+
+    // Commit 1: 4, Commit 2 failed : 4, Commit 3: 2
+    Assert.assertEquals("Should have 6 fileGroups", 6, result.resultMap().keySet().size());
+
+    table.refresh();
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    // Only 2 new commits because we broke one
+    shouldHaveSnapshots(table, 3);
+    shouldHaveNoOrphans(table);
+  }
+
   private List<Object[]> currentData() {
     return rowsToJava(spark.read().format("iceberg").load(tableLocation).sort("c1").collectAsList());
   }
@@ -436,6 +663,11 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     int actualSnapshots = Iterables.size(table.snapshots());
     Assert.assertEquals("Table did not have the expected number of snapshots",
         expectedSnapshots, actualSnapshots);
+  }
+
+  private void shouldHaveNoOrphans(Table table) {
+    Assert.assertEquals("Should not have found any orphan files", Collections.EMPTY_LIST,
+        actions().removeOrphanFiles(table).execute().orphanFileLocations());
   }
 
   /**
@@ -477,5 +709,18 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
         .format("iceberg")
         .mode("append")
         .save(tableLocation);
+  }
+
+  class GroupInfoMatcher implements ArgumentMatcher<Pair<FileGroupInfo, List<FileScanTask>>> {
+    private final Set<Integer> groupIDs;
+
+    GroupInfoMatcher(Integer... globalIndex) {
+      this.groupIDs = ImmutableSet.copyOf(globalIndex);
+    }
+
+    @Override
+    public boolean matches(Pair<FileGroupInfo, List<FileScanTask>> argument) {
+      return groupIDs.contains(argument.first().globalIndex());
+    }
   }
 }

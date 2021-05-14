@@ -48,12 +48,7 @@ public class BaseRewriteDataFilesSpark3Action extends BaseRewriteDataFilesSparkA
 
   @Override
   protected void commitFileGroups(Set<String> completedGroupIDs) {
-    try {
-      coordinator.commitRewrite(table(), completedGroupIDs);
-    } catch (Exception e) {
-      completedGroupIDs.forEach(this::abortFileGroup);
-      throw e;
-    }
+    coordinator.commitRewrite(table(), completedGroupIDs);
   }
 
   @Override
