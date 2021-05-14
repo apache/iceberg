@@ -71,9 +71,9 @@ public interface RewriteStrategy extends Serializable {
    * Method which will rewrite files based on this particular RewriteStrategy's algorithm.
    * This will most likely be Action framework specific (Spark/Presto/Flink ....).
    *
-   * @param setId an identifier for this set of files
+   * @param groupID an identifier for this set of files
    * @param filesToRewrite a group of files to be rewritten together
    * @return a list of newly written files
    */
-  Set<DataFile> rewriteFiles(String setId, List<FileScanTask> filesToRewrite);
+  Set<DataFile> rewriteFiles(String groupID, List<FileScanTask> filesToRewrite);
 }

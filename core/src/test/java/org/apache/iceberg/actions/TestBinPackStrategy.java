@@ -60,7 +60,7 @@ public class TestBinPackStrategy extends TableTestBase {
     }
 
     @Override
-    public Set<DataFile> rewriteFiles(String setId, List<FileScanTask> filesToRewrite) {
+    public Set<DataFile> rewriteFiles(String groupID, List<FileScanTask> filesToRewrite) {
       throw new UnsupportedOperationException();
     }
   }
