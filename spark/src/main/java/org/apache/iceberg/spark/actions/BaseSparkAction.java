@@ -144,9 +144,9 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
     return otherMetadataFiles;
   }
 
-  protected Table newStaticTable(TableMetadata metadata, FileIO io) {
+  protected Table newStaticTable(TableMetadata metadata, FileIO io, EncryptionManager encryption) {
     String metadataFileLocation = metadata.metadataFileLocation();
-    StaticTableOperations ops = new StaticTableOperations(metadataFileLocation, io);
+    StaticTableOperations ops = new StaticTableOperations(metadataFileLocation, io, encryption);
     return new BaseTable(ops, metadataFileLocation);
   }
 
