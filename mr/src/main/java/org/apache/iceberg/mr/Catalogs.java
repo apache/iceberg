@@ -44,7 +44,28 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 /**
  * Class for catalog resolution and accessing the common functions for {@link Catalog} API.
  * <p>
- * See {@link Catalogs#getCatalogType(Configuration, String)} for catalog type resolution strategy.
+ * If the catalog name is provided, get the catalog type from
+ * {@link InputFormatConfig#catalogTypeConfigKey(String) iceberg.catalog.<code>catalogName</code>.type} config.
+ * <p>
+ * In case the catalog name is {@link #ICEBERG_HADOOP_TABLE_NAME location_based_table},
+ * type is ignored and tables will be loaded using {@link HadoopTables}.
+ * <p>
+ * In case the value of catalog type is null,
+ * {@link InputFormatConfig#catalogClassConfigKey(String) iceberg.catalog.<code>catalogName</code>.catalog-impl} config
+ * is used to determine the catalog implementation class.
+ * <p>
+ * If catalog name is null, get the catalog type from {@link InputFormatConfig#CATALOG iceberg.mr.catalog} config:
+ * <ul>
+ *   <li>hive: HiveCatalog</li>
+ *   <li>location: HadoopTables</li>
+ *   <li>hadoop: HadoopCatalog</li>
+ * </ul>
+ * <p>
+ * In case the value of catalog type is null,
+ * {@link InputFormatConfig#CATALOG_LOADER_CLASS iceberg.mr.catalog.loader.class} is used to determine
+ * the catalog implementation class.
+ * <p>
+ * Note: null catalog name mode is only supported for backwards compatibility. Using it is NOT RECOMMENDED.
  */
 public final class Catalogs {
 
@@ -247,20 +268,8 @@ public final class Catalogs {
   /**
    * Return the catalog type based on the catalog name.
    * <p>
-   * If the catalog name is provided get the catalog type from 'iceberg.catalog.<code>catalogName</code>.type' config.
-   * In case the value of this property is null, null is returned as the catalog type,
-   * and the catalog loader will instead use the 'iceberg.catalog.<code>catalogName</code>.catalog-impl' config
-   * to determine the catalog implementation.
-   * </p>
-   * <p>
-   * If catalog name is null, check the global conf for 'iceberg.mr.catalog' property. If the value of the property is:
-   * <ul>
-   *     <li>null/hive -> Hive Catalog</li>
-   *     <li>location -> Hadoop Table</li>
-   *     <li>hadoop -> Hadoop Catalog</li>
-   *     <li>any other value -> Custom Catalog</li>
-   * </ul>
-   * </p>
+   * See {@link Catalogs} documentation for catalog type resolution strategy.
+   *
    * @param conf global hive configuration
    * @param catalogName name of the catalog
    * @return type of the catalog, can be null
