@@ -351,10 +351,9 @@ public class TestIcebergInputFormats {
     String warehouseLocation = temp.newFolder("hadoop_catalog").getAbsolutePath();
     conf.set("warehouse.location", warehouseLocation);
     conf.set(InputFormatConfig.CATALOG_NAME, Catalogs.ICEBERG_DEFAULT_CATALOG_NAME);
-    conf.set(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, Catalogs.ICEBERG_DEFAULT_CATALOG_NAME),
+    conf.set(InputFormatConfig.catalogTypeConfigKey(Catalogs.ICEBERG_DEFAULT_CATALOG_NAME),
             CatalogUtil.ICEBERG_CATALOG_TYPE_HADOOP);
-    conf.set(String.format(InputFormatConfig.CATALOG_WAREHOUSE_TEMPLATE, Catalogs.ICEBERG_DEFAULT_CATALOG_NAME),
-            warehouseLocation);
+    conf.set(InputFormatConfig.catalogWarehouseConfigKey(Catalogs.ICEBERG_DEFAULT_CATALOG_NAME), warehouseLocation);
 
     Catalog catalog = new HadoopCatalog(conf, conf.get("warehouse.location"));
     TableIdentifier identifier = TableIdentifier.of("db", "t");

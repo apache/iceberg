@@ -35,7 +35,6 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -194,10 +193,6 @@ public final class Catalogs {
   @VisibleForTesting
   static Optional<Catalog> loadCatalog(Configuration conf, String catalogName) {
     String catalogType = getCatalogType(conf, catalogName);
-    if (catalogType == null) {
-      throw new NoSuchNamespaceException("Catalog definition for %s is not found.", catalogName);
-    }
-
     if (NO_CATALOG_TYPE.equalsIgnoreCase(catalogType)) {
       return Optional.empty();
     } else {
@@ -233,10 +228,18 @@ public final class Catalogs {
    */
   private static Map<String, String> addCatalogPropertiesIfMissing(Configuration conf, String catalogType,
                                                                    Map<String, String> catalogProperties) {
-    catalogProperties.putIfAbsent(CatalogUtil.ICEBERG_CATALOG_TYPE, catalogType);
-    if (catalogType.equalsIgnoreCase(HADOOP_CATALOG_TYPE)) {
-      catalogProperties.putIfAbsent(CatalogProperties.WAREHOUSE_LOCATION,
-              conf.get(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION));
+    if (catalogType != null) {
+      catalogProperties.putIfAbsent(CatalogUtil.ICEBERG_CATALOG_TYPE, catalogType);
+    }
+
+    String legacyCatalogImpl = conf.get(InputFormatConfig.CATALOG_LOADER_CLASS);
+    if (legacyCatalogImpl != null) {
+      catalogProperties.putIfAbsent(CatalogProperties.CATALOG_IMPL, legacyCatalogImpl);
+    }
+
+    String legacyWarehouseLocation = conf.get(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION);
+    if (legacyWarehouseLocation != null) {
+      catalogProperties.putIfAbsent(CatalogProperties.WAREHOUSE_LOCATION, legacyWarehouseLocation);
     }
     return catalogProperties;
   }
@@ -245,7 +248,9 @@ public final class Catalogs {
    * Return the catalog type based on the catalog name.
    * <p>
    * If the catalog name is provided get the catalog type from 'iceberg.catalog.<code>catalogName</code>.type' config.
-   * In case the value of this property is null, return with no catalog definition (Hadoop Table)
+   * In case the value of this property is null, null is returned as the catalog type,
+   * and the catalog loader will instead use the 'iceberg.catalog.<code>catalogName</code>.catalog-impl' config
+   * to determine the catalog implementation.
    * </p>
    * <p>
    * If catalog name is null, check the global conf for 'iceberg.mr.catalog' property. If the value of the property is:
@@ -262,8 +267,8 @@ public final class Catalogs {
    */
   private static String getCatalogType(Configuration conf, String catalogName) {
     if (catalogName != null) {
-      String catalogType = conf.get(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName));
-      if (catalogName.equals(ICEBERG_HADOOP_TABLE_NAME) || catalogType == null) {
+      String catalogType = conf.get(InputFormatConfig.catalogTypeConfigKey(catalogName));
+      if (catalogName.equals(ICEBERG_HADOOP_TABLE_NAME)) {
         return NO_CATALOG_TYPE;
       } else {
         return catalogType;

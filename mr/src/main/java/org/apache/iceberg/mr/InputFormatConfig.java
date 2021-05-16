@@ -21,6 +21,8 @@ package org.apache.iceberg.mr;
 
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -51,20 +53,19 @@ public class InputFormatConfig {
   public static final String LOCALITY = "iceberg.mr.locality";
 
   /**
-   * @deprecated please use {@link InputFormatConfig#CATALOG_TYPE_TEMPLATE} to specify the type of a catalog,
-   * and set {@link InputFormatConfig#CATALOG_NAME} in table property.
+   * @deprecated please use {@link #catalogTypeConfigKey(String)} to specify the type of a catalog.
    */
   @Deprecated
   public static final String CATALOG = "iceberg.mr.catalog";
 
   /**
-   * @deprecated please use {@link InputFormatConfig#CATALOG_WAREHOUSE_TEMPLATE} to specify the warehouse location.
+   * @deprecated please use {@link #catalogWarehouseConfigKey(String)} to specify the warehouse location.
    */
   @Deprecated
   public static final String HADOOP_CATALOG_WAREHOUSE_LOCATION = "iceberg.mr.catalog.hadoop.warehouse.location";
 
   /**
-   * @deprecated please use {@link InputFormatConfig#CATALOG_CLASS_TEMPLATE} to set catalog implementation.
+   * @deprecated please use {@link #catalogClassConfigKey(String)} to set catalog implementation.
    */
   @Deprecated
   public static final String CATALOG_LOADER_CLASS = "iceberg.mr.catalog.loader.class";
@@ -91,9 +92,6 @@ public class InputFormatConfig {
   public static final String SNAPSHOT_TABLE_SUFFIX = "__snapshots";
 
   public static final String CATALOG_CONFIG_PREFIX = "iceberg.catalog.";
-  public static final String CATALOG_TYPE_TEMPLATE = "iceberg.catalog.%s.type";
-  public static final String CATALOG_WAREHOUSE_TEMPLATE = "iceberg.catalog.%s.warehouse";
-  public static final String CATALOG_CLASS_TEMPLATE = "iceberg.catalog.%s.catalog-impl";
 
   public enum InMemoryDataModel {
     PIG,
@@ -218,6 +216,45 @@ public class InputFormatConfig {
   public static String[] selectedColumns(Configuration conf) {
     String[] readColumns = conf.getStrings(InputFormatConfig.SELECTED_COLUMNS);
     return readColumns != null && readColumns.length > 0 ? readColumns : null;
+  }
+
+  /**
+   * Shortcut for {@link #catalogPropertyConfigKey(String, String)} with config {@link CatalogUtil#ICEBERG_CATALOG_TYPE}
+   * @param catalogName catalog name
+   * @return Hadoop config key of catalog type for the catalog name
+   */
+  public static String catalogTypeConfigKey(String catalogName) {
+    return catalogPropertyConfigKey(catalogName, CatalogUtil.ICEBERG_CATALOG_TYPE);
+  }
+
+  /**
+   * Shortcut for {@link #catalogPropertyConfigKey(String, String)}
+   * with config {@link CatalogProperties#WAREHOUSE_LOCATION}
+   * @param catalogName catalog name
+   * @return Hadoop config key of catalog warehouse location for the catalog name
+   */
+  public static String catalogWarehouseConfigKey(String catalogName) {
+    return catalogPropertyConfigKey(catalogName, CatalogProperties.WAREHOUSE_LOCATION);
+  }
+
+  /**
+   * Shortcut for {@link #catalogPropertyConfigKey(String, String)} with config {@link CatalogProperties#CATALOG_IMPL}
+   * @param catalogName catalog name
+   * @return Hadoop config key of catalog class for the catalog name
+   */
+  public static String catalogClassConfigKey(String catalogName) {
+    return catalogPropertyConfigKey(catalogName, CatalogProperties.CATALOG_IMPL);
+  }
+
+  /**
+   * Get Hadoop config key of a catalog property based on catalog name
+   * @param catalogName catalog name
+   * @param catalogProperty catalog property, can be any custom property,
+   *                        a commonly used list of properties can be found at {@link CatalogProperties}
+   * @return Hadoop config key of a catalog property for the catalog name
+   */
+  public static String catalogPropertyConfigKey(String catalogName, String catalogProperty) {
+    return String.format("%s%s.%s", CATALOG_CONFIG_PREFIX, catalogName, catalogProperty);
   }
 
   private static Schema schema(Configuration conf, String key) {

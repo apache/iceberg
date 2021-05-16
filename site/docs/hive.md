@@ -98,8 +98,8 @@ To globally register different catalogs, set the following Hadoop configurations
 
 | Config Key                                    | Description                                            |
 | --------------------------------------------- | ------------------------------------------------------ |
-| iceberg.catalog.<catalog_name\>.type          | type of catalog: `hive`,`hadoop` or `custom`             |
-| iceberg.catalog.<catalog_name\>.catalog-impl  | catalog implementation, must not be null if type is `custom` |
+| iceberg.catalog.<catalog_name\>.type          | type of catalog: `hive` or `hadoop`                    |
+| iceberg.catalog.<catalog_name\>.catalog-impl  | catalog implementation, must not be null if type is null |
 | iceberg.catalog.<catalog_name\>.<key\>        | any config key and value pairs for the catalog         |
 
 Here are some examples using Hive CLI:
@@ -123,7 +123,6 @@ SET iceberg.catalog.hadoop.warehouse=hdfs://example.com:8020/warehouse;
 Register an AWS `GlueCatalog` called `glue`:
 
 ```
-SET iceberg.catalog.glue.type=custom;
 SET iceberg.catalog.glue.catalog-impl=org.apache.iceberg.aws.GlueCatalog;
 SET iceberg.catalog.glue.warehouse=s3://my-bucket/my/key/prefix;
 SET iceberg.catalog.glue.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager;

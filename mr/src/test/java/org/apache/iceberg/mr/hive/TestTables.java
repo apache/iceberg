@@ -331,10 +331,9 @@ abstract class TestTables {
     @Override
     public Map<String, String> properties() {
       return ImmutableMap.of(
-              String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalog), "custom",
-              String.format(InputFormatConfig.CATALOG_CLASS_TEMPLATE, catalog),
+              InputFormatConfig.catalogClassConfigKey(catalog),
               TestCatalogs.CustomHadoopCatalog.class.getName(),
-              String.format(InputFormatConfig.CATALOG_WAREHOUSE_TEMPLATE, catalog),
+              InputFormatConfig.catalogWarehouseConfigKey(catalog),
               warehouseLocation
       );
     }
@@ -363,8 +362,8 @@ abstract class TestTables {
     @Override
     public Map<String, String> properties() {
       return ImmutableMap.of(
-              String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalog), "hadoop",
-              String.format(InputFormatConfig.CATALOG_WAREHOUSE_TEMPLATE, catalog), warehouseLocation
+              InputFormatConfig.catalogTypeConfigKey(catalog), "hadoop",
+              InputFormatConfig.catalogWarehouseConfigKey(catalog), warehouseLocation
       );
     }
 
@@ -414,7 +413,7 @@ abstract class TestTables {
 
     @Override
     public Map<String, String> properties() {
-      return ImmutableMap.of(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalog), "hive");
+      return ImmutableMap.of(InputFormatConfig.catalogTypeConfigKey(catalog), "hive");
     }
 
     @Override
