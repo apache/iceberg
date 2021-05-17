@@ -56,6 +56,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.parquet.ParquetValueWriters.PositionDeleteStructWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -190,7 +191,10 @@ public class Parquet {
       }
     }
 
-    // Required for testing purposes
+    /*
+     * Sets the writer version. Default value is PARQUET_1_0 (v1).
+     */
+    @VisibleForTesting
     WriteBuilder withWriterVersion(WriterVersion version) {
       this.writerVersion = version;
       return this;
