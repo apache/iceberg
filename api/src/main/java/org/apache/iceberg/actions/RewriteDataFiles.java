@@ -67,7 +67,7 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
    * contents of the group is determined by the rewrite strategy. Each file group will be rewritten
    * independently and asynchronously.
    **/
-  String MAX_CONCURRENT_FILE_GROUP_ACTIONS = "max-concurrent-file-group-rewrites";
+  String MAX_CONCURRENT_FILE_GROUP_REWRITES = "max-concurrent-file-group-rewrites";
   int MAX_CONCURRENT_FILE_GROUP_ACTIONS_DEFAULT = 1;
 
   /**
@@ -82,16 +82,13 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
    */
   String OUTPUT_PARTITION_SPEC_ID = "output-partition-spec-id";
 
-  enum Strategy {
-    BINPACK
-  }
-
   /**
-   * Sets the strategy to be used by this rewrite action
-   * @param strategy the strategy to use
+   * Choose BINPACK as a strategy for this rewrite operation
    * @return this for method chaining
    */
-  RewriteDataFiles strategy(Strategy strategy);
+  default RewriteDataFiles binPack() {
+    return this;
+  }
 
   /**
    * A user provided filter for determining which files will be considered by the rewrite strategy. This will be used

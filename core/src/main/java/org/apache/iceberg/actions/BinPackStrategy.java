@@ -25,7 +25,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.actions.RewriteDataFiles.Strategy;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -40,25 +39,19 @@ import org.apache.iceberg.util.PropertyUtil;
  * <p>
  * Once selected files are grouped based on a {@link BinPacking} into groups defined
  * by {@link RewriteDataFiles#MAX_FILE_GROUP_SIZE_BYTES}. Groups will be considered for rewriting if they contain
- * more files than {@link MIN_INPUT_FILES} and would produce more files than {@link MIN_OUTPUT_FILES}.
+ * more files than {@link MIN_INPUT_FILES} or would produce at least one file of
+ * {@link RewriteDataFiles#TARGET_FILE_SIZE_BYTES}.
  */
 abstract class BinPackStrategy implements RewriteStrategy {
 
   /**
-   * Minimum number of files that need to be in a file group to be considered
-   * for rewriting. This is considered in conjunction with {@link MIN_OUTPUT_FILES}, both
-   * conditions must pass to consider a group of files to be rewritten.
+   * The minimum number of files that need to be in a file group for it to be considered for
+   * compaction if the total size of that group is less than the {@link RewriteDataFiles#TARGET_FILE_SIZE_BYTES}.
+   * This can also be thought of as the maximum number of non-target-size files that could remain in a file
+   * group (partition) after rewriting.
    */
   public static final String MIN_INPUT_FILES = "min-input-files";
-  public static final int MIN_INPUT_FILES_DEFAULT = 1;
-
-  /**
-   * Minimum number of files we want to be created by file group when being
-   * rewritten. This is considered in conjunction with {@link MIN_INPUT_FILES}, both
-   * conditions must pass to consider a group of files to be rewritten.
-   */
-  public static final String MIN_OUTPUT_FILES = "min-output-files";
-  public static final int MIN_OUTPUT_FILES_DEFAULT = 1;
+  public static final int MIN_INPUT_FILES_DEFAULT = 5;
 
   /**
    * Adjusts files which will be considered for rewriting. Files smaller than
@@ -81,7 +74,6 @@ abstract class BinPackStrategy implements RewriteStrategy {
   public static final double MAX_FILE_SIZE_DEFAULT_RATIO = 1.80d;
 
   private int minInputFiles;
-  private int minOutputFiles;
   private long minFileSize;
   private long maxFileSize;
   private long targetFileSize;
@@ -89,14 +81,13 @@ abstract class BinPackStrategy implements RewriteStrategy {
 
   @Override
   public String name() {
-    return Strategy.BINPACK.name();
+    return "BINPACK";
   }
 
   @Override
   public Set<String> validOptions() {
     return ImmutableSet.of(
         MIN_INPUT_FILES,
-        MIN_OUTPUT_FILES,
         MIN_FILE_SIZE_BYTES,
         MAX_FILE_SIZE_BYTES
     );
@@ -123,10 +114,6 @@ abstract class BinPackStrategy implements RewriteStrategy {
         RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES,
         RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES_DEFAULT);
 
-    minOutputFiles = PropertyUtil.propertyAsInt(options,
-        MIN_OUTPUT_FILES,
-        MIN_OUTPUT_FILES_DEFAULT);
-
     minInputFiles = PropertyUtil.propertyAsInt(options,
         MIN_INPUT_FILES,
         MIN_INPUT_FILES_DEFAULT);
@@ -146,13 +133,12 @@ abstract class BinPackStrategy implements RewriteStrategy {
     ListPacker<FileScanTask> packer = new BinPacking.ListPacker<>(maxGroupSize, 1, false);
     List<List<FileScanTask>> potentialGroups = packer.pack(dataFiles, FileScanTask::length);
     return potentialGroups.stream().filter(group ->
-        numOutputFiles(group) >= minOutputFiles && group.size() >= minInputFiles
+      group.size() >= minInputFiles || sizeOfInputFiles(group) > targetFileSize
     ).collect(Collectors.toList());
   }
 
-  private long numOutputFiles(List<FileScanTask> group) {
-    long groupSize = group.stream().mapToLong(FileScanTask::length).sum();
-    return (long) Math.ceil((double) groupSize / targetFileSize);
+  private long sizeOfInputFiles(List<FileScanTask> group) {
+    return group.stream().mapToLong(FileScanTask::length).sum();
   }
 
   private void validateOptions() {
@@ -175,9 +161,5 @@ abstract class BinPackStrategy implements RewriteStrategy {
     Preconditions.checkArgument(minInputFiles > 0,
         "Cannot set %s is less than 1. All values less than 1 have the same effect as 1. %d < 1",
         MIN_INPUT_FILES, minInputFiles);
-
-    Preconditions.checkArgument(minOutputFiles > 0,
-        "Cannot set %s to less than 1. All values less than 1 have the same effect as 1. %d < 1",
-        MIN_OUTPUT_FILES, minOutputFiles);
   }
 }

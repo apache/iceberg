@@ -121,6 +121,21 @@ public class TestBinPackStrategy extends TableTestBase {
   }
 
   @Test
+  public void testGroupWithLargeFileMinInputFiles() {
+    RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
+        BinPackStrategy.MIN_INPUT_FILES, Integer.toString(5)
+    ));
+
+    Iterable<FileScanTask> testFiles = filesOfSize(2000);
+
+    Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
+
+    Assert.assertEquals("Should plan 1 groups, not enough input files but the input file exceeds our max" +
+            "and can be written into at least one new target-file-size files",
+        ImmutableList.of(testFiles), grouped);
+  }
+
+  @Test
   public void testGroupingMinInputFilesValid() {
     RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
         BinPackStrategy.MIN_INPUT_FILES, Integer.toString(5)
@@ -131,34 +146,6 @@ public class TestBinPackStrategy extends TableTestBase {
     Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
 
     Assert.assertEquals("Should plan 1 groups since there are enough input files",
-        ImmutableList.of(testFiles), grouped);
-  }
-
-  @Test
-  public void testGroupingMinOutputFilesInvalid() {
-    RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
-        BinPackStrategy.MIN_OUTPUT_FILES, Integer.toString(3)
-    ));
-
-    Iterable<FileScanTask> testFiles = filesOfSize(200, 200, 200, 200, 200);
-
-    Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
-
-    Assert.assertEquals("Shouldn't plan any groups because we only would produce 2 files and require 3",
-        Collections.emptyList(), grouped);
-  }
-
-  @Test
-  public void testGroupingMinOutputFilesValid() {
-    RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
-        BinPackStrategy.MIN_OUTPUT_FILES, Integer.toString(2)
-    ));
-
-    Iterable<FileScanTask> testFiles = filesOfSize(200, 200, 200, 200, 200);
-
-    Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
-
-    Assert.assertEquals("Should plan 1 groups since there would be 2 output files",
         ImmutableList.of(testFiles), grouped);
   }
 
@@ -194,12 +181,6 @@ public class TestBinPackStrategy extends TableTestBase {
         IllegalArgumentException.class, () -> {
           defaultBinPack().options(ImmutableMap.of(
               BinPackStrategy.MIN_INPUT_FILES, Long.toString(-5)));
-        });
-
-    AssertHelpers.assertThrows("Should not allow min output size smaller than target",
-        IllegalArgumentException.class, () -> {
-          defaultBinPack().options(ImmutableMap.of(
-              BinPackStrategy.MIN_OUTPUT_FILES, Long.toString(-5)));
         });
 
     AssertHelpers.assertThrows("Should not allow negative target size",
