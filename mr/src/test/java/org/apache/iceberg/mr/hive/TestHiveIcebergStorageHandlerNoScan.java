@@ -546,7 +546,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
         InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA),
         InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(SPEC),
         "custom_property", "initial_val",
-        InputFormatConfig.CATALOG_NAME, Catalogs.ICEBERG_DEFAULT_CATALOG_NAME));
+        InputFormatConfig.CATALOG_NAME, testTables.catalogName()));
 
 
     // Check the Iceberg table parameters
