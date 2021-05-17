@@ -39,14 +39,16 @@ import org.apache.iceberg.util.PropertyUtil;
  * <p>
  * Once selected files are grouped based on a {@link BinPacking} into groups defined
  * by {@link RewriteDataFiles#MAX_FILE_GROUP_SIZE_BYTES}. Groups will be considered for rewriting if they contain
- * more files than {@link MIN_INPUT_FILES} and would produce more files than {@link MIN_OUTPUT_FILES}.
+ * more files than {@link MIN_INPUT_FILES} or would produce at least one file of
+ * {@link RewriteDataFiles#TARGET_FILE_SIZE_BYTES}.
  */
 abstract class BinPackStrategy implements RewriteStrategy {
 
   /**
    * The minimum number of files that need to be in a file group for it to be considered for
-   * compaction if the total size of that group is not the target size. This can also be thought of as
-   * the maximum number of non-target-size files that should remain in a file group (parititon) after rewriting.
+   * compaction if the total size of that group is less than the {@link RewriteDataFiles#TARGET_FILE_SIZE_BYTES}.
+   * This can also be thought of as the maximum number of non-target-size files that could remain in a file
+   * group (partition) after rewriting.
    */
   public static final String MIN_INPUT_FILES = "min-input-files";
   public static final int MIN_INPUT_FILES_DEFAULT = 5;

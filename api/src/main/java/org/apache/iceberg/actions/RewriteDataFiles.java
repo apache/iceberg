@@ -67,7 +67,7 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
    * contents of the group is determined by the rewrite strategy. Each file group will be rewritten
    * independently and asynchronously.
    **/
-  String MAX_CONCURRENT_FILE_GROUP_ACTIONS = "max-concurrent-file-group-rewrites";
+  String MAX_CONCURRENT_FILE_GROUP_REWRITES = "max-concurrent-file-group-rewrites";
   int MAX_CONCURRENT_FILE_GROUP_ACTIONS_DEFAULT = 1;
 
   /**
