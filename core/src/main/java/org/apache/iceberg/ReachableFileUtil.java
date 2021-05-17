@@ -21,7 +21,7 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
+import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -66,14 +66,13 @@ public class ReachableFileUtil {
 
   private static void metadataFileLocations(TableMetadata metadata, Set<String> metadataFileLocations,
                                             FileIO io, boolean recursive) {
-    List<TableMetadata.MetadataLogEntry> metadataLogEntries = metadata.previousFiles();
+    List<MetadataLogEntry> metadataLogEntries = metadata.previousFiles();
     if (metadataLogEntries.size() > 0) {
-      List<String> metadataLocations = metadataLogEntries.stream()
-          .map(TableMetadata.MetadataLogEntry::file)
-          .collect(Collectors.toList());
-      metadataFileLocations.addAll(metadataLocations);
+      for (MetadataLogEntry metadataLogEntry : metadataLogEntries) {
+        metadataFileLocations.add(metadataLogEntry.file());
+      }
       if (recursive) {
-        TableMetadata previousMetadata = findFirstExistentPreviousMetadata(metadataLocations, io);
+        TableMetadata previousMetadata = findFirstExistentPreviousMetadata(metadataLogEntries, io);
         if (previousMetadata != null) {
           metadataFileLocations(previousMetadata, metadataFileLocations, io, recursive);
         }
@@ -81,14 +80,14 @@ public class ReachableFileUtil {
     }
   }
 
-  private static TableMetadata findFirstExistentPreviousMetadata(List<String> metadataLocations, FileIO io) {
+  private static TableMetadata findFirstExistentPreviousMetadata(List<MetadataLogEntry> metadataLogEntries, FileIO io) {
     TableMetadata metadata = null;
-    for (String metadataLocation : metadataLocations) {
+    for (MetadataLogEntry metadataLogEntry : metadataLogEntries) {
       try {
-        metadata =  TableMetadataParser.read(io, metadataLocation);
+        metadata = TableMetadataParser.read(io, metadataLogEntry.file());
         break;
       } catch (Exception e) {
-        LOG.error("Failed to load {}", metadataLocation, e);
+        LOG.error("Failed to load {}", metadataLogEntry, e);
       }
     }
     return metadata;

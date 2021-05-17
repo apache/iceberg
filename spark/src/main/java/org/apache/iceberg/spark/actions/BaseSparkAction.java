@@ -22,7 +22,6 @@ package org.apache.iceberg.spark.actions;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.iceberg.BaseTable;
@@ -138,10 +137,10 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
   }
 
   protected Dataset<Row> buildOtherMetadataFileDF(Table table) {
-    Set<String> otherMetadataFiles = ReachableFileUtil.metadataFileLocations(table, false);
-    String versionHintLocation = ReachableFileUtil.versionHintLocation(table);
-    otherMetadataFiles.add(versionHintLocation);
-    return spark.createDataset(Lists.newArrayList(otherMetadataFiles), Encoders.STRING()).toDF("file_path");
+    List<String> otherMetadataFiles = Lists.newArrayList();
+    otherMetadataFiles.addAll(ReachableFileUtil.metadataFileLocations(table, false));
+    otherMetadataFiles.add(ReachableFileUtil.versionHintLocation(table));
+    return spark.createDataset(otherMetadataFiles, Encoders.STRING()).toDF("file_path");
   }
 
   protected Dataset<Row> buildValidMetadataFileDF(Table table) {
