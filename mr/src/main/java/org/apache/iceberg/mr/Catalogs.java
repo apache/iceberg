@@ -276,7 +276,8 @@ public final class Catalogs {
    */
   private static String getCatalogType(Configuration conf, String catalogName) {
     if (catalogName != null) {
-      String catalogType = conf.get(InputFormatConfig.catalogTypeConfigKey(catalogName));
+      String catalogType = conf.get(InputFormatConfig.catalogPropertyConfigKey(
+          catalogName, CatalogUtil.ICEBERG_CATALOG_TYPE));
       if (catalogName.equals(ICEBERG_HADOOP_TABLE_NAME)) {
         return NO_CATALOG_TYPE;
       } else {
