@@ -30,9 +30,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.BaseRemoveOrphanFilesActionResult;
 import org.apache.iceberg.actions.RemoveOrphanFiles;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -91,7 +89,6 @@ public class BaseRemoveOrphanFilesSparkAction
   private final SerializableConfiguration hadoopConf;
   private final int partitionDiscoveryParallelism;
   private final Table table;
-  private final TableOperations ops;
 
   private String location = null;
   private long olderThanTimestamp = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3);
@@ -108,7 +105,6 @@ public class BaseRemoveOrphanFilesSparkAction
     this.hadoopConf = new SerializableConfiguration(spark.sessionState().newHadoopConf());
     this.partitionDiscoveryParallelism = spark.sessionState().conf().parallelPartitionDiscoveryParallelism();
     this.table = table;
-    this.ops = ((HasTableOperations) table).operations();
     this.location = table.location();
 
     ValidationException.check(
@@ -156,7 +152,7 @@ public class BaseRemoveOrphanFilesSparkAction
 
   private RemoveOrphanFiles.Result doExecute() {
     Dataset<Row> validDataFileDF = buildValidDataFileDF(table);
-    Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table, ops);
+    Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table);
     Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);
     Dataset<Row> actualFileDF = buildActualFileDF();
 

@@ -25,6 +25,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 abstract class BaseAction<ThisT, R> implements Action<ThisT, R> {
@@ -76,7 +77,7 @@ abstract class BaseAction<ThisT, R> implements Action<ThisT, R> {
    */
   protected List<String> getOtherMetadataFilePaths(TableOperations ops) {
     List<String> otherMetadataFiles = Lists.newArrayList();
-    otherMetadataFiles.add(ops.metadataFileLocation("version-hint.text"));
+    otherMetadataFiles.add(ops.metadataFileLocation(Util.VERSION_HINT_FILENAME));
 
     TableMetadata metadata = ops.current();
     otherMetadataFiles.add(metadata.metadataFileLocation());
