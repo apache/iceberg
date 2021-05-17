@@ -373,8 +373,8 @@ abstract class TestTables {
   }
 
   static class HadoopTestTables extends TestTables {
-    HadoopTestTables(Configuration conf, TemporaryFolder temp, String catalogName) {
-      super(new HadoopTables(conf), temp, catalogName);
+    HadoopTestTables(Configuration conf, TemporaryFolder temp) {
+      super(new HadoopTables(conf), temp, Catalogs.ICEBERG_HADOOP_TABLE_NAME);
     }
 
     @Override
@@ -448,7 +448,7 @@ abstract class TestTables {
   enum TestTableType {
     HADOOP_TABLE {
       public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder, String catalogName) {
-        return new HadoopTestTables(conf, temporaryFolder, catalogName);
+        return new HadoopTestTables(conf, temporaryFolder);
       }
     },
     HADOOP_CATALOG {

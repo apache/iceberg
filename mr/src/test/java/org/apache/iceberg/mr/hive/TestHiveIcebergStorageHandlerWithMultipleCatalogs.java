@@ -27,6 +27,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -130,11 +131,13 @@ public class TestHiveIcebergStorageHandlerWithMultipleCatalogs {
 
   private void createAndAddRecords(TestTables testTables, FileFormat fileFormat, TableIdentifier identifier,
                                    String catalogName, List<Record> records) throws IOException {
+    String catalogNamePropertyValue = testTables instanceof TestTables.HadoopTestTables ?
+        Catalogs.ICEBERG_HADOOP_TABLE_NAME : catalogName;
     String createSql =
         "CREATE EXTERNAL TABLE " + identifier + " (customer_id BIGINT, first_name STRING, last_name STRING)" +
             " STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
             testTables.locationForCreateTableSQL(identifier) +
-            " TBLPROPERTIES ('" + InputFormatConfig.CATALOG_NAME + "'='" + catalogName + "')";
+            " TBLPROPERTIES ('" + InputFormatConfig.CATALOG_NAME + "'='" + catalogNamePropertyValue + "')";
     shell.executeStatement(createSql);
     Table icebergTable = testTables.loadTable(identifier);
     testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, fileFormat, null, records);
