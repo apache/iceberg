@@ -463,7 +463,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
     doThrow(new RuntimeException("Rewrite Failed"))
         .when(spyRewrite)
-        .rewriteFiles(argThat(failGroup), anyInt(), any(), any(), any(), any());
+        .rewriteFiles(argThat(failGroup), anyInt(), any(), any(), any());
 
     AssertHelpers.assertThrows("Should fail entire rewrite if part fails", RuntimeException.class,
         () -> spyRewrite.execute());
@@ -527,7 +527,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
     doThrow(new RuntimeException("Rewrite Failed"))
         .when(spyRewrite)
-        .rewriteFiles(argThat(failGroup), anyInt(), any(), any(), any(), any());
+        .rewriteFiles(argThat(failGroup), anyInt(), any(), any(), any());
 
     AssertHelpers.assertThrows("Should fail entire rewrite if part fails", RuntimeException.class,
         () -> spyRewrite.execute());
@@ -561,7 +561,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
     doThrow(new RuntimeException("Rewrite Failed"))
         .when(spyRewrite)
-        .rewriteFiles(argThat(failGroup), anyInt(), any(), any(), any(), any());
+        .rewriteFiles(argThat(failGroup), anyInt(), any(), any(), any());
 
     RewriteDataFiles.Result result = spyRewrite.execute();
 
@@ -599,7 +599,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
     doThrow(new RuntimeException("Rewrite Failed"))
         .when(spyRewrite)
-        .rewriteFiles(argThat(failGroup), anyInt(), any(), any(), any(), any());
+        .rewriteFiles(argThat(failGroup), anyInt(), any(), any(), any());
 
     RewriteDataFiles.Result result = spyRewrite.execute();
 

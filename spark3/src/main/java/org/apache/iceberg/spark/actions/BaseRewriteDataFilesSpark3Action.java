@@ -38,12 +38,8 @@ public class BaseRewriteDataFilesSpark3Action extends BaseRewriteDataFilesSparkA
   }
 
   @Override
-  protected RewriteStrategy rewriteStrategy(Strategy type) {
-    switch (type) {
-      case BINPACK: return new Spark3BinPackStrategy(table(), spark());
-      default: throw new IllegalArgumentException(String.format(
-          "Cannot create rewrite strategy for %s because %s is not yet supported in Spark3", type, type));
-    }
+  protected RewriteStrategy defaultStrategy() {
+    return new Spark3BinPackStrategy(table(), spark());
   }
 
   @Override

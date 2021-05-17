@@ -75,15 +75,16 @@ abstract class BaseRewriteDataFilesSparkAction
 
   private final Table table;
 
-  private RewriteDataFiles.Strategy strategyType = Strategy.BINPACK;
   private Expression filter = Expressions.alwaysTrue();
   private int maxConcurrentFileGroupActions;
   private int maxCommits;
   private boolean partialProgressEnabled;
+  private RewriteStrategy strategy;
 
   protected BaseRewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
+    this.strategy = defaultStrategy();
   }
 
   protected Table table() {
@@ -91,9 +92,9 @@ abstract class BaseRewriteDataFilesSparkAction
   }
 
   /**
-   * returns the Spark version specific strategy
+   * The framework specific strategy to use when no strategy is chosen via an explicit API
    */
-  protected abstract RewriteStrategy rewriteStrategy(Strategy type);
+  protected abstract RewriteStrategy defaultStrategy();
 
   /**
    * Perform a commit operation on the table adding and removing files as
@@ -109,13 +110,6 @@ abstract class BaseRewriteDataFilesSparkAction
    */
   protected abstract void abortFileGroup(String groupID);
 
-
-  @Override
-  public RewriteDataFiles strategy(Strategy type) {
-    strategyType = type;
-    return this;
-  }
-
   @Override
   public RewriteDataFiles filter(Expression expression) {
     filter = Expressions.and(filter, expression);
@@ -124,10 +118,9 @@ abstract class BaseRewriteDataFilesSparkAction
 
   @Override
   public Result execute() {
-    RewriteStrategy strategy =  rewriteStrategy(strategyType).options(this.options());
-    validateOptions(strategy);
+    validateOptions();
 
-    Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition = planFileGroups(strategy);
+    Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition = planFileGroups();
 
     Map<StructLike, Integer> numGroupsPerPartition = fileGroupsByPartition.entrySet().stream()
         .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size())
@@ -142,9 +135,9 @@ abstract class BaseRewriteDataFilesSparkAction
     Stream<Pair<FileGroupInfo, List<FileScanTask>>> groupStream = toJobStream(fileGroupsByPartition);
 
     if (partialProgressEnabled) {
-      return doExecutePartialProgress(groupStream, strategy, totalGroups, numGroupsPerPartition);
+      return doExecutePartialProgress(groupStream, totalGroups, numGroupsPerPartition);
     } else {
-      return doExecute(groupStream, strategy, totalGroups, numGroupsPerPartition);
+      return doExecute(groupStream, totalGroups, numGroupsPerPartition);
     }
   }
 
@@ -160,7 +153,7 @@ abstract class BaseRewriteDataFilesSparkAction
     }
   }
 
-  private Map<StructLike, List<List<FileScanTask>>> planFileGroups(RewriteStrategy strategy) {
+  private Map<StructLike, List<List<FileScanTask>>> planFileGroups() {
     CloseableIterable<FileScanTask> fileScanTasks = table.newScan()
         .filter(filter)
         .ignoreResiduals()
@@ -173,7 +166,7 @@ abstract class BaseRewriteDataFilesSparkAction
       Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition = Maps.newHashMap();
 
       filesByPartition.forEach((partition, tasks) -> {
-        List<List<FileScanTask>> fileGroups = toFileGroups(tasks, strategy);
+        List<List<FileScanTask>> fileGroups = toFileGroups(tasks);
         if (fileGroups.size() > 0) {
           fileGroupsByPartition.put(partition, fileGroups);
         }
@@ -189,7 +182,7 @@ abstract class BaseRewriteDataFilesSparkAction
     }
   }
 
-  private List<List<FileScanTask>> toFileGroups(List<FileScanTask> tasks, RewriteStrategy strategy) {
+  private List<List<FileScanTask>> toFileGroups(List<FileScanTask> tasks) {
     Iterable<FileScanTask> filtered = strategy.selectFilesToRewrite(tasks);
     Iterable<List<FileScanTask>> groupedTasks = strategy.planFileGroups(filtered);
     return ImmutableList.copyOf(groupedTasks);
@@ -197,8 +190,7 @@ abstract class BaseRewriteDataFilesSparkAction
 
   @VisibleForTesting
   void rewriteFiles(Pair<FileGroupInfo, List<FileScanTask>> infoListPair, int totalGroups,
-      Map<StructLike, Integer> numGroupsPerPartition, RewriteStrategy strategy,
-      ConcurrentLinkedQueue<String> completedRewrite,
+      Map<StructLike, Integer> numGroupsPerPartition, ConcurrentLinkedQueue<String> completedRewrite,
       ConcurrentHashMap<String, Pair<FileGroupInfo, FileGroupRewriteResult>> results) {
 
     String groupID = infoListPair.first().groupID();
@@ -217,7 +209,7 @@ abstract class BaseRewriteDataFilesSparkAction
   }
 
   private Result doExecute(Stream<Pair<FileGroupInfo, List<FileScanTask>>> groupStream,
-      RewriteStrategy strategy, int totalGroups, Map<StructLike, Integer> numGroupsPerPartition) {
+      int totalGroups, Map<StructLike, Integer> groupsPerPartition) {
 
     ExecutorService rewriteService = Executors.newFixedThreadPool(maxConcurrentFileGroupActions,
         new ThreadFactoryBuilder().setNameFormat("Rewrite-Service-%d").build());
@@ -235,8 +227,7 @@ abstract class BaseRewriteDataFilesSparkAction
 
     try {
       rewriteTaskBuilder
-          .run(infoListPair ->
-              rewriteFiles(infoListPair, totalGroups, numGroupsPerPartition, strategy, completedRewrite, results));
+          .run(infoListPair -> rewriteFiles(infoListPair, totalGroups, groupsPerPartition, completedRewrite, results));
     } catch (Exception e) {
       // At least one rewrite group failed, clean up all completed rewrites
       LOG.error("Cannot complete rewrite, partial progress is not enabled and one of the file set groups failed to " +
@@ -253,7 +244,7 @@ abstract class BaseRewriteDataFilesSparkAction
   }
 
   private Result doExecutePartialProgress(Stream<Pair<FileGroupInfo, List<FileScanTask>>> groupStream,
-      RewriteStrategy strategy, int totalGroups, Map<StructLike, Integer> numGroupsPerPartition) {
+      int totalGroups, Map<StructLike, Integer> groupsPerPartition) {
 
     ExecutorService rewriteService = Executors.newFixedThreadPool(maxConcurrentFileGroupActions,
         new ThreadFactoryBuilder().setNameFormat("Rewrite-Service-%d").build());
@@ -297,10 +288,8 @@ abstract class BaseRewriteDataFilesSparkAction
         .noRetry()
         .onFailure((info, exception) -> {
           LOG.error("Failure during rewrite process for group {}", info.first(), exception);
-          abortFileGroup(info.first().groupID);
-        })
-        .run(infoListPair ->
-            rewriteFiles(infoListPair, totalGroups, numGroupsPerPartition, strategy, completedRewriteIds, results));
+          abortFileGroup(info.first().groupID); })
+        .run(infoListPair -> rewriteFiles(infoListPair, totalGroups, groupsPerPartition, completedRewriteIds, results));
 
     stillRewriting.set(false);
     committerService.shutdown();
@@ -330,7 +319,8 @@ abstract class BaseRewriteDataFilesSparkAction
             }));
   }
 
-  private void validateOptions(RewriteStrategy strategy) {
+  private void validateOptions() {
+
     Set<String> validOptions = Sets.newHashSet(strategy.validOptions());
     validOptions.addAll(VALID_OPTIONS);
 
