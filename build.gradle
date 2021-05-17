@@ -331,6 +331,9 @@ project(':iceberg-flink') {
     testCompile("org.apache.flink:flink-test-utils_2.12") {
       exclude group: "org.apache.curator", module: 'curator-test'
     }
+    testCompile(project(':iceberg-nessie')) {
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    }
 
     testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
