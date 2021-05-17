@@ -44,14 +44,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 /**
  * Class for catalog resolution and accessing the common functions for {@link Catalog} API.
  * <p>
- * If the catalog name is provided, get the catalog type from
- * {@link InputFormatConfig#catalogTypeConfigKey(String) iceberg.catalog.<code>catalogName</code>.type} config.
+ * If the catalog name is provided, get the catalog type from iceberg.catalog.<code>catalogName</code>.type config.
  * <p>
  * In case the catalog name is {@link #ICEBERG_HADOOP_TABLE_NAME location_based_table},
  * type is ignored and tables will be loaded using {@link HadoopTables}.
  * <p>
- * In case the value of catalog type is null,
- * {@link InputFormatConfig#catalogClassConfigKey(String) iceberg.catalog.<code>catalogName</code>.catalog-impl} config
+ * In case the value of catalog type is null, iceberg.catalog.<code>catalogName</code>.catalog-impl config
  * is used to determine the catalog implementation class.
  * <p>
  * If catalog name is null, get the catalog type from {@link InputFormatConfig#CATALOG iceberg.mr.catalog} config:
@@ -65,20 +63,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
  * {@link InputFormatConfig#CATALOG_LOADER_CLASS iceberg.mr.catalog.loader.class} is used to determine
  * the catalog implementation class.
  * <p>
- * Note: null catalog name mode is only supported for backwards compatibility. Using it is NOT RECOMMENDED.
+ * Note: null catalog name mode is only supported for backwards compatibility. Using this mode is NOT RECOMMENDED.
  */
 public final class Catalogs {
 
   public static final String ICEBERG_DEFAULT_CATALOG_NAME = "default_iceberg";
   public static final String ICEBERG_HADOOP_TABLE_NAME = "location_based_table";
-
-  private static final String HIVE_CATALOG_TYPE = "hive";
-  private static final String HADOOP_CATALOG_TYPE = "hadoop";
-  private static final String NO_CATALOG_TYPE = "no catalog";
-
   public static final String NAME = "name";
   public static final String LOCATION = "location";
 
+  private static final String NO_CATALOG_TYPE = "no catalog";
   private static final Set<String> PROPERTIES_TO_REMOVE =
       ImmutableSet.of(InputFormatConfig.TABLE_SCHEMA, InputFormatConfig.PARTITION_SPEC, LOCATION, NAME,
               InputFormatConfig.CATALOG_NAME);
@@ -286,7 +280,7 @@ public final class Catalogs {
     } else {
       String catalogType = conf.get(InputFormatConfig.CATALOG);
       if (catalogType == null) {
-        return HIVE_CATALOG_TYPE;
+        return CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE;
       } else if (catalogType.equals(LOCATION)) {
         return NO_CATALOG_TYPE;
       } else {
