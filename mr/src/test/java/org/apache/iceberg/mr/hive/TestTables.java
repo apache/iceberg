@@ -99,6 +99,10 @@ abstract class TestTables {
     return tables;
   }
 
+  public String catalogName() {
+    return catalog;
+  }
+
   /**
    * The location string needed to be provided for CREATE TABLE ... commands,
    * like "LOCATION 'file:///tmp/warehouse/default/tablename'. Empty ("") if LOCATION is not needed.
@@ -193,7 +197,7 @@ abstract class TestTables {
         "'" + InputFormatConfig.PARTITION_SPEC + "'='" +
         PartitionSpecParser.toJson(spec) + "', " +
         "'" + TableProperties.DEFAULT_FILE_FORMAT + "'='" + fileFormat + "', " +
-        "'" + InputFormatConfig.CATALOG_NAME + "'='" + Catalogs.ICEBERG_DEFAULT_CATALOG_NAME + "')");
+        "'" + InputFormatConfig.CATALOG_NAME + "'='" + catalogName() + "')");
 
     if (records != null && !records.isEmpty()) {
       StringBuilder query = new StringBuilder().append("INSERT INTO " + identifier + " VALUES ");

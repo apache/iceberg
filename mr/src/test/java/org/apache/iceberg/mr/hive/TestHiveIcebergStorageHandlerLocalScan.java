@@ -290,7 +290,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
         "TBLPROPERTIES ('" + InputFormatConfig.PARTITION_SPEC + "'='" + PartitionSpecParser.toJson(spec) + "', " +
         "'" + InputFormatConfig.TABLE_SCHEMA + "'='" +
         SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA) + "', "  +
-        "'" + InputFormatConfig.CATALOG_NAME + "'='" + Catalogs.ICEBERG_DEFAULT_CATALOG_NAME + "')";
+        "'" + InputFormatConfig.CATALOG_NAME + "'='" + testTables.catalogName() + "')";
     runCreateAndReadTest(identifier, createSql, HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, spec, data);
   }
 
