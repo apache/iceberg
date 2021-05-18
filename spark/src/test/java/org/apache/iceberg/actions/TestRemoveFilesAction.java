@@ -146,7 +146,7 @@ public abstract class TestRemoveFilesAction extends SparkTestBase {
 
     // Verifies that the delete methods ran in the threads created by the provided ExecutorService ThreadFactory
     Assert.assertEquals(deleteThreads,
-        Sets.newHashSet("drop-table-0", "drop-table-1", "drop-table-2", "drop-table-3"));
+        Sets.newHashSet("remove-files-0", "remove-files-1", "remove-files-2", "remove-files-3"));
 
     Assert.assertTrue("FILE_A should be deleted", deletedFiles.contains(FILE_A.path().toString()));
     Assert.assertTrue("FILE_B should be deleted", deletedFiles.contains(FILE_B.path().toString()));

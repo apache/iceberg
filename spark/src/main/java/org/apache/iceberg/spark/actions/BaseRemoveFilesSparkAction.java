@@ -19,22 +19,19 @@
 
 package org.apache.iceberg.spark.actions;
 
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.RemoveFiles;
 import org.apache.iceberg.actions.RemoveFilesActionResult;
 import org.apache.iceberg.exceptions.NotFoundException;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.PropertyUtil;
@@ -47,6 +44,7 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.functions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 
 /**
  * An action that performs the same operation as {@link RemoveFiles} but uses Spark
@@ -94,7 +92,8 @@ public class BaseRemoveFilesSparkAction
 
   @Override
   public Result execute() {
-    JobGroupInfo info = newJobGroupInfo("REMOVE-FILES", "REMOVE-FILES");
+    JobGroupInfo info = newJobGroupInfo("REMOVE-FILES",
+        String.format("Removing files from %s", table.location()));
     return withJobGroupInfo(info, this::doExecute);
   }
 
@@ -119,45 +118,19 @@ public class BaseRemoveFilesSparkAction
     return appendTypeString(buildValidDataFileDF(staticTable), DATA_FILE)
         .union(appendTypeString(buildManifestFileDF(staticTable), MANIFEST))
         .union(appendTypeString(buildManifestListDF(staticTable), MANIFEST_LIST))
-        .union(appendTypeString(buildOtherMetadataFileDF(ops), OTHERS));
+        .union(appendTypeString(buildOtherMetadataFileDF(staticTable), OTHERS));
   }
 
-  protected Dataset<Row> buildOtherMetadataFileDF(TableOperations tableOps) {
+  @Override
+  protected Dataset<Row> buildOtherMetadataFileDF(Table tbl) {
     List<String> otherMetadataFiles = Lists.newArrayList();
-    otherMetadataFiles.add(tableOps.metadataFileLocation("version-hint.text"));
-
-    Set<String> metadataFiles = new HashSet<>();
-    TableMetadata metadata = tableOps.current();
-    String location = metadata.metadataFileLocation();
-    metadataFiles.add(location);
-    getMetadataFiles(location, metadataFiles, tableOps.io());
-    otherMetadataFiles.addAll(metadataFiles);
+    otherMetadataFiles.addAll(ReachableFileUtil.metadataFileLocations(table, true));
+    otherMetadataFiles.add(ReachableFileUtil.versionHintLocation(table));
     return spark().createDataset(otherMetadataFiles, Encoders.STRING()).toDF("file_path");
   }
 
-  private void getMetadataFiles(String metadataFileLocation, Set<String> metaFiles, FileIO io) {
-    if (metadataFileLocation == null) {
-      return;
-    }
-    long minTimeStamp = Long.MAX_VALUE;
-    String minMetadataLocation = null;
-    try {
-      TableMetadata metadata = TableMetadataParser.read(io, metadataFileLocation);
-      for (TableMetadata.MetadataLogEntry previousMetadataFile : metadata.previousFiles()) {
-        metaFiles.add(previousMetadataFile.file());
-        if (previousMetadataFile.timestampMillis() < minTimeStamp) {
-          minTimeStamp = previousMetadataFile.timestampMillis();
-          minMetadataLocation = previousMetadataFile.file();
-        }
-      }
-      getMetadataFiles(minMetadataLocation, metaFiles, io);
-    } catch (NotFoundException e) {
-      LOG.info("File not found", e);
-    }
-  }
-
   /**
-   * Deletes files passed to it based on their type.
+   * Deletes files passed to it.
    *
    * @param deleted an Iterator of Spark Rows of the structure (path: String, type: String)
    * @return Statistics on which files were deleted
@@ -200,7 +173,8 @@ public class BaseRemoveFilesSparkAction
           }
         });
 
-    LOG.info("Deleted {} total files", dataFileCount.get() + manifestCount.get() + manifestListCount.get());
+    LOG.info("Deleted {} total files", dataFileCount.get() + manifestCount.get() + manifestListCount.get() +
+        otherFilesCount.get());
     return new RemoveFilesActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get(),
         otherFilesCount.get());
   }
