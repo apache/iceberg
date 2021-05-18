@@ -22,7 +22,6 @@ package org.apache.iceberg.spark.actions;
 import java.io.IOException;
 import java.math.RoundingMode;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -66,7 +65,7 @@ abstract class BaseRewriteDataFilesSparkAction
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseRewriteDataFilesSparkAction.class);
   private static final Set<String> VALID_OPTIONS = ImmutableSet.of(
-      MAX_CONCURRENT_FILE_GROUP_ACTIONS,
+      MAX_CONCURRENT_FILE_GROUP_REWRITES,
       MAX_FILE_GROUP_SIZE_BYTES,
       PARTIAL_PROGRESS_ENABLED,
       PARTIAL_PROGRESS_MAX_COMMITS,
@@ -76,7 +75,7 @@ abstract class BaseRewriteDataFilesSparkAction
   private final Table table;
 
   private Expression filter = Expressions.alwaysTrue();
-  private int maxConcurrentFileGroupActions;
+  private int maxConcurrentFileGroupRewrites;
   private int maxCommits;
   private boolean partialProgressEnabled;
   private RewriteStrategy strategy;
@@ -121,35 +120,18 @@ abstract class BaseRewriteDataFilesSparkAction
     validateOptions();
 
     Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition = planFileGroups();
+    RewriteExecutionContext ctx = new RewriteExecutionContext(fileGroupsByPartition);
+    Stream<FileGroupForRewrite> groupStream = toGroupStream(ctx, fileGroupsByPartition);
 
-    Map<StructLike, Integer> numGroupsPerPartition = fileGroupsByPartition.entrySet().stream()
-        .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size())
-        );
-
-    Integer totalGroups = numGroupsPerPartition.values().stream().reduce(Integer::sum).orElse(0);
-
-    if (totalGroups == 0) {
+    if (ctx.totalGroupCount() == 0) {
+      LOG.info("Nothing found to rewrite in {}", table.name());
       return new Result(Collections.emptyMap());
     }
 
-    Stream<Pair<FileGroupInfo, List<FileScanTask>>> groupStream = toJobStream(fileGroupsByPartition);
-
     if (partialProgressEnabled) {
-      return doExecutePartialProgress(groupStream, totalGroups, numGroupsPerPartition);
+      return doExecuteWithPartialProgress(ctx, groupStream);
     } else {
-      return doExecute(groupStream, totalGroups, numGroupsPerPartition);
-    }
-  }
-
-  private void commitOrClean(Set<String> completedGroupIDs) {
-    try {
-      commitFileGroups(completedGroupIDs);
-    } catch (Exception e) {
-      LOG.error("Cannot commit groups {}, attempting to clean up written files", e);
-      Tasks.foreach(completedGroupIDs)
-          .suppressFailureWhenFinished()
-          .run(this::abortFileGroup);
-      throw e;
+      return doExecute(ctx, groupStream);
     }
   }
 
@@ -189,45 +171,56 @@ abstract class BaseRewriteDataFilesSparkAction
   }
 
   @VisibleForTesting
-  void rewriteFiles(Pair<FileGroupInfo, List<FileScanTask>> infoListPair, int totalGroups,
-      Map<StructLike, Integer> numGroupsPerPartition, ConcurrentLinkedQueue<String> completedRewrite,
-      ConcurrentHashMap<String, Pair<FileGroupInfo, FileGroupRewriteResult>> results) {
+  void rewriteFiles(RewriteExecutionContext ctx, FileGroupForRewrite fileGroupForRewrite,
+                    ConcurrentLinkedQueue<String> completedRewrite,
+                    ConcurrentHashMap<String, Pair<FileGroupInfo, FileGroupRewriteResult>> results) {
 
-    String groupID = infoListPair.first().groupID();
-    String desc = jobDesc(infoListPair.first(), totalGroups, infoListPair.second().size(),
-        numGroupsPerPartition.get(infoListPair.first().partition), strategy.name());
+    String groupID = fileGroupForRewrite.groupID();
+    int filesInGroup = fileGroupForRewrite.numFiles();
+
+    String desc = jobDesc(fileGroupForRewrite, ctx);
 
     Set<DataFile> addedFiles =
-        withJobGroupInfo(newJobGroupInfo("REWRITE-DATAFILES", desc),
-            () -> strategy.rewriteFiles(groupID, infoListPair.second()));
+        withJobGroupInfo(newJobGroupInfo("REWRITE-DATA-FILES", desc),
+            () -> strategy.rewriteFiles(groupID, fileGroupForRewrite.files()));
 
     completedRewrite.offer(groupID);
-    FileGroupRewriteResult fileGroupResult =
-        new FileGroupRewriteResult(addedFiles.size(), infoListPair.second().size());
+    FileGroupRewriteResult fileGroupResult = new FileGroupRewriteResult(addedFiles.size(), filesInGroup);
 
-    results.put(groupID, Pair.of(infoListPair.first(), fileGroupResult));
+    results.put(groupID, Pair.of(fileGroupForRewrite.info(), fileGroupResult));
   }
 
-  private Result doExecute(Stream<Pair<FileGroupInfo, List<FileScanTask>>> groupStream,
-      int totalGroups, Map<StructLike, Integer> groupsPerPartition) {
+  private void commitOrClean(Set<String> completedGroupIDs) {
+    try {
+      commitFileGroups(completedGroupIDs);
+    } catch (Exception e) {
+      LOG.error("Cannot commit groups {}, attempting to clean up written files", completedGroupIDs, e);
+      Tasks.foreach(completedGroupIDs)
+          .suppressFailureWhenFinished()
+          .run(this::abortFileGroup);
+      throw e;
+    }
+  }
 
-    ExecutorService rewriteService = Executors.newFixedThreadPool(maxConcurrentFileGroupActions,
+  private Result doExecute(RewriteExecutionContext ctx, Stream<FileGroupForRewrite> groupStream) {
+
+    ExecutorService rewriteService = Executors.newFixedThreadPool(maxConcurrentFileGroupRewrites,
         new ThreadFactoryBuilder().setNameFormat("Rewrite-Service-%d").build());
 
     ConcurrentLinkedQueue<String> completedRewrite = new ConcurrentLinkedQueue<>();
     ConcurrentHashMap<String, Pair<FileGroupInfo, FileGroupRewriteResult>> results = new ConcurrentHashMap<>();
 
-    Tasks.Builder<Pair<FileGroupInfo, List<FileScanTask>>> rewriteTaskBuilder = Tasks.foreach(groupStream.iterator())
+    Tasks.Builder<FileGroupForRewrite> rewriteTaskBuilder = Tasks.foreach(groupStream.iterator())
         .executeWith(rewriteService)
         .stopOnFailure()
         .noRetry()
-        .onFailure((info, exception) -> {
-          LOG.error("Failure during rewrite process for group {}", info.first(), exception);
+        .onFailure((fileGroupForRewrite, exception) -> {
+          LOG.error("Failure during rewrite process for group {}", fileGroupForRewrite.info, exception);
         });
 
     try {
       rewriteTaskBuilder
-          .run(infoListPair -> rewriteFiles(infoListPair, totalGroups, groupsPerPartition, completedRewrite, results));
+          .run(fileGroupForRewrite -> rewriteFiles(ctx, fileGroupForRewrite, completedRewrite, results));
     } catch (Exception e) {
       // At least one rewrite group failed, clean up all completed rewrites
       LOG.error("Cannot complete rewrite, partial progress is not enabled and one of the file set groups failed to " +
@@ -243,16 +236,15 @@ abstract class BaseRewriteDataFilesSparkAction
     return new Result(results.values().stream().collect(Collectors.toMap(Pair::first, Pair::second)));
   }
 
-  private Result doExecutePartialProgress(Stream<Pair<FileGroupInfo, List<FileScanTask>>> groupStream,
-      int totalGroups, Map<StructLike, Integer> groupsPerPartition) {
+  private Result doExecuteWithPartialProgress(RewriteExecutionContext ctx, Stream<FileGroupForRewrite> groupStream) {
 
-    ExecutorService rewriteService = Executors.newFixedThreadPool(maxConcurrentFileGroupActions,
+    ExecutorService rewriteService = Executors.newFixedThreadPool(maxConcurrentFileGroupRewrites,
         new ThreadFactoryBuilder().setNameFormat("Rewrite-Service-%d").build());
 
     ExecutorService committerService = Executors.newSingleThreadExecutor(
         new ThreadFactoryBuilder().setNameFormat("Committer-Service").build());
 
-    int groupsPerCommit = IntMath.divide(totalGroups, maxCommits, RoundingMode.CEILING);
+    int groupsPerCommit = IntMath.divide(ctx.totalGroupCount(), maxCommits, RoundingMode.CEILING);
 
     AtomicBoolean stillRewriting = new AtomicBoolean(true);
     ConcurrentHashMap<String, Pair<FileGroupInfo, FileGroupRewriteResult>> results = new ConcurrentHashMap<>();
@@ -286,10 +278,10 @@ abstract class BaseRewriteDataFilesSparkAction
         .suppressFailureWhenFinished()
         .executeWith(rewriteService)
         .noRetry()
-        .onFailure((info, exception) -> {
-          LOG.error("Failure during rewrite process for group {}", info.first(), exception);
-          abortFileGroup(info.first().groupID); })
-        .run(infoListPair -> rewriteFiles(infoListPair, totalGroups, groupsPerPartition, completedRewriteIds, results));
+        .onFailure((fileGroupForRewrite, exception) -> {
+          LOG.error("Failure during rewrite process for group {}", fileGroupForRewrite.info, exception);
+          abortFileGroup(fileGroupForRewrite.groupID()); })
+        .run(infoListPair -> rewriteFiles(ctx, infoListPair, completedRewriteIds, results));
 
     stillRewriting.set(false);
     committerService.shutdown();
@@ -303,19 +295,17 @@ abstract class BaseRewriteDataFilesSparkAction
     return new Result(results.values().stream().collect(Collectors.toMap(Pair::first, Pair::second)));
   }
 
-  private Stream<Pair<FileGroupInfo, List<FileScanTask>>> toJobStream(
+  private Stream<FileGroupForRewrite> toGroupStream(RewriteExecutionContext ctx,
       Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition) {
-    // Todo Check if we need to randomize the order in which we do jobs, instead of being partition centric
-    Map<StructLike, Integer> partitionIndex = new HashMap<>();
-    AtomicInteger jobIndex = new AtomicInteger(1);
 
+    // Todo Add intelligence to the order in which we do rewrites instead of just using partition order
     return fileGroupsByPartition.entrySet().stream()
         .flatMap(
             e -> e.getValue().stream().map(tasks -> {
-              int myJobIndex = jobIndex.getAndIncrement();
-              int myPartIndex = partitionIndex.merge(e.getKey(), 1, Integer::sum);
+              int myJobIndex = ctx.currentGlobalIndex();
+              int myPartIndex = ctx.currentPartitionIndex(e.getKey());
               String groupID = UUID.randomUUID().toString();
-              return Pair.of(new FileGroupInfo(groupID, myJobIndex, myPartIndex, e.getKey()), tasks);
+              return new FileGroupForRewrite(new FileGroupInfo(groupID, myJobIndex, myPartIndex, e.getKey()), tasks);
             }));
   }
 
@@ -331,9 +321,9 @@ abstract class BaseRewriteDataFilesSparkAction
         "Cannot use options %s, they are not supported by RewriteDatafiles or the strategy %s",
         invalidKeys, strategy.name());
 
-    maxConcurrentFileGroupActions = PropertyUtil.propertyAsInt(options(),
-        MAX_CONCURRENT_FILE_GROUP_ACTIONS,
-        MAX_CONCURRENT_FILE_GROUP_ACTIONS_DEFAULT);
+    maxConcurrentFileGroupRewrites = PropertyUtil.propertyAsInt(options(),
+        MAX_CONCURRENT_FILE_GROUP_REWRITES,
+        MAX_CONCURRENT_FILE_GROUP_REWRITES_DEFAULT);
 
     maxCommits = PropertyUtil.propertyAsInt(options(),
         PARTIAL_PROGRESS_MAX_COMMITS,
@@ -343,21 +333,21 @@ abstract class BaseRewriteDataFilesSparkAction
         PARTIAL_PROGRESS_ENABLED,
         PARTIAL_PROGRESS_ENABLED_DEFAULT);
 
-    Preconditions.checkArgument(maxConcurrentFileGroupActions >= 1,
+    Preconditions.checkArgument(maxConcurrentFileGroupRewrites >= 1,
         "Cannot set %s to %s, the value must be positive.",
-        MAX_CONCURRENT_FILE_GROUP_ACTIONS, maxConcurrentFileGroupActions);
+        MAX_CONCURRENT_FILE_GROUP_REWRITES, maxConcurrentFileGroupRewrites);
 
     Preconditions.checkArgument(!partialProgressEnabled || partialProgressEnabled && maxCommits > 0,
         "Cannot set %s to %s, the value must be positive when %s is true",
         PARTIAL_PROGRESS_MAX_COMMITS, maxCommits, PARTIAL_PROGRESS_ENABLED);
   }
 
-  private String jobDesc(FileGroupInfo fileGroupInfo, int totalGroups,
-      int numFilesToRewrite, int numFilesPerPartition, String strategyName) {
+  private String jobDesc(FileGroupForRewrite group, RewriteExecutionContext ctx) {
+    StructLike partition = group.partition();
 
     return String.format("Rewrite %s, FileGroup %d/%d : Partition %s:%d/%d : Rewriting %d files : Table %s",
-        strategyName, fileGroupInfo.globalIndex, totalGroups, fileGroupInfo.partition, fileGroupInfo.partitionIndex,
-        numFilesPerPartition, numFilesToRewrite, table.name());
+        strategy.name(), group.globalIndex(), ctx.totalGroupCount(), partition, group.partitionIndex(),
+        ctx.groupsInPartition(partition), group.numFiles(), table.name());
   }
 
   class Result implements RewriteDataFiles.Result {
@@ -418,6 +408,7 @@ abstract class BaseRewriteDataFilesSparkAction
     }
   }
 
+  @VisibleForTesting
   class FileGroupRewriteResult implements RewriteDataFiles.FileGroupRewriteResult {
     private final int addedDataFilesCount;
     private final int rewrittenDataFilesCount;
@@ -435,6 +426,79 @@ abstract class BaseRewriteDataFilesSparkAction
     @Override
     public int rewrittenDataFilesCount() {
       return this.rewrittenDataFilesCount;
+    }
+  }
+
+  static class FileGroupForRewrite {
+    private final FileGroupInfo info;
+    private final List<FileScanTask> files;
+    private final int numFiles;
+
+    FileGroupForRewrite(FileGroupInfo info, List<FileScanTask> files) {
+      this.info = info;
+      this.files = files;
+      this.numFiles = files.size();
+    }
+
+    public int numFiles() {
+      return numFiles;
+    }
+
+    public StructLike partition() {
+      return info.partition();
+    }
+
+    public String groupID() {
+      return info.groupID();
+    }
+
+    public Integer globalIndex() {
+      return info.globalIndex();
+    }
+
+    public Integer partitionIndex() {
+      return info.partitionIndex();
+    }
+
+    public FileGroupInfo info() {
+      return info;
+    }
+
+    public List<FileScanTask> files() {
+      return files();
+    }
+  }
+
+  private static class RewriteExecutionContext {
+    private final Map<StructLike, Integer> numGroupsByPartition;
+    private final int totalGroupCount;
+    private final Map<StructLike, Integer> partitionIndexMap;
+    private final AtomicInteger groupIndex;
+
+    RewriteExecutionContext(Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition) {
+      this.numGroupsByPartition = fileGroupsByPartition.entrySet().stream()
+          .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().size()));
+      this.totalGroupCount = numGroupsByPartition.values().stream()
+          .reduce(Integer::sum)
+          .orElse(0);
+      this.partitionIndexMap = Maps.newConcurrentMap();
+      this.groupIndex = new AtomicInteger(1);
+    }
+
+    public int currentGlobalIndex() {
+      return groupIndex.getAndIncrement();
+    }
+
+    public int currentPartitionIndex(StructLike partition) {
+      return partitionIndexMap.merge(partition, 1, Integer::sum);
+    }
+
+    public int groupsInPartition(StructLike partition) {
+      return numGroupsByPartition.get(partition);
+    }
+
+    public int totalGroupCount() {
+      return totalGroupCount;
     }
   }
 }
