@@ -49,7 +49,7 @@ public class MetricsConfig implements Serializable {
   }
 
   static Map<String, String> updateProperties(Map<String, String> props, List<String> deletedColumns,
-                                                     Map<String, String> renamedColumns) {
+                                              Map<String, String> renamedColumns) {
     if (props.keySet().stream().noneMatch(key -> key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX))) {
       return props;
     } else {
