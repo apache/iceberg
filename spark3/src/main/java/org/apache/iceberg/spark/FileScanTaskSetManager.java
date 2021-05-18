@@ -61,7 +61,6 @@ public class FileScanTaskSetManager {
     return tasksMap.remove(id);
   }
 
-  @VisibleForTesting
   public Set<String> fetchSets(Table table) {
     return tasksMap.keySet().stream()
         .filter(e -> e.first().equals(toID(table)))
