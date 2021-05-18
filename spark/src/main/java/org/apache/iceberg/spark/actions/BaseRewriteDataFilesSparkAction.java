@@ -118,6 +118,7 @@ abstract class BaseRewriteDataFilesSparkAction
   @Override
   public Result execute() {
     validateOptions();
+    strategy = strategy.options(options());
 
     Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition = planFileGroups();
     RewriteExecutionContext ctx = new RewriteExecutionContext(fileGroupsByPartition);
@@ -310,7 +311,6 @@ abstract class BaseRewriteDataFilesSparkAction
   }
 
   private void validateOptions() {
-
     Set<String> validOptions = Sets.newHashSet(strategy.validOptions());
     validOptions.addAll(VALID_OPTIONS);
 
@@ -465,11 +465,12 @@ abstract class BaseRewriteDataFilesSparkAction
     }
 
     public List<FileScanTask> files() {
-      return files();
+      return files;
     }
   }
 
-  private static class RewriteExecutionContext {
+  @VisibleForTesting
+  static class RewriteExecutionContext {
     private final Map<StructLike, Integer> numGroupsByPartition;
     private final int totalGroupCount;
     private final Map<StructLike, Integer> partitionIndexMap;

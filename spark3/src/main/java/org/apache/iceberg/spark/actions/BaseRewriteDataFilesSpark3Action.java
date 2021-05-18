@@ -24,6 +24,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteStrategy;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
+import org.apache.iceberg.spark.FileScanTaskSetManager;
 import org.apache.iceberg.spark.actions.rewrite.Spark3BinPackStrategy;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
@@ -32,6 +33,7 @@ import org.slf4j.LoggerFactory;
 public class BaseRewriteDataFilesSpark3Action extends BaseRewriteDataFilesSparkAction {
   private static final Logger LOG = LoggerFactory.getLogger(BaseRewriteDataFilesSpark3Action.class);
   private final FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
+  private final FileScanTaskSetManager manager = FileScanTaskSetManager.get();
 
   protected BaseRewriteDataFilesSpark3Action(SparkSession spark, Table table) {
     super(spark, table);
@@ -45,12 +47,14 @@ public class BaseRewriteDataFilesSpark3Action extends BaseRewriteDataFilesSparkA
   @Override
   protected void commitFileGroups(Set<String> completedGroupIDs) {
     coordinator.commitRewrite(table(), completedGroupIDs);
+    completedGroupIDs.forEach(groupID -> manager.removeTasks(table(), groupID));
   }
 
   @Override
   protected void abortFileGroup(String groupID) {
     try {
       coordinator.abortRewrite(table(), groupID);
+      manager.removeTasks(table(), groupID);
     } catch (Exception e) {
       LOG.error("Unable to cleanup rewrite file group {} for table {}", groupID, table().name(), e);
     }

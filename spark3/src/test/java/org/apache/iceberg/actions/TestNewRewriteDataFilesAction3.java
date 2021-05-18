@@ -19,13 +19,24 @@
 
 package org.apache.iceberg.actions;
 
+import java.util.Set;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.spark.FileRewriteCoordinator;
+import org.apache.iceberg.spark.FileScanTaskSetManager;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.actions.TestNewRewriteDataFilesAction;
 
 public class TestNewRewriteDataFilesAction3 extends TestNewRewriteDataFilesAction {
+  private final FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
+  private final FileScanTaskSetManager manager = FileScanTaskSetManager.get();
 
   @Override
   protected ActionsProvider actions() {
     return SparkActions.get();
+  }
+
+  @Override
+  protected Set<String> cacheContents(Table table) {
+    return manager.fetchSets(table);
   }
 }

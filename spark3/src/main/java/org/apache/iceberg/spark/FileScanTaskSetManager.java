@@ -21,10 +21,13 @@ package org.apache.iceberg.spark;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Pair;
@@ -58,9 +61,20 @@ public class FileScanTaskSetManager {
     return tasksMap.remove(id);
   }
 
-  private Pair<String, String> toID(Table table, String setID) {
+  @VisibleForTesting
+  public Set<String> fetchSets(Table table) {
+    return tasksMap.keySet().stream()
+        .filter(e -> e.first().equals(toID(table)))
+        .map(Pair::second)
+        .collect(Collectors.toSet());
+  }
+
+  private String toID(Table table) {
     TableOperations ops = ((HasTableOperations) table).operations();
-    String tableUUID = ops.current().uuid();
-    return Pair.of(tableUUID, setID);
+    return ops.current().uuid();
+  }
+
+  private Pair<String, String> toID(Table table, String setID) {
+    return Pair.of(toID(table), setID);
   }
 }
