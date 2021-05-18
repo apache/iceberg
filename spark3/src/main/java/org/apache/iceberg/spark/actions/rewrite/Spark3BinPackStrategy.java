@@ -75,6 +75,7 @@ public class Spark3BinPackStrategy extends BinPackStrategy {
     } catch (Exception e) {
       try {
         rewriteCoordinator.abortRewrite(table, groupID);
+        manager.removeTasks(table, groupID);
       } finally {
         throw new RuntimeException("Cannot complete rewrite, an exception was thrown during the write operation", e);
       }
