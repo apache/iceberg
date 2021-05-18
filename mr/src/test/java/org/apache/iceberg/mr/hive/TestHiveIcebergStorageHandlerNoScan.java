@@ -166,7 +166,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
         "'" + InputFormatConfig.PARTITION_SPEC + "'='" +
         PartitionSpecParser.toJson(PartitionSpec.unpartitioned()) + "', " +
         "'dummy'='test', " +
-        "'" + InputFormatConfig.CATALOG_NAME + "'='" + Catalogs.ICEBERG_DEFAULT_CATALOG_NAME + "')");
+        "'" + InputFormatConfig.CATALOG_NAME + "'='" + testTables.catalogName() + "')");
 
     // Check the Iceberg table data
     org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
@@ -248,7 +248,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
         testTables.locationForCreateTableSQL(identifier) +
         "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" +
         SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA) + "','" +
-        InputFormatConfig.CATALOG_NAME + "'='" + Catalogs.ICEBERG_DEFAULT_CATALOG_NAME + "')");
+        InputFormatConfig.CATALOG_NAME + "'='" + testTables.catalogName() + "')");
 
     // Check the Iceberg table partition data
     org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
@@ -266,7 +266,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
         SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA) + "', " +
         "'" + InputFormatConfig.PARTITION_SPEC + "'='" +
         PartitionSpecParser.toJson(PartitionSpec.unpartitioned()) + "', " +
-        "'" + InputFormatConfig.CATALOG_NAME + "'='" + Catalogs.ICEBERG_DEFAULT_CATALOG_NAME + "')");
+        "'" + InputFormatConfig.CATALOG_NAME + "'='" + testTables.catalogName() + "')");
 
     // Check the Iceberg table partition data
     org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);
@@ -283,7 +283,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
         "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" +
         SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA) + "', " +
         "'" + InputFormatConfig.EXTERNAL_TABLE_PURGE + "'='FALSE', " +
-        "'" + InputFormatConfig.CATALOG_NAME + "'='" + Catalogs.ICEBERG_DEFAULT_CATALOG_NAME + "')");
+        "'" + InputFormatConfig.CATALOG_NAME + "'='" + testTables.catalogName() + "')");
 
     org.apache.hadoop.hive.metastore.api.Table hmsTable = shell.metastore().getTable("default", "customers");
     Properties tableProperties = new Properties();
@@ -327,7 +327,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
               "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
               testTables.locationForCreateTableSQL(identifier) +
               "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='WrongSchema'" +
-              ",'" + InputFormatConfig.CATALOG_NAME + "'='" + Catalogs.ICEBERG_DEFAULT_CATALOG_NAME + "')");
+              ",'" + InputFormatConfig.CATALOG_NAME + "'='" + testTables.catalogName() + "')");
         }
     );
 
@@ -349,7 +349,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
                 "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
                 "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" +
                 SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA) + "','" +
-                InputFormatConfig.CATALOG_NAME + "'='" + Catalogs.ICEBERG_DEFAULT_CATALOG_NAME + "')");
+                InputFormatConfig.CATALOG_NAME + "'='" + testTables.catalogName() + "')");
           }
       );
     }
@@ -369,7 +369,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
                 "STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
                 "TBLPROPERTIES ('" + InputFormatConfig.TABLE_SCHEMA + "'='" +
                 SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA) + "',' " +
-                InputFormatConfig.CATALOG_NAME + "'='" + Catalogs.ICEBERG_DEFAULT_CATALOG_NAME + "')");
+                InputFormatConfig.CATALOG_NAME + "'='" + testTables.catalogName() + "')");
           }
       );
     } else {
@@ -546,7 +546,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
         InputFormatConfig.TABLE_SCHEMA, SchemaParser.toJson(HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA),
         InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(SPEC),
         "custom_property", "initial_val",
-        InputFormatConfig.CATALOG_NAME, Catalogs.ICEBERG_DEFAULT_CATALOG_NAME));
+        InputFormatConfig.CATALOG_NAME, testTables.catalogName()));
 
 
     // Check the Iceberg table parameters
