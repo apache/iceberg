@@ -48,10 +48,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkTestBase;
-import org.apache.iceberg.spark.actions.BaseRewriteDataFilesSparkAction.FileGroupInfo;
+import org.apache.iceberg.spark.actions.BaseRewriteDataFilesSparkAction.FileGroupForRewrite;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -66,7 +65,6 @@ import org.mockito.Mockito;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
@@ -463,7 +461,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
     doThrow(new RuntimeException("Rewrite Failed"))
         .when(spyRewrite)
-        .rewriteFiles(argThat(failGroup), anyInt(), any(), any(), any());
+        .rewriteFiles(any(), argThat(failGroup), any(), any());
 
     AssertHelpers.assertThrows("Should fail entire rewrite if part fails", RuntimeException.class,
         () -> spyRewrite.execute());
@@ -519,7 +517,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
         (org.apache.iceberg.spark.actions.BaseRewriteDataFilesSparkAction)
             actions().rewriteDataFiles(table)
                 .option(RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 100))
-                .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_ACTIONS, "3");
+                .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES, "3");
 
     BaseRewriteDataFilesSparkAction spyRewrite = Mockito.spy(realRewrite);
 
@@ -527,7 +525,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
     doThrow(new RuntimeException("Rewrite Failed"))
         .when(spyRewrite)
-        .rewriteFiles(argThat(failGroup), anyInt(), any(), any(), any());
+        .rewriteFiles(any(), argThat(failGroup), any(), any());
 
     AssertHelpers.assertThrows("Should fail entire rewrite if part fails", RuntimeException.class,
         () -> spyRewrite.execute());
@@ -561,7 +559,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
     doThrow(new RuntimeException("Rewrite Failed"))
         .when(spyRewrite)
-        .rewriteFiles(argThat(failGroup), anyInt(), any(), any(), any());
+        .rewriteFiles(any(), argThat(failGroup), any(), any());
 
     RewriteDataFiles.Result result = spyRewrite.execute();
 
@@ -589,7 +587,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
         (org.apache.iceberg.spark.actions.BaseRewriteDataFilesSparkAction)
             actions().rewriteDataFiles(table)
                 .option(RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 100))
-                .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_ACTIONS, "3")
+                .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES, "3")
                 .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
                 .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "3");
 
@@ -599,7 +597,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
     doThrow(new RuntimeException("Rewrite Failed"))
         .when(spyRewrite)
-        .rewriteFiles(argThat(failGroup), anyInt(), any(), any(), any());
+        .rewriteFiles(any(), argThat(failGroup), any(), any());
 
     RewriteDataFiles.Result result = spyRewrite.execute();
 
@@ -627,7 +625,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
         (org.apache.iceberg.spark.actions.BaseRewriteDataFilesSparkAction)
             actions().rewriteDataFiles(table)
                 .option(RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 100))
-                .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_ACTIONS, "3")
+                .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES, "3")
                 .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
                 .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "3");
 
@@ -669,7 +667,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     AssertHelpers.assertThrows("No negative values for max concurrent groups",
         IllegalArgumentException.class,
         () -> actions().rewriteDataFiles(table)
-            .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_ACTIONS, "-5")
+            .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES, "-5")
             .execute());
 
     AssertHelpers.assertThrows("No unknown options allowed",
@@ -735,7 +733,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
         .save(tableLocation);
   }
 
-  class GroupInfoMatcher implements ArgumentMatcher<Pair<FileGroupInfo, List<FileScanTask>>> {
+  class GroupInfoMatcher implements ArgumentMatcher<FileGroupForRewrite> {
     private final Set<Integer> groupIDs;
 
     GroupInfoMatcher(Integer... globalIndex) {
@@ -743,8 +741,8 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     }
 
     @Override
-    public boolean matches(Pair<FileGroupInfo, List<FileScanTask>> argument) {
-      return groupIDs.contains(argument.first().globalIndex());
+    public boolean matches(FileGroupForRewrite argument) {
+      return groupIDs.contains(argument.globalIndex());
     }
   }
 }
