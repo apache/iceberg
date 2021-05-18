@@ -317,6 +317,34 @@ public class TestHiveIcebergStorageHandlerNoScan {
   }
 
   @Test
+  public void testDropTableWithCorruptedMetadata() throws TException, IOException, InterruptedException {
+    Assume.assumeTrue("Only HiveCatalog attempts to load the Iceberg table prior to dropping it.",
+        testTableType == TestTables.TestTableType.HIVE_CATALOG);
+
+    // create test table
+    TableIdentifier identifier = TableIdentifier.of("default", "customers");
+    testTables.createTable(shell, identifier.name(),
+        HiveIcebergStorageHandlerTestUtils.CUSTOMER_SCHEMA, FileFormat.PARQUET, ImmutableList.of());
+
+    // enable data purging (this should set external.table.purge=true on the HMS table)
+    Table table = testTables.loadTable(identifier);
+    table.updateProperties().set(GC_ENABLED, "true").commit();
+
+    // delete its current snapshot file (i.e. corrupt the metadata to make the Iceberg table unloadable)
+    String metadataLocation = shell.metastore().getTable(identifier)
+        .getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
+    table.io().deleteFile(metadataLocation);
+
+    // check if HMS table is nonetheless still droppable
+    shell.executeStatement(String.format("DROP TABLE %s", identifier));
+    AssertHelpers.assertThrows("should throw exception", NoSuchTableException.class,
+        "Table does not exist", () -> {
+          testTables.loadTable(identifier);
+        }
+    );
+  }
+
+  @Test
   public void testCreateTableError() {
     TableIdentifier identifier = TableIdentifier.of("default", "withShell2");
 
