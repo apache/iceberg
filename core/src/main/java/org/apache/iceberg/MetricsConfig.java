@@ -48,7 +48,7 @@ public class MetricsConfig implements Serializable {
     return spec;
   }
 
-  public static Map<String, String> updateProperties(Map<String, String> props, List<String> deletedColumns,
+  static Map<String, String> updateProperties(Map<String, String> props, List<String> deletedColumns,
                                                      Map<String, String> renamedColumns) {
     if (props.keySet().stream().noneMatch(key -> key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX))) {
       return props;

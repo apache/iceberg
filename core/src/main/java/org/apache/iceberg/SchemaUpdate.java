@@ -394,12 +394,12 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private TableMetadata applyChangesToMetadata(TableMetadata metadata) {
-    String existingMappingJson = metadata.property(TableProperties.DEFAULT_NAME_MAPPING, null);
+    String mappingJson = metadata.property(TableProperties.DEFAULT_NAME_MAPPING, null);
     TableMetadata newMetadata = metadata;
-    if (existingMappingJson != null) {
+    if (mappingJson != null) {
       try {
         // parse and update the mapping
-        NameMapping mapping = NameMappingParser.fromJson(existingMappingJson);
+        NameMapping mapping = NameMappingParser.fromJson(mappingJson);
         NameMapping updated = MappingUtil.update(mapping, updates, adds);
 
         // replace the table property
@@ -411,7 +411,7 @@ class SchemaUpdate implements UpdateSchema {
 
       } catch (RuntimeException e) {
         // log the error, but do not fail the update
-        LOG.warn("Failed to update external schema mapping: {}", existingMappingJson, e);
+        LOG.warn("Failed to update external schema mapping: {}", mappingJson, e);
       }
     }
 
