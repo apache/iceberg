@@ -37,10 +37,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.BinPackStrategy;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteStrategy;
+import org.apache.iceberg.actions.SortStrategy;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -83,17 +86,12 @@ abstract class BaseRewriteDataFilesSparkAction
   protected BaseRewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
-    this.strategy = defaultStrategy();
+    this.strategy = binPackStrategy();
   }
 
   protected Table table() {
     return table;
   }
-
-  /**
-   * The framework specific strategy to use when no strategy is chosen via an explicit API
-   */
-  protected abstract RewriteStrategy defaultStrategy();
 
   /**
    * Perform a commit operation on the table adding and removing files as
@@ -108,6 +106,34 @@ abstract class BaseRewriteDataFilesSparkAction
    * @param groupID fileSet to clean
    */
   protected abstract void abortFileGroup(String groupID);
+
+  /**
+   * The framework specific {@link BinPackStrategy}
+   */
+  protected abstract BinPackStrategy binPackStrategy();
+
+  /**
+   * The framework specific {@link SortStrategy}
+   */
+  protected abstract SortStrategy sortStrategy();
+
+  @Override
+  public RewriteDataFiles sort(SortOrder sortOrder) {
+    this.strategy = sortStrategy().sortOrder(sortOrder);
+    return this;
+  }
+
+  @Override
+  public RewriteDataFiles sort() {
+    this.strategy = sortStrategy();
+    return this;
+  }
+
+  @Override
+  public RewriteDataFiles binPack() {
+    this.strategy = binPackStrategy();
+    return this;
+  }
 
   @Override
   public RewriteDataFiles filter(Expression expression) {

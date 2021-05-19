@@ -45,7 +45,7 @@ import org.slf4j.LoggerFactory;
  * <p>
  * In the future other algorithms for determining files to rewrite will be provided.
  */
-abstract class SortStrategy extends BinPackStrategy {
+public abstract class SortStrategy extends BinPackStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(SortStrategy.class);
 
   /**
@@ -54,6 +54,7 @@ abstract class SortStrategy extends BinPackStrategy {
    */
   public static final String REWRITE_ALL = "no-size-filter";
   public static final boolean REWRITE_ALL_DEFAULT = false;
+
 
   private static final Set<String> validOptions = ImmutableSet.of(
       REWRITE_ALL
@@ -78,6 +79,10 @@ abstract class SortStrategy extends BinPackStrategy {
     knownOrder.ifPresent(entry -> sortOrderId = entry.getKey());
 
     return this;
+  }
+
+  protected SortOrder sortOrder() {
+    return sortOrder;
   }
 
   @Override

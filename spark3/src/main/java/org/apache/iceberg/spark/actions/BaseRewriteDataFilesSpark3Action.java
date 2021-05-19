@@ -21,11 +21,13 @@ package org.apache.iceberg.spark.actions;
 
 import java.util.Set;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.BinPackStrategy;
 import org.apache.iceberg.actions.RewriteDataFiles;
-import org.apache.iceberg.actions.RewriteStrategy;
+import org.apache.iceberg.actions.SortStrategy;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.FileScanTaskSetManager;
 import org.apache.iceberg.spark.actions.rewrite.Spark3BinPackStrategy;
+import org.apache.iceberg.spark.actions.rewrite.Spark3SortStrategy;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,8 +42,13 @@ public class BaseRewriteDataFilesSpark3Action extends BaseRewriteDataFilesSparkA
   }
 
   @Override
-  protected RewriteStrategy defaultStrategy() {
+  protected BinPackStrategy binPackStrategy() {
     return new Spark3BinPackStrategy(table(), spark());
+  }
+
+  @Override
+  protected SortStrategy sortStrategy() {
+    return new Spark3SortStrategy(table(), spark());
   }
 
   @Override
