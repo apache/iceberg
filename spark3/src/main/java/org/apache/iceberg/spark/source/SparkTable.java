@@ -70,6 +70,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   private static final Set<TableCapability> CAPABILITIES = ImmutableSet.of(
       TableCapability.BATCH_READ,
       TableCapability.BATCH_WRITE,
+      TableCapability.MICRO_BATCH_READ,
       TableCapability.STREAMING_WRITE,
       TableCapability.OVERWRITE_BY_FILTER,
       TableCapability.OVERWRITE_DYNAMIC);
