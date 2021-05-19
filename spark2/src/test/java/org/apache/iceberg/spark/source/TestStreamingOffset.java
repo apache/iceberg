@@ -36,12 +36,14 @@ public class TestStreamingOffset {
         new org.apache.iceberg.spark.source.StreamingOffset(System.currentTimeMillis(), 4L, true)
     };
     Assert.assertArrayEquals("StreamingOffsets should match", expected,
-         Arrays.stream(expected).map(elem -> org.apache.iceberg.spark.source.StreamingOffset.fromJson(elem.json())).toArray());
+       Arrays.stream(expected)
+         .map(elem -> org.apache.iceberg.spark.source.StreamingOffset.fromJson(elem.json())).toArray());
   }
 
   @Test
   public void testToJson() throws Exception {
-    org.apache.iceberg.spark.source.StreamingOffset expected = new org.apache.iceberg.spark.source.StreamingOffset(System.currentTimeMillis(), 1L, false);
+    org.apache.iceberg.spark.source.StreamingOffset expected = new org.apache.iceberg.spark.source.StreamingOffset(
+      System.currentTimeMillis(), 1L, false);
     ObjectNode actual = JsonUtil.mapper().createObjectNode();
     actual.put("version", 1);
     actual.put("snapshot_id", expected.snapshotId());
