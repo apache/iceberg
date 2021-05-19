@@ -43,7 +43,7 @@ public class TestStreamingOffset {
   @Test
   public void testToJson() throws Exception {
     org.apache.iceberg.spark.source.StreamingOffset expected = new org.apache.iceberg.spark.source.StreamingOffset(
-      System.currentTimeMillis(), 1L, false);
+        System.currentTimeMillis(), 1L, false);
     ObjectNode actual = JsonUtil.mapper().createObjectNode();
     actual.put("version", 1);
     actual.put("snapshot_id", expected.snapshotId());
