@@ -248,6 +248,8 @@ abstract class BaseRewriteDataFilesSparkAction
           .suppressFailureWhenFinished()
           .run(this::abortFileGroup);
       throw e;
+    } finally {
+      rewriteService.shutdown();
     }
 
     try {
@@ -319,6 +321,7 @@ abstract class BaseRewriteDataFilesSparkAction
         .run(infoListPair -> rewriteFiles(ctx, infoListPair, completedRewriteIds, results));
 
     stillRewriting.set(false);
+    rewriteService.shutdown();
     committerService.shutdown();
 
     try {
