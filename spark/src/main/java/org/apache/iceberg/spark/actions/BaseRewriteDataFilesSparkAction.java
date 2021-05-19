@@ -387,10 +387,14 @@ abstract class BaseRewriteDataFilesSparkAction
 
   private String jobDesc(FileGroup group, RewriteExecutionContext ctx) {
     StructLike partition = group.partition();
-
-    return String.format("Rewrite %s, FileGroup %d/%d : Partition %s:%d/%d : Rewriting %d files : Table %s",
-        strategy.name(), group.globalIndex(), ctx.totalGroupCount(), partition, group.partitionIndex(),
-        ctx.groupsInPartition(partition), group.numFiles(), table.name());
+    if (partition.size() > 0) {
+      return String.format("Rewriting %d files (%s, file group %d/%d, %s (%d/%d)) in %s",
+          group.numFiles(), strategy.name(), group.globalIndex(), ctx.totalGroupCount(), partition,
+          group.partitionIndex(), ctx.groupsInPartition(partition), table.name());
+    } else {
+      return String.format("Rewriting %d files (%s, file group %d/%d) in %s",
+          group.numFiles(), strategy.name(), group.globalIndex(), ctx.totalGroupCount(), table.name());
+    }
   }
 
   class Result implements RewriteDataFiles.Result {
