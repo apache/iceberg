@@ -292,6 +292,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   protected void validateDataFilesExist(TableMetadata base, Long startingSnapshotId,
                                         Set<CharSequence> requiredDataFiles, boolean skipDeletes) {
     // if there is no current table state, no files have been removed
@@ -314,16 +315,29 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
           "Cannot determine history between starting snapshot %s and current %s",
           startingSnapshotId, currentSnapshotId);
 
+      // if current snapshot's parent was expired and starting snapshot is null,
+      // add all manifests of current snapshot and break
+      Long parentId = currentSnapshot.parentId();
+      boolean shouldAddManifestsAndBreak =
+          startingSnapshotId == null && parentId != null && ops.current().snapshot(parentId) == null;
+
       if (matchingOperations.contains(currentSnapshot.operation())) {
         newSnapshots.add(currentSnapshotId);
         for (ManifestFile manifest : currentSnapshot.dataManifests()) {
           if (manifest.snapshotId() == (long) currentSnapshotId) {
             manifests.add(manifest);
+          } else if (shouldAddManifestsAndBreak) {
+            manifests.add(manifest);
+            newSnapshots.add(manifest.snapshotId());
           }
         }
       }
 
-      currentSnapshotId = currentSnapshot.parentId();
+      if (shouldAddManifestsAndBreak) {
+        break;
+      }
+
+      currentSnapshotId = parentId;
     }
 
     ManifestGroup matchingDeletesGroup = new ManifestGroup(ops.io(), manifests, ImmutableList.of())
