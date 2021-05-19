@@ -337,4 +337,188 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
     }
     return set;
   }
+
+  @Test
+  public void testChangeLogOnIdKeyWithSnapshotExpire() throws Exception {
+    int expireAfterCheckPoint = 2;
+
+    List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
+        ImmutableList.of(
+            row("+I", 1, "aaa"),
+            row("-D", 1, "aaa"),
+            row("+I", 1, "bbb"),
+            row("+I", 2, "aaa"),
+            row("-D", 2, "aaa"),
+            row("+I", 2, "bbb")
+        ),
+        ImmutableList.of(
+            row("-U", 2, "bbb"),
+            row("+U", 2, "ccc"),
+            row("-D", 2, "ccc"),
+            row("+I", 2, "ddd")
+        ),
+        ImmutableList.of(
+            row("-D", 1, "bbb"),
+            row("+I", 1, "ccc"),
+            row("-D", 1, "ccc"),
+            row("+I", 1, "ddd")
+        )
+    );
+
+    List<List<Record>> expectedRecords = ImmutableList.of(
+        ImmutableList.of(record(1, "bbb"), record(2, "bbb")),
+        ImmutableList.of(record(1, "bbb"), record(2, "ddd")),
+        ImmutableList.of(record(1, "ddd"), record(2, "ddd"))
+    );
+
+    testChangeLogs(ImmutableList.of("id"), row -> row.getField(ROW_ID_POS),
+        elementsPerCheckpoint.subList(0, expireAfterCheckPoint),
+        expectedRecords.subList(0, expireAfterCheckPoint));
+
+    table.expireSnapshots()
+        .expireOlderThan(System.currentTimeMillis())
+        .commit();
+
+    testChangeLogs(ImmutableList.of("id"), row -> row.getField(ROW_ID_POS),
+        elementsPerCheckpoint.subList(expireAfterCheckPoint, elementsPerCheckpoint.size()),
+        expectedRecords.subList(
+            expireAfterCheckPoint - 1, expectedRecords.size()));
+  }
+
+  @Test
+  public void testChangeLogOnDataKeyWithSnapshotExpire() throws Exception {
+    int expireAfterCheckPoint = 2;
+
+    List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
+        ImmutableList.of(
+            row("+I", 1, "aaa"),
+            row("-D", 1, "aaa"),
+            row("+I", 2, "bbb"),
+            row("+I", 1, "bbb"),
+            row("+I", 2, "aaa")
+        ),
+        ImmutableList.of(
+            row("-U", 2, "aaa"),
+            row("+U", 1, "ccc"),
+            row("+I", 1, "aaa")
+        ),
+        ImmutableList.of(
+            row("-D", 1, "bbb"),
+            row("+I", 2, "aaa"),
+            row("+I", 2, "ccc")
+        )
+    );
+
+    List<List<Record>> expectedRecords = ImmutableList.of(
+        ImmutableList.of(record(1, "bbb"), record(2, "aaa")),
+        ImmutableList.of(record(1, "aaa"), record(1, "bbb"), record(1, "ccc")),
+        ImmutableList.of(record(1, "aaa"), record(1, "ccc"), record(2, "aaa"), record(2, "ccc"))
+    );
+
+    testChangeLogs(ImmutableList.of("data"), row -> row.getField(ROW_DATA_POS),
+        elementsPerCheckpoint.subList(0, expireAfterCheckPoint),
+        expectedRecords.subList(0, expireAfterCheckPoint));
+
+    table.expireSnapshots()
+        .expireOlderThan(System.currentTimeMillis())
+        .commit();
+
+    testChangeLogs(ImmutableList.of("data"), row -> row.getField(ROW_DATA_POS),
+        elementsPerCheckpoint.subList(expireAfterCheckPoint, elementsPerCheckpoint.size()),
+        expectedRecords.subList(
+            expireAfterCheckPoint - 1, expectedRecords.size()));
+  }
+
+  @Test
+  public void testChangeLogOnIdDataKeyWithSnapshotExpire() throws Exception {
+    int expireAfterCheckPoint = 2;
+
+    List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
+        ImmutableList.of(
+            row("+I", 1, "aaa"),
+            row("-D", 1, "aaa"),
+            row("+I", 2, "bbb"),
+            row("+I", 1, "bbb"),
+            row("+I", 2, "aaa")
+        ),
+        ImmutableList.of(
+            row("-U", 2, "aaa"),
+            row("+U", 1, "ccc"),
+            row("+I", 1, "aaa")
+        ),
+        ImmutableList.of(
+            row("-D", 1, "bbb"),
+            row("+I", 2, "aaa")
+        )
+    );
+
+    List<List<Record>> expectedRecords = ImmutableList.of(
+        ImmutableList.of(record(1, "bbb"), record(2, "aaa"), record(2, "bbb")),
+        ImmutableList.of(record(1, "aaa"), record(1, "bbb"), record(1, "ccc"), record(2, "bbb")),
+        ImmutableList.of(record(1, "aaa"), record(1, "ccc"), record(2, "aaa"), record(2, "bbb"))
+    );
+
+    testChangeLogs(ImmutableList.of("data", "id"), row -> Row.of(row.getField(ROW_ID_POS), row.getField(ROW_DATA_POS)),
+        elementsPerCheckpoint.subList(0, expireAfterCheckPoint),
+        expectedRecords.subList(0, expireAfterCheckPoint));
+
+    table.expireSnapshots()
+        .expireOlderThan(System.currentTimeMillis())
+        .commit();
+
+    testChangeLogs(ImmutableList.of("data", "id"), row -> Row.of(row.getField(ROW_ID_POS), row.getField(ROW_DATA_POS)),
+        elementsPerCheckpoint.subList(expireAfterCheckPoint, elementsPerCheckpoint.size()),
+        expectedRecords.subList(
+            expireAfterCheckPoint - 1, expectedRecords.size()));
+  }
+
+  @Test
+  public void testChangeLogOnSameKeyWithSnapshotExpire() throws Exception {
+    int expireAfterCheckPoint = 2;
+
+    List<List<Row>> elementsPerCheckpoint = ImmutableList.of(
+        // Checkpoint #1
+        ImmutableList.of(
+            row("+I", 1, "aaa"),
+            row("-D", 1, "aaa"),
+            row("+I", 1, "aaa")
+        ),
+        // Checkpoint #2
+        ImmutableList.of(
+            row("-U", 1, "aaa"),
+            row("+U", 1, "aaa")
+        ),
+        // Checkpoint #3
+        ImmutableList.of(
+            row("-D", 1, "aaa"),
+            row("+I", 1, "aaa")
+        ),
+        // Checkpoint #4
+        ImmutableList.of(
+            row("-U", 1, "aaa"),
+            row("+U", 1, "aaa"),
+            row("+I", 1, "aaa")
+        )
+    );
+
+    List<List<Record>> expectedRecords = ImmutableList.of(
+        ImmutableList.of(record(1, "aaa")),
+        ImmutableList.of(record(1, "aaa")),
+        ImmutableList.of(record(1, "aaa")),
+        ImmutableList.of(record(1, "aaa"), record(1, "aaa"))
+    );
+
+    testChangeLogs(ImmutableList.of("id", "data"), row -> Row.of(row.getField(ROW_ID_POS), row.getField(ROW_DATA_POS)),
+        elementsPerCheckpoint.subList(0, expireAfterCheckPoint),
+        expectedRecords.subList(0, expireAfterCheckPoint));
+
+    table.expireSnapshots()
+        .expireOlderThan(System.currentTimeMillis())
+        .commit();
+
+    testChangeLogs(ImmutableList.of("id", "data"), row -> Row.of(row.getField(ROW_ID_POS), row.getField(ROW_DATA_POS)),
+        elementsPerCheckpoint.subList(expireAfterCheckPoint, elementsPerCheckpoint.size()),
+        expectedRecords.subList(
+            expireAfterCheckPoint - 1, expectedRecords.size()));
+  }
 }
