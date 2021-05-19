@@ -399,7 +399,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     if (justSaved == null) {
       // The snapshot just saved may not be present if the latest metadata couldn't be loaded due to eventual
       // consistency problems in refresh.
-      LOG.warn("Failed to load committed snapshot, leave its sequence number to an invalid number(-1)");
+      LOG.warn("Failed to load committed snapshot: omitting sequence number from notifications");
     } else {
       sequenceNumber = justSaved.sequenceNumber();
     }
