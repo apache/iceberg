@@ -27,28 +27,28 @@ import org.junit.Test;
 
 public class TestStreamingOffset {
 
-    @Test
-    public void testJsonConversion() {
-        org.apache.iceberg.spark.source.StreamingOffset[] expected = new org.apache.iceberg.spark.source.StreamingOffset[]{
-                new org.apache.iceberg.spark.source.StreamingOffset(System.currentTimeMillis(), 1L, false),
-                new org.apache.iceberg.spark.source.StreamingOffset(System.currentTimeMillis(), 2L, false),
-                new org.apache.iceberg.spark.source.StreamingOffset(System.currentTimeMillis(), 3L, false),
-                new org.apache.iceberg.spark.source.StreamingOffset(System.currentTimeMillis(), 4L, true)
-        };
-        Assert.assertArrayEquals("StreamingOffsets should match", expected,
-                Arrays.stream(expected).map(elem -> org.apache.iceberg.spark.source.StreamingOffset.fromJson(elem.json())).toArray());
-    }
+  @Test
+  public void testJsonConversion() {
+    org.apache.iceberg.spark.source.StreamingOffset[] expected = new org.apache.iceberg.spark.source.StreamingOffset[]{
+        new org.apache.iceberg.spark.source.StreamingOffset(System.currentTimeMillis(), 1L, false),
+        new org.apache.iceberg.spark.source.StreamingOffset(System.currentTimeMillis(), 2L, false),
+        new org.apache.iceberg.spark.source.StreamingOffset(System.currentTimeMillis(), 3L, false),
+        new org.apache.iceberg.spark.source.StreamingOffset(System.currentTimeMillis(), 4L, true)
+    };
+    Assert.assertArrayEquals("StreamingOffsets should match", expected,
+         Arrays.stream(expected).map(elem -> org.apache.iceberg.spark.source.StreamingOffset.fromJson(elem.json())).toArray());
+  }
 
-    @Test
-    public void testToJson() throws Exception {
-        org.apache.iceberg.spark.source.StreamingOffset expected = new org.apache.iceberg.spark.source.StreamingOffset(System.currentTimeMillis(), 1L, false);
-        ObjectNode actual = JsonUtil.mapper().createObjectNode();
-        actual.put("version", 1);
-        actual.put("snapshot_id", expected.snapshotId());
-        actual.put("position", 1L);
-        actual.put("scan_all_files", false);
-        String expectedJson = expected.json();
-        String actualJson = JsonUtil.mapper().writeValueAsString(actual);
-        Assert.assertEquals("Json should match", expectedJson, actualJson);
-    }
+  @Test
+  public void testToJson() throws Exception {
+    org.apache.iceberg.spark.source.StreamingOffset expected = new org.apache.iceberg.spark.source.StreamingOffset(System.currentTimeMillis(), 1L, false);
+    ObjectNode actual = JsonUtil.mapper().createObjectNode();
+    actual.put("version", 1);
+    actual.put("snapshot_id", expected.snapshotId());
+    actual.put("position", 1L);
+    actual.put("scan_all_files", false);
+    String expectedJson = expected.json();
+    String actualJson = JsonUtil.mapper().writeValueAsString(actual);
+    Assert.assertEquals("Json should match", expectedJson, actualJson);
+  }
 }

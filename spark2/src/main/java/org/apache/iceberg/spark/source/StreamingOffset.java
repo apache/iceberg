@@ -30,106 +30,106 @@ import org.apache.iceberg.util.JsonUtil;
 import org.apache.spark.sql.sources.v2.reader.streaming.Offset;
 
 class StreamingOffset extends Offset {
-    static final StreamingOffset START_OFFSET = new StreamingOffset(-1L, -1, false);
+  static final StreamingOffset START_OFFSET = new StreamingOffset(-1L, -1, false);
 
-    private static final int CURR_VERSION = 1;
-    private static final String VERSION = "version";
-    private static final String SNAPSHOT_ID = "snapshot_id";
-    private static final String POSITION = "position";
-    private static final String SCAN_ALL_FILES = "scan_all_files";
+  private static final int CURR_VERSION = 1;
+  private static final String VERSION = "version";
+  private static final String SNAPSHOT_ID = "snapshot_id";
+  private static final String POSITION = "position";
+  private static final String SCAN_ALL_FILES = "scan_all_files";
 
-    private final long snapshotId;
-    private final long position;
-    private final boolean scanAllFiles;
+  private final long snapshotId;
+  private final long position;
+  private final boolean scanAllFiles;
 
-    /**
-     * An implementation of Spark Structured Streaming Offset, to track the current processed files of
-     * Iceberg table.
-     *
-     * @param snapshotId             The current processed snapshot id.
-     * @param position               The position of last scanned file in snapshot.
-     * @param scanAllFiles           whether to scan all files in a snapshot; for example, to read
-     *                               all data when starting a stream.
-     */
-    StreamingOffset(long snapshotId, long position, boolean scanAllFiles) {
-        this.snapshotId = snapshotId;
-        this.position = position;
-        this.scanAllFiles = scanAllFiles;
+  /**
+   * An implementation of Spark Structured Streaming Offset, to track the current processed files of
+   * Iceberg table.
+   *
+   * @param snapshotId             The current processed snapshot id.
+   * @param position               The position of last scanned file in snapshot.
+   * @param scanAllFiles           whether to scan all files in a snapshot; for example, to read
+   *                               all data when starting a stream.
+   */
+  StreamingOffset(long snapshotId, long position, boolean scanAllFiles) {
+    this.snapshotId = snapshotId;
+    this.position = position;
+    this.scanAllFiles = scanAllFiles;
+  }
+
+  static StreamingOffset fromJson(String json) {
+    Preconditions.checkNotNull(json, "Cannot parse StreamingOffset JSON: null");
+
+    try {
+      JsonNode node = JsonUtil.mapper().readValue(json, JsonNode.class);
+      // The version of StreamingOffset. The offset was created with a version number
+      // used to validate when deserializing from json string.
+      int version = JsonUtil.getInt(VERSION, node);
+      Preconditions.checkArgument(version == CURR_VERSION,
+          "Cannot parse offset JSON: offset version %s is not supported", version);
+
+      long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
+      int position = JsonUtil.getInt(POSITION, node);
+      boolean shouldScanAllFiles = JsonUtil.getBool(SCAN_ALL_FILES, node);
+
+      return new StreamingOffset(snapshotId, position, shouldScanAllFiles);
+    } catch (IOException e) {
+      throw new IllegalArgumentException(String.format("Failed to parse StreamingOffset from JSON string %s", json), e);
+    }
+  }
+
+  @Override
+  public String json() {
+    StringWriter writer = new StringWriter();
+    try {
+      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+      generator.writeStartObject();
+      generator.writeNumberField(VERSION, CURR_VERSION);
+      generator.writeNumberField(SNAPSHOT_ID, snapshotId);
+      generator.writeNumberField(POSITION, position);
+      generator.writeBooleanField(SCAN_ALL_FILES, scanAllFiles);
+      generator.writeEndObject();
+      generator.flush();
+
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to write StreamingOffset to json", e);
     }
 
-    static StreamingOffset fromJson(String json) {
-        Preconditions.checkNotNull(json, "Cannot parse StreamingOffset JSON: null");
+    return writer.toString();
+  }
 
-        try {
-            JsonNode node = JsonUtil.mapper().readValue(json, JsonNode.class);
-            // The version of StreamingOffset. The offset was created with a version number
-            // used to validate when deserializing from json string.
-            int version = JsonUtil.getInt(VERSION, node);
-            Preconditions.checkArgument(version == CURR_VERSION,
-                    "Cannot parse offset JSON: offset version %s is not supported", version);
+  long snapshotId() {
+    return snapshotId;
+  }
 
-            long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
-            int position = JsonUtil.getInt(POSITION, node);
-            boolean shouldScanAllFiles = JsonUtil.getBool(SCAN_ALL_FILES, node);
+  long position() {
+    return position;
+  }
 
-            return new StreamingOffset(snapshotId, position, shouldScanAllFiles);
-        } catch (IOException e) {
-            throw new IllegalArgumentException(String.format("Failed to parse StreamingOffset from JSON string %s", json), e);
-        }
+  boolean shouldScanAllFiles() {
+    return scanAllFiles;
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (obj instanceof StreamingOffset) {
+      StreamingOffset offset = (StreamingOffset) obj;
+      return offset.snapshotId == snapshotId &&
+          offset.position == position &&
+          offset.scanAllFiles == scanAllFiles;
+    } else {
+      return false;
     }
+  }
 
-    @Override
-    public String json() {
-        StringWriter writer = new StringWriter();
-        try {
-            JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
-            generator.writeStartObject();
-            generator.writeNumberField(VERSION, CURR_VERSION);
-            generator.writeNumberField(SNAPSHOT_ID, snapshotId);
-            generator.writeNumberField(POSITION, position);
-            generator.writeBooleanField(SCAN_ALL_FILES, scanAllFiles);
-            generator.writeEndObject();
-            generator.flush();
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(snapshotId, position, scanAllFiles);
+  }
 
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to write StreamingOffset to json", e);
-        }
-
-        return writer.toString();
-    }
-
-    long snapshotId() {
-        return snapshotId;
-    }
-
-    long position() {
-        return position;
-    }
-
-    boolean shouldScanAllFiles() {
-        return scanAllFiles;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj instanceof StreamingOffset) {
-            StreamingOffset offset = (StreamingOffset) obj;
-            return offset.snapshotId == snapshotId &&
-                    offset.position == position &&
-                    offset.scanAllFiles == scanAllFiles;
-        } else {
-            return false;
-        }
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hashCode(snapshotId, position, scanAllFiles);
-    }
-
-    @Override
-    public String toString() {
-        return String.format("Streaming Offset[%d: position (%d) scan_all_files (%b)]",
-                snapshotId, position, scanAllFiles);
-    }
+  @Override
+  public String toString() {
+    return String.format("Streaming Offset[%d: position (%d) scan_all_files (%b)]",
+      snapshotId, position, scanAllFiles);
+  }
 }
