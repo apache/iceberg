@@ -60,19 +60,19 @@ public class FileScanTaskSetManager {
     return tasksMap.remove(id);
   }
 
-  public Set<String> fetchSets(Table table) {
+  public Set<String> fetchSetIDs(Table table) {
     return tasksMap.keySet().stream()
-        .filter(e -> e.first().equals(toID(table)))
+        .filter(e -> e.first().equals(tableUUID(table)))
         .map(Pair::second)
         .collect(Collectors.toSet());
   }
 
-  private String toID(Table table) {
+  private String tableUUID(Table table) {
     TableOperations ops = ((HasTableOperations) table).operations();
     return ops.current().uuid();
   }
 
   private Pair<String, String> toID(Table table, String setID) {
-    return Pair.of(toID(table), setID);
+    return Pair.of(tableUUID(table), setID);
   }
 }

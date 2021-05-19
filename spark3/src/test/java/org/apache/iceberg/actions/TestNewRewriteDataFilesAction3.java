@@ -37,6 +37,6 @@ public class TestNewRewriteDataFilesAction3 extends TestNewRewriteDataFilesActio
 
   @Override
   protected Set<String> cacheContents(Table table) {
-    return manager.fetchSets(table);
+    return manager.fetchSetIDs(table);
   }
 }

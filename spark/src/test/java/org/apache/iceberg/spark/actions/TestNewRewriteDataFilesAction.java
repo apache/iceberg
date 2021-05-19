@@ -48,7 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkTestBase;
-import org.apache.iceberg.spark.actions.BaseRewriteDataFilesSparkAction.FileGroupForRewrite;
+import org.apache.iceberg.spark.actions.BaseRewriteDataFilesSparkAction.FileGroup;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
@@ -754,7 +754,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
         .save(tableLocation);
   }
 
-  class GroupInfoMatcher implements ArgumentMatcher<FileGroupForRewrite> {
+  class GroupInfoMatcher implements ArgumentMatcher<FileGroup> {
     private final Set<Integer> groupIDs;
 
     GroupInfoMatcher(Integer... globalIndex) {
@@ -762,7 +762,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     }
 
     @Override
-    public boolean matches(FileGroupForRewrite argument) {
+    public boolean matches(FileGroup argument) {
       return groupIDs.contains(argument.globalIndex());
     }
   }

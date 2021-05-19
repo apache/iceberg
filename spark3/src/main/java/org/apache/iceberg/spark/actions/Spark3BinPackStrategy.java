@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.actions.rewrite;
+package org.apache.iceberg.spark.actions;
 
 import java.util.List;
 import java.util.Set;
@@ -39,6 +39,7 @@ public class Spark3BinPackStrategy extends BinPackStrategy {
   private final Table table;
   private final SparkSession spark;
   private final FileScanTaskSetManager manager = FileScanTaskSetManager.get();
+  private final FileRewriteCoordinator rewriteCoordinator = FileRewriteCoordinator.get();
 
   public Spark3BinPackStrategy(Table table, SparkSession spark) {
     this.table = table;
@@ -65,7 +66,7 @@ public class Spark3BinPackStrategy extends BinPackStrategy {
         .load(table.name());
 
     // write the packed data into new files where each split becomes a new file
-    FileRewriteCoordinator rewriteCoordinator = FileRewriteCoordinator.get();
+
     try {
       scanDF.write()
           .format("iceberg")
@@ -77,7 +78,7 @@ public class Spark3BinPackStrategy extends BinPackStrategy {
         rewriteCoordinator.abortRewrite(table, groupID);
         manager.removeTasks(table, groupID);
       } finally {
-        throw new RuntimeException("Cannot complete rewrite, an exception was thrown during the write operation", e);
+        throw e;
       }
     }
 

@@ -121,10 +121,6 @@ public abstract class BinPackStrategy implements RewriteStrategy {
         MIN_INPUT_FILES,
         MIN_INPUT_FILES_DEFAULT);
 
-    specId = PropertyUtil.propertyAsInt(options,
-        RewriteDataFiles.OUTPUT_PARTITION_SPEC_ID,
-        table().spec().specId());
-
     validateOptions();
     return this;
   }

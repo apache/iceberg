@@ -25,7 +25,6 @@ import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteStrategy;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.FileScanTaskSetManager;
-import org.apache.iceberg.spark.actions.rewrite.Spark3BinPackStrategy;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
