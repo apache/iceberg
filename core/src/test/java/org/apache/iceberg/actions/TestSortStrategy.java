@@ -134,7 +134,7 @@ public class TestSortStrategy extends TableTestBase {
     RewriteStrategy strategy = defaultSort().options(Collections.emptyMap());
     List<FileScanTask> actual = ImmutableList.copyOf(strategy.selectFilesToRewrite(fileScanTasks));
 
-    Assert.assertEquals("Should mark files for rewrite with invalid size and bad sort order",
+    Assert.assertEquals("Should mark files for rewrite with invalid sort order and mixed sizes",
         expected, actual);
   }
 

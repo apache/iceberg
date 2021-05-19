@@ -40,12 +40,12 @@ import org.slf4j.LoggerFactory;
  * File C' (x: 41 - 60).
  * <p>
  * Currently the there is no clustering detection and we will rewrite all files if {@link SortStrategy#REWRITE_ALL}
- * is true (default). If this property is disabled any files with the incorrect sort-order as well as any files
+ * is true (default: false). If this property is disabled any files with the incorrect sort-order as well as any files
  * that would be chosen by {@link BinPackStrategy} will be rewrite candidates.
  * <p>
  * In the future other algorithms for determining files to rewrite will be provided.
  */
-abstract class SortStrategy extends BinPackStrategy {
+public abstract class SortStrategy extends BinPackStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(SortStrategy.class);
 
   /**
@@ -123,6 +123,10 @@ abstract class SortStrategy extends BinPackStrategy {
           FluentIterable.from(dataFiles).filter(file -> file.file().sortOrderId() != sortOrderId);
       return filesWithIncorrectOrder.append(super.selectFilesToRewrite(filesWithCorrectOrder));
     }
+  }
+
+  protected SortOrder sortOrder() {
+    return sortOrder;
   }
 
   private void validateOptions() {
