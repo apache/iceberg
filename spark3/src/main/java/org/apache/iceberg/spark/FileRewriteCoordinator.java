@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.HasTableOperations;
@@ -71,6 +72,8 @@ public class FileRewriteCoordinator {
     table.newRewrite()
         .rewriteFiles(rewrittenDataFiles, newDataFiles)
         .commit();
+
+    fileSetIDs.stream().map(id -> toID(table, id)).forEach(resultMap::remove);
   }
 
   private Set<DataFile> fetchRewrittenDataFiles(Table table, Set<String> fileSetIDs) {
@@ -127,6 +130,13 @@ public class FileRewriteCoordinator {
     for (String fileSetID : fileSetIDs) {
       abortRewrite(table, fileSetID);
     }
+  }
+
+  public Set<String> fetchSetIDs(Table table) {
+    return resultMap.keySet().stream()
+        .filter(e -> e.first().equals(tableUUID(table)))
+        .map(Pair::second)
+        .collect(Collectors.toSet());
   }
 
   private void deleteFiles(FileIO io, Iterable<DataFile> dataFiles) {

@@ -705,7 +705,10 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
 
   private void shouldHaveNoOrphans(Table table) {
     Assert.assertEquals("Should not have found any orphan files", ImmutableList.of(),
-        actions().removeOrphanFiles(table).execute().orphanFileLocations());
+        actions().removeOrphanFiles(table)
+            .olderThan(System.currentTimeMillis())
+            .execute()
+            .orphanFileLocations());
   }
 
   private void shouldHaveACleanCache(Table table) {

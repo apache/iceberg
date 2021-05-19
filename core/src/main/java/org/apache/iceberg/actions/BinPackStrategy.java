@@ -241,6 +241,21 @@ public abstract class BinPackStrategy implements RewriteStrategy {
     return this.targetFileSize;
   }
 
+  /**
+   * Ideally every Spark Task that is generated will be less than or equal to our target size but
+   * in practice this is not the case. When we actually write our files, they may exceed the target
+   * size and end up being split. This would end up producing 2 files out of one task, one target sized
+   * and one very small file. Since the output file can vary in size, it is better to
+   * use a slightly larger (but still within threshold) size for actually writing the tasks out.
+   * This helps us in the case where our estimate for the task size is under the target size but the
+   * actual written file size is slightly larger.
+   * @return the target size plus one half of the distance between max and target
+   */
+  protected long writeMaxFileSize() {
+    return (long) (this.targetFileSize + ((this.maxFileSize - this.targetFileSize) * 0.5));
+
+  }
+
   protected long specId() {
     return this.specId;
   }
