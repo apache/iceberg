@@ -21,6 +21,11 @@ package org.apache.iceberg.parquet;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.Arrays;
+import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -36,20 +41,28 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.DecimalType;
 import org.apache.iceberg.types.Types.DoubleType;
 import org.apache.iceberg.types.Types.FloatType;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StringType;
+import org.apache.parquet.column.Encoding;
+import org.apache.parquet.column.ParquetProperties.WriterVersion;
 import org.apache.parquet.column.page.DictionaryPageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.MessageType;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.avro.AvroSchemaUtil.convert;
 import static org.apache.iceberg.expressions.Expressions.and;
@@ -70,7 +83,10 @@ import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.apache.parquet.column.ParquetProperties.WriterVersion.PARQUET_1_0;
+import static org.apache.parquet.column.ParquetProperties.WriterVersion.PARQUET_2_0;
 
+@RunWith(Parameterized.class)
 public class TestDictionaryRowGroupFilter {
 
   private static final Types.StructType structFieldType =
@@ -88,7 +104,8 @@ public class TestDictionaryRowGroupFilter {
       optional(10, "not_in_file", FloatType.get()),
       optional(11, "all_nans", DoubleType.get()),
       optional(12, "some_nans", FloatType.get()),
-      optional(13, "no_nans", DoubleType.get())
+      optional(13, "no_nans", DoubleType.get()),
+      optional(14, "decimal_fixed", DecimalType.of(20, 10)) // >18 precision to enforce FIXED_LEN_BYTE_ARRAY
   );
 
   private static final Types.StructType _structFieldType =
@@ -105,8 +122,8 @@ public class TestDictionaryRowGroupFilter {
       optional(8, "_struct_not_null", _structFieldType),
       optional(11, "_all_nans", DoubleType.get()),
       optional(12, "_some_nans", FloatType.get()),
-      optional(13, "_no_nans", DoubleType.get())
-
+      optional(13, "_no_nans", DoubleType.get()),
+      optional(14, "_decimal_fixed", DecimalType.of(20, 10)) // >18 precision to enforce FIXED_LEN_BYTE_ARRAY
   );
 
   private static final String TOO_LONG_FOR_STATS;
@@ -121,13 +138,26 @@ public class TestDictionaryRowGroupFilter {
 
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 79;
+  private static final BigDecimal DECIMAL_MIN_VALUE = new BigDecimal("-1234567890.0987654321");
+  private static final BigDecimal DECIMAL_STEP = new BigDecimal("1234567890.0987654321").subtract(DECIMAL_MIN_VALUE)
+      .divide(new BigDecimal(INT_MAX_VALUE - INT_MIN_VALUE), RoundingMode.HALF_UP);
 
   private MessageType parquetSchema = null;
   private BlockMetaData rowGroupMetadata = null;
   private DictionaryPageReadStore dictionaryStore = null;
+  private final WriterVersion writerVersion;
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
+
+  @Parameterized.Parameters
+  public static List<WriterVersion> writerVersions() {
+    return Arrays.asList(PARQUET_1_0, PARQUET_2_0);
+  }
+
+  public TestDictionaryRowGroupFilter(WriterVersion writerVersion) {
+    this.writerVersion = writerVersion;
+  }
 
   @Before
   public void createInputFile() throws IOException {
@@ -140,6 +170,7 @@ public class TestDictionaryRowGroupFilter {
     OutputFile outFile = Files.localOutput(parquetFile);
     try (FileAppender<Record> appender = Parquet.write(outFile)
         .schema(FILE_SCHEMA)
+        .withWriterVersion(writerVersion)
         .build()) {
       GenericRecordBuilder builder = new GenericRecordBuilder(convert(FILE_SCHEMA, "table"));
       // create 20 copies of each record to ensure dictionary-encoding
@@ -156,6 +187,9 @@ public class TestDictionaryRowGroupFilter {
           builder.set("_all_nans", Double.NaN); // never non-nan
           builder.set("_some_nans", (i % 10 == 0) ? Float.NaN : 2F); // includes some nan values
           builder.set("_no_nans", 3D); // optional, but always non-nan
+
+          // min=-1234567890.0987654321, max~=1234567890.0987654321 (depending on rounding), num-nulls=0
+          builder.set("_decimal_fixed", DECIMAL_MIN_VALUE.add(DECIMAL_STEP.multiply(new BigDecimal(i))));
 
           Record structNotNull = new Record(structSchema);
           structNotNull.put("_int_field", INT_MIN_VALUE + i);
@@ -891,5 +925,33 @@ public class TestDictionaryRowGroupFilter {
     boolean shouldRead = new ParquetDictionaryRowGroupFilter(promotedSchema, equal("id", INT_MIN_VALUE + 1), true)
         .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
     Assert.assertTrue("Should succeed with promoted schema", shouldRead);
+  }
+
+  @Test
+  public void testFixedLenByteArray() {
+    // This test is to validate the handling of FIXED_LEN_BYTE_ARRAY Parquet type being dictionary encoded.
+    // (No need to validate all the possible predicates)
+
+    Assume.assumeTrue("decimal_fixed is not dictionary encoded in case of writer version " + writerVersion,
+        getColumnForName(rowGroupMetadata, "_decimal_fixed").getEncodings().contains(Encoding.RLE_DICTIONARY));
+
+    boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA,
+        greaterThanOrEqual("decimal_fixed", BigDecimal.ZERO)).shouldRead(parquetSchema, rowGroupMetadata,
+            dictionaryStore);
+    Assert.assertTrue("Should read: Half of the decimal_fixed values are greater than 0", shouldRead);
+
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, lessThan("decimal_fixed", DECIMAL_MIN_VALUE))
+        .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    Assert.assertFalse("Should not read: No decimal_fixed values less than -1234567890.0987654321", shouldRead);
+  }
+
+  private ColumnChunkMetaData getColumnForName(BlockMetaData rowGroup, String columnName) {
+    ColumnPath columnPath = ColumnPath.fromDotString(columnName);
+    for (ColumnChunkMetaData column : rowGroup.getColumns()) {
+      if (columnPath.equals(column.getPath())) {
+        return column;
+      }
+    }
+    throw new NoSuchElementException("No column in rowGroup for the name " + columnName);
   }
 }
