@@ -216,7 +216,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
 
     Map<StructLikeWrapper, Collection<FileScanTask>> groupedTasks = groupTasksByPartition(fileScanTasks.iterator());
     Map<StructLikeWrapper, Collection<FileScanTask>> filteredGroupedTasks = groupedTasks.entrySet().stream()
-        .filter(kv -> kv.getValue().size() > 1 || isSingleBigFile(kv))
+        .filter(kv -> kv.getValue().size() > 1 || isSplittable(kv.getValue().iterator().next()))
         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     // Nothing to rewrite if there's only one DataFile in each partition.
@@ -242,7 +242,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     Set<DataFile> currentDataFiles = combinedScanTasks.stream()
         .flatMap(tasks -> tasks.files().stream().map(FileScanTask::file))
         .collect(Collectors.toSet());
-    List<DataFile> deletedDataFiles = Lists.newArrayList(currentDataFiles.iterator());
+    List<DataFile> deletedDataFiles = Lists.newArrayList(currentDataFiles);
 
     replaceDataFiles(deletedDataFiles, addedDataFiles);
     return new RewriteDataFilesActionResult(deletedDataFiles, addedDataFiles);
@@ -279,13 +279,8 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     }
   }
 
-  private boolean isSingleBigFile(Map.Entry<StructLikeWrapper, Collection<FileScanTask>> kv) {
-    if (kv.getValue().size() == 1) {
-      FileScanTask task = kv.getValue().iterator().next();
-      return task.file().fileSizeInBytes() > targetSizeInBytes;
-    }
-
-    return true;
+  private boolean isSplittable(FileScanTask task) {
+    return task.file().fileSizeInBytes() > targetSizeInBytes;
   }
 
   private boolean isPartialFileScan(CombinedScanTask task) {

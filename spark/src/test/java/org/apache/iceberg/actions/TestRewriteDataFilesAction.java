@@ -358,7 +358,7 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
     // 1 big datafile and 2 small datafiles
     Assert.assertEquals("Action should delete 3 data files", 3, result.deletedDataFiles().size());
 
-    // The 2 small datafiles will be rewrote to 1 datafile, the big datafile will be rewrite to 2 datafiles,
+    // The 2 small datafiles will be rewritten to 1 datafile, the big datafile will be rewritten to 2 datafiles,
     // so there are 3 datafiles in total
     Assert.assertEquals("Action should add 3 data files", 3, result.addedDataFiles().size());
 
