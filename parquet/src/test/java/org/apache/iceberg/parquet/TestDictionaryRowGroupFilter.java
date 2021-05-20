@@ -56,6 +56,7 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.schema.MessageType;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -928,31 +929,20 @@ public class TestDictionaryRowGroupFilter {
 
   @Test
   public void testFixedLenByteArray() {
-    // This test is to validate the handling of FIXED_LEN_BYTE_ARRAY Parquet type
-    // being dictionary encoded.
+    // This test is to validate the handling of FIXED_LEN_BYTE_ARRAY Parquet type being dictionary encoded.
     // (No need to validate all the possible predicates)
 
-    switch (writerVersion) {
-      case PARQUET_1_0:
-        // Parquet-mr does not use dictionary encoding for FIXED type in case of V1. This assert is to ensure this.
-        // If this behavior is changed we shall test dictionary filtering.
-        Assert.assertFalse("decimal_fixed should not be dictionary encoded",
-            getColumnForName(rowGroupMetadata, "_decimal_fixed").getEncodings().contains(Encoding.RLE_DICTIONARY));
-        break;
-      case PARQUET_2_0:
-        Assert.assertTrue("decimal_fixed should be dictionary encoded",
-            getColumnForName(rowGroupMetadata, "_decimal_fixed").getEncodings().contains(Encoding.RLE_DICTIONARY));
+    Assume.assumeTrue("decimal_fixed is not dictionary encoded in case of writer version " + writerVersion,
+        getColumnForName(rowGroupMetadata, "_decimal_fixed").getEncodings().contains(Encoding.RLE_DICTIONARY));
 
-        boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA,
-            greaterThanOrEqual("decimal_fixed", BigDecimal.ZERO)).shouldRead(parquetSchema, rowGroupMetadata,
-                dictionaryStore);
-        Assert.assertTrue("Should read: Half of the decimal_fixed values are greater than 0", shouldRead);
+    boolean shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA,
+        greaterThanOrEqual("decimal_fixed", BigDecimal.ZERO)).shouldRead(parquetSchema, rowGroupMetadata,
+            dictionaryStore);
+    Assert.assertTrue("Should read: Half of the decimal_fixed values are greater than 0", shouldRead);
 
-        shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, lessThan("decimal_fixed", DECIMAL_MIN_VALUE))
-            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-        Assert.assertFalse("Should not read: No decimal_fixed values less than -1234567890.0987654321", shouldRead);
-        break;
-    }
+    shouldRead = new ParquetDictionaryRowGroupFilter(SCHEMA, lessThan("decimal_fixed", DECIMAL_MIN_VALUE))
+        .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    Assert.assertFalse("Should not read: No decimal_fixed values less than -1234567890.0987654321", shouldRead);
   }
 
   private ColumnChunkMetaData getColumnForName(BlockMetaData rowGroup, String columnName) {
