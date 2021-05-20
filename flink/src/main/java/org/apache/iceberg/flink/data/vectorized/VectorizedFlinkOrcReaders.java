@@ -120,7 +120,8 @@ public class VectorizedFlinkOrcReaders {
           return new OrcNoHiveTimestampVector((TimestampColumnVector) vector);
         } else {
           throw new UnsupportedOperationException(
-              "Unsupported vector: " + vector.getClass().getName());
+              String.format("Unsupported vector: %s, the iceberg type is %s ,the orc type is %s ",
+                  vector.getClass().getName(), iPrimitive, primitive));
         }
       };
     }
@@ -258,7 +259,7 @@ public class VectorizedFlinkOrcReaders {
                          StructColumnVector structVector) {
       this.fieldVectors = fieldVectors;
       this.structVector = structVector;
-      vectorizedColumnBatch = new VectorizedColumnBatch(fieldVectors);
+      this.vectorizedColumnBatch = new VectorizedColumnBatch(fieldVectors);
     }
 
     @Override

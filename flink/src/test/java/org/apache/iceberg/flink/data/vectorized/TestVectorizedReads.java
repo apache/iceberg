@@ -223,18 +223,18 @@ public class TestVectorizedReads extends FlinkCatalogTestBase {
   @Test
   public void testVectorizedReadsConstant() {
     sql("CREATE TABLE %s (id INT, spec1 VARCHAR,spec2 INT,spec3 DOUBLE,spec4 FLOAT," +
-            " spec5 BIGINT,spec6 BOOLEAN,spec7 DECIMAL(10,2),spec8 DATE,spec9 TIMESTAMP,spec10 TIME) " +
-            " PARTITIONED BY (spec1,spec2,spec3,spec4,spec5,spec6,spec7,spec8,spec9,spec10)" +
+            " spec5 BIGINT,spec6 BOOLEAN,spec7 DECIMAL(10,2),spec8 DATE,spec9 TIMESTAMP,spec10 TIME,spec11 BYTES) " +
+            " PARTITIONED BY (spec1,spec2,spec3,spec4,spec5,spec6,spec7,spec8,spec9,spec10,spec11)" +
             " WITH ('write.format.default'='%s')",
         TABLE_NAME, format.name());
     sql("INSERT INTO %s SELECT 1, 'hello' ,2 , 1.1 , 2.2 , 3 , true," +
-            " 12.34 ,DATE '2021-01-01',TO_TIMESTAMP('2021-01-01 12:13:14'),TIME '10:11:12' ",
+            " 12.34 ,DATE '2021-01-01',TO_TIMESTAMP('2021-01-01 12:13:14'),TIME '10:11:12',ENCODE('ab', 'UTF-8') ",
         TABLE_NAME);
     List<Row> result = sql("SELECT * FROM %s", TABLE_NAME);
 
     List<Row> expected = Lists.newArrayList();
     expected.add(Row.of(1, "hello", 2, 1.1D, 2.2F, 3L, true, BigDecimal.valueOf(12.34), LocalDate.of(2021, 1, 1),
-        LocalDateTime.parse("2021-01-01T12:13:14"), LocalTime.parse("10:11:12")));
+        LocalDateTime.parse("2021-01-01T12:13:14"), LocalTime.parse("10:11:12"), new byte[] {'a', 'b'}));
     TestHelpers.assertRows(result, expected);
   }
 }

@@ -41,7 +41,7 @@ class ConstantColumnVectors {
   }
 
   static ColumnVector longs(Object constant) {
-    return new ConstantLongColumnVongector(constant);
+    return new ConstantLongColumnVector(constant);
   }
 
   static ColumnVector booleans(Object constant) {
@@ -77,21 +77,21 @@ class ConstantColumnVectors {
     }
 
     @Override
-    public boolean isNullAt(int i) {
-      return constant == null;
-    }
-
-    @Override
     public int getInt(int i) {
       return (int) constant;
     }
+
+    @Override
+    public boolean isNullAt(int i) {
+      return constant == null;
+    }
   }
 
-  private static class ConstantLongColumnVongector implements LongColumnVector {
+  private static class ConstantLongColumnVector implements LongColumnVector {
 
     private final Object constant;
 
-    private ConstantLongColumnVongector(Object constant) {
+    private ConstantLongColumnVector(Object constant) {
       this.constant = constant;
     }
 
@@ -132,13 +132,13 @@ class ConstantColumnVectors {
     }
 
     @Override
-    public boolean isNullAt(int i) {
-      return constant == null;
+    public double getDouble(int i) {
+      return (double) constant;
     }
 
     @Override
-    public double getDouble(int i) {
-      return (double) constant;
+    public boolean isNullAt(int i) {
+      return constant == null;
     }
   }
 
@@ -205,8 +205,14 @@ class ConstantColumnVectors {
 
     @Override
     public Bytes getBytes(int i) {
-      BinaryStringData str = (BinaryStringData) constant;
-      return new Bytes(str.toBytes(), 0, str.getSizeInBytes());
+      byte[] bytes = null;
+      if (constant instanceof byte[]) {
+        bytes = (byte[]) constant;
+      } else {
+        BinaryStringData str = (BinaryStringData) constant;
+        bytes = str.toBytes();
+      }
+      return new Bytes(bytes, 0, bytes.length);
     }
 
     @Override
