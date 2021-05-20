@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
@@ -293,12 +294,18 @@ public class Spark3Util {
           }
 
           @Override
+          public Transform alwaysNull(int fieldId, String sourceName, int sourceId) {
+            // do nothing for alwaysNull, it doesn't need to be converted to a transform
+            return null;
+          }
+
+          @Override
           public Transform unknown(int fieldId, String sourceName, int sourceId, String transform) {
             return Expressions.apply(transform, Expressions.column(sourceName));
           }
         });
 
-    return transforms.toArray(new Transform[0]);
+    return transforms.stream().filter(Objects::nonNull).toArray(Transform[]::new);
   }
 
   public static Distribution buildRequiredDistribution(org.apache.iceberg.Table table) {

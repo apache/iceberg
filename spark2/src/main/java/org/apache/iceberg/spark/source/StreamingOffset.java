@@ -130,6 +130,6 @@ class StreamingOffset extends Offset {
   @Override
   public String toString() {
     return String.format("Streaming Offset[%d: position (%d) scan_all_files (%b)]",
-        snapshotId, position, scanAllFiles);
+      snapshotId, position, scanAllFiles);
   }
 }
