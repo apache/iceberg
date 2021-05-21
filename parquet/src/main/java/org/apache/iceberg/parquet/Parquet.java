@@ -56,6 +56,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.parquet.ParquetValueWriters.PositionDeleteStructWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -107,6 +108,7 @@ public class Parquet {
     private Function<MessageType, ParquetValueWriter<?>> createWriterFunc = null;
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
+    private WriterVersion writerVersion = WriterVersion.PARQUET_1_0;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -189,6 +191,15 @@ public class Parquet {
       }
     }
 
+    /*
+     * Sets the writer version. Default value is PARQUET_1_0 (v1).
+     */
+    @VisibleForTesting
+    WriteBuilder withWriterVersion(WriterVersion version) {
+      this.writerVersion = version;
+      return this;
+    }
+
     public <D> FileAppender<D> build() throws IOException {
       Preconditions.checkNotNull(schema, "Schema is required");
       Preconditions.checkNotNull(name, "Table name is required and cannot be null");
@@ -221,8 +232,6 @@ public class Parquet {
             // compression level is not supported; ignore it
         }
       }
-
-      WriterVersion writerVersion = WriterVersion.PARQUET_1_0;
 
       set("parquet.avro.write-old-list-structure", "false");
       MessageType type = ParquetSchemaUtil.convert(schema, name);
