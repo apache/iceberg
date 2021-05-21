@@ -177,7 +177,7 @@ public class MicroBatches {
      * @param startFileIndex A startFileIndex used to skip processed files.
      * @param targetSizeInBytes Used to control the size of MicroBatch, the processed file bytes must be smaller than
      *                         this size.
-     * @param scanAllFiles Used to check where all the data file should be processed, or only added files.
+     * @param scanAllFiles Used to check whether all the data files should be processed, or only added files.
      * @return A MicroBatch.
      */
     private MicroBatch generateMicroBatch(List<Pair<ManifestFile, Integer>> indexedManifests,
