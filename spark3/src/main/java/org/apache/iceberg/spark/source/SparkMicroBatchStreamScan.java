@@ -35,75 +35,85 @@ import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SparkMicroBatchStreamScan implements Scan, MicroBatchStream {
 
-    private final JavaSparkContext sparkContext;
-    private final Table table;
-    private final boolean caseSensitive;
-    private final boolean localityPreferred;
-    private final Schema expectedSchema;
-    private final List<Expression> filterExpressions;
-    private final CaseInsensitiveStringMap options;
+  private static final Logger LOG = LoggerFactory.getLogger(SparkMicroBatchStreamScan.class);
 
-    private StructType readSchema = null;
+  private final JavaSparkContext sparkContext;
+  private final Table table;
+  private final boolean caseSensitive;
+  private final boolean localityPreferred;
+  private final Schema expectedSchema;
+  private final List<Expression> filterExpressions;
+  private final CaseInsensitiveStringMap options;
 
-    SparkMicroBatchStreamScan(SparkSession spark, Table table, boolean caseSensitive, Schema expectedSchema,
-                              List<Expression> filters, CaseInsensitiveStringMap options) {
-        this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
-        this.table = table;
-        this.caseSensitive = caseSensitive;
-        this.expectedSchema = expectedSchema;
-        this.filterExpressions = filters != null ? filters : Collections.emptyList();
-        this.localityPreferred = Spark3Util.isLocalityEnabled(table.io(), table.location(), options);
-        this.options = options;
+  private StructType readSchema = null;
+
+  SparkMicroBatchStreamScan(SparkSession spark, Table table, boolean caseSensitive, Schema expectedSchema,
+                            List<Expression> filters, CaseInsensitiveStringMap options) {
+    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
+    this.table = table;
+    this.caseSensitive = caseSensitive;
+    this.expectedSchema = expectedSchema;
+    this.filterExpressions = filters != null ? filters : Collections.emptyList();
+    this.localityPreferred = Spark3Util.isLocalityEnabled(table.io(), table.location(), options);
+    this.options = options;
+  }
+
+  @Override
+  public StructType readSchema() {
+    LOG.info("---------- readSchema");
+    if (readSchema == null) {
+      this.readSchema = SparkSchemaUtil.convert(expectedSchema);
     }
+    return readSchema;
+  }
 
-    @Override
-    public StructType readSchema() {
-        if (readSchema == null) {
-            this.readSchema = SparkSchemaUtil.convert(expectedSchema);
-        }
-        return readSchema;
-    }
+  @Override
+  public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
+    LOG.info("---------- toMicroBatchStream: {}", checkpointLocation);
+    return this;
+  }
 
-    @Override
-    public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
-        return this;
-    }
+  @Override
+  public Offset latestOffset() {
+    LOG.info("---------- latestOffset");
+    return new StreamingOffset(Long.MAX_VALUE, Long.MAX_VALUE, true);
+  }
 
-    @Override
-    public Offset latestOffset() {
-        return null;
-    }
+  @Override
+  public InputPartition[] planInputPartitions(Offset start, Offset end) {
+    LOG.info("---------- planInputPartitions: {}, {}", start, end);
+    return new InputPartition[0];
+  }
 
-    @Override
-    public InputPartition[] planInputPartitions(Offset start, Offset end) {
-        return new InputPartition[0];
-    }
+  @Override
+  public PartitionReaderFactory createReaderFactory() {
+    LOG.info("---------- createReaderFactory");
+    return null;
+  }
 
-    @Override
-    public PartitionReaderFactory createReaderFactory() {
-        return null;
-    }
+  @Override
+  public Offset initialOffset() {
+    return StreamingOffset.START_OFFSET;
+  }
 
-    @Override
-    public Offset initialOffset() {
-        return null;
-    }
+  @Override
+  public Offset deserializeOffset(String json) {
+    LOG.info("---------- deserializeOffset {}", json);
+    return StreamingOffset.fromJson(json);
+  }
 
-    @Override
-    public Offset deserializeOffset(String json) {
-        return StreamingOffset.fromJson(json);
-    }
+  @Override
+  public void commit(Offset end) {
+    LOG.info("---------- commit {}", end.toString());
+  }
 
-    @Override
-    public void commit(Offset end) {
-
-    }
-
-    @Override
-    public void stop() {
-
-    }
+  @Override
+  public void stop() {
+    LOG.info("---------- stop");
+  }
 }
