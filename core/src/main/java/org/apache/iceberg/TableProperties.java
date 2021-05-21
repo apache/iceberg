@@ -36,7 +36,7 @@ public class TableProperties {
   public static final String COMMIT_TOTAL_RETRY_TIME_MS = "commit.retry.total-timeout-ms";
   public static final int COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT = 1800000; // 30 minutes
 
-  public static final String COMMIT_NUM_STATUS_CHECKS = "commit.num-status-checks";
+  public static final String COMMIT_NUM_STATUS_CHECKS = "commit.status-checks.num-retries";
   public static final int COMMIT_NUM_STATUS_CHECKS_DEFAULT = 3;
 
   public static final String COMMIT_STATUS_CHECKS_MIN_WAIT_MS = "commit.status-check.min-wait-ms";
