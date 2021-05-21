@@ -159,14 +159,8 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
 
   @Override
   public Scan build() {
-    // TODO: understand how to differentiate that this is a spark streaming microbatch scan.
-    if (false) {
       return new SparkBatchQueryScan(
               spark, table, caseSensitive, schemaWithMetadataColumns(), filterExpressions, options);
-    } else {
-      return new SparkMicroBatchStreamScan(
-              spark, table, caseSensitive, schemaWithMetadataColumns(), filterExpressions, options);
-    }
   }
 
   public Scan buildMergeScan() {
