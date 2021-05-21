@@ -58,6 +58,7 @@ public class VectorizedFlinkOrcReaders {
     Converter converter = OrcSchemaWithTypeVisitor.visit(expectedSchema, fileSchema, new ReadBuilder(idToConstant));
 
     return new OrcBatchReader<VectorizedColumnBatch>() {
+      // We use batchOffsetInFile to get the correct row offset for current row.
       private long batchOffsetInFile;
 
       @Override
