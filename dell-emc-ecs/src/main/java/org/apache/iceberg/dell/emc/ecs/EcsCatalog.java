@@ -14,6 +14,7 @@
 
 package org.apache.iceberg.dell.emc.ecs;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -105,6 +106,9 @@ public class EcsCatalog extends BaseMetastoreCatalog implements SupportsNamespac
 
     @Override
     public void createNamespace(Namespace namespace, Map<String, String> metadata) {
+        if (namespace.isEmpty()) {
+            throw new AlreadyExistsException("namespace %s has already existed", namespace);
+        }
         ObjectKey metadataKey = ecs.getKeys().getMetadataKey(namespace);
         if (ecs.head(metadataKey).isPresent()) {
             throw new AlreadyExistsException("namespace %s(%s) has already existed", namespace, metadataKey);
@@ -123,6 +127,11 @@ public class EcsCatalog extends BaseMetastoreCatalog implements SupportsNamespac
     public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
         ecs.assertNamespaceExist(namespace);
         ObjectKey metadataKey = ecs.getKeys().getMetadataKey(namespace);
+        if (namespace.isEmpty()) {
+            if (!ecs.head(metadataKey).isPresent()) {
+                return Collections.emptyMap();
+            }
+        }
         EcsClient.ContentAndETag contentAndETag = ecs.readAll(metadataKey);
         return propertiesSerDes.readProperties(contentAndETag);
     }

@@ -15,6 +15,7 @@
 package org.apache.iceberg.dell.emc.ecs;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
@@ -142,7 +143,11 @@ public class EcsTableOperations extends BaseMetastoreTableOperations {
      * @return debug string of metadata
      */
     private String debug(TableMetadata metadata) {
-        return "Table(currentSnapshotId = " + metadata.currentSnapshot().snapshotId() + ")";
+        if (metadata.currentSnapshot() == null) {
+            return "EmptyTable";
+        } else {
+            return "Table(currentSnapshotId = " + metadata.currentSnapshot().snapshotId() + ")";
+        }
     }
 
     /**
