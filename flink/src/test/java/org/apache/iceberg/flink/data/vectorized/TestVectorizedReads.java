@@ -195,8 +195,8 @@ public class TestVectorizedReads extends FlinkCatalogTestBase {
 
   @Test
   public void testVectorizedReadsArrayType() {
-    sql("CREATE TABLE %s (id array<int>) WITH ('write.format.default'='%s')", TABLE_NAME, format.name());
-    sql("INSERT INTO %s VALUES(array[1,1]),(array[2,2])", TABLE_NAME);
+    sql("CREATE TABLE %s (id ARRAY<INT>) WITH ('write.format.default'='%s')", TABLE_NAME, format.name());
+    sql("INSERT INTO %s VALUES(ARRAY[1,1]),(ARRAY[2,2])", TABLE_NAME);
     List<Row> result = sql("SELECT * FROM %s", TABLE_NAME);
 
     List<Row> expected = Lists.newArrayList();
@@ -217,6 +217,29 @@ public class TestVectorizedReads extends FlinkCatalogTestBase {
     sql("INSERT INTO %s VALUES(1, STR_TO_MAP('k1=v1,k2=v2'))", TABLE_NAME);
 
     AssertHelpers.assertThrows("Can read map type for vectorized read.",
+        RuntimeException.class, () -> sql("SELECT * FROM %s", TABLE_NAME));
+  }
+
+  @Test
+  public void testVectorizedReadsSupportedNestedType() {
+    sql("CREATE TABLE %s (id INT, data ROW<`a` INT, `b` ARRAY<INT>>) WITH ('write.format.default'='%s')",
+        TABLE_NAME, format.name());
+    sql("INSERT INTO %s VALUES(1, ROW(2,ARRAY[10,20]))", TABLE_NAME);
+
+    List<Row> result = sql("SELECT * FROM %s", TABLE_NAME);
+    List<Row> expected = Lists.newArrayList();
+    Integer[] ints = new Integer[] {10, 20};
+    expected.add(Row.of(1, Row.of(2, ints)));
+    TestHelpers.assertRows(result, expected);
+  }
+
+  @Test
+  public void testVectorizedReadsUnsupportedNestedType() {
+    sql("CREATE TABLE %s (id INT, data ARRAY<ROW<`a` INT>>) WITH ('write.format.default'='%s')",
+        TABLE_NAME, format.name());
+    sql("INSERT INTO %s VALUES(1, ARRAY[ROW(2),ROW(3)])", TABLE_NAME);
+
+    AssertHelpers.assertThrows("Unsupported nested type for vectorized read.",
         RuntimeException.class, () -> sql("SELECT * FROM %s", TABLE_NAME));
   }
 
