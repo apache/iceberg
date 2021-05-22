@@ -130,7 +130,7 @@ public final class TestStructuredStreamingRead3 {
               .start();
       streamingQuery.processAllAvailable();
       actual = spark.sql("select * from test12")
-          .orderBy("id").as(Encoders.bean(SimpleRecord.class))
+          .as(Encoders.bean(SimpleRecord.class))
           .collectAsList();
 
       Assert.assertEquals(expected, actual);

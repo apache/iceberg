@@ -27,6 +27,7 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MicroBatches;
 import org.apache.iceberg.MicroBatches.MicroBatch;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -89,7 +90,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   // state variables
   private StreamingOffset committedOffset = null;
   private StreamingOffset startOffset = null;
-  private StreamingOffset previousEndOffset = null;
+  private PlannedEndOffset previousEndOffset = null;
 
   SparkMicroBatchStream(JavaSparkContext sparkContext, Table table, boolean caseSensitive, Schema expectedSchema,
                         List<Expression> filterExpressions, CaseInsensitiveStringMap options, String checkpointLocation) {
@@ -115,26 +116,48 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   public Offset latestOffset() {
     if (startOffset == null || startOffset.equals(StreamingOffset.START_OFFSET)) {
       // Spark MicroBatchStream stateMachine invokes latestOffset as its first step.
-      // this makes sense for sources like SocketStream - when there is a running stream of data.
-      // in case of iceberg - particularly in case of full table reads from start
-      // the amount of data to read could be very large.
-      // so - do not participate in the statemachine unless spark specifies StartingOffset
-      // - via planInputPartitions - in its 2nd step
+      // this makes sense for sources like SocketStream - when there is no persistent backing store
+      // but a continuous stream of data.
+      // in case of iceberg - particularly in case of "full table reads from that start"
+      // the amount of data to read in a given batch could be very large.
+      // so - latestOffset will not participate in the statemachine unless StartingOffset
+      // is found - via initialOffset/deserializeOffset is invoked - in its 2nd step
       return StreamingOffset.START_OFFSET;
     }
 
-    final StreamingOffset startReadingFrom = previousEndOffset == null || previousEndOffset.equals(StreamingOffset.START_OFFSET)
+    final StreamingOffset startReadingFrom =
+        previousEndOffset == null || previousEndOffset.equals(StreamingOffset.START_OFFSET)
         ? startOffset : previousEndOffset;
 
-    // TODO: detect end of microBatch and graduate to next batch
-    MicroBatch microBatch = MicroBatches.from(table.snapshot(startReadingFrom.snapshotId()), table.io())
+    final Snapshot startingSnapshot;
+    final long startFileIndex;
+    final boolean shouldScanAllFiles;
+
+    if (startReadingFrom instanceof PlannedEndOffset
+        && ((PlannedEndOffset)startReadingFrom).getMicroBatch().lastIndexOfSnapshot()
+        && table.currentSnapshot().snapshotId() != startReadingFrom.snapshotId()) {
+      Snapshot previousSnapshot = table.snapshot(startReadingFrom.snapshotId());
+      Snapshot pointer = table.currentSnapshot();
+      while (pointer != null && pointer.parentId() != previousSnapshot.snapshotId()) {
+        pointer = table.snapshot(pointer.parentId());
+      }
+
+      startingSnapshot = pointer;
+      startFileIndex = 0L;
+      shouldScanAllFiles = false;
+    } else {
+      startingSnapshot = table.snapshot(startReadingFrom.snapshotId());
+      startFileIndex = startReadingFrom.position();
+      shouldScanAllFiles = startReadingFrom.shouldScanAllFiles();
+    }
+
+    MicroBatch microBatch = MicroBatches.from(startingSnapshot, table.io())
         .caseSensitive(caseSensitive)
         .specsById(table.specs())
-        .generate(startReadingFrom.position(), batchSize, startReadingFrom.shouldScanAllFiles());
+        .generate(startFileIndex, batchSize, shouldScanAllFiles);
 
     previousEndOffset = new PlannedEndOffset(
-        microBatch.snapshotId(), microBatch.endFileIndex(),
-        startReadingFrom.shouldScanAllFiles(), startReadingFrom, microBatch);
+        microBatch.snapshotId(), microBatch.endFileIndex(), shouldScanAllFiles, startReadingFrom, microBatch);
 
     return previousEndOffset;
   }
