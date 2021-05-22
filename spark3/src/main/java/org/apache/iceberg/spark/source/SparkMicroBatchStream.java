@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.source;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MicroBatches;
@@ -39,6 +40,7 @@ import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -57,6 +59,13 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.reflect.ClassTag;
+
+import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK;
+import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK_DEFAULT;
+import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
+import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT;
+import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
+import static org.apache.iceberg.TableProperties.SPLIT_SIZE_DEFAULT;
 
 public class SparkMicroBatchStream implements MicroBatchStream {
   private static final Logger LOG = LoggerFactory.getLogger(SparkMicroBatchStream.class);
@@ -79,6 +88,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   // state
   private StreamingOffset committedOffset = null;
+  private StreamingOffset startOffset = null;
 
   SparkMicroBatchStream(JavaSparkContext sparkContext, Table table, boolean caseSensitive, Schema expectedSchema,
                         List<Expression> filterExpressions, CaseInsensitiveStringMap options, String checkpointLocation) {
@@ -91,14 +101,18 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     this.options = options;
     this.checkpointLocation = checkpointLocation;
     this.localityPreferred = Spark3Util.isLocalityEnabled(table.io(), table.location(), options);
-    this.splitSize = Spark3Util.propertyAsLong(options, SparkReadOptions.SPLIT_SIZE, null);
-    this.splitLookback = Spark3Util.propertyAsInt(options, SparkReadOptions.LOOKBACK, null);
-    this.splitOpenFileCost = Spark3Util.propertyAsLong(options, SparkReadOptions.FILE_OPEN_COST, null);
+    this.splitSize = Optional.ofNullable(Spark3Util.propertyAsLong(options, SparkReadOptions.SPLIT_SIZE, null))
+        .orElseGet(() -> PropertyUtil.propertyAsLong(table.properties(), SPLIT_SIZE, SPLIT_SIZE_DEFAULT));
+    this.splitLookback = Optional.ofNullable(Spark3Util.propertyAsInt(options, SparkReadOptions.LOOKBACK, null))
+        .orElseGet(() -> PropertyUtil.propertyAsInt(table.properties(), SPLIT_LOOKBACK, SPLIT_LOOKBACK_DEFAULT));
+    this.splitOpenFileCost = Optional.ofNullable(Spark3Util.propertyAsLong(options, SparkReadOptions.FILE_OPEN_COST, null))
+        .orElseGet(() -> PropertyUtil.propertyAsLong(table.properties(), SPLIT_OPEN_FILE_COST,
+            SPLIT_OPEN_FILE_COST_DEFAULT));
   }
 
   @Override
   public Offset latestOffset() {
-    if (committedOffset == null) {
+    if (startOffset == null || startOffset.equals(StreamingOffset.START_OFFSET)) {
       // Spark MicroBatchStream stateMachine invokes latestOffset as its first step.
       // this makes sense for sources like SocketStream - when there is a running stream of data.
       // in case of iceberg - particularly in case of full table reads from start
@@ -108,21 +122,24 @@ public class SparkMicroBatchStream implements MicroBatchStream {
       return StreamingOffset.START_OFFSET;
     }
 
-    MicroBatch microBatch = MicroBatches.from(table.snapshot(committedOffset.snapshotId()), table.io())
+    final StreamingOffset startReadingFrom = committedOffset == null || committedOffset.equals(StreamingOffset.START_OFFSET)
+        ? startOffset : committedOffset;
+
+    MicroBatch microBatch = MicroBatches.from(table.snapshot(startReadingFrom.snapshotId()), table.io())
         .caseSensitive(caseSensitive)
         .specsById(table.specs())
-        .generate(committedOffset.position(), batchSize, committedOffset.shouldScanAllFiles());
+        .generate(startReadingFrom.position(), batchSize, startReadingFrom.shouldScanAllFiles());
 
     return new PlannedEndOffset(
         microBatch.snapshotId(), microBatch.endFileIndex(),
-        committedOffset.shouldScanAllFiles(), committedOffset, microBatch);
+        startReadingFrom.shouldScanAllFiles(), startReadingFrom, microBatch);
   }
 
   @Override
   public InputPartition[] planInputPartitions(Offset start, Offset end) {
     if (end.equals(StreamingOffset.START_OFFSET)) {
       // TODO: validate that this is exercised - when a stream is being resumed from a checkpoint
-      this.committedOffset = (StreamingOffset) start;
+      startOffset = (StreamingOffset) start;
       return new InputPartition[0];
     }
 
@@ -158,17 +175,15 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   @Override
   public Offset initialOffset() {
-    // TODO: should this read initial offset from checkpoint location?
-    if (committedOffset != null) {
-      return committedOffset;
+    // TODO: read snapshot from spark options
+    List<Long> snapshotIds = SnapshotUtil.currentAncestors(table);
+    if (snapshotIds.isEmpty()) {
+      startOffset = StreamingOffset.START_OFFSET;
     } else {
-      List<Long> snapshotIds = SnapshotUtil.currentAncestors(table);
-      if (snapshotIds.isEmpty()) {
-        return StreamingOffset.START_OFFSET;
-      } else {
-        return new StreamingOffset(Iterables.getLast(snapshotIds), 0, true);
-      }
+      startOffset = new StreamingOffset(Iterables.getLast(snapshotIds), 0, true);
     }
+
+    return startOffset;
   }
 
   @Override
@@ -178,7 +193,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   @Override
   public void commit(Offset end) {
-    committedOffset = (StreamingOffset) end;
+    this.committedOffset = (StreamingOffset) end;
   }
 
   @Override
