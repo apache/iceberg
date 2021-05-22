@@ -72,7 +72,7 @@ public class TestSparkParquetReadMetadataColumns {
       required(100, "id", Types.LongType.get()),
       required(101, "data", Types.StringType.get()),
       MetadataColumns.ROW_POSITION,
-      MetadataColumns.DELETE_MARK
+      MetadataColumns.IS_DELETED
   );
 
   private static final int NUM_ROWS = 1000;

@@ -405,8 +405,8 @@ public class VectorizedSparkOrcReaders {
         if (idToConstant.containsKey(field.fieldId())) {
           fieldVectors.add(new ConstantColumnVector(field.type(), batchSize, idToConstant.get(field.fieldId())));
         } else if (field.equals(MetadataColumns.ROW_POSITION)) {
-          fieldVectors.add(new RowPositionColumnVector(batchOffsetInFile));
-        } else if (field.equals(MetadataColumns.DELETE_MARK)) {
+          fieldVectors.add(new RowPostitionColumnVector(batchOffsetInFile));
+        } else if (field.equals(MetadataColumns.IS_DELETED)) {
           fieldVectors.add(new ConstantColumnVector(field.type(), batchSize, false));
         } else {
           fieldVectors.add(fieldConverters.get(vectorIndex)

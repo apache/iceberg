@@ -154,9 +154,9 @@ public class OrcValueReaders {
         } else if (field.equals(MetadataColumns.ROW_POSITION)) {
           this.isConstantOrMetadataField[pos] = true;
           this.readers[pos] = new RowPositionReader();
-        } else if (field.equals(MetadataColumns.DELETE_MARK)) {
+        } else if (field.equals(MetadataColumns.IS_DELETED)) {
           this.isConstantOrMetadataField[pos] = true;
-          this.readers[pos] = new DeleteMarkReader();
+          this.readers[pos] = constants(false);
         } else {
           this.readers[pos] = readers.get(readerIndex);
           readerIndex++;
@@ -234,18 +234,6 @@ public class OrcValueReaders {
     @Override
     public void setBatchContext(long newBatchOffsetInFile) {
       this.batchOffsetInFile = newBatchOffsetInFile;
-    }
-  }
-
-  private static class DeleteMarkReader implements OrcValueReader<Boolean> {
-    @Override
-    public Boolean read(ColumnVector ignored, int row) {
-      return false;
-    }
-
-    @Override
-    public Boolean nonNullRead(ColumnVector ignored, int row) {
-      throw new UnsupportedOperationException("Use DeleteMarkReader.read()");
     }
   }
 }

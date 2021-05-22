@@ -591,8 +591,8 @@ public class ValueReaders {
         if (AvroSchemaUtil.getFieldId(field) == MetadataColumns.ROW_POSITION.fieldId()) {
           // track where the _pos field is located for setRowPositionSupplier
           this.posField = pos;
-        } else if (AvroSchemaUtil.getFieldId(field) == MetadataColumns.DELETE_MARK.fieldId()) {
-          this.readers[pos] = new DeleteMarkReader();
+        } else if (AvroSchemaUtil.getFieldId(field) == MetadataColumns.IS_DELETED.fieldId()) {
+          this.readers[pos] = new ConstantReader<>(false);
         }
       }
     }
@@ -611,8 +611,8 @@ public class ValueReaders {
         } else if (field.fieldId() == MetadataColumns.ROW_POSITION.fieldId()) {
           // track where the _pos field is located for setRowPositionSupplier
           this.posField = pos;
-        } else if (field.fieldId() == MetadataColumns.DELETE_MARK.fieldId()) {
-          this.readers[pos] = new DeleteMarkReader();
+        } else if (field.fieldId() == MetadataColumns.IS_DELETED.fieldId()) {
+          this.readers[pos] = new ConstantReader<>(false);
         }
       }
 
@@ -753,10 +753,16 @@ public class ValueReaders {
     }
   }
 
-  static class DeleteMarkReader implements ValueReader<Boolean> {
+  static class ConstantReader<C> implements ValueReader<C> {
+    private final C value;
+
+    ConstantReader(C value) {
+      this.value = value;
+    }
+
     @Override
-    public Boolean read(Decoder ignored, Object reuse) throws IOException {
-      return false;
+    public C read(Decoder ignored, Object reuse) throws IOException {
+      return value;
     }
   }
 }
