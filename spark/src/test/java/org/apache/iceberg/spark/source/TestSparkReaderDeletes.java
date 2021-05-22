@@ -193,7 +193,7 @@ public abstract class TestSparkReaderDeletes extends DeleteReadTests {
         .addDeletes(eqDelete2)
         .commit();
 
-    StructLikeSet expectedRowSet = rowSetWitIds(29, 89, 121, 122);
+    StructLikeSet expectedRowSet = rowSetWithIds(29, 89, 121, 122);
 
     Types.StructType type = table.schema().asStruct();
     StructLikeSet actualRowSet = StructLikeSet.create(type);
