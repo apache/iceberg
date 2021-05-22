@@ -86,9 +86,10 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   // lazy variables
   private StructType readSchema = null;
 
-  // state
+  // state variables
   private StreamingOffset committedOffset = null;
   private StreamingOffset startOffset = null;
+  private StreamingOffset previousEndOffset = null;
 
   SparkMicroBatchStream(JavaSparkContext sparkContext, Table table, boolean caseSensitive, Schema expectedSchema,
                         List<Expression> filterExpressions, CaseInsensitiveStringMap options, String checkpointLocation) {
@@ -122,17 +123,20 @@ public class SparkMicroBatchStream implements MicroBatchStream {
       return StreamingOffset.START_OFFSET;
     }
 
-    final StreamingOffset startReadingFrom = committedOffset == null || committedOffset.equals(StreamingOffset.START_OFFSET)
-        ? startOffset : committedOffset;
+    final StreamingOffset startReadingFrom = previousEndOffset == null || previousEndOffset.equals(StreamingOffset.START_OFFSET)
+        ? startOffset : previousEndOffset;
 
+    // TODO: detect end of microBatch and graduate to next batch
     MicroBatch microBatch = MicroBatches.from(table.snapshot(startReadingFrom.snapshotId()), table.io())
         .caseSensitive(caseSensitive)
         .specsById(table.specs())
         .generate(startReadingFrom.position(), batchSize, startReadingFrom.shouldScanAllFiles());
 
-    return new PlannedEndOffset(
+    previousEndOffset = new PlannedEndOffset(
         microBatch.snapshotId(), microBatch.endFileIndex(),
         startReadingFrom.shouldScanAllFiles(), startReadingFrom, microBatch);
+
+    return previousEndOffset;
   }
 
   @Override

@@ -116,6 +116,7 @@ public final class TestStructuredStreamingRead3 {
               .save(location.toString());
     }
     table.refresh();
+    List<SimpleRecord> actual;
 
     try {
       Dataset<Row> df = spark.readStream()
@@ -128,7 +129,11 @@ public final class TestStructuredStreamingRead3 {
               .outputMode(OutputMode.Append())
               .start();
       streamingQuery.processAllAvailable();
-      Object actual = spark.sql("select * from test12").collect();
+      actual = spark.sql("select * from test12")
+          .orderBy("id").as(Encoders.bean(SimpleRecord.class))
+          .collectAsList();
+
+      Assert.assertEquals(expected, actual);
     } finally {
       for (StreamingQuery query : spark.streams().active()) {
           query.stop();
