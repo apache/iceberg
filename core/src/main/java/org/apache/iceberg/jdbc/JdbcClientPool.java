@@ -51,7 +51,7 @@ class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
       properties.forEach((key, value) -> dbProps.put(key.replace(JdbcCatalog.PROPERTY_PREFIX, ""), value));
       return DriverManager.getConnection(dbUrl, dbProps);
     } catch (SQLException e) {
-      throw new UncheckedSQLException("Failed to connect: " + dbUrl, e);
+      throw new UncheckedSQLException(e, "Failed to connect: %s", dbUrl);
     }
   }
 
@@ -66,7 +66,7 @@ class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
     try {
       client.close();
     } catch (SQLException e) {
-      throw new UncheckedSQLException("Failed to close connection", e);
+      throw new UncheckedSQLException(e, "Failed to close connection");
     }
   }
 }

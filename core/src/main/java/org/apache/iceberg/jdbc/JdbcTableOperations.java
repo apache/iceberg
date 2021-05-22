@@ -68,8 +68,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       throw new RuntimeException("Interrupted during refresh", e);
     } catch (SQLException e) {
       // SQL exception happened when getting table from catalog
-      throw new UncheckedSQLException(
-          String.format("Failed to get table %s from catalog %s", tableIdentifier, catalogName), e);
+      throw new UncheckedSQLException(e, "Failed to get table %s from catalog %s", tableIdentifier, catalogName);
     }
 
     // Table not exists AND currentMetadataLocation is not NULL!
@@ -114,15 +113,15 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     } catch (SQLIntegrityConstraintViolationException e) {
       throw new AlreadyExistsException(e, "Table already exists, maybe another process created it");
     } catch (SQLTimeoutException e) {
-      throw new UncheckedSQLException("Database Connection timeout", e);
+      throw new UncheckedSQLException(e, "Database Connection timeout");
     } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
-      throw new UncheckedSQLException("Database Connection failed", e);
+      throw new UncheckedSQLException(e, "Database Connection failed");
     } catch (DataTruncation e) {
-      throw new UncheckedSQLException("Database data truncation error", e);
+      throw new UncheckedSQLException(e, "Database data truncation error");
     } catch (SQLWarning e) {
-      throw new UncheckedSQLException("Database warning", e);
+      throw new UncheckedSQLException(e, "Database warning");
     } catch (SQLException e) {
-      throw new UncheckedSQLException("Failed to connect to database", e);
+      throw new UncheckedSQLException(e, "Failed to connect to database");
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new RuntimeException("Interrupted during commit", e);

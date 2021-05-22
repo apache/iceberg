@@ -19,11 +19,17 @@
 
 package org.apache.iceberg.jdbc;
 
-import java.sql.SQLException;
+import com.google.errorprone.annotations.FormatMethod;
 
 public class UncheckedSQLException extends RuntimeException {
 
-  public UncheckedSQLException(String message, SQLException cause) {
-    super(message, cause);
+  @FormatMethod
+  public UncheckedSQLException(String message, Object... args) {
+    super(String.format(message, args));
+  }
+
+  @FormatMethod
+  public UncheckedSQLException(Throwable cause, String message, Object... args) {
+    super(String.format(message, args), cause);
   }
 }

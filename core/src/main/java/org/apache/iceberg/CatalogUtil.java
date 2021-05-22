@@ -48,10 +48,8 @@ public class CatalogUtil {
   public static final String ICEBERG_CATALOG_TYPE = "type";
   public static final String ICEBERG_CATALOG_TYPE_HADOOP = "hadoop";
   public static final String ICEBERG_CATALOG_TYPE_HIVE = "hive";
-  public static final String ICEBERG_CATALOG_TYPE_JDBC = "jdbc";
   public static final String ICEBERG_CATALOG_HIVE = "org.apache.iceberg.hive.HiveCatalog";
   public static final String ICEBERG_CATALOG_HADOOP = "org.apache.iceberg.hadoop.HadoopCatalog";
-  public static final String ICEBERG_CATALOG_JDBC = "org.apache.iceberg.jdbc.JdbcCatalog";
 
   private CatalogUtil() {
   }
@@ -196,9 +194,6 @@ public class CatalogUtil {
           break;
         case ICEBERG_CATALOG_TYPE_HADOOP:
           catalogImpl = ICEBERG_CATALOG_HADOOP;
-          break;
-        case ICEBERG_CATALOG_TYPE_JDBC:
-          catalogImpl = ICEBERG_CATALOG_JDBC;
           break;
         default:
           throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
