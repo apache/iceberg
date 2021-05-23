@@ -329,7 +329,7 @@ public abstract class DeleteReadTests {
     return set;
   }
 
-  protected StructLikeSet rowSetWitIds(int... idsToRetain) {
+  protected StructLikeSet rowSetWithIds(int... idsToRetain) {
     Set<Integer> deletedIds = Sets.newHashSet(ArrayUtil.toIntList(idsToRetain));
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
     records.stream()
