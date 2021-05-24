@@ -144,14 +144,23 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
       return false;
     }
 
+    Operations contents = ImmutableOperations.builder()
+        .addOperations(ImmutableDelete.builder().key(NessieUtil.toKey(identifier)).build())
+        .commitMeta(CommitMeta.fromMessage(String.format("delete table %s", identifier)))
+        .build();
+
     // We try to drop the table. Simple retry after ref update.
     boolean threw = true;
     try {
-      Tasks.foreach(identifier)
+      Tasks.foreach(contents)
            .retry(5)
            .stopRetryOn(NessieNotFoundException.class)
            .throwFailureWhenFinished()
-           .run(this::dropTableInner, BaseNessieClientServerException.class);
+           .onFailure((c, exception) -> refresh())
+           .run(c -> {
+             client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(), reference.getHash(), c);
+             refresh(); // note: updated to reference.updateReference() with Nessie 0.6
+           }, BaseNessieClientServerException.class);
       threw = false;
     } catch (NessieConflictException e) {
       logger.error("Cannot drop table: failed after retry (update ref and retry)", e);
@@ -189,6 +198,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
           .retry(5)
           .stopRetryOn(NessieNotFoundException.class)
           .throwFailureWhenFinished()
+          .onFailure((c, exception) -> refresh())
           .run(c -> {
             client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(), reference.getHash(), c);
             refresh();
@@ -203,6 +213,10 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     } catch (BaseNessieClientServerException e) {
       throw new CommitFailedException(e, "Failed to rename table: the current reference is not up to date.");
     }
+    // Intentionally just "throw through" Nessie's HttpClientException here and do not "special case"
+    // just the "timeout" variant to propagate all kinds of network errors (e.g. connection reset).
+    // Network code implementation details and all kinds of network devices can induce unexpected
+    // behavior. So better be safe than sorry.
   }
 
   /**
@@ -307,20 +321,6 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
       throw new IllegalArgumentException(String.format("Nessie does not have an existing default branch." +
               "Either configure an alternative ref via %s or create the default branch on the server.",
           NessieConfigConstants.CONF_NESSIE_REF), ex);
-    }
-  }
-
-
-  public void dropTableInner(TableIdentifier identifier) throws NessieConflictException, NessieNotFoundException {
-    try {
-      client.getContentsApi().deleteContents(NessieUtil.toKey(identifier),
-          reference.getAsBranch().getName(),
-          reference.getHash(),
-          String.format("delete table %s", identifier));
-
-    } finally {
-      // TODO: fix this so we don't depend on it in tests. and move refresh into catch clause.
-      refresh();
     }
   }
 

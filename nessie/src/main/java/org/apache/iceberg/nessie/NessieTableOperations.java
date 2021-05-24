@@ -67,6 +67,11 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
   }
 
   @Override
+  protected String tableName() {
+    return key.toString();
+  }
+
+  @Override
   protected void doRefresh() {
     try {
       reference.refresh();

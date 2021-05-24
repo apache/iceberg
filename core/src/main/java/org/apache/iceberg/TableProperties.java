@@ -36,8 +36,17 @@ public class TableProperties {
   public static final String COMMIT_TOTAL_RETRY_TIME_MS = "commit.retry.total-timeout-ms";
   public static final int COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT = 1800000; // 30 minutes
 
-  public static final String COMMIT_NUM_STATUS_CHECKS = "commit.num-status-checks";
+  public static final String COMMIT_NUM_STATUS_CHECKS = "commit.status-check.num-retries";
   public static final int COMMIT_NUM_STATUS_CHECKS_DEFAULT = 3;
+
+  public static final String COMMIT_STATUS_CHECKS_MIN_WAIT_MS = "commit.status-check.min-wait-ms";
+  public static final long COMMIT_STATUS_CHECKS_MIN_WAIT_MS_DEFAULT = 1000L; // 1s
+
+  public static final String COMMIT_STATUS_CHECKS_MAX_WAIT_MS = "commit.status-check.max-wait-ms";
+  public static final long COMMIT_STATUS_CHECKS_MAX_WAIT_MS_DEFAULT = 60000L; // 1 minute
+
+  public static final String COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS = "commit.status-check.total-timeout-ms";
+  public static final long COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS_DEFAULT = 1800000; // 30 minutes
 
   public static final String MANIFEST_TARGET_SIZE_BYTES = "commit.manifest.target-size-bytes";
   public static final long MANIFEST_TARGET_SIZE_BYTES_DEFAULT = 8388608; // 8 MB
