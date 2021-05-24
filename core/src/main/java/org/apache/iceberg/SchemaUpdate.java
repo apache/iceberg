@@ -85,9 +85,7 @@ class SchemaUpdate implements UpdateSchema {
     this.schema = schema;
     this.lastColumnId = lastColumnId;
     this.idToParent = Maps.newHashMap(TypeUtil.indexParents(schema.asStruct()));
-    this.identifierFieldNames = schema.identifierFieldIds().stream()
-        .map(id -> schema.findField(id).name())
-        .collect(Collectors.toSet());
+    this.identifierFieldNames = schema.identifierFieldNames();
   }
 
   @Override
@@ -381,17 +379,12 @@ class SchemaUpdate implements UpdateSchema {
   public Schema apply() {
     Schema newSchema = applyChanges(schema, deletes, updates, adds, moves, identifierFieldNames);
 
-    // Validate the metrics if we have existing properties.
-    if (base != null && base.properties() != null) {
-      MetricsConfig.fromProperties(base.properties()).validateReferencedColumns(newSchema);
-    }
-
     return newSchema;
   }
 
   @Override
   public void commit() {
-    TableMetadata update = applyChangesToMapping(base.updateSchema(apply(), lastColumnId));
+    TableMetadata update = applyChangesToMetadata(base.updateSchema(apply(), lastColumnId));
     ops.commit(base, update);
   }
 
@@ -401,8 +394,9 @@ class SchemaUpdate implements UpdateSchema {
     return next;
   }
 
-  private TableMetadata applyChangesToMapping(TableMetadata metadata) {
+  private TableMetadata applyChangesToMetadata(TableMetadata metadata) {
     String mappingJson = metadata.property(TableProperties.DEFAULT_NAME_MAPPING, null);
+    TableMetadata newMetadata = metadata;
     if (mappingJson != null) {
       try {
         // parse and update the mapping
@@ -414,7 +408,7 @@ class SchemaUpdate implements UpdateSchema {
         updatedProperties.putAll(metadata.properties());
         updatedProperties.put(TableProperties.DEFAULT_NAME_MAPPING, NameMappingParser.toJson(updated));
 
-        return metadata.replaceProperties(updatedProperties);
+        newMetadata = metadata.replaceProperties(updatedProperties);
 
       } catch (RuntimeException e) {
         // log the error, but do not fail the update
@@ -422,7 +416,21 @@ class SchemaUpdate implements UpdateSchema {
       }
     }
 
-    return metadata;
+    // Transform the metrics if they exist
+    if (base != null && base.properties() != null) {
+      Schema newSchema = newMetadata.schema();
+      List<String> deletedColumns = deletes.stream()
+          .map(schema::findColumnName)
+          .collect(Collectors.toList());
+      Map<String, String> renamedColumns = updates.keySet().stream()
+          .filter(id -> !schema.findColumnName(id).equals(newSchema.findColumnName(id)))
+          .collect(Collectors.toMap(schema::findColumnName, newSchema::findColumnName));
+      Map<String, String> updatedProperties = MetricsConfig.updateProperties(
+          newMetadata.properties(), deletedColumns, renamedColumns);
+      newMetadata = newMetadata.replaceProperties(updatedProperties);
+    }
+
+    return newMetadata;
   }
 
   private static Schema applyChanges(Schema schema, List<Integer> deletes,

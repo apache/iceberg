@@ -19,8 +19,10 @@
 
 package org.apache.iceberg.flink;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.table.api.constraints.UniqueConstraint;
 import org.apache.flink.table.connector.ChangelogMode;
 import org.apache.flink.table.connector.sink.DataStreamSinkProvider;
 import org.apache.flink.table.connector.sink.DynamicTableSink;
@@ -29,6 +31,7 @@ import org.apache.flink.table.connector.sink.abilities.SupportsPartitioning;
 import org.apache.flink.types.RowKind;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.flink.sink.FlinkSink;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning, SupportsOverwrite {
   private final TableLoader tableLoader;
@@ -52,9 +55,14 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
     Preconditions.checkState(!overwrite || context.isBounded(),
         "Unbounded data stream doesn't support overwrite operation.");
 
+    List<String> equalityColumns = tableSchema.getPrimaryKey()
+        .map(UniqueConstraint::getColumns)
+        .orElseGet(ImmutableList::of);
+
     return (DataStreamSinkProvider) dataStream -> FlinkSink.forRowData(dataStream)
         .tableLoader(tableLoader)
         .tableSchema(tableSchema)
+        .equalityFieldColumns(equalityColumns)
         .overwrite(overwrite)
         .build();
   }

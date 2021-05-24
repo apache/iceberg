@@ -142,7 +142,6 @@ With those dependencies, you can register a Glue catalog and create external tab
 ```sql
 SET iceberg.engine.hive.enabled=true;
 SET hive.vectorized.execution.enabled=false;
-SET iceberg.catalog.glue.type=custom;
 SET iceberg.catalog.glue.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog;
 SET iceberg.catalog.glue.warehouse=s3://my-bucket/my/key/prefix;
 SET iceberg.catalog.glue.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager;

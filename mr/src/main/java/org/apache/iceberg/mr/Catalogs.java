@@ -35,7 +35,6 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -45,25 +44,35 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 /**
  * Class for catalog resolution and accessing the common functions for {@link Catalog} API.
  * <p>
- * Catalog resolution happens in this order:
- * <ol>
- * <li>Custom catalog if specified by {@link InputFormatConfig#CATALOG_LOADER_CLASS}
- * <li>Hadoop or Hive catalog if specified by {@link InputFormatConfig#CATALOG}
- * <li>Hadoop Tables
- * </ol>
+ * If the catalog name is provided, get the catalog type from iceberg.catalog.<code>catalogName</code>.type config.
+ * <p>
+ * In case the catalog name is {@link #ICEBERG_HADOOP_TABLE_NAME location_based_table},
+ * type is ignored and tables will be loaded using {@link HadoopTables}.
+ * <p>
+ * In case the value of catalog type is null, iceberg.catalog.<code>catalogName</code>.catalog-impl config
+ * is used to determine the catalog implementation class.
+ * <p>
+ * If catalog name is null, get the catalog type from {@link InputFormatConfig#CATALOG iceberg.mr.catalog} config:
+ * <ul>
+ *   <li>hive: HiveCatalog</li>
+ *   <li>location: HadoopTables</li>
+ *   <li>hadoop: HadoopCatalog</li>
+ * </ul>
+ * <p>
+ * In case the value of catalog type is null,
+ * {@link InputFormatConfig#CATALOG_LOADER_CLASS iceberg.mr.catalog.loader.class} is used to determine
+ * the catalog implementation class.
+ * <p>
+ * Note: null catalog name mode is only supported for backwards compatibility. Using this mode is NOT RECOMMENDED.
  */
 public final class Catalogs {
 
   public static final String ICEBERG_DEFAULT_CATALOG_NAME = "default_iceberg";
   public static final String ICEBERG_HADOOP_TABLE_NAME = "location_based_table";
-
-  private static final String HIVE_CATALOG_TYPE = "hive";
-  private static final String HADOOP_CATALOG_TYPE = "hadoop";
-  private static final String NO_CATALOG_TYPE = "no catalog";
-
   public static final String NAME = "name";
   public static final String LOCATION = "location";
 
+  private static final String NO_CATALOG_TYPE = "no catalog";
   private static final Set<String> PROPERTIES_TO_REMOVE =
       ImmutableSet.of(InputFormatConfig.TABLE_SCHEMA, InputFormatConfig.PARTITION_SPEC, LOCATION, NAME,
               InputFormatConfig.CATALOG_NAME);
@@ -199,10 +208,6 @@ public final class Catalogs {
   @VisibleForTesting
   static Optional<Catalog> loadCatalog(Configuration conf, String catalogName) {
     String catalogType = getCatalogType(conf, catalogName);
-    if (catalogType == null) {
-      throw new NoSuchNamespaceException("Catalog definition for %s is not found.", catalogName);
-    }
-
     if (NO_CATALOG_TYPE.equalsIgnoreCase(catalogType)) {
       return Optional.empty();
     } else {
@@ -238,10 +243,18 @@ public final class Catalogs {
    */
   private static Map<String, String> addCatalogPropertiesIfMissing(Configuration conf, String catalogType,
                                                                    Map<String, String> catalogProperties) {
-    catalogProperties.putIfAbsent(CatalogUtil.ICEBERG_CATALOG_TYPE, catalogType);
-    if (catalogType.equalsIgnoreCase(HADOOP_CATALOG_TYPE)) {
-      catalogProperties.putIfAbsent(CatalogProperties.WAREHOUSE_LOCATION,
-              conf.get(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION));
+    if (catalogType != null) {
+      catalogProperties.putIfAbsent(CatalogUtil.ICEBERG_CATALOG_TYPE, catalogType);
+    }
+
+    String legacyCatalogImpl = conf.get(InputFormatConfig.CATALOG_LOADER_CLASS);
+    if (legacyCatalogImpl != null) {
+      catalogProperties.putIfAbsent(CatalogProperties.CATALOG_IMPL, legacyCatalogImpl);
+    }
+
+    String legacyWarehouseLocation = conf.get(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION);
+    if (legacyWarehouseLocation != null) {
+      catalogProperties.putIfAbsent(CatalogProperties.WAREHOUSE_LOCATION, legacyWarehouseLocation);
     }
     return catalogProperties;
   }
@@ -249,26 +262,17 @@ public final class Catalogs {
   /**
    * Return the catalog type based on the catalog name.
    * <p>
-   * If the catalog name is provided get the catalog type from 'iceberg.catalog.<code>catalogName</code>.type' config.
-   * In case the value of this property is null, return with no catalog definition (Hadoop Table)
-   * </p>
-   * <p>
-   * If catalog name is null, check the global conf for 'iceberg.mr.catalog' property. If the value of the property is:
-   * <ul>
-   *     <li>null/hive -> Hive Catalog</li>
-   *     <li>location -> Hadoop Table</li>
-   *     <li>hadoop -> Hadoop Catalog</li>
-   *     <li>any other value -> Custom Catalog</li>
-   * </ul>
-   * </p>
+   * See {@link Catalogs} documentation for catalog type resolution strategy.
+   *
    * @param conf global hive configuration
    * @param catalogName name of the catalog
    * @return type of the catalog, can be null
    */
   private static String getCatalogType(Configuration conf, String catalogName) {
     if (catalogName != null) {
-      String catalogType = conf.get(String.format(InputFormatConfig.CATALOG_TYPE_TEMPLATE, catalogName));
-      if (catalogName.equals(ICEBERG_HADOOP_TABLE_NAME) || catalogType == null) {
+      String catalogType = conf.get(InputFormatConfig.catalogPropertyConfigKey(
+          catalogName, CatalogUtil.ICEBERG_CATALOG_TYPE));
+      if (catalogName.equals(ICEBERG_HADOOP_TABLE_NAME)) {
         return NO_CATALOG_TYPE;
       } else {
         return catalogType;
@@ -276,7 +280,7 @@ public final class Catalogs {
     } else {
       String catalogType = conf.get(InputFormatConfig.CATALOG);
       if (catalogType == null) {
-        return HIVE_CATALOG_TYPE;
+        return CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE;
       } else if (catalogType.equals(LOCATION)) {
         return NO_CATALOG_TYPE;
       } else {

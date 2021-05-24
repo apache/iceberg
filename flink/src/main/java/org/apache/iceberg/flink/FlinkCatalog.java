@@ -467,10 +467,6 @@ public class FlinkCatalog extends AbstractCatalog {
     if (!schema.getWatermarkSpecs().isEmpty()) {
       throw new UnsupportedOperationException("Creating table with watermark specs is not supported yet.");
     }
-
-    if (schema.getPrimaryKey().isPresent()) {
-      throw new UnsupportedOperationException("Creating table with primary key is not supported yet.");
-    }
   }
 
   private static PartitionSpec toPartitionSpec(List<String> partitionKeys, Schema icebergSchema) {
@@ -536,7 +532,7 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   static CatalogTable toCatalogTable(Table table) {
-    TableSchema schema = FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(table.schema()));
+    TableSchema schema = FlinkSchemaUtil.toSchema(table.schema());
     List<String> partitionKeys = toPartitionKeys(table.spec(), table.schema());
 
     // NOTE: We can not create a IcebergCatalogTable extends CatalogTable, because Flink optimizer may use
