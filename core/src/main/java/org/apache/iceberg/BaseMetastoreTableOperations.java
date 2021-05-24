@@ -69,9 +69,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
    * catalogName + "." + database + "." + table.
    * @return The full name
    */
-  protected String tableName() {
-    return null;
-  }
+  protected abstract String tableName();
 
   @Override
   public TableMetadata current() {
