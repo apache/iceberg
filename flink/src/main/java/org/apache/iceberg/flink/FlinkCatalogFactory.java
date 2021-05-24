@@ -118,7 +118,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
     options.add(FlinkCatalogFactoryOptions.URI);
     options.add(FlinkCatalogFactoryOptions.WAREHOUSE);
     options.add(FlinkCatalogFactoryOptions.CLIENTS);
-    options.add(FlinkCatalogFactoryOptions.BASE_NAMESPACES);
+    options.add(FlinkCatalogFactoryOptions.BASE_NAMESPACE);
     options.add(FlinkCatalogFactoryOptions.HIVE_CONF_DIF);
     options.add(FlinkCatalogFactoryOptions.CACHE_ENABLED);
     return options;

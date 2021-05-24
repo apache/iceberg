@@ -64,7 +64,7 @@ public class FlinkCatalogFactoryOptions {
                   " <hive-conf-dir>/hive-site.xml (or hive configure file from classpath) will be overwrote with " +
                   "the warehouse value if setting both hive-conf-dir and warehouse when creating iceberg catalog.");
 
-  public static final ConfigOption<String> BASE_NAMESPACES =
+  public static final ConfigOption<String> BASE_NAMESPACE =
       ConfigOptions.key("base-namespace")
           .stringType()
           .noDefaultValue()
