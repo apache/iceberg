@@ -179,7 +179,7 @@ class BatchRowDataIterator extends DataIterator<RowData> {
     }
 
     for (DataType dataType : dataTypes) {
-      if (isVectorizationUnsupported(dataType.getLogicalType())) {
+      if (!isVectorizationSupported(dataType.getLogicalType())) {
         return false;
       }
     }
@@ -187,7 +187,7 @@ class BatchRowDataIterator extends DataIterator<RowData> {
     return true;
   }
 
-  private static boolean isVectorizationUnsupported(LogicalType logicalType) {
+  private static boolean isVectorizationSupported(LogicalType logicalType) {
     switch (logicalType.getTypeRoot()) {
       case CHAR:
       case VARCHAR:
@@ -207,7 +207,7 @@ class BatchRowDataIterator extends DataIterator<RowData> {
       case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
       case ROW:
       case ARRAY:
-        return false;
+        return true;
       case TIMESTAMP_WITH_TIME_ZONE:
       case INTERVAL_YEAR_MONTH:
       case INTERVAL_DAY_TIME:
@@ -219,7 +219,7 @@ class BatchRowDataIterator extends DataIterator<RowData> {
       case RAW:
       case SYMBOL:
       default:
-        return true;
+        return false;
     }
   }
 }
