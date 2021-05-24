@@ -35,9 +35,9 @@ import org.apache.iceberg.util.ThreadPools;
 public class PartitionsTable extends BaseMetadataTable {
 
   private final Schema schema;
-  private final String name;
   static final boolean PLAN_SCANS_WITH_WORKER_POOL =
       SystemProperties.getBoolean(SystemProperties.SCAN_THREAD_POOL_ENABLED, true);
+  private static final String PARTITION_FIELD_PREFIX = "partition.";
 
   PartitionsTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".partitions");
@@ -104,9 +104,14 @@ public class PartitionsTable extends BaseMetadataTable {
     boolean ignoreResiduals = scan.shouldIgnoreResiduals();
     long snapshotId = scan.snapshot().snapshotId();
 
+    PartitionSpec tableSpec = table().spec();
+    PartitionSpec.Builder identitySpecBuilder = PartitionSpec.builderFor(schema());
+    tableSpec.fields().stream().forEach(pf -> identitySpecBuilder.identity(PARTITION_FIELD_PREFIX + pf.name()));
+    PartitionSpec identitySpec = identitySpecBuilder.build();
+
     ManifestEvaluator eval = ManifestEvaluator.forPartitionFilter(
-        Projections.metadata(table().spec(), caseSensitive).project(scan.filter()),
-        table().spec(),
+        Projections.inclusive(identitySpec, caseSensitive).project(scan.filter()),
+        identitySpec,
         caseSensitive);
     ManifestGroup manifestGroup = new ManifestGroup(
         table().io(), table().snapshot(snapshotId).dataManifests(), table().snapshot(snapshotId).deleteManifests())

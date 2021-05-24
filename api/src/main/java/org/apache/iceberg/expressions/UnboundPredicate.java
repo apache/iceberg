@@ -80,10 +80,6 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>> implements
     return literals;
   }
 
-  public UnboundPredicate<T> clone(UnboundTerm<T> newTerm) {
-    return new UnboundPredicate<>(op(), newTerm, literals);
-  }
-
   /**
    * Bind this UnboundPredicate, defaulting to case sensitive mode.
    *
