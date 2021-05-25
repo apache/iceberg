@@ -20,7 +20,7 @@
 package org.apache.iceberg;
 
 import java.util.Map;
-import org.apache.iceberg.expressions.ManifestEvaluator;
+import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -89,7 +89,7 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   private Iterable<Partition> partitions(StaticTableScan scan) {
-    CloseableIterable<FileScanTask> tasks = planTasks(scan);
+    CloseableIterable<FileScanTask> tasks = planFiles(scan);
 
     PartitionMap partitions = new PartitionMap(table().spec().partitionType());
     for (FileScanTask task : tasks) {
@@ -99,29 +99,23 @@ public class PartitionsTable extends BaseMetadataTable {
   }
 
   @VisibleForTesting
-  CloseableIterable<FileScanTask> planTasks(StaticTableScan scan) {
+  CloseableIterable<FileScanTask> planFiles(StaticTableScan scan) {
     boolean caseSensitive = scan.isCaseSensitive();
-    boolean ignoreResiduals = scan.shouldIgnoreResiduals();
     long snapshotId = scan.snapshot().snapshotId();
 
-    PartitionSpec tableSpec = table().spec();
-    PartitionSpec.Builder identitySpecBuilder = PartitionSpec.builderFor(schema());
-    tableSpec.fields().stream().forEach(pf -> identitySpecBuilder.identity(PARTITION_FIELD_PREFIX + pf.name()));
-    PartitionSpec identitySpec = identitySpecBuilder.build();
-
-    ManifestEvaluator eval = ManifestEvaluator.forPartitionFilter(
-        Projections.inclusive(identitySpec, caseSensitive).project(scan.filter()),
-        identitySpec,
-        caseSensitive);
+    Map<Integer, PartitionSpec> specs = table().specs();
+    Map<Integer, PartitionSpec> partitionTableSpecs = specs.entrySet().stream().collect(Collectors.toMap(
+        Map.Entry::getKey,
+        e -> transformSpec(e.getValue())
+        ));
     ManifestGroup manifestGroup = new ManifestGroup(
         table().io(), table().snapshot(snapshotId).dataManifests(), table().snapshot(snapshotId).deleteManifests())
         .caseSensitive(caseSensitive)
-        .filterManifests(manifestFile -> eval.eval(manifestFile))
-        .select(DataTableScan.SCAN_COLUMNS)
-        .specsById(table().specs())
+        .filterPartitions(Projections.inclusive(transformSpec(table().spec()), caseSensitive).project(scan.filter()))
+        .specsById(partitionTableSpecs)
         .ignoreDeleted();
 
-    if (ignoreResiduals) {
+    if (scan.shouldIgnoreResiduals()) {
       manifestGroup = manifestGroup.ignoreResiduals();
     }
 
@@ -132,6 +126,20 @@ public class PartitionsTable extends BaseMetadataTable {
     return manifestGroup.planFiles();
   }
 
+  /**
+   * This method transforms the table's partition spec to a spec that is used to evaluate
+   * the user-provided filter expression against the 'partitions' table.
+   *
+   * In particular, it adds 'partition.' prefix to each of the table's partition field
+   * (ie, x => partition.x)
+   * @param spec table spec
+   * @return a spec that can be used on the partitions table.
+   */
+  private PartitionSpec transformSpec(PartitionSpec spec) {
+    PartitionSpec.Builder identitySpecBuilder = PartitionSpec.builderFor(schema());
+    spec.fields().forEach(pf -> identitySpecBuilder.identity(PARTITION_FIELD_PREFIX + pf.name()));
+    return identitySpecBuilder.build();
+  }
 
   private class PartitionsScan extends StaticTableScan {
     PartitionsScan(TableOperations ops, Table table) {
