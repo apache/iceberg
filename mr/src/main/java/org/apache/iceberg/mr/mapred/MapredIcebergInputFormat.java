@@ -67,9 +67,9 @@ public class MapredIcebergInputFormat<T> implements InputFormat<Void, Container<
   @Override
   public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
     return innerInputFormat.getSplits(newJobContext(job))
-            .stream()
-            .map(InputSplit.class::cast)
-            .toArray(InputSplit[]::new);
+                           .stream()
+                           .map(InputSplit.class::cast)
+                           .toArray(InputSplit[]::new);
   }
 
   @Override

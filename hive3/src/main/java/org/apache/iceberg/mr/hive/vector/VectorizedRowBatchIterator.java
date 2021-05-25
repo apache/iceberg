@@ -57,6 +57,7 @@ public final class VectorizedRowBatchIterator implements CloseableIterator<Vecto
   private void advance() {
     if (!advanced) {
       try {
+
         if (!recordReader.next(key, batch)) {
           batch.size = 0;
         }

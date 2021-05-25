@@ -48,6 +48,7 @@ import org.apache.iceberg.mr.mapred.MapredIcebergInputFormat;
 import org.apache.iceberg.mr.mapreduce.IcebergInputFormat;
 import org.apache.iceberg.mr.mapreduce.IcebergSplit;
 import org.apache.iceberg.mr.mapreduce.IcebergSplitContainer;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.SerializationUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -95,8 +96,8 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
 
     String location = job.get(InputFormatConfig.TABLE_LOCATION);
     return Arrays.stream(super.getSplits(job, numSplits))
-            .map(split -> new HiveIcebergSplit((IcebergSplit) split, location))
-            .toArray(InputSplit[]::new);
+                 .map(split -> new HiveIcebergSplit((IcebergSplit) split, location))
+                 .toArray(InputSplit[]::new);
   }
 
   @Override
@@ -106,7 +107,7 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
     job.setStrings(InputFormatConfig.SELECTED_COLUMNS, selectedColumns);
 
     if (HiveConf.getBoolVar(job, HiveConf.ConfVars.HIVE_VECTORIZATION_ENABLED)) {
-      assert MetastoreUtil.hive3PresentOnClasspath();
+      Preconditions.checkArgument(MetastoreUtil.hive3PresentOnClasspath(), "Vectorization only supported for Hive 3+");
 
       IcebergSplit icebergSplit = ((IcebergSplitContainer) split).icebergSplit();
       // bogus cast for favouring code reuse over syntax

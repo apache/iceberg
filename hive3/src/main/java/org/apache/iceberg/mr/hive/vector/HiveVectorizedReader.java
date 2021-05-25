@@ -69,6 +69,7 @@ public class HiveVectorizedReader {
     int[] partitionColIndices = null;
     Object[] partitionValues = null;
     PartitionSpec partitionSpec = task.spec();
+
     if (!partitionSpec.isUnpartitioned()) {
       List<Integer> readColumnIds = ColumnProjectionUtils.getReadColumnIDs(job);
 
@@ -85,9 +86,9 @@ public class HiveVectorizedReader {
           // ...and use the corresponding constant value instead
           partitionColIndicesList.add(hiveColIndex);
           partitionValuesList.add(idToConstant.get(field.sourceId()));
-
         }
       }
+
       partitionColIndices = ArrayUtils.toPrimitive(partitionColIndicesList.toArray(new Integer[0]));
       partitionValues = partitionValuesList.toArray(new Object[0]);
 
