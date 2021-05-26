@@ -92,29 +92,37 @@ public final class TestStructuredStreamingRead3 {
 
   @SuppressWarnings("unchecked")
   @Test
-  public void testGetChangesFromStart() throws IOException, TimeoutException {
+  public void testGetAllAppendsFromStartAcrossMultipleSnapshots() throws IOException, TimeoutException {
     File parent = temp.newFolder("parent");
     File location = new File(parent, "test-table");
     File checkpoint = new File(parent, "checkpoint");
 
     HadoopTables tables = new HadoopTables(CONF);
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 3).build();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
-    List<SimpleRecord> expected = Lists.newArrayList(
-            new SimpleRecord(2, "1"),
-            new SimpleRecord(3, "2"),
-            new SimpleRecord(1, "3")
+    List<List<SimpleRecord>> expected = Lists.newArrayList(
+        Lists.newArrayList(
+          new SimpleRecord(1, "one"),
+          new SimpleRecord(2, "two"),
+          new SimpleRecord(3, "three")),
+        Lists.newArrayList(
+          new SimpleRecord(4, "four"),
+          new SimpleRecord(5, "five")),
+        Lists.newArrayList(
+          new SimpleRecord(6, "six"),
+          new SimpleRecord(7, "seven"))
     );
 
-    // Write records one by one to generate multiple snapshots
-    for (SimpleRecord l : expected) {
-      Dataset<Row> df = spark.createDataFrame(Collections.singletonList(l), SimpleRecord.class);
+    // generate multiple snapshots
+    for (List<SimpleRecord> l : expected) {
+      Dataset<Row> df = spark.createDataFrame(l, SimpleRecord.class);
       df.select("id", "data").write()
               .format("iceberg")
               .mode("append")
               .save(location.toString());
     }
+
     table.refresh();
     List<SimpleRecord> actual;
 
@@ -133,7 +141,9 @@ public final class TestStructuredStreamingRead3 {
           .as(Encoders.bean(SimpleRecord.class))
           .collectAsList();
 
-      Assert.assertEquals(expected, actual);
+      Assert.assertEquals(
+          expected.stream().flatMap(List::stream).collect(Collectors.toList()),
+          actual);
     } finally {
       for (StreamingQuery query : spark.streams().active()) {
           query.stop();
