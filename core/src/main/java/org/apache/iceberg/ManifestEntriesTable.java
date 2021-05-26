@@ -48,7 +48,7 @@ public class ManifestEntriesTable extends BaseMetadataTable {
 
   @Override
   public TableScan newScan() {
-    return new EntriesTableScan(operations(), table(), schema());
+    return new EntriesTableScan(operations(), table(), schema(), name());
   }
 
   @Override
@@ -69,18 +69,35 @@ public class ManifestEntriesTable extends BaseMetadataTable {
 
   private static class EntriesTableScan extends BaseTableScan {
 
-    EntriesTableScan(TableOperations ops, Table table, Schema schema) {
+    private final String scannedTableName;
+
+    EntriesTableScan(TableOperations ops, Table table, Schema schema, String scannedTableName) {
       super(ops, table, schema);
+      this.scannedTableName = scannedTableName;
     }
 
-    private EntriesTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+    private EntriesTableScan(TableOperations ops, Table table, Schema schema, String scannedTableName,
+                             TableScanContext context) {
       super(ops, table, schema, context);
+      this.scannedTableName = scannedTableName;
+    }
+
+    @Override
+    public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
+      throw new UnsupportedOperationException(
+          String.format("Incremental scan is not supported for metadata table %s", scannedTableName));
+    }
+
+    @Override
+    public TableScan appendsAfter(long fromSnapshotId) {
+      throw new UnsupportedOperationException(
+          String.format("Incremental scan is not supported for metadata table %s", scannedTableName));
     }
 
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema,
                                        TableScanContext context) {
-      return new EntriesTableScan(ops, table, schema, context);
+      return new EntriesTableScan(ops, table, schema, scannedTableName, context);
     }
 
     @Override

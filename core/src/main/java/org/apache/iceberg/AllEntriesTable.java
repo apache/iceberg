@@ -51,7 +51,7 @@ public class AllEntriesTable extends BaseMetadataTable {
 
   @Override
   public TableScan newScan() {
-    return new Scan(operations(), table(), schema());
+    return new Scan(operations(), table(), schema(), name());
   }
 
   @Override
@@ -72,18 +72,22 @@ public class AllEntriesTable extends BaseMetadataTable {
 
   private static class Scan extends BaseAllMetadataTableScan {
 
-    Scan(TableOperations ops, Table table, Schema schema) {
-      super(ops, table, schema);
+    private final String scannedTableName;
+
+    Scan(TableOperations ops, Table table, Schema schema, String scannedTableName) {
+      super(ops, table, schema, scannedTableName);
+      this.scannedTableName = scannedTableName;
     }
 
-    private Scan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      super(ops, table, schema, context);
+    private Scan(TableOperations ops, Table table, Schema schema, String scannedTableName, TableScanContext context) {
+      super(ops, table, schema, scannedTableName, context);
+      this.scannedTableName = scannedTableName;
     }
 
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema,
                                        TableScanContext context) {
-      return new Scan(ops, table, schema, context);
+      return new Scan(ops, table, schema, scannedTableName, context);
     }
 
     @Override

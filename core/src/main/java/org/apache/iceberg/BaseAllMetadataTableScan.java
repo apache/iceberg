@@ -28,12 +28,29 @@ import org.slf4j.LoggerFactory;
 abstract class BaseAllMetadataTableScan extends BaseTableScan {
   private static final Logger LOG = LoggerFactory.getLogger(BaseAllMetadataTableScan.class);
 
-  BaseAllMetadataTableScan(TableOperations ops, Table table, Schema fileSchema) {
+  private final String scannedTableName;
+
+  BaseAllMetadataTableScan(TableOperations ops, Table table, Schema fileSchema, String scannedTableName) {
     super(ops, table, fileSchema);
+    this.scannedTableName = scannedTableName;
   }
 
-  BaseAllMetadataTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
+  BaseAllMetadataTableScan(TableOperations ops, Table table, Schema schema, String scannedTableName,
+                           TableScanContext context) {
     super(ops, table, schema, context);
+    this.scannedTableName = scannedTableName;
+  }
+
+  @Override
+  public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
+    throw new UnsupportedOperationException(
+        String.format("Incremental scan is not supported for metadata table %s", scannedTableName));
+  }
+
+  @Override
+  public TableScan appendsAfter(long fromSnapshotId) {
+    throw new UnsupportedOperationException(
+        String.format("Incremental scan is not supported for metadata table %s", scannedTableName));
   }
 
   @Override

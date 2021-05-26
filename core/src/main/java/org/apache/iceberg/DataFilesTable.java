@@ -43,7 +43,7 @@ public class DataFilesTable extends BaseMetadataTable {
 
   @Override
   public TableScan newScan() {
-    return new FilesTableScan(operations(), table(), schema());
+    return new FilesTableScan(operations(), table(), schema(), name());
   }
 
   @Override
@@ -64,21 +64,36 @@ public class DataFilesTable extends BaseMetadataTable {
 
   public static class FilesTableScan extends BaseTableScan {
     private final Schema fileSchema;
+    private final String fileTableName;
 
-    FilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
+    FilesTableScan(TableOperations ops, Table table, Schema fileSchema, String fileTableName) {
       super(ops, table, fileSchema);
       this.fileSchema = fileSchema;
+      this.fileTableName = fileTableName;
     }
 
-    private FilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema,
+    private FilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema, String fileTableName,
                            TableScanContext context) {
       super(ops, table, schema, context);
       this.fileSchema = fileSchema;
+      this.fileTableName = fileTableName;
+    }
+
+    @Override
+    public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
+      throw new UnsupportedOperationException(
+          String.format("Incremental scan is not supported for metadata table %s", fileTableName));
+    }
+
+    @Override
+    public TableScan appendsAfter(long fromSnapshotId) {
+      throw new UnsupportedOperationException(
+          String.format("Incremental scan is not supported for metadata table %s", fileTableName));
     }
 
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new FilesTableScan(ops, table, schema, fileSchema, context);
+      return new FilesTableScan(ops, table, schema, fileSchema, fileTableName, context);
     }
 
     @Override

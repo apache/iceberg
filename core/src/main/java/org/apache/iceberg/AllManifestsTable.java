@@ -66,7 +66,7 @@ public class AllManifestsTable extends BaseMetadataTable {
 
   @Override
   public TableScan newScan() {
-    return new AllManifestsTableScan(operations(), table(), MANIFEST_FILE_SCHEMA);
+    return new AllManifestsTableScan(operations(), table(), MANIFEST_FILE_SCHEMA, name());
   }
 
   @Override
@@ -81,19 +81,23 @@ public class AllManifestsTable extends BaseMetadataTable {
 
   public static class AllManifestsTableScan extends BaseAllMetadataTableScan {
 
-    AllManifestsTableScan(TableOperations ops, Table table, Schema fileSchema) {
-      super(ops, table, fileSchema);
+    private final String scannedTableName;
+
+    AllManifestsTableScan(TableOperations ops, Table table, Schema fileSchema, String scannedTableName) {
+      super(ops, table, fileSchema, scannedTableName);
+      this.scannedTableName = scannedTableName;
     }
 
-    private AllManifestsTableScan(TableOperations ops, Table table, Schema schema,
+    private AllManifestsTableScan(TableOperations ops, Table table, Schema schema, String scannedTableName,
                                   TableScanContext context) {
-      super(ops, table, schema, context);
+      super(ops, table, schema, scannedTableName, context);
+      this.scannedTableName = scannedTableName;
     }
 
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema,
                                        TableScanContext context) {
-      return new AllManifestsTableScan(ops, table, schema, context);
+      return new AllManifestsTableScan(ops, table, schema, scannedTableName, context);
     }
 
     @Override
