@@ -23,7 +23,7 @@ import java.util.function.Function;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 
-public class StaticTableScan extends BaseTableScan {
+class StaticTableScan extends BaseTableScan {
   private final Function<StaticTableScan, DataTask> buildTask;
   // Metadata table name that the buildTask that this StaticTableScan will return data for.
   private final String scannedTableName;
