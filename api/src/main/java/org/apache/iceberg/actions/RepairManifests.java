@@ -19,32 +19,24 @@
 
 package org.apache.iceberg.actions;
 
+import java.util.List;
 import java.util.function.Predicate;
 import org.apache.iceberg.ManifestFile;
 
 /**
- * An action that rewrites manifests.
+ * An action that repairs manifests by reading data files.
  */
-public interface RewriteManifests extends SnapshotUpdate<RewriteManifests, RewriteManifests.Result> {
-  /**
-   * Rewrites manifests for a given spec id.
-   * <p>
-   * If not set, defaults to the table's default spec ID.
-   *
-   * @param specId a spec id
-   * @return this for method chaining
-   */
-  RewriteManifests specId(int specId);
+public interface RepairManifests extends SnapshotUpdate<RepairManifests, RepairManifests.Result> {
 
   /**
-   * Rewrites only manifests that match the given predicate.
+   * Repairs only manifests that match the given predicate.
    * <p>
-   * If not set, all manifests will be rewritten.
+   * If not set, all manifests will be repaired.
    *
    * @param predicate a predicate
    * @return this for method chaining
    */
-  RewriteManifests rewriteIf(Predicate<ManifestFile> predicate);
+  RepairManifests repairIf(Predicate<ManifestFile> predicate);
 
   /**
    * Passes a location where the staged manifests should be written.
@@ -54,20 +46,27 @@ public interface RewriteManifests extends SnapshotUpdate<RewriteManifests, Rewri
    * @param stagingLocation a staging location
    * @return this for method chaining
    */
-  RewriteManifests stagingLocation(String stagingLocation);
+  RepairManifests stagingLocation(String stagingLocation);
+
+
+  /**
+   * Enable or disable repairing metrics in manifest entries by re-reading the file.
+   * @return this for method chaining.
+   */
+  RepairManifests repairMetrics(boolean repair);
 
   /**
    * The action result that contains a summary of the execution.
    */
   interface Result {
     /**
-     * Returns rewritten manifests.
+     * Manifests with oudated entries, deleted as part of repair.
      */
-    Iterable<ManifestFile> rewrittenManifests();
+    List<ManifestFile> deletedManifests();
 
     /**
-     * Returns added manifests.
+     * Manifests added as part of the repair.
      */
-    Iterable<ManifestFile> addedManifests();
+    List<ManifestFile> addedManifests();
   }
 }

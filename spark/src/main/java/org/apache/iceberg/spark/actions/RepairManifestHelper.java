@@ -34,7 +34,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
@@ -45,17 +44,20 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkDataFile;
 import org.apache.iceberg.spark.SparkExceptionUtil;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Helper methods to repair manifest files.
  * TODO- repair split offsets
  */
 public class RepairManifestHelper {
+
+  private static final Logger LOG = LoggerFactory.getLogger(RepairManifestHelper.class);
 
   private RepairManifestHelper() {
     // Prevent Construction
@@ -98,28 +100,28 @@ public class RepairManifestHelper {
   static Set<String> diff(DataFile first, DataFile second) {
     Set<String> result = new HashSet<>();
     if (first.fileSizeInBytes() != second.fileSizeInBytes()) {
-      result.add("file_size_in_bytes");
+      result.add(DataFile.FILE_SIZE.name());
     }
     if (first.recordCount() != second.recordCount()) {
-      result.add("record_count");
+      result.add(DataFile.RECORD_COUNT.name());
     }
     if (!Objects.equals(first.columnSizes(), second.columnSizes())) {
-      result.add("column_sizes");
+      result.add(DataFile.COLUMN_SIZES.name());
     }
     if (!Objects.equals(first.valueCounts(), second.valueCounts())) {
-      result.add("value_counts");
+      result.add(DataFile.VALUE_COUNTS.name());
     }
     if (!Objects.equals(first.nullValueCounts(), second.nullValueCounts())) {
-      result.add("null_value_counts");
+      result.add(DataFile.NULL_VALUE_COUNTS.name());
     }
     if (!Objects.equals(first.nanValueCounts(), second.nanValueCounts())) {
-      result.add("nan_value_counts");
+      result.add(DataFile.NAN_VALUE_COUNTS.name());
     }
     if (!Objects.equals(first.lowerBounds(), second.lowerBounds())) {
-      result.add("lower_bounds");
+      result.add(DataFile.LOWER_BOUNDS.name());
     }
     if (!Objects.equals(first.upperBounds(), second.upperBounds())) {
-      result.add("upper_bounds");
+      result.add(DataFile.UPPER_BOUNDS.name());
     }
     return result;
   }
@@ -130,90 +132,47 @@ public class RepairManifestHelper {
    * @param spec user-specified spec
    * @param table table information
    * @param conf Hadoop configuration
+   * @param options repair options
    * @return A repaired DataFile if repair was done (file information did not match), or None if not
    */
-  static Optional<RepairedDataFile> repairDataFile(SparkDataFile file,
+  static Optional<DataFile> repairDataFile(SparkDataFile file,
                                                    Table table,
                                                    PartitionSpec spec,
-                                                   Configuration conf) {
+                                                   Configuration conf,
+                                                   RepairOptions options) {
     DataFiles.Builder newDfBuilder = DataFiles.builder(spec).copy(file);
     Path path = new Path(file.path().toString());
     try {
       FileSystem fs = path.getFileSystem(conf);
       FileStatus status = fs.getFileStatus(path);
       newDfBuilder.withStatus(status);
-      String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
-      NameMapping nameMapping = nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
-      newDfBuilder.withMetrics(getMetrics(file.format(), status, conf,
-          MetricsConfig.fromProperties(table.properties()), nameMapping));
+
+      if (options.repairMetrics) {
+        String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
+        NameMapping nameMapping = nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
+        newDfBuilder.withMetrics(getMetrics(file.format(), status, conf,
+            MetricsConfig.fromProperties(table.properties()), nameMapping));
+      }
 
       DataFile newFile = newDfBuilder.build();
       Set<String> diff = RepairManifestHelper.diff(file, newFile);
       if (diff.isEmpty()) {
         return Optional.empty();
       } else {
-        return Optional.of(new RepairedDataFile(newFile, diff));
+        LOG.info("Generating new manifest entry for {} with following fields repaired: {}",
+            status.getPath(), String.join(",", diff));
+        return Optional.of(newFile);
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
   }
 
-  /**
-   * Represents a repaired DataFile
-   */
-  public static class RepairedDataFile {
-    private DataFile dataFile;
-    private Set<String> repairedFields;
+  static class RepairOptions implements Serializable {
+    private boolean repairMetrics;
 
-    RepairedDataFile(DataFile df, Set<String> repairedFields) {
-      Preconditions.checkNotNull(df, "Data file is null");
-      Preconditions.checkNotNull(repairedFields, "Repaired fields is null");
-      this.dataFile = df;
-      this.repairedFields = repairedFields;
-    }
-
-    /**
-     * @return a set of fields repaired in the Data File, or empty set if none repaired
-     */
-    Set<String> repairedFields() {
-      return repairedFields;
-    }
-
-    /**
-     * @return the repaired DataFile
-     */
-    DataFile dataFile() {
-      return dataFile;
-    }
-  }
-
-  /**
-   * Represents a repaired manifest file
-   */
-  public static class RepairedManifestFile implements Serializable {
-    private ManifestFile manifestFile;
-    private Set<String> repairedFields;
-
-    RepairedManifestFile(ManifestFile mf, Set<String> repairedFields) {
-      Preconditions.checkNotNull(mf, "Manifest file is null");
-      Preconditions.checkNotNull(repairedFields, "Repaired fields are null");
-      this.manifestFile = mf;
-      this.repairedFields = repairedFields;
-    }
-
-    /**
-     * @return List of fields repaired of some entries in this manifest.
-     */
-    Set<String> repairedFields() {
-      return repairedFields;
-    }
-
-    /**
-     * @return Actual ManifestFile
-     */
-    ManifestFile manifestFile() {
-      return manifestFile;
+    RepairOptions(boolean repairMetrics) {
+      this.repairMetrics = repairMetrics;
     }
   }
 }
