@@ -21,8 +21,10 @@ package org.apache.iceberg.spark.source;
 
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MicroBatches;
@@ -53,12 +55,17 @@ import org.apache.spark.sql.connector.read.PartitionReader;
 import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.connector.read.streaming.Offset;
+import org.apache.spark.sql.execution.streaming.CommitLog;
 import org.apache.spark.sql.execution.streaming.HDFSMetadataLog;
+import org.apache.spark.sql.execution.streaming.OffsetSeq;
+import org.apache.spark.sql.execution.streaming.OffsetSeqLog;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import scala.Option;
+import scala.collection.JavaConverters;
 import scala.reflect.ClassTag;
 
 import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK;
@@ -71,6 +78,7 @@ import static org.apache.iceberg.TableProperties.SPLIT_SIZE_DEFAULT;
 public class SparkMicroBatchStream implements MicroBatchStream {
   private static final Logger LOG = LoggerFactory.getLogger(SparkMicroBatchStream.class);
 
+  private final SparkSession spark;
   private final JavaSparkContext sparkContext;
   private final Table table;
   private final boolean caseSensitive;
@@ -83,18 +91,16 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final Integer splitLookback;
   private final Long splitOpenFileCost;
   private final boolean localityPreferred;
+  private final OffsetSeqLog offsetSeqLog;
 
-  // lazy variables
-  private StructType readSchema = null;
-
-  // state variables
-  private StreamingOffset committedOffset = null;
+  private long batchId = 0L;
   private StreamingOffset startOffset = null;
   private PlannedEndOffset previousEndOffset = null;
 
-  SparkMicroBatchStream(JavaSparkContext sparkContext, Table table, boolean caseSensitive, Schema expectedSchema,
+  SparkMicroBatchStream(SparkSession spark, JavaSparkContext sparkContext, Table table, boolean caseSensitive, Schema expectedSchema,
                         List<Expression> filterExpressions, CaseInsensitiveStringMap options, String checkpointLocation) {
     this.sparkContext = sparkContext;
+    this.spark = spark;
     this.table = table;
     this.caseSensitive = caseSensitive;
     this.expectedSchema = expectedSchema;
@@ -110,21 +116,14 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     this.splitOpenFileCost = Optional.ofNullable(Spark3Util.propertyAsLong(options, SparkReadOptions.FILE_OPEN_COST, null))
         .orElseGet(() -> PropertyUtil.propertyAsLong(table.properties(), SPLIT_OPEN_FILE_COST,
             SPLIT_OPEN_FILE_COST_DEFAULT));
+    this.offsetSeqLog = new OffsetSeqLog(spark, new Path(checkpointLocation, "offsets").toString());
   }
 
   @Override
   public Offset latestOffset() {
-    if (startOffset == null || startOffset.equals(StreamingOffset.START_OFFSET)) {
-      // Spark MicroBatchStream stateMachine invokes latestOffset as its first step.
-      // this makes sense for sources like SocketStream - when there is no persistent backing store
-      // but a continuous stream of data.
-      // in case of iceberg - particularly in case of "full table reads from that start"
-      // the amount of data to read in a given batch could be very large.
-      // so - latestOffset will not participate in the statemachine unless StartingOffset
-      // is found - via initialOffset/deserializeOffset is invoked - in its 2nd step
-      return StreamingOffset.START_OFFSET;
-    }
-
+    // lastoffset() is the first step in spark MicroBatchStream statemachine
+    // to control the batch size - calculate startOffset first
+    initialOffset();
     final StreamingOffset startReadingFrom =
         previousEndOffset == null || previousEndOffset.equals(StreamingOffset.START_OFFSET)
         ? startOffset : previousEndOffset;
@@ -196,13 +195,22 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   @Override
   public PartitionReaderFactory createReaderFactory() {
-    // TODO: what about batchSize?
     return new ReaderFactory(batchSize);
   }
 
   @Override
   public Offset initialOffset() {
     // TODO: read snapshot from spark options
+    // HDFSMetadataLog<StreamingOffset> checkpointLog = new HDFSMetadataLog<>(spark, checkpointLocation, null);
+    // StreamingOffset offset = checkpointLog.getLatest().get()._2;
+
+    if (offsetSeqLog != null && offsetSeqLog.getLatest() != null && offsetSeqLog.getLatest().isDefined()) {
+      batchId = (long) offsetSeqLog.getLatest().get()._1;
+      OffsetSeq offsetSeq = offsetSeqLog.getLatest().get()._2;
+
+      return JavaConverters.asJavaCollection(offsetSeq.offsets()).stream().findFirst().get().get();
+    }
+
     List<Long> snapshotIds = SnapshotUtil.currentAncestors(table);
     if (snapshotIds.isEmpty()) {
       startOffset = StreamingOffset.START_OFFSET;
@@ -220,21 +228,14 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   @Override
   public void commit(Offset end) {
-    this.committedOffset = (StreamingOffset) end;
+    batchId++;
+    OffsetSeq offsetSeq = OffsetSeq.fill(
+        JavaConverters.collectionAsScalaIterableConverter(Collections.singletonList(end)).asScala().toSeq());
+    this.offsetSeqLog.add(batchId, offsetSeq);
   }
 
   @Override
   public void stop() {
-    LOG.info("---------- stop");
-  }
-
-  // TODO: is this needed?
-  // https://github.com/apache/spark/blob/master/sql/core/src/main/scala/org/apache/spark/sql/execution/streaming/sources/RateStreamMicroBatchStream.scala
-  private static final class IcebergMetadataLog extends HDFSMetadataLog<StreamingOffset> {
-
-    public IcebergMetadataLog(SparkSession sparkSession, String path, ClassTag<StreamingOffset> evidence$1) {
-      super(sparkSession, path, evidence$1);
-    }
   }
 
   private static class ReaderFactory implements PartitionReaderFactory {
