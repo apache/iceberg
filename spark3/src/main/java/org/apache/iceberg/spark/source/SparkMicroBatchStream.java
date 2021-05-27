@@ -59,6 +59,7 @@ import org.apache.spark.sql.execution.streaming.CommitLog;
 import org.apache.spark.sql.execution.streaming.HDFSMetadataLog;
 import org.apache.spark.sql.execution.streaming.OffsetSeq;
 import org.apache.spark.sql.execution.streaming.OffsetSeqLog;
+import org.apache.spark.sql.execution.streaming.SerializedOffset;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
@@ -93,7 +94,6 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final boolean localityPreferred;
   private final OffsetSeqLog offsetSeqLog;
 
-  private long batchId = 0L;
   private StreamingOffset startOffset = null;
   private PlannedEndOffset previousEndOffset = null;
 
@@ -116,7 +116,8 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     this.splitOpenFileCost = Optional.ofNullable(Spark3Util.propertyAsLong(options, SparkReadOptions.FILE_OPEN_COST, null))
         .orElseGet(() -> PropertyUtil.propertyAsLong(table.properties(), SPLIT_OPEN_FILE_COST,
             SPLIT_OPEN_FILE_COST_DEFAULT));
-    this.offsetSeqLog = new OffsetSeqLog(spark, new Path(checkpointLocation, "offsets").toString());
+    this.offsetSeqLog = new OffsetSeqLog(spark,
+        new Path(checkpointLocation.replace("/sources/0", ""), "offsets").toString());
   }
 
   @Override
@@ -205,10 +206,14 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     // StreamingOffset offset = checkpointLog.getLatest().get()._2;
 
     if (offsetSeqLog != null && offsetSeqLog.getLatest() != null && offsetSeqLog.getLatest().isDefined()) {
-      batchId = (long) offsetSeqLog.getLatest().get()._1;
+      // batchId = (long) offsetSeqLog.getLatest().get()._1;
       OffsetSeq offsetSeq = offsetSeqLog.getLatest().get()._2;
 
-      return JavaConverters.asJavaCollection(offsetSeq.offsets()).stream().findFirst().get().get();
+      List<Option<Offset>> offsetSeqCol = JavaConverters.seqAsJavaList(offsetSeq.offsets());
+      Option<Offset> optionalOffset = offsetSeqCol.get(0);
+
+      startOffset = StreamingOffset.fromJson(optionalOffset.get().json());
+      return startOffset;
     }
 
     List<Long> snapshotIds = SnapshotUtil.currentAncestors(table);
@@ -228,10 +233,6 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   @Override
   public void commit(Offset end) {
-    batchId++;
-    OffsetSeq offsetSeq = OffsetSeq.fill(
-        JavaConverters.collectionAsScalaIterableConverter(Collections.singletonList(end)).asScala().toSeq());
-    this.offsetSeqLog.add(batchId, offsetSeq);
   }
 
   @Override
