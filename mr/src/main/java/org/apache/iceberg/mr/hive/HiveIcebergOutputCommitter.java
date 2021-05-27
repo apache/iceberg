@@ -232,7 +232,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
           .executeWith(tableExecutor)
           .onFailure((output, exc) -> LOG.warn("Failed cleanup table {} on abort job", output, exc))
           .run(output -> {
-            LOG.info("Cleaning job for table {}", jobContext.getJobID(), output);
+            LOG.info("Cleaning job for table {} {}", jobContext.getJobID(), output);
 
             Table table = HiveIcebergStorageHandler.table(jobConf, output);
             jobLocations.add(generateJobLocation(table.location(), jobConf, jobContext.getJobID()));
