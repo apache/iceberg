@@ -24,8 +24,6 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,12 +38,9 @@ public abstract class ClientPoolImpl<C, E extends Exception> implements Closeabl
   private volatile int currentSize;
   private boolean closed;
 
-  @VisibleForTesting
-  public static volatile AtomicInteger openCount = new AtomicInteger(0);
-  @VisibleForTesting
-  public static volatile AtomicInteger closeCount = new AtomicInteger(0);
-  @VisibleForTesting
-  public static final String currentProcessUUID = UUID.randomUUID().toString();
+  private static volatile AtomicInteger openCount = new AtomicInteger(0);
+  private static volatile AtomicInteger closeCount = new AtomicInteger(0);
+  private static final String currentProcessUUID = UUID.randomUUID().toString();
 
   public ClientPoolImpl(int poolSize, Class<? extends E> reconnectExc) {
     this.poolSize = poolSize;
@@ -152,5 +147,13 @@ public abstract class ClientPoolImpl<C, E extends Exception> implements Closeabl
 
   public int poolSize() {
     return poolSize;
+  }
+
+  public static AtomicInteger openCount() {
+    return openCount;
+  }
+
+  public static AtomicInteger closeCount() {
+    return closeCount;
   }
 }
