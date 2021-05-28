@@ -14,12 +14,12 @@
 
 package org.apache.iceberg.hive;
 
-import com.sun.tools.javac.util.Assert;
 import org.apache.iceberg.ClientPoolImpl;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
 import org.junit.Test;
+import org.junit.Assert;
 
 import java.util.ArrayList;
 import java.util.concurrent.*;
@@ -30,9 +30,9 @@ public class TestHiveCatalogLeak extends HiveMetastoreTest {
         connectHMSSimulator();
 
         // Before cache cleanup, some clients may not be closed.
-        Assert.check(ClientPoolImpl.openCount.get() != ClientPoolImpl.closeCount.get(),
-                String.format("open count %s , close count %s , all clients have been closed.",
-                        ClientPoolImpl.openCount.get(), ClientPoolImpl.closeCount.get()));
+        Assert.assertNotEquals(String.format("open count %s , close count %s , all clients have been closed.",
+                ClientPoolImpl.openCount.get(), ClientPoolImpl.closeCount.get()),
+                ClientPoolImpl.openCount.get(), ClientPoolImpl.closeCount.get());
 
         CachedClientPool.cleanupCache();
 
@@ -48,9 +48,9 @@ public class TestHiveCatalogLeak extends HiveMetastoreTest {
         }
 
         // After cache cleanup, all clients are closed.
-        Assert.check(ClientPoolImpl.openCount.get() == ClientPoolImpl.closeCount.get(),
-                String.format("open count %s , close count %s , some clients may not be closed.",
-                        ClientPoolImpl.openCount.get(), ClientPoolImpl.closeCount.get()));
+        Assert.assertEquals(String.format("open count %s , close count %s , some clients may not be closed.",
+                ClientPoolImpl.openCount.get(), ClientPoolImpl.closeCount.get()),
+                ClientPoolImpl.openCount.get(), ClientPoolImpl.closeCount.get());
     }
 
     private void connectHMSSimulator() {
