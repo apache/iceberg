@@ -99,7 +99,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       throw new UncheckedSQLException(e, "Cannot initialize JDBC catalog");
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new RuntimeException("Interrupted in call to initialize", e);
+      throw new UncheckedInterruptedException(e, "Interrupted in call to initialize");
     }
   }
 
@@ -152,7 +152,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       throw new UncheckedSQLException(e, "Failed to drop %s", identifier);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new RuntimeException("Interrupted in call to dropTable", e);
+      throw new UncheckedInterruptedException(e, "Interrupted in call to dropTable");
     }
 
     if (deletedRecords == 0) {
@@ -196,7 +196,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       throw new UncheckedSQLException(e, "Failed to list tables in namespace: %s", namespace);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new RuntimeException("Interrupted during JDBC operation", e);
+      throw new UncheckedInterruptedException(e, "Interrupted during JDBC operation");
     }
   }
 
@@ -231,7 +231,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       throw new UncheckedSQLException(e, "Failed to rename %s to %s", from, to);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new RuntimeException("Interrupted in call to rename", e);
+      throw new UncheckedInterruptedException(e, "Interrupted in call to rename");
     }
   }
 
@@ -298,9 +298,10 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new RuntimeException("Interrupted in call to listNamespaces(namespace) Namespace: " + namespace, e);
+      throw new UncheckedInterruptedException(e,
+          "Interrupted in call to listNamespaces(namespace) Namespace: %s", namespace);
     } catch (SQLException e) {
-      throw new RuntimeException("Failed to list all namespace: " + namespace + " in catalog", e);
+      throw new UncheckedSQLException(e, "Failed to list all namespace: %s in catalog", namespace);
     }
   }
 
@@ -378,8 +379,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       throw new UncheckedSQLException(e, "Failed to get namespace %s", namespace);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      LOG.warn("Interrupted in call to namespaceExists(namespace) ", e);
-      return false;
+      throw new UncheckedInterruptedException(e, "Interrupted in call to namespaceExists(namespace)");
     }
   }
 

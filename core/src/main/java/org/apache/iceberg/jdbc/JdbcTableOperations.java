@@ -65,7 +65,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       table = getTable();
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new RuntimeException("Interrupted during refresh", e);
+      throw new UncheckedInterruptedException(e, "Interrupted during refresh");
     } catch (SQLException e) {
       // SQL exception happened when getting table from catalog
       throw new UncheckedSQLException(e, "Failed to get table %s from catalog %s", tableIdentifier, catalogName);
@@ -124,7 +124,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       throw new UncheckedSQLException(e, "Failed to connect to database");
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new RuntimeException("Interrupted during commit", e);
+      throw new UncheckedInterruptedException(e, "Interrupted during commit");
     }
   }
 
