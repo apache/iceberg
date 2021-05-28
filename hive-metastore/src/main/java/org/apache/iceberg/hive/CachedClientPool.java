@@ -65,6 +65,8 @@ public class CachedClientPool implements ClientPool<HiveMetaStoreClient, TExcept
               .removalListener((key, value, cause) -> ((HiveClientPool) value).close())
               .build();
     }
+    // cleanup cache before jvm exit, avoid some clients may not be closed.
+    Runtime.getRuntime().addShutdownHook(new Thread(CachedClientPool::cleanupCache));
   }
 
   @VisibleForTesting
@@ -75,5 +77,12 @@ public class CachedClientPool implements ClientPool<HiveMetaStoreClient, TExcept
   @Override
   public <R> R run(Action<R, HiveMetaStoreClient, TException> action) throws TException, InterruptedException {
     return clientPool().run(action);
+  }
+
+  @VisibleForTesting
+  static void cleanupCache() {
+    if (clientPoolCache != null) {
+      clientPoolCache.invalidateAll();
+    }
   }
 }
