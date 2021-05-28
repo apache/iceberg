@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.spark.source;
 
-import java.io.Serializable;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.apache.hadoop.fs.Path;
@@ -39,8 +37,6 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.hadoop.HadoopInputFile;
-import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.util.PropertyUtil;
@@ -49,20 +45,19 @@ import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.read.InputPartition;
-import org.apache.spark.sql.connector.read.PartitionReader;
 import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.execution.streaming.OffsetSeq;
 import org.apache.spark.sql.execution.streaming.OffsetSeqLog;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
-import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.Option;
 import scala.collection.JavaConverters;
+import org.apache.iceberg.spark.source.SparkBatchScan.ReaderFactory;
+import org.apache.iceberg.spark.source.SparkBatchScan.ReadTask;
 
 import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK;
 import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK_DEFAULT;
@@ -78,9 +73,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final Table table;
   private final boolean caseSensitive;
   private final Schema expectedSchema;
-  private final List<Expression> filterExpressions;
   private final int batchSize;
-  private final String checkpointLocation;
   private final Long splitSize;
   private final Integer splitLookback;
   private final Long splitOpenFileCost;
@@ -91,14 +84,12 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private PlannedEndOffset previousEndOffset = null;
 
   SparkMicroBatchStream(SparkSession spark, JavaSparkContext sparkContext, Table table, boolean caseSensitive, Schema expectedSchema,
-                        List<Expression> filterExpressions, CaseInsensitiveStringMap options, String checkpointLocation) {
+                        CaseInsensitiveStringMap options, String checkpointLocation) {
     this.sparkContext = sparkContext;
     this.table = table;
     this.caseSensitive = caseSensitive;
     this.expectedSchema = expectedSchema;
-    this.filterExpressions = filterExpressions;
     this.batchSize = Spark3Util.batchSize(table.properties(), options);
-    this.checkpointLocation = checkpointLocation;
     this.localityPreferred = Spark3Util.isLocalityEnabled(table.io(), table.location(), options);
     this.splitSize = Optional.ofNullable(Spark3Util.propertyAsLong(options, SparkReadOptions.SPLIT_SIZE, null))
         .orElseGet(() -> PropertyUtil.propertyAsLong(table.properties(), SPLIT_SIZE, SPLIT_SIZE_DEFAULT));
@@ -120,52 +111,17 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     }
 
     StreamingOffset microBatchStartOffset = isFirstBatch() ? initialOffset : previousEndOffset;
-
     if (isEndOfSnapshot(microBatchStartOffset)) {
       microBatchStartOffset = getNextAvailableSnapshot(microBatchStartOffset);
     }
 
     previousEndOffset = calculateEndOffset(microBatchStartOffset);
     return previousEndOffset;
-
-    /*final Snapshot startingSnapshot;
-    final long startFileIndex;
-    final boolean shouldScanAllFiles;
-
-    if (microBatchStartOffset instanceof PlannedEndOffset
-        && ((PlannedEndOffset)microBatchStartOffset).getMicroBatch().lastIndexOfSnapshot()
-        && table.currentSnapshot().snapshotId() != microBatchStartOffset.snapshotId()) {
-      Snapshot previousSnapshot = table.snapshot(microBatchStartOffset.snapshotId());
-      Snapshot pointer = table.currentSnapshot();
-      while (pointer != null && pointer.parentId() != previousSnapshot.snapshotId()) {
-        pointer = table.snapshot(pointer.parentId());
-      }
-
-      startingSnapshot = pointer;
-      startFileIndex = 0L;
-      shouldScanAllFiles = false;
-    } else {
-      startingSnapshot = table.snapshot(microBatchStartOffset.snapshotId());
-      startFileIndex = microBatchStartOffset.position();
-      shouldScanAllFiles = microBatchStartOffset.shouldScanAllFiles();
-    }
-
-    MicroBatch microBatch = MicroBatches.from(startingSnapshot, table.io())
-        .caseSensitive(caseSensitive)
-        .specsById(table.specs())
-        .generate(startFileIndex, batchSize, shouldScanAllFiles);
-
-    previousEndOffset = new PlannedEndOffset(
-        microBatch.snapshotId(), microBatch.endFileIndex(), shouldScanAllFiles, microBatchStartOffset, microBatch);
-
-    return previousEndOffset;*/
   }
 
   @Override
   public InputPartition[] planInputPartitions(Offset start, Offset end) {
     if (end.equals(StreamingOffset.START_OFFSET)) {
-      // TODO: validate that this is exercised - when a stream is being resumed from a checkpoint
-      initialOffset = (StreamingOffset) start;
       return new InputPartition[0];
     }
 
@@ -173,12 +129,15 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
     String expectedSchemaString = SchemaParser.toJson(expectedSchema);
 
+    Preconditions.checkState(
+        end instanceof PlannedEndOffset,
+        "The end offset passed to planInputPartitions() is not the one that is returned by lastOffset()");
     PlannedEndOffset endOffset = (PlannedEndOffset) end;
-    // Preconditions.checkState(endOffset.getStartOffset().equals(start), "The cached MicroBatch doesn't match requested planInputPartitions");
 
     List<FileScanTask> fileScanTasks = endOffset.getMicroBatch().tasks();
 
-    CloseableIterable<FileScanTask> splitTasks = TableScanUtil.splitFiles(CloseableIterable.withNoopClose(fileScanTasks),
+    CloseableIterable<FileScanTask> splitTasks = TableScanUtil.splitFiles(
+        CloseableIterable.withNoopClose(fileScanTasks),
         splitSize);
     List<CombinedScanTask> combinedScanTasks = Lists.newArrayList(
         TableScanUtil.planTasks(splitTasks, splitSize, splitLookback, splitOpenFileCost));
@@ -200,26 +159,20 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   @Override
   public Offset initialOffset() {
-    if (initialOffset != null) {
+    if (isInitialOffsetResolved()) {
       return initialOffset;
     }
 
-    // TODO: read snapshot from spark options
-
-    if (offsetSeqLog != null && offsetSeqLog.getLatest() != null && offsetSeqLog.getLatest().isDefined()) {
-      // batchId = (long) offsetSeqLog.getLatest().get()._1;
-      OffsetSeq offsetSeq = offsetSeqLog.getLatest().get()._2;
-
-      List<Option<Offset>> offsetSeqCol = JavaConverters.seqAsJavaList(offsetSeq.offsets());
-      Option<Offset> optionalOffset = offsetSeqCol.get(0);
-
-      initialOffset = StreamingOffset.fromJson(optionalOffset.get().json());
+    if (isStreamResumedFromCheckpoint()) {
+      initialOffset = calculateInitialOffsetFromCheckpoint();
       return initialOffset;
     }
 
     List<Long> snapshotIds = SnapshotUtil.currentAncestors(table);
     if (snapshotIds.isEmpty()) {
       initialOffset = StreamingOffset.START_OFFSET;
+      Preconditions.checkState(isTableEmpty(),
+          "criteria behind isTableEmpty() changed.");
     } else {
       initialOffset = new StreamingOffset(Iterables.getLast(snapshotIds), 0, true);
     }
@@ -240,14 +193,37 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   public void stop() {
   }
 
+  private boolean isInitialOffsetResolved() {
+    return initialOffset != null;
+  }
+
+  private StreamingOffset calculateInitialOffsetFromCheckpoint() {
+    Preconditions.checkState(isStreamResumedFromCheckpoint(),
+        "Stream is not resumed from checkpoint.");
+
+    OffsetSeq offsetSeq = offsetSeqLog.getLatest().get()._2;
+
+    List<Option<Offset>> offsetSeqCol = JavaConverters.seqAsJavaList(offsetSeq.offsets());
+    Option<Offset> optionalOffset = offsetSeqCol.get(0);
+
+    StreamingOffset checkpointedOffset = StreamingOffset.fromJson(optionalOffset.get().json());
+    return checkpointedOffset;
+  }
+
+  private boolean isStreamResumedFromCheckpoint() {
+    Preconditions.checkState(!isInitialOffsetResolved(),
+        "isStreamResumedFromCheckpoint() is invoked without resolving initialOffset");
+
+    return offsetSeqLog != null && offsetSeqLog.getLatest() != null && offsetSeqLog.getLatest().isDefined();
+  }
+
   private boolean isFirstBatch() {
     return previousEndOffset == null || previousEndOffset.equals(StreamingOffset.START_OFFSET);
   }
 
   private boolean isTableEmpty() {
-    if (initialOffset == null) {
-      throw new IllegalStateException("isTableEmpty shouldn't be invoked without invoking initialOffset()");
-    }
+    Preconditions.checkState(isInitialOffsetResolved(),
+        "isTableEmpty() is invoked without resolving initialOffset");
 
     return initialOffset.equals(StreamingOffset.START_OFFSET);
   }
@@ -276,7 +252,6 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         microBatch.snapshotId(),
         microBatch.endFileIndex(),
         microBatchStartOffset.shouldScanAllFiles(),
-        microBatchStartOffset,
         microBatch);
   }
 
@@ -296,111 +271,13 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         && microBatchStart.lastIndexOfSnapshot();
   }
 
-  private static class ReaderFactory implements PartitionReaderFactory {
-    private final int batchSize;
-
-    private ReaderFactory(int batchSize) {
-      this.batchSize = batchSize;
-    }
-
-    @Override
-    public PartitionReader<InternalRow> createReader(InputPartition partition) {
-      if (partition instanceof ReadTask) {
-        return new RowReader((ReadTask) partition);
-      } else {
-        throw new UnsupportedOperationException("Incorrect input partition type: " + partition);
-      }
-    }
-
-    @Override
-    public PartitionReader<ColumnarBatch> createColumnarReader(InputPartition partition) {
-      if (partition instanceof ReadTask) {
-        return new BatchReader((ReadTask) partition, batchSize);
-      } else {
-        throw new UnsupportedOperationException("Incorrect input partition type: " + partition);
-      }
-    }
-
-    @Override
-    public boolean supportColumnarReads(InputPartition partition) {
-      return batchSize > 1;
-    }
-  }
-
-  private static class RowReader extends RowDataReader implements PartitionReader<InternalRow> {
-    RowReader(ReadTask task) {
-      super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive());
-    }
-  }
-
-  private static class BatchReader extends BatchDataReader implements PartitionReader<ColumnarBatch> {
-    BatchReader(ReadTask task, int batchSize) {
-      super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive(), batchSize);
-    }
-  }
-
-  private static class ReadTask implements InputPartition, Serializable {
-    private final CombinedScanTask task;
-    private final Broadcast<Table> tableBroadcast;
-    private final String expectedSchemaString;
-    private final boolean caseSensitive;
-
-    private transient Schema expectedSchema = null;
-    private transient String[] preferredLocations = null;
-
-    ReadTask(CombinedScanTask task, Broadcast<Table> tableBroadcast, String expectedSchemaString,
-             boolean caseSensitive, boolean localityPreferred) {
-      this.task = task;
-      this.tableBroadcast = tableBroadcast;
-      this.expectedSchemaString = expectedSchemaString;
-      this.caseSensitive = caseSensitive;
-      if (localityPreferred) {
-        Table table = tableBroadcast.value();
-        this.preferredLocations = Util.blockLocations(table.io(), task);
-      } else {
-        this.preferredLocations = HadoopInputFile.NO_LOCATION_PREFERENCE;
-      }
-    }
-
-    @Override
-    public String[] preferredLocations() {
-      return preferredLocations;
-    }
-
-    public Collection<FileScanTask> files() {
-      return task.files();
-    }
-
-    public Table table() {
-      return tableBroadcast.value();
-    }
-
-    public boolean isCaseSensitive() {
-      return caseSensitive;
-    }
-
-    private Schema expectedSchema() {
-      if (expectedSchema == null) {
-        this.expectedSchema = SchemaParser.fromJson(expectedSchemaString);
-      }
-      return expectedSchema;
-    }
-  }
-
   private static class PlannedEndOffset extends StreamingOffset {
 
-    private final StreamingOffset startOffset;
     private final MicroBatch microBatch;
 
-    PlannedEndOffset(long snapshotId, long position, boolean scanAllFiles, StreamingOffset startOffset, MicroBatch microBatch) {
+    PlannedEndOffset(long snapshotId, long position, boolean scanAllFiles, MicroBatch microBatch) {
       super(snapshotId, position, scanAllFiles);
-
-      this.startOffset = startOffset;
       this.microBatch = microBatch;
-    }
-
-    public StreamingOffset getStartOffset() {
-      return startOffset;
     }
 
     public MicroBatch getMicroBatch() {

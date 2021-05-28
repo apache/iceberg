@@ -115,7 +115,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   @Override
   public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
     return new SparkMicroBatchStream(
-        spark, sparkContext, table, caseSensitive, expectedSchema, filterExpressions, options, checkpointLocation);
+        spark, sparkContext, table, caseSensitive, expectedSchema, options, checkpointLocation);
   }
 
   @Override
@@ -223,10 +223,10 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     return String.format("%s [filters=%s]", table, filters);
   }
 
-  private static class ReaderFactory implements PartitionReaderFactory {
+  public static class ReaderFactory implements PartitionReaderFactory {
     private final int batchSize;
 
-    private ReaderFactory(int batchSize) {
+    public ReaderFactory(int batchSize) {
       this.batchSize = batchSize;
     }
 
@@ -266,7 +266,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     }
   }
 
-  private static class ReadTask implements InputPartition, Serializable {
+  public static class ReadTask implements InputPartition, Serializable {
     private final CombinedScanTask task;
     private final Broadcast<Table> tableBroadcast;
     private final String expectedSchemaString;
