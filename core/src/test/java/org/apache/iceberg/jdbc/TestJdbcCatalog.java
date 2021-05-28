@@ -452,8 +452,9 @@ public class TestJdbcCatalog {
     TableIdentifier tbl3 = TableIdentifier.of("db", "ns3", "tbl4");
     TableIdentifier tbl4 = TableIdentifier.of("db", "metadata");
     TableIdentifier tbl5 = TableIdentifier.of("db2", "metadata");
+    TableIdentifier tbl6 = TableIdentifier.of("tbl6");
 
-    Lists.newArrayList(tbl1, tbl2, tbl3, tbl4, tbl5).forEach(t ->
+    Lists.newArrayList(tbl1, tbl2, tbl3, tbl4, tbl5, tbl6).forEach(t ->
         catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())
     );
 
@@ -471,15 +472,18 @@ public class TestJdbcCatalog {
 
     List<Namespace> nsp3 = catalog.listNamespaces();
     Set<String> tblSet2 = Sets.newHashSet(nsp3.stream().map(Namespace::toString).iterator());
-    Assert.assertEquals(tblSet2.size(), 2);
+    System.out.println(tblSet2.toString());
+    Assert.assertEquals(tblSet2.size(), 3);
     Assert.assertTrue(tblSet2.contains("db"));
     Assert.assertTrue(tblSet2.contains("db2"));
+    Assert.assertTrue(tblSet2.contains(""));
 
     List<Namespace> nsp4 = catalog.listNamespaces();
     Set<String> tblSet3 = Sets.newHashSet(nsp4.stream().map(Namespace::toString).iterator());
-    Assert.assertEquals(tblSet3.size(), 2);
+    Assert.assertEquals(tblSet3.size(), 3);
     Assert.assertTrue(tblSet3.contains("db"));
     Assert.assertTrue(tblSet3.contains("db2"));
+    Assert.assertTrue(tblSet3.contains(""));
 
     AssertHelpers.assertThrows("Should fail to list namespace doesn't exist", NoSuchNamespaceException.class,
         "Namespace does not exist", () -> catalog.listNamespaces(Namespace.of("db", "db2", "ns2")

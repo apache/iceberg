@@ -74,7 +74,7 @@ final class JdbcUtil {
   }
 
   public static Namespace stringToNamespace(String namespace) {
-    Preconditions.checkArgument(namespace != null && !namespace.isEmpty(), "Invalid namespace %s", namespace);
+    Preconditions.checkArgument(namespace != null, "Invalid namespace %s", namespace);
     return Namespace.of(Iterables.toArray(SPLITTER_DOT.split(namespace), String.class));
   }
 

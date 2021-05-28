@@ -305,7 +305,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) throws NoSuchNamespaceException {
-    if (!namespaceExists(namespace) || namespace.isEmpty()) {
+    if (!namespaceExists(namespace)) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
@@ -373,8 +373,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       });
 
     } catch (SQLException e) {
-      LOG.warn("SQLException ", e);
-      return false;
+      throw new UncheckedSQLException(e, "Failed to get namespace %s", namespace);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       LOG.warn("Interrupted in call to namespaceExists(namespace) ", e);
