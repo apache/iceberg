@@ -88,15 +88,15 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     this.io = fileIOImpl == null ? new HadoopFileIO(conf) : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     try {
-      LOG.debug("Connecting to Jdbc database {}", properties.get(CatalogProperties.URI));
+      LOG.debug("Connecting to JDBC database {}", properties.get(CatalogProperties.URI));
       connections = new JdbcClientPool(uri, properties);
       initializeCatalogTables();
     } catch (SQLTimeoutException e) {
-      throw new UncheckedSQLException(e, "Cannot initialize jdbc catalog: Query timed out");
+      throw new UncheckedSQLException(e, "Cannot initialize JDBC catalog: Query timed out");
     } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
-      throw new UncheckedSQLException(e, "Cannot initialize jdbc catalog: Connection failed");
+      throw new UncheckedSQLException(e, "Cannot initialize JDBC catalog: Connection failed");
     } catch (SQLException e) {
-      throw new UncheckedSQLException(e, "Cannot initialize jdbc catalog");
+      throw new UncheckedSQLException(e, "Cannot initialize JDBC catalog");
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new RuntimeException("Interrupted in call to initialize", e);
@@ -113,7 +113,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
         return true;
       }
 
-      LOG.debug("Creating table {} to store iceberg catalog!", JdbcUtil.CATALOG_TABLE_NAME);
+      LOG.debug("Creating table {} to store iceberg catalog", JdbcUtil.CATALOG_TABLE_NAME);
       return conn.prepareStatement(JdbcUtil.CREATE_CATALOG_TABLE).execute();
     });
   }
@@ -151,7 +151,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     if (deletedRecords > 0) {
       LOG.info("Successfully dropped table {}.", identifier);
     } else {
-      LOG.info("Cannot drop table: {}! table not found in the catalog.", identifier);
+      LOG.info("Cannot drop table: {} table not found in the catalog.", identifier);
       return false;
     }
 
@@ -160,7 +160,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
     if (purge && lastMetadata != null) {
       CatalogUtil.dropTableData(ops.io(), lastMetadata);
-      LOG.info("Table {} data purged!", identifier);
+      LOG.info("Table {} data purged", identifier);
     }
 
     return true;
@@ -215,15 +215,15 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       });
 
       if (updatedRecords == 1) {
-        LOG.debug("Successfully renamed table from {} to {}!", from, to);
+        LOG.debug("Successfully renamed table from {} to {}", from, to);
       } else if (updatedRecords == 0) {
-        throw new NoSuchTableException("Failed to rename table! Table '%s' not found in the catalog!", from);
+        throw new NoSuchTableException("Failed to rename table Table '%s' not found in the catalog", from);
       } else {
-        throw new RuntimeException("Failed to rename table! Rename operation Failed");
+        throw new RuntimeException("Failed to rename table Rename operation Failed");
       }
 
     } catch (SQLIntegrityConstraintViolationException e) {
-      throw new AlreadyExistsException("Table with name '%s' already exists in the catalog!", to);
+      throw new AlreadyExistsException("Table with name '%s' already exists in the catalog", to);
     } catch (SQLException e) {
       throw new UncheckedSQLException(e, "Failed to rename table");
     } catch (InterruptedException e) {
@@ -299,7 +299,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       Thread.currentThread().interrupt();
       throw new RuntimeException("Interrupted in call to listNamespaces(namespace) Namespace: " + namespace, e);
     } catch (SQLException e) {
-      throw new RuntimeException("Failed to list all namespace: " + namespace + " in catalog!", e);
+      throw new RuntimeException("Failed to list all namespace: " + namespace + " in catalog", e);
     }
   }
 
@@ -322,8 +322,8 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
   @Override
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
-    if (!namespaceExists(namespace)) {
-      throw new NoSuchNamespaceException("Cannot drop namespace %s because it is not found!", namespace);
+    if (namespaceExists(namespace)) {
+      throw new NoSuchNamespaceException("Cannot drop namespace %s because it is not found", namespace);
     }
 
     List<TableIdentifier> tableIdentifiers = listTables(namespace);
@@ -376,11 +376,11 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       });
 
     } catch (SQLException e) {
-      LOG.warn("SQLException! ", e);
+      LOG.warn("SQLException ", e);
       return false;
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      LOG.warn("Interrupted in call to namespaceExists(namespace)! ", e);
+      LOG.warn("Interrupted in call to namespaceExists(namespace) ", e);
       return false;
     }
   }
