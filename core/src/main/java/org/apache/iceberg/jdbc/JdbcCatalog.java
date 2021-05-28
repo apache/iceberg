@@ -221,7 +221,8 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       } else if (updatedRecords == 0) {
         throw new NoSuchTableException("Table does not exist: %s", from);
       } else {
-        LOG.warn("Rename operation affected {} rows: the catalog table's primary key assumption has been violated", updatedRecords);
+        LOG.warn("Rename operation affected {} rows: the catalog table's primary key assumption has been violated",
+            updatedRecords);
       }
 
     } catch (SQLIntegrityConstraintViolationException e) {
@@ -328,7 +329,8 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
     List<TableIdentifier> tableIdentifiers = listTables(namespace);
     if (tableIdentifiers != null && !tableIdentifiers.isEmpty()) {
-      throw new NamespaceNotEmptyException("Namespace %s is not empty. %s tables exist.", namespace, tableIdentifiers.size());
+      throw new NamespaceNotEmptyException(
+          "Namespace %s is not empty. %s tables exist.", namespace, tableIdentifiers.size());
     }
 
     return false;
