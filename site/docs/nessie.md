@@ -18,7 +18,7 @@
 # Iceberg Nessie Integration
 
 Iceberg provides integration with Nessie through the `iceberg-nessie` module.
-This section describes how to use Iceberg with Nessie. Nessie provides several key features on top of iceberg:
+This section describes how to use Iceberg with Nessie. Nessie provides several key features on top of Iceberg:
 
 * multi-table transactions
 * git-like operations (eg branches, tags, commits)
@@ -30,7 +30,7 @@ See [Project Nessie](https://projectnessie.org) for more information on Nessie. 
 ## Enabling Nessie Catalog
 
 The `iceberg-nessie` module is bundled with Spark and Flink runtimes for all versions from `0.11.0`. To get started
-with nessie and iceberg simply add the iceberg runtime to your process. Eg: `spark-sql --packages
+with Nessie and Iceberg simply add the Iceberg runtime to your process. Eg: `spark-sql --packages
 org.apache.iceberg:iceberg-spark3-runtiume:{{ versions.iceberg }}`. 
 
 ## Nessie Catalog
@@ -64,11 +64,24 @@ conf.set("spark.sql.catalog.nessie.ref", "main")
 conf.set("spark.sql.catalog.nessie.catalog-impl", "org.apache.iceberg.nessie.NessieCatalog")
 conf.set("spark.sql.catalog.nessie", "org.apache.iceberg.spark.SparkCatalog")
 ```
+This is how it looks in Flink via the Python API (additional details can be found [here](flink.md)):
+```python
+import os
+from pyflink.datastream import StreamExecutionEnvironment
+from pyflink.table import StreamTableEnvironment
+
+env = StreamExecutionEnvironment.get_execution_environment()
+iceberg_flink_runtime_jar = os.path.join(os.getcwd(), "iceberg-flink-runtime-0.11.1.jar")
+env.add_jars("file://{}".format(iceberg_flink_runtime_jar))
+table_env = StreamTableEnvironment.create(env)
+
+table_env.execute_sql("CREATE CATALOG nessie_catalog WITH ('type'='iceberg', 'catalog-impl'='org.apache.iceberg.nessie.NessieCatalog', 'uri'='http://localhost:19120/api/v1', 'ref'='main', 'warehouse'='/path/to/warehouse')")
+```
 
 There is nothing special above about the `nessie` name. A spark catalog can have any name, the important parts are the 
 settings for the `catalog-impl` and the required config to start Nessie correctly.
 Once you have a Nessie catalog you have access to your entire Nessie repo. You can then perform create/delete/merge
-operations on branches and perform commits on branches. Each iceberg table in a Nessie Catalog is identified by an
+operations on branches and perform commits on branches. Each Iceberg table in a Nessie Catalog is identified by an
 arbitrary length namespace and table name (eg `data.base.name.table`). These namespaces are implicit and don't need to
 be created separately. Any transaction on a Nessie enabled Iceberg table is a single commit in Nessie. Nessie commits
 can encompass an arbitrary number of actions on an arbitrary number of tables, however in Iceberg this will be limited
@@ -82,8 +95,8 @@ Nessie functionality.
 ## Nessie and Iceberg
 
 For most cases Nessie acts just like any other Catalog for Iceberg: providing a logical organization of a set of tables
-and providing atomicity to transactions. However using Nessie opens up other interesting possibilities. When using Nessie with 
-iceberg every iceberg transaction becomes a nessie commit. This history can be listed, merged or cherry-picked across branches.
+and providing atomicity to transactions. However, using Nessie opens up other interesting possibilities. When using Nessie with
+Iceberg every Iceberg transaction becomes a Nessie commit. This history can be listed, merged or cherry-picked across branches.
 
 ### Loosely coupled transactions
 
@@ -117,8 +130,8 @@ Nessie features.
 
 ## Example 
 
-Please see [Nessie Iceberg Demo](https://github.com/projectnessie/nessie/blob/main/python/demo/nessie-iceberg-demo.ipynb) 
-for a complete example of Nessie and Iceberg in action together.
+Please have a look at the [Nessie Demos repo](https://github.com/projectnessie/nessie-demos)
+for different examples of Nessie and Iceberg in action together.
 
 ## Future Improvements
 

@@ -96,7 +96,25 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
     this.warehouseLocation = options.get(CatalogProperties.WAREHOUSE_LOCATION);
     if (warehouseLocation == null) {
-      throw new IllegalStateException("Parameter warehouse not set, nessie can't store data.");
+      // Explicitly log a warning, otherwise the thrown exception can get list in the "silent-ish catch"
+      // in o.a.i.spark.Spark3Util.catalogAndIdentifier(o.a.s.sql.SparkSession, List<String>,
+      //     o.a.s.sql.connector.catalog.CatalogPlugin)
+      // in the code block
+      //    Pair<CatalogPlugin, Identifier> catalogIdentifier = SparkUtil.catalogAndIdentifier(nameParts,
+      //        catalogName ->  {
+      //          try {
+      //            return catalogManager.catalog(catalogName);
+      //          } catch (Exception e) {
+      //            return null;
+      //          }
+      //        },
+      //        Identifier::of,
+      //        defaultCatalog,
+      //        currentNamespace
+      //    );
+      logger.warn("Catalog creation for inputName={} and options {} failed, because parameter " +
+          "'warehouse' is not set, Nessie can't store data.", inputName, options);
+      throw new IllegalStateException("Parameter 'warehouse' not set, Nessie can't store data.");
     }
     final String requestedRef = options.get(removePrefix.apply(NessieConfigConstants.CONF_NESSIE_REF));
     this.reference = loadReference(requestedRef);
