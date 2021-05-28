@@ -58,7 +58,7 @@ import org.slf4j.LoggerFactory;
 
 public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, SupportsNamespaces, Closeable {
 
-  public static final String PROPERTY_PREFIX = "connection.parameter.";
+  public static final String PROPERTY_PREFIX = "jdbc.";
   private static final Logger LOG = LoggerFactory.getLogger(JdbcCatalog.class);
   private static final Joiner SLASH = Joiner.on("/");
 
@@ -78,7 +78,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
     String warehouse = properties.get(CatalogProperties.WAREHOUSE_LOCATION);
     Preconditions.checkNotNull(warehouse, "JDBC warehouse location is required");
-    this.warehouseLocation = warehouse.replaceAll("/$", "");
+    this.warehouseLocation = warehouse.replaceAll("/*$", "");
 
     if (name != null) {
       this.catalogName = name;
@@ -130,6 +130,13 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
   @Override
   public boolean dropTable(TableIdentifier identifier, boolean purge) {
+    TableOperations ops = newTableOps(identifier);
+    TableMetadata lastMetadata;
+    if (purge && ops.current() != null) {
+      lastMetadata = ops.current();
+    } else {
+      lastMetadata = null;
+    }
 
     int deletedRecords;
     try {
@@ -148,23 +155,17 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       throw new RuntimeException("Interrupted in call to dropTable", e);
     }
 
-    if (deletedRecords > 0) {
-      LOG.info("Successfully dropped table {}.", identifier);
-    } else {
-      LOG.info("Cannot drop table: {} table not found in the catalog.", identifier);
+    if (deletedRecords == 0) {
+      LOG.info("Skipping drop, table does not exist: {}", identifier);
       return false;
     }
 
-    TableOperations ops = newTableOps(identifier);
-    TableMetadata lastMetadata = ops.current();
-
     if (purge && lastMetadata != null) {
       CatalogUtil.dropTableData(ops.io(), lastMetadata);
-      LOG.info("Table {} data purged", identifier);
     }
 
+    LOG.info("Dropped table: {}", identifier);
     return true;
-
   }
 
   @Override
@@ -182,8 +183,9 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
           ResultSet rs = sql.executeQuery();
           while (rs.next()) {
-            results.add(JdbcUtil.stringToTableIdentifier(rs.getString(JdbcUtil.TABLE_NAMESPACE), rs.getString(
-                JdbcUtil.TABLE_NAME)));
+            results.add(JdbcUtil.stringToTableIdentifier(rs.getString(JdbcUtil.TABLE_NAMESPACE),
+                rs.getString(JdbcUtil.TABLE_NAME))
+            );
           }
 
           return results;
@@ -215,17 +217,17 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       });
 
       if (updatedRecords == 1) {
-        LOG.debug("Successfully renamed table from {} to {}", from, to);
+        LOG.info("Renamed table from {}, to {}", from, to);
       } else if (updatedRecords == 0) {
-        throw new NoSuchTableException("Failed to rename table Table '%s' not found in the catalog", from);
+        throw new NoSuchTableException("Table does not exist: %s", from);
       } else {
-        throw new RuntimeException("Failed to rename table Rename operation Failed");
+        LOG.warn("Rename operation affected {} rows: the catalog table's primary key assumption has been violated", updatedRecords);
       }
 
     } catch (SQLIntegrityConstraintViolationException e) {
-      throw new AlreadyExistsException("Table with name '%s' already exists in the catalog", to);
+      throw new AlreadyExistsException("Table already exists: %s", to);
     } catch (SQLException e) {
-      throw new UncheckedSQLException(e, "Failed to rename table");
+      throw new UncheckedSQLException(e, "Failed to rename %s to %s", from, to);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new RuntimeException("Interrupted in call to rename", e);
@@ -260,7 +262,6 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     }
 
     try {
-
       List<Namespace> namespaces = connections.run(conn -> {
         List<Namespace> result = Lists.newArrayList();
 
@@ -292,7 +293,6 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
           .distinct()
           .collect(Collectors.toList());
 
-      LOG.debug("From the namespace '{}' found: {}", namespace, namespaces);
       return namespaces;
 
     } catch (InterruptedException e) {
@@ -322,19 +322,16 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
   @Override
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
-    if (namespaceExists(namespace)) {
-      throw new NoSuchNamespaceException("Cannot drop namespace %s because it is not found", namespace);
+    if (!namespaceExists(namespace)) {
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
     List<TableIdentifier> tableIdentifiers = listTables(namespace);
     if (tableIdentifiers != null && !tableIdentifiers.isEmpty()) {
-      throw new NamespaceNotEmptyException("Cannot drop namespace %s because it is not empty. " +
-          "Namespace contains %s tables", namespace, tableIdentifiers.size());
+      throw new NamespaceNotEmptyException("Namespace %s is not empty. %s tables exist.", namespace, tableIdentifiers.size());
     }
 
-    // namespaces are created/deleted by tables by default return true
-    // when there is no tables with namespace then its considered dropped
-    return true;
+    return false;
   }
 
   @Override
