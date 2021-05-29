@@ -156,7 +156,8 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   @Override
   public PartitionReaderFactory createReaderFactory() {
-    return new ReaderFactory(batchSize);
+    int batchSizeValueToDisableColumnarReads = 0;
+    return new ReaderFactory(batchSizeValueToDisableColumnarReads);
   }
 
   @Override

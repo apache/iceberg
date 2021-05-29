@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -177,7 +178,6 @@ public final class TestStructuredStreamingRead3 {
     }
 
     table.refresh();
-    List<SimpleRecord> actual;
 
     try {
       Dataset<Row> df = spark.readStream()
@@ -268,8 +268,112 @@ public final class TestStructuredStreamingRead3 {
     }
   }
 
+  @SuppressWarnings("unchecked")
   @Test
-  public void testAllFormats() throws IOException, TimeoutException{
+  public void testParquetOrcAvroDataInOneTable() throws IOException, TimeoutException {
+    File parent = temp.newFolder("parent");
+    File location = new File(parent, "test-table");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 3).build();
+    Table table = tables.create(SCHEMA, spec, location.toString());
+
+    List<SimpleRecord> parquetFileRecords = Lists.newArrayList(
+        new SimpleRecord(1, "one"),
+        new SimpleRecord(2, "two"),
+        new SimpleRecord(3, "three"));
+
+    List<SimpleRecord> orcFileRecords = Lists.newArrayList(
+        new SimpleRecord(4, "four"),
+        new SimpleRecord(5, "five"));
+
+    List<SimpleRecord> avroFileRecords = Lists.newArrayList(
+        new SimpleRecord(6, "six"),
+        new SimpleRecord(7, "seven"));
+
+    // generate multiple snapshots
+    Dataset<Row> df = spark.createDataFrame(parquetFileRecords, SimpleRecord.class);
+    df.select("id", "data").write()
+        .format("iceberg")
+        .option("write-format", "parquet")
+        .mode("append")
+        .save(location.toString());
+
+    df = spark.createDataFrame(orcFileRecords, SimpleRecord.class);
+    df.select("id", "data").write()
+        .format("iceberg")
+        .option("write-format", "orc")
+        .mode("append")
+        .save(location.toString());
+
+    df = spark.createDataFrame(avroFileRecords, SimpleRecord.class);
+    df.select("id", "data").write()
+        .format("iceberg")
+        .option("write-format", "avro")
+        .mode("append")
+        .save(location.toString());
+
+    table.refresh();
+    List<SimpleRecord> actual;
+
+    try {
+      Dataset<Row> ds = spark.readStream()
+          .format("iceberg")
+          .load(location.toString());
+      StreamingQuery streamingQuery = ds.writeStream()
+          .format("memory")
+          .queryName("test12")
+          .outputMode(OutputMode.Append())
+          .start();
+      streamingQuery.processAllAvailable();
+      actual = spark.sql("select * from test12")
+          .as(Encoders.bean(SimpleRecord.class))
+          .collectAsList();
+
+      Assert.assertEquals(Stream.concat(Stream.concat(parquetFileRecords.stream(), orcFileRecords.stream()),
+          avroFileRecords.stream())
+          .collect(Collectors.toList()),
+          actual);
+    } finally {
+      for (StreamingQuery query : spark.streams().active()) {
+        query.stop();
+      }
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testReadStreamFromEmtpyTable() throws IOException, TimeoutException {
+    File parent = temp.newFolder("parent");
+    File location = new File(parent, "test-table");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 3).build();
+    Table table = tables.create(SCHEMA, spec, location.toString());
+
+    table.refresh();
+    List<SimpleRecord> actual;
+
+    try {
+      Dataset<Row> df = spark.readStream()
+          .format("iceberg")
+          .load(location.toString());
+      StreamingQuery streamingQuery = df.writeStream()
+          .format("memory")
+          .queryName("testemptytable")
+          .outputMode(OutputMode.Append())
+          .start();
+      streamingQuery.processAllAvailable();
+      actual = spark.sql("select * from testemptytable")
+          .as(Encoders.bean(SimpleRecord.class))
+          .collectAsList();
+
+      Assert.assertEquals(Collections.emptyList(), actual);
+    } finally {
+      for (StreamingQuery query : spark.streams().active()) {
+        query.stop();
+      }
+    }
   }
 
   private static List<SimpleRecord> processMicroBatch(DataStreamWriter<Row> singleBatchWriter, String viewName)
