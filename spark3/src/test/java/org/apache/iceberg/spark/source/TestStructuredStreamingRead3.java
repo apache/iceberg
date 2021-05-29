@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
@@ -28,9 +29,11 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -195,6 +198,71 @@ public final class TestStructuredStreamingRead3 {
       Assert.assertEquals(expected.get(1), processMicroBatch(singleBatchWriter, globalTempView));
       Assert.assertEquals(expected.get(2), processMicroBatch(singleBatchWriter, globalTempView));
       Assert.assertEquals(expected.get(3), processMicroBatch(singleBatchWriter, globalTempView));
+    } finally {
+      for (StreamingQuery query : spark.streams().active()) {
+        query.stop();
+      }
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testBatchSizeOption() throws IOException, TimeoutException {
+    File parent = temp.newFolder("parent");
+    File location = new File(parent, "test-table");
+    File writerCheckpoint = new File(parent, "writer-checkpoint");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
+    Table table = tables.create(SCHEMA, spec, location.toString());
+    final String tempView = "microBatchSingleRecordView";
+
+    // produce unique file per record - to test BatchSize=1
+    List<List<SimpleRecord>> expected = Lists.newArrayList(
+        Lists.newArrayList(
+            new SimpleRecord(1, "one"),
+            new SimpleRecord(2, "two"),
+            new SimpleRecord(3, "three")),
+        Lists.newArrayList(
+            new SimpleRecord(4, "four"),
+            new SimpleRecord(5, "five")),
+        Lists.newArrayList(
+            new SimpleRecord(6, "six"),
+            new SimpleRecord(7, "seven")),
+        Lists.newArrayList(
+            new SimpleRecord(8, "eight"),
+            new SimpleRecord(9, "nine"))
+    );
+
+    // generate multiple snapshots - each snapshot with multiple files
+    for (List<SimpleRecord> l : expected) {
+      Dataset<Row> ds = spark.createDataFrame(l, SimpleRecord.class);
+      ds.select("id", "data").write()
+          .format("iceberg")
+          .mode("append")
+          .save(location.toString());
+    }
+
+    table.refresh();
+
+    try {
+      Dataset<Row> df = spark.readStream()
+          .format("iceberg")
+          .option(SparkReadOptions.VECTORIZATION_BATCH_SIZE, 1)
+          .load(location.toString());
+      DataStreamWriter<Row> singleBatchWriter = df.writeStream()
+          .trigger(Trigger.Once())
+          .option("checkpointLocation", writerCheckpoint.toString())
+          .foreachBatch((batchDF, batchId) ->
+          {
+            batchDF.createOrReplaceGlobalTempView(tempView);
+          });
+
+      String globalTempView = "global_temp." + tempView;
+      for (SimpleRecord simpleRecord:
+          expected.stream().flatMap(List::stream).collect(Collectors.toList())) {
+        Assert.assertEquals(Collections.singletonList(simpleRecord), processMicroBatch(singleBatchWriter, globalTempView));
+      }
     } finally {
       for (StreamingQuery query : spark.streams().active()) {
         query.stop();
