@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Optional;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MicroBatches;
 import org.apache.iceberg.MicroBatches.MicroBatch;
@@ -243,10 +244,24 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     Snapshot previousSnapshot = table.snapshot(microBatchStartOffset.snapshotId());
     Snapshot pointer = table.currentSnapshot();
     while (pointer != null && previousSnapshot.snapshotId() != pointer.parentId()) {
+      Preconditions.checkState(pointer.operation().equals(DataOperations.APPEND),
+          "Encountered Snapshot DataOperation other than APPEND, REWRITE and DELETE.");
+
       pointer = table.snapshot(pointer.parentId());
+      while (pointer != null && isIgnorableStreamOperation(pointer)) {
+        pointer = table.snapshot(pointer.parentId());
+      }
     }
 
+    Preconditions.checkState(pointer != null,
+        "snapshot on which the stream operated has been garbage collected.");
+
     return new StreamingOffset(pointer.snapshotId(), 0L, false);
+  }
+
+  private boolean isIgnorableStreamOperation(Snapshot snapshot) {
+    return snapshot.operation().equals(DataOperations.DELETE) ||
+        snapshot.operation().equals(DataOperations.REPLACE);
   }
 
   private PlannedEndOffset calculateEndOffset(StreamingOffset microBatchStartOffset) {
