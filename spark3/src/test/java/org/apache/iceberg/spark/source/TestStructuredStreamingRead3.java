@@ -30,7 +30,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.types.Types;
@@ -135,7 +134,7 @@ public final class TestStructuredStreamingRead3 {
           actual);
     } finally {
       for (StreamingQuery query : spark.streams().active()) {
-          query.stop();
+        query.stop();
       }
     }
   }
@@ -187,8 +186,7 @@ public final class TestStructuredStreamingRead3 {
       DataStreamWriter<Row> singleBatchWriter = df.writeStream()
           .trigger(Trigger.Once())
           .option("checkpointLocation", writerCheckpoint.toString())
-          .foreachBatch((batchDF, batchId) ->
-          {
+          .foreachBatch((batchDF, batchId) -> {
             batchDF.createOrReplaceGlobalTempView(tempView);
           });
 
@@ -252,15 +250,16 @@ public final class TestStructuredStreamingRead3 {
       DataStreamWriter<Row> singleBatchWriter = df.writeStream()
           .trigger(Trigger.Once())
           .option("checkpointLocation", writerCheckpoint.toString())
-          .foreachBatch((batchDF, batchId) ->
-          {
+          .foreachBatch((batchDF, batchId) -> {
             batchDF.createOrReplaceGlobalTempView(tempView);
           });
 
       String globalTempView = "global_temp." + tempView;
-      for (SimpleRecord simpleRecord:
+      for (SimpleRecord simpleRecord :
           expected.stream().flatMap(List::stream).collect(Collectors.toList())) {
-        Assert.assertEquals(Collections.singletonList(simpleRecord), processMicroBatch(singleBatchWriter, globalTempView));
+        Assert.assertEquals(
+            Collections.singletonList(simpleRecord),
+            processMicroBatch(singleBatchWriter, globalTempView));
       }
     } finally {
       for (StreamingQuery query : spark.streams().active()) {
@@ -270,7 +269,8 @@ public final class TestStructuredStreamingRead3 {
   }
 
   @Test
-  public void testAllFormats() throws IOException, TimeoutException{}
+  public void testAllFormats() throws IOException, TimeoutException{
+  }
 
   private static List<SimpleRecord> processMicroBatch(DataStreamWriter<Row> singleBatchWriter, String viewName)
       throws TimeoutException {
