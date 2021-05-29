@@ -159,7 +159,7 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
 
   @Override
   public Scan build() {
-      return new SparkBatchQueryScan(
+    return new SparkBatchQueryScan(
               spark, table, caseSensitive, schemaWithMetadataColumns(), filterExpressions, options);
   }
 

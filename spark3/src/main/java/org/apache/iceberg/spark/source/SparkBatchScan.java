@@ -53,7 +53,6 @@ import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
-import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
@@ -226,7 +225,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   public static class ReaderFactory implements PartitionReaderFactory {
     private final int batchSize;
 
-    public ReaderFactory(int batchSize) {
+    ReaderFactory(int batchSize) {
       this.batchSize = batchSize;
     }
 
