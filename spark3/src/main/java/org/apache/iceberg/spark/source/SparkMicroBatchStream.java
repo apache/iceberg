@@ -98,8 +98,9 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     this.splitOpenFileCost = Optional.ofNullable(Spark3Util.propertyAsLong(options, SparkReadOptions.FILE_OPEN_COST, null))
         .orElseGet(() -> PropertyUtil.propertyAsLong(table.properties(), SPLIT_OPEN_FILE_COST,
             SPLIT_OPEN_FILE_COST_DEFAULT));
-    this.offsetSeqLog = new OffsetSeqLog(spark,
-        new Path(checkpointLocation.replace("/sources/0", ""), "offsets").toString());
+    this.offsetSeqLog = checkpointLocation != null
+        ? new OffsetSeqLog(spark, getOffsetLogLocation(checkpointLocation))
+        : null;
   }
 
   @Override
@@ -187,10 +188,15 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   @Override
   public void commit(Offset end) {
+    int i=0;
   }
 
   @Override
   public void stop() {
+  }
+
+  private String getOffsetLogLocation(String checkpointLocation) {
+    return new Path(checkpointLocation.replace("/sources/0", ""), "offsets").toString();
   }
 
   private boolean isInitialOffsetResolved() {
