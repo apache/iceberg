@@ -25,21 +25,21 @@ import java.util.Map;
 /**
  * Copied here from Hive for compatibility
  */
-@SuppressWarnings({"Indentation", "WhitespaceAfter", "VisibilityModifier"})
+@SuppressWarnings("VisibilityModifier")
 public class VectorizedSupport {
-    public enum Support {
-        DECIMAL_64;
+  public enum Support {
+    DECIMAL_64;
 
-        final String lowerCaseName;
-        Support() {
-            this.lowerCaseName = name().toLowerCase();
-        }
-
-        public static final Map<String,Support> nameToSupportMap = new HashMap<String,Support>();
-        static {
-            for (Support support : values()) {
-                nameToSupportMap.put(support.lowerCaseName, support);
-            }
-        }
+    final String lowerCaseName;
+    Support() {
+      this.lowerCaseName = name().toLowerCase();
     }
+
+    public static final Map<String, Support> nameToSupportMap = new HashMap<>();
+    static {
+      for (Support support : values()) {
+        nameToSupportMap.put(support.lowerCaseName, support);
+      }
+    }
+  }
 }
