@@ -176,6 +176,15 @@ Columns in Iceberg data files are selected by field id. The table schema's colum
 For example, a file may be written with schema `1: a int, 2: b string, 3: c double` and read using projection schema `3: measurement, 2: name, 4: a`. This must select file columns `c` (renamed to `measurement`), `b` (now called `name`), and a column of `null` values called `a`; in that order.
 
 
+#### Identifier Field IDs
+
+A schema can optionally track the set of primitive fields that identify rows in a table, using the property `identifier-field-ids` (see JSON encoding in Appendix C).
+
+Two rows are the "same"---that is, the rows represent the same entity---if the identifier fields are equal. However, uniqueness of rows by this identifier is not guaranteed or required by Iceberg because it is needlessly inefficient in some cases. Reasonable steps to enforce uniqueness are the responsibility of processing engines.
+
+Optional fields can be used as identifier fields. Identifier fields may be nested in structs but may not be nested within maps or lists; a nested identifier field is considered null if it or any parent struct is null. For identifier comparison, null is considered equal to itself.
+
+
 #### Reserved Field IDs
 
 Iceberg tables must not use field ids greater than 2147483447 (`Integer.MAX_VALUE - 200`). This id range is reserved for metadata columns that can be used in user data schemas, like the `_file` column that holds the file path in which a row was stored.
@@ -810,7 +819,14 @@ Hash results are not dependent on decimal scale, which is part of the type, not 
 
 ### Schemas
 
-Schemas are serialized to JSON as a struct. Types are serialized according to this table:
+Schemas are serialized as a JSON object with the same fields as a struct in the table below, and the following additional fields:
+
+| v1         | v2         |Field|JSON representation|Example|
+| ---------- | ---------- |--- |--- |--- |
+| _optional_ | _required_ |**`schema-id`**|`JSON int`|`0`|
+| _optional_ | _optional_ |**`identifier-field-ids`**|`JSON list of ints`|`[1, 2]`|
+
+Types are serialized according to this table:
 
 |Type|JSON representation|Example|
 |--- |--- |--- |
