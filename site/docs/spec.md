@@ -456,6 +456,7 @@ Manifest list files store `manifest_file`, a struct with the following fields:
 | _optional_ | _required_ | **`513 existing_rows_count`**  | `long`                                      | Number of rows in all of files in the manifest that have status `EXISTING`, when `null` this is assumed to be non-zero |
 | _optional_ | _required_ | **`514 deleted_rows_count`**   | `long`                                      | Number of rows in all of files in the manifest that have status `DELETED`, when `null` this is assumed to be non-zero |
 | _optional_ | _optional_ | **`507 partitions`**           | `list<508: field_summary>` (see below)      | A list of field summaries for each partition field in the spec. Each field in the list corresponds to a field in the manifest file’s partition spec. |
+| _optional_ | _optional_ | **`519 key_metadata`**         | `binary`                                    | Implementation-specific key metadata for encryption |
 
 `field_summary` is a struct with the following fields:
 
