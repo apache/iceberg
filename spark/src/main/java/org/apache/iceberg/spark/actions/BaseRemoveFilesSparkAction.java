@@ -24,19 +24,19 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableMetadataParser;
+import org.apache.iceberg.actions.BaseRemoveFilesActionResult;
 import org.apache.iceberg.actions.RemoveFiles;
-import org.apache.iceberg.actions.RemoveFilesActionResult;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
-import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -45,12 +45,9 @@ import org.apache.spark.sql.functions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
 /**
- * An action that performs the same operation as {@link RemoveFiles} but uses Spark
- * to determine the files that needs to be deleted. The action uses metadata tables to
- * find the files to be deleted.
- * Deletes are performed locally after retrieving the results from the Spark executors.
+ * An implementation of {@link RemoveFiles} that uses metadata tables in Spark
+ * to determine which files should be deleted.
  */
 @SuppressWarnings("UnnecessaryAnonymousClass")
 public class BaseRemoveFilesSparkAction
@@ -67,22 +64,21 @@ public class BaseRemoveFilesSparkAction
   // Creates an executor service that runs each task in the thread that invokes execute/submit.
   private static final ExecutorService DEFAULT_DELETE_EXECUTOR_SERVICE = null;
 
-  private final Table table;
-  private final TableOperations ops;
+  private final String metadataLocation;
   private final Consumer<String> defaultDelete = new Consumer<String>() {
     @Override
     public void accept(String file) {
-      ops.io().deleteFile(file);
+      io.deleteFile(file);
     }
   };
 
-  private Consumer<String> deleteFunc = defaultDelete;
-  private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
+  private Consumer<String> removeFunc = defaultDelete;
+  private ExecutorService removeExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
+  private FileIO io = new HadoopFileIO();
 
-  public BaseRemoveFilesSparkAction(SparkSession spark, Table table) {
+  public BaseRemoveFilesSparkAction(SparkSession spark, String metadataLocation) {
     super(spark);
-    this.table = table;
-    this.ops = ((HasTableOperations) table).operations();
+    this.metadataLocation = metadataLocation;
   }
 
   @Override
@@ -92,41 +88,63 @@ public class BaseRemoveFilesSparkAction
 
   @Override
   public Result execute() {
-    JobGroupInfo info = newJobGroupInfo("REMOVE-FILES",
-        String.format("Removing files from %s", table.location()));
+    if (io == null) {
+      throw new RuntimeException("IO needs to be set for removing the files");
+    }
+    String msg = String.format("Removing files reachable from %s", metadataLocation);
+    JobGroupInfo info = newJobGroupInfo("REMOVE-FILES", msg);
     return withJobGroupInfo(info, this::doExecute);
   }
 
   private Result doExecute() {
     boolean streamResults = PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, false);
-    Dataset<Row> validFileDataset = buildValidFileDF(ops.current()).distinct();
-    RemoveFilesActionResult result;
+    TableMetadata metadata = TableMetadataParser.read(io, metadataLocation);
+    Dataset<Row> validFileDF = buildValidFileDF(metadata).distinct();
     if (streamResults) {
-      result = deleteFiles(validFileDataset.toLocalIterator());
+      return deleteFiles(validFileDF.toLocalIterator());
     } else {
-      result = deleteFiles(validFileDataset.collectAsList().iterator());
+      return deleteFiles(validFileDF.collectAsList().iterator());
     }
-    return result;
   }
 
-  private Dataset<Row> appendTypeString(Dataset<Row> ds, String type) {
-    return ds.select(new Column("file_path"), functions.lit(type).as("file_type"));
+  private Dataset<Row> projectFilePathWithType(Dataset<Row> ds, String type) {
+    return ds.select(functions.col("file_path"), functions.lit(type).as("file_type"));
   }
 
   private Dataset<Row> buildValidFileDF(TableMetadata metadata) {
-    Table staticTable = newStaticTable(metadata, this.table.io());
-    return appendTypeString(buildValidDataFileDF(staticTable), DATA_FILE)
-        .union(appendTypeString(buildManifestFileDF(staticTable), MANIFEST))
-        .union(appendTypeString(buildManifestListDF(staticTable), MANIFEST_LIST))
-        .union(appendTypeString(buildOtherMetadataFileDF(staticTable), OTHERS));
+    Table staticTable = newStaticTable(metadata, io);
+    return projectFilePathWithType(buildValidDataFileDF(staticTable), DATA_FILE)
+        .union(projectFilePathWithType(buildManifestFileDF(staticTable), MANIFEST))
+        .union(projectFilePathWithType(buildManifestListDF(staticTable), MANIFEST_LIST))
+        .union(projectFilePathWithType(buildOtherMetadataFileDF(staticTable), OTHERS));
   }
 
   @Override
-  protected Dataset<Row> buildOtherMetadataFileDF(Table tbl) {
+  protected Dataset<Row> buildOtherMetadataFileDF(Table table) {
     List<String> otherMetadataFiles = Lists.newArrayList();
     otherMetadataFiles.addAll(ReachableFileUtil.metadataFileLocations(table, true));
-    otherMetadataFiles.add(ReachableFileUtil.versionHintLocation(table));
+    // otherMetadataFiles.add(ReachableFileUtil.versionHintLocation(table));
     return spark().createDataset(otherMetadataFiles, Encoders.STRING()).toDF("file_path");
+  }
+
+
+  @Override
+  public RemoveFiles io(FileIO fileIO) {
+    this.io = fileIO;
+    return this;
+  }
+
+  @Override
+  public RemoveFiles removeWith(Consumer<String> removeFn) {
+    this.removeFunc = removeFn;
+    return this;
+
+  }
+
+  @Override
+  public RemoveFiles executeRemoveWith(ExecutorService executorService) {
+    this.removeExecutorService = executorService;
+    return this;
   }
 
   /**
@@ -135,7 +153,7 @@ public class BaseRemoveFilesSparkAction
    * @param deleted an Iterator of Spark Rows of the structure (path: String, type: String)
    * @return Statistics on which files were deleted
    */
-  private RemoveFilesActionResult deleteFiles(Iterator<Row> deleted) {
+  private BaseRemoveFilesActionResult deleteFiles(Iterator<Row> deleted) {
     AtomicLong dataFileCount = new AtomicLong(0L);
     AtomicLong manifestCount = new AtomicLong(0L);
     AtomicLong manifestListCount = new AtomicLong(0L);
@@ -143,7 +161,7 @@ public class BaseRemoveFilesSparkAction
 
     Tasks.foreach(deleted)
         .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
-        .executeWith(deleteExecutorService)
+        .executeWith(removeExecutorService)
         .onFailure((fileInfo, exc) -> {
           String file = fileInfo.getString(0);
           String type = fileInfo.getString(1);
@@ -152,7 +170,7 @@ public class BaseRemoveFilesSparkAction
         .run(fileInfo -> {
           String file = fileInfo.getString(0);
           String type = fileInfo.getString(1);
-          deleteFunc.accept(file);
+          removeFunc.accept(file);
           switch (type) {
             case DATA_FILE:
               dataFileCount.incrementAndGet();
@@ -173,22 +191,9 @@ public class BaseRemoveFilesSparkAction
           }
         });
 
-    LOG.info("Deleted {} total files", dataFileCount.get() + manifestCount.get() + manifestListCount.get() +
+    long filesCount = dataFileCount.get() + manifestCount.get() + manifestListCount.get() + otherFilesCount.get();
+    LOG.info("Total files removed: {}", filesCount);
+    return new BaseRemoveFilesActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get(),
         otherFilesCount.get());
-    return new RemoveFilesActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get(),
-        otherFilesCount.get());
-  }
-
-  @Override
-  public RemoveFiles deleteWith(Consumer<String> deleteFn) {
-    this.deleteFunc = deleteFn;
-    return this;
-
-  }
-
-  @Override
-  public RemoveFiles executeDeleteWith(ExecutorService executorService) {
-    this.deleteExecutorService = executorService;
-    return this;
   }
 }

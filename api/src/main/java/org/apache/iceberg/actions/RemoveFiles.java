@@ -21,57 +21,70 @@ package org.apache.iceberg.actions;
 
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import org.apache.iceberg.io.FileIO;
 
 /**
- * An action that deletes data, manifest, manifest lists in a table.
+ * An action that removes all files referenced by a table metadata file.
+ * <p>
+ * This action will irreversibly delete all reachable files such as data files, manifests,
+ * manifest lists and should be used to clean up the underlying storage once a table is dropped
+ * and no longer needed.
  * <p>
  * Implementations may use a query engine to distribute parts of work.
  */
 public interface RemoveFiles extends Action<RemoveFiles, RemoveFiles.Result> {
 
   /**
-   * Passes an alternative delete implementation that will be used for manifests and data files.
+   * Passes an alternative delete implementation that will be used for files.
    *
-   * @param deleteFunc a function that will be called to delete manifests and data files.
-   *                  The function accepts path to file as an argument.
+   * @param removeFunc a function that will be called to delete files.
+   *                   The function accepts path to file as an argument.
    * @return this for method chaining
    */
-  RemoveFiles deleteWith(Consumer<String> deleteFunc);
+  RemoveFiles removeWith(Consumer<String> removeFunc);
 
   /**
-   * Passes an alternative executor service that will be used for manifests and data files deletion.
+   * Passes an alternative executor service that will be used for files removal.
    * <p>
-   * If this method is not called, manifests and data files will still be deleted in
-   * the current thread.
+   * If this method is not called, files will still be deleted in the current thread.
    * <p>
    *
    * @param executorService the service to use
    * @return this for method chaining
    */
-  RemoveFiles executeDeleteWith(ExecutorService executorService);
+  RemoveFiles executeRemoveWith(ExecutorService executorService);
+
+  /**
+   * Set the {@link FileIO} to be used for files removal
+   *
+   * @param io FileIO to use for files removal
+   * @return this for method chaining
+   */
+  RemoveFiles io(FileIO io);
 
   /**
    * The action result that contains a summary of the execution.
    */
   interface Result {
-    /**
-     * Returns the number of deleted data files.
-     */
-    long deletedDataFilesCount();
 
     /**
-     * Returns the number of deleted manifests.
+     * Returns the number of data files removed.
      */
-    long deletedManifestsCount();
+    long removedDataFilesCount();
 
     /**
-     * Returns the number of deleted manifest lists.
+     * Returns the number of manifests removed.
      */
-    long deletedManifestListsCount();
+    long removedManifestsCount();
 
     /**
-     * Returns the number of files deleted other than data, manifest and manifest list.
+     * Returns the number of manifest lists removed.
      */
-    long otherDeletedFilesCount();
+    long removedManifestListsCount();
+
+    /**
+     * Returns the number of metadata json, version hint files removed.
+     */
+    long otherRemovedFilesCount();
   }
 }
