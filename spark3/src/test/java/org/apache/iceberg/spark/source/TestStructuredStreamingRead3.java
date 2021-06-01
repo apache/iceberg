@@ -204,7 +204,7 @@ public final class TestStructuredStreamingRead3 {
 
   @SuppressWarnings("unchecked")
   @Test
-  public void testBatchSizeOption() throws IOException, TimeoutException {
+  public void validateWhenBatchSizeEquals1ThenOneFileAtATimeIsStreamed() throws IOException, TimeoutException {
     File parent = temp.newFolder("parent");
     File location = new File(parent, "test-table");
     File writerCheckpoint = new File(parent, "writer-checkpoint");
@@ -343,7 +343,7 @@ public final class TestStructuredStreamingRead3 {
 
   @SuppressWarnings("unchecked")
   @Test
-  public void testReadStreamFromEmtpyTable() throws IOException, TimeoutException {
+  public void testReadStreamFromEmptyTable() throws IOException, TimeoutException {
     File parent = temp.newFolder("parent");
     File location = new File(parent, "test-table");
 
