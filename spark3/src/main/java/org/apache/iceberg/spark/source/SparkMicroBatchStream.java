@@ -233,23 +233,15 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     Snapshot pointer = table.currentSnapshot();
     while (pointer != null && previousSnapshot.snapshotId() != pointer.parentId()) {
       Preconditions.checkState(pointer.operation().equals(DataOperations.APPEND),
-          "Encountered Snapshot DataOperation other than APPEND, REWRITE and DELETE.");
+          "Encountered Snapshot DataOperation other than APPEND.");
 
       pointer = table.snapshot(pointer.parentId());
-      while (pointer != null && isIgnorableStreamOperation(pointer)) {
-        pointer = table.snapshot(pointer.parentId());
-      }
     }
 
     Preconditions.checkState(pointer != null,
         "snapshot on which the stream operated has been garbage collected.");
 
     return new StreamingOffset(pointer.snapshotId(), 0L, false);
-  }
-
-  private boolean isIgnorableStreamOperation(Snapshot snapshot) {
-    return snapshot.operation().equals(DataOperations.DELETE) ||
-        snapshot.operation().equals(DataOperations.REPLACE);
   }
 
   private PlannedEndOffset calculateEndOffset(StreamingOffset microBatchStartOffset) {

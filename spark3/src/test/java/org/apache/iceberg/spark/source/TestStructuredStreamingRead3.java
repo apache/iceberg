@@ -27,9 +27,20 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.DataOperations;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.data.FileHelpers;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
@@ -41,6 +52,7 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.streaming.DataStreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.streaming.StreamingQuery;
+import org.apache.spark.sql.streaming.StreamingQueryException;
 import org.apache.spark.sql.streaming.Trigger;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -369,6 +381,208 @@ public final class TestStructuredStreamingRead3 {
           .collectAsList();
 
       Assert.assertEquals(Collections.emptyList(), actual);
+    } finally {
+      for (StreamingQuery query : spark.streams().active()) {
+        query.stop();
+      }
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testReadStreamWithSnapshotTypeOverwriteErrorsOut() throws IOException, TimeoutException {
+    File parent = temp.newFolder("parent");
+    File location = new File(parent, "test-table");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 3).build();
+    Table table = tables.create(SCHEMA, spec, location.toString());
+    TableOperations ops = ((BaseTable) table).operations();
+    TableMetadata meta = ops.current();
+    ops.commit(meta, meta.upgradeToFormatVersion(2));
+
+    List<List<SimpleRecord>> expected = Lists.newArrayList(
+        Lists.newArrayList(
+            new SimpleRecord(1, "one"),
+            new SimpleRecord(2, "two"),
+            new SimpleRecord(3, "three")),
+        Lists.newArrayList(
+            new SimpleRecord(4, "four"),
+            new SimpleRecord(5, "five"))
+    );
+
+    // generate multiple snapshots
+    for (List<SimpleRecord> l : expected) {
+      Dataset<Row> df = spark.createDataFrame(l, SimpleRecord.class);
+      df.select("id", "data").write()
+          .format("iceberg")
+          .mode("append")
+          .save(location.toString());
+    }
+
+    table.refresh();
+
+    Schema deleteRowSchema = table.schema().select("data");
+    Record dataDelete = GenericRecord.create(deleteRowSchema);
+    List<Record> dataDeletes = Lists.newArrayList(
+        dataDelete.copy("data", "one") // id = 1
+    );
+
+    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, deleteRowSchema);
+
+    table.newRowDelta()
+        .addDeletes(eqDeletes)
+        .commit();
+
+    // check pre-condition
+    Assert.assertEquals(DataOperations.OVERWRITE, table.currentSnapshot().operation());
+
+    try {
+      Dataset<Row> df = spark.readStream()
+          .format("iceberg")
+          .load(location.toString());
+      StreamingQuery streamingQuery = df.writeStream()
+          .format("memory")
+          .queryName("testtablewithoverwrites")
+          .outputMode(OutputMode.Append())
+          .start();
+
+      try {
+        streamingQuery.processAllAvailable();
+        Assert.assertTrue(false); // should be unreachable
+      } catch (Exception exception) {
+        Assert.assertTrue(exception instanceof StreamingQueryException);
+        Assert.assertTrue(((StreamingQueryException) exception).cause() instanceof IllegalStateException);
+      }
+
+    } finally {
+      for (StreamingQuery query : spark.streams().active()) {
+        query.stop();
+      }
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testReadStreamWithSnapshotTypeReplaceErrorsOut() throws IOException, TimeoutException {
+    File parent = temp.newFolder("parent");
+    File location = new File(parent, "test-table");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).build();
+    Table table = tables.create(SCHEMA, spec, location.toString());
+
+    List<List<SimpleRecord>> expected = Lists.newArrayList(
+        Lists.newArrayList(
+            new SimpleRecord(1, "one"),
+            new SimpleRecord(2, "two"),
+            new SimpleRecord(3, "three")),
+        Lists.newArrayList(
+            new SimpleRecord(4, "four"),
+            new SimpleRecord(5, "five"))
+    );
+
+    // generate multiple snapshots
+    for (List<SimpleRecord> l : expected) {
+      Dataset<Row> df = spark.createDataFrame(l, SimpleRecord.class);
+      df.select("id", "data").write()
+          .format("iceberg")
+          .mode("append")
+          .save(location.toString());
+    }
+
+    table.refresh();
+
+    // this should create a snapshot with type Replace.
+    table.rewriteManifests()
+        .clusterBy(f -> 1)
+        .commit();
+
+    // check pre-condition
+    Assert.assertEquals(DataOperations.REPLACE, table.currentSnapshot().operation());
+
+    try {
+      Dataset<Row> df = spark.readStream()
+          .format("iceberg")
+          .load(location.toString());
+      StreamingQuery streamingQuery = df.writeStream()
+          .format("memory")
+          .queryName("testtablewithreplace")
+          .outputMode(OutputMode.Append())
+          .start();
+
+      try {
+        streamingQuery.processAllAvailable();
+        Assert.assertTrue(false); // should be unreachable
+      } catch (Exception exception) {
+        Assert.assertTrue(exception instanceof StreamingQueryException);
+        Assert.assertTrue(((StreamingQueryException) exception).cause() instanceof IllegalStateException);
+      }
+
+    } finally {
+      for (StreamingQuery query : spark.streams().active()) {
+        query.stop();
+      }
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testReadStreamWithSnapshotTypeDeleteErrorsOut() throws IOException, TimeoutException {
+    File parent = temp.newFolder("parent");
+    File location = new File(parent, "test-table");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
+    Table table = tables.create(SCHEMA, spec, location.toString());
+
+    List<List<SimpleRecord>> expected = Lists.newArrayList(
+        Lists.newArrayList(
+            new SimpleRecord(1, "one"),
+            new SimpleRecord(2, "two"),
+            new SimpleRecord(3, "three")),
+        Lists.newArrayList(
+            new SimpleRecord(4, "four"))
+    );
+
+    // generate multiple snapshots
+    for (List<SimpleRecord> l : expected) {
+      Dataset<Row> df = spark.createDataFrame(l, SimpleRecord.class);
+      df.select("id", "data").write()
+          .format("iceberg")
+          .mode("append")
+          .save(location.toString());
+    }
+
+    table.refresh();
+
+    // this should create a snapshot with type delete.
+    table.newDelete()
+        .deleteFromRowFilter(Expressions.equal("id", 4))
+        .commit();
+
+    // check pre-condition
+    Assert.assertEquals(DataOperations.DELETE, table.currentSnapshot().operation());
+
+    try {
+      Dataset<Row> df = spark.readStream()
+          .format("iceberg")
+          .load(location.toString());
+      StreamingQuery streamingQuery = df.writeStream()
+          .format("memory")
+          .queryName("testtablewithdelete")
+          .outputMode(OutputMode.Append())
+          .start();
+
+      try {
+        streamingQuery.processAllAvailable();
+        Assert.assertTrue(false); // should be unreachable
+      } catch (Exception exception) {
+        Assert.assertTrue(exception instanceof StreamingQueryException);
+        Assert.assertTrue(((StreamingQueryException) exception).cause() instanceof IllegalStateException);
+      }
+
     } finally {
       for (StreamingQuery query : spark.streams().active()) {
         query.stop();
