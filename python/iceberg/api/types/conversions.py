@@ -86,7 +86,7 @@ class Conversions(object):
         try:
             return Conversions.to_byte_buff_mapping.get(type_id)(type_id, value)
         except KeyError:
-            raise RuntimeError("Cannot Serialize Type: %s" % type_id)
+            raise TypeError("Cannot Serialize Type: %s" % type_id)
 
     @staticmethod
     def from_byte_buffer(type_var, buffer_var):
