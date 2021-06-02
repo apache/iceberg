@@ -75,7 +75,12 @@ iceberg_flink_runtime_jar = os.path.join(os.getcwd(), "iceberg-flink-runtime-0.1
 env.add_jars("file://{}".format(iceberg_flink_runtime_jar))
 table_env = StreamTableEnvironment.create(env)
 
-table_env.execute_sql("CREATE CATALOG nessie_catalog WITH ('type'='iceberg', 'catalog-impl'='org.apache.iceberg.nessie.NessieCatalog', 'uri'='http://localhost:19120/api/v1', 'ref'='main', 'warehouse'='/path/to/warehouse')")
+table_env.execute_sql("CREATE CATALOG nessie_catalog WITH ("
+                      "'type'='iceberg', "
+                      "'catalog-impl'='org.apache.iceberg.nessie.NessieCatalog', "
+                      "'uri'='http://localhost:19120/api/v1', "
+                      "'ref'='main', "
+                      "'warehouse'='/path/to/warehouse')")
 ```
 
 There is nothing special above about the `nessie` name. A spark catalog can have any name, the important parts are the 
