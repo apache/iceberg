@@ -82,4 +82,10 @@ public final class NessieUtil {
     return key;
   }
 
+  /**
+   * @return The current OS user as defined by the system property <b>user.name</b> or an empty string
+   */
+  static String getCommitAuthor() {
+    return System.getProperty("user.name", "");
+  }
 }
