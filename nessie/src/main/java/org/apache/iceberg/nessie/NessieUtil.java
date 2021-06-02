@@ -22,13 +22,21 @@ package org.apache.iceberg.nessie;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.function.Predicate;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.ContentsKey;
 import org.projectnessie.model.EntriesResponse;
+import org.projectnessie.model.ImmutableCommitMeta;
 
 public final class NessieUtil {
+
+  static final String SPARK_APP_ID = "spark.app.id";
+  static final String SPARK_USER = "spark.user";
 
   private NessieUtil() {
 
@@ -82,10 +90,25 @@ public final class NessieUtil {
     return key;
   }
 
+  static CommitMeta buildCommitMetadata(String commitMsg, Map<String, String> catalogOptions) {
+    Preconditions.checkArgument(null != catalogOptions, "catalogOptions must not be null");
+    ImmutableCommitMeta.Builder cm = CommitMeta.builder().message(commitMsg)
+        .author(NessieUtil.getCommitAuthor(catalogOptions));
+    cm.putProperties("application.type", "iceberg");
+    if (catalogOptions.containsKey(SPARK_APP_ID)) {
+      cm.putProperties("spark.app.id", catalogOptions.get(SPARK_APP_ID));
+    }
+
+    return cm.build();
+  }
+
   /**
-   * @return The current OS user as defined by the system property <b>user.name</b> or an empty string
+   * @param catalogOptions The options where to look for the <b>spark.user</b>
+   * @return The author that can be used for a commit, which is either the <b>spark.user</b> from the given
+   * <code>catalogOptions</code> or the logged in user as defined in the <b>user.name</b> JVM properties.
    */
-  static String getCommitAuthor() {
-    return System.getProperty("user.name", "");
+  private static String getCommitAuthor(Map<String, String> catalogOptions) {
+    return Optional.ofNullable(catalogOptions.get(SPARK_USER))
+        .orElseGet(() -> System.getProperty("user.name", ""));
   }
 }

@@ -21,21 +21,19 @@ package org.apache.iceberg.nessie;
 
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreTableOperations;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.projectnessie.client.NessieClient;
 import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
-import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.Contents;
 import org.projectnessie.model.ContentsKey;
 import org.projectnessie.model.IcebergTable;
-import org.projectnessie.model.ImmutableCommitMeta;
 import org.projectnessie.model.ImmutableIcebergTable;
 import org.projectnessie.model.ImmutableOperations;
 import org.projectnessie.model.Operation;
@@ -51,6 +49,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
   private UpdateableReference reference;
   private IcebergTable table;
   private FileIO fileIO;
+  private Map<String, String> catalogOptions;
 
   /**
    * Create a nessie table operations given a table identifier.
@@ -103,15 +102,8 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
     boolean delete = true;
     try {
       IcebergTable newTable = ImmutableIcebergTable.builder().metadataLocation(newMetadataLocation).build();
-      ImmutableCommitMeta.Builder cm = CommitMeta.builder().message("iceberg commit")
-          .author(NessieUtil.getCommitAuthor());
-      String appId = applicationId();
-      if (appId != null) {
-        cm.putProperties("spark.app.id", appId);
-      }
-      cm.putProperties("application.type", "iceberg");
       Operations op = ImmutableOperations.builder().addOperations(Operation.Put.of(key, newTable))
-          .commitMeta(cm.build()).build();
+          .commitMeta(NessieUtil.buildCommitMetadata("iceberg commit", getCatalogOptions())).build();
       client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(), reference.getHash(), op);
 
       delete = false;
@@ -139,26 +131,11 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
     return fileIO;
   }
 
-  /**
-   * try and get a Spark application id if one exists.
-   *
-   * <p>
-   *   We haven't figured out a general way to pass commit messages through to the Nessie committer yet.
-   *   This is hacky but gets the job done until we can have a more complete commit/audit log.
-   * </p>
-   */
-  private String applicationId() {
-    String appId = null;
-    TableMetadata current = current();
-    if (current != null) {
-      Snapshot snapshot = current.currentSnapshot();
-      if (snapshot != null) {
-        Map<String, String> summary = snapshot.summary();
-        appId = summary.get("spark.app.id");
-      }
-
-    }
-    return appId;
+  Map<String, String> getCatalogOptions() {
+    return null == catalogOptions ? ImmutableMap.of() : ImmutableMap.copyOf(catalogOptions);
   }
 
+  void setCatalogOptions(Map<String, String> catalogOptions) {
+    this.catalogOptions = catalogOptions;
+  }
 }

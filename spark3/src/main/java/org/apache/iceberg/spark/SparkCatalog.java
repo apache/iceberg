@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -380,7 +381,12 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
     this.cacheEnabled = Boolean.parseBoolean(options.getOrDefault("cache-enabled", "true"));
-    Catalog catalog = buildIcebergCatalog(name, options);
+
+    Map<String, String> map = new HashMap<>(options.asCaseSensitiveMap());
+    map.put("spark.app.id", SparkSession.active().sparkContext().applicationId());
+    map.put("spark.user", SparkSession.active().sparkContext().sparkUser());
+
+    Catalog catalog = buildIcebergCatalog(name, new CaseInsensitiveStringMap(map));
 
     this.catalogName = name;
     this.tables = new HadoopTables(SparkSession.active().sessionState().newHadoopConf());
