@@ -78,7 +78,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final Integer splitLookback;
   private final Long splitOpenFileCost;
   private final boolean localityPreferred;
-  private final OffsetSeqLog offsetSeqLog;
+  private final OffsetLog offsetLog;
 
   private StreamingOffset initialOffset = null;
   private PlannedEndOffset previousEndOffset = null;
@@ -100,9 +100,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         Spark3Util.propertyAsLong(options, SparkReadOptions.FILE_OPEN_COST, null))
         .orElseGet(() -> PropertyUtil.propertyAsLong(table.properties(), SPLIT_OPEN_FILE_COST,
             SPLIT_OPEN_FILE_COST_DEFAULT));
-    this.offsetSeqLog = checkpointLocation != null ?
-        new OffsetSeqLog(spark, getOffsetLogLocation(checkpointLocation)) :
-        null;
+    this.offsetLog = OffsetLog.getInstance(spark, checkpointLocation);
   }
 
   @Override
@@ -197,10 +195,6 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   public void stop() {
   }
 
-  private String getOffsetLogLocation(String checkpointLocation) {
-    return new Path(checkpointLocation.replace("/sources/0", ""), "offsets").toString();
-  }
-
   private boolean isInitialOffsetResolved() {
     return initialOffset != null;
   }
@@ -209,20 +203,14 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     Preconditions.checkState(isStreamResumedFromCheckpoint(),
         "Stream is not resumed from checkpoint.");
 
-    OffsetSeq offsetSeq = offsetSeqLog.getLatest().get()._2;
-
-    List<Option<Offset>> offsetSeqCol = JavaConverters.seqAsJavaList(offsetSeq.offsets());
-    Option<Offset> optionalOffset = offsetSeqCol.get(0);
-
-    StreamingOffset checkpointedOffset = StreamingOffset.fromJson(optionalOffset.get().json());
-    return checkpointedOffset;
+    return offsetLog.getLatest();
   }
 
   private boolean isStreamResumedFromCheckpoint() {
     Preconditions.checkState(!isInitialOffsetResolved(),
         "isStreamResumedFromCheckpoint() is invoked without resolving initialOffset");
 
-    return offsetSeqLog != null && offsetSeqLog.getLatest() != null && offsetSeqLog.getLatest().isDefined();
+    return offsetLog.isOffsetLogInitialized();
   }
 
   private boolean isFirstBatch() {
@@ -304,6 +292,47 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
     public MicroBatch getMicroBatch() {
       return microBatch;
+    }
+  }
+
+  interface OffsetLog {
+    static OffsetLog getInstance(SparkSession spark, String checkpointLocation) {
+      return new OffsetLogImpl(spark, checkpointLocation);
+    }
+
+    boolean isOffsetLogInitialized();
+
+    StreamingOffset getLatest();
+  }
+
+  private static class OffsetLogImpl implements OffsetLog {
+    private final OffsetSeqLog offsetSeqLog;
+
+    OffsetLogImpl(SparkSession spark, String checkpointLocation) {
+      this.offsetSeqLog = checkpointLocation != null ?
+          new OffsetSeqLog(spark, getOffsetLogLocation(checkpointLocation)) :
+          null;
+    }
+
+    @Override
+    public boolean isOffsetLogInitialized() {
+      return offsetSeqLog != null &&
+          offsetSeqLog.getLatest() != null &&
+          offsetSeqLog.getLatest().isDefined();
+    }
+
+    @Override
+    public StreamingOffset getLatest() {
+      OffsetSeq offsetSeq = offsetSeqLog.getLatest().get()._2;
+
+      List<Option<Offset>> offsetSeqCol = JavaConverters.seqAsJavaList(offsetSeq.offsets());
+      Option<Offset> optionalOffset = offsetSeqCol.get(0);
+
+      return StreamingOffset.fromJson(optionalOffset.get().json());
+    }
+
+    private String getOffsetLogLocation(String checkpointLocation) {
+      return new Path(checkpointLocation.replace("/sources/0", ""), "offsets").toString();
     }
   }
 }
