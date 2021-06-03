@@ -95,7 +95,7 @@ public class TestCatalog implements Catalog, Configurable {
     String uri = properties.get(CatalogProperties.URI);
     warehouse = properties.get("warehouse");
     Preconditions.checkArgument(uri != null, "A uri parameter must be set");
-    Preconditions.checkArgument(uri.contains("thrift"), "A ur parameter must be valid");
+    Preconditions.checkArgument(uri.contains("thrift"), "A uri parameter must be valid");
     Preconditions.checkArgument(warehouse != null, "A warehouse parameter must be set");
     this.tables = new HadoopTables(conf);
   }
