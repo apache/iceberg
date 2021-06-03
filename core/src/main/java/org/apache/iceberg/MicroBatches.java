@@ -242,7 +242,7 @@ public class MicroBatches {
       ManifestGroup manifestGroup = new ManifestGroup(io, ImmutableList.of(manifestFile))
           .specsById(specsById)
           .caseSensitive(caseSensitive);
-      if (scanAllFiles) {
+      if (!scanAllFiles) {
         manifestGroup = manifestGroup
             .filterManifestEntries(entry ->
                 entry.snapshotId() == snapshot.snapshotId() && entry.status() == ManifestEntry.Status.ADDED)
