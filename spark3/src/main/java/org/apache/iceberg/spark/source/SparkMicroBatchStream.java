@@ -19,15 +19,21 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MicroBatches;
 import org.apache.iceberg.MicroBatches.MicroBatch;
-import org.apache.iceberg.MicroBatches.MicroBatchBuilder;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SerializableTable;
@@ -37,6 +43,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.io.CharStreams;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.source.SparkBatchScan.ReadTask;
@@ -51,13 +58,11 @@ import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.connector.read.streaming.Offset;
-import org.apache.spark.sql.execution.streaming.OffsetSeq;
-import org.apache.spark.sql.execution.streaming.OffsetSeqLog;
+import org.apache.spark.sql.execution.streaming.HDFSMetadataLog;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.Option;
-import scala.collection.JavaConverters;
+import scala.reflect.ClassTag;
 
 import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK;
 import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK_DEFAULT;
@@ -73,7 +78,6 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final Table table;
   private final boolean caseSensitive;
   private final Schema expectedSchema;
-  private final int batchSize;
   private final Long splitSize;
   private final Integer splitLookback;
   private final Long splitOpenFileCost;
@@ -81,7 +85,6 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final OffsetLog offsetLog;
 
   private StreamingOffset initialOffset = null;
-  private PlannedEndOffset previousEndOffset = null;
 
   SparkMicroBatchStream(SparkSession spark, JavaSparkContext sparkContext,
                         Table table, boolean caseSensitive, Schema expectedSchema,
@@ -90,7 +93,6 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     this.table = table;
     this.caseSensitive = caseSensitive;
     this.expectedSchema = expectedSchema;
-    this.batchSize = Spark3Util.batchSize(table.properties(), options);
     this.localityPreferred = Spark3Util.isLocalityEnabled(table.io(), table.location(), options);
     this.splitSize = Optional.ofNullable(Spark3Util.propertyAsLong(options, SparkReadOptions.SPLIT_SIZE, null))
         .orElseGet(() -> PropertyUtil.propertyAsLong(table.properties(), SPLIT_SIZE, SPLIT_SIZE_DEFAULT));
@@ -107,17 +109,15 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   public Offset latestOffset() {
     initialOffset();
 
-    if (isTableEmpty()) {
+    final Snapshot latestSnapshot = table.currentSnapshot();
+    if (latestSnapshot == null) {
       return StreamingOffset.START_OFFSET;
     }
 
-    StreamingOffset microBatchStartOffset = isFirstBatch() ? initialOffset : previousEndOffset;
-    if (isEndOfSnapshot(microBatchStartOffset)) {
-      microBatchStartOffset = getNextAvailableSnapshot(microBatchStartOffset);
-    }
-
-    previousEndOffset = calculateEndOffset(microBatchStartOffset);
-    return previousEndOffset;
+    return new StreamingOffset(
+        latestSnapshot.snapshotId(),
+        Iterables.size(latestSnapshot.addedFiles()),
+        latestSnapshot.snapshotId() == initialOffset.snapshotId());
   }
 
   @Override
@@ -131,11 +131,17 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     String expectedSchemaString = SchemaParser.toJson(expectedSchema);
 
     Preconditions.checkState(
-        end instanceof PlannedEndOffset,
-        "The end offset passed to planInputPartitions() is not the one that is returned by lastOffset()");
-    PlannedEndOffset endOffset = (PlannedEndOffset) end;
+        end instanceof StreamingOffset,
+        "The end offset passed to planInputPartitions() is not an instance of StreamingOffset.");
 
-    List<FileScanTask> fileScanTasks = endOffset.getMicroBatch().tasks();
+    Preconditions.checkState(
+        start instanceof StreamingOffset,
+        "The start offset passed to planInputPartitions() is not an instance of StreamingOffset.");
+
+    StreamingOffset endOffset = (StreamingOffset) end;
+    StreamingOffset startOffset = (StreamingOffset) start;
+
+    List<FileScanTask> fileScanTasks = getFileScanTasks(startOffset, endOffset);
 
     CloseableIterable<FileScanTask> splitTasks = TableScanUtil.splitFiles(
         CloseableIterable.withNoopClose(fileScanTasks),
@@ -161,22 +167,21 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   @Override
   public Offset initialOffset() {
-    if (isInitialOffsetResolved()) {
+    if (initialOffset != null) {
       return initialOffset;
     }
 
-    if (isStreamResumedFromCheckpoint()) {
-      initialOffset = calculateInitialOffsetFromCheckpoint();
+    if (offsetLog.isOffsetLogInitialized()) {
+      initialOffset = offsetLog.getLatest();
       return initialOffset;
     }
 
-    List<Long> snapshotIds = SnapshotUtil.currentAncestors(table);
-    if (snapshotIds.isEmpty()) {
+    if (table.currentSnapshot() == null) {
       initialOffset = StreamingOffset.START_OFFSET;
-      Preconditions.checkState(isTableEmpty(),
-          "criteria behind isTableEmpty() changed.");
     } else {
-      initialOffset = new StreamingOffset(Iterables.getLast(snapshotIds), 0, true);
+      initialOffset = new StreamingOffset(
+          SnapshotUtil.oldestSnapshot(table).snapshotId(), 0, true);
+      this.offsetLog.addInitialOffset(initialOffset);
     }
 
     return initialOffset;
@@ -195,41 +200,28 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   public void stop() {
   }
 
-  private boolean isInitialOffsetResolved() {
-    return initialOffset != null;
+  private List<FileScanTask> getFileScanTasks(StreamingOffset startOffset, StreamingOffset endOffset) {
+    final List<FileScanTask> fileScanTasks = new ArrayList<>();
+    MicroBatch latestMicroBatch = null;
+    do {
+      final StreamingOffset currentOffset =
+          latestMicroBatch != null && latestMicroBatch.lastIndexOfSnapshot() ?
+          getNextAvailableSnapshot(latestMicroBatch.snapshotId()) :
+          startOffset;
+
+      latestMicroBatch = MicroBatches.from(table.snapshot(currentOffset.snapshotId()), table.io())
+          .caseSensitive(caseSensitive)
+          .specsById(table.specs())
+          .generate(currentOffset.position(), Long.MAX_VALUE, currentOffset.shouldScanAllFiles());
+
+      fileScanTasks.addAll(latestMicroBatch.tasks());
+    } while (latestMicroBatch.snapshotId() != endOffset.snapshotId());
+
+    return fileScanTasks;
   }
 
-  private StreamingOffset calculateInitialOffsetFromCheckpoint() {
-    Preconditions.checkState(isStreamResumedFromCheckpoint(),
-        "Stream is not resumed from checkpoint.");
-
-    return offsetLog.getLatest();
-  }
-
-  private boolean isStreamResumedFromCheckpoint() {
-    Preconditions.checkState(!isInitialOffsetResolved(),
-        "isStreamResumedFromCheckpoint() is invoked without resolving initialOffset");
-
-    return offsetLog.isOffsetLogInitialized();
-  }
-
-  private boolean isFirstBatch() {
-    return previousEndOffset == null || previousEndOffset.equals(StreamingOffset.START_OFFSET);
-  }
-
-  private boolean isTableEmpty() {
-    Preconditions.checkState(isInitialOffsetResolved(),
-        "isTableEmpty() is invoked without resolving initialOffset");
-
-    return initialOffset.equals(StreamingOffset.START_OFFSET);
-  }
-
-  private StreamingOffset getNextAvailableSnapshot(StreamingOffset microBatchStartOffset) {
-    if (table.currentSnapshot().snapshotId() == microBatchStartOffset.snapshotId()) {
-      return microBatchStartOffset;
-    }
-
-    Snapshot previousSnapshot = table.snapshot(microBatchStartOffset.snapshotId());
+  private StreamingOffset getNextAvailableSnapshot(long snapshotId) {
+    Snapshot previousSnapshot = table.snapshot(snapshotId);
     Snapshot pointer = table.currentSnapshot();
     while (pointer != null && previousSnapshot.snapshotId() != pointer.parentId()) {
       Preconditions.checkState(pointer.operation().equals(DataOperations.APPEND),
@@ -244,53 +236,12 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     return new StreamingOffset(pointer.snapshotId(), 0L, false);
   }
 
-  private PlannedEndOffset calculateEndOffset(StreamingOffset microBatchStartOffset) {
-    MicroBatch microBatch = MicroBatches.from(table.snapshot(microBatchStartOffset.snapshotId()), table.io())
-        .caseSensitive(caseSensitive)
-        .specsById(table.specs())
-        .generate(microBatchStartOffset.position(), batchSize, microBatchStartOffset.shouldScanAllFiles());
-
-    return new PlannedEndOffset(
-        microBatch.snapshotId(),
-        microBatch.endFileIndex(),
-        microBatchStartOffset.shouldScanAllFiles(),
-        microBatch);
-  }
-
-  private boolean isEndOfSnapshot(StreamingOffset microBatchStartOffset) {
-    MicroBatchBuilder microBatchBuilder = MicroBatches.from(
-        table.snapshot(microBatchStartOffset.snapshotId()), table.io())
-        .caseSensitive(caseSensitive)
-        .specsById(table.specs());
-
-    MicroBatch microBatchStart = microBatchBuilder.generate(
-        microBatchStartOffset.position(),
-        1,
-        microBatchStartOffset.shouldScanAllFiles());
-
-    return microBatchStartOffset.position() == microBatchStart.startFileIndex() &&
-        microBatchStartOffset.position() == microBatchStart.endFileIndex() &&
-        microBatchStart.lastIndexOfSnapshot();
-  }
-
-  private static class PlannedEndOffset extends StreamingOffset {
-
-    private final MicroBatch microBatch;
-
-    PlannedEndOffset(long snapshotId, long position, boolean scanAllFiles, MicroBatch microBatch) {
-      super(snapshotId, position, scanAllFiles);
-      this.microBatch = microBatch;
-    }
-
-    public MicroBatch getMicroBatch() {
-      return microBatch;
-    }
-  }
-
   interface OffsetLog {
     static OffsetLog getInstance(SparkSession spark, String checkpointLocation) {
       return new OffsetLogImpl(spark, checkpointLocation);
     }
+
+    void addInitialOffset(StreamingOffset offset);
 
     boolean isOffsetLogInitialized();
 
@@ -298,12 +249,17 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   }
 
   private static class OffsetLogImpl implements OffsetLog {
-    private final OffsetSeqLog offsetSeqLog;
+    private final IcebergSourceOffsetLog offsetSeqLog;
 
     OffsetLogImpl(SparkSession spark, String checkpointLocation) {
       this.offsetSeqLog = checkpointLocation != null ?
-          new OffsetSeqLog(spark, getOffsetLogLocation(checkpointLocation)) :
+          new IcebergSourceOffsetLog(spark, checkpointLocation) :
           null;
+    }
+
+    @Override
+    public void addInitialOffset(StreamingOffset offset) {
+      this.offsetSeqLog.add(0, offset);
     }
 
     @Override
@@ -315,16 +271,39 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
     @Override
     public StreamingOffset getLatest() {
-      OffsetSeq offsetSeq = offsetSeqLog.getLatest().get()._2;
+      return offsetSeqLog.getLatest().get()._2;
+    }
+  }
 
-      List<Option<Offset>> offsetSeqCol = JavaConverters.seqAsJavaList(offsetSeq.offsets());
-      Option<Offset> optionalOffset = offsetSeqCol.get(0);
+  private static class IcebergSourceOffsetLog extends HDFSMetadataLog<StreamingOffset> {
+    private final String path;
 
-      return StreamingOffset.fromJson(optionalOffset.get().json());
+    IcebergSourceOffsetLog(SparkSession sparkSession, String path) {
+      super(sparkSession, path, ClassTag.apply(StreamingOffset.class));
+      this.path = path;
     }
 
-    private String getOffsetLogLocation(String checkpointLocation) {
-      return new Path(checkpointLocation.replace("/sources/0", ""), "offsets").toString();
+    @Override
+    public void serialize(StreamingOffset metadata, OutputStream out) {
+      try {
+        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8));
+        writer.write(metadata.json());
+        writer.flush();
+      } catch (IOException ioException) {
+        throw new IllegalArgumentException(
+            String.format("Failed to deserialize latest checkpoint from: %s, with error: %s.", path, ioException));
+      }
+    }
+
+    @Override
+    public StreamingOffset deserialize(InputStream in) {
+      try {
+        String content = CharStreams.toString(new InputStreamReader(in, StandardCharsets.UTF_8));
+        return StreamingOffset.fromJson(content);
+      } catch (IOException ioException) {
+        throw new IllegalArgumentException(
+            String.format("Failed to deserialize latest checkpoint from: %s, with error: %s.", path, ioException));
+      }
     }
   }
 }

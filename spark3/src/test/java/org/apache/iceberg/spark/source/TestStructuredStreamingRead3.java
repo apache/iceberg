@@ -43,7 +43,6 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -154,7 +153,7 @@ public final class TestStructuredStreamingRead3 {
 
   @SuppressWarnings("unchecked")
   @Test
-  public void testGetAllInsertsAcrossSparkCheckpoints() throws IOException, TimeoutException {
+  public void testResumingStreamReadFromCheckpoint() throws IOException, TimeoutException, StreamingQueryException {
     File parent = temp.newFolder("parent");
     File location = new File(parent, "test-table");
     File writerCheckpoint = new File(parent, "writer-checkpoint");
@@ -164,24 +163,18 @@ public final class TestStructuredStreamingRead3 {
     Table table = tables.create(SCHEMA, spec, location.toString());
     final String tempView = "microBatchView";
 
-    List<List<SimpleRecord>> expected = Lists.newArrayList(
+    List<List<SimpleRecord>> expectedCheckpoint1 = Lists.newArrayList(
         Lists.newArrayList(
             new SimpleRecord(1, "one"),
             new SimpleRecord(2, "two"),
             new SimpleRecord(3, "three")),
         Lists.newArrayList(
             new SimpleRecord(4, "four"),
-            new SimpleRecord(5, "five")),
-        Lists.newArrayList(
-            new SimpleRecord(6, "six"),
-            new SimpleRecord(7, "seven")),
-        Lists.newArrayList(
-            new SimpleRecord(8, "eight"),
-            new SimpleRecord(9, "nine"))
+            new SimpleRecord(5, "five"))
     );
 
     // generate multiple snapshots
-    for (List<SimpleRecord> l : expected) {
+    for (List<SimpleRecord> l : expectedCheckpoint1) {
       Dataset<Row> ds = spark.createDataFrame(l, SimpleRecord.class);
       ds.select("id", "data").write()
           .format("iceberg")
@@ -203,76 +196,61 @@ public final class TestStructuredStreamingRead3 {
           });
 
       String globalTempView = "global_temp." + tempView;
-      Assert.assertEquals(expected.get(0), processMicroBatch(singleBatchWriter, globalTempView));
-      Assert.assertEquals(expected.get(1), processMicroBatch(singleBatchWriter, globalTempView));
-      Assert.assertEquals(expected.get(2), processMicroBatch(singleBatchWriter, globalTempView));
-      Assert.assertEquals(expected.get(3), processMicroBatch(singleBatchWriter, globalTempView));
-    } finally {
-      for (StreamingQuery query : spark.streams().active()) {
-        query.stop();
+      Assert.assertEquals(
+          expectedCheckpoint1.stream().flatMap(List::stream).collect(Collectors.toList()),
+          processMicroBatch(singleBatchWriter, globalTempView));
+
+      List<List<SimpleRecord>> expectedCheckpoint2 = Lists.newArrayList(
+          Lists.newArrayList(
+              new SimpleRecord(6, "six"),
+              new SimpleRecord(7, "seven")),
+          Lists.newArrayList(
+              new SimpleRecord(8, "eight"),
+              new SimpleRecord(9, "nine"))
+      );
+
+      // generate multiple snapshots
+      for (List<SimpleRecord> l : expectedCheckpoint2) {
+        Dataset<Row> ds = spark.createDataFrame(l, SimpleRecord.class);
+        ds.select("id", "data").write()
+            .format("iceberg")
+            .mode("append")
+            .save(location.toString());
       }
-    }
-  }
 
-  @SuppressWarnings("unchecked")
-  @Test
-  public void validateWhenBatchSizeEquals1ThenOneFileAtATimeIsStreamed() throws IOException, TimeoutException {
-    File parent = temp.newFolder("parent");
-    File location = new File(parent, "test-table");
-    File writerCheckpoint = new File(parent, "writer-checkpoint");
+      table.refresh();
 
-    HadoopTables tables = new HadoopTables(CONF);
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
-    Table table = tables.create(SCHEMA, spec, location.toString());
-    final String tempView = "microBatchSingleRecordView";
+      Assert.assertEquals(
+          expectedCheckpoint2.stream().flatMap(List::stream).collect(Collectors.toList()),
+          processMicroBatch(singleBatchWriter, globalTempView));
 
-    // produce unique file per record - to test BatchSize=1
-    List<List<SimpleRecord>> expected = Lists.newArrayList(
-        Lists.newArrayList(
-            new SimpleRecord(1, "one"),
-            new SimpleRecord(2, "two"),
-            new SimpleRecord(3, "three")),
-        Lists.newArrayList(
-            new SimpleRecord(4, "four"),
-            new SimpleRecord(5, "five")),
-        Lists.newArrayList(
-            new SimpleRecord(6, "six"),
-            new SimpleRecord(7, "seven")),
-        Lists.newArrayList(
-            new SimpleRecord(8, "eight"),
-            new SimpleRecord(9, "nine"))
-    );
+      List<List<SimpleRecord>> expectedCheckpoint3 = Lists.newArrayList(
+          Lists.newArrayList(
+              new SimpleRecord(10, "ten"),
+              new SimpleRecord(11, "eleven"),
+              new SimpleRecord(12, "twelve")),
+          Lists.newArrayList(
+              new SimpleRecord(13, "thirteen"),
+              new SimpleRecord(14, "fourteen")),
+          Lists.newArrayList(
+              new SimpleRecord(15, "fifteen"),
+              new SimpleRecord(16, "sixteen"))
+      );
 
-    // generate multiple snapshots - each snapshot with multiple files
-    for (List<SimpleRecord> l : expected) {
-      Dataset<Row> ds = spark.createDataFrame(l, SimpleRecord.class);
-      ds.select("id", "data").write()
-          .format("iceberg")
-          .mode("append")
-          .save(location.toString());
-    }
-
-    table.refresh();
-
-    try {
-      Dataset<Row> df = spark.readStream()
-          .format("iceberg")
-          .option(SparkReadOptions.VECTORIZATION_BATCH_SIZE, 1)
-          .load(location.toString());
-      DataStreamWriter<Row> singleBatchWriter = df.writeStream()
-          .trigger(Trigger.Once())
-          .option("checkpointLocation", writerCheckpoint.toString())
-          .foreachBatch((batchDF, batchId) -> {
-            batchDF.createOrReplaceGlobalTempView(tempView);
-          });
-
-      String globalTempView = "global_temp." + tempView;
-      for (SimpleRecord simpleRecord :
-          expected.stream().flatMap(List::stream).collect(Collectors.toList())) {
-        Assert.assertEquals(
-            Collections.singletonList(simpleRecord),
-            processMicroBatch(singleBatchWriter, globalTempView));
+      // generate multiple snapshots
+      for (List<SimpleRecord> l : expectedCheckpoint3) {
+        Dataset<Row> ds = spark.createDataFrame(l, SimpleRecord.class);
+        ds.select("id", "data").write()
+            .format("iceberg")
+            .mode("append")
+            .save(location.toString());
       }
+
+      table.refresh();
+
+      Assert.assertEquals(
+          expectedCheckpoint3.stream().flatMap(List::stream).collect(Collectors.toList()),
+          processMicroBatch(singleBatchWriter, globalTempView));
     } finally {
       for (StreamingQuery query : spark.streams().active()) {
         query.stop();
@@ -591,9 +569,9 @@ public final class TestStructuredStreamingRead3 {
   }
 
   private static List<SimpleRecord> processMicroBatch(DataStreamWriter<Row> singleBatchWriter, String viewName)
-      throws TimeoutException {
+      throws TimeoutException, StreamingQueryException {
     StreamingQuery streamingQuery = singleBatchWriter.start();
-    streamingQuery.processAllAvailable();
+    streamingQuery.awaitTermination();
 
     return spark.sql(String.format("select * from %s", viewName))
         .as(Encoders.bean(SimpleRecord.class))

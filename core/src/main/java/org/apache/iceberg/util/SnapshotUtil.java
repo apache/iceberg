@@ -64,6 +64,20 @@ public class SnapshotUtil {
   }
 
   /**
+   * Find the oldest Snapshot of a table.
+   * @param table the table to find the oldest snapshot on.
+   * @return null if the table is empty, else the oldest Snapshot.
+   */
+  public static Snapshot oldestSnapshot(Table table) {
+    Snapshot current = table.currentSnapshot();
+    while (current.parentId() != null) {
+      current = table.snapshot(current.parentId());
+    }
+
+    return current;
+  }
+
+  /**
    * Returns list of snapshot ids in the range - (fromSnapshotId, toSnapshotId]
    * <p>
    * This method assumes that fromSnapshotId is an ancestor of toSnapshotId.
