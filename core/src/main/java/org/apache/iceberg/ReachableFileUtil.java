@@ -21,6 +21,7 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.Set;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
@@ -43,8 +44,10 @@ public class ReachableFileUtil {
    * @return the location of the version hint file
    */
   public static String versionHintLocation(Table table) {
-    TableOperations ops = ((HasTableOperations) table).operations();
-    return ops.metadataFileLocation(Util.VERSION_HINT_FILENAME);
+    // only Hadoop tables have a hint file and such tables have a fixed metadata layout
+    Path metadataPath = new Path(table.location(), "metadata");
+    Path versionHintPath = new Path(metadataPath, Util.VERSION_HINT_FILENAME);
+    return versionHintPath.toString();
   }
 
   /**
