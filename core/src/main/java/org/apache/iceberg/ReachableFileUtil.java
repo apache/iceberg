@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 public class ReachableFileUtil {
 
   private static final Logger LOG = LoggerFactory.getLogger(ReachableFileUtil.class);
+  private static final String METADATA_FOLDER_NAME = "metadata";
 
   private ReachableFileUtil() {
   }
@@ -45,7 +46,7 @@ public class ReachableFileUtil {
    */
   public static String versionHintLocation(Table table) {
     // only Hadoop tables have a hint file and such tables have a fixed metadata layout
-    Path metadataPath = new Path(table.location(), "metadata");
+    Path metadataPath = new Path(table.location(), METADATA_FOLDER_NAME);
     Path versionHintPath = new Path(metadataPath, Util.VERSION_HINT_FILENAME);
     return versionHintPath.toString();
   }
