@@ -20,7 +20,6 @@
 package org.apache.iceberg.hadoop;
 
 import java.io.IOException;
-import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -30,7 +29,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.SerializableSupplier;
 
-public class HadoopFileIO implements FileIO, Configurable {
+public class HadoopFileIO implements FileIO, HadoopConfigurable {
 
   private SerializableSupplier<Configuration> hadoopConf;
 
@@ -83,5 +82,10 @@ public class HadoopFileIO implements FileIO, Configurable {
   @Override
   public Configuration getConf() {
     return hadoopConf.get();
+  }
+
+  @Override
+  public void setConfSupplier(SerializableSupplier<Configuration> confSupplier) {
+    this.hadoopConf = confSupplier;
   }
 }

@@ -27,6 +27,8 @@ import java.io.ObjectOutputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import org.apache.iceberg.hadoop.HadoopConfigurable;
+import org.apache.iceberg.hadoop.SerializableConfiguration;
 
 public class SerializationUtil {
 
@@ -41,6 +43,16 @@ public class SerializationUtil {
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to serialize object", e);
     }
+  }
+
+  public static byte[] serializeToBytesWithHadoopConfig(Object obj) {
+    if (obj instanceof HadoopConfigurable) {
+      HadoopConfigurable configurableObj = (HadoopConfigurable) obj;
+      SerializableConfiguration serializableConf = new SerializableConfiguration(configurableObj.getConf());
+      configurableObj.setConfSupplier(serializableConf::get);
+    }
+
+    return serializeToBytes(obj);
   }
 
   @SuppressWarnings("unchecked")

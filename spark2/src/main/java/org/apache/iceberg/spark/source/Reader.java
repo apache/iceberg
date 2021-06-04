@@ -41,6 +41,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.CloseableIterable;
@@ -132,7 +133,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     this.splitLookback = options.get(SparkReadOptions.LOOKBACK).map(Integer::parseInt).orElse(null);
     this.splitOpenFileCost = options.get(SparkReadOptions.FILE_OPEN_COST).map(Long::parseLong).orElse(null);
 
-    if (table.io() instanceof HadoopFileIO) {
+    if (table.io() instanceof HadoopConfigurable) {
       String fsscheme = "no_exist";
       try {
         Configuration conf = SparkSession.active().sessionState().newHadoopConf();
