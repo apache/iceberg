@@ -19,6 +19,11 @@
 
 package org.apache.iceberg.actions;
 
-public class TestExpireSnapshotsAction24 extends TestExpireSnapshotsAction{
+import org.apache.iceberg.spark.actions.SparkActions;
 
+public class TestRemoveFilesAction3 extends TestRemoveReachableFilesAction {
+  @Override
+  ActionsProvider sparkActions() {
+    return SparkActions.get();
+  }
 }

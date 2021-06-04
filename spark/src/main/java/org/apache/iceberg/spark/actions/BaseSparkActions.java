@@ -22,8 +22,8 @@ package org.apache.iceberg.spark.actions;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ActionsProvider;
 import org.apache.iceberg.actions.ExpireSnapshots;
-import org.apache.iceberg.actions.RemoveFiles;
 import org.apache.iceberg.actions.RemoveOrphanFiles;
+import org.apache.iceberg.actions.RemoveReachableFiles;
 import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.spark.sql.SparkSession;
 
@@ -55,7 +55,7 @@ abstract class BaseSparkActions implements ActionsProvider {
   }
 
   @Override
-  public RemoveFiles removeFiles(String metadataLocation) {
-    return new BaseRemoveFilesSparkAction(spark, metadataLocation);
+  public RemoveReachableFiles removeFiles(String metadataLocation) {
+    return new BaseRemoveReachableFilesSparkAction(spark, metadataLocation);
   }
 }

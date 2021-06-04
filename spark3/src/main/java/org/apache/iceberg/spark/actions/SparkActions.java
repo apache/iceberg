@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.actions;
 
 import org.apache.iceberg.actions.ActionsProvider;
 import org.apache.iceberg.actions.MigrateTable;
-import org.apache.iceberg.actions.RemoveFiles;
 import org.apache.iceberg.actions.SnapshotTable;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
@@ -62,10 +61,5 @@ public class SparkActions extends BaseSparkActions {
     CatalogPlugin defaultCatalog = spark().sessionState().catalogManager().currentCatalog();
     CatalogAndIdentifier catalogAndIdent = Spark3Util.catalogAndIdentifier(ctx, spark(), tableIdent, defaultCatalog);
     return new BaseMigrateTableSparkAction(spark(), catalogAndIdent.catalog(), catalogAndIdent.identifier());
-  }
-
-  @Override
-  public RemoveFiles removeFiles(String metadataLocation) {
-    return new BaseRemoveFilesSparkAction(spark(), metadataLocation);
   }
 }

@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.actions;
 
-public class BaseRemoveFilesActionResult implements RemoveFiles.Result {
+public class BaseRemoveFilesActionResult implements RemoveReachableFiles.Result {
 
   private final long deletedDataFilesCount;
   private final long deletedManifestsCount;

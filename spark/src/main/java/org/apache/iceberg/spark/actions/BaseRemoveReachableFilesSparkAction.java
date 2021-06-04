@@ -29,10 +29,11 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.actions.BaseRemoveFilesActionResult;
-import org.apache.iceberg.actions.RemoveFiles;
+import org.apache.iceberg.actions.RemoveReachableFiles;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.PropertyUtil;
@@ -46,13 +47,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * An implementation of {@link RemoveFiles} that uses metadata tables in Spark
+ * An implementation of {@link RemoveReachableFiles} that uses metadata tables in Spark
  * to determine which files should be deleted.
  */
 @SuppressWarnings("UnnecessaryAnonymousClass")
-public class BaseRemoveFilesSparkAction
-    extends BaseSparkAction<RemoveFiles, RemoveFiles.Result> implements RemoveFiles {
-  private static final Logger LOG = LoggerFactory.getLogger(BaseRemoveFilesSparkAction.class);
+public class BaseRemoveReachableFilesSparkAction
+    extends BaseSparkAction<RemoveReachableFiles, RemoveReachableFiles.Result> implements RemoveReachableFiles {
+  private static final Logger LOG = LoggerFactory.getLogger(BaseRemoveReachableFilesSparkAction.class);
 
   private static final String DATA_FILE = "Data File";
   private static final String MANIFEST = "Manifest";
@@ -76,21 +77,38 @@ public class BaseRemoveFilesSparkAction
   private ExecutorService removeExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
   private FileIO io = new HadoopFileIO();
 
-  public BaseRemoveFilesSparkAction(SparkSession spark, String metadataLocation) {
+  public BaseRemoveReachableFilesSparkAction(SparkSession spark, String metadataLocation) {
     super(spark);
     this.metadataLocation = metadataLocation;
   }
 
   @Override
-  protected RemoveFiles self() {
+  protected RemoveReachableFiles self() {
+    return this;
+  }
+
+  @Override
+  public RemoveReachableFiles io(FileIO fileIO) {
+    this.io = fileIO;
+    return this;
+  }
+
+  @Override
+  public RemoveReachableFiles deleteWith(Consumer<String> removeFn) {
+    this.removeFunc = removeFn;
+    return this;
+
+  }
+
+  @Override
+  public RemoveReachableFiles executeDeleteWith(ExecutorService executorService) {
+    this.removeExecutorService = executorService;
     return this;
   }
 
   @Override
   public Result execute() {
-    if (io == null) {
-      throw new RuntimeException("IO needs to be set for removing the files");
-    }
+    Preconditions.checkArgument(io != null, "File IO cannot be null");
     String msg = String.format("Removing files reachable from %s", metadataLocation);
     JobGroupInfo info = newJobGroupInfo("REMOVE-FILES", msg);
     return withJobGroupInfo(info, this::doExecute);
@@ -123,28 +141,8 @@ public class BaseRemoveFilesSparkAction
   protected Dataset<Row> buildOtherMetadataFileDF(Table table) {
     List<String> otherMetadataFiles = Lists.newArrayList();
     otherMetadataFiles.addAll(ReachableFileUtil.metadataFileLocations(table, true));
-    // otherMetadataFiles.add(ReachableFileUtil.versionHintLocation(table));
+    otherMetadataFiles.add(ReachableFileUtil.versionHintLocation(table));
     return spark().createDataset(otherMetadataFiles, Encoders.STRING()).toDF("file_path");
-  }
-
-
-  @Override
-  public RemoveFiles io(FileIO fileIO) {
-    this.io = fileIO;
-    return this;
-  }
-
-  @Override
-  public RemoveFiles removeWith(Consumer<String> removeFn) {
-    this.removeFunc = removeFn;
-    return this;
-
-  }
-
-  @Override
-  public RemoveFiles executeRemoveWith(ExecutorService executorService) {
-    this.removeExecutorService = executorService;
-    return this;
   }
 
   /**

@@ -71,7 +71,7 @@ public interface ActionsProvider {
   /**
    * Instantiates an action to remove all the files referenced by given metadata location.
    */
-  default RemoveFiles removeFiles(String metadataLocation) {
-    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement expireSnapshots");
+  default RemoveReachableFiles removeFiles(String metadataLocation) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement removeFiles");
   }
 }

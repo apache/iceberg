@@ -32,7 +32,7 @@ import org.apache.iceberg.io.FileIO;
  * <p>
  * Implementations may use a query engine to distribute parts of work.
  */
-public interface RemoveFiles extends Action<RemoveFiles, RemoveFiles.Result> {
+public interface RemoveReachableFiles extends Action<RemoveReachableFiles, RemoveReachableFiles.Result> {
 
   /**
    * Passes an alternative delete implementation that will be used for files.
@@ -41,18 +41,17 @@ public interface RemoveFiles extends Action<RemoveFiles, RemoveFiles.Result> {
    *                   The function accepts path to file as an argument.
    * @return this for method chaining
    */
-  RemoveFiles removeWith(Consumer<String> removeFunc);
+  RemoveReachableFiles deleteWith(Consumer<String> removeFunc);
 
   /**
    * Passes an alternative executor service that will be used for files removal.
    * <p>
    * If this method is not called, files will still be deleted in the current thread.
-   * <p>
    *
-   * @param executorService the service to use
+   *  @param executorService the service to use
    * @return this for method chaining
    */
-  RemoveFiles executeRemoveWith(ExecutorService executorService);
+  RemoveReachableFiles executeDeleteWith(ExecutorService executorService);
 
   /**
    * Set the {@link FileIO} to be used for files removal
@@ -60,7 +59,7 @@ public interface RemoveFiles extends Action<RemoveFiles, RemoveFiles.Result> {
    * @param io FileIO to use for files removal
    * @return this for method chaining
    */
-  RemoveFiles io(FileIO io);
+  RemoveReachableFiles io(FileIO io);
 
   /**
    * The action result that contains a summary of the execution.
