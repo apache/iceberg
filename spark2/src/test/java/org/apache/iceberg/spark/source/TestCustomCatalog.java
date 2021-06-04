@@ -129,7 +129,7 @@ public class TestCustomCatalog {
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
     AssertHelpers.assertThrows("We have not set all properties", IllegalArgumentException.class,
-        "A warehouse parameter must be set", () ->
+        "The base path for the catalog's warehouse directory must be set", () ->
         df.select("id", "data").write()
             .format("iceberg")
             .mode("append")
@@ -168,7 +168,7 @@ public class TestCustomCatalog {
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
     AssertHelpers.assertThrows("We have not set all properties", IllegalArgumentException.class,
-        "A warehouse parameter must be set", () ->
+        "The base path for the catalog's warehouse directory must be set", () ->
             df.select("id", "data").write()
                 .format("iceberg")
                 .mode("append")
