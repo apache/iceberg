@@ -94,11 +94,12 @@ public class TestCatalog implements Catalog, Configurable {
   public void initialize(String name, Map<String, String> properties) {
     String uri = properties.get(CatalogProperties.URI);
     warehouse = properties.get("warehouse");
-    Preconditions.checkNotNull(uri, "Cannot initialize TestCatalog, the metastore connection uri must be set");
+    Preconditions.checkNotNull(uri,
+        "Cannot initialize TestCatalog. The metastore connection uri must be set.");
     Preconditions.checkArgument(uri.contains("thrift"),
-        "Cannot initialize TestCatalog, the metastore connection uri must use thrift as the scheme");
+        "Cannot initialize TestCatalog. The metastore connection uri must use thrift as the scheme.");
     Preconditions.checkNotNull(warehouse != null,
-        "Cannot initialize TestCatalog, a base path for the catalog's warehouse directory must be set");
+        "Cannot initialize TestCatalog. The base path for the catalog's warehouse directory must be set.");
     this.tables = new HadoopTables(conf);
   }
 
