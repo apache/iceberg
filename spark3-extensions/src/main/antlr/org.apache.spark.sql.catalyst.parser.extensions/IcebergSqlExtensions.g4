@@ -71,6 +71,8 @@ statement
     | ALTER TABLE multipartIdentifier DROP PARTITION FIELD transform                        #dropPartitionField
     | ALTER TABLE multipartIdentifier REPLACE PARTITION FIELD transform WITH transform (AS name=identifier)? #replacePartitionField
     | ALTER TABLE multipartIdentifier WRITE writeSpec                                       #setWriteDistributionAndOrdering
+    | ALTER TABLE table=multipartIdentifier SET IDENTIFIER_KW FIELDS '(' fields+=multipartIdentifier (',' fields+=multipartIdentifier)* ')' #setIdentifierFields
+    | ALTER TABLE table=multipartIdentifier DROP IDENTIFIER_KW FIELDS '(' fields+=multipartIdentifier (',' fields+=multipartIdentifier)* ')' #dropIdentifierFields
     ;
 
 writeSpec
@@ -159,7 +161,7 @@ quotedIdentifier
 
 nonReserved
     : ADD | ALTER | AS | ASC | BY | CALL | DESC | DROP | FIELD | FIRST | LAST | NULLS | ORDERED | PARTITION | TABLE | WRITE
-    | DISTRIBUTED | LOCALLY | UNORDERED
+    | DISTRIBUTED | LOCALLY | UNORDERED | REPLACE | WITH | IDENTIFIER_KW | FIELDS | SET
     | TRUE | FALSE
     | MAP
     ;
@@ -174,6 +176,7 @@ DESC: 'DESC';
 DISTRIBUTED: 'DISTRIBUTED';
 DROP: 'DROP';
 FIELD: 'FIELD';
+FIELDS: 'FIELDS';
 FIRST: 'FIRST';
 LAST: 'LAST';
 LOCALLY: 'LOCALLY';
@@ -181,6 +184,8 @@ NULLS: 'NULLS';
 ORDERED: 'ORDERED';
 PARTITION: 'PARTITION';
 REPLACE: 'REPLACE';
+IDENTIFIER_KW: 'IDENTIFIER';
+SET: 'SET';
 TABLE: 'TABLE';
 UNORDERED: 'UNORDERED';
 WITH: 'WITH';
