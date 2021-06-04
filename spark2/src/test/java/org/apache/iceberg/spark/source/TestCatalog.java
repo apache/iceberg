@@ -98,7 +98,7 @@ public class TestCatalog implements Catalog, Configurable {
         "Cannot initialize TestCatalog. The metastore connection uri must be set.");
     Preconditions.checkArgument(uri.contains("thrift"),
         "Cannot initialize TestCatalog. The metastore connection uri must use thrift as the scheme.");
-    Preconditions.checkNotNull(warehouse != null,
+    Preconditions.checkNotNull(warehouse,
         "Cannot initialize TestCatalog. The base path for the catalog's warehouse directory must be set.");
     this.tables = new HadoopTables(conf);
   }
