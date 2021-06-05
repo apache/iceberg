@@ -28,7 +28,6 @@ import org.apache.spark.sql.catalyst.expressions.EqualNullSafe
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.Not
-import org.apache.spark.sql.catalyst.expressions.SortOrder
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.plans.logical.DeleteFromTable
 import org.apache.spark.sql.catalyst.plans.logical.Filter
@@ -38,6 +37,7 @@ import org.apache.spark.sql.catalyst.plans.logical.RepartitionByExpression
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.Sort
 import org.apache.spark.sql.catalyst.rules.Rule
+import org.apache.spark.sql.catalyst.utils.DistributionAndOrderingUtils
 import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 import org.apache.spark.sql.catalyst.utils.RewriteRowLevelOperationHelper
 import org.apache.spark.sql.connector.catalog.Table
@@ -52,6 +52,7 @@ case class RewriteDelete(spark: SparkSession) extends Rule[LogicalPlan] with Rew
 
   import ExtendedDataSourceV2Implicits._
   import RewriteRowLevelOperationHelper._
+  import DistributionAndOrderingUtils._
 
   override def conf: SQLConf = SQLConf.get
 
@@ -97,7 +98,7 @@ case class RewriteDelete(spark: SparkSession) extends Rule[LogicalPlan] with Rew
         RepartitionByExpression(Seq(fileNameCol), remainingRowsPlan, numShufflePartitions)
     }
 
-    val order = Seq(SortOrder(fileNameCol, Ascending), SortOrder(rowPosCol, Ascending))
+    val order = Seq(createSortOrder(fileNameCol, Ascending), createSortOrder(rowPosCol, Ascending))
     val sort = Sort(order, global = false, planWithDistribution)
     Project(output, sort)
   }

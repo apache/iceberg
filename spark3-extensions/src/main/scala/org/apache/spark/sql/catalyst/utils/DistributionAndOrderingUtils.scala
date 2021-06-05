@@ -60,6 +60,18 @@ import org.apache.spark.sql.types.IntegerType
 
 object DistributionAndOrderingUtils {
 
+  private val repartitionByExpressionCtor: DynConstructors.Ctor[RepartitionByExpression] =
+    DynConstructors.builder()
+      .impl(classOf[RepartitionByExpression],
+        classOf[Seq[catalyst.expressions.Expression]],
+        classOf[LogicalPlan],
+        classOf[Option[Int]])
+      .impl(classOf[RepartitionByExpression],
+        classOf[Seq[catalyst.expressions.Expression]],
+        classOf[LogicalPlan],
+        Integer.TYPE)
+      .build()
+
   def prepareQuery(
       requiredDistribution: Distribution,
       requiredOrdering: Seq[SortOrder],
@@ -82,7 +94,11 @@ object DistributionAndOrderingUtils {
       // the conversion to catalyst expressions above produces SortOrder expressions
       // for OrderedDistribution and generic expressions for ClusteredDistribution
       // this allows RepartitionByExpression to pick either range or hash partitioning
-      RepartitionByExpression(distribution, query, numShufflePartitions)
+      if (Spark3VersionUtil.isSpark30) {
+        repartitionByExpressionCtor.newInstance(distribution.toSeq, query, new Integer(numShufflePartitions))
+      } else {
+        repartitionByExpressionCtor.newInstance(distribution.toSeq, query, Some(numShufflePartitions))
+      }
     } else {
       query
     }
@@ -114,6 +130,23 @@ object DistributionAndOrderingUtils {
         classOf[Set[catalyst.expressions.Expression]])
       .build()
 
+  def createSortOrder(
+      child: catalyst.expressions.Expression,
+      direction: catalyst.expressions.SortDirection): catalyst.expressions.SortOrder = {
+    createSortOrder(child, direction, direction.defaultNullOrdering)
+  }
+
+  def createSortOrder(
+      child: catalyst.expressions.Expression,
+      direction: catalyst.expressions.SortDirection,
+      nullOrdering: catalyst.expressions.NullOrdering): catalyst.expressions.SortOrder = {
+    if (Spark3VersionUtil.isSpark30) {
+      sortOrderCtor.newInstance(child, direction, nullOrdering, Set.empty)
+    } else {
+      sortOrderCtor.newInstance(child, direction, nullOrdering, Seq.empty)
+    }
+  }
+
   private def toCatalyst(
       expr: Expression,
       query: LogicalPlan,
@@ -134,11 +167,7 @@ object DistributionAndOrderingUtils {
     expr match {
       case s: SortOrder =>
         val catalystChild = toCatalyst(s.expression(), query, resolver)
-        if (Spark3VersionUtil.isSpark30) {
-          sortOrderCtor.newInstance(catalystChild, toCatalyst(s.direction), toCatalyst(s.nullOrdering), Set.empty)
-        } else {
-          sortOrderCtor.newInstance(catalystChild, toCatalyst(s.direction), toCatalyst(s.nullOrdering), Seq.empty)
-        }
+        createSortOrder(catalystChild, toCatalyst(s.direction), toCatalyst(s.nullOrdering))
       case it: IdentityTransform =>
         resolve(it.ref.fieldNames)
       case BucketTransform(numBuckets, ref) =>

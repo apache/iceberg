@@ -33,8 +33,10 @@ import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.AttributeSet
 import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.expressions.ExprId
 import org.apache.spark.sql.catalyst.expressions.GreaterThan
 import org.apache.spark.sql.catalyst.expressions.Literal
+import org.apache.spark.sql.catalyst.expressions.NamedExpression
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.expressions.aggregate.AggregateExpression
 import org.apache.spark.sql.catalyst.expressions.aggregate.Complete
@@ -62,6 +64,7 @@ import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implici
 import org.apache.spark.sql.execution.datasources.v2.PushDownUtils
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources
+import org.apache.spark.sql.types.Metadata
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
@@ -174,11 +177,11 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
       prunedTargetPlan: LogicalPlan): LogicalPlan = {
     val fileAttr = findOutputAttr(prunedTargetPlan.output, FILE_NAME_COL)
     val rowPosAttr = findOutputAttr(prunedTargetPlan.output, ROW_POS_COL)
-    val accumulatorExpr = Alias(AccumulateFiles(filesAccumulator, fileAttr), AFFECTED_FILES_ACC_ALIAS_NAME)()
+    val accumulatorExpr = createAlias(AccumulateFiles(filesAccumulator, fileAttr), AFFECTED_FILES_ACC_ALIAS_NAME)
     val projectList = Seq(fileAttr, rowPosAttr, accumulatorExpr)
     val projectPlan = Project(projectList, prunedTargetPlan)
     val affectedFilesAttr = findOutputAttr(projectPlan.output, AFFECTED_FILES_ACC_ALIAS_NAME)
-    val aggSumCol = Alias(AggregateExpression(Sum(affectedFilesAttr), Complete, false), SUM_ROW_ID_ALIAS_NAME)()
+    val aggSumCol = createAlias(AggregateExpression(Sum(affectedFilesAttr), Complete, false), SUM_ROW_ID_ALIAS_NAME)
     // Group by the rows by row id while collecting the files that need to be over written via accumulator.
     val aggPlan = Aggregate(Seq(fileAttr, rowPosAttr), Seq(aggSumCol), projectPlan)
     val sumAttr = findOutputAttr(aggPlan.output, SUM_ROW_ID_ALIAS_NAME)
@@ -254,5 +257,26 @@ object RewriteRowLevelOperationHelper {
     } else {
       scanRelationCtor.newInstance(relation, scan, outputAttrs)
     }
+  }
+
+  private val aliasCtor: DynConstructors.Ctor[Alias] =
+    DynConstructors.builder()
+      .impl(classOf[Alias],
+        classOf[Expression],
+        classOf[String],
+        classOf[ExprId],
+        classOf[Seq[String]],
+        classOf[Option[Metadata]],
+        classOf[Seq[String]])
+      .impl(classOf[Alias],
+        classOf[Expression],
+        classOf[String],
+        classOf[ExprId],
+        classOf[Seq[String]],
+        classOf[Option[Metadata]])
+      .build()
+
+  def createAlias(child: Expression, name: String): Alias = {
+    aliasCtor.newInstance(child, name, NamedExpression.newExprId, Seq.empty, None, Seq.empty)
   }
 }
