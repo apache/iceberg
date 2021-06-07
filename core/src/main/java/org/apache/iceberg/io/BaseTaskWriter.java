@@ -196,9 +196,9 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
   }
 
-  private static class PathOffset {
-    private final CharSequence path;
-    private final long rowOffset;
+  private static class PathOffset implements StructLike {
+    private CharSequence path;
+    private long rowOffset;
 
     private PathOffset(CharSequence path, long rowOffset) {
       this.path = path;
@@ -215,6 +215,37 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
           .add("path", path)
           .add("row_offset", rowOffset)
           .toString();
+    }
+
+    @Override
+    public int size() {
+      return 2;
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      switch (pos) {
+        case 0:
+          return javaClass.cast(path);
+        case 1:
+          return javaClass.cast(rowOffset);
+        default:
+          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      }
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      switch (pos) {
+        case 0:
+          this.path = (CharSequence) value;
+          break;
+        case 1:
+          this.rowOffset = (long) value;
+          break;
+        default:
+          throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+      }
     }
   }
 
