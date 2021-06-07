@@ -23,16 +23,20 @@ import java.io.File;
 import java.util.List;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -131,5 +135,19 @@ public class TestReachableFileUtil {
 
     Set<String> metadataFileLocations = ReachableFileUtil.metadataFileLocations(table, true);
     Assert.assertEquals(metadataFileLocations.size(), 2);
+  }
+
+  @Test
+  public void testVersionHintWithStaticTables() {
+    TableOperations ops = ((HasTableOperations) table).operations();
+    TableMetadata metadata = ops.current();
+    String metadataFileLocation = metadata.metadataFileLocation();
+
+    StaticTableOperations staticOps = new StaticTableOperations(metadataFileLocation, table.io());
+    Table staticTable = new BaseTable(staticOps, metadataFileLocation);
+
+    String reportedVersionHintLocation = ReachableFileUtil.versionHintLocation(staticTable);
+    String expectedVersionHintLocation = ops.metadataFileLocation(Util.VERSION_HINT_FILENAME);
+    Assert.assertEquals(expectedVersionHintLocation, reportedVersionHintLocation);
   }
 }

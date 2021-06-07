@@ -35,7 +35,7 @@ import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.Contents;
 import org.projectnessie.model.ContentsKey;
 import org.projectnessie.model.IcebergTable;
-import org.projectnessie.model.ImmutableCommitMeta.Builder;
+import org.projectnessie.model.ImmutableCommitMeta;
 import org.projectnessie.model.ImmutableIcebergTable;
 import org.projectnessie.model.ImmutableOperations;
 import org.projectnessie.model.Operation;
@@ -103,11 +103,13 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
     boolean delete = true;
     try {
       IcebergTable newTable = ImmutableIcebergTable.builder().metadataLocation(newMetadataLocation).build();
-      Builder cm = CommitMeta.builder().message("iceberg commit");
+      ImmutableCommitMeta.Builder cm = CommitMeta.builder().message("iceberg commit")
+          .author(NessieUtil.getCommitAuthor());
       String appId = applicationId();
       if (appId != null) {
         cm.putProperties("spark.app.id", appId);
       }
+      cm.putProperties("application.type", "iceberg");
       Operations op = ImmutableOperations.builder().addOperations(Operation.Put.of(key, newTable))
           .commitMeta(cm.build()).build();
       client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(), reference.getHash(), op);

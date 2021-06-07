@@ -164,7 +164,10 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
     Operations contents = ImmutableOperations.builder()
         .addOperations(ImmutableDelete.builder().key(NessieUtil.toKey(identifier)).build())
-        .commitMeta(CommitMeta.fromMessage(String.format("delete table %s", identifier)))
+        .commitMeta(CommitMeta.builder().message(String.format("delete table %s", identifier))
+            .author(NessieUtil.getCommitAuthor())
+            .properties(ImmutableMap.of("application.type", "iceberg"))
+            .build())
         .build();
 
     // We try to drop the table. Simple retry after ref update.
@@ -208,7 +211,10 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     Operations contents = ImmutableOperations.builder()
         .addOperations(ImmutablePut.builder().key(NessieUtil.toKey(to)).contents(existingFromTable).build(),
             ImmutableDelete.builder().key(NessieUtil.toKey(from)).build())
-        .commitMeta(CommitMeta.fromMessage("iceberg rename table"))
+        .commitMeta(CommitMeta.builder().message("iceberg rename table")
+            .author(NessieUtil.getCommitAuthor())
+            .properties(ImmutableMap.of("application.type", "iceberg"))
+            .build())
         .build();
 
     try {

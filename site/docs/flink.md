@@ -17,8 +17,8 @@
 
 # Flink
 
-Apache Iceberg support both [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API to write records into iceberg table. Currently,
-we only integrate iceberg with apache flink 1.11.x .
+Apache Iceberg supports both [Apache Flink](https://flink.apache.org/)'s DataStream API and Table API to write records into an Iceberg table. Currently,
+we only integrate Iceberg with Apache Flink 1.11.x.
 
 | Feature support                                                        |  Flink 1.11.0      |  Notes                                                 |
 |------------------------------------------------------------------------|--------------------|--------------------------------------------------------|
@@ -37,7 +37,7 @@ we only integrate iceberg with apache flink 1.11.x .
 | [Metadata tables](#inspecting-tables)                                  |    ️               | Support Java API but does not support Flink SQL        |
 | [Rewrite files action](#rewrite-files-action)                          | ✔️ ️               |                                                        |
 
-## Preparation
+## Preparation when using Flink SQL Client
 
 To create iceberg table in flink, we recommend to use [Flink SQL Client](https://ci.apache.org/projects/flink/flink-docs-stable/dev/table/sqlClient.html) because it's easier for users to understand the concepts.
 
@@ -86,6 +86,89 @@ export HADOOP_CLASSPATH=`$HADOOP_HOME/bin/hadoop classpath`
     -j <hive-bundlded-jar-directory>/flink-sql-connector-hive-2.3.6_2.11-1.11.0.jar \
     shell
 ```
+## Preparation when using Flink's Python API
+
+Install the Apache Flink dependency using `pip`
+```python
+pip install apache-flink==1.11.1
+```
+
+In order for `pyflink` to function properly, it needs to have access to all Hadoop jars. For `pyflink`
+we need to copy those Hadoop jars to the installation directory of `pyflink`, which can be found under
+`<PYTHON_ENV_INSTALL_DIR>/site-packages/pyflink/lib/` (see also a mention of this on
+the [Flink ML](http://mail-archives.apache.org/mod_mbox/flink-user/202105.mbox/%3C3D98BDD2-89B1-42F5-B6F4-6C06A038F978%40gmail.com%3E)).
+We can use the following short Python script to copy all Hadoop jars (you need to make sure that `HADOOP_HOME`
+points to your Hadoop installation):
+
+```python
+import os
+import shutil
+import site
+
+
+def copy_all_hadoop_jars_to_pyflink():
+    if not os.getenv("HADOOP_HOME"):
+        raise Exception("The HADOOP_HOME env var must be set and point to a valid Hadoop installation")
+
+    jar_files = []
+
+    def find_pyflink_lib_dir():
+        for dir in site.getsitepackages():
+            package_dir = os.path.join(dir, "pyflink", "lib")
+            if os.path.exists(package_dir):
+                return package_dir
+        return None
+
+    for root, _, files in os.walk(os.getenv("HADOOP_HOME")):
+        for file in files:
+            if file.endswith(".jar"):
+                jar_files.append(os.path.join(root, file))
+
+    pyflink_lib_dir = find_pyflink_lib_dir()
+
+    num_jar_files = len(jar_files)
+    print(f"Copying {num_jar_files} Hadoop jar files to pyflink's lib directory at {pyflink_lib_dir}")
+    for jar in jar_files:
+        shutil.copy(jar, pyflink_lib_dir)
+
+
+if __name__ == '__main__':
+    copy_all_hadoop_jars_to_pyflink()
+```
+
+Once the script finished, you should see output similar to
+```
+Copying 645 Hadoop jar files to pyflink's lib directory at <PYTHON_DIR>/lib/python3.8/site-packages/pyflink/lib
+```
+
+Now we need to provide a `file://` path to the `iceberg-flink-runtime` jar, which we can either get by building the project
+and looking at `<iceberg-root-dir>/flink-runtime/build/libs`, or downloading it from the [Apache official repository](https://repo.maven.apache.org/maven2/org/apache/iceberg/iceberg-flink-runtime/).
+Third-party libs can be added to `pyflink` via `env.add_jars("file:///my/jar/path/connector.jar")` / `table_env.get_config().get_configuration().set_string("pipeline.jars", "file:///my/jar/path/connector.jar")`, which is also mentioned in the official [docs](https://ci.apache.org/projects/flink/flink-docs-release-1.13/docs/dev/python/dependency_management/).
+In our example we're using `env.add_jars(..)` as shown below:
+
+```python
+import os
+
+from pyflink.datastream import StreamExecutionEnvironment
+
+env = StreamExecutionEnvironment.get_execution_environment()
+iceberg_flink_runtime_jar = os.path.join(os.getcwd(), "iceberg-flink-runtime-0.11.1.jar")
+
+env.add_jars("file://{}".format(iceberg_flink_runtime_jar))
+```
+
+Once we reached this point, we can then create a `StreamTableEnvironment` and execute Flink SQL statements. 
+The below example shows how to create a custom catalog via the Python Table API:
+```python
+from pyflink.table import StreamTableEnvironment
+table_env = StreamTableEnvironment.create(env)
+table_env.execute_sql("CREATE CATALOG my_catalog WITH ("
+                      "'type'='iceberg', "
+                      "'catalog-impl'='com.my.custom.CatalogImpl', "
+                      "'my-additional-catalog-config'='my-value')")
+```
+
+For more details, please refer to the [Python Table API](https://ci.apache.org/projects/flink/flink-docs-release-1.13/docs/dev/python/table/intro_to_table_api/).
 
 ## Creating catalogs and using catalogs.
 
