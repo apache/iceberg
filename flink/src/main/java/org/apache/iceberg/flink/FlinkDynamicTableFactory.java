@@ -44,19 +44,19 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, DynamicTableSourceFactory {
   private static final String FACTORY_IDENTIFIER = "iceberg";
 
-  public static final ConfigOption<String> CATALOG_NAME =
+  private static final ConfigOption<String> CATALOG_NAME =
       ConfigOptions.key("catalog-name")
           .stringType()
           .noDefaultValue()
           .withDescription("Catalog name");
 
-  public static final ConfigOption<String> CATALOG_TYPE =
+  private static final ConfigOption<String> CATALOG_TYPE =
       ConfigOptions.key(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE)
           .stringType()
           .noDefaultValue()
           .withDescription("Catalog type.");
 
-  public static final ConfigOption<String> CATALOG_DATABASE =
+  private static final ConfigOption<String> CATALOG_DATABASE =
       ConfigOptions.key("catalog-database")
           .stringType()
           .defaultValue(FlinkCatalogFactory.DEFAULT_DATABASE_VALUE)
@@ -112,7 +112,7 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
     options.add(CATALOG_TYPE);
     options.add(CATALOG_NAME);
     options.add(CATALOG_DATABASE);
-    return Sets.newHashSet();
+    return options;
   }
 
   @Override
@@ -138,11 +138,7 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
     Preconditions.checkNotNull(catalogDatabase, "Table property '%s' cannot be null", CATALOG_DATABASE.key());
 
     org.apache.hadoop.conf.Configuration hadoopConf = FlinkCatalogFactory.clusterHadoopConf();
-    CatalogLoader catalogLoader = FlinkCatalogFactory.createCatalogLoader(
-        catalogName,
-        tableProps,
-        hadoopConf
-    );
+    CatalogLoader catalogLoader = FlinkCatalogFactory.createCatalogLoader(catalogName, tableProps, hadoopConf);
 
     FlinkCatalogFactory factory = new FlinkCatalogFactory();
     Catalog flinkCatalog = factory.createCatalog(catalogName, tableProps, hadoopConf);
@@ -155,10 +151,7 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
       }
     }
 
-    return TableLoader.fromCatalog(
-        catalogLoader,
-        TableIdentifier.of(catalogDatabase, tableName)
-    );
+    return TableLoader.fromCatalog(catalogLoader, TableIdentifier.of(catalogDatabase, tableName));
   }
 
   private static TableLoader createTableLoader(FlinkCatalog catalog, ObjectPath objectPath) {
