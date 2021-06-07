@@ -38,7 +38,7 @@ public abstract class PartitionedWriter<T> extends BaseTaskWriter<T> {
   private RollingFileWriter currentWriter = null;
 
   protected PartitionedWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                           OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
+                              OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
   }
 

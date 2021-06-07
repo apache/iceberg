@@ -64,7 +64,7 @@ class HiveIcebergRecordWriter extends PartitionedFanoutWriter<Record>
 
   HiveIcebergRecordWriter(Schema schema, PartitionSpec spec, FileFormat format,
       FileAppenderFactory<Record> appenderFactory, OutputFileFactory fileFactory, FileIO io, long targetFileSize,
-      TaskAttemptID taskAttemptID, String tableName) {
+      Map<String, String> properties, TaskAttemptID taskAttemptID, String tableName) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
     this.io = io;
     this.currentKey = new PartitionKey(spec, schema);

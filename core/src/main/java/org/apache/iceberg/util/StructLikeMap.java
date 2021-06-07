@@ -161,7 +161,7 @@ public class StructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<
       } else if (!(o instanceof StructLikeEntry)) {
         return false;
       } else {
-        StructLikeEntry that = (StructLikeEntry<R>) o;
+        StructLikeEntry<R> that = (StructLikeEntry<R>) o;
         return Objects.equals(getKey(), that.getKey()) &&
             Objects.equals(getValue(), that.getValue());
       }
