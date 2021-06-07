@@ -17,9 +17,9 @@
  * under the License.
  */
 
-def jmhProjects = []
+def jmhProjects
 if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
-  jmhProjects = [ project("iceberg-spark2") ]
+  jmhProjects = [ project("iceberg-spark2"), project("iceberg-spark3") ]
 } else if (JavaVersion.current() == JavaVersion.VERSION_11) {
   jmhProjects = [ project("iceberg-spark3") ]
 } else {
@@ -39,7 +39,6 @@ configure(jmhProjects) {
   }
 
   // Path is relative to either spark2 or spark3 folder, depending on project being tested
-  // and JDK version
   sourceSets {
     jmh {
       java.srcDirs = ['src/jmh/java', '../spark/src/jmh/java']
@@ -53,4 +52,3 @@ configure(jmhProjects) {
     }
   }
 }
-
