@@ -20,5 +20,4 @@
 package org.apache.iceberg.actions;
 
 public class TestExpireSnapshotsAction24 extends TestExpireSnapshotsAction{
-
 }

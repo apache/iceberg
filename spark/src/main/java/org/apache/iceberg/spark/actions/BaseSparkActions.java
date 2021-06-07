@@ -55,7 +55,7 @@ abstract class BaseSparkActions implements ActionsProvider {
   }
 
   @Override
-  public RemoveReachableFiles removeFiles(String metadataLocation) {
+  public RemoveReachableFiles removeReachableFiles(String metadataLocation) {
     return new BaseRemoveReachableFilesSparkAction(spark, metadataLocation);
   }
 }
