@@ -23,7 +23,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.SerializationUtilities;
+import org.apache.hadoop.hive.ql.exec.vector.VectorizedInputFormatInterface;
+import org.apache.hadoop.hive.ql.exec.vector.VectorizedSupport;
 import org.apache.hadoop.hive.ql.io.CombineHiveInputFormat;
 import org.apache.hadoop.hive.ql.io.sarg.ConvertAstToSearchArg;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
@@ -34,20 +37,43 @@ import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.hive.MetastoreUtil;
 import org.apache.iceberg.mr.InputFormatConfig;
+import org.apache.iceberg.mr.mapred.AbstractMapredIcebergRecordReader;
 import org.apache.iceberg.mr.mapred.Container;
 import org.apache.iceberg.mr.mapred.MapredIcebergInputFormat;
+import org.apache.iceberg.mr.mapreduce.IcebergInputFormat;
 import org.apache.iceberg.mr.mapreduce.IcebergSplit;
+import org.apache.iceberg.mr.mapreduce.IcebergSplitContainer;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.SerializationUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
-                                    implements CombineHiveInputFormat.AvoidSplitCombination {
+        implements CombineHiveInputFormat.AvoidSplitCombination, VectorizedInputFormatInterface {
 
   private static final Logger LOG = LoggerFactory.getLogger(HiveIcebergInputFormat.class);
+  private static final String HIVE_VECTORIZED_RECORDREADER_CLASS =
+          "org.apache.iceberg.mr.hive.vector.HiveIcebergVectorizedRecordReader";
+  private static final DynConstructors.Ctor<AbstractMapredIcebergRecordReader> HIVE_VECTORIZED_RECORDREADER_CTOR;
+
+  static {
+    if (MetastoreUtil.hive3PresentOnClasspath()) {
+      HIVE_VECTORIZED_RECORDREADER_CTOR = DynConstructors.builder(AbstractMapredIcebergRecordReader.class)
+          .impl(HIVE_VECTORIZED_RECORDREADER_CLASS,
+              IcebergInputFormat.class,
+              IcebergSplit.class,
+              JobConf.class,
+              Reporter.class)
+          .build();
+    } else {
+      HIVE_VECTORIZED_RECORDREADER_CTOR = null;
+    }
+  }
 
   @Override
   public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
@@ -79,11 +105,31 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
                                                                Reporter reporter) throws IOException {
     String[] selectedColumns = ColumnProjectionUtils.getReadColumnNames(job);
     job.setStrings(InputFormatConfig.SELECTED_COLUMNS, selectedColumns);
-    return super.getRecordReader(split, job, reporter);
+
+    if (HiveConf.getBoolVar(job, HiveConf.ConfVars.HIVE_VECTORIZATION_ENABLED)) {
+      Preconditions.checkArgument(MetastoreUtil.hive3PresentOnClasspath(), "Vectorization only supported for Hive 3+");
+
+      IcebergSplit icebergSplit = ((IcebergSplitContainer) split).icebergSplit();
+      // bogus cast for favouring code reuse over syntax
+      return (RecordReader) HIVE_VECTORIZED_RECORDREADER_CTOR.newInstance(
+              new org.apache.iceberg.mr.mapreduce.IcebergInputFormat<>(),
+              icebergSplit,
+              job,
+              reporter);
+    } else {
+      return super.getRecordReader(split, job, reporter);
+    }
   }
 
   @Override
   public boolean shouldSkipCombine(Path path, Configuration conf) {
     return true;
   }
+
+  // Override annotation commented out, since this interface method has been introduced only in Hive 3
+  // @Override
+  public VectorizedSupport.Support[] getSupportedFeatures() {
+    return new VectorizedSupport.Support[0];
+  }
+
 }
