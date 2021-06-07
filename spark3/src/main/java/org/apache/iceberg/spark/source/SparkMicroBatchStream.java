@@ -22,7 +22,6 @@ package org.apache.iceberg.spark.source;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
@@ -43,7 +42,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.io.CharStreams;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.source.SparkBatchScan.ReadTask;
@@ -109,7 +107,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   public Offset latestOffset() {
     initialOffset();
 
-    final Snapshot latestSnapshot = table.currentSnapshot();
+    Snapshot latestSnapshot = table.currentSnapshot();
     if (latestSnapshot == null) {
       return StreamingOffset.START_OFFSET;
     }
@@ -201,7 +199,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   }
 
   private List<FileScanTask> getFileScanTasks(StreamingOffset startOffset, StreamingOffset endOffset) {
-    final List<FileScanTask> fileScanTasks = new ArrayList<>();
+    List<FileScanTask> fileScanTasks = new ArrayList<>();
     MicroBatch latestMicroBatch = null;
     do {
       final StreamingOffset currentOffset =
@@ -298,8 +296,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     @Override
     public StreamingOffset deserialize(InputStream in) {
       try {
-        String content = CharStreams.toString(new InputStreamReader(in, StandardCharsets.UTF_8));
-        return StreamingOffset.fromJson(content);
+        return StreamingOffset.fromJson(in);
       } catch (IOException ioException) {
         throw new IllegalArgumentException(
             String.format("Failed to deserialize latest checkpoint from: %s, with error: %s.", path, ioException));

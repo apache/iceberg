@@ -46,7 +46,6 @@ import com.google.common.collect.Streams;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
-import com.google.common.io.CharStreams;
 import com.google.common.io.CountingOutputStream;
 import com.google.common.io.Files;
 import com.google.common.primitives.Bytes;
@@ -93,7 +92,6 @@ public class GuavaClasses {
     ThreadFactoryBuilder.class.getName();
     Iterables.class.getName();
     CountingOutputStream.class.getName();
-    CharStreams.class.getName();
   }
 
 }
