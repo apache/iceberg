@@ -21,15 +21,18 @@ package org.apache.iceberg.nessie;
 
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.Assert;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 import org.projectnessie.model.CommitMeta;
 
+
 public class NessieUtilTest {
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void testBuildingCommitMetadataWithNullCatalogOptions() {
-    NessieUtil.buildCommitMetadata("msg", null);
+    Assertions.assertThatThrownBy(() -> NessieUtil.buildCommitMetadata("msg", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("catalogOptions must not be null");
   }
 
   @Test
@@ -40,21 +43,21 @@ public class NessieUtilTest {
     CommitMeta commitMeta = NessieUtil.buildCommitMetadata(
         commitMsg,
         ImmutableMap.of(CatalogProperties.APP_ID, appId, CatalogProperties.USER, user));
-    Assert.assertEquals(commitMsg, commitMeta.getMessage());
-    Assert.assertEquals(user, commitMeta.getAuthor());
-    Assert.assertEquals(2, commitMeta.getProperties().size());
-    Assert.assertEquals("iceberg", commitMeta.getProperties().get(NessieUtil.APPLICATION_TYPE));
-    Assert.assertEquals(appId, commitMeta.getProperties().get(CatalogProperties.APP_ID));
+    Assertions.assertThat(commitMeta.getMessage()).isEqualTo(commitMsg);
+    Assertions.assertThat(commitMeta.getAuthor()).isEqualTo(user);
+    Assertions.assertThat(commitMeta.getProperties()).hasSize(2);
+    Assertions.assertThat(commitMeta.getProperties().get(NessieUtil.APPLICATION_TYPE)).isEqualTo("iceberg");
+    Assertions.assertThat(commitMeta.getProperties().get(CatalogProperties.APP_ID)).isEqualTo(appId);
   }
 
   @Test
   public void testAuthorIsSetOnCommitMetadata() {
     String commitMsg = "commit msg";
     CommitMeta commitMeta = NessieUtil.buildCommitMetadata(commitMsg, ImmutableMap.of());
-    Assert.assertEquals(commitMsg, commitMeta.getMessage());
-    Assert.assertEquals(System.getProperty("user.name"), commitMeta.getAuthor());
-    Assert.assertEquals(1, commitMeta.getProperties().size());
-    Assert.assertEquals("iceberg", commitMeta.getProperties().get(NessieUtil.APPLICATION_TYPE));
+    Assertions.assertThat(commitMeta.getMessage()).isEqualTo(commitMsg);
+    Assertions.assertThat(commitMeta.getAuthor()).isEqualTo(System.getProperty("user.name"));
+    Assertions.assertThat(commitMeta.getProperties()).hasSize(1);
+    Assertions.assertThat(commitMeta.getProperties().get(NessieUtil.APPLICATION_TYPE)).isEqualTo("iceberg");
   }
 
   @Test
@@ -63,7 +66,7 @@ public class NessieUtilTest {
     try {
       System.clearProperty("user.name");
       CommitMeta commitMeta = NessieUtil.buildCommitMetadata("commit msg", ImmutableMap.of());
-      Assert.assertNull(commitMeta.getAuthor());
+      Assertions.assertThat(commitMeta.getAuthor()).isNull();
     } finally {
       System.setProperty("user.name", jvmUserName);
     }
