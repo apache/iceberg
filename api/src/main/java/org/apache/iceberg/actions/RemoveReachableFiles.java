@@ -46,7 +46,7 @@ public interface RemoveReachableFiles extends Action<RemoveReachableFiles, Remov
   /**
    * Passes an alternative executor service that will be used for files removal.
    * <p>
-   * If this method is not called, files will still be deleted in the current thread.
+   * If this method is not called, files will be deleted in the current thread.
    *
    *  @param executorService the service to use
    * @return this for method chaining
