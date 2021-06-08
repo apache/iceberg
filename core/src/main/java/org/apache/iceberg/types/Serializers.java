@@ -25,12 +25,9 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.function.IntFunction;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.GenericRecord;
@@ -200,179 +197,14 @@ public class Serializers {
       this.type = type;
     }
 
-    private static byte[] charSequence(CharSequence object) {
-      if (object == null || object.length() == 0) {
-        return new byte[0];
-      }
-
-      byte[] data = new byte[object.length()];
-      for (int i = 0; i < data.length; i++) {
-        data[i] = (byte) object.charAt(i);
-      }
-      return data;
-    }
-
     @Override
     public byte[] serialize(Object object) {
-      if (object == null) {
-        return new byte[0];
-      }
-
-      try (ByteArrayOutputStream out = new ByteArrayOutputStream();
-           DataOutputStream dos = new DataOutputStream(out)) {
-        switch (type.typeId()) {
-          case BOOLEAN:
-            dos.writeBoolean((boolean) object);
-            break;
-          case INTEGER:
-          case DATE:
-            dos.writeInt((int) object);
-            break;
-          case LONG:
-          case TIME:
-          case TIMESTAMP:
-            dos.writeLong((long) object);
-            break;
-          case FLOAT:
-            dos.writeFloat((float) object);
-            break;
-          case DOUBLE:
-            dos.writeDouble((double) object);
-            break;
-          case STRING:
-            byte[] strData = charSequence((CharSequence) object);
-            dos.writeInt(strData.length);
-            dos.write(strData);
-            break;
-          case UUID:
-            dos.writeUTF(((UUID) object).toString());
-            break;
-          case FIXED:
-          case BINARY:
-            byte[] bbData = ByteBuffers.toByteArray((ByteBuffer) object);
-            dos.writeInt(bbData.length);
-            dos.write(bbData);
-            break;
-          case DECIMAL:
-            DecimalSerializer.INSTANCE.serialize((BigDecimal) object);
-            break;
-          default:
-            throw new IllegalArgumentException("Not a primitive type: " + type);
-        }
-
-        return out.toByteArray();
-      } catch (IOException e) {
-        throw new UncheckedIOException(e);
-      }
+      return ByteBuffers.toByteArray(Conversions.toByteBuffer(type, object));
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public T deserialize(byte[] data) {
-      if (data == null || data.length == 0) {
-        return null;
-      }
-
-      Object value = null;
-      try (ByteArrayInputStream in = new ByteArrayInputStream(data);
-           DataInputStream dis = new DataInputStream(in)) {
-        switch (type.typeId()) {
-          case BOOLEAN:
-            value = dis.readBoolean();
-            break;
-          case INTEGER:
-          case DATE:
-            value = dis.readInt();
-            break;
-          case LONG:
-          case TIME:
-          case TIMESTAMP:
-            value = dis.readLong();
-            break;
-          case FLOAT:
-            value = dis.readFloat();
-            break;
-          case DOUBLE:
-            value = dis.readDouble();
-            break;
-          case STRING:
-            int strLen = dis.readInt();
-            byte[] strData = new byte[strLen];
-            Preconditions.checkState(strLen == dis.read(strData));
-            // TODO consider the charSequence.
-            value = new String(strData);
-            break;
-          case UUID:
-            value = dis.readUTF();
-            break;
-          case FIXED:
-          case BINARY:
-            int bbLen = dis.readInt();
-            byte[] bbData = new byte[bbLen];
-            Preconditions.checkState(bbLen == dis.read(bbData));
-            value = ByteBuffer.wrap(bbData);
-            break;
-          case DECIMAL:
-            value = DecimalSerializer.INSTANCE.deserialize(data);
-            break;
-          default:
-            throw new IllegalArgumentException("Not a primitive type: " + type);
-        }
-      } catch (IOException e) {
-        throw new UncheckedIOException(e);
-      }
-
-      return (T) value;
-    }
-  }
-
-  private static class DecimalSerializer implements Serializer<BigDecimal> {
-
-    private static final DecimalSerializer INSTANCE = new DecimalSerializer();
-
-    @Override
-    public byte[] serialize(BigDecimal decimal) {
-      try (ByteArrayOutputStream out = new ByteArrayOutputStream();
-           DataOutputStream dos = new DataOutputStream(out)) {
-
-        dos.writeInt(decimal.precision());
-        dos.writeInt(decimal.scale());
-
-        if (decimal.scale() <= 18) {
-          dos.writeLong(decimal.unscaledValue().longValueExact());
-        } else {
-          byte[] data = decimal.unscaledValue().toByteArray();
-          dos.writeInt(data.length);
-          dos.write(data);
-        }
-
-        return out.toByteArray();
-      } catch (IOException e) {
-        throw new UncheckedIOException(e);
-      }
-    }
-
-    @Override
-    public BigDecimal deserialize(byte[] data) {
-      try (ByteArrayInputStream in = new ByteArrayInputStream(data);
-           DataInputStream dis = new DataInputStream(in)) {
-
-        int precision = dis.readInt();
-        int scale = dis.readInt();
-
-        if (precision <= 18) {
-          long unscaledValue = dis.readLong();
-          return BigDecimal.valueOf(unscaledValue, scale);
-        } else {
-          int size = dis.readInt();
-          byte[] unscaledValue = new byte[size];
-          Preconditions.checkState(size == dis.read(unscaledValue));
-
-          return new BigDecimal(new BigInteger(unscaledValue), scale);
-        }
-      } catch (IOException e) {
-        throw new UncheckedIOException(e);
-      }
+      return Conversions.fromByteBuffer(type, ByteBuffer.wrap(data));
     }
   }
 }
