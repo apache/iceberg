@@ -236,10 +236,26 @@ public abstract class TestRemoveReachableFilesAction extends SparkTestBase {
         .commit();
 
     RemoveReachableFiles baseRemoveFilesSparkAction = sparkActions()
-        .removeReachableFiles(metadataLocation(table));
-    RemoveReachableFiles.Result result = baseRemoveFilesSparkAction.execute();
+        .removeReachableFiles(metadataLocation(table))
+        .io(table.io());
+    checkRemoveFilesResults(2, 2, 2, 4,  baseRemoveFilesSparkAction.execute());
+  }
 
-    checkRemoveFilesResults(2, 2, 2, 4,  result);
+  @Test
+  public void testRemoveFilesActionWithDefaultIO() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    table.newAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    // IO not set explicitly on removeReachableFiles action
+    // IO defaults to HadoopFileIO
+    RemoveReachableFiles baseRemoveFilesSparkAction = sparkActions()
+        .removeReachableFiles(metadataLocation(table));
+    checkRemoveFilesResults(2, 2, 2, 4,  baseRemoveFilesSparkAction.execute());
   }
 
   @Test
