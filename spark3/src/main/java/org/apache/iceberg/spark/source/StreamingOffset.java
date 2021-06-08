@@ -136,7 +136,8 @@ class StreamingOffset extends Offset {
     // used to validate when deserializing from json string.
     int version = JsonUtil.getInt(VERSION, node);
     Preconditions.checkArgument(version == CURR_VERSION,
-        "Cannot parse offset JSON: offset version %s is not supported", version);
+        "This version of Iceberg source only supports version %s. Version %s is not supported.",
+        CURR_VERSION, version);
 
     long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
     int position = JsonUtil.getInt(POSITION, node);

@@ -70,7 +70,7 @@ public class SnapshotUtil {
    */
   public static Snapshot oldestSnapshot(Table table) {
     Snapshot current = table.currentSnapshot();
-    while (current.parentId() != null) {
+    while (current != null && current.parentId() != null) {
       current = table.snapshot(current.parentId());
     }
 

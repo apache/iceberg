@@ -84,10 +84,10 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   private StreamingOffset initialOffset = null;
 
-  SparkMicroBatchStream(SparkSession spark, JavaSparkContext sparkContext,
+  SparkMicroBatchStream(SparkSession spark,
                         Table table, boolean caseSensitive, Schema expectedSchema,
                         CaseInsensitiveStringMap options, String checkpointLocation) {
-    this.sparkContext = sparkContext;
+    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.caseSensitive = caseSensitive;
     this.expectedSchema = expectedSchema;
@@ -229,7 +229,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     }
 
     Preconditions.checkState(pointer != null,
-        "snapshot on which the stream operated has been garbage collected.");
+        "Cannot read data from snapshot which has already expired: %s", snapshotId);
 
     return new StreamingOffset(pointer.snapshotId(), 0L, false);
   }
