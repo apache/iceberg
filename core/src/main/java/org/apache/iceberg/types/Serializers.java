@@ -100,20 +100,25 @@ public class Serializers {
         return new byte[0];
       }
 
-      ByteArrayOutputStream out = new ByteArrayOutputStream();
-      for (int i = 0; i < serializers.length; i += 1) {
-        Class<?> valueClass = classes[i];
+      try (ByteArrayOutputStream out = new ByteArrayOutputStream();
+           DataOutputStream dos = new DataOutputStream(out)) {
 
-        byte[] fieldData = serializers[i].serialize(object.get(i, valueClass));
-        out.write(fieldData.length);
+        for (int i = 0; i < serializers.length; i += 1) {
+          Class<?> valueClass = classes[i];
 
-        try {
-          out.write(fieldData);
-        } catch (IOException e) {
-          throw new UncheckedIOException(e);
+          byte[] fieldData = serializers[i].serialize(object.get(i, valueClass));
+          dos.writeInt(fieldData.length);
+
+          try {
+            dos.write(fieldData);
+          } catch (IOException e) {
+            throw new UncheckedIOException(e);
+          }
         }
+        return out.toByteArray();
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
       }
-      return out.toByteArray();
     }
 
     @Override
@@ -122,17 +127,22 @@ public class Serializers {
         return null;
       }
 
-      GenericRecord record = GenericRecord.create(struct);
-      ByteArrayInputStream in = new ByteArrayInputStream(data);
+      try (ByteArrayInputStream in = new ByteArrayInputStream(data);
+           DataInputStream dis = new DataInputStream(in)) {
 
-      for (int i = 0; i < serializers.length; i += 1) {
-        int length = in.read();
-        byte[] fieldData = new byte[length];
+        GenericRecord record = GenericRecord.create(struct);
+        for (int i = 0; i < serializers.length; i += 1) {
+          int length = dis.readInt();
+          byte[] fieldData = new byte[length];
+          Preconditions.checkState(length == dis.read(fieldData));
 
-        record.set(i, serializers[i].deserialize(fieldData));
+          record.set(i, serializers[i].deserialize(fieldData));
+        }
+
+        return record;
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
       }
-
-      return record;
     }
   }
 
