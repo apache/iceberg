@@ -75,7 +75,7 @@ public class BaseRemoveReachableFilesSparkAction
 
   private Consumer<String> removeFunc = defaultDelete;
   private ExecutorService removeExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
-  private FileIO io = new HadoopFileIO();
+  private FileIO io = new HadoopFileIO(spark().sessionState().newHadoopConf());
 
   public BaseRemoveReachableFilesSparkAction(SparkSession spark, String metadataLocation) {
     super(spark);

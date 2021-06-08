@@ -236,8 +236,7 @@ public abstract class TestRemoveReachableFilesAction extends SparkTestBase {
         .commit();
 
     RemoveReachableFiles baseRemoveFilesSparkAction = sparkActions()
-        .removeReachableFiles(metadataLocation(table))
-        .io(table.io());
+        .removeReachableFiles(metadataLocation(table));
     RemoveReachableFiles.Result result = baseRemoveFilesSparkAction.execute();
 
     checkRemoveFilesResults(2, 2, 2, 4,  result);
