@@ -94,7 +94,7 @@ public final class TestStructuredStreamingRead3 {
 
   @SuppressWarnings("unchecked")
   @Test
-  public void testGetAllInsertsAcrossIcebergSnapshots() throws IOException, TimeoutException {
+  public void testReadStreamOnIcebergTableWithMultipleSnapshots() throws IOException, TimeoutException {
     File parent = temp.newFolder("parent");
     File location = new File(parent, "test-table");
 
@@ -102,44 +102,16 @@ public final class TestStructuredStreamingRead3 {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 3).build();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
-    List<List<SimpleRecord>> expected = Lists.newArrayList(
-        Lists.newArrayList(
-          new SimpleRecord(1, "one"),
-          new SimpleRecord(2, "two"),
-          new SimpleRecord(3, "three")),
-        Lists.newArrayList(
-          new SimpleRecord(4, "four"),
-          new SimpleRecord(5, "five")),
-        Lists.newArrayList(
-          new SimpleRecord(6, "six"),
-          new SimpleRecord(7, "seven"))
-    );
-
-    // generate multiple snapshots
-    for (List<SimpleRecord> l : expected) {
-      Dataset<Row> df = spark.createDataFrame(l, SimpleRecord.class);
-      df.select("id", "data").write()
-              .format("iceberg")
-              .mode("append")
-              .save(location.toString());
-    }
+    List<List<SimpleRecord>> expected = getTestDataForMultipleSnapshots();
+    appendData(expected, location);
 
     table.refresh();
-    List<SimpleRecord> actual;
 
     try {
       Dataset<Row> df = spark.readStream()
               .format("iceberg")
               .load(location.toString());
-      StreamingQuery streamingQuery = df.writeStream()
-              .format("memory")
-              .queryName("test12")
-              .outputMode(OutputMode.Append())
-              .start();
-      streamingQuery.processAllAvailable();
-      actual = spark.sql("select * from test12")
-          .as(Encoders.bean(SimpleRecord.class))
-          .collectAsList();
+      List<SimpleRecord> actual = processStreamTillEnd(df);
 
       Assert.assertEquals(
           expected.stream().flatMap(List::stream).collect(Collectors.toList()),
@@ -176,86 +148,20 @@ public final class TestStructuredStreamingRead3 {
 
       String globalTempView = "global_temp." + tempView;
 
+      List<SimpleRecord> processStreamOnEmptyIcebergTable = processMicroBatch(singleBatchWriter, globalTempView);
       Assert.assertEquals(
           Collections.emptyList(),
-          processMicroBatch(singleBatchWriter, globalTempView));
+          processStreamOnEmptyIcebergTable);
 
-      List<List<SimpleRecord>> expectedCheckpoint1 = Lists.newArrayList(
-          Lists.newArrayList(
-              new SimpleRecord(1, "one"),
-              new SimpleRecord(2, "two"),
-              new SimpleRecord(3, "three")),
-          Lists.newArrayList(
-              new SimpleRecord(4, "four"),
-              new SimpleRecord(5, "five"))
-      );
+      for (List<List<SimpleRecord>> expectedCheckpoint : getTestDataForMultipleWritesWithMultipleSnapshots()) {
+        appendData(expectedCheckpoint, location);
+        table.refresh();
 
-      // generate multiple snapshots
-      for (List<SimpleRecord> l : expectedCheckpoint1) {
-        Dataset<Row> ds = spark.createDataFrame(l, SimpleRecord.class);
-        ds.select("id", "data").write()
-            .format("iceberg")
-            .mode("append")
-            .save(location.toString());
+        List<SimpleRecord> actualDataInCurrentMicroBatch = processMicroBatch(singleBatchWriter, globalTempView);
+        Assert.assertEquals(
+            expectedCheckpoint.stream().flatMap(List::stream).collect(Collectors.toList()),
+            actualDataInCurrentMicroBatch);
       }
-
-      table.refresh();
-
-      Assert.assertEquals(
-          expectedCheckpoint1.stream().flatMap(List::stream).collect(Collectors.toList()),
-          processMicroBatch(singleBatchWriter, globalTempView));
-
-      List<List<SimpleRecord>> expectedCheckpoint2 = Lists.newArrayList(
-          Lists.newArrayList(
-              new SimpleRecord(6, "six"),
-              new SimpleRecord(7, "seven")),
-          Lists.newArrayList(
-              new SimpleRecord(8, "eight"),
-              new SimpleRecord(9, "nine"))
-      );
-
-      // generate multiple snapshots
-      for (List<SimpleRecord> l : expectedCheckpoint2) {
-        Dataset<Row> ds = spark.createDataFrame(l, SimpleRecord.class);
-        ds.select("id", "data").write()
-            .format("iceberg")
-            .mode("append")
-            .save(location.toString());
-      }
-
-      table.refresh();
-
-      Assert.assertEquals(
-          expectedCheckpoint2.stream().flatMap(List::stream).collect(Collectors.toList()),
-          processMicroBatch(singleBatchWriter, globalTempView));
-
-      List<List<SimpleRecord>> expectedCheckpoint3 = Lists.newArrayList(
-          Lists.newArrayList(
-              new SimpleRecord(10, "ten"),
-              new SimpleRecord(11, "eleven"),
-              new SimpleRecord(12, "twelve")),
-          Lists.newArrayList(
-              new SimpleRecord(13, "thirteen"),
-              new SimpleRecord(14, "fourteen")),
-          Lists.newArrayList(
-              new SimpleRecord(15, "fifteen"),
-              new SimpleRecord(16, "sixteen"))
-      );
-
-      // generate multiple snapshots
-      for (List<SimpleRecord> l : expectedCheckpoint3) {
-        Dataset<Row> ds = spark.createDataFrame(l, SimpleRecord.class);
-        ds.select("id", "data").write()
-            .format("iceberg")
-            .mode("append")
-            .save(location.toString());
-      }
-
-      table.refresh();
-
-      Assert.assertEquals(
-          expectedCheckpoint3.stream().flatMap(List::stream).collect(Collectors.toList()),
-          processMicroBatch(singleBatchWriter, globalTempView));
     } finally {
       for (StreamingQuery query : spark.streams().active()) {
         query.stop();
@@ -270,6 +176,8 @@ public final class TestStructuredStreamingRead3 {
     File location = new File(parent, "test-table");
 
     HadoopTables tables = new HadoopTables(CONF);
+
+    // use partition buckets - so that single list<SimpleRecord> can generate multiple files per write
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 3).build();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
@@ -286,49 +194,24 @@ public final class TestStructuredStreamingRead3 {
         new SimpleRecord(6, "six"),
         new SimpleRecord(7, "seven"));
 
-    // generate multiple snapshots
-    Dataset<Row> df = spark.createDataFrame(parquetFileRecords, SimpleRecord.class);
-    df.select("id", "data").write()
-        .format("iceberg")
-        .option("write-format", "parquet")
-        .mode("append")
-        .save(location.toString());
-
-    df = spark.createDataFrame(orcFileRecords, SimpleRecord.class);
-    df.select("id", "data").write()
-        .format("iceberg")
-        .option("write-format", "orc")
-        .mode("append")
-        .save(location.toString());
-
-    df = spark.createDataFrame(avroFileRecords, SimpleRecord.class);
-    df.select("id", "data").write()
-        .format("iceberg")
-        .option("write-format", "avro")
-        .mode("append")
-        .save(location.toString());
+    appendData(parquetFileRecords, location, "parquet");
+    appendData(orcFileRecords, location, "orc");
+    appendData(avroFileRecords, location, "avro");
 
     table.refresh();
-    List<SimpleRecord> actual;
+
 
     try {
       Dataset<Row> ds = spark.readStream()
           .format("iceberg")
           .load(location.toString());
-      StreamingQuery streamingQuery = ds.writeStream()
-          .format("memory")
-          .queryName("test12")
-          .outputMode(OutputMode.Append())
-          .start();
-      streamingQuery.processAllAvailable();
-      actual = spark.sql("select * from test12")
-          .as(Encoders.bean(SimpleRecord.class))
-          .collectAsList();
-
-      Assert.assertEquals(Stream.concat(Stream.concat(parquetFileRecords.stream(), orcFileRecords.stream()),
+      List<SimpleRecord> actual = processStreamTillEnd(ds);
+      List<SimpleRecord> expected = Stream.concat(Stream.concat(
+          parquetFileRecords.stream(),
+          orcFileRecords.stream()),
           avroFileRecords.stream())
-          .collect(Collectors.toList()),
-          actual);
+            .collect(Collectors.toList());
+      Assert.assertEquals(expected, actual);
     } finally {
       for (StreamingQuery query : spark.streams().active()) {
         query.stop();
@@ -347,22 +230,13 @@ public final class TestStructuredStreamingRead3 {
     Table table = tables.create(SCHEMA, spec, location.toString());
 
     table.refresh();
-    List<SimpleRecord> actual;
 
     try {
       Dataset<Row> df = spark.readStream()
           .format("iceberg")
           .load(location.toString());
-      StreamingQuery streamingQuery = df.writeStream()
-          .format("memory")
-          .queryName("testemptytable")
-          .outputMode(OutputMode.Append())
-          .start();
-      streamingQuery.processAllAvailable();
-      actual = spark.sql("select * from testemptytable")
-          .as(Encoders.bean(SimpleRecord.class))
-          .collectAsList();
 
+      List<SimpleRecord> actual = processStreamTillEnd(df);
       Assert.assertEquals(Collections.emptyList(), actual);
     } finally {
       for (StreamingQuery query : spark.streams().active()) {
@@ -380,28 +254,15 @@ public final class TestStructuredStreamingRead3 {
     HadoopTables tables = new HadoopTables(CONF);
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 3).build();
     Table table = tables.create(SCHEMA, spec, location.toString());
+
+    // upgrade table to verison 2 - to facilitate creation of Snapshot of type OVERWRITE.
     TableOperations ops = ((BaseTable) table).operations();
     TableMetadata meta = ops.current();
     ops.commit(meta, meta.upgradeToFormatVersion(2));
 
-    List<List<SimpleRecord>> expected = Lists.newArrayList(
-        Lists.newArrayList(
-            new SimpleRecord(1, "one"),
-            new SimpleRecord(2, "two"),
-            new SimpleRecord(3, "three")),
-        Lists.newArrayList(
-            new SimpleRecord(4, "four"),
-            new SimpleRecord(5, "five"))
-    );
-
-    // generate multiple snapshots
-    for (List<SimpleRecord> l : expected) {
-      Dataset<Row> df = spark.createDataFrame(l, SimpleRecord.class);
-      df.select("id", "data").write()
-          .format("iceberg")
-          .mode("append")
-          .save(location.toString());
-    }
+    // fill table with some data
+    List<List<SimpleRecord>> dataAcrossSnapshots = getTestDataForMultipleSnapshots();
+    appendData(dataAcrossSnapshots, location);
 
     table.refresh();
 
@@ -418,7 +279,7 @@ public final class TestStructuredStreamingRead3 {
         .addDeletes(eqDeletes)
         .commit();
 
-    // check pre-condition
+    // check pre-condition - that the above Delete file write - actually resulted in snapshot of type OVERWRITE
     Assert.assertEquals(DataOperations.OVERWRITE, table.currentSnapshot().operation());
 
     try {
@@ -456,24 +317,9 @@ public final class TestStructuredStreamingRead3 {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).build();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
-    List<List<SimpleRecord>> expected = Lists.newArrayList(
-        Lists.newArrayList(
-            new SimpleRecord(1, "one"),
-            new SimpleRecord(2, "two"),
-            new SimpleRecord(3, "three")),
-        Lists.newArrayList(
-            new SimpleRecord(4, "four"),
-            new SimpleRecord(5, "five"))
-    );
-
-    // generate multiple snapshots
-    for (List<SimpleRecord> l : expected) {
-      Dataset<Row> df = spark.createDataFrame(l, SimpleRecord.class);
-      df.select("id", "data").write()
-          .format("iceberg")
-          .mode("append")
-          .save(location.toString());
-    }
+    // fill table with some data
+    List<List<SimpleRecord>> dataAcrossSnapshots = getTestDataForMultipleSnapshots();
+    appendData(dataAcrossSnapshots, location);
 
     table.refresh();
 
@@ -520,23 +366,9 @@ public final class TestStructuredStreamingRead3 {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
-    List<List<SimpleRecord>> expected = Lists.newArrayList(
-        Lists.newArrayList(
-            new SimpleRecord(1, "one"),
-            new SimpleRecord(2, "two"),
-            new SimpleRecord(3, "three")),
-        Lists.newArrayList(
-            new SimpleRecord(4, "four"))
-    );
-
-    // generate multiple snapshots
-    for (List<SimpleRecord> l : expected) {
-      Dataset<Row> df = spark.createDataFrame(l, SimpleRecord.class);
-      df.select("id", "data").write()
-          .format("iceberg")
-          .mode("append")
-          .save(location.toString());
-    }
+    // fill table with some data
+    List<List<SimpleRecord>> dataAcrossSnapshots = getTestDataForMultipleSnapshots();
+    appendData(dataAcrossSnapshots, location);
 
     table.refresh();
 
@@ -545,7 +377,7 @@ public final class TestStructuredStreamingRead3 {
         .deleteFromRowFilter(Expressions.equal("id", 4))
         .commit();
 
-    // check pre-condition
+    // check pre-condition - that the above newDelete operation on table resulted in Snapshot of Type DELETE.
     Assert.assertEquals(DataOperations.DELETE, table.currentSnapshot().operation());
 
     try {
@@ -581,5 +413,90 @@ public final class TestStructuredStreamingRead3 {
     return spark.sql(String.format("select * from %s", viewName))
         .as(Encoders.bean(SimpleRecord.class))
         .collectAsList();
+  }
+
+  /**
+   * get test data - a list of records per snapshot
+   */
+  private static List<List<SimpleRecord>> getTestDataForMultipleSnapshots() {
+    return Lists.newArrayList(
+        Lists.newArrayList(
+            new SimpleRecord(1, "one"),
+            new SimpleRecord(2, "two"),
+            new SimpleRecord(3, "three")),
+        Lists.newArrayList(
+            new SimpleRecord(4, "four"),
+            new SimpleRecord(5, "five")),
+        Lists.newArrayList(
+            new SimpleRecord(6, "six"),
+            new SimpleRecord(7, "seven"))
+    );
+  }
+
+  /**
+   * appends each list as a Snapshot on the iceberg table at the given location.
+   * accepts a list of lists - each list representing data per snapshot.
+   */
+  private static void appendData(List<List<SimpleRecord>> data, File location) {
+    // generate multiple snapshots
+    for (List<SimpleRecord> l : data) {
+      appendData(l, location, "parquet");
+    }
+  }
+
+  private static void appendData(List<SimpleRecord> data, File location, String fileFormat) {
+    Dataset<Row> df = spark.createDataFrame(data, SimpleRecord.class);
+    df.select("id", "data").write()
+        .format("iceberg")
+        .option("write-format", fileFormat)
+        .mode("append")
+        .save(location.toString());
+  }
+
+  private static List<SimpleRecord> processStreamTillEnd(Dataset<Row> df) throws TimeoutException {
+    StreamingQuery streamingQuery = df.writeStream()
+        .format("memory")
+        .queryName("test12")
+        .outputMode(OutputMode.Append())
+        .start();
+    streamingQuery.processAllAvailable();
+    return spark.sql("select * from test12")
+        .as(Encoders.bean(SimpleRecord.class))
+        .collectAsList();
+  }
+
+  /**
+   * gets test data - to be used for multiple write batches
+   * each batch inturn will have multiple snapshots
+   */
+  private static List<List<List<SimpleRecord>>> getTestDataForMultipleWritesWithMultipleSnapshots() {
+    return Lists.newArrayList(
+        Lists.newArrayList(
+            Lists.newArrayList(
+                new SimpleRecord(1, "one"),
+                new SimpleRecord(2, "two"),
+                new SimpleRecord(3, "three")),
+            Lists.newArrayList(
+                new SimpleRecord(4, "four"),
+                new SimpleRecord(5, "five"))),
+        Lists.newArrayList(
+            Lists.newArrayList(
+                new SimpleRecord(6, "six"),
+                new SimpleRecord(7, "seven")),
+            Lists.newArrayList(
+                new SimpleRecord(8, "eight"),
+                new SimpleRecord(9, "nine"))),
+        Lists.newArrayList(
+            Lists.newArrayList(
+                new SimpleRecord(10, "ten"),
+                new SimpleRecord(11, "eleven"),
+                new SimpleRecord(12, "twelve")),
+            Lists.newArrayList(
+                new SimpleRecord(13, "thirteen"),
+                new SimpleRecord(14, "fourteen")),
+            Lists.newArrayList(
+                new SimpleRecord(15, "fifteen"),
+                new SimpleRecord(16, "sixteen")))
+    );
   }
 }
