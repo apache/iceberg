@@ -80,7 +80,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final Integer splitLookback;
   private final Long splitOpenFileCost;
   private final boolean localityPreferred;
-  private final OffsetLog offsetLog;
+  private final InitialOffsetStore initialOffsetStore;
 
   private StreamingOffset initialOffset = null;
 
@@ -100,7 +100,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         Spark3Util.propertyAsLong(options, SparkReadOptions.FILE_OPEN_COST, null))
         .orElseGet(() -> PropertyUtil.propertyAsLong(table.properties(), SPLIT_OPEN_FILE_COST,
             SPLIT_OPEN_FILE_COST_DEFAULT));
-    this.offsetLog = OffsetLog.getInstance(spark, checkpointLocation);
+    this.initialOffsetStore = InitialOffsetStore.getInstance(spark, checkpointLocation);
   }
 
   @Override
@@ -169,8 +169,8 @@ public class SparkMicroBatchStream implements MicroBatchStream {
       return initialOffset;
     }
 
-    if (offsetLog.isOffsetLogInitialized()) {
-      initialOffset = offsetLog.getLatest();
+    if (initialOffsetStore.isOffsetStoreInitialized()) {
+      initialOffset = initialOffsetStore.getInitialOffset();
       return initialOffset;
     }
 
@@ -179,7 +179,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     } else {
       initialOffset = new StreamingOffset(
           SnapshotUtil.oldestSnapshot(table).snapshotId(), 0, true);
-      this.offsetLog.addInitialOffset(initialOffset);
+      this.initialOffsetStore.addInitialOffset(initialOffset);
     }
 
     return initialOffset;
@@ -234,22 +234,22 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     return new StreamingOffset(pointer.snapshotId(), 0L, false);
   }
 
-  interface OffsetLog {
-    static OffsetLog getInstance(SparkSession spark, String checkpointLocation) {
-      return new OffsetLogImpl(spark, checkpointLocation);
+  interface InitialOffsetStore {
+    static InitialOffsetStore getInstance(SparkSession spark, String checkpointLocation) {
+      return new InitialOffsetStoreImpl(spark, checkpointLocation);
     }
 
     void addInitialOffset(StreamingOffset offset);
 
-    boolean isOffsetLogInitialized();
+    boolean isOffsetStoreInitialized();
 
-    StreamingOffset getLatest();
+    StreamingOffset getInitialOffset();
   }
 
-  private static class OffsetLogImpl implements OffsetLog {
+  private static class InitialOffsetStoreImpl implements InitialOffsetStore {
     private final IcebergSourceOffsetLog offsetSeqLog;
 
-    OffsetLogImpl(SparkSession spark, String checkpointLocation) {
+    InitialOffsetStoreImpl(SparkSession spark, String checkpointLocation) {
       this.offsetSeqLog = checkpointLocation != null ?
           new IcebergSourceOffsetLog(spark, checkpointLocation) :
           null;
@@ -261,14 +261,14 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     }
 
     @Override
-    public boolean isOffsetLogInitialized() {
+    public boolean isOffsetStoreInitialized() {
       return offsetSeqLog != null &&
           offsetSeqLog.getLatest() != null &&
           offsetSeqLog.getLatest().isDefined();
     }
 
     @Override
-    public StreamingOffset getLatest() {
+    public StreamingOffset getInitialOffset() {
       return offsetSeqLog.getLatest().get()._2;
     }
   }
