@@ -82,8 +82,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final Long splitOpenFileCost;
   private final boolean localityPreferred;
   private final InitialOffsetStore initialOffsetStore;
-
-  private StreamingOffset initialOffset = null;
+  private final StreamingOffset initialOffset;
 
   SparkMicroBatchStream(SparkSession spark,
                         Table table, boolean caseSensitive, Schema expectedSchema,
@@ -102,12 +101,11 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         .orElseGet(() -> PropertyUtil.propertyAsLong(table.properties(), SPLIT_OPEN_FILE_COST,
             SPLIT_OPEN_FILE_COST_DEFAULT));
     this.initialOffsetStore = InitialOffsetStore.getInstance(spark, checkpointLocation);
+    this.initialOffset = getOrWriteInitialOffset(table, initialOffsetStore);
   }
 
   @Override
   public Offset latestOffset() {
-    initialOffset();
-
     Snapshot latestSnapshot = table.currentSnapshot();
     if (latestSnapshot == null) {
       return StreamingOffset.START_OFFSET;
@@ -118,10 +116,12 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         Iterables.size(latestSnapshot.addedFiles()) :
         Long.parseLong(addedFilesValue);
 
+    boolean scanAllFiles = !StreamingOffset.START_OFFSET.equals(initialOffset) &&
+        latestSnapshot.snapshotId() == initialOffset.snapshotId();
     return new StreamingOffset(
         latestSnapshot.snapshotId(),
         addedFiles,
-        latestSnapshot.snapshotId() == initialOffset.snapshotId());
+        scanAllFiles);
   }
 
   @Override
@@ -171,23 +171,6 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   @Override
   public Offset initialOffset() {
-    if (initialOffset != null && !initialOffset.equals(StreamingOffset.START_OFFSET)) {
-      return initialOffset;
-    }
-
-    if (initialOffsetStore.isOffsetStoreInitialized()) {
-      initialOffset = initialOffsetStore.getInitialOffset();
-      return initialOffset;
-    }
-
-    if (table.currentSnapshot() == null) {
-      initialOffset = StreamingOffset.START_OFFSET;
-    } else {
-      initialOffset = new StreamingOffset(
-          SnapshotUtil.oldestSnapshot(table).snapshotId(), 0, true);
-      this.initialOffsetStore.addInitialOffset(initialOffset);
-    }
-
     return initialOffset;
   }
 
@@ -204,10 +187,25 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   public void stop() {
   }
 
+  private static StreamingOffset getOrWriteInitialOffset(Table table, InitialOffsetStore initialOffsetStore) {
+    if (initialOffsetStore.isOffsetStoreInitialized()) {
+      return initialOffsetStore.getInitialOffset();
+    }
+
+    StreamingOffset offset = table.currentSnapshot() == null ?
+        StreamingOffset.START_OFFSET :
+        new StreamingOffset(SnapshotUtil.oldestSnapshot(table).snapshotId(), 0, true);
+    initialOffsetStore.addInitialOffset(offset);
+
+    return offset;
+  }
+
   private List<FileScanTask> getFileScanTasks(StreamingOffset startOffset, StreamingOffset endOffset) {
     List<FileScanTask> fileScanTasks = new ArrayList<>();
     MicroBatch latestMicroBatch = null;
-    StreamingOffset batchStartOffset = StreamingOffset.START_OFFSET.equals(startOffset) ? initialOffset : startOffset;
+    StreamingOffset batchStartOffset = StreamingOffset.START_OFFSET.equals(startOffset) ?
+        new StreamingOffset(SnapshotUtil.oldestSnapshot(table).snapshotId(), 0, false) :
+        startOffset;
 
     do {
       final StreamingOffset currentOffset =
