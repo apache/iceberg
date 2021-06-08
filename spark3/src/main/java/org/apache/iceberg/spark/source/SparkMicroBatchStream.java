@@ -37,6 +37,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -112,9 +113,14 @@ public class SparkMicroBatchStream implements MicroBatchStream {
       return StreamingOffset.START_OFFSET;
     }
 
+    String addedFilesValue = latestSnapshot.summary().get(SnapshotSummary.ADDED_FILES_PROP);
+    long addedFiles = addedFilesValue == null ?
+        Iterables.size(latestSnapshot.addedFiles()) :
+        Long.parseLong(addedFilesValue);
+
     return new StreamingOffset(
         latestSnapshot.snapshotId(),
-        Iterables.size(latestSnapshot.addedFiles()),
+        addedFiles,
         latestSnapshot.snapshotId() == initialOffset.snapshotId());
   }
 
