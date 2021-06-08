@@ -163,27 +163,6 @@ public final class TestStructuredStreamingRead3 {
     Table table = tables.create(SCHEMA, spec, location.toString());
     final String tempView = "microBatchView";
 
-    List<List<SimpleRecord>> expectedCheckpoint1 = Lists.newArrayList(
-        Lists.newArrayList(
-            new SimpleRecord(1, "one"),
-            new SimpleRecord(2, "two"),
-            new SimpleRecord(3, "three")),
-        Lists.newArrayList(
-            new SimpleRecord(4, "four"),
-            new SimpleRecord(5, "five"))
-    );
-
-    // generate multiple snapshots
-    for (List<SimpleRecord> l : expectedCheckpoint1) {
-      Dataset<Row> ds = spark.createDataFrame(l, SimpleRecord.class);
-      ds.select("id", "data").write()
-          .format("iceberg")
-          .mode("append")
-          .save(location.toString());
-    }
-
-    table.refresh();
-
     try {
       Dataset<Row> df = spark.readStream()
           .format("iceberg")
@@ -196,6 +175,32 @@ public final class TestStructuredStreamingRead3 {
           });
 
       String globalTempView = "global_temp." + tempView;
+
+      Assert.assertEquals(
+          Collections.emptyList(),
+          processMicroBatch(singleBatchWriter, globalTempView));
+
+      List<List<SimpleRecord>> expectedCheckpoint1 = Lists.newArrayList(
+          Lists.newArrayList(
+              new SimpleRecord(1, "one"),
+              new SimpleRecord(2, "two"),
+              new SimpleRecord(3, "three")),
+          Lists.newArrayList(
+              new SimpleRecord(4, "four"),
+              new SimpleRecord(5, "five"))
+      );
+
+      // generate multiple snapshots
+      for (List<SimpleRecord> l : expectedCheckpoint1) {
+        Dataset<Row> ds = spark.createDataFrame(l, SimpleRecord.class);
+        ds.select("id", "data").write()
+            .format("iceberg")
+            .mode("append")
+            .save(location.toString());
+      }
+
+      table.refresh();
+
       Assert.assertEquals(
           expectedCheckpoint1.stream().flatMap(List::stream).collect(Collectors.toList()),
           processMicroBatch(singleBatchWriter, globalTempView));

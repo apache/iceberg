@@ -171,7 +171,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   @Override
   public Offset initialOffset() {
-    if (initialOffset != null) {
+    if (initialOffset != null && !initialOffset.equals(StreamingOffset.START_OFFSET)) {
       return initialOffset;
     }
 
@@ -207,11 +207,13 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private List<FileScanTask> getFileScanTasks(StreamingOffset startOffset, StreamingOffset endOffset) {
     List<FileScanTask> fileScanTasks = new ArrayList<>();
     MicroBatch latestMicroBatch = null;
+    StreamingOffset batchStartOffset = StreamingOffset.START_OFFSET.equals(startOffset) ? initialOffset : startOffset;
+
     do {
       final StreamingOffset currentOffset =
           latestMicroBatch != null && latestMicroBatch.lastIndexOfSnapshot() ?
           getNextAvailableSnapshot(latestMicroBatch.snapshotId()) :
-          startOffset;
+              batchStartOffset;
 
       latestMicroBatch = MicroBatches.from(table.snapshot(currentOffset.snapshotId()), table.io())
           .caseSensitive(caseSensitive)
