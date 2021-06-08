@@ -25,6 +25,8 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
@@ -45,12 +47,149 @@ public class Serializers {
     return new StructLikeSerializer(struct);
   }
 
+  public static <T> Serializer<List<T>> forType(Types.ListType list) {
+    return new ListSerializer<>(list);
+  }
+
   public static <T> Serializer<T> forType(Type.PrimitiveType type) {
     return new PrimitiveSerializer<>(type);
   }
 
-  public static <T> Serializer<List<T>> forType(Types.ListType list) {
-    return new ListSerializer<>(list);
+  @SuppressWarnings("unchecked")
+  private static <T> Serializer<T> internal(Type type) {
+    if (type.isPrimitiveType()) {
+      return forType(type.asPrimitiveType());
+    } else if (type.isStructType()) {
+      return (Serializer<T>) forType(type.asStructType());
+    } else if (type.isListType()) {
+      return (Serializer<T>) forType(type.asListType());
+    }
+    throw new UnsupportedOperationException("Cannot determine serializer for type: " + type);
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <T> Class<T> internalClass(Type type) {
+    if (type.isPrimitiveType()) {
+      return (Class<T>) type.typeId().javaClass();
+    } else if (type.isStructType()) {
+      return (Class<T>) StructLike.class;
+    } else if (type.isListType()) {
+      return (Class<T>) List.class;
+    } else if (type.isMapType()) {
+      return (Class<T>) Map.class;
+    }
+
+    throw new UnsupportedOperationException("Cannot determine expected class for type: " + type);
+  }
+
+  private static class StructLikeSerializer implements Serializer<StructLike> {
+    private final Types.StructType struct;
+    private final Serializer<Object>[] serializers;
+    private final Class<?>[] classes;
+
+    private StructLikeSerializer(Types.StructType struct) {
+      this.struct = struct;
+      this.serializers = struct.fields().stream()
+          .map(field -> internal(field.type()))
+          .toArray((IntFunction<Serializer<Object>[]>) Serializer[]::new);
+      this.classes = struct.fields().stream()
+          .map(field -> internalClass(field.type()))
+          .toArray(Class<?>[]::new);
+    }
+
+    @Override
+    public byte[] serialize(StructLike object) {
+      if (object == null) {
+        return new byte[0];
+      }
+
+      ByteArrayOutputStream out = new ByteArrayOutputStream();
+      for (int i = 0; i < serializers.length; i += 1) {
+        Class<?> valueClass = classes[i];
+
+        byte[] fieldData = serializers[i].serialize(object.get(i, valueClass));
+        out.write(fieldData.length);
+
+        try {
+          out.write(fieldData);
+        } catch (IOException e) {
+          throw new UncheckedIOException(e);
+        }
+      }
+      return out.toByteArray();
+    }
+
+    @Override
+    public StructLike deserialize(byte[] data) {
+      if (data == null || data.length == 0) {
+        return null;
+      }
+
+      GenericRecord record = GenericRecord.create(struct);
+      ByteArrayInputStream in = new ByteArrayInputStream(data);
+
+      for (int i = 0; i < serializers.length; i += 1) {
+        int length = in.read();
+        byte[] fieldData = new byte[length];
+
+        record.set(i, serializers[i].deserialize(fieldData));
+      }
+
+      return record;
+    }
+  }
+
+  private static class ListSerializer<T> implements Serializer<List<T>> {
+    private final Serializer<T> elementSerializer;
+
+    private ListSerializer(Types.ListType list) {
+      this.elementSerializer = internal(list.elementType());
+    }
+
+    @Override
+    public byte[] serialize(List<T> object) {
+      if (object == null) {
+        return new byte[0];
+      }
+
+      try (ByteArrayOutputStream out = new ByteArrayOutputStream();
+           DataOutputStream dos = new DataOutputStream(out)) {
+
+        dos.writeInt(object.size());
+        for (T elem : object) {
+          byte[] data = elementSerializer.serialize(elem);
+          dos.writeInt(data.length);
+          dos.write(data);
+        }
+
+        return out.toByteArray();
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    @Override
+    public List<T> deserialize(byte[] data) {
+      if (data == null || data.length == 0) {
+        return null;
+      }
+
+      try (ByteArrayInputStream in = new ByteArrayInputStream(data);
+           DataInputStream dis = new DataInputStream(in)) {
+
+        int size = dis.readInt();
+        List<T> result = Lists.newArrayListWithExpectedSize(size);
+        for (int i = 0; i < size; i++) {
+          byte[] fieldData = new byte[dis.readInt()];
+          Preconditions.checkState(fieldData.length == dis.read(fieldData));
+          result.add(elementSerializer.deserialize(fieldData));
+        }
+
+        return result;
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
   }
 
   private static class PrimitiveSerializer<T> implements Serializer<T> {
@@ -62,8 +201,12 @@ public class Serializers {
     }
 
     private static byte[] charSequence(CharSequence object) {
+      if (object == null || object.length() == 0) {
+        return new byte[0];
+      }
+
       byte[] data = new byte[object.length()];
-      for (int i = 0; i < object.length(); i++) {
+      for (int i = 0; i < data.length; i++) {
         data[i] = (byte) object.charAt(i);
       }
       return data;
@@ -111,7 +254,7 @@ public class Serializers {
             dos.write(bbData);
             break;
           case DECIMAL:
-            // TODO implement decimal serializer.
+            DecimalSerializer.INSTANCE.serialize((BigDecimal) object);
             break;
           default:
             throw new IllegalArgumentException("Not a primitive type: " + type);
@@ -156,7 +299,7 @@ public class Serializers {
             int strLen = dis.readInt();
             byte[] strData = new byte[strLen];
             Preconditions.checkState(strLen == dis.read(strData));
-            // TODO consider the char sequence.
+            // TODO consider the charSequence.
             value = new String(strData);
             break;
           case UUID:
@@ -170,8 +313,10 @@ public class Serializers {
             value = ByteBuffer.wrap(bbData);
             break;
           case DECIMAL:
-            // TODO implement decimal deserializer.
+            value = DecimalSerializer.INSTANCE.deserialize(data);
             break;
+          default:
+            throw new IllegalArgumentException("Not a primitive type: " + type);
         }
       } catch (IOException e) {
         throw new UncheckedIOException(e);
@@ -181,133 +326,53 @@ public class Serializers {
     }
   }
 
-  @SuppressWarnings("unchecked")
-  private static <T> Serializer<T> internal(Type type) {
-    if (type.isPrimitiveType()) {
-      return forType(type.asPrimitiveType());
-    } else if (type.isStructType()) {
-      return (Serializer<T>) forType(type.asStructType());
-    } else if (type.isListType()) {
-      return (Serializer<T>) forType(type.asListType());
-    }
-    throw new UnsupportedOperationException("Cannot determine serializer for type: " + type);
-  }
+  private static class DecimalSerializer implements Serializer<BigDecimal> {
 
-  @SuppressWarnings("unchecked")
-  private static <T> Class<T> internalClass(Type type) {
-    if (type.isPrimitiveType()) {
-      return (Class<T>) type.typeId().javaClass();
-    } else if (type.isStructType()) {
-      return (Class<T>) StructLike.class;
-    } else if (type.isListType()) {
-      return (Class<T>) List.class;
-    } else if (type.isMapType()) {
-      return (Class<T>) Map.class;
-    }
-
-    throw new UnsupportedOperationException("Cannot determine expected class for type: " + type);
-  }
-
-  private static class ListSerializer<T> implements Serializer<List<T>> {
-    private final Serializer<T> elementSerializer;
-
-    private ListSerializer(Types.ListType list) {
-      this.elementSerializer = internal(list.elementType());
-    }
+    private static final DecimalSerializer INSTANCE = new DecimalSerializer();
 
     @Override
-    public byte[] serialize(List<T> object) {
+    public byte[] serialize(BigDecimal decimal) {
       try (ByteArrayOutputStream out = new ByteArrayOutputStream();
            DataOutputStream dos = new DataOutputStream(out)) {
 
-        dos.writeInt(object.size());
-        for (T elem : object) {
-          byte[] data = elementSerializer.serialize(elem);
+        dos.writeInt(decimal.precision());
+        dos.writeInt(decimal.scale());
+
+        if (decimal.scale() <= 18) {
+          dos.writeLong(decimal.unscaledValue().longValueExact());
+        } else {
+          byte[] data = decimal.unscaledValue().toByteArray();
           dos.writeInt(data.length);
           dos.write(data);
         }
 
         return out.toByteArray();
       } catch (IOException e) {
-        throw new RuntimeException(e);
+        throw new UncheckedIOException(e);
       }
     }
 
     @Override
-    public List<T> deserialize(byte[] data) {
+    public BigDecimal deserialize(byte[] data) {
       try (ByteArrayInputStream in = new ByteArrayInputStream(data);
            DataInputStream dis = new DataInputStream(in)) {
 
-        int size = dis.readInt();
-        List<T> result = Lists.newArrayListWithExpectedSize(size);
-        for (int i = 0; i < size; i++) {
-          int fieldLen = dis.readInt();
-          byte[] fieldData = new byte[fieldLen];
-          T field = elementSerializer.deserialize(fieldData);
-          result.add(field);
-        }
+        int precision = dis.readInt();
+        int scale = dis.readInt();
 
-        return result;
+        if (precision <= 18) {
+          long unscaledValue = dis.readLong();
+          return BigDecimal.valueOf(unscaledValue, scale);
+        } else {
+          int size = dis.readInt();
+          byte[] unscaledValue = new byte[size];
+          Preconditions.checkState(size == dis.read(unscaledValue));
+
+          return new BigDecimal(new BigInteger(unscaledValue), scale);
+        }
       } catch (IOException e) {
-        throw new RuntimeException(e);
+        throw new UncheckedIOException(e);
       }
-    }
-  }
-
-  private static class StructLikeSerializer implements Serializer<StructLike> {
-    private final Types.StructType struct;
-    private final Serializer<Object>[] serializers;
-    private final Class<?>[] classes;
-
-    private StructLikeSerializer(Types.StructType struct) {
-      this.struct = struct;
-      this.serializers = struct.fields().stream()
-          .map(field -> internal(field.type()))
-          .toArray((IntFunction<Serializer<Object>[]>) Serializer[]::new);
-      this.classes = struct.fields().stream()
-          .map(field -> internalClass(field.type()))
-          .toArray(Class<?>[]::new);
-    }
-
-    @Override
-    public byte[] serialize(StructLike object) {
-      if (object == null) {
-        return new byte[0];
-      }
-
-      ByteArrayOutputStream out = new ByteArrayOutputStream();
-      for (int i = 0; i < serializers.length; i += 1) {
-        Class<?> valueClass = classes[i];
-
-        byte[] fieldData = serializers[i].serialize(object.get(i, valueClass));
-        out.write(fieldData.length);
-
-        try {
-          out.write(fieldData);
-        } catch (IOException e) {
-          throw new UncheckedIOException(e);
-        }
-      }
-      return new byte[0];
-    }
-
-    @Override
-    public StructLike deserialize(byte[] data) {
-      if (data == null || data.length == 0) {
-        return null;
-      }
-
-      GenericRecord record = GenericRecord.create(struct);
-      ByteArrayInputStream in = new ByteArrayInputStream(data);
-
-      for (int i = 0; i < serializers.length; i += 1) {
-        int length = in.read();
-        byte[] fieldData = new byte[length];
-
-        record.set(i, serializers[i].deserialize(fieldData));
-      }
-
-      return record;
     }
   }
 }
