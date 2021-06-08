@@ -36,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class Serializers {
+  private static final int NULL_MARK = -1;
 
   private Serializers() {
   }
@@ -97,7 +98,7 @@ public class Serializers {
     @Override
     public byte[] serialize(StructLike object) {
       if (object == null) {
-        return new byte[0];
+        return null;
       }
 
       try (ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -107,12 +108,11 @@ public class Serializers {
           Class<?> valueClass = classes[i];
 
           byte[] fieldData = serializers[i].serialize(object.get(i, valueClass));
-          dos.writeInt(fieldData.length);
-
-          try {
+          if (fieldData == null) {
+            dos.writeInt(NULL_MARK);
+          } else {
+            dos.writeInt(fieldData.length);
             dos.write(fieldData);
-          } catch (IOException e) {
-            throw new UncheckedIOException(e);
           }
         }
         return out.toByteArray();
@@ -123,7 +123,7 @@ public class Serializers {
 
     @Override
     public StructLike deserialize(byte[] data) {
-      if (data == null || data.length == 0) {
+      if (data == null) {
         return null;
       }
 
@@ -133,10 +133,15 @@ public class Serializers {
         GenericRecord record = GenericRecord.create(struct);
         for (int i = 0; i < serializers.length; i += 1) {
           int length = dis.readInt();
-          byte[] fieldData = new byte[length];
-          Preconditions.checkState(length == dis.read(fieldData));
 
-          record.set(i, serializers[i].deserialize(fieldData));
+          if (length == NULL_MARK) {
+            record.set(i, null);
+          } else {
+            byte[] fieldData = new byte[length];
+            int fieldDataSize = dis.read(fieldData);
+            Preconditions.checkState(length == fieldDataSize, "%s != %s", length, fieldDataSize);
+            record.set(i, serializers[i].deserialize(fieldData));
+          }
         }
 
         return record;
@@ -156,7 +161,7 @@ public class Serializers {
     @Override
     public byte[] serialize(List<T> object) {
       if (object == null) {
-        return new byte[0];
+        return null;
       }
 
       try (ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -165,8 +170,13 @@ public class Serializers {
         dos.writeInt(object.size());
         for (T elem : object) {
           byte[] data = elementSerializer.serialize(elem);
-          dos.writeInt(data.length);
-          dos.write(data);
+
+          if (data == null) {
+            dos.writeInt(NULL_MARK);
+          } else {
+            dos.writeInt(data.length);
+            dos.write(data);
+          }
         }
 
         return out.toByteArray();
@@ -177,7 +187,7 @@ public class Serializers {
 
     @Override
     public List<T> deserialize(byte[] data) {
-      if (data == null || data.length == 0) {
+      if (data == null) {
         return null;
       }
 
@@ -187,9 +197,16 @@ public class Serializers {
         int size = dis.readInt();
         List<T> result = Lists.newArrayListWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
-          byte[] fieldData = new byte[dis.readInt()];
-          Preconditions.checkState(fieldData.length == dis.read(fieldData));
-          result.add(elementSerializer.deserialize(fieldData));
+          int length = dis.readInt();
+
+          if (length == NULL_MARK) {
+            result.add(null);
+          } else {
+            byte[] fieldData = new byte[length];
+            int fieldDataSize = dis.read(fieldData);
+            Preconditions.checkState(length == fieldDataSize, "%s != %s", length, fieldDataSize);
+            result.add(elementSerializer.deserialize(fieldData));
+          }
         }
 
         return result;
@@ -214,7 +231,7 @@ public class Serializers {
 
     @Override
     public T deserialize(byte[] data) {
-      return Conversions.fromByteBuffer(type, ByteBuffer.wrap(data));
+      return Conversions.fromByteBuffer(type, data == null ? null : ByteBuffer.wrap(data));
     }
   }
 }
