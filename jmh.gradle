@@ -17,7 +17,7 @@
  * under the License.
  */
 
-def jmhProjects
+def jmhProjects = []
 if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
   jmhProjects = [ project("iceberg-spark2"), project("iceberg-spark3") ]
 } else if (JavaVersion.current() == JavaVersion.VERSION_11) {
