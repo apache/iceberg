@@ -219,7 +219,7 @@ public class TableTestBase {
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
     ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId,
-        this.table.location(), this.table.properties());
+        this.table.location(), MetadataPathUtils.shouldUseRelativePath(this.table.properties()));
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -249,10 +249,12 @@ public class TableTestBase {
     ManifestWriter<F> writer;
     if (entries[0].file() instanceof DataFile) {
       writer = (ManifestWriter<F>) ManifestFiles.write(
-              formatVersion, table.spec(), outputFile, snapshotId, this.table.location(), this.table.properties());
+              formatVersion, table.spec(), outputFile, snapshotId, this.table.location(),
+              this.table.ops().current().shouldUseRelativePaths());
     } else {
       writer = (ManifestWriter<F>) ManifestFiles.writeDeleteManifest(
-              formatVersion, table.spec(), outputFile, snapshotId, this.table.location(), this.table.properties());
+              formatVersion, table.spec(), outputFile, snapshotId, this.table.location(),
+              this.table.ops().current().shouldUseRelativePaths());
     }
     try {
       for (ManifestEntry<?> entry : entries) {
@@ -270,7 +272,7 @@ public class TableTestBase {
     OutputFile manifestFile = org.apache.iceberg.Files
         .localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
     ManifestWriter<DeleteFile> writer = ManifestFiles.writeDeleteManifest(
-        newFormatVersion, SPEC, manifestFile, snapshotId, null, null);
+        newFormatVersion, SPEC, manifestFile, snapshotId);
     try {
       for (DeleteFile deleteFile : deleteFiles) {
         writer.add(deleteFile);
@@ -287,7 +289,7 @@ public class TableTestBase {
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
     ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, null,
-            this.table.location(), this.table.properties());
+            this.table.location(), MetadataPathUtils.shouldUseRelativePath(this.table.properties()));
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -341,8 +343,7 @@ public class TableTestBase {
     long id = snap.snapshotId();
     Iterator<String> newPaths = paths(newFiles).iterator();
 
-    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO, table.location(),
-        table.properties()).entries()) {
+    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       if (sequenceNumber != null) {
         V1Assert.assertEquals("Sequence number should default to 0", 0, entry.sequenceNumber().longValue());
@@ -409,8 +410,7 @@ public class TableTestBase {
                         Iterator<Long> ids,
                         Iterator<DataFile> expectedFiles,
                         Iterator<ManifestEntry.Status> statuses) {
-    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO, table.location(),
-        table.properties()).entries()) {
+    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
       if (seqs != null) {
@@ -436,7 +436,7 @@ public class TableTestBase {
                               Iterator<DeleteFile> expectedFiles,
                               Iterator<ManifestEntry.Status> statuses) {
     for (ManifestEntry<DeleteFile> entry :
-        ManifestFiles.readDeleteManifest(manifest, FILE_IO, null, table.location(), table.properties()).entries()) {
+        ManifestFiles.readDeleteManifest(manifest, FILE_IO, null).entries()) {
       DeleteFile file = entry.file();
       DeleteFile expected = expectedFiles.next();
       if (seqs != null) {
@@ -490,12 +490,11 @@ public class TableTestBase {
     return positionDelete.set(path, pos, row);
   }
 
-  void validateManifestEntries(ManifestFile manifest,
+  static void validateManifestEntries(ManifestFile manifest,
                                       Iterator<Long> ids,
                                       Iterator<DataFile> expectedFiles,
                                       Iterator<ManifestEntry.Status> expectedStatuses) {
-    for (ManifestEntry<DataFile> entry :
-        ManifestFiles.read(manifest, FILE_IO, table.location(), table.properties()).entries()) {
+    for (ManifestEntry<DataFile> entry : ManifestFiles.read(manifest, FILE_IO).entries()) {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
       final ManifestEntry.Status expectedStatus = expectedStatuses.next();
@@ -530,8 +529,8 @@ public class TableTestBase {
     return Iterators.forArray(files);
   }
 
-  Iterator<DataFile> files(ManifestFile manifest) {
-    return ManifestFiles.read(manifest, FILE_IO, table.location(), table.properties()).iterator();
+  static Iterator<DataFile> files(ManifestFile manifest) {
+    return ManifestFiles.read(manifest, FILE_IO).iterator();
   }
 
   /**

@@ -31,6 +31,7 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
+import org.apache.iceberg.MetadataPathUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
@@ -184,7 +185,8 @@ public class TestForwardCompatibility {
         .build();
 
     OutputFile manifestFile = localOutput(FileFormat.AVRO.addExtension(temp.newFile().toString()));
-    ManifestWriter manifestWriter = ManifestFiles.write(FAKE_SPEC, manifestFile, table.location(), table.properties());
+    ManifestWriter manifestWriter = ManifestFiles.write(FAKE_SPEC, manifestFile, table.location(),
+        MetadataPathUtils.shouldUseRelativePath(table.properties()));
     try {
       manifestWriter.add(file);
     } finally {
