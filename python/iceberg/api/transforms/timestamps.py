@@ -70,3 +70,14 @@ class Timestamps(Transform):
 
     def __str__(self):
         return self.name
+
+    def dedup_name(self):
+        return "time"
+
+    def __eq__(self, other):
+        if id(self) == id(other):
+            return True
+        if other is None or not isinstance(other, Timestamps):
+            return False
+
+        return self.granularity == other.granularity and self.name == other.name

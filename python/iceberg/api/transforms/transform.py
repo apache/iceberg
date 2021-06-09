@@ -38,3 +38,6 @@ class Transform(object):
 
     def to_human_string(self, value):
         return str(value)
+
+    def dedup_name(self):
+        return self.__str__()
