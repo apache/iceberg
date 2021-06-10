@@ -223,7 +223,9 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
         // field IDs were not required for v1 and were assigned sequentially in each partition spec starting at 1,000.
         // to maintain consistent field ids across partition specs in v1 tables, any partition field that is removed
         // must be replaced with a null transform. null values are always allowed in partition data.
-        builder.add(field.sourceId(), field.fieldId(), field.name(), Transforms.alwaysNull());
+        // To avoid name conflict when add and remove same partition transform multiple times, field name will be
+        // replaced by field name append with field id.
+        builder.add(field.sourceId(), field.fieldId(), field.name() + "_" + field.fieldId(), Transforms.alwaysNull());
       }
     }
 
@@ -290,7 +292,9 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     ImmutableMap.Builder<Pair<Integer, String>, PartitionField> builder = ImmutableMap.builder();
     List<PartitionField> fields = spec.fields();
     for (PartitionField field : fields) {
-      builder.put(Pair.of(field.sourceId(), field.transform().toString()), field);
+      if (!field.transform().isVoid()) {
+        builder.put(Pair.of(field.sourceId(), field.transform().toString()), field);
+      }
     }
 
     return builder.build();

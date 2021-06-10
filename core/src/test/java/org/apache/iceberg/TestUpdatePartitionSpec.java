@@ -569,6 +569,39 @@ public class TestUpdatePartitionSpec extends TableTestBase {
             .renameField("shard", "id_bucket"));
   }
 
+  @Test
+  public void testRemoveAndAddMultiTimes() {
+    PartitionSpec addFirstTime = new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED)
+            .addField(day("ts"))
+            .apply();
+    PartitionSpec removeFirstTime = new BaseUpdatePartitionSpec(formatVersion, addFirstTime)
+            .removeField(day("ts"))
+            .apply();
+    PartitionSpec addSecondTime = new BaseUpdatePartitionSpec(formatVersion, removeFirstTime)
+            .addField(day("ts"))
+            .apply();
+    PartitionSpec removeSecondTime = new BaseUpdatePartitionSpec(formatVersion, addSecondTime)
+            .removeField(day("ts"))
+            .apply();
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, removeSecondTime)
+            .addField(day("ts"))
+            .apply();
+
+    PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
+            .alwaysNull("ts", "ts_day_1000")
+            .alwaysNull("ts", "ts_day_1001")
+            .day("ts")
+            .build();
+
+    V1Assert.assertEquals("Should match expected spec", v1Expected, updated);
+
+    PartitionSpec v2Expected = PartitionSpec.builderFor(SCHEMA)
+            .day("ts")
+            .build();
+
+    V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
+  }
+
   private static int id(String name) {
     return SCHEMA.findField(name).fieldId();
   }
