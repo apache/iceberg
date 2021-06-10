@@ -19,13 +19,11 @@
 
 package org.apache.iceberg.nessie;
 
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Test;
 import org.projectnessie.model.CommitMeta;
-
-import static org.apache.iceberg.nessie.NessieUtil.APP_ID;
-import static org.apache.iceberg.nessie.NessieUtil.USER;
 
 public class NessieUtilTest {
 
@@ -41,12 +39,12 @@ public class NessieUtilTest {
     String user = "sparkUser";
     CommitMeta commitMeta = NessieUtil.buildCommitMetadata(
         commitMsg,
-        ImmutableMap.of(APP_ID, appId, USER, user));
+        ImmutableMap.of(CatalogProperties.APP_ID, appId, CatalogProperties.USER, user));
     Assert.assertEquals(commitMsg, commitMeta.getMessage());
     Assert.assertEquals(user, commitMeta.getAuthor());
     Assert.assertEquals(2, commitMeta.getProperties().size());
     Assert.assertEquals("iceberg", commitMeta.getProperties().get(NessieUtil.APPLICATION_TYPE));
-    Assert.assertEquals(appId, commitMeta.getProperties().get(APP_ID));
+    Assert.assertEquals(appId, commitMeta.getProperties().get(CatalogProperties.APP_ID));
   }
 
   @Test
