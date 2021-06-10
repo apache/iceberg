@@ -106,6 +106,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   @Override
   public Offset latestOffset() {
+    table.refresh();
     Snapshot latestSnapshot = table.currentSnapshot();
     if (latestSnapshot == null) {
       return StreamingOffset.START_OFFSET;
@@ -192,6 +193,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
       return initialOffsetStore.getInitialOffset();
     }
 
+    table.refresh();
     StreamingOffset offset = table.currentSnapshot() == null ?
         StreamingOffset.START_OFFSET :
         new StreamingOffset(SnapshotUtil.oldestSnapshot(table).snapshotId(), 0, true);
