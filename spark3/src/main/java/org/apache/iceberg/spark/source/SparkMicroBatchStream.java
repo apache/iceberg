@@ -28,6 +28,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileScanTask;
@@ -40,6 +41,9 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -52,16 +56,13 @@ import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
-import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.connector.read.streaming.Offset;
-import org.apache.spark.sql.execution.streaming.HDFSMetadataLog;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.reflect.ClassTag;
 
 import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK;
 import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK_DEFAULT;
@@ -84,10 +85,10 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final InitialOffsetStore initialOffsetStore;
   private final StreamingOffset initialOffset;
 
-  SparkMicroBatchStream(SparkSession spark,
+  SparkMicroBatchStream(JavaSparkContext sparkContext,
                         Table table, boolean caseSensitive, Schema expectedSchema,
                         CaseInsensitiveStringMap options, String checkpointLocation) {
-    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
+    this.sparkContext = sparkContext;
     this.table = table;
     this.caseSensitive = caseSensitive;
     this.expectedSchema = expectedSchema;
@@ -100,7 +101,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         Spark3Util.propertyAsLong(options, SparkReadOptions.FILE_OPEN_COST, null))
         .orElseGet(() -> PropertyUtil.propertyAsLong(table.properties(), SPLIT_OPEN_FILE_COST,
             SPLIT_OPEN_FILE_COST_DEFAULT));
-    this.initialOffsetStore = InitialOffsetStore.getInstance(spark, checkpointLocation);
+    this.initialOffsetStore = InitialOffsetStore.getInstance(table.io(), checkpointLocation);
     this.initialOffset = getOrWriteInitialOffset(table, initialOffsetStore);
   }
 
@@ -117,6 +118,13 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         Iterables.size(latestSnapshot.addedFiles()) :
         Long.parseLong(addedFilesValue);
 
+    // a readStream on an Iceberg table can be started from 2 types of snapshots
+    // 1. a valid starting Snapshot:
+    //      when this valid starting Snapshot is the initialOffset - then, scanAllFiles must be set to true;
+    //      for all StreamingOffsets following this - scanAllFiles must be set to false
+    // 2. START_OFFSET:
+    //      if the stream started on the table from START_OFFSET - it implies - that all the subsequent Snapshots added
+    //      will have all files as net New manifests & hence scanAllFiles can be false.
     boolean scanAllFiles = !StreamingOffset.START_OFFSET.equals(initialOffset) &&
         latestSnapshot.snapshotId() == initialOffset.snapshotId();
     return new StreamingOffset(
@@ -243,8 +251,8 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   }
 
   interface InitialOffsetStore {
-    static InitialOffsetStore getInstance(SparkSession spark, String checkpointLocation) {
-      return new InitialOffsetStoreImpl(spark, checkpointLocation);
+    static InitialOffsetStore getInstance(FileIO io, String checkpointLocation) {
+      return new InitialOffsetStoreImpl(io, checkpointLocation);
     }
 
     void addInitialOffset(StreamingOffset offset);
@@ -255,59 +263,51 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   }
 
   private static class InitialOffsetStoreImpl implements InitialOffsetStore {
-    private final IcebergSourceOffsetLog offsetSeqLog;
+    private final FileIO io;
+    private final String initialOffsetLocation;
 
-    InitialOffsetStoreImpl(SparkSession spark, String checkpointLocation) {
-      this.offsetSeqLog = checkpointLocation != null ?
-          new IcebergSourceOffsetLog(spark, checkpointLocation) :
-          null;
+    InitialOffsetStoreImpl(FileIO io, String checkpointLocation) {
+      this.io = io;
+      this.initialOffsetLocation = new Path(checkpointLocation, "offsets/0").toString();
     }
 
     @Override
     public void addInitialOffset(StreamingOffset offset) {
-      this.offsetSeqLog.add(0, offset);
+      OutputFile file = io.newOutputFile(initialOffsetLocation);
+      serialize(offset, file);
     }
 
     @Override
     public boolean isOffsetStoreInitialized() {
-      return offsetSeqLog != null &&
-          offsetSeqLog.getLatest() != null &&
-          offsetSeqLog.getLatest().isDefined();
+      InputFile file = io.newInputFile(initialOffsetLocation);
+      return file.exists();
     }
 
     @Override
     public StreamingOffset getInitialOffset() {
-      return offsetSeqLog.getLatest().get()._2;
-    }
-  }
-
-  private static class IcebergSourceOffsetLog extends HDFSMetadataLog<StreamingOffset> {
-    private final String path;
-
-    IcebergSourceOffsetLog(SparkSession sparkSession, String path) {
-      super(sparkSession, path, ClassTag.apply(StreamingOffset.class));
-      this.path = path;
+      InputFile file = io.newInputFile(initialOffsetLocation);
+      return deserialize(file);
     }
 
-    @Override
-    public void serialize(StreamingOffset metadata, OutputStream out) {
-      try {
-        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8));
+    private void serialize(StreamingOffset metadata, OutputFile file) {
+      try (OutputStream outputStream = file.create()) {
+        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
         writer.write(metadata.json());
         writer.flush();
       } catch (IOException ioException) {
         throw new IllegalArgumentException(
-            String.format("Failed to deserialize latest checkpoint from: %s, with error: %s.", path, ioException));
+            String.format("Failed to serialize latest checkpoint to: %s, with error: %s.",
+                initialOffsetLocation, ioException));
       }
     }
 
-    @Override
-    public StreamingOffset deserialize(InputStream in) {
-      try {
+    private StreamingOffset deserialize(InputFile file) {
+      try (InputStream in = file.newStream()) {
         return StreamingOffset.fromJson(in);
       } catch (IOException ioException) {
         throw new IllegalArgumentException(
-            String.format("Failed to deserialize latest checkpoint from: %s, with error: %s.", path, ioException));
+            String.format("Failed to deserialize latest checkpoint from: %s, with error: %s.",
+                initialOffsetLocation, ioException));
       }
     }
   }
