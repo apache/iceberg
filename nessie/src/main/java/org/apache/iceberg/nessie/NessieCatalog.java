@@ -51,7 +51,6 @@ import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.error.BaseNessieClientServerException;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
-import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.Contents;
 import org.projectnessie.model.IcebergTable;
 import org.projectnessie.model.ImmutableDelete;
@@ -80,12 +79,14 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   private UpdateableReference reference;
   private String name;
   private FileIO fileIO;
+  private Map<String, String> catalogOptions;
 
   public NessieCatalog() {
   }
 
   @Override
   public void initialize(String inputName, Map<String, String> options) {
+    this.catalogOptions = ImmutableMap.copyOf(options);
     String fileIOImpl = options.get(CatalogProperties.FILE_IO_IMPL);
     this.fileIO = fileIOImpl == null ? new HadoopFileIO(config) : CatalogUtil.loadFileIO(fileIOImpl, options, config);
     this.name = inputName == null ? "nessie" : inputName;
@@ -137,7 +138,12 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     if (pti.reference() != null) {
       newReference = loadReference(pti.reference());
     }
-    return new NessieTableOperations(NessieUtil.toKey(pti.tableIdentifier()), newReference, client, fileIO);
+    return new NessieTableOperations(
+        NessieUtil.toKey(pti.tableIdentifier()),
+        newReference,
+        client,
+        fileIO,
+        catalogOptions);
   }
 
   @Override
@@ -164,10 +170,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
     Operations contents = ImmutableOperations.builder()
         .addOperations(ImmutableDelete.builder().key(NessieUtil.toKey(identifier)).build())
-        .commitMeta(CommitMeta.builder().message(String.format("delete table %s", identifier))
-            .author(NessieUtil.getCommitAuthor())
-            .properties(ImmutableMap.of("application.type", "iceberg"))
-            .build())
+        .commitMeta(NessieUtil.buildCommitMetadata(String.format("delete table %s", identifier), catalogOptions))
         .build();
 
     // We try to drop the table. Simple retry after ref update.
@@ -211,10 +214,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     Operations contents = ImmutableOperations.builder()
         .addOperations(ImmutablePut.builder().key(NessieUtil.toKey(to)).contents(existingFromTable).build(),
             ImmutableDelete.builder().key(NessieUtil.toKey(from)).build())
-        .commitMeta(CommitMeta.builder().message("iceberg rename table")
-            .author(NessieUtil.getCommitAuthor())
-            .properties(ImmutableMap.of("application.type", "iceberg"))
-            .build())
+        .commitMeta(NessieUtil.buildCommitMetadata("iceberg rename table", catalogOptions))
         .build();
 
     try {
