@@ -24,8 +24,8 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.projectnessie.model.CommitMeta;
 
-import static org.apache.iceberg.nessie.NessieUtil.SPARK_APP_ID;
-import static org.apache.iceberg.nessie.NessieUtil.SPARK_USER;
+import static org.apache.iceberg.nessie.NessieUtil.APP_ID;
+import static org.apache.iceberg.nessie.NessieUtil.USER;
 
 public class NessieUtilTest {
 
@@ -41,12 +41,12 @@ public class NessieUtilTest {
     String user = "sparkUser";
     CommitMeta commitMeta = NessieUtil.buildCommitMetadata(
         commitMsg,
-        ImmutableMap.of(SPARK_APP_ID, appId, SPARK_USER, user));
+        ImmutableMap.of(APP_ID, appId, USER, user));
     Assert.assertEquals(commitMsg, commitMeta.getMessage());
     Assert.assertEquals(user, commitMeta.getAuthor());
     Assert.assertEquals(2, commitMeta.getProperties().size());
-    Assert.assertEquals("iceberg", commitMeta.getProperties().get("application.type"));
-    Assert.assertEquals(appId, commitMeta.getProperties().get(SPARK_APP_ID));
+    Assert.assertEquals("iceberg", commitMeta.getProperties().get(NessieUtil.APPLICATION_TYPE));
+    Assert.assertEquals(appId, commitMeta.getProperties().get(APP_ID));
   }
 
   @Test
@@ -56,6 +56,18 @@ public class NessieUtilTest {
     Assert.assertEquals(commitMsg, commitMeta.getMessage());
     Assert.assertEquals(System.getProperty("user.name"), commitMeta.getAuthor());
     Assert.assertEquals(1, commitMeta.getProperties().size());
-    Assert.assertEquals("iceberg", commitMeta.getProperties().get("application.type"));
+    Assert.assertEquals("iceberg", commitMeta.getProperties().get(NessieUtil.APPLICATION_TYPE));
+  }
+
+  @Test
+  public void testAuthorIsNullWithoutJvmUser() {
+    String jvmUserName = System.getProperty("user.name");
+    try {
+      System.clearProperty("user.name");
+      CommitMeta commitMeta = NessieUtil.buildCommitMetadata("commit msg", ImmutableMap.of());
+      Assert.assertNull(commitMeta.getAuthor());
+    } finally {
+      System.setProperty("user.name", jvmUserName);
+    }
   }
 }

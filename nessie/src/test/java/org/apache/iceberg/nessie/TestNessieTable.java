@@ -158,7 +158,7 @@ public class TestNessieTable extends BaseTestIceberg {
     log.forEach(x ->  {
       Assert.assertNotEquals("", x.getAuthor());
       Assert.assertEquals(System.getProperty("user.name"), x.getAuthor());
-      Assert.assertEquals("iceberg", x.getProperties().get("application.type"));
+      Assert.assertEquals("iceberg", x.getProperties().get(NessieUtil.APPLICATION_TYPE));
     });
   }
 

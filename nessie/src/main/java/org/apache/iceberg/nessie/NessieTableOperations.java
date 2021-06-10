@@ -26,7 +26,6 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.projectnessie.client.NessieClient;
 import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.NessieConflictException;
@@ -54,15 +53,17 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
   /**
    * Create a nessie table operations given a table identifier.
    */
-  public NessieTableOperations(
+  NessieTableOperations(
       ContentsKey key,
       UpdateableReference reference,
       NessieClient client,
-      FileIO fileIO) {
+      FileIO fileIO,
+      Map<String, String> catalogOptions) {
     this.key = key;
     this.reference = reference;
     this.client = client;
     this.fileIO = fileIO;
+    this.catalogOptions = catalogOptions;
   }
 
   @Override
@@ -103,7 +104,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
     try {
       IcebergTable newTable = ImmutableIcebergTable.builder().metadataLocation(newMetadataLocation).build();
       Operations op = ImmutableOperations.builder().addOperations(Operation.Put.of(key, newTable))
-          .commitMeta(NessieUtil.buildCommitMetadata("iceberg commit", getCatalogOptions())).build();
+          .commitMeta(NessieUtil.buildCommitMetadata("iceberg commit", catalogOptions)).build();
       client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(), reference.getHash(), op);
 
       delete = false;
@@ -129,13 +130,5 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
   @Override
   public FileIO io() {
     return fileIO;
-  }
-
-  Map<String, String> getCatalogOptions() {
-    return null == catalogOptions ? ImmutableMap.of() : ImmutableMap.copyOf(catalogOptions);
-  }
-
-  void setCatalogOptions(Map<String, String> catalogOptions) {
-    this.catalogOptions = catalogOptions;
   }
 }

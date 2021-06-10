@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Predicate;
+import javax.annotation.Nullable;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -35,8 +36,9 @@ import org.projectnessie.model.ImmutableCommitMeta;
 
 public final class NessieUtil {
 
-  static final String SPARK_APP_ID = "spark.app.id";
-  static final String SPARK_USER = "spark.user";
+  static final String APP_ID = "app-id";
+  static final String USER = "user";
+  static final String APPLICATION_TYPE = "application-type";
 
   private NessieUtil() {
 
@@ -94,21 +96,22 @@ public final class NessieUtil {
     Preconditions.checkArgument(null != catalogOptions, "catalogOptions must not be null");
     ImmutableCommitMeta.Builder cm = CommitMeta.builder().message(commitMsg)
         .author(NessieUtil.getCommitAuthor(catalogOptions));
-    cm.putProperties("application.type", "iceberg");
-    if (catalogOptions.containsKey(SPARK_APP_ID)) {
-      cm.putProperties("spark.app.id", catalogOptions.get(SPARK_APP_ID));
+    cm.putProperties(APPLICATION_TYPE, "iceberg");
+    if (catalogOptions.containsKey(APP_ID)) {
+      cm.putProperties(APP_ID, catalogOptions.get(APP_ID));
     }
 
     return cm.build();
   }
 
   /**
-   * @param catalogOptions The options where to look for the <b>spark.user</b>
-   * @return The author that can be used for a commit, which is either the <b>spark.user</b> from the given
+   * @param catalogOptions The options where to look for the <b>user</b>
+   * @return The author that can be used for a commit, which is either the <b>user</b> from the given
    * <code>catalogOptions</code> or the logged in user as defined in the <b>user.name</b> JVM properties.
    */
+  @Nullable
   private static String getCommitAuthor(Map<String, String> catalogOptions) {
-    return Optional.ofNullable(catalogOptions.get(SPARK_USER))
-        .orElseGet(() -> System.getProperty("user.name", ""));
+    return Optional.ofNullable(catalogOptions.get(USER))
+        .orElseGet(() -> System.getProperty("user.name"));
   }
 }

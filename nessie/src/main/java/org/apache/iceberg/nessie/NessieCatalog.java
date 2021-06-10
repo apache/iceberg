@@ -138,11 +138,12 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     if (pti.reference() != null) {
       newReference = loadReference(pti.reference());
     }
-    NessieTableOperations tableOperations =
-        new NessieTableOperations(NessieUtil.toKey(pti.tableIdentifier()), newReference, client, fileIO);
-    // TODO: is there a better way to pass the catalog options to the TableOperations than this?
-    tableOperations.setCatalogOptions(catalogOptions);
-    return tableOperations;
+    return new NessieTableOperations(
+        NessieUtil.toKey(pti.tableIdentifier()),
+        newReference,
+        client,
+        fileIO,
+        catalogOptions);
   }
 
   @Override
