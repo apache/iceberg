@@ -67,4 +67,11 @@ public interface ActionsProvider {
   default ExpireSnapshots expireSnapshots(Table table) {
     throw new UnsupportedOperationException(this.getClass().getName() + " does not implement expireSnapshots");
   }
+
+  /**
+   * Instantiates an action to remove all the files reachable from given metadata location.
+   */
+  default RemoveReachableFiles removeReachableFiles(String metadataLocation) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement removeReachableFiles");
+  }
 }
