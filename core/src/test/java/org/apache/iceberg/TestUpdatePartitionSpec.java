@@ -258,7 +258,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
         .apply();
 
     PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
-        .alwaysNull("category", "category")
+        .alwaysNull("category", "category_1000")
         .day("ts")
         .bucket("id", 16, "shard")
         .build();
@@ -282,7 +282,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
     PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
         .identity("category")
         .day("ts")
-        .alwaysNull("id", "shard")
+        .alwaysNull("id", "shard_1002")
         .build();
 
     V1Assert.assertEquals("Should match expected spec", v1Expected, updated);
@@ -302,7 +302,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
         .apply();
 
     PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
-        .alwaysNull("category", "category")
+        .alwaysNull("category", "category_1000")
         .day("ts")
         .bucket("id", 16, "shard")
         .build();
@@ -325,7 +325,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
 
     PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
         .identity("category")
-        .alwaysNull("ts", "ts_day")
+        .alwaysNull("ts", "ts_day_1001")
         .bucket("id", 16, "shard")
         .build();
 
@@ -348,7 +348,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
     PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
         .identity("category")
         .day("ts")
-        .alwaysNull("id", "shard")
+        .alwaysNull("id", "shard_1002")
         .build();
 
     V1Assert.assertEquals("Should match expected spec", v1Expected, updated);
@@ -386,7 +386,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
 
     PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
         .identity("category")
-        .alwaysNull("ts", "ts_day")
+        .alwaysNull("ts", "ts_day_1001")
         .bucket("id", 16)
         .truncate("data", 4, "prefix")
         .build();
@@ -411,7 +411,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
     PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
         .identity("category")
         .day("ts")
-        .alwaysNull("id", "shard")
+        .alwaysNull("id", "shard_1002")
         .build();
 
     V1Assert.assertEquals("Should match expected spec", v1Expected, updated);
