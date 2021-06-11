@@ -151,7 +151,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     StreamingOffset endOffset = (StreamingOffset) end;
     StreamingOffset startOffset = (StreamingOffset) start;
 
-    List<FileScanTask> fileScanTasks = getFileScanTasks(startOffset, endOffset);
+    List<FileScanTask> fileScanTasks = calculateFileScanTasks(startOffset, endOffset);
 
     CloseableIterable<FileScanTask> splitTasks = TableScanUtil.splitFiles(
         CloseableIterable.withNoopClose(fileScanTasks),
@@ -200,7 +200,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     return initialOffsetStore.addInitialOffset();
   }
 
-  private List<FileScanTask> getFileScanTasks(StreamingOffset startOffset, StreamingOffset endOffset) {
+  private List<FileScanTask> calculateFileScanTasks(StreamingOffset startOffset, StreamingOffset endOffset) {
     List<FileScanTask> fileScanTasks = new ArrayList<>();
     MicroBatch latestMicroBatch = null;
     StreamingOffset batchStartOffset = StreamingOffset.START_OFFSET.equals(startOffset) ?
