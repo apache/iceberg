@@ -63,7 +63,6 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(SparkBatchScan.class);
 
   private final JavaSparkContext sparkContext;
-  private final SparkSession spark;
   private final Table table;
   private final boolean caseSensitive;
   private final boolean localityPreferred;
@@ -78,7 +77,6 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   SparkBatchScan(SparkSession spark, Table table, boolean caseSensitive, Schema expectedSchema,
                  List<Expression> filters, CaseInsensitiveStringMap options) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
-    this.spark = spark;
     this.table = table;
     this.caseSensitive = caseSensitive;
     this.expectedSchema = expectedSchema;
