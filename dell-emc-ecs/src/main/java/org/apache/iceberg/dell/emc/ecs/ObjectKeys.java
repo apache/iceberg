@@ -256,7 +256,7 @@ public interface ObjectKeys {
      * @return default warehouse location prefix key
      */
     default ObjectKey warehouseLocation(TableIdentifier tableIdentifier) {
-        if (tableIdentifier.hasNamespace()) {
+        if (!tableIdentifier.hasNamespace()) {
             return getObjectKey(Collections.singletonList(tableIdentifier.name()));
         } else {
             List<String> parts = new ArrayList<>(tableIdentifier.namespace().levels().length + 1);
