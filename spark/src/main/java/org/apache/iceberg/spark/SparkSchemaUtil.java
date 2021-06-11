@@ -122,7 +122,26 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the type cannot be converted
    */
   public static Schema convert(StructType sparkType) {
-    Type converted = SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType));
+    return convert(sparkType, false);
+  }
+
+  /**
+   * Convert a Spark {@link StructType struct} to a {@link Schema} with new field ids.
+   * <p>
+   * This conversion assigns fresh ids.
+   * <p>
+   * Some data types are represented as the same Spark type. These are converted to a default type.
+   * <p>
+   * To convert using a reference schema for field ids and ambiguous types, use
+   * {@link #convert(Schema, StructType)}.
+   *
+   * @param sparkType a Spark StructType
+   * @param useTimestampWithoutZone boolean flag indicates that timestamp should be stored without timezone
+   * @return the equivalent Schema
+   * @throws IllegalArgumentException if the type cannot be converted
+   */
+  public static Schema convert(StructType sparkType, boolean useTimestampWithoutZone) {
+    Type converted = SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType, useTimestampWithoutZone));
     return new Schema(converted.asNestedType().asStructType().fields());
   }
 
@@ -158,8 +177,27 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
    */
   public static Schema convert(Schema baseSchema, StructType sparkType) {
+    return convert(baseSchema, sparkType, false);
+  }
+
+  /**
+   * Convert a Spark {@link StructType struct} to a {@link Schema} based on the given schema.
+   * <p>
+   * This conversion does not assign new ids; it uses ids from the base schema.
+   * <p>
+   * Data types, field order, and nullability will match the spark type. This conversion may return
+   * a schema that is not compatible with base schema.
+   *
+   * @param baseSchema a Schema on which conversion is based
+   * @param sparkType a Spark StructType
+   * @param useTimestampWithoutZone boolean flag indicates that timestamp should be stored without timezone
+   * @return the equivalent Schema
+   * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
+   */
+  public static Schema convert(Schema baseSchema, StructType sparkType, boolean useTimestampWithoutZone) {
     // convert to a type with fresh ids
-    Types.StructType struct = SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType)).asStructType();
+    Types.StructType struct = SparkTypeVisitor.visit(sparkType,
+            new SparkTypeToType(sparkType, useTimestampWithoutZone)).asStructType();
     // reassign ids to match the base schema
     Schema schema = TypeUtil.reassignIds(new Schema(struct.fields()), baseSchema);
     // fix types that can't be represented in Spark (UUID and Fixed)

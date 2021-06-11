@@ -118,6 +118,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
         case DECIMAL:
           return SparkOrcValueWriters.decimal(primitive.getPrecision(), primitive.getScale());
         case TIMESTAMP_INSTANT:
+        case TIMESTAMP:
           return SparkOrcValueWriters.timestampTz();
         default:
           throw new IllegalArgumentException("Unhandled type " + primitive);

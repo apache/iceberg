@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -36,6 +37,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
+import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.util.SerializableConfiguration;
 
 public class SparkUtil {
@@ -46,8 +48,13 @@ public class SparkUtil {
           " timestamps as timestamp with timezone set '%s' to true. This will not change the underlying values stored" +
           " but will change their displayed values in Spark. For more information please see" +
           " https://docs.databricks.com/spark/latest/dataframes-datasets/dates-timestamps.html#ansi-sql-and" +
-                  "-spark-sql-timestamps",
-          HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_FLAG);
+          "-spark-sql-timestamps", HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_FLAG);
+
+  public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_SESSION_PROPERTY =
+          "spark.sql.iceberg.handle-timestamp-without-timezone";
+
+  public static final String STORE_TIMESTAMP_WITHOUT_TIMEZONE_SESSION_PROPERTY =
+          "spark.sql.iceberg.store-timestamp-without-zone";
 
   private SparkUtil() {
   }
@@ -124,4 +131,45 @@ public class SparkUtil {
             t.typeId().equals(Type.TypeID.TIMESTAMP) && !((Types.TimestampType) t).shouldAdjustToUTC()
     ) != null;
   }
+
+  /**
+   * Allow reading timestamp without time zone as timestamp with time zone. Generally, this is not safe as timestamp
+   * without time zone is supposed to represent wall clock time semantics, i.e. no matter the reader/writer timezone
+   * 3PM should always be read as 3PM, but timestamp with time zone represents instant semantics, i.e the timestamp
+   * is adjusted so that the corresponding time in the reader timezone is displayed.
+   * When set to false (default), we throw an exception at runtime
+   * "Spark does not support timestamp without time zone fields" if reading timestamp without time zone fields
+   *
+   * @param readerConfig table read options
+   * @param sessionConf spark session configurations
+   * @return boolean indicating if reading timestamps without timezone is allowed
+   */
+  public static boolean canHandleTimestampWithoutZone(Map<String, String> readerConfig, RuntimeConfig sessionConf) {
+    String readerOption = readerConfig.get(HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_FLAG);
+    if (readerOption != null) {
+      return Boolean.parseBoolean(readerOption);
+    }
+    String sessionConfValue = sessionConf.get(HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_SESSION_PROPERTY, null);
+    if (sessionConfValue != null) {
+      return Boolean.parseBoolean(sessionConfValue);
+    }
+    return false;
+  }
+
+  /**
+   * Check whether the spark session config contains a 'spark.sql.iceberg.store-timestamp-without-zone' property.
+   * Default value - false
+   *
+   * @param sessionConf a spark runtime config
+   * @return true if the session config has spark.sql.iceberg.store-timestamp-without-zone property
+   * and this property is set to true
+   */
+  public static boolean shouldStoreTimestampWithoutZone(RuntimeConfig sessionConf) {
+    String sessionConfValue = sessionConf.get(STORE_TIMESTAMP_WITHOUT_TIMEZONE_SESSION_PROPERTY, null);
+    if (sessionConfValue != null) {
+      return Boolean.parseBoolean(sessionConfValue);
+    }
+    return false;
+  }
+
 }
