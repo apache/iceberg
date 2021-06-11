@@ -222,7 +222,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     return String.format("%s [filters=%s]", table, filters);
   }
 
-  public static class ReaderFactory implements PartitionReaderFactory {
+  static class ReaderFactory implements PartitionReaderFactory {
     private final int batchSize;
 
     ReaderFactory(int batchSize) {
@@ -265,7 +265,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     }
   }
 
-  public static class ReadTask implements InputPartition, Serializable {
+  static class ReadTask implements InputPartition, Serializable {
     private final CombinedScanTask task;
     private final Broadcast<Table> tableBroadcast;
     private final String expectedSchemaString;

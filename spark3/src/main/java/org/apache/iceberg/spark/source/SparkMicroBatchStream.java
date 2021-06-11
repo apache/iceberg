@@ -127,10 +127,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     //      will have all files as net New manifests & hence scanAllFiles can be false.
     boolean scanAllFiles = !StreamingOffset.START_OFFSET.equals(initialOffset) &&
         latestSnapshot.snapshotId() == initialOffset.snapshotId();
-    return new StreamingOffset(
-        latestSnapshot.snapshotId(),
-        addedFiles,
-        scanAllFiles);
+    return new StreamingOffset(latestSnapshot.snapshotId(), addedFiles, scanAllFiles);
   }
 
   @Override
