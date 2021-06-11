@@ -45,7 +45,6 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadOptions;
@@ -101,8 +100,8 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         Spark3Util.propertyAsLong(options, SparkReadOptions.FILE_OPEN_COST, null))
         .orElseGet(() -> PropertyUtil.propertyAsLong(table.properties(), SPLIT_OPEN_FILE_COST,
             SPLIT_OPEN_FILE_COST_DEFAULT));
-    this.initialOffsetStore = InitialOffsetStore.getInstance(table.io(), checkpointLocation);
-    this.initialOffset = getOrWriteInitialOffset(table, initialOffsetStore);
+    this.initialOffsetStore = InitialOffsetStore.getInstance(table, checkpointLocation);
+    this.initialOffset = getOrWriteInitialOffset(initialOffsetStore);
   }
 
   @Override
@@ -113,11 +112,6 @@ public class SparkMicroBatchStream implements MicroBatchStream {
       return StreamingOffset.START_OFFSET;
     }
 
-    String addedFilesValue = latestSnapshot.summary().get(SnapshotSummary.ADDED_FILES_PROP);
-    long addedFiles = addedFilesValue == null ?
-        Iterables.size(latestSnapshot.addedFiles()) :
-        Long.parseLong(addedFilesValue);
-
     // a readStream on an Iceberg table can be started from 2 types of snapshots
     // 1. a valid starting Snapshot:
     //      when this valid starting Snapshot is the initialOffset - then, scanAllFiles must be set to true;
@@ -127,7 +121,13 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     //      will have all files as net New manifests & hence scanAllFiles can be false.
     boolean scanAllFiles = !StreamingOffset.START_OFFSET.equals(initialOffset) &&
         latestSnapshot.snapshotId() == initialOffset.snapshotId();
-    return new StreamingOffset(latestSnapshot.snapshotId(), addedFiles, scanAllFiles);
+
+    String positionValue = scanAllFiles ?
+        latestSnapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP) :
+        latestSnapshot.summary().get(SnapshotSummary.ADDED_FILES_PROP);
+
+    return new StreamingOffset(
+        latestSnapshot.snapshotId(), positionValue != null ? Long.parseLong(positionValue) : 0, scanAllFiles);
   }
 
   @Override
@@ -171,8 +171,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   @Override
   public PartitionReaderFactory createReaderFactory() {
-    int batchSizeValueToDisableColumnarReads = 0;
-    return new ReaderFactory(batchSizeValueToDisableColumnarReads);
+    return new ReaderFactory(0);
   }
 
   @Override
@@ -193,18 +192,12 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   public void stop() {
   }
 
-  private static StreamingOffset getOrWriteInitialOffset(Table table, InitialOffsetStore initialOffsetStore) {
+  private static StreamingOffset getOrWriteInitialOffset(InitialOffsetStore initialOffsetStore) {
     if (initialOffsetStore.isOffsetStoreInitialized()) {
       return initialOffsetStore.getInitialOffset();
     }
 
-    table.refresh();
-    StreamingOffset offset = table.currentSnapshot() == null ?
-        StreamingOffset.START_OFFSET :
-        new StreamingOffset(SnapshotUtil.oldestSnapshot(table).snapshotId(), 0, true);
-    initialOffsetStore.addInitialOffset(offset);
-
-    return offset;
+    return initialOffsetStore.addInitialOffset();
   }
 
   private List<FileScanTask> getFileScanTasks(StreamingOffset startOffset, StreamingOffset endOffset) {
@@ -248,11 +241,11 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   }
 
   interface InitialOffsetStore {
-    static InitialOffsetStore getInstance(FileIO io, String checkpointLocation) {
-      return new InitialOffsetStoreImpl(io, checkpointLocation);
+    static InitialOffsetStore getInstance(Table table, String checkpointLocation) {
+      return new InitialOffsetStoreImpl(table, checkpointLocation);
     }
 
-    void addInitialOffset(StreamingOffset offset);
+    StreamingOffset addInitialOffset();
 
     boolean isOffsetStoreInitialized();
 
@@ -260,18 +253,27 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   }
 
   private static class InitialOffsetStoreImpl implements InitialOffsetStore {
+    private final Table table;
     private final FileIO io;
     private final String initialOffsetLocation;
 
-    InitialOffsetStoreImpl(FileIO io, String checkpointLocation) {
-      this.io = io;
+    InitialOffsetStoreImpl(Table table, String checkpointLocation) {
+      this.table = table;
+      this.io = table.io();
       this.initialOffsetLocation = new Path(checkpointLocation, "offsets/0").toString();
     }
 
     @Override
-    public void addInitialOffset(StreamingOffset offset) {
+    public StreamingOffset addInitialOffset() {
+      table.refresh();
+      StreamingOffset offset = table.currentSnapshot() == null ?
+          StreamingOffset.START_OFFSET :
+          new StreamingOffset(SnapshotUtil.oldestSnapshot(table).snapshotId(), 0, true);
+
       OutputFile file = io.newOutputFile(initialOffsetLocation);
       serialize(offset, file);
+
+      return offset;
     }
 
     @Override
