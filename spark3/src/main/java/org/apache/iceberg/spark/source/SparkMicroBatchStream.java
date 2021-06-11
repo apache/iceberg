@@ -59,8 +59,6 @@ import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK;
 import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK_DEFAULT;
