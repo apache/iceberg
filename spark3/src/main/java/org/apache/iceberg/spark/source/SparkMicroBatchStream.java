@@ -27,7 +27,6 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataOperations;
@@ -81,7 +80,6 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final Integer splitLookback;
   private final Long splitOpenFileCost;
   private final boolean localityPreferred;
-  private final InitialOffsetStore initialOffsetStore;
   private final StreamingOffset initialOffset;
 
   SparkMicroBatchStream(JavaSparkContext sparkContext,
@@ -92,15 +90,18 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     this.caseSensitive = caseSensitive;
     this.expectedSchema = expectedSchema;
     this.localityPreferred = Spark3Util.isLocalityEnabled(table.io(), table.location(), options);
-    this.splitSize = Optional.ofNullable(Spark3Util.propertyAsLong(options, SparkReadOptions.SPLIT_SIZE, null))
-        .orElseGet(() -> PropertyUtil.propertyAsLong(table.properties(), SPLIT_SIZE, SPLIT_SIZE_DEFAULT));
-    this.splitLookback = Optional.ofNullable(Spark3Util.propertyAsInt(options, SparkReadOptions.LOOKBACK, null))
-        .orElseGet(() -> PropertyUtil.propertyAsInt(table.properties(), SPLIT_LOOKBACK, SPLIT_LOOKBACK_DEFAULT));
-    this.splitOpenFileCost = Optional.ofNullable(
-        Spark3Util.propertyAsLong(options, SparkReadOptions.FILE_OPEN_COST, null))
-        .orElseGet(() -> PropertyUtil.propertyAsLong(table.properties(), SPLIT_OPEN_FILE_COST,
-            SPLIT_OPEN_FILE_COST_DEFAULT));
-    this.initialOffsetStore = InitialOffsetStore.getInstance(table, checkpointLocation);
+
+    long tableSplitSize = PropertyUtil.propertyAsLong(table.properties(), SPLIT_SIZE, SPLIT_SIZE_DEFAULT);
+    this.splitSize = Spark3Util.propertyAsLong(options, SparkReadOptions.SPLIT_SIZE, tableSplitSize);
+
+    int tableSplitLookback = PropertyUtil.propertyAsInt(table.properties(), SPLIT_LOOKBACK, SPLIT_LOOKBACK_DEFAULT);
+    this.splitLookback = Spark3Util.propertyAsInt(options, SparkReadOptions.LOOKBACK, tableSplitLookback);
+
+    long tableSplitOpenFileCost = PropertyUtil.propertyAsLong(
+        table.properties(), SPLIT_OPEN_FILE_COST, SPLIT_OPEN_FILE_COST_DEFAULT);
+    this.splitOpenFileCost = Spark3Util.propertyAsLong(options, SPLIT_OPEN_FILE_COST, tableSplitOpenFileCost);
+
+    InitialOffsetStore initialOffsetStore = InitialOffsetStore.getInstance(table, checkpointLocation);
     this.initialOffset = getOrWriteInitialOffset(initialOffsetStore);
   }
 
