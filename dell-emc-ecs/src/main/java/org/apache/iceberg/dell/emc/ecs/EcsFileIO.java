@@ -36,9 +36,17 @@ public class EcsFileIO implements FileIO, Externalizable, AutoCloseable {
     private EcsClient ecs;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
+    /**
+     * constructor for {@link Externalizable}
+     */
     public EcsFileIO() {
     }
 
+    /**
+     * constructor
+     *
+     * @param ecs is an ecs client
+     */
     public EcsFileIO(EcsClient ecs) {
         this.ecs = ecs;
     }

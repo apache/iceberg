@@ -16,6 +16,7 @@ package org.apache.iceberg.dell.emc.ecs;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,11 +31,20 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 public interface EcsClient extends AutoCloseable {
 
     /**
-     * Operations of object key.
+     * utils of object key that provide methods to convert {@link ObjectKey} to other objects declared in Iceberg.
      *
-     * @return object key operations
+     * @return utils class
      */
     ObjectKeys getKeys();
+
+    /**
+     * utils of properties that provide methods to convert object to properties.
+     *
+     * @return utils class
+     */
+    default PropertiesSerDes getPropertiesSerDes() {
+        return PropertiesSerDes.useJdk();
+    }
 
     /**
      * get original properties.
@@ -73,7 +83,7 @@ public interface EcsClient extends AutoCloseable {
      * return tuple of {@link #readAll(ObjectKey)}
      */
     interface ContentAndETag {
-        String getETag();
+        ObjectHeadInfo getHeadInfo();
 
         byte[] getContent();
     }
@@ -86,16 +96,49 @@ public interface EcsClient extends AutoCloseable {
     ContentAndETag readAll(ObjectKey key);
 
     /**
-     * compare-and-swap operation
+     * a util method of {@link #readAll(ObjectKey)}
+     */
+    default Map<String, String> readProperties(ObjectKey key) {
+        ContentAndETag contentAndETag = readAll(key);
+        return getPropertiesSerDes().readProperties(
+                contentAndETag.getContent(),
+                contentAndETag.getHeadInfo().getETag(),
+                contentAndETag.getHeadInfo().getUserMetadata().getOrDefault(
+                        PROPERTY_VERSION_KEY,
+                        PropertiesSerDes.CURRENT_VERSION));
+    }
+
+    /**
+     * CAS operation
      * <p>
      * we assume that E-Tag can distinct content of the objects.
+     * <p>
+     * if current object's eTag is not matched, the method will return false, and the object won't be changed
      */
-    boolean replace(ObjectKey key, String eTag, byte[] bytes);
+    boolean replace(ObjectKey key, String eTag, byte[] bytes, Map<String, String> userMetadata);
+
+    /**
+     * a util method of {@link #replace(ObjectKey, String, byte[], Map)}
+     */
+    default boolean replaceProperties(ObjectKey key, String eTag, Map<String, String> properties) {
+        return replace(key, eTag, getPropertiesSerDes().toBytes(properties),
+                Collections.singletonMap(PROPERTY_VERSION_KEY, PropertiesSerDes.CURRENT_VERSION));
+    }
 
     /**
      * compare-and-swap operation
+     * <p>
+     * if current key is not existed, the method will return false, and the key is still absent.
      */
-    boolean writeIfAbsent(ObjectKey key, byte[] bytes);
+    boolean writeIfAbsent(ObjectKey key, byte[] bytes, Map<String, String> userMetadata);
+
+    /**
+     * a util method of {@link #writeIfAbsent(ObjectKey, byte[], Map)}
+     */
+    default boolean writePropertiesIfAbsent(ObjectKey key, Map<String, String> properties) {
+        return writeIfAbsent(key, getPropertiesSerDes().toBytes(properties),
+                Collections.singletonMap(PROPERTY_VERSION_KEY, PropertiesSerDes.CURRENT_VERSION));
+    }
 
     /**
      * compare-and-swap operation
@@ -112,7 +155,24 @@ public interface EcsClient extends AutoCloseable {
     void deleteObject(ObjectKey key);
 
     /**
-     * list with delimiter
+     * list all objects with delimiter.
+     * <p>
+     * for example: there are objects like:
+     * <ul>
+     * <li>namespace1/namespace2.namespace</li>
+     * <li>namespace1/namespace2/table1.table</li>
+     * <li>namespace1/table1.table</li>
+     * <li>namespace1/table2.table</li>
+     * </ul>
+     * if prefix is namespace1 and delimiter is /, then return value will be
+     * <ul>
+     * <li>namespace1/table1.table</li>
+     * <li>namespace1/table2.table</li>
+     * </ul>
+     * <p>
+     * The function will can filter and convert to the object that user want to use
+     * <p>
+     * note: the common prefixes, such as namespace1/namespace2/, won't return by this method.
      *
      * @param prefix          prefix key
      * @param filterAndMapper map object key to specify item
@@ -143,6 +203,12 @@ public interface EcsClient extends AutoCloseable {
         return listDelimiterAll(getKeys().getPrefix(namespace), key -> getKeys().extractNamespace(key, namespace));
     }
 
+    /**
+     * check namespace object existence. If not exist, throw exception.
+     *
+     * @param namespace is a non-null namespace
+     * @throws NoSuchNamespaceException if namespace object is absent
+     */
     default void assertNamespaceExist(Namespace namespace) throws NoSuchNamespaceException {
         if (namespace.isEmpty()) {
             return;
@@ -161,6 +227,20 @@ public interface EcsClient extends AutoCloseable {
     default EcsClient copy() {
         return EcsClient.create(getProperties());
     }
+
+    /**
+     * ETag property name in results
+     *
+     * @see #readProperties(ObjectKey)
+     */
+    String E_TAG_KEY = "ecs-object-e-tag";
+
+    /**
+     * version property name in results
+     *
+     * @see #readProperties(ObjectKey)
+     */
+    String PROPERTY_VERSION_KEY = "ecs-object-property-version";
 
     /**
      * static factory method of {@link EcsClient}

@@ -14,6 +14,8 @@
 
 package org.apache.iceberg.dell.emc.ecs.impl;
 
+import java.util.Collections;
+import java.util.Map;
 import org.apache.iceberg.dell.emc.ecs.ObjectHeadInfo;
 
 /**
@@ -22,10 +24,12 @@ import org.apache.iceberg.dell.emc.ecs.ObjectHeadInfo;
 public class ObjectHeadInfoImpl implements ObjectHeadInfo {
     private final long contentLength;
     private final String eTag;
+    private final Map<String, String> userMetadata;
 
-    public ObjectHeadInfoImpl(long contentLength, String eTag) {
+    public ObjectHeadInfoImpl(long contentLength, String eTag, Map<String, String> userMetadata) {
         this.contentLength = contentLength;
         this.eTag = eTag;
+        this.userMetadata = Collections.unmodifiableMap(userMetadata);
     }
 
     @Override
@@ -39,10 +43,16 @@ public class ObjectHeadInfoImpl implements ObjectHeadInfo {
     }
 
     @Override
+    public Map<String, String> getUserMetadata() {
+        return userMetadata;
+    }
+
+    @Override
     public String toString() {
         return "ObjectHeadInfoImpl{" +
                 "contentLength=" + contentLength +
                 ", eTag='" + eTag + '\'' +
+                ", userMetadata=" + userMetadata +
                 '}';
     }
 }

@@ -15,7 +15,6 @@
 package org.apache.iceberg.dell.emc.ecs;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
@@ -25,7 +24,7 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 
 /**
- * Table ops
+ * use {@link EcsClient} to implement {@link BaseMetastoreTableOperations}
  */
 public class EcsTableOperations extends BaseMetastoreTableOperations {
 
@@ -43,11 +42,7 @@ public class EcsTableOperations extends BaseMetastoreTableOperations {
      * ecs client for table metadata
      */
     private final EcsClient ecs;
-    /**
-     * file io
-     */
     private final FileIO io;
-    private final PropertiesSerDes propertiesSerDes;
 
     /**
      * cached properties for CAS commit
@@ -57,12 +52,11 @@ public class EcsTableOperations extends BaseMetastoreTableOperations {
      */
     private Map<String, String> cachedProperties;
 
-    public EcsTableOperations(String tableName, TableIdentifier id, EcsClient ecs, FileIO io, PropertiesSerDes propertiesSerDes) {
+    public EcsTableOperations(String tableName, TableIdentifier id, EcsClient ecs, FileIO io) {
         this.tableName = tableName;
         this.id = id;
         this.ecs = ecs;
         this.io = io;
-        this.propertiesSerDes = propertiesSerDes;
     }
 
     @Override
@@ -104,9 +98,7 @@ public class EcsTableOperations extends BaseMetastoreTableOperations {
         String newMetadataLocation = writeNewMetadata(metadata, nextVersion);
         if (base == null) {
             // create a new table, the metadataKey should be absent
-            boolean r = ecs.writeIfAbsent(
-                    metadataKey,
-                    propertiesSerDes.toBytes(buildProperties(newMetadataLocation)));
+            boolean r = ecs.writePropertiesIfAbsent(metadataKey, buildProperties(newMetadataLocation));
             if (!r) {
                 throw new CommitFailedException("table exist when commit %s(%s)", debug(metadata), newMetadataLocation);
             }
@@ -118,10 +110,10 @@ public class EcsTableOperations extends BaseMetastoreTableOperations {
                         debug(metadata), newMetadataLocation);
             }
             // replace to a new version, the E-Tag should be present and matched
-            boolean r = ecs.replace(
+            boolean r = ecs.replaceProperties(
                     metadataKey,
-                    properties.get(PropertiesSerDes.ECS_OBJECT_E_TAG),
-                    propertiesSerDes.toBytes(buildProperties(newMetadataLocation))
+                    properties.get(EcsClient.E_TAG_KEY),
+                    buildProperties(newMetadataLocation)
             );
             if (!r) {
                 throw new CommitFailedException("replace failed, properties %s, %s(%s) -> %s(%s)", properties,
@@ -132,8 +124,7 @@ public class EcsTableOperations extends BaseMetastoreTableOperations {
     }
 
     private Map<String, String> queryProperties() {
-        EcsClient.ContentAndETag contentAndETag = ecs.readAll(ecs.getKeys().getMetadataKey(id));
-        return propertiesSerDes.readProperties(contentAndETag);
+        return ecs.readProperties(ecs.getKeys().getMetadataKey(id));
     }
 
     /**

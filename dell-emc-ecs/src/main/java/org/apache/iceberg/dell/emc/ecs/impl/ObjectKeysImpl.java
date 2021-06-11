@@ -28,7 +28,7 @@ public class ObjectKeysImpl implements ObjectKeys {
     /**
      * lazy results of {@link #getBaseKeyParts()}
      */
-    private List<String> lazyBaseKeyParts;
+    private volatile List<String> lazyBaseKeyParts;
 
     public ObjectKeysImpl(ObjectBaseKey baseKey) {
         this.baseKey = baseKey;
@@ -46,6 +46,7 @@ public class ObjectKeysImpl implements ObjectKeys {
      */
     @Override
     public List<String> getBaseKeyParts() {
+        // code isn't full thread safe. but creating instances in multiple times is fine
         if (lazyBaseKeyParts == null) {
             lazyBaseKeyParts = ObjectKeys.super.getBaseKeyParts();
         }

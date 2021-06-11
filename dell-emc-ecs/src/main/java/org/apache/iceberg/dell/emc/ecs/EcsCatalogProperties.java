@@ -152,6 +152,7 @@ public interface EcsCatalogProperties {
         return new EcsClientImpl(
                 builder.build(),
                 Collections.unmodifiableMap(new LinkedHashMap<>(properties)),
-                new ObjectKeysImpl(EcsCatalogProperties.getObjectBaseKey(properties)));
+                new ObjectKeysImpl(EcsCatalogProperties.getObjectBaseKey(properties)),
+                PropertiesSerDes.useJdk());
     }
 }

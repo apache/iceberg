@@ -31,6 +31,7 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -39,6 +40,7 @@ import org.apache.iceberg.dell.emc.ecs.EcsClient;
 import org.apache.iceberg.dell.emc.ecs.ObjectHeadInfo;
 import org.apache.iceberg.dell.emc.ecs.ObjectKey;
 import org.apache.iceberg.dell.emc.ecs.ObjectKeys;
+import org.apache.iceberg.dell.emc.ecs.PropertiesSerDes;
 
 /**
  * the implementation of {@link EcsClient}
@@ -50,16 +52,23 @@ public class EcsClientImpl implements EcsClient {
     private final AmazonS3 s3;
     private final Map<String, String> properties;
     private final ObjectKeys keys;
+    private final PropertiesSerDes propertiesSerDes;
 
-    public EcsClientImpl(AmazonS3 s3, Map<String, String> properties, ObjectKeys keys) {
+    public EcsClientImpl(AmazonS3 s3, Map<String, String> properties, ObjectKeys keys, PropertiesSerDes propertiesSerDes) {
         this.s3 = s3;
-        this.properties = properties;
+        this.properties = Collections.unmodifiableMap(new LinkedHashMap<>(properties));
         this.keys = keys;
+        this.propertiesSerDes = propertiesSerDes;
     }
 
     @Override
     public ObjectKeys getKeys() {
         return keys;
+    }
+
+    @Override
+    public PropertiesSerDes getPropertiesSerDes() {
+        return propertiesSerDes;
     }
 
     @Override
@@ -71,7 +80,7 @@ public class EcsClientImpl implements EcsClient {
     public Optional<ObjectHeadInfo> head(ObjectKey key) {
         try {
             ObjectMetadata metadata = s3.getObjectMetadata(key.getBucket(), key.getKey());
-            return Optional.of(new ObjectHeadInfoImpl(metadata.getContentLength(), metadata.getETag()));
+            return Optional.of(new ObjectHeadInfoImpl(metadata.getContentLength(), metadata.getETag(), metadata.getUserMetadata()));
         } catch (AmazonS3Exception e) {
             if (e.getStatusCode() == 404) {
                 return Optional.empty();
@@ -96,7 +105,8 @@ public class EcsClientImpl implements EcsClient {
     @Override
     public ContentAndETag readAll(ObjectKey key) {
         S3Object object = s3.getObject(new GetObjectRequest(key.getBucket(), key.getKey()));
-        int size = (int) object.getObjectMetadata().getContentLength();
+        ObjectMetadata metadata = object.getObjectMetadata();
+        int size = (int) metadata.getContentLength();
         byte[] content = new byte[size];
         try (S3ObjectInputStream input = object.getObjectContent()) {
             int offset = 0;
@@ -111,23 +121,26 @@ public class EcsClientImpl implements EcsClient {
         } catch (IOException e) {
             throw new UncheckedIOException("rethrow unchecked exception during read all bytes", e);
         }
-        return new ContentAndETagImpl(object.getObjectMetadata().getETag(), content);
+        ObjectHeadInfoImpl headInfo = new ObjectHeadInfoImpl(metadata.getContentLength(), metadata.getETag(), metadata.getUserMetadata());
+        return new ContentAndETagImpl(headInfo, content);
     }
 
     /**
      * using If-Match to replace object with eTag
      *
-     * @param key   is object key
-     * @param eTag  is e-tag
-     * @param bytes is content
+     * @param key          is object key
+     * @param eTag         is e-tag
+     * @param bytes        is content
+     * @param userMetadata is user metadata stored in object metadata
      * @return true if replace success
      */
     @Override
-    public boolean replace(ObjectKey key, String eTag, byte[] bytes) {
+    public boolean replace(ObjectKey key, String eTag, byte[] bytes, Map<String, String> userMetadata) {
         return cas(() -> {
             ObjectMetadata metadata = new ObjectMetadata();
             metadata.setHeader("If-Match", eTag);
             metadata.setContentLength(bytes.length);
+            metadata.setUserMetadata(userMetadata);
             s3.putObject(key.getBucket(), key.getKey(), new ByteArrayInputStream(bytes), metadata);
         });
     }
@@ -135,16 +148,18 @@ public class EcsClientImpl implements EcsClient {
     /**
      * using If-None-Match to write object
      *
-     * @param key   is object key
-     * @param bytes is content
+     * @param key          is object key
+     * @param bytes        is content
+     * @param userMetadata is user metadata stored in object metadata
      * @return true if object is absent when write object
      */
     @Override
-    public boolean writeIfAbsent(ObjectKey key, byte[] bytes) {
+    public boolean writeIfAbsent(ObjectKey key, byte[] bytes, Map<String, String> userMetadata) {
         return cas(() -> {
             ObjectMetadata metadata = new ObjectMetadata();
             metadata.setHeader("If-None-Match", "*");
             metadata.setContentLength(bytes.length);
+            metadata.setUserMetadata(userMetadata);
             s3.putObject(key.getBucket(), key.getKey(), new ByteArrayInputStream(bytes), metadata);
         });
     }

@@ -35,6 +35,13 @@ import org.slf4j.LoggerFactory;
  */
 public interface PropertiesSerDes {
 
+    /**
+     * version of properties.
+     * <p>
+     * this properties is only a placeholder and may use in future.
+     */
+    String CURRENT_VERSION = "0";
+
     Logger log = LoggerFactory.getLogger(PropertiesSerDes.class);
 
     /**
@@ -46,20 +53,18 @@ public interface PropertiesSerDes {
     Map<String, String> read(InputStream input);
 
     /**
-     * e tag property name
-     */
-    String ECS_OBJECT_E_TAG = "ecs-object-e-tag";
-
-    /**
      * a utils to read properties from object content.
      *
-     * @param contentAndETag is content of object
+     * @param content is content of object
+     * @param eTag    is eTag of object
+     * @param version is property version (current field is a placeholder for future changes)
      * @return properties which loaded by content
      */
-    default Map<String, String> readProperties(EcsClient.ContentAndETag contentAndETag) {
-        Map<String, String> propertiesInObject = read(new ByteArrayInputStream(contentAndETag.getContent()));
+    default Map<String, String> readProperties(byte[] content, String eTag, String version) {
+        Map<String, String> propertiesInObject = read(new ByteArrayInputStream(content));
         Map<String, String> properties = new HashMap<>(propertiesInObject);
-        properties.put(ECS_OBJECT_E_TAG, contentAndETag.getETag());
+        properties.put(EcsClient.E_TAG_KEY, eTag);
+        properties.put(EcsClient.PROPERTY_VERSION_KEY, version);
         return properties;
     }
 

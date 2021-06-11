@@ -20,6 +20,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -30,7 +31,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.commons.codec.digest.Md5Crypt;
 import org.apache.iceberg.dell.emc.ecs.impl.ContentAndETagImpl;
 import org.apache.iceberg.dell.emc.ecs.impl.ObjectHeadInfoImpl;
 import org.apache.iceberg.dell.emc.ecs.impl.ObjectKeysImpl;
@@ -82,7 +82,7 @@ public class MemoryEcsClient implements EcsClient {
     }
 
     @Override
-    public boolean replace(ObjectKey key, String eTag, byte[] bytes) {
+    public boolean replace(ObjectKey key, String eTag, byte[] bytes, Map<String, String> userMetadata) {
         EcsObject original = data.get(key);
         if (original == null) {
             return false;
@@ -90,12 +90,12 @@ public class MemoryEcsClient implements EcsClient {
         if (!original.getHeadInfo().getETag().equals(eTag)) {
             return false;
         }
-        return data.replace(key, original, EcsObject.create(bytes));
+        return data.replace(key, original, EcsObject.create(bytes, userMetadata));
     }
 
     @Override
-    public boolean writeIfAbsent(ObjectKey key, byte[] bytes) {
-        return data.putIfAbsent(key, EcsObject.create(bytes)) == null;
+    public boolean writeIfAbsent(ObjectKey key, byte[] bytes, Map<String, String> userMetadata) {
+        return data.putIfAbsent(key, EcsObject.create(bytes, userMetadata)) == null;
     }
 
     @Override
@@ -170,11 +170,11 @@ public class MemoryEcsClient implements EcsClient {
         }
 
         public ContentAndETag getContentAndETag() {
-            return new ContentAndETagImpl(getHeadInfo().getETag(), getContent());
+            return new ContentAndETagImpl(getHeadInfo(), getContent());
         }
 
-        public static EcsObject create(byte[] content) {
-            return new EcsObject(new ObjectHeadInfoImpl(content.length, Md5Utils.md5AsBase64(content)), content);
+        public static EcsObject create(byte[] content, Map<String, String> userMetadata) {
+            return new EcsObject(new ObjectHeadInfoImpl(content.length, Md5Utils.md5AsBase64(content), userMetadata), content);
         }
     }
 
@@ -199,7 +199,7 @@ public class MemoryEcsClient implements EcsClient {
 
         @Override
         public void close() {
-            data.put(key, EcsObject.create(byteArrayOutput.toByteArray()));
+            data.put(key, EcsObject.create(byteArrayOutput.toByteArray(), Collections.emptyMap()));
         }
     }
 }

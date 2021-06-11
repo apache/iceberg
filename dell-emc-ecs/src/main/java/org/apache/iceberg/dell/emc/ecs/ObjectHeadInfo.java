@@ -14,8 +14,12 @@
 
 package org.apache.iceberg.dell.emc.ecs;
 
+import java.util.Map;
+
 /**
  * object head info
+ * <p>
+ * it's the basic info of an object in the object storage.
  */
 public interface ObjectHeadInfo {
 
@@ -33,4 +37,11 @@ public interface ObjectHeadInfo {
      * @return eTag
      */
     String getETag();
+
+    /**
+     * user metadata of object
+     *
+     * @return user metadata
+     */
+    Map<String, String> getUserMetadata();
 }

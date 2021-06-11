@@ -15,23 +15,24 @@
 package org.apache.iceberg.dell.emc.ecs.impl;
 
 import org.apache.iceberg.dell.emc.ecs.EcsClient;
+import org.apache.iceberg.dell.emc.ecs.ObjectHeadInfo;
 
 /**
  * a record class of {@link org.apache.iceberg.dell.emc.ecs.EcsClient.ContentAndETag}
  */
 public class ContentAndETagImpl implements EcsClient.ContentAndETag {
 
-    private final String eTag;
+    private final ObjectHeadInfo headInfo;
     private final byte[] content;
 
-    public ContentAndETagImpl(String eTag, byte[] content) {
-        this.eTag = eTag;
+    public ContentAndETagImpl(ObjectHeadInfo headInfo, byte[] content) {
+        this.headInfo = headInfo;
         this.content = content;
     }
 
     @Override
-    public String getETag() {
-        return eTag;
+    public ObjectHeadInfo getHeadInfo() {
+        return headInfo;
     }
 
     @Override

@@ -31,8 +31,9 @@ import org.junit.FixMethodOrder;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
 
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.spy;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class EcsCatalogTest {
@@ -177,7 +178,7 @@ public class EcsCatalogTest {
 
         Map<String, String> resultMetadata = ecsCatalog.loadNamespaceMetadata(namespaceL1);
         assertEquals("metadata contains k1", "v1", resultMetadata.get("k1"));
-        assertTrue("metadata contains eTag", resultMetadata.containsKey(PropertiesSerDes.ECS_OBJECT_E_TAG));
+        assertTrue("metadata contains eTag", resultMetadata.containsKey(EcsClient.E_TAG_KEY));
     }
 
     @Test(expected = NoSuchNamespaceException.class)

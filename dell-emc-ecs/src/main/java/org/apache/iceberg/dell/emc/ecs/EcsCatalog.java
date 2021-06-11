@@ -43,7 +43,6 @@ public class EcsCatalog extends BaseMetastoreCatalog implements SupportsNamespac
 
     private String catalogName;
     private EcsClient ecs;
-    private PropertiesSerDes propertiesSerDes;
 
     /**
      * @param name       a custom name for the catalog
@@ -53,7 +52,6 @@ public class EcsCatalog extends BaseMetastoreCatalog implements SupportsNamespac
     public void initialize(String name, Map<String, String> properties) {
         catalogName = name;
         ecs = EcsClient.create(properties);
-        propertiesSerDes = PropertiesSerDes.useJdk();
     }
 
     @Override
@@ -113,7 +111,7 @@ public class EcsCatalog extends BaseMetastoreCatalog implements SupportsNamespac
         if (ecs.head(metadataKey).isPresent()) {
             throw new AlreadyExistsException("namespace %s(%s) has already existed", namespace, metadataKey);
         }
-        if (!ecs.writeIfAbsent(metadataKey, propertiesSerDes.toBytes(metadata))) {
+        if (!ecs.writePropertiesIfAbsent(metadataKey, metadata)) {
             throw new AlreadyExistsException("namespace %s(%s) has already existed", namespace, metadataKey);
         }
     }
@@ -132,8 +130,7 @@ public class EcsCatalog extends BaseMetastoreCatalog implements SupportsNamespac
                 return Collections.emptyMap();
             }
         }
-        EcsClient.ContentAndETag contentAndETag = ecs.readAll(metadataKey);
-        return propertiesSerDes.readProperties(contentAndETag);
+        return ecs.readProperties(metadataKey);
     }
 
     @Override
@@ -153,29 +150,29 @@ public class EcsCatalog extends BaseMetastoreCatalog implements SupportsNamespac
     @Override
     public boolean setProperties(Namespace namespace, Map<String, String> properties) throws NoSuchNamespaceException {
         Map<String, String> namespaceMetadata = loadNamespaceMetadata(namespace);
-        String eTag = namespaceMetadata.get(PropertiesSerDes.ECS_OBJECT_E_TAG);
+        String eTag = namespaceMetadata.get(EcsClient.E_TAG_KEY);
         if (eTag == null) {
             throw new UnsupportedOperationException("eTag isn't in properties");
         }
         ObjectKey metadataKey = ecs.getKeys().getMetadataKey(namespace);
         Map<String, String> newProperties = new HashMap<>(namespaceMetadata);
         newProperties.putAll(properties);
-        newProperties.remove(PropertiesSerDes.ECS_OBJECT_E_TAG);
-        return ecs.replace(metadataKey, eTag, propertiesSerDes.toBytes(newProperties));
+        newProperties.remove(EcsClient.E_TAG_KEY);
+        return ecs.replaceProperties(metadataKey, eTag, newProperties);
     }
 
     @Override
     public boolean removeProperties(Namespace namespace, Set<String> properties) throws NoSuchNamespaceException {
         Map<String, String> namespaceMetadata = loadNamespaceMetadata(namespace);
-        String eTag = namespaceMetadata.get(PropertiesSerDes.ECS_OBJECT_E_TAG);
+        String eTag = namespaceMetadata.get(EcsClient.E_TAG_KEY);
         if (eTag == null) {
             throw new UnsupportedOperationException("eTag isn't in properties");
         }
         ObjectKey metadataKey = ecs.getKeys().getMetadataKey(namespace);
         Map<String, String> newProperties = new HashMap<>(namespaceMetadata);
         newProperties.keySet().removeAll(properties);
-        newProperties.remove(PropertiesSerDes.ECS_OBJECT_E_TAG);
-        return ecs.replace(metadataKey, eTag, propertiesSerDes.toBytes(newProperties));
+        newProperties.remove(EcsClient.E_TAG_KEY);
+        return ecs.replaceProperties(metadataKey, eTag, newProperties);
     }
 
     @Override
@@ -191,8 +188,7 @@ public class EcsCatalog extends BaseMetastoreCatalog implements SupportsNamespac
         return new EcsTableOperations(catalogName + "." + tableIdentifier,
                 tableIdentifier,
                 ecs,
-                new EcsFileIO(ecs.copy()),
-                propertiesSerDes);
+                new EcsFileIO(ecs.copy()));
     }
 
     @Override
