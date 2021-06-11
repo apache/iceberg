@@ -70,8 +70,6 @@ import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE_DEFAULT;
 
 public class SparkMicroBatchStream implements MicroBatchStream {
-  private static final Logger LOG = LoggerFactory.getLogger(SparkMicroBatchStream.class);
-
   private final JavaSparkContext sparkContext;
   private final Table table;
   private final boolean caseSensitive;
