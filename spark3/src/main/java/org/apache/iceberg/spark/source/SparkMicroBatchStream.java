@@ -31,6 +31,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.MicroBatches;
 import org.apache.iceberg.MicroBatches.MicroBatch;
 import org.apache.iceberg.Schema;
@@ -44,6 +45,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadOptions;
@@ -119,12 +121,12 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     boolean scanAllFiles = !StreamingOffset.START_OFFSET.equals(initialOffset) &&
         latestSnapshot.snapshotId() == initialOffset.snapshotId();
 
-    String positionValue = scanAllFiles ?
-        latestSnapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP) :
-        latestSnapshot.summary().get(SnapshotSummary.ADDED_FILES_PROP);
+    long filesNewlyAddedInLatestSnapshot = Iterables.size(latestSnapshot.addedFiles());
+    long existingFilesInheritedByLatestSnapshot = SnapshotUtil.existingDataFiles(latestSnapshot);
+    long positionValue = scanAllFiles ? existingFilesInheritedByLatestSnapshot + filesNewlyAddedInLatestSnapshot :
+        filesNewlyAddedInLatestSnapshot;
 
-    return new StreamingOffset(
-        latestSnapshot.snapshotId(), positionValue != null ? Long.parseLong(positionValue) : 0, scanAllFiles);
+    return new StreamingOffset(latestSnapshot.snapshotId(), positionValue, scanAllFiles);
   }
 
   @Override

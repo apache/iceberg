@@ -22,6 +22,7 @@ package org.apache.iceberg.util;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -120,5 +121,17 @@ public class SnapshotUtil {
     }
 
     return newFiles;
+  }
+
+  public static Integer existingDataFiles(Snapshot snapshot) {
+    Integer totalExistingDataFilesCount = 0;
+
+    if (snapshot != null) {
+      for (ManifestFile dataManifest : snapshot.dataManifests()) {
+        totalExistingDataFilesCount += dataManifest.existingFilesCount();
+      }
+    }
+
+    return totalExistingDataFilesCount;
   }
 }
