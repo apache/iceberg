@@ -408,7 +408,7 @@ StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironme
 TableLoader tableLoader = TableLoader.fromHadooptable("hdfs://nn:8020/warehouse/path");
 DataStream<RowData> batch = FlinkSource.forRowData()
      .env(env)
-     .tableLoader(loader)
+     .tableLoader(tableLoader)
      .streaming(false)
      .build();
 
@@ -428,7 +428,7 @@ StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironme
 TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path");
 DataStream<RowData> stream = FlinkSource.forRowData()
      .env(env)
-     .tableLoader(loader)
+     .tableLoader(tableLoader)
      .streaming(true)
      .startSnapshotId(3821550127947089987L)
      .build();
