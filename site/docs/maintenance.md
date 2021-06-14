@@ -83,7 +83,7 @@ Actions.forTable(table)
     .execute();
 ```
 
-See the [RemoveOrphanFilesAction Javadoc](./javadoc/master/org/apache/iceberg/actions/RemoveOrphanFilesAction.html) to see more configuration options.
+See the [RemoveOrphanFilesAction Javadoc](./javadoc/master/org/apache/iceberg/RemoveOrphanFilesAction.html) to see more configuration options.
 
 This action may take a long time to finish if you have lots of files in data and metadata directories. It is recommended to execute this periodically, but you may not need to execute this often.
 
@@ -119,7 +119,7 @@ Actions.forTable(table).rewriteDataFiles()
 
 The `files` metadata table is useful for inspecting data file sizes and determining when to compact partitons.
 
-See the [`RewriteDataFilesAction` Javadoc](./javadoc/master/org/apache/iceberg/actions/RewriteDataFilesAction.html) to see more configuration options.
+See the [`RewriteDataFilesAction` Javadoc](./javadoc/master/org/apache/iceberg/RewriteDataFilesAction.html) to see more configuration options.
 
 ### Rewrite manifests
 
@@ -139,4 +139,4 @@ table.rewriteManifests()
     .commit();
 ```
 
-See the [`RewriteManifestsAction` Javadoc](./javadoc/master/org/apache/iceberg/actions/RewriteManifestsAction.html) to see more configuration options.
+See the [`RewriteManifestsAction` Javadoc](./javadoc/master/org/apache/iceberg/RewriteManifestsAction.html) to see more configuration options.

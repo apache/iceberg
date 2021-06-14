@@ -285,7 +285,7 @@ public class HadoopTableOperations implements TableOperations {
 
   @VisibleForTesting
   Path versionHintFile() {
-    return metadataPath("version-hint.text");
+    return metadataPath(Util.VERSION_HINT_FILENAME);
   }
 
   private void writeVersionHint(int versionToWrite) {

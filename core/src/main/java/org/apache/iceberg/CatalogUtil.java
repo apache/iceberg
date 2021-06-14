@@ -45,6 +45,16 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 public class CatalogUtil {
   private static final Logger LOG = LoggerFactory.getLogger(CatalogUtil.class);
+
+  /**
+   * Shortcut catalog property to load a catalog implementation through a short type name,
+   * instead of specifying a full java class through {@link CatalogProperties#CATALOG_IMPL}.
+   * Currently the following type to implementation mappings are supported:
+   * <ul>
+   *   <li>hive: org.apache.iceberg.hive.HiveCatalog</li>
+   *   <li>hadoop: org.apache.iceberg.hadoop.HadoopCatalog</li>
+   * </ul>
+   */
   public static final String ICEBERG_CATALOG_TYPE = "type";
   public static final String ICEBERG_CATALOG_TYPE_HADOOP = "hadoop";
   public static final String ICEBERG_CATALOG_TYPE_HIVE = "hive";
@@ -184,10 +194,22 @@ public class CatalogUtil {
     return catalog;
   }
 
+  /**
+   * Build an Iceberg {@link Catalog} based on a map of catalog properties and optional Hadoop configuration.
+   * <p>
+   * This method examines both the {@link #ICEBERG_CATALOG_TYPE} and {@link CatalogProperties#CATALOG_IMPL} properties
+   * to determine the catalog implementation to load.
+   * If nothing is specified for both properties, Hive catalog will be loaded by default.
+   *
+   * @param name catalog name
+   * @param options catalog properties
+   * @param conf Hadoop configuration
+   * @return initialized catalog
+   */
   public static Catalog buildIcebergCatalog(String name, Map<String, String> options, Configuration conf) {
     String catalogImpl = options.get(CatalogProperties.CATALOG_IMPL);
     if (catalogImpl == null) {
-      String catalogType = options.getOrDefault(ICEBERG_CATALOG_TYPE, ICEBERG_CATALOG_TYPE_HIVE);
+      String catalogType = PropertyUtil.propertyAsString(options, ICEBERG_CATALOG_TYPE, ICEBERG_CATALOG_TYPE_HIVE);
       switch (catalogType.toLowerCase(Locale.ENGLISH)) {
         case ICEBERG_CATALOG_TYPE_HIVE:
           catalogImpl = ICEBERG_CATALOG_HIVE;

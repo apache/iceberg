@@ -42,18 +42,18 @@ class PartitionSummary(object):
 
 class PartitionFieldStats(object):
 
-    def __init__(self, type):
+    def __init__(self, type_var):
         self.contains_null = False
-        self.type = type
+        self.type = type_var
         self.min = None
         self.max = None
 
     def to_summary(self):
-        lower_bound = None if self.min is None else Conversions.to_byte_buffer(self.type, self.min)
-        upper_bound = None if self.max is None else Conversions.to_byte_buffer(self.type, self.max)
+        lower_bound = None if self.min is None else Conversions.to_byte_buffer(self.type.type_id, self.min)
+        upper_bound = None if self.max is None else Conversions.to_byte_buffer(self.type.type_id, self.max)
         return GenericPartitionFieldSummary(contains_null=self.contains_null,
                                             lower_bound=lower_bound,
-                                            uppwer_bound=upper_bound)
+                                            upper_bound=upper_bound)
 
     def update(self, value):
         if value is None:

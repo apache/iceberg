@@ -21,6 +21,7 @@ package org.apache.iceberg.mr.mapred;
 
 import java.io.IOException;
 import java.util.Optional;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
@@ -78,23 +79,14 @@ public class MapredIcebergInputFormat<T> implements InputFormat<Void, Container<
     return new MapredIcebergRecordReader<>(innerInputFormat, icebergSplit, job, reporter);
   }
 
-  private static final class MapredIcebergRecordReader<T> implements RecordReader<Void, Container<T>> {
 
-    private final org.apache.hadoop.mapreduce.RecordReader<Void, T> innerReader;
+  private static final class MapredIcebergRecordReader<T> extends AbstractMapredIcebergRecordReader<Container<T>> {
+
     private final long splitLength; // for getPos()
 
     MapredIcebergRecordReader(org.apache.iceberg.mr.mapreduce.IcebergInputFormat<T> mapreduceInputFormat,
                               IcebergSplit split, JobConf job, Reporter reporter) throws IOException {
-      TaskAttemptContext context = newTaskAttemptContext(job, reporter);
-
-      try {
-        innerReader = mapreduceInputFormat.createRecordReader(split, context);
-        innerReader.initialize(split, context);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        throw new RuntimeException(e);
-      }
-
+      super(mapreduceInputFormat, split, job, reporter);
       splitLength = split.getLength();
     }
 
@@ -102,7 +94,7 @@ public class MapredIcebergInputFormat<T> implements InputFormat<Void, Container<
     public boolean next(Void key, Container<T> value) throws IOException {
       try {
         if (innerReader.nextKeyValue()) {
-          value.set(innerReader.getCurrentValue());
+          value.set((T) innerReader.getCurrentValue());
           return true;
         }
       } catch (InterruptedException ie) {
@@ -111,11 +103,6 @@ public class MapredIcebergInputFormat<T> implements InputFormat<Void, Container<
       }
 
       return false;
-    }
-
-    @Override
-    public Void createKey() {
-      return null;
     }
 
     @Override
@@ -128,36 +115,35 @@ public class MapredIcebergInputFormat<T> implements InputFormat<Void, Container<
       return (long) (splitLength * getProgress());
     }
 
-    @Override
-    public float getProgress() throws IOException {
-      try {
-        return innerReader.getProgress();
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        throw new RuntimeException(e);
-      }
-    }
-
-    @Override
-    public void close() throws IOException {
-      if (innerReader != null) {
-        innerReader.close();
-      }
-    }
   }
 
   private static JobContext newJobContext(JobConf job) {
     JobID jobID = Optional.ofNullable(JobID.forName(job.get(JobContext.ID)))
-                          .orElseGet(JobID::new);
+            .orElseGet(JobID::new);
 
     return new JobContextImpl(job, jobID);
   }
 
-  private static TaskAttemptContext newTaskAttemptContext(JobConf job, Reporter reporter) {
+  public static TaskAttemptContext newTaskAttemptContext(JobConf job, Reporter reporter) {
     TaskAttemptID taskAttemptID = Optional.ofNullable(TaskAttemptID.forName(job.get(JobContext.TASK_ATTEMPT_ID)))
-                                          .orElseGet(TaskAttemptID::new);
+            .orElseGet(TaskAttemptID::new);
 
-    return new TaskAttemptContextImpl(job, taskAttemptID, toStatusReporter(reporter));
+    return new CompatibilityTaskAttemptContextImpl(job, taskAttemptID, reporter);
+  }
+
+  // Saving the Reporter instance here as it is required for Hive vectorized readers.
+  public static class CompatibilityTaskAttemptContextImpl extends TaskAttemptContextImpl {
+
+    private final Reporter legacyReporter;
+
+    public CompatibilityTaskAttemptContextImpl(Configuration conf, TaskAttemptID taskId, Reporter reporter) {
+      super(conf, taskId, toStatusReporter(reporter));
+      this.legacyReporter = reporter;
+    }
+
+    public Reporter getLegacyReporter() {
+      return legacyReporter;
+    }
   }
 
   private static StatusReporter toStatusReporter(Reporter reporter) {

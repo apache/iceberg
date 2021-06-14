@@ -70,10 +70,6 @@ public class HiveIcebergSerDe extends AbstractSerDe {
     // executor, but serDeProperties are populated by HiveIcebergStorageHandler.configureInputJobProperties() and
     // the resulting properties are serialized and distributed to the executors
 
-    // temporarily disabling vectorization in Tez, since it doesn't work with projection pruning (fix: TEZ-4248)
-    // TODO: remove this once TEZ-4248 has been released and the Tez dependencies updated here
-    assertNotVectorizedTez(configuration);
-
     if (serDeProperties.get(InputFormatConfig.TABLE_SCHEMA) != null) {
       this.tableSchema = SchemaParser.fromJson((String) serDeProperties.get(InputFormatConfig.TABLE_SCHEMA));
     } else {
@@ -112,14 +108,6 @@ public class HiveIcebergSerDe extends AbstractSerDe {
       this.inspector = IcebergObjectInspector.create(projectedSchema);
     } catch (Exception e) {
       throw new SerDeException(e);
-    }
-  }
-
-  private void assertNotVectorizedTez(Configuration configuration) {
-    if ("tez".equals(configuration.get("hive.execution.engine")) &&
-        "true".equals(configuration.get("hive.vectorized.execution.enabled"))) {
-      throw new UnsupportedOperationException("Vectorized execution on Tez is currently not supported when using " +
-          "Iceberg tables. Please set hive.vectorized.execution.enabled=false and rerun the query.");
     }
   }
 

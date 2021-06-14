@@ -19,7 +19,7 @@
 
 package org.apache.iceberg;
 
-import java.util.Set;
+import java.util.Collection;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
@@ -389,16 +389,18 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
 
   /**
    * Set the identifier fields given a set of field names.
+   * <p>
+   * Because identifier fields are unique, duplicated names will be ignored.
    * See {@link Schema#identifierFieldIds()} to learn more about Iceberg identifier.
    *
    * @param names names of the columns to set as identifier fields
    * @return this for method chaining
    */
-  UpdateSchema setIdentifierFields(Set<String> names);
+  UpdateSchema setIdentifierFields(Collection<String> names);
 
   /**
    * Set the identifier fields given some field names.
-   * See {@link UpdateSchema#setIdentifierFields(Set)} for more details.
+   * See {@link UpdateSchema#setIdentifierFields(Collection)} for more details.
    *
    * @param names names of the columns to set as identifier fields
    * @return this for method chaining

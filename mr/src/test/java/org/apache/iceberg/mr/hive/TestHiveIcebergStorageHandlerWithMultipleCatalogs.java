@@ -115,9 +115,9 @@ public class TestHiveIcebergStorageHandlerWithMultipleCatalogs {
 
   @Test
   public void testJoinTablesFromDifferentCatalogs() throws IOException {
-    createAndAddRecords(testTables1, fileFormat1, TableIdentifier.of("default", "customers1"), table1CatalogName,
+    createAndAddRecords(testTables1, fileFormat1, TableIdentifier.of("default", "customers1"),
         HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
-    createAndAddRecords(testTables2, fileFormat2, TableIdentifier.of("default", "customers2"), table2CatalogName,
+    createAndAddRecords(testTables2, fileFormat2, TableIdentifier.of("default", "customers2"),
         HiveIcebergStorageHandlerTestUtils.CUSTOMER_RECORDS);
 
     List<Object[]> rows = shell.executeStatement("SELECT c2.customer_id, c2.first_name, c2.last_name " +
@@ -129,12 +129,12 @@ public class TestHiveIcebergStorageHandlerWithMultipleCatalogs {
   }
 
   private void createAndAddRecords(TestTables testTables, FileFormat fileFormat, TableIdentifier identifier,
-                                   String catalogName, List<Record> records) throws IOException {
+                                   List<Record> records) throws IOException {
     String createSql =
         "CREATE EXTERNAL TABLE " + identifier + " (customer_id BIGINT, first_name STRING, last_name STRING)" +
             " STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler' " +
             testTables.locationForCreateTableSQL(identifier) +
-            " TBLPROPERTIES ('" + InputFormatConfig.CATALOG_NAME + "'='" + catalogName + "')";
+            " TBLPROPERTIES ('" + InputFormatConfig.CATALOG_NAME + "'='" + testTables.catalogName() + "')";
     shell.executeStatement(createSql);
     Table icebergTable = testTables.loadTable(identifier);
     testTables.appendIcebergTable(shell.getHiveConf(), icebergTable, fileFormat, null, records);

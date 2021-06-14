@@ -52,6 +52,7 @@ import org.junit.Test;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
+import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.ContentsKey;
 import org.projectnessie.model.IcebergTable;
 
@@ -122,10 +123,12 @@ public class TestNessieTable extends BaseTestIceberg {
     // Only 1 snapshotFile Should exist and no manifests should exist
     Assert.assertEquals(2, metadataVersionFiles(tableName).size());
     Assert.assertEquals(0, manifestFiles(tableName).size());
+
+    verifyCommitMetadata();
   }
 
   @Test
-  public void testRename() {
+  public void testRename() throws NessieNotFoundException {
     String renamedTableName = "rename_table_name";
     TableIdentifier renameTableIdentifier = TableIdentifier.of(TABLE_IDENTIFIER.namespace(),
         renamedTableName);
@@ -144,13 +147,27 @@ public class TestNessieTable extends BaseTestIceberg {
     Assert.assertEquals(original.currentSnapshot(), renamed.currentSnapshot());
 
     Assert.assertTrue(catalog.dropTable(renameTableIdentifier));
+
+    verifyCommitMetadata();
+  }
+
+  private void verifyCommitMetadata() throws NessieNotFoundException {
+    // check that the author is properly set
+    List<CommitMeta> log = tree.getCommitLog(BRANCH, null, null).getOperations();
+    Assert.assertFalse(log.isEmpty());
+    log.forEach(x ->  {
+      Assert.assertNotEquals("", x.getAuthor());
+      Assert.assertEquals(System.getProperty("user.name"), x.getAuthor());
+      Assert.assertEquals("iceberg", x.getProperties().get(NessieUtil.APPLICATION_TYPE));
+    });
   }
 
   @Test
-  public void testDrop() {
+  public void testDrop() throws NessieNotFoundException {
     Assert.assertTrue(catalog.tableExists(TABLE_IDENTIFIER));
     Assert.assertTrue(catalog.dropTable(TABLE_IDENTIFIER));
     Assert.assertFalse(catalog.tableExists(TABLE_IDENTIFIER));
+    verifyCommitMetadata();
   }
 
   @Test
@@ -230,6 +247,8 @@ public class TestNessieTable extends BaseTestIceberg {
             .metadataFileLocation()
             .replace("file:", ""))
         .exists());
+
+    verifyCommitMetadata();
   }
 
   @Test
@@ -244,7 +263,6 @@ public class TestNessieTable extends BaseTestIceberg {
     Assert.assertEquals(2, metadataVersionFiles(TABLE_NAME).size());
     Assert.assertEquals(0, manifestFiles(TABLE_NAME).size());
     Assert.assertEquals(altered.asStruct(), icebergTable.schema().asStruct());
-
   }
 
   @Test

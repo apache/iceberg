@@ -120,9 +120,7 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     catalogProperties.put(InputFormatConfig.PARTITION_SPEC, PartitionSpecParser.toJson(spec));
 
     // Allow purging table data if the table is created now and not set otherwise
-    if (hmsTable.getParameters().get(InputFormatConfig.EXTERNAL_TABLE_PURGE) == null) {
-      hmsTable.getParameters().put(InputFormatConfig.EXTERNAL_TABLE_PURGE, "TRUE");
-    }
+    hmsTable.getParameters().putIfAbsent(InputFormatConfig.EXTERNAL_TABLE_PURGE, "TRUE");
 
     // If the table is not managed by Hive catalog then the location should be set
     if (!Catalogs.hiveCatalog(conf, catalogProperties)) {
@@ -157,10 +155,18 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
         "TRUE".equalsIgnoreCase(hmsTable.getParameters().get(InputFormatConfig.EXTERNAL_TABLE_PURGE));
 
     if (deleteIcebergTable && Catalogs.hiveCatalog(conf, catalogProperties)) {
-      // Store the metadata and the id for deleting the actual table data
-      String metadataLocation = hmsTable.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
-      this.deleteIo = Catalogs.loadTable(conf, catalogProperties).io();
-      this.deleteMetadata = TableMetadataParser.read(deleteIo, metadataLocation);
+      // Store the metadata and the io for deleting the actual table data
+      try {
+        String metadataLocation = hmsTable.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
+        this.deleteIo = Catalogs.loadTable(conf, catalogProperties).io();
+        this.deleteMetadata = TableMetadataParser.read(deleteIo, metadataLocation);
+      } catch (Exception e) {
+        LOG.error("preDropTable: Error during loading Iceberg table or parsing its metadata for HMS table: {}.{}. " +
+            "In some cases, this might lead to undeleted metadata files under the table directory: {}. " +
+            "Please double check and, if needed, manually delete any dangling files/folders, if any. " +
+            "In spite of this error, the HMS table drop operation should proceed as normal.",
+            hmsTable.getDbName(), hmsTable.getTableName(), hmsTable.getSd().getLocation(), e);
+      }
     }
   }
 
@@ -178,7 +184,7 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
           Catalogs.dropTable(conf, catalogProperties);
         } else {
           // do nothing if metadata folder has been deleted already (Hive 4 behaviour for purge=TRUE)
-          if (deleteIo.newInputFile(deleteMetadata.location()).exists()) {
+          if (deleteMetadata != null && deleteIo.newInputFile(deleteMetadata.location()).exists()) {
             CatalogUtil.dropTableData(deleteIo, deleteMetadata);
           }
         }
