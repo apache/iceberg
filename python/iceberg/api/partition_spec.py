@@ -21,7 +21,7 @@ from iceberg.exceptions import ValidationException
 
 from .partition_field import PartitionField
 from .schema import Schema
-from .transforms import Transforms
+from .transforms import Transform, Transforms
 from .types import (NestedField,
                     StructType)
 
@@ -231,12 +231,17 @@ class PartitionSpecBuilder(object):
         self.partition_names.add(name)
         return self
 
-    def check_for_redundant_partitions(self, field):
+    def check_redundant_and_add_field(self, field_id: int, name: str, transform: Transform) -> None:
+        field = PartitionField(field_id,
+                               self.__next_field_id(),
+                               name,
+                               transform)
         dedup_key = (field.source_id, field.transform.dedup_name())
         partition_field = self.dedup_fields.get(dedup_key)
         if partition_field is not None:
             raise ValueError("Cannot add redundant partition: %s conflicts with %s" % (partition_field, field))
         self.dedup_fields[dedup_key] = field
+        self.fields.append(field)
 
     def find_source_column(self, source_name):
         source_column = self.schema.find_field(source_name)
@@ -251,12 +256,9 @@ class PartitionSpecBuilder(object):
 
         source_column = self.find_source_column(source_name)
         self.check_and_add_partition_name(target_name, source_column.field_id)
-        field = PartitionField(source_column.field_id,
-                               self.__next_field_id(),
-                               target_name,
-                               Transforms.identity(source_column.type))
-        self.check_for_redundant_partitions(field)
-        self.fields.append(field)
+        self.check_redundant_and_add_field(source_column.field_id,
+                                           target_name,
+                                           Transforms.identity(source_column.type))
         return self
 
     def year(self, source_name, target_name=None):
@@ -265,12 +267,9 @@ class PartitionSpecBuilder(object):
 
         self.check_and_add_partition_name(target_name)
         source_column = self.find_source_column(source_name)
-        field = PartitionField(source_column.field_id,
-                               self.__next_field_id(),
-                               target_name,
-                               Transforms.year(source_column.type))
-        self.check_for_redundant_partitions(field)
-        self.fields.append(field)
+        self.check_redundant_and_add_field(source_column.field_id,
+                                           target_name,
+                                           Transforms.year(source_column.type))
         return self
 
     def month(self, source_name, target_name=None):
@@ -279,12 +278,9 @@ class PartitionSpecBuilder(object):
 
         self.check_and_add_partition_name(target_name)
         source_column = self.find_source_column(source_name)
-        field = PartitionField(source_column.field_id,
-                               self.__next_field_id(),
-                               target_name,
-                               Transforms.month(source_column.type))
-        self.check_for_redundant_partitions(field)
-        self.fields.append(field)
+        self.check_redundant_and_add_field(source_column.field_id,
+                                           target_name,
+                                           Transforms.month(source_column.type))
         return self
 
     def day(self, source_name, target_name=None):
@@ -293,12 +289,9 @@ class PartitionSpecBuilder(object):
 
         self.check_and_add_partition_name(target_name)
         source_column = self.find_source_column(source_name)
-        field = PartitionField(source_column.field_id,
-                               self.__next_field_id(),
-                               target_name,
-                               Transforms.day(source_column.type))
-        self.check_for_redundant_partitions(field)
-        self.fields.append(field)
+        self.check_redundant_and_add_field(source_column.field_id,
+                                           target_name,
+                                           Transforms.day(source_column.type))
         return self
 
     def hour(self, source_name, target_name=None):
@@ -307,12 +300,9 @@ class PartitionSpecBuilder(object):
 
         self.check_and_add_partition_name(target_name)
         source_column = self.find_source_column(source_name)
-        field = PartitionField(source_column.field_id,
-                               self.__next_field_id(),
-                               target_name,
-                               Transforms.hour(source_column.type))
-        self.check_for_redundant_partitions(field)
-        self.fields.append(field)
+        self.check_redundant_and_add_field(source_column.field_id,
+                                           target_name,
+                                           Transforms.hour(source_column.type))
         return self
 
     def bucket(self, source_name, num_buckets, target_name=None):
