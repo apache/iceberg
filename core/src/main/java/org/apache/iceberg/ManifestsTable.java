@@ -81,7 +81,12 @@ public class ManifestsTable extends BaseMetadataTable {
 
   private class ManifestsTableScan extends StaticTableScan {
     ManifestsTableScan(TableOperations ops, Table table) {
-      super(ops, table, SNAPSHOT_SCHEMA, ManifestsTable.this.name(), ManifestsTable.this::task);
+      super(ops, table, SNAPSHOT_SCHEMA, ManifestsTable.this::task);
+    }
+
+    @Override
+    public String tableType() {
+      return String.valueOf(ManifestsTable.this.metadataTableType());
     }
   }
 

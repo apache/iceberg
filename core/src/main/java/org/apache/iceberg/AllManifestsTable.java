@@ -66,7 +66,7 @@ public class AllManifestsTable extends BaseMetadataTable {
 
   @Override
   public TableScan newScan() {
-    return new AllManifestsTableScan(operations(), table(), MANIFEST_FILE_SCHEMA, name());
+    return new AllManifestsTableScan(operations(), table(), MANIFEST_FILE_SCHEMA);
   }
 
   @Override
@@ -81,23 +81,19 @@ public class AllManifestsTable extends BaseMetadataTable {
 
   public static class AllManifestsTableScan extends BaseAllMetadataTableScan {
 
-    private final String scannedTableName;
-
-    AllManifestsTableScan(TableOperations ops, Table table, Schema fileSchema, String scannedTableName) {
-      super(ops, table, fileSchema, scannedTableName);
-      this.scannedTableName = scannedTableName;
+    AllManifestsTableScan(TableOperations ops, Table table, Schema fileSchema) {
+      super(ops, table, fileSchema);
     }
 
-    private AllManifestsTableScan(TableOperations ops, Table table, Schema schema, String scannedTableName,
+    private AllManifestsTableScan(TableOperations ops, Table table, Schema schema,
                                   TableScanContext context) {
-      super(ops, table, schema, scannedTableName, context);
-      this.scannedTableName = scannedTableName;
+      super(ops, table, schema, context);
     }
 
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema,
                                        TableScanContext context) {
-      return new AllManifestsTableScan(ops, table, schema, scannedTableName, context);
+      return new AllManifestsTableScan(ops, table, schema, context);
     }
 
     @Override
@@ -108,6 +104,11 @@ public class AllManifestsTable extends BaseMetadataTable {
     @Override
     public TableScan asOfTime(long timestampMillis) {
       throw new UnsupportedOperationException("Cannot select snapshot: all_manifests is for all snapshots");
+    }
+
+    @Override
+    public String tableType() {
+      return String.valueOf(MetadataTableType.ALL_MANIFESTS);
     }
 
     @Override

@@ -43,7 +43,7 @@ public class DataFilesTable extends BaseMetadataTable {
 
   @Override
   public TableScan newScan() {
-    return new FilesTableScan(operations(), table(), schema(), name());
+    return new FilesTableScan(operations(), table(), schema());
   }
 
   @Override
@@ -64,36 +64,37 @@ public class DataFilesTable extends BaseMetadataTable {
 
   public static class FilesTableScan extends BaseTableScan {
     private final Schema fileSchema;
-    private final String fileTableName;
 
-    FilesTableScan(TableOperations ops, Table table, Schema fileSchema, String fileTableName) {
+    FilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
       super(ops, table, fileSchema);
       this.fileSchema = fileSchema;
-      this.fileTableName = fileTableName;
     }
 
-    private FilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema, String fileTableName,
+    private FilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema,
                            TableScanContext context) {
       super(ops, table, schema, context);
       this.fileSchema = fileSchema;
-      this.fileTableName = fileTableName;
+    }
+
+    public String tableType() {
+      return String.valueOf(MetadataTableType.FILES);
     }
 
     @Override
     public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
       throw new UnsupportedOperationException(
-          String.format("Incremental scan is not supported for metadata table %s", fileTableName));
+          String.format("Incremental scan is not supported for %s scan of table %s", tableType(), table().name()));
     }
 
     @Override
     public TableScan appendsAfter(long fromSnapshotId) {
       throw new UnsupportedOperationException(
-          String.format("Incremental scan is not supported for metadata table %s", fileTableName));
+              String.format("Incremental scan is not supported for %s scan of table %s", tableType(), table().name()));
     }
 
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new FilesTableScan(ops, table, schema, fileSchema, fileTableName, context);
+      return new FilesTableScan(ops, table, schema, fileSchema, context);
     }
 
     @Override

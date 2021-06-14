@@ -51,7 +51,7 @@ public class AllDataFilesTable extends BaseMetadataTable {
 
   @Override
   public TableScan newScan() {
-    return new AllDataFilesTableScan(operations(), table(), schema(), name());
+    return new AllDataFilesTableScan(operations(), table(), schema());
   }
 
   @Override
@@ -72,24 +72,26 @@ public class AllDataFilesTable extends BaseMetadataTable {
 
   public static class AllDataFilesTableScan extends BaseAllMetadataTableScan {
     private final Schema fileSchema;
-    private final String scannedTableName;
 
-    AllDataFilesTableScan(TableOperations ops, Table table, Schema fileSchema, String scannedTableName) {
-      super(ops, table, fileSchema, scannedTableName);
+    AllDataFilesTableScan(TableOperations ops, Table table, Schema fileSchema) {
+      super(ops, table, fileSchema);
       this.fileSchema = fileSchema;
-      this.scannedTableName = scannedTableName;
     }
 
     private AllDataFilesTableScan(TableOperations ops, Table table, Schema schema, Schema fileSchema,
-                                  String scannedTableName, TableScanContext context) {
-      super(ops, table, schema, scannedTableName, context);
+                                  TableScanContext context) {
+      super(ops, table, schema, context);
       this.fileSchema = fileSchema;
-      this.scannedTableName = scannedTableName;
+    }
+
+    @Override
+    public String tableType() {
+      return String.valueOf(MetadataTableType.ALL_DATA_FILES);
     }
 
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
-      return new AllDataFilesTableScan(ops, table, schema, fileSchema, scannedTableName, context);
+      return new AllDataFilesTableScan(ops, table, schema, fileSchema, context);
     }
 
     @Override

@@ -74,7 +74,12 @@ public class HistoryTable extends BaseMetadataTable {
 
   private class HistoryScan extends StaticTableScan {
     HistoryScan(TableOperations ops, Table table) {
-      super(ops, table, HISTORY_SCHEMA, HistoryTable.this.name(), HistoryTable.this::task);
+      super(ops, table, HISTORY_SCHEMA, HistoryTable.this::task);
+    }
+
+    @Override
+    protected String tableType() {
+      return String.valueOf(MetadataTableType.HISTORY);
     }
 
     @Override

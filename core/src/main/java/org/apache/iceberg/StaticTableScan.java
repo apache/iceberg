@@ -25,33 +25,39 @@ import org.apache.iceberg.io.CloseableIterable;
 
 class StaticTableScan extends BaseTableScan {
   private final Function<StaticTableScan, DataTask> buildTask;
-  // Metadata table name that the buildTask that this StaticTableScan will return data for.
-  private final String scannedTableName;
 
-  StaticTableScan(TableOperations ops, Table table, Schema schema,  String scannedTableName,
+  StaticTableScan(TableOperations ops, Table table, Schema schema,
                   Function<StaticTableScan, DataTask> buildTask) {
     super(ops, table, schema);
     this.buildTask = buildTask;
-    this.scannedTableName = scannedTableName;
   }
 
-  private StaticTableScan(TableOperations ops, Table table, Schema schema,  String scannedTableName,
+  private StaticTableScan(TableOperations ops, Table table, Schema schema,
                           Function<StaticTableScan, DataTask> buildTask, TableScanContext context) {
     super(ops, table, schema, context);
     this.buildTask = buildTask;
-    this.scannedTableName = scannedTableName;
+  }
+
+  /**
+   * Type of scan being performed by the buildTask, such as {@link MetadataTableType#HISTORY} when scanning
+   * a table's {@link org.apache.iceberg.HistoryTable}.
+   * <p>
+   * Used for logging and error messages.
+   */
+  protected String tableType() {
+    return "static";
   }
 
   @Override
   public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
     throw new UnsupportedOperationException(
-        String.format("Incremental scan is not supported for metadata table %s", scannedTableName));
+        String.format("Incremental scan is not supported for %s scan of table %s", tableType(), table().name()));
   }
 
   @Override
   public TableScan appendsAfter(long fromSnapshotId) {
     throw new UnsupportedOperationException(
-        String.format("Incremental scan is not supported for metadata table %s", scannedTableName));
+        String.format("Incremental scan is not supported for %s scan of table %s", tableType(), table().name()));
   }
 
   @Override
@@ -63,7 +69,7 @@ class StaticTableScan extends BaseTableScan {
   @Override
   protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
     return new StaticTableScan(
-        ops, table, schema, scannedTableName, buildTask, context);
+        ops, table, schema, buildTask, context);
   }
 
   @Override

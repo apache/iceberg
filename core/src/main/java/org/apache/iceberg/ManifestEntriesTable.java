@@ -48,7 +48,7 @@ public class ManifestEntriesTable extends BaseMetadataTable {
 
   @Override
   public TableScan newScan() {
-    return new EntriesTableScan(operations(), table(), schema(), name());
+    return new EntriesTableScan(operations(), table(), schema());
   }
 
   @Override
@@ -69,35 +69,34 @@ public class ManifestEntriesTable extends BaseMetadataTable {
 
   private static class EntriesTableScan extends BaseTableScan {
 
-    private final String scannedTableName;
-
-    EntriesTableScan(TableOperations ops, Table table, Schema schema, String scannedTableName) {
+    EntriesTableScan(TableOperations ops, Table table, Schema schema) {
       super(ops, table, schema);
-      this.scannedTableName = scannedTableName;
     }
 
-    private EntriesTableScan(TableOperations ops, Table table, Schema schema, String scannedTableName,
-                             TableScanContext context) {
+    private EntriesTableScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
       super(ops, table, schema, context);
-      this.scannedTableName = scannedTableName;
+    }
+
+    public String tableType() {
+      return String.valueOf(MetadataTableType.ENTRIES);
     }
 
     @Override
     public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
       throw new UnsupportedOperationException(
-          String.format("Incremental scan is not supported for metadata table %s", scannedTableName));
+          String.format("Incremental scan is not supported for %s scan of table %s", tableType(), table().name()));
     }
 
     @Override
     public TableScan appendsAfter(long fromSnapshotId) {
       throw new UnsupportedOperationException(
-          String.format("Incremental scan is not supported for metadata table %s", scannedTableName));
+          String.format("Incremental scan is not supported for %s scan of table %s", tableType(), table().name()));
     }
 
     @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema,
                                        TableScanContext context) {
-      return new EntriesTableScan(ops, table, schema, scannedTableName, context);
+      return new EntriesTableScan(ops, table, schema, context);
     }
 
     @Override
