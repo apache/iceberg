@@ -85,7 +85,7 @@ public class ManifestsTable extends BaseMetadataTable {
     }
 
     @Override
-    public String tableType() {
+    protected String tableType() {
       return String.valueOf(ManifestsTable.this.metadataTableType());
     }
   }

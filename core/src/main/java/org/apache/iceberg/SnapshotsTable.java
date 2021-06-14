@@ -75,14 +75,14 @@ public class SnapshotsTable extends BaseMetadataTable {
     }
 
     @Override
-    public String tableType() {
-      return String.valueOf(SnapshotsTable.this.metadataTableType());
-    }
-
-    @Override
     public CloseableIterable<FileScanTask> planFiles() {
       // override planFiles to avoid the check for a current snapshot because this metadata table is for all snapshots
       return CloseableIterable.withNoopClose(SnapshotsTable.this.task(this));
+    }
+
+    @Override
+    protected String tableType() {
+      return String.valueOf(SnapshotsTable.this.metadataTableType());
     }
   }
 

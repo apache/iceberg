@@ -36,7 +36,7 @@ abstract class BaseAllMetadataTableScan extends BaseTableScan {
     super(ops, table, schema, context);
   }
 
-  public abstract String tableType();
+  protected abstract String tableType();
 
   @Override
   public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {

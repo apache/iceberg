@@ -77,10 +77,6 @@ public class ManifestEntriesTable extends BaseMetadataTable {
       super(ops, table, schema, context);
     }
 
-    public String tableType() {
-      return String.valueOf(MetadataTableType.ENTRIES);
-    }
-
     @Override
     public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
       throw new UnsupportedOperationException(
@@ -121,6 +117,10 @@ public class ManifestEntriesTable extends BaseMetadataTable {
       return CloseableIterable.transform(manifests, manifest ->
           new ManifestReadTask(ops.io(), manifest, fileSchema, schemaString, specString, residuals,
               ops.current().specsById()));
+    }
+
+    private String tableType() {
+      return String.valueOf(MetadataTableType.ENTRIES);
     }
   }
 

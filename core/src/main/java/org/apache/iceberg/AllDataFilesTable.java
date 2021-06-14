@@ -85,7 +85,7 @@ public class AllDataFilesTable extends BaseMetadataTable {
     }
 
     @Override
-    public String tableType() {
+    protected String tableType() {
       return String.valueOf(MetadataTableType.ALL_DATA_FILES);
     }
 

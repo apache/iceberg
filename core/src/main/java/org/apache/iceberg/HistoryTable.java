@@ -78,14 +78,14 @@ public class HistoryTable extends BaseMetadataTable {
     }
 
     @Override
-    protected String tableType() {
-      return String.valueOf(MetadataTableType.HISTORY);
-    }
-
-    @Override
     public CloseableIterable<FileScanTask> planFiles() {
       // override planFiles to avoid the check for a current snapshot because this metadata table is for all snapshots
       return CloseableIterable.withNoopClose(HistoryTable.this.task(this));
+    }
+
+    @Override
+    protected String tableType() {
+      return String.valueOf(HistoryTable.this.metadataTableType());
     }
   }
 

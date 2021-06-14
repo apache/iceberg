@@ -76,10 +76,6 @@ public class DataFilesTable extends BaseMetadataTable {
       this.fileSchema = fileSchema;
     }
 
-    public String tableType() {
-      return String.valueOf(MetadataTableType.FILES);
-    }
-
     @Override
     public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
       throw new UnsupportedOperationException(
@@ -119,6 +115,10 @@ public class DataFilesTable extends BaseMetadataTable {
       // all cases.
       return CloseableIterable.transform(manifests, manifest ->
           new ManifestReadTask(ops.io(), manifest, fileSchema, schemaString, specString, residuals));
+    }
+
+    private String tableType() {
+      return String.valueOf(MetadataTableType.FILES);
     }
   }
 
