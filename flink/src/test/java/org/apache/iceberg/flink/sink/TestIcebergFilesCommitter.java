@@ -815,7 +815,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
   private ManifestFile createTestingManifestFile(Path manifestPath) {
     return new GenericManifestFile(manifestPath.toAbsolutePath().toString(), manifestPath.toFile().length(), 0,
-        ManifestContent.DATA, 0, 0, 0L, 0, 0, 0, 0, 0, 0, null);
+        ManifestContent.DATA, 0, 0, 0L, 0, 0, 0, 0, 0, 0, null, null);
   }
 
   private List<Path> assertFlinkManifests(int expectedCount) throws IOException {

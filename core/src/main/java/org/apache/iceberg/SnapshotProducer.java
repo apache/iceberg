@@ -441,7 +441,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
       return new GenericManifestFile(manifest.path(), manifest.length(), manifest.partitionSpecId(),
           ManifestContent.DATA, manifest.sequenceNumber(), manifest.minSequenceNumber(), snapshotId,
-          addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries());
+          addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries(), null);
 
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read manifest: %s", manifest.path());
