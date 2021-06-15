@@ -72,6 +72,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *   <li><code>uri</code> - the Hive Metastore URI (Hive catalog only)</li>
  *   <li><code>warehouse</code> - the warehouse path (Hadoop catalog only)</li>
  *   <li><code>default-namespace</code> - a namespace to use as the default</li>
+ *   <li><code>cache-enabled</code> - whether to enable catalog cache</li>
  * </ul>
  * <p>
  * To use a custom catalog that is not a Hive or Hadoop catalog, extend this class and override
