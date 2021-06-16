@@ -21,6 +21,7 @@ package org.apache.iceberg.catalog;
 
 import java.util.Arrays;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * A namespace in a {@link Catalog}.
@@ -34,6 +35,7 @@ public class Namespace {
   }
 
   public static Namespace of(String... levels) {
+    Preconditions.checkArgument(null != levels, "Cannot create Namespace from null array");
     if (levels.length == 0) {
       return empty();
     }
