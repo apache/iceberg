@@ -206,7 +206,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
 
     PartitionSpec expected = PartitionSpec.builderFor(table.schema())
         .withSpecId(1)
-        .alwaysNull("category", "category_1000")
+        .alwaysNull("category", "category")
         .build();
 
     Assert.assertEquals("Should have new spec field", expected, table.spec());
@@ -226,7 +226,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
 
     PartitionSpec expected = PartitionSpec.builderFor(table.schema())
         .withSpecId(1)
-        .alwaysNull("ts", "ts_day_1000")
+        .alwaysNull("ts", "ts_day")
         .build();
 
     Assert.assertEquals("Should have new spec field", expected, table.spec());
@@ -246,7 +246,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
 
     PartitionSpec expected = PartitionSpec.builderFor(table.schema())
         .withSpecId(1)
-        .alwaysNull("id", "id_bucket_1000")
+        .alwaysNull("id", "id_bucket")
         .build();
 
     Assert.assertEquals("Should have new spec field", expected, table.spec());
@@ -271,7 +271,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
 
     PartitionSpec expected = PartitionSpec.builderFor(table.schema())
         .withSpecId(2)
-        .alwaysNull("id", "shard_1000")
+        .alwaysNull("id", "shard")
         .build();
 
     Assert.assertEquals("Should have new spec field", expected, table.spec());
@@ -295,7 +295,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
     table.refresh();
     expected = PartitionSpec.builderFor(table.schema())
         .withSpecId(2)
-        .alwaysNull("ts", "ts_day_1000")
+        .alwaysNull("ts", "ts_day")
         .hour("ts")
         .build();
     Assert.assertEquals("Should changed from daily to hourly partitioned field", expected, table.spec());
@@ -319,7 +319,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
     table.refresh();
     expected = PartitionSpec.builderFor(table.schema())
         .withSpecId(2)
-        .alwaysNull("ts", "ts_day_1000")
+        .alwaysNull("ts", "ts_day")
         .hour("ts", "hour_col")
         .build();
     Assert.assertEquals("Should changed from daily to hourly partitioned field", expected, table.spec());
@@ -343,7 +343,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
     table.refresh();
     expected = PartitionSpec.builderFor(table.schema())
         .withSpecId(2)
-        .alwaysNull("ts", "day_col_1000")
+        .alwaysNull("ts", "day_col")
         .hour("ts")
         .build();
     Assert.assertEquals("Should changed from daily to hourly partitioned field", expected, table.spec());
@@ -367,7 +367,7 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
     table.refresh();
     expected = PartitionSpec.builderFor(table.schema())
         .withSpecId(2)
-        .alwaysNull("ts", "day_col_1000")
+        .alwaysNull("ts", "day_col")
         .hour("ts", "hour_col")
         .build();
     Assert.assertEquals("Should changed from daily to hourly partitioned field", expected, table.spec());

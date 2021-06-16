@@ -258,7 +258,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
         .apply();
 
     PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
-        .alwaysNull("category", "category_1000")
+        .alwaysNull("category", "category")
         .day("ts")
         .bucket("id", 16, "shard")
         .build();
@@ -282,7 +282,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
     PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
         .identity("category")
         .day("ts")
-        .alwaysNull("id", "shard_1002")
+        .alwaysNull("id", "shard")
         .build();
 
     V1Assert.assertEquals("Should match expected spec", v1Expected, updated);
@@ -302,7 +302,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
         .apply();
 
     PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
-        .alwaysNull("category", "category_1000")
+        .alwaysNull("category", "category")
         .day("ts")
         .bucket("id", 16, "shard")
         .build();
@@ -325,7 +325,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
 
     PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
         .identity("category")
-        .alwaysNull("ts", "ts_day_1001")
+        .alwaysNull("ts", "ts_day")
         .bucket("id", 16, "shard")
         .build();
 
@@ -348,7 +348,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
     PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
         .identity("category")
         .day("ts")
-        .alwaysNull("id", "shard_1002")
+        .alwaysNull("id", "shard")
         .build();
 
     V1Assert.assertEquals("Should match expected spec", v1Expected, updated);
@@ -386,7 +386,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
 
     PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
         .identity("category")
-        .alwaysNull("ts", "ts_day_1001")
+        .alwaysNull("ts", "ts_day")
         .bucket("id", 16)
         .truncate("data", 4, "prefix")
         .build();
@@ -411,7 +411,7 @@ public class TestUpdatePartitionSpec extends TableTestBase {
     PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
         .identity("category")
         .day("ts")
-        .alwaysNull("id", "shard_1002")
+        .alwaysNull("id", "shard")
         .build();
 
     V1Assert.assertEquals("Should match expected spec", v1Expected, updated);
@@ -572,31 +572,43 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   @Test
   public void testRemoveAndAddMultiTimes() {
     PartitionSpec addFirstTime = new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED)
-            .addField(day("ts"))
+            .addField("ts_date", day("ts"))
             .apply();
     PartitionSpec removeFirstTime = new BaseUpdatePartitionSpec(formatVersion, addFirstTime)
             .removeField(day("ts"))
             .apply();
     PartitionSpec addSecondTime = new BaseUpdatePartitionSpec(formatVersion, removeFirstTime)
-            .addField(day("ts"))
+            .addField("ts_date", day("ts"))
             .apply();
     PartitionSpec removeSecondTime = new BaseUpdatePartitionSpec(formatVersion, addSecondTime)
             .removeField(day("ts"))
             .apply();
-    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, removeSecondTime)
-            .addField(day("ts"))
+    PartitionSpec addThirdTime = new BaseUpdatePartitionSpec(formatVersion, removeSecondTime)
+            .addField(month("ts"))
+            .apply();
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, addThirdTime)
+            .renameField("ts_month", "ts_date")
             .apply();
 
-    PartitionSpec v1Expected = PartitionSpec.builderFor(SCHEMA)
-            .alwaysNull("ts", "ts_day_1000")
-            .alwaysNull("ts", "ts_day_1001")
-            .day("ts")
-            .build();
+    if (formatVersion == 1) {
+      Assert.assertEquals("Should match expected spec field size", 3, updated.fields().size());
 
-    V1Assert.assertEquals("Should match expected spec", v1Expected, updated);
+      Assert.assertTrue("Should match expected field name",
+              updated.fields().get(0).name().matches("^ts_date_\\w{8}-\\w{4}-\\w{4}-\\w{4}-\\w{12}$"));
+      Assert.assertTrue("Should match expected field name",
+              updated.fields().get(1).name().matches("^ts_date_\\w{8}-\\w{4}-\\w{4}-\\w{4}-\\w{12}$"));
+      Assert.assertEquals("Should match expected field name", "ts_date", updated.fields().get(2).name());
+
+      Assert.assertEquals("Should match expected field transform", "void",
+              updated.fields().get(0).transform().toString());
+      Assert.assertEquals("Should match expected field transform", "void",
+              updated.fields().get(1).transform().toString());
+      Assert.assertEquals("Should match expected field transform", "month",
+              updated.fields().get(2).transform().toString());
+    }
 
     PartitionSpec v2Expected = PartitionSpec.builderFor(SCHEMA)
-            .day("ts")
+            .month("ts", "ts_date")
             .build();
 
     V2Assert.assertEquals("Should match expected spec", v2Expected, updated);

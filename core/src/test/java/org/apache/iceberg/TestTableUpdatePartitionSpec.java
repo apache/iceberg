@@ -73,8 +73,8 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
 
     V1Assert.assertEquals("Should soft delete id and data buckets", PartitionSpec.builderFor(table.schema())
         .withSpecId(2)
-        .alwaysNull("data", "data_bucket_1000")
-        .alwaysNull("id", "id_bucket_8_1001")
+        .alwaysNull("data", "data_bucket")
+        .alwaysNull("id", "id_bucket_8")
         .truncate("data", 8, "data_trunc_8")
         .build(), table.spec());
 
@@ -166,7 +166,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
 
     V1Assert.assertEquals("Should soft delete data bucket", PartitionSpec.builderFor(table.schema())
         .withSpecId(1)
-        .alwaysNull("data", "data_bucket_1000")
+        .alwaysNull("data", "data_bucket")
         .bucket("id", 8, "id_bucket_8")
         .build(), table.spec());
 
@@ -187,7 +187,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
 
     V1Assert.assertEquals("Should remove and then add a bucket field", PartitionSpec.builderFor(table.schema())
         .withSpecId(1)
-        .alwaysNull("data", "data_bucket_1000")
+        .alwaysNull("data", "data_bucket")
         .bucket("data", 6, "data_bucket_6")
         .build(), table.spec());
     V2Assert.assertEquals("Should remove and then add a bucket field", PartitionSpec.builderFor(table.schema())
@@ -205,7 +205,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
 
     V1Assert.assertEquals("Should add a new id bucket", PartitionSpec.builderFor(table.schema())
         .withSpecId(1)
-        .alwaysNull("data", "data_bucket_1000")
+        .alwaysNull("data", "data_bucket")
         .build(), table.spec());
     V1Assert.assertEquals("Should match the last assigned field id",
         1000, table.spec().lastAssignedFieldId());
@@ -222,7 +222,7 @@ public class TestTableUpdatePartitionSpec extends TableTestBase {
 
     V1Assert.assertEquals("Should add a new id bucket", PartitionSpec.builderFor(table.schema())
         .withSpecId(2)
-        .alwaysNull("data", "data_bucket_1000")
+        .alwaysNull("data", "data_bucket")
         .bucket("id", 8, "id_bucket_8")
         .build(), table.spec());
     V2Assert.assertEquals("Should add a new id bucket", PartitionSpec.builderFor(table.schema())

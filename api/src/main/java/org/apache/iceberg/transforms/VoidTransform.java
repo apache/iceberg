@@ -61,11 +61,6 @@ class VoidTransform<S> implements Transform<S, Void> {
   }
 
   @Override
-  public boolean isVoid() {
-    return true;
-  }
-
-  @Override
   public String toHumanString(Void value) {
     return "null";
   }
