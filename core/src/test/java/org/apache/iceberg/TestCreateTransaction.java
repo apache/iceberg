@@ -86,7 +86,8 @@ public class TestCreateTransaction extends TableTestBase {
         TestTables.metadataVersion("test_create"));
 
     txn.updateSchema()
-        .addColumn("col", Types.StringType.get())
+        .allowIncompatibleChanges()
+        .addRequiredColumn("col", Types.StringType.get())
         .setIdentifierFields("id", "col")
         .commit();
 
@@ -103,7 +104,7 @@ public class TestCreateTransaction extends TableTestBase {
         Lists.newArrayList(
             required(1, "id", Types.IntegerType.get()),
             required(2, "data", Types.StringType.get()),
-            optional(3, "col", Types.StringType.get())),
+            required(3, "col", Types.StringType.get())),
         Sets.newHashSet(1, 3)
     );
 
