@@ -27,7 +27,7 @@ This is a specification for the Iceberg table format that is designed to manage 
 
 The Iceberg community is currently working on version 2 of the Iceberg format that supports encoding row-level deletes. **The v2 specification is incomplete and may change until it is finished and adopted.** This document includes tentative v2 format requirements, but there are currently no compatibility guarantees with the unfinished v2 spec.
 
-The goal of version 2 is to provide a way to encode row-level deletes. This update can be used to delete or replace individual rows in an immutable data file without rewriting the file.
+The primary goal of version 2 is to provide a way to encode row-level deletes. This update can be used to delete or replace individual rows in an immutable data file without rewriting the file.
 
 
 ## Goals
@@ -156,7 +156,9 @@ For details on how to serialize a schema to JSON, see Appendix C.
 
 #### Schema Evolution
 
-Schema evolution is limited to type promotion and adding, deleting, and renaming fields in structs (both nested structs and the top-level schema’s struct).
+Schemas may be evolved by type promotion or adding, deleting, renaming, or reordering fields in structs (both nested structs and the top-level schema’s struct).
+
+Evolution applies changes to the table's current schema to produce a new schema that is identified by a unique schema ID, is added to the table's list of schemas, and is set as the table's current schema.
 
 Valid type promotions are:
 
@@ -174,6 +176,15 @@ Grouping a subset of a struct’s fields into a nested struct is **not** allowed
 Columns in Iceberg data files are selected by field id. The table schema's column names and order may change after a data file is written, and projection must be done using field ids. If a field id is missing from a data file, its value for each row should be `null`.
 
 For example, a file may be written with schema `1: a int, 2: b string, 3: c double` and read using projection schema `3: measurement, 2: name, 4: a`. This must select file columns `c` (renamed to `measurement`), `b` (now called `name`), and a column of `null` values called `a`; in that order.
+
+
+#### Identifier Field IDs
+
+A schema can optionally track the set of primitive fields that identify rows in a table, using the property `identifier-field-ids` (see JSON encoding in Appendix C).
+
+Two rows are the "same"---that is, the rows represent the same entity---if the identifier fields are equal. However, uniqueness of rows by this identifier is not guaranteed or required by Iceberg and it is the responsibility of processing engines or data providers to enforce.
+
+Identifier fields may be nested in structs but cannot be nested within maps or lists. Float, double, and optional fields cannot be used as identifier fields and a nested field cannot be used as an identifier field if it is nested in an optional struct, to avoid null values in identifiers.
 
 
 #### Reserved Field IDs
@@ -209,17 +220,20 @@ Partition specs capture the transform from table data to partition values. This 
 
 #### Partition Transforms
 
-| Transform         | Description                                                  | Source types                                                                                              | Result type |
+| Transform name    | Description                                                  | Source types                                                                                              | Result type |
 |-------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|-------------|
 | **`identity`**    | Source value, unmodified                                     | Any                                                                                                       | Source type |
 | **`bucket[N]`**   | Hash of value, mod `N` (see below)                           | `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `string`, `uuid`, `fixed`, `binary` | `int`       |
 | **`truncate[W]`** | Value truncated to width `W` (see below)                     | `int`, `long`, `decimal`, `string`                                                                        | Source type |
-| **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp(tz)`                                                                                   | `int`       |
-| **`month`**       | Extract a date or timestamp month, as months from 1970-01-01 | `date`, `timestamp(tz)`                                                                                   | `int`       |
-| **`day`**         | Extract a date or timestamp day, as days from 1970-01-01     | `date`, `timestamp(tz)`                                                                                   | `date`      |
+| **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`                                                                        | `int`       |
+| **`month`**       | Extract a date or timestamp month, as months from 1970-01-01 | `date`, `timestamp`, `timestamptz`                                                                        | `int`       |
+| **`day`**         | Extract a date or timestamp day, as days from 1970-01-01     | `date`, `timestamp`, `timestamptz`                                                                        | `date`      |
 | **`hour`**        | Extract a timestamp hour, as hours from 1970-01-01 00:00:00  | `timestamp(tz)`                                                                                           | `int`       |
+| **`void`**        | Always produces `null`                                       | Any                                                                                                       | Source type or `int` |
 
 All transforms must return `null` for a `null` input value.
+
+The `void` transform may be used to replace the transform in an existing partition field so that the field is effectively dropped in v1 tables. See partition evolution below.
 
 
 #### Bucket Transform Details
@@ -252,6 +266,23 @@ Notes:
 
 1. The remainder, `v % W`, must be positive. For languages where `%` can produce negative values, the correct truncate function is: `v - (((v % W) + W) % W)`
 2. The width, `W`, used to truncate decimal values is applied using the scale of the decimal column to avoid additional (and potentially conflicting) parameters.
+
+
+#### Partition Evolution
+
+Table partitioning can be evolved by adding, removing, renaming, or reordering partition spec fields.
+
+Changing a partition spec produces a new spec identified by a unique spec ID that is added to the table's list of partition specs and may be set as the table's default spec.
+
+When evolving a spec, changes should not cause partition field IDs to change because the partition field IDs are used as the partition tuple field IDs in manifest files.
+
+In v2, partition field IDs must be explicitly tracked for each partition field. New IDs are assigned based on the last assigned partition ID in table metadata.
+
+In v1, partition field IDs were not tracked, but were assigned sequentially starting at 1000 in the reference implementation. This assignment caused problems when reading metadata tables based on manifest files from multiple specs because partition fields with the same ID may contain different data types. For compatibility with old versions, the following rules are recommended for partition evolution in v1 tables:
+
+1. Do not reorder partition fields
+2. Do not drop partition fields; instead replace the field's transform with the `void` transform
+3. Only add partition fields at the end of the previous partition spec
 
 
 ### Sorting
@@ -308,7 +339,7 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 |            | _required_ | **`134  content`**                | `int` with meaning: `0: DATA`, `1: POSITION DELETES`, `2: EQUALITY DELETES` | Type of content stored by the data file: data, equality deletes, or position deletes (all v1 files are data files) |
 | _required_ | _required_ | **`100  file_path`**              | `string`                     | Full URI for the file with FS scheme |
 | _required_ | _required_ | **`101  file_format`**            | `string`                     | String file format name, avro, orc or parquet |
-| _required_ | _required_ | **`102  partition`**              | `struct<...>`                | Partition data tuple, schema based on the partition spec |
+| _required_ | _required_ | **`102  partition`**              | `struct<...>`                | Partition data tuple, schema based on the partition spec output using partition field ids for the struct field ids |
 | _required_ | _required_ | **`103  record_count`**           | `long`                       | Number of records in this file |
 | _required_ | _required_ | **`104  file_size_in_bytes`**     | `long`                       | Total file size in bytes |
 | _required_ |            | ~~**`105 block_size_in_bytes`**~~ | `long`                       | **Deprecated. Always write a default in v1. Do not write in v2.** |
@@ -378,6 +409,7 @@ A snapshot consists of the following fields:
 | _optional_ | _required_ | **`manifest-list`**      | The location of a manifest list for this snapshot that tracks manifest files with additional meadata |
 | _optional_ |            | **`manifests`**          | A list of manifest file locations. Must be omitted if `manifest-list` is present |
 | _optional_ | _required_ | **`summary`**            | A string map that summarizes the snapshot changes, including `operation` (see below) |
+| _optional_ | _optional_ | **`schema-id`**          | ID of the table's current schema when the snapshot was created |
 
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
 
@@ -425,6 +457,7 @@ Manifest list files store `manifest_file`, a struct with the following fields:
 | _optional_ | _required_ | **`513 existing_rows_count`**  | `long`                                      | Number of rows in all of files in the manifest that have status `EXISTING`, when `null` this is assumed to be non-zero |
 | _optional_ | _required_ | **`514 deleted_rows_count`**   | `long`                                      | Number of rows in all of files in the manifest that have status `DELETED`, when `null` this is assumed to be non-zero |
 | _optional_ | _optional_ | **`507 partitions`**           | `list<508: field_summary>` (see below)      | A list of field summaries for each partition field in the spec. Each field in the list corresponds to a field in the manifest file’s partition spec. |
+| _optional_ | _optional_ | **`519 key_metadata`**         | `binary`                                    | Implementation-specific key metadata for encryption |
 
 `field_summary` is a struct with the following fields:
 
@@ -495,10 +528,12 @@ Table metadata consists of the following fields:
 |            | _required_ | **`last-sequence-number`**| The table's highest assigned sequence number, a monotonically increasing long that tracks the order of snapshots in a table. |
 | _required_ | _required_ | **`last-updated-ms`**| Timestamp in milliseconds from the unix epoch when the table was last updated. Each table metadata file should update this field just before writing. |
 | _required_ | _required_ | **`last-column-id`**| An integer; the highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. |
-| _required_ | _required_ | **`schema`**| The table’s current schema. |
+| _required_ | _required_ | **`schema`**| The table’s current schema. In v2, this must be the schema identified by the `current-schema-id`. |
+| _optional_ | _required_ | **`schemas`**| A list of schemas, stored as objects with `schema-id`. |
+| _optional_ | _required_ | **`current-schema-id`**| ID of the table's current schema. |
 | _required_ |            | **`partition-spec`**| The table’s current partition spec, stored as only fields. Note that this is used by writers to partition data, but is not used when reading because reads use the specs stored in manifest files. (**Deprecated**: use `partition-specs` and `default-spec-id`instead ) |
 | _optional_ | _required_ | **`partition-specs`**| A list of partition specs, stored as full partition spec objects. |
-| _optional_ | _required_ | **`default-spec-id`**| ID of the “current” spec that writers should use by default. |
+| _optional_ | _required_ | **`default-spec-id`**| ID of the "current" spec that writers should use by default. |
 | _optional_ | _required_ | **`last-partition-id`**| An integer; the highest assigned partition field ID across all partition specs for the table. This is used to ensure partition fields are always assigned an unused ID when evolving specs. |
 | _optional_ | _optional_ | **`properties`**| A string to string map of table properties. This is used to control settings that affect reading and writing and is not intended to be used for arbitrary metadata. For example, `commit.retry.num-retries` is used to control the number of commit retries. |
 | _optional_ | _optional_ | **`current-snapshot-id`**| `long` ID of the current table snapshot. |
@@ -595,7 +630,7 @@ The rows in the delete file must be sorted by `file_path` then `position` to opt
 
 Equality delete files identify deleted rows in a collection of data files by one or more column values, and may optionally contain additional columns of the deleted row.
 
-Equality delete files store any subset of a table's columns and use the table's field ids. The _delete columns_ are the columns of the delete file used to match data rows. Delete columns are identified by id in the delete file [metadata column `equality_ids`](#manifests).
+Equality delete files store any subset of a table's columns and use the table's field ids. The _delete columns_ are the columns of the delete file used to match data rows. Delete columns are identified by id in the delete file [metadata column `equality_ids`](#manifests). Float and double columns cannot be used as delete columns in equality delete files.
 
 A data row is deleted if its values are equal to all delete columns for any row in an equality delete file that applies to the row's data file (see [`Scan Planning`](#scan-planning)).
 
@@ -810,7 +845,14 @@ Hash results are not dependent on decimal scale, which is part of the type, not 
 
 ### Schemas
 
-Schemas are serialized to JSON as a struct. Types are serialized according to this table:
+Schemas are serialized as a JSON object with the same fields as a struct in the table below, and the following additional fields:
+
+| v1         | v2         |Field|JSON representation|Example|
+| ---------- | ---------- |--- |--- |--- |
+| _optional_ | _required_ |**`schema-id`**|`JSON int`|`0`|
+| _optional_ | _optional_ |**`identifier-field-ids`**|`JSON list of ints`|`[1, 2]`|
+
+Types are serialized according to this table:
 
 |Type|JSON representation|Example|
 |--- |--- |--- |
@@ -857,6 +899,7 @@ Each partition field in the fields list is stored as an object. See the table fo
 
 In some cases partition specs are stored using only the field list instead of the object format that includes the spec ID, like the deprecated `partition-spec` field in table metadata. The object format should be used unless otherwise noted in this spec.
 
+The `field-id` property was added for each partition field in v2. In v1, the reference implementation assigned field ids sequentially in each spec starting at 1,000. See Partition Evolution for more details.
 
 ### Sort Orders
 
