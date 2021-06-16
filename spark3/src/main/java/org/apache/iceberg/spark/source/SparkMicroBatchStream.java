@@ -27,7 +27,6 @@ import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileScanTask;
@@ -42,6 +41,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -68,6 +68,8 @@ import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE_DEFAULT;
 
 public class SparkMicroBatchStream implements MicroBatchStream {
+  private static final Joiner SLASH = Joiner.on("/");
+
   private final Table table;
   private final boolean caseSensitive;
   private final String expectedSchema;
@@ -227,7 +229,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     InitialOffsetStore(Table table, String checkpointLocation) {
       this.table = table;
       this.io = table.io();
-      this.initialOffsetLocation = new Path(checkpointLocation, "offsets/0").toString();
+      this.initialOffsetLocation = SLASH.join(checkpointLocation, "offsets/0");
     }
 
     public StreamingOffset initialOffset() {
