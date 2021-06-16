@@ -96,8 +96,8 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         table.properties(), SPLIT_OPEN_FILE_COST, SPLIT_OPEN_FILE_COST_DEFAULT);
     this.splitOpenFileCost = Spark3Util.propertyAsLong(options, SPLIT_OPEN_FILE_COST, tableSplitOpenFileCost);
 
-    InitialOffsetStore initialOffsetStore = InitialOffsetStore.create(table, checkpointLocation);
-    this.initialOffset = getOrWriteInitialOffset(initialOffsetStore);
+    InitialOffsetStore initialOffsetStore = new InitialOffsetStore(table, checkpointLocation);
+    this.initialOffset = initialOffsetStore.initialOffset();
   }
 
   @Override
@@ -180,14 +180,6 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   public void stop() {
   }
 
-  private static StreamingOffset getOrWriteInitialOffset(InitialOffsetStore initialOffsetStore) {
-    if (initialOffsetStore.isOffsetStoreInitialized()) {
-      return initialOffsetStore.initialOffset();
-    }
-
-    return initialOffsetStore.addInitialOffset();
-  }
-
   private List<FileScanTask> planFiles(StreamingOffset startOffset, StreamingOffset endOffset) {
     List<FileScanTask> fileScanTasks = Lists.newArrayList();
     MicroBatch latestMicroBatch = null;
@@ -227,52 +219,32 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     return pointer.snapshotId();
   }
 
-  interface InitialOffsetStore {
-    static InitialOffsetStore create(Table table, String checkpointLocation) {
-      return new InitialOffsetStoreImpl(table, checkpointLocation);
-    }
-
-    StreamingOffset addInitialOffset();
-
-    boolean isOffsetStoreInitialized();
-
-    StreamingOffset initialOffset();
-  }
-
-  private static class InitialOffsetStoreImpl implements InitialOffsetStore {
+  private static class InitialOffsetStore {
     private final Table table;
     private final FileIO io;
     private final String initialOffsetLocation;
 
-    InitialOffsetStoreImpl(Table table, String checkpointLocation) {
+    InitialOffsetStore(Table table, String checkpointLocation) {
       this.table = table;
       this.io = table.io();
       this.initialOffsetLocation = new Path(checkpointLocation, "offsets/0").toString();
     }
 
-    @Override
-    public StreamingOffset addInitialOffset() {
+    public StreamingOffset initialOffset() {
+      InputFile inputFile = io.newInputFile(initialOffsetLocation);
+      if (inputFile.exists()) {
+        return readOffset(inputFile);
+      }
+
       table.refresh();
       StreamingOffset offset = table.currentSnapshot() == null ?
           StreamingOffset.START_OFFSET :
           new StreamingOffset(SnapshotUtil.oldestSnapshot(table).snapshotId(), 0, true);
 
-      OutputFile file = io.newOutputFile(initialOffsetLocation);
-      writeOffset(offset, file);
+      OutputFile outputFile = io.newOutputFile(initialOffsetLocation);
+      writeOffset(offset, outputFile);
 
       return offset;
-    }
-
-    @Override
-    public boolean isOffsetStoreInitialized() {
-      InputFile file = io.newInputFile(initialOffsetLocation);
-      return file.exists();
-    }
-
-    @Override
-    public StreamingOffset initialOffset() {
-      InputFile file = io.newInputFile(initialOffsetLocation);
-      return readOffset(file);
     }
 
     private void writeOffset(StreamingOffset offset, OutputFile file) {
