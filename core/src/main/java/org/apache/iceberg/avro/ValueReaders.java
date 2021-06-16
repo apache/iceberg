@@ -582,8 +582,7 @@ public class ValueReaders {
 
     protected StructReader(List<ValueReader<?>> readers, Schema schema) {
       this.readers = readers.toArray(new ValueReader[0]);
-      this.positions = new int[0];
-      this.constants = new Object[0];
+      Integer isDeletedColumnPos = null;
 
       List<Schema.Field> fields = schema.getFields();
       for (int pos = 0; pos < fields.size(); pos += 1) {
@@ -592,8 +591,16 @@ public class ValueReaders {
           // track where the _pos field is located for setRowPositionSupplier
           this.posField = pos;
         } else if (AvroSchemaUtil.getFieldId(field) == MetadataColumns.IS_DELETED.fieldId()) {
-          this.readers[pos] = new ConstantReader<>(false);
+          isDeletedColumnPos = pos;
         }
+      }
+
+      if (isDeletedColumnPos == null) {
+        this.positions = new int[0];
+        this.constants = new Object[0];
+      } else {
+        this.positions = new int[]{isDeletedColumnPos};
+        this.constants = new Object[]{false};
       }
     }
 
@@ -751,19 +758,6 @@ public class ValueReaders {
     public Long read(Decoder ignored, Object reuse) throws IOException {
       currentPosition += 1;
       return currentPosition;
-    }
-  }
-
-  static class ConstantReader<C> implements ValueReader<C> {
-    private final C value;
-
-    ConstantReader(C value) {
-      this.value = value;
-    }
-
-    @Override
-    public C read(Decoder ignored, Object reuse) throws IOException {
-      return value;
     }
   }
 }
