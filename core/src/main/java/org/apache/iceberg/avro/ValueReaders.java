@@ -612,7 +612,8 @@ public class ValueReaders {
           // track where the _pos field is located for setRowPositionSupplier
           this.posField = pos;
         } else if (field.fieldId() == MetadataColumns.IS_DELETED.fieldId()) {
-          this.readers[pos] = new ConstantReader<>(false);
+          positionList.add(pos);
+          constantList.add(false);
         }
       }
 
