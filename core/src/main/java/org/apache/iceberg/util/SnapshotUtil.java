@@ -123,8 +123,8 @@ public class SnapshotUtil {
     return newFiles;
   }
 
-  public static Integer existingDataFiles(Snapshot snapshot) {
-    Integer totalExistingDataFilesCount = 0;
+  public static int existingDataFilesCount(Snapshot snapshot) {
+    int totalExistingDataFilesCount = 0;
 
     if (snapshot != null) {
       for (ManifestFile dataManifest : snapshot.dataManifests()) {
