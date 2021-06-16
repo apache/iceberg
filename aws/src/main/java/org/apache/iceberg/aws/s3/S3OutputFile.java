@@ -61,7 +61,7 @@ public class S3OutputFile extends BaseS3File implements OutputFile {
     try {
       return new S3OutputStream(client(), uri(), awsProperties());
     } catch (IOException e) {
-      throw new UncheckedIOException("Filed to create output stream for location: " + uri(), e);
+      throw new UncheckedIOException("Failed to create output stream for location: " + uri(), e);
     }
   }
 
