@@ -26,9 +26,11 @@ import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Serializer;
 import org.apache.iceberg.types.Serializers;
 import org.apache.iceberg.types.Types;
@@ -53,6 +55,8 @@ public class RocksDBStructLikeMap<T> extends AbstractMap<StructLike, T> implemen
   private final String path;
   private final WriteOptions writeOptions;
   private final RocksDB db;
+  private final Types.StructType keyType;
+  private final Types.StructType valType;
 
   private final Serializer<StructLike> keySerializer;
   private final Serializer<StructLike> valSerializer;
@@ -69,6 +73,8 @@ public class RocksDBStructLikeMap<T> extends AbstractMap<StructLike, T> implemen
     } catch (RocksDBException e) {
       throw new RuntimeException(e);
     }
+    this.keyType = keyType;
+    this.valType = valType;
     this.keySerializer = Serializers.forType(keyType);
     this.valSerializer = Serializers.forType(valType);
   }
@@ -101,7 +107,7 @@ public class RocksDBStructLikeMap<T> extends AbstractMap<StructLike, T> implemen
     if (value instanceof StructLike) {
       byte[] valData = valSerializer.serialize((StructLike) value);
       try (RocksIterator iter = db.newIterator()) {
-        for (iter.next(); iter.isValid(); iter.next()) {
+        for (iter.seekToFirst(); iter.isValid(); iter.next()) {
           if (Arrays.equals(valData, iter.value())) {
             return true;
           }
@@ -189,16 +195,98 @@ public class RocksDBStructLikeMap<T> extends AbstractMap<StructLike, T> implemen
 
   @Override
   public Set<StructLike> keySet() {
-    throw new UnsupportedOperationException("Unsupported keySet() in RocksDBStructLikeMap.");
+    StructLikeSet keySet = StructLikeSet.create(keyType);
+
+    try (RocksIterator iter = db.newIterator()) {
+      for (iter.seekToFirst(); iter.isValid(); iter.next()) {
+        keySet.add(keySerializer.deserialize(iter.key()));
+      }
+    }
+
+    return keySet;
   }
 
   @Override
+  @SuppressWarnings("unchecked")
   public Collection<T> values() {
-    throw new UnsupportedOperationException("Unsupported values() in RocksDBStructLikeMap.");
+    Set<T> valueSet = Sets.newHashSet();
+
+    try (RocksIterator iter = db.newIterator()) {
+      for (iter.seekToFirst(); iter.isValid(); iter.next()) {
+        valueSet.add((T) valSerializer.deserialize(iter.value()));
+      }
+    }
+
+    return valueSet;
   }
 
   @Override
+  @SuppressWarnings("unchecked")
   public Set<Entry<StructLike, T>> entrySet() {
-    throw new UnsupportedOperationException("Unsupported entrySet() in RocksDBStructLikeMap");
+    Set<Entry<StructLike, T>> entrySet = Sets.newHashSet();
+    try (RocksIterator iter = db.newIterator()) {
+      for (iter.seekToFirst(); iter.isValid(); iter.next()) {
+        StructLikeEntry<T> entry = new StructLikeEntry<>(
+            keySerializer.deserialize(iter.key()),
+            (T) valSerializer.deserialize(iter.value()));
+        entrySet.add(entry);
+      }
+      return entrySet;
+    }
+  }
+
+  private class StructLikeEntry<R> implements Entry<StructLike, R> {
+
+    private final StructLike key;
+    private final R value;
+
+    private StructLikeEntry(StructLike key, R value) {
+      this.key = key;
+      this.value = value;
+    }
+
+    @Override
+    public StructLike getKey() {
+      return key;
+    }
+
+    @Override
+    public R getValue() {
+      return value;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      } else if (!(o instanceof StructLikeEntry)) {
+        return false;
+      } else {
+        StructLikeEntry<R> that = (StructLikeEntry<R>) o;
+        return Objects.equals(
+            StructLikeWrapper.forType(keyType).set(key),
+            StructLikeWrapper.forType(keyType).set(that.key)) &&
+            Objects.equals(
+                StructLikeWrapper.forType(valType).set((StructLike) value),
+                StructLikeWrapper.forType(valType).set((StructLike) that.value)
+            );
+
+      }
+    }
+
+    @Override
+    public int hashCode() {
+      int hashCode = StructLikeWrapper.forType(keyType).set(key).hashCode();
+      if (value != null) {
+        hashCode ^= StructLikeWrapper.forType(valType).set((StructLike) value).hashCode();
+      }
+      return hashCode;
+    }
+
+    @Override
+    public R setValue(R newValue) {
+      throw new UnsupportedOperationException("Does not support setValue.");
+    }
   }
 }
