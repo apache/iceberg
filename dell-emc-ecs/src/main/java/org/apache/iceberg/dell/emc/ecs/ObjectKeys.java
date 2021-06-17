@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.Optional;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 
 /**
  * operations of {@link ObjectKey}
@@ -62,7 +63,9 @@ public interface ObjectKeys {
         } else {
             List<String> parts = new ArrayList<>();
             parts.add(baseKey.getBucket());
-            parts.addAll(Arrays.asList(baseKey.getKey().split(getDelimiter())));
+            for (String result : Splitter.on(getDelimiter()).split(baseKey.getKey())) {
+                parts.add(result);
+            }
             if (!checkParts(parts)) {
                 throw new IllegalArgumentException(String.format("invalid base key %s with delimiter %s",
                         baseKey, getDelimiter()));
@@ -227,7 +230,9 @@ public interface ObjectKeys {
     default Optional<List<String>> subParts(ObjectKey key) {
         List<String> parts = new ArrayList<>();
         parts.add(key.getBucket());
-        parts.addAll(Arrays.asList(key.getKey().split(getDelimiter())));
+        for (String result : Splitter.on(getDelimiter()).split(key.getKey())) {
+            parts.add(result);
+        }
         if (!checkParts(parts)) {
             return Optional.empty();
         }
