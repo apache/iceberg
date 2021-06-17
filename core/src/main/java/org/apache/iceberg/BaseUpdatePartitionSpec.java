@@ -49,7 +49,6 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   private final PartitionSpec spec;
   private final Schema schema;
   private final Map<String, PartitionField> nameToField;
-  private final Map<String, PartitionField> nameToVoidField = Maps.newHashMap();
   private final Map<Pair<Integer, String>, PartitionField> transformToField;
 
   private final List<Pair<PartitionField, String>> adds = Lists.newArrayList();
@@ -147,15 +146,26 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     checkForRedundantAddedPartitions(newField);
 
     transformToAddedField.put(validationKey, newField);
-    if (name != null) {
-      nameToAddedField.put(name, newField);
-    }
 
     String partitionName;
     if (newField.name() != null) {
       partitionName = newField.name();
     } else {
       partitionName = PartitionSpecVisitor.visit(schema, newField, PartitionNameGenerator.INSTANCE);
+    }
+
+    PartitionField existingField = nameToField.get(partitionName);
+    if (existingField != null) {
+      if (isVoidTransform(existingField)) {
+        // rename the old deleted field that is being replaced by the new field
+        renameField(existingField.name(), existingField.name() + "_" + UUID.randomUUID());
+      } else {
+        throw new IllegalArgumentException(String.format("Cannot add duplicate partition field name: %s", name));
+      }
+    }
+
+    if (partitionName != null) {
+      nameToAddedField.put(partitionName, newField);
     }
 
     adds.add(Pair.of(newField, partitionName));
@@ -201,6 +211,12 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
 
   @Override
   public BaseUpdatePartitionSpec renameField(String name, String newName) {
+    PartitionField existingField = nameToField.get(newName);
+    if (existingField != null && isVoidTransform(existingField)) {
+      // rename the old deleted field that is being replaced by the new field
+      renameField(existingField.name(), existingField.name() + "_" + UUID.randomUUID());
+    }
+
     PartitionField added = nameToAddedField.get(name);
     Preconditions.checkArgument(added == null,
         "Cannot rename newly added partition field: %s", name);
@@ -226,13 +242,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
         if (newName != null) {
           builder.add(field.sourceId(), field.fieldId(), newName, field.transform());
         } else {
-          // field name of void transform will be replaced by field name append with UUID if conflict is detected.
-          String partitionName = field.name();
-          if (isVoidTransform(field) && (renames.containsValue(partitionName) ||
-                  adds.stream().anyMatch(newField -> field.name().equals(newField.second())))) {
-            partitionName = partitionName + "_" + UUID.randomUUID();
-          }
-          builder.add(field.sourceId(), field.fieldId(), partitionName, field.transform());
+          builder.add(field.sourceId(), field.fieldId(), field.name(), field.transform());
         }
       } else if (formatVersion < 2) {
         // field IDs were not required for v1 and were assigned sequentially in each partition spec starting at 1,000.
