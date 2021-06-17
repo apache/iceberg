@@ -35,8 +35,9 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
-import org.apache.iceberg.util.StructLikeMap;
+import org.apache.iceberg.util.RocksDBStructLikeMap;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.Tasks;
 
@@ -106,7 +107,12 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       this.dataWriter = new RollingFileWriter(partition);
       this.eqDeleteWriter = new RollingEqDeleteWriter(partition);
       this.posDeleteWriter = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition);
-      this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
+
+      // TODO add a configurable key to choose in-memory StructLikeMap or RocksDBStructLikeMap.
+      this.insertedRowMap = RocksDBStructLikeMap.create(
+          System.getProperty("java.io.tmpdir"),
+          deleteSchema.asStruct(),
+          PATH_OFFSET_SCHEMA.asStruct());
     }
 
     /**
@@ -195,6 +201,11 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       }
     }
   }
+
+  private static final Schema PATH_OFFSET_SCHEMA = new Schema(
+      Types.NestedField.required(0, "path", Types.StringType.get()),
+      Types.NestedField.required(1, "row_offset", Types.LongType.get())
+  );
 
   private static class PathOffset implements StructLike {
     private CharSequence path;
