@@ -458,7 +458,7 @@ class SchemaUpdate implements UpdateSchema {
     Set<Integer> freshIdentifierFieldIds = Sets.newHashSet();
     for (String name : identifierFieldNames) {
       Preconditions.checkArgument(nameToId.containsKey(name),
-          "Cannot add field %s as an identifier field: not found in current schema or added columns");
+          "Cannot add field %s as an identifier field: not found in current schema or added columns", name);
       freshIdentifierFieldIds.add(nameToId.get(name));
     }
 
@@ -474,6 +474,11 @@ class SchemaUpdate implements UpdateSchema {
     Types.NestedField field = idToField.get(fieldId);
     Preconditions.checkArgument(field.type().isPrimitiveType(),
         "Cannot add field %s as an identifier field: not a primitive type field", field.name());
+    Preconditions.checkArgument(field.isRequired(),
+        "Cannot add field %s as an identifier field: not a required field", field.name());
+    Preconditions.checkArgument(!Types.DoubleType.get().equals(field.type()) &&
+        !Types.FloatType.get().equals(field.type()),
+        "Cannot add field %s as an identifier field: must not be float or double field", field.name());
 
     // check whether the nested field is in a chain of struct fields
     Integer parentId = idToParent.get(field.fieldId());

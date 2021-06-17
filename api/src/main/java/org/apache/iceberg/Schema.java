@@ -193,11 +193,11 @@ public class Schema implements Serializable {
    * It consists of a unique set of primitive fields in the schema.
    * An identifier field must be at root, or nested in a chain of structs (no maps or lists).
    * A row should be unique in a table based on the values of the identifier fields.
+   * Optional, float and double columns cannot be used as identifier fields.
    * However, Iceberg identifier differs from primary key in the following ways:
    * <ul>
    * <li>Iceberg does not enforce the uniqueness of a row based on this identifier information.
    * It is used for operations like upsert to define the default upsert key.</li>
-   * <li>NULL can be used as value of an identifier field. Iceberg ensures null-safe equality check.</li>
    * <li>A nested field in a struct can be used as an identifier. For example, if there is a "last_name" field
    * inside a "user" struct in a schema, field "user.last_name" can be set as a part of the identifier field.</li>
    * </ul>
@@ -215,7 +215,7 @@ public class Schema implements Serializable {
   public Set<String> identifierFieldNames() {
     return identifierFieldIds()
             .stream()
-            .map(id -> findField(id).name())
+            .map(id -> lazyIdToName().get(id))
             .collect(Collectors.toSet());
   }
 
