@@ -41,7 +41,7 @@ public class AssertHelpers {
                                   String containedInMessage,
                                   Callable callable) {
     AbstractThrowableAssert<?, ? extends Throwable> check = Assertions.assertThatThrownBy(callable::call)
-        .withFailMessage(message)
+        .as(message)
         .isInstanceOf(expected);
     if (null != containedInMessage) {
       check.hasMessageContaining(containedInMessage);
@@ -61,7 +61,7 @@ public class AssertHelpers {
                                   String containedInMessage,
                                   Runnable runnable) {
     AbstractThrowableAssert<?, ? extends Throwable> check = Assertions.assertThatThrownBy(runnable::run)
-        .withFailMessage(message)
+        .as(message)
         .isInstanceOf(expected);
     if (null != containedInMessage) {
       check.hasMessageContaining(containedInMessage);
@@ -105,7 +105,7 @@ public class AssertHelpers {
                                        String containedInMessage,
                                        Runnable runnable) {
     Assertions.assertThatThrownBy(runnable::run)
-        .withFailMessage(message)
+        .as(message)
         .getCause()
         .isInstanceOf(expected)
         .hasMessageContaining(containedInMessage);
