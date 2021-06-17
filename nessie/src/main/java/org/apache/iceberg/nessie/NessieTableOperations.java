@@ -21,15 +21,15 @@ package org.apache.iceberg.nessie;
 
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreTableOperations;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.projectnessie.client.NessieClient;
+import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
-import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.Contents;
 import org.projectnessie.model.ContentsKey;
 import org.projectnessie.model.IcebergTable;
@@ -48,19 +48,27 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
   private UpdateableReference reference;
   private IcebergTable table;
   private FileIO fileIO;
+  private Map<String, String> catalogOptions;
 
   /**
    * Create a nessie table operations given a table identifier.
    */
-  public NessieTableOperations(
+  NessieTableOperations(
       ContentsKey key,
       UpdateableReference reference,
       NessieClient client,
-      FileIO fileIO) {
+      FileIO fileIO,
+      Map<String, String> catalogOptions) {
     this.key = key;
     this.reference = reference;
     this.client = client;
     this.fileIO = fileIO;
+    this.catalogOptions = catalogOptions;
+  }
+
+  @Override
+  protected String tableName() {
+    return key.toString();
   }
 
   @Override
@@ -92,22 +100,28 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
 
     String newMetadataLocation = writeNewMetadata(metadata, currentVersion() + 1);
 
-    boolean threw = true;
+    boolean delete = true;
     try {
       IcebergTable newTable = ImmutableIcebergTable.builder().metadataLocation(newMetadataLocation).build();
       Operations op = ImmutableOperations.builder().addOperations(Operation.Put.of(key, newTable))
-          .commitMeta(CommitMeta.fromMessage(String.format("iceberg commit%s", applicationId())))
-          .build();
+          .commitMeta(NessieUtil.buildCommitMetadata("iceberg commit", catalogOptions)).build();
       client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(), reference.getHash(), op);
 
-      threw = false;
+      delete = false;
     } catch (NessieConflictException ex) {
       throw new CommitFailedException(ex, "Commit failed: Reference hash is out of date. " +
           "Update the reference %s and try again", reference.getName());
+    } catch (HttpClientException ex) {
+      // Intentionally catch all nessie-client-exceptions here and not just the "timeout" variant
+      // to catch all kinds of network errors (e.g. connection reset). Network code implementation
+      // details and all kinds of network devices can induce unexpected behavior. So better be
+      // safe than sorry.
+      delete = false;
+      throw new CommitStateUnknownException(ex);
     } catch (NessieNotFoundException ex) {
       throw new RuntimeException(String.format("Commit failed: Reference %s no longer exist", reference.getName()), ex);
     } finally {
-      if (threw) {
+      if (delete) {
         io().deleteFile(newMetadataLocation);
       }
     }
@@ -117,27 +131,4 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
   public FileIO io() {
     return fileIO;
   }
-
-  /**
-   * try and get a Spark application id if one exists.
-   *
-   * <p>
-   *   We haven't figured out a general way to pass commit messages through to the Nessie committer yet.
-   *   This is hacky but gets the job done until we can have a more complete commit/audit log.
-   * </p>
-   */
-  private String applicationId() {
-    String appId = null;
-    TableMetadata current = current();
-    if (current != null) {
-      Snapshot snapshot = current.currentSnapshot();
-      if (snapshot != null) {
-        Map<String, String> summary = snapshot.summary();
-        appId = summary.get("spark.app.id");
-      }
-
-    }
-    return appId == null ? "" : ("\nspark.app.id= " + appId);
-  }
-
 }

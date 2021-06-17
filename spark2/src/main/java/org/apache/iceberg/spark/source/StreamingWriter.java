@@ -27,10 +27,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.io.FileIO;
-import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.sources.v2.DataSourceOptions;
 import org.apache.spark.sql.sources.v2.writer.WriterCommitMessage;
 import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter;
@@ -48,10 +46,9 @@ public class StreamingWriter extends Writer implements StreamWriter {
   private final String queryId;
   private final OutputMode mode;
 
-  StreamingWriter(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryptionManager,
-                  DataSourceOptions options, String queryId, OutputMode mode, String applicationId,
-                  Schema writeSchema, StructType dsSchema) {
-    super(table, io, encryptionManager, options, false, applicationId, writeSchema, dsSchema);
+  StreamingWriter(SparkSession spark, Table table, DataSourceOptions options, String queryId,
+                  OutputMode mode, String applicationId, Schema writeSchema, StructType dsSchema) {
+    super(spark, table, options, false, applicationId, writeSchema, dsSchema);
     this.queryId = queryId;
     this.mode = mode;
   }

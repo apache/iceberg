@@ -36,6 +36,7 @@ public class TableIdentifier {
   private final String name;
 
   public static TableIdentifier of(String... names) {
+    Preconditions.checkArgument(names != null, "Cannot create table identifier from null array");
     Preconditions.checkArgument(names.length > 0, "Cannot create table identifier without a table name");
     return new TableIdentifier(Namespace.of(Arrays.copyOf(names, names.length - 1)), names[names.length - 1]);
   }
@@ -45,12 +46,14 @@ public class TableIdentifier {
   }
 
   public static TableIdentifier parse(String identifier) {
+    Preconditions.checkArgument(identifier != null, "Cannot parse table identifier: null");
     Iterable<String> parts = DOT.split(identifier);
     return TableIdentifier.of(Iterables.toArray(parts, String.class));
   }
 
   private TableIdentifier(Namespace namespace, String name) {
-    Preconditions.checkArgument(name != null && !name.isEmpty(), "Invalid table name %s", name);
+    Preconditions.checkArgument(name != null && !name.isEmpty(), "Invalid table name: null or empty");
+    Preconditions.checkArgument(namespace != null, "Invalid Namespace: null");
     this.namespace = namespace;
     this.name = name;
   }

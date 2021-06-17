@@ -32,18 +32,16 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.TableScanUtil;
-import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter;
 import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -70,11 +68,10 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
   private Set<String> filteredLocations = null;
 
-  SparkMergeScan(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryption,
-                 boolean caseSensitive, boolean ignoreResiduals, Schema expectedSchema,
-                 List<Expression> filters, CaseInsensitiveStringMap options) {
+  SparkMergeScan(SparkSession spark, Table table, boolean caseSensitive, boolean ignoreResiduals,
+                 Schema expectedSchema, List<Expression> filters, CaseInsensitiveStringMap options) {
 
-    super(table, io, encryption, caseSensitive, expectedSchema, filters, options);
+    super(spark, table, caseSensitive, expectedSchema, filters, options);
 
     this.table = table;
     this.ignoreResiduals = ignoreResiduals;

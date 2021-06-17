@@ -47,4 +47,7 @@ public class SparkWriteOptions {
 
   // Checks if input schema and table schema are same(default: true)
   public static final String CHECK_ORDERING = "check-ordering";
+
+  // File scan task set ID that indicates which files must be replaced
+  public static final String REWRITTEN_FILE_SCAN_TASK_SET_ID = "rewritten-file-scan-task-set-id";
 }

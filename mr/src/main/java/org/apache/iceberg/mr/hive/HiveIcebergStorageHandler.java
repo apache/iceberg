@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaHook;
 import org.apache.hadoop.hive.ql.metadata.HiveStorageHandler;
 import org.apache.hadoop.hive.ql.metadata.HiveStoragePredicateHandler;
@@ -125,6 +126,11 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
       if (catalogName != null) {
         jobConf.set(InputFormatConfig.TABLE_CATALOG_PREFIX + tableName, catalogName);
       }
+    }
+
+    if (HiveConf.getBoolVar(jobConf, HiveConf.ConfVars.HIVE_VECTORIZATION_ENABLED)) {
+      jobConf.setEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL, InputFormatConfig.InMemoryDataModel.HIVE);
+      conf.setBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, true);
     }
   }
 

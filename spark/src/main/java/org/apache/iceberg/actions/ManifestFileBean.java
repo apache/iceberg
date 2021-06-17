@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.actions;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
@@ -128,6 +129,11 @@ public class ManifestFileBean implements ManifestFile {
 
   @Override
   public List<PartitionFieldSummary> partitions() {
+    return null;
+  }
+
+  @Override
+  public ByteBuffer keyMetadata() {
     return null;
   }
 

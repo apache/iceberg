@@ -19,13 +19,8 @@
 
 package org.apache.iceberg.actions;
 
-import java.util.List;
 import org.apache.iceberg.MetadataTableType;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 abstract class BaseAction<ThisT, R> implements Action<ThisT, R> {
 
@@ -49,41 +44,4 @@ abstract class BaseAction<ThisT, R> implements Action<ThisT, R> {
       return tableName + "." + type;
     }
   }
-
-  /**
-   * Returns all the path locations of all Manifest Lists for a given list of snapshots
-   *
-   * @param snapshots snapshots
-   * @return the paths of the Manifest Lists
-   */
-  protected List<String> getManifestListPaths(Iterable<Snapshot> snapshots) {
-    List<String> manifestLists = Lists.newArrayList();
-    for (Snapshot snapshot : snapshots) {
-      String manifestListLocation = snapshot.manifestListLocation();
-      if (manifestListLocation != null) {
-        manifestLists.add(manifestListLocation);
-      }
-    }
-    return manifestLists;
-  }
-
-  /**
-   * Returns all Metadata file paths which may not be in the current metadata. Specifically this includes "version-hint"
-   * files as well as entries in metadata.previousFiles.
-   *
-   * @param ops TableOperations for the table we will be getting paths from
-   * @return a list of paths to metadata files
-   */
-  protected List<String> getOtherMetadataFilePaths(TableOperations ops) {
-    List<String> otherMetadataFiles = Lists.newArrayList();
-    otherMetadataFiles.add(ops.metadataFileLocation("version-hint.text"));
-
-    TableMetadata metadata = ops.current();
-    otherMetadataFiles.add(metadata.metadataFileLocation());
-    for (TableMetadata.MetadataLogEntry previousMetadataFile : metadata.previousFiles()) {
-      otherMetadataFiles.add(previousMetadataFile.file());
-    }
-    return otherMetadataFiles;
-  }
-
 }

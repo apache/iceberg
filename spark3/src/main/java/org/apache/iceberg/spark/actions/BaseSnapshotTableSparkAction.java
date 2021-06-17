@@ -109,7 +109,8 @@ public class BaseSnapshotTableSparkAction
 
   @Override
   public SnapshotTable.Result execute() {
-    JobGroupInfo info = newJobGroupInfo("SNAPSHOT-TABLE", "SNAPSHOT-TABLE");
+    String desc = String.format("Snapshotting table %s as %s", sourceTableIdent(), destTableIdent);
+    JobGroupInfo info = newJobGroupInfo("SNAPSHOT-TABLE", desc);
     return withJobGroupInfo(info, this::doExecute);
   }
 

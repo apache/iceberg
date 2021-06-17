@@ -26,20 +26,15 @@ import java.util.stream.Stream;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
-import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
@@ -65,21 +60,11 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
   private Filter[] pushedFilters = NO_FILTERS;
   private boolean ignoreResiduals = false;
 
-  // lazy variables
-  private JavaSparkContext lazySparkContext = null;
-
   SparkScanBuilder(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
     this.spark = spark;
     this.table = table;
     this.options = options;
     this.caseSensitive = Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
-  }
-
-  private JavaSparkContext lazySparkContext() {
-    if (lazySparkContext == null) {
-      this.lazySparkContext = new JavaSparkContext(spark.sparkContext());
-    }
-    return lazySparkContext;
   }
 
   private Schema lazySchema() {
@@ -174,19 +159,13 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
 
   @Override
   public Scan build() {
-    Broadcast<FileIO> io = lazySparkContext().broadcast(SparkUtil.serializableFileIO(table));
-    Broadcast<EncryptionManager> encryption = lazySparkContext().broadcast(table.encryption());
-
     return new SparkBatchQueryScan(
-        table, io, encryption, caseSensitive, schemaWithMetadataColumns(), filterExpressions, options);
+        spark, table, caseSensitive, schemaWithMetadataColumns(), filterExpressions, options);
   }
 
   public Scan buildMergeScan() {
-    Broadcast<FileIO> io = lazySparkContext().broadcast(SparkUtil.serializableFileIO(table));
-    Broadcast<EncryptionManager> encryption = lazySparkContext().broadcast(table.encryption());
-
     return new SparkMergeScan(
-        table, io, encryption, caseSensitive, ignoreResiduals,
+        spark, table, caseSensitive, ignoreResiduals,
         schemaWithMetadataColumns(), filterExpressions, options);
   }
 }

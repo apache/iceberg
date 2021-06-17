@@ -75,12 +75,12 @@ public class S3FileIO implements FileIO {
 
   @Override
   public InputFile newInputFile(String path) {
-    return new S3InputFile(client(), new S3URI(path), awsProperties);
+    return S3InputFile.fromLocation(path, client(), awsProperties);
   }
 
   @Override
   public OutputFile newOutputFile(String path) {
-    return new S3OutputFile(client(), new S3URI(path), awsProperties);
+    return S3OutputFile.fromLocation(path, client(), awsProperties);
   }
 
   @Override

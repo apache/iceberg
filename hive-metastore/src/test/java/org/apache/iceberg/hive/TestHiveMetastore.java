@@ -39,6 +39,7 @@ import org.apache.hadoop.hive.metastore.IHMSHandler;
 import org.apache.hadoop.hive.metastore.RetryingHMSHandler;
 import org.apache.hadoop.hive.metastore.TSetIpAddressProcessor;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.hadoop.Util;
@@ -191,6 +192,10 @@ public class TestHiveMetastore {
 
   public Table getTable(String dbName, String tableName) throws TException, InterruptedException {
     return clientPool.run(client -> client.getTable(dbName, tableName));
+  }
+
+  public Table getTable(TableIdentifier identifier) throws TException, InterruptedException {
+    return getTable(identifier.namespace().toString(), identifier.name());
   }
 
   private TServer newThriftServer(TServerSocket socket, int poolSize, HiveConf conf) throws Exception {

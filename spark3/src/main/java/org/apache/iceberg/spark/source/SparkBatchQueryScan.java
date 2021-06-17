@@ -27,15 +27,13 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadOptions;
-import org.apache.spark.broadcast.Broadcast;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 class SparkBatchQueryScan extends SparkBatchScan {
@@ -50,11 +48,10 @@ class SparkBatchQueryScan extends SparkBatchScan {
 
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
-  SparkBatchQueryScan(Table table, Broadcast<FileIO> io, Broadcast<EncryptionManager> encryption,
-                      boolean caseSensitive, Schema expectedSchema, List<Expression> filters,
-                      CaseInsensitiveStringMap options) {
+  SparkBatchQueryScan(SparkSession spark, Table table, boolean caseSensitive, Schema expectedSchema,
+                      List<Expression> filters, CaseInsensitiveStringMap options) {
 
-    super(table, io, encryption, caseSensitive, expectedSchema, filters, options);
+    super(spark, table, caseSensitive, expectedSchema, filters, options);
 
     this.snapshotId = Spark3Util.propertyAsLong(options, SparkReadOptions.SNAPSHOT_ID, null);
     this.asOfTimestamp = Spark3Util.propertyAsLong(options, SparkReadOptions.AS_OF_TIMESTAMP, null);

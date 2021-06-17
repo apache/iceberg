@@ -647,6 +647,33 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void testParseSchemaIdentifierFields() throws Exception {
+    String data = readTableMetadataInputFile("TableMetadataV2Valid.json");
+    TableMetadata parsed = TableMetadataParser.fromJson(
+        ops.io(), null, JsonUtil.mapper().readValue(data, JsonNode.class));
+    Assert.assertEquals(Sets.newHashSet(), parsed.schemasById().get(0).identifierFieldIds());
+    Assert.assertEquals(Sets.newHashSet(1, 2), parsed.schemasById().get(1).identifierFieldIds());
+  }
+
+  @Test
+  public void testUpdateSchemaIdentifierFields() {
+    Schema schema = new Schema(
+        Types.NestedField.required(10, "x", Types.StringType.get())
+    );
+
+    TableMetadata meta = TableMetadata.newTableMetadata(
+        schema, PartitionSpec.unpartitioned(), null, ImmutableMap.of());
+
+    Schema newSchema = new Schema(
+        Lists.newArrayList(Types.NestedField.required(1, "x", Types.StringType.get())),
+        Sets.newHashSet(1)
+    );
+    TableMetadata newMeta = meta.updateSchema(newSchema, 1);
+    Assert.assertEquals(2, newMeta.schemas().size());
+    Assert.assertEquals(Sets.newHashSet(1), newMeta.schema().identifierFieldIds());
+  }
+
+  @Test
   public void testUpdateSchema() {
     Schema schema = new Schema(0,
         Types.NestedField.required(1, "y", Types.LongType.get(), "comment")

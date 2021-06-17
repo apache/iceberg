@@ -22,9 +22,8 @@ package org.apache.iceberg.nessie;
 import java.util.List;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
-
-import static org.junit.Assert.assertEquals;
 
 public class TestNamespace extends BaseTestIceberg {
   private static final String BRANCH = "test-namespace";
@@ -43,21 +42,21 @@ public class TestNamespace extends BaseTestIceberg {
     createTable(TableIdentifier.parse("t6"));
 
     List<TableIdentifier> tables = catalog.listTables(Namespace.of("a", "b", "c"));
-    assertEquals(1, tables.size());
+    Assertions.assertThat(tables).isNotNull().hasSize(1);
     tables = catalog.listTables(Namespace.of("a", "b"));
-    assertEquals(2, tables.size());
+    Assertions.assertThat(tables).isNotNull().hasSize(2);
     tables = catalog.listTables(Namespace.of("a"));
-    assertEquals(3, tables.size());
+    Assertions.assertThat(tables).isNotNull().hasSize(3);
     tables = catalog.listTables(null);
-    assertEquals(6, tables.size());
+    Assertions.assertThat(tables).isNotNull().hasSize(6);
 
     List<Namespace> namespaces = catalog.listNamespaces();
-    assertEquals(5, namespaces.size());
+    Assertions.assertThat(namespaces).isNotNull().hasSize(5);
     namespaces = catalog.listNamespaces(Namespace.of("a"));
-    assertEquals(3, namespaces.size());
+    Assertions.assertThat(namespaces).isNotNull().hasSize(3);
     namespaces = catalog.listNamespaces(Namespace.of("a", "b"));
-    assertEquals(2, namespaces.size());
+    Assertions.assertThat(namespaces).isNotNull().hasSize(2);
     namespaces = catalog.listNamespaces(Namespace.of("b"));
-    assertEquals(2, namespaces.size());
+    Assertions.assertThat(namespaces).isNotNull().hasSize(2);
   }
 }

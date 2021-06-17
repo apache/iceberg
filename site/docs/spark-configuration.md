@@ -59,6 +59,7 @@ Both catalogs are configured using properties nested under the catalog name. Com
 | spark.sql.catalog._catalog-name_.default-namespace | default                       | The default current namespace for the catalog |
 | spark.sql.catalog._catalog-name_.uri               | thrift://host:port            | Metastore connect URI; default from `hive-site.xml` |
 | spark.sql.catalog._catalog-name_.warehouse         | hdfs://nn:8020/warehouse/path | Base path for the warehouse directory |
+| spark.sql.catalog._catalog-name_.cache-enabled     | `true` or `false`             | Whether to enable catalog cache, default value is `true` |
 
 Additional properties can be found in common [catalog configuration](./configuration.md#catalog-properties).
 

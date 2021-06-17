@@ -406,6 +406,8 @@ public class ParquetDictionaryRowGroupFilter {
 
       for (int i = 0; i <= dict.getMaxId(); i++) {
         switch (col.getPrimitiveType().getPrimitiveTypeName()) {
+          case FIXED_LEN_BYTE_ARRAY: dictSet.add((T) conversion.apply(dict.decodeToBinary(i)));
+            break;
           case BINARY: dictSet.add((T) conversion.apply(dict.decodeToBinary(i)));
             break;
           case INT32: dictSet.add((T) conversion.apply(dict.decodeToInt(i)));

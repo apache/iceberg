@@ -159,6 +159,32 @@ public class TestHadoopCommits extends HadoopTableTestBase {
   }
 
   @Test
+  public void testSchemaUpdateIdentifierFields() throws Exception {
+    Assert.assertTrue("Should create v1 metadata",
+        version(1).exists() && version(1).isFile());
+    Assert.assertFalse("Should not create v2 or newer versions",
+        version(2).exists());
+
+    Schema updatedSchema = new Schema(Lists.newArrayList(
+        required(1, "id", Types.IntegerType.get(), "unique ID"),
+        required(2, "data", Types.StringType.get())
+    ), Sets.newHashSet(1));
+
+    table.updateSchema()
+        .setIdentifierFields("id")
+        .commit();
+
+    Assert.assertTrue("Should create v2 for the update",
+        version(2).exists() && version(2).isFile());
+    Assert.assertEquals("Should write the current version to the hint file",
+        2, readVersionHint());
+    Assert.assertEquals("Table schema should match schema with reassigned ids",
+        updatedSchema.asStruct(), table.schema().asStruct());
+    Assert.assertEquals("Identifier fields should match schema with reassigned ids",
+        updatedSchema.identifierFieldIds(), table.schema().identifierFieldIds());
+  }
+
+  @Test
   public void testFailedCommit() throws Exception {
     // apply the change to metadata without committing
     UpdateSchema update = table.updateSchema().addColumn("n", Types.IntegerType.get());

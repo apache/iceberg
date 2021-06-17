@@ -22,8 +22,8 @@ package org.apache.iceberg.actions;
 import java.util.List;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.source.RowDataRewriter;
@@ -59,10 +59,8 @@ public class RewriteDataFilesAction
   @Override
   protected List<DataFile> rewriteDataForTasks(List<CombinedScanTask> combinedScanTasks) {
     JavaRDD<CombinedScanTask> taskRDD = sparkContext.parallelize(combinedScanTasks, combinedScanTasks.size());
-    Broadcast<FileIO> io = sparkContext.broadcast(fileIO());
-    Broadcast<EncryptionManager> encryption = sparkContext.broadcast(encryptionManager());
-    RowDataRewriter rowDataRewriter =
-        new RowDataRewriter(table(), spec(), caseSensitive(), io, encryption);
+    Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table()));
+    RowDataRewriter rowDataRewriter = new RowDataRewriter(tableBroadcast, spec(), caseSensitive());
     return rowDataRewriter.rewriteDataForTasks(taskRDD);
   }
 }

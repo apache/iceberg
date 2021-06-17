@@ -32,7 +32,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
@@ -159,6 +161,11 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   @Override
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
+    if (options.containsKey(SparkReadOptions.FILE_SCAN_TASK_SET_ID)) {
+      // skip planning the job and fetch already staged file scan tasks
+      return new SparkFilesScanBuilder(sparkSession(), icebergTable, options);
+    }
+
     if (refreshEagerly) {
       icebergTable.refresh();
     }
@@ -174,7 +181,12 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   @Override
   public WriteBuilder newWriteBuilder(LogicalWriteInfo info) {
-    return new SparkWriteBuilder(sparkSession(), icebergTable, info);
+    if (info.options().containsKey(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID)) {
+      // replace data files in the given file scan task set with new files
+      return new SparkRewriteBuilder(sparkSession(), icebergTable, info);
+    } else {
+      return new SparkWriteBuilder(sparkSession(), icebergTable, info);
+    }
   }
 
   @Override

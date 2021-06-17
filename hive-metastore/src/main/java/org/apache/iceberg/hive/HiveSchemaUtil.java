@@ -149,6 +149,8 @@ public final class HiveSchemaUtil {
       case DATE:
         return "date";
       case TIME:
+      case STRING:
+      case UUID:
         return "string";
       case TIMESTAMP:
         Types.TimestampType timestampType = (Types.TimestampType) type;
@@ -156,11 +158,7 @@ public final class HiveSchemaUtil {
           return "timestamp with local time zone";
         }
         return "timestamp";
-      case STRING:
-      case UUID:
-        return "string";
       case FIXED:
-        return "binary";
       case BINARY:
         return "binary";
       case DECIMAL:

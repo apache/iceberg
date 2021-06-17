@@ -29,11 +29,15 @@ import org.apache.iceberg.io.PositionOutputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 
 public class S3OutputFile extends BaseS3File implements OutputFile {
-  public S3OutputFile(S3Client client, S3URI uri) {
-    this(client, uri, new AwsProperties());
+  public static S3OutputFile fromLocation(String location, S3Client client) {
+    return new S3OutputFile(client, new S3URI(location), new AwsProperties());
   }
 
-  public S3OutputFile(S3Client client, S3URI uri, AwsProperties awsProperties) {
+  public static S3OutputFile fromLocation(String location, S3Client client, AwsProperties awsProperties) {
+    return new S3OutputFile(client, new S3URI(location), awsProperties);
+  }
+
+  S3OutputFile(S3Client client, S3URI uri, AwsProperties awsProperties) {
     super(client, uri, awsProperties);
   }
 
@@ -57,7 +61,7 @@ public class S3OutputFile extends BaseS3File implements OutputFile {
     try {
       return new S3OutputStream(client(), uri(), awsProperties());
     } catch (IOException e) {
-      throw new UncheckedIOException("Filed to create output stream for location: " + uri(), e);
+      throw new UncheckedIOException("Failed to create output stream for location: " + uri(), e);
     }
   }
 

@@ -28,6 +28,7 @@ import org.junit.Test;
 
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.NullOrder.NULLS_LAST;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TestSpark3Util {
@@ -62,6 +63,19 @@ public class TestSpark3Util {
             .build();
     Assert.assertEquals("Sort order isn't correct.", "time ASC NULLS FIRST, data ASC NULLS LAST",
             Spark3Util.describe(multiOrder));
+  }
+
+  @Test
+  public void testDescribeSchema() {
+    Schema schema = new Schema(
+        required(1, "data", Types.ListType.ofRequired(2, Types.StringType.get())),
+        optional(3, "pairs", Types.MapType.ofOptional(4, 5, Types.StringType.get(), Types.LongType.get())),
+        required(6, "time", Types.TimestampType.withoutZone())
+    );
+
+    Assert.assertEquals("Schema description isn't correct.",
+        "struct<data: list<string> not null,pairs: map<string, bigint>,time: timestamp not null>",
+        Spark3Util.describe(schema));
   }
 
   private SortOrder buildSortOrder(String transform, Schema schema, int sourceId) {
