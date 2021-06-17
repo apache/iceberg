@@ -30,6 +30,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.execution.streaming.StreamExecution;
@@ -83,6 +84,9 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
         "Save mode %s is not supported", mode);
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
+    boolean handleTimestampWithoutZone = SparkUtil.canHandleTimestampWithoutZone(options.asMap(), lazySparkSession().conf());
+    Preconditions.checkArgument(handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
+            SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
     Schema writeSchema = SparkSchemaUtil.convert(table.schema(), dsStruct);
     TypeUtil.validateWriteSchema(table.schema(), writeSchema, checkNullability(options), checkOrdering(options));
     SparkUtil.validatePartitionTransforms(table.spec());
