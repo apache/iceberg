@@ -20,31 +20,75 @@
 
 package org.apache.iceberg.flink;
 
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 import org.apache.flink.configuration.CoreOptions;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
-import org.apache.flink.table.api.TableResult;
+import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
+import org.apache.flink.table.catalog.Catalog;
+import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.types.Row;
-import org.apache.flink.util.CloseableIterator;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class TestIcebergConnector extends FlinkTestBase {
 
   private static TableEnvironment tEnv;
+  private static final String TABLE_NAME = "test_table";
 
   @Rule
   public final TemporaryFolder warehouse = new TemporaryFolder();
 
+  private final boolean isStreaming;
+
+  @Parameterized.Parameters(name = "isStreaming={0}")
+  public static Iterable<Object[]> parameters() {
+    return Lists.newArrayList(
+        new Object[] {true},
+        new Object[] {false}
+    );
+  }
+
+  public TestIcebergConnector(boolean isStreaming) {
+    this.isStreaming = isStreaming;
+  }
+
+  @Override
+  protected TableEnvironment getTableEnv() {
+    if (tEnv == null) {
+      synchronized (this) {
+        EnvironmentSettings.Builder settingsBuilder = EnvironmentSettings
+            .newInstance()
+            .useBlinkPlanner();
+        if (isStreaming) {
+          settingsBuilder.inStreamingMode();
+          StreamExecutionEnvironment env = StreamExecutionEnvironment
+              .getExecutionEnvironment(MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG);
+          env.enableCheckpointing(400);
+          env.setMaxParallelism(2);
+          env.setParallelism(2);
+          tEnv = StreamTableEnvironment.create(env, settingsBuilder.build());
+        } else {
+          settingsBuilder.inBatchMode();
+          tEnv = TableEnvironment.create(settingsBuilder.build());
+        }
+      }
+    }
+    return tEnv;
+  }
 
   @BeforeClass
   public static void beforeClass() {
@@ -60,55 +104,116 @@ public class TestIcebergConnector extends FlinkTestBase {
         .set(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
   }
 
+  @After
+  public void after() {
+    sql("DROP TABLE IF EXISTS %s", TABLE_NAME);
+  }
+
   @Test
-  public void testHadoopCatalog() {
+  public void testHadoop() {
     Map<String, String> tableProps = Maps.newHashMap();
     tableProps.put("connector", "iceberg");
     tableProps.put("catalog-name", "test-hadoop");
     tableProps.put("catalog-type", "hadoop");
-    tableProps.put("catalog-database", "local_db");
     tableProps.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseRoot());
 
-    sql("CREATE TABLE hadoop_table (id BIGINT, data STRING) WITH %s", toWithClause(tableProps));
-    sql("INSERT INTO hadoop_table VALUES (1, 'aaa'), (2, 'bbb'), (3, 'ccc')");
+    sql("CREATE TABLE %s (id BIGINT, data STRING) WITH %s", TABLE_NAME, toWithClause(tableProps));
+    sql("INSERT INTO %s VALUES (1, 'aaa'), (2, 'bbb'), (3, 'ccc')", TABLE_NAME);
     Assert.assertEquals("Should have expected rows",
         Lists.newArrayList(Row.of(1L, "aaa"), Row.of(2L, "bbb"), Row.of(3L, "ccc")),
-        sql("SELECT * FROM hadoop_table"));
+        sql("SELECT * FROM %s", TABLE_NAME));
 
     // Drop and create it again.
-    sql("DROP TABLE hadoop_table");
-    sql("CREATE TABLE hadoop_table (id BIGINT, data STRING) WITH %s", toWithClause(tableProps));
+    sql("DROP TABLE %s", TABLE_NAME);
+    sql("CREATE TABLE %s (id BIGINT, data STRING) WITH %s", TABLE_NAME, toWithClause(tableProps));
     Assert.assertEquals("Should have expected rows",
         Lists.newArrayList(Row.of(1L, "aaa"), Row.of(2L, "bbb"), Row.of(3L, "ccc")),
-        sql("SELECT * FROM hadoop_table"));
-
-    sql("DROP TABLE hadoop_table");
+        sql("SELECT * FROM %s", TABLE_NAME));
   }
 
   @Test
-  public void testHiveCatalog() {
+  public void testHadoopCreateDatabaseIfNotExist() {
+    Map<String, String> tableProps = Maps.newHashMap();
+    tableProps.put("connector", "iceberg");
+    tableProps.put("catalog-name", "test-hadoop");
+    tableProps.put("catalog-type", "hadoop");
+    tableProps.put("catalog-database", "not_existing_db");
+    tableProps.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseRoot());
+
+    sql("CREATE TABLE %s (id BIGINT, data STRING) WITH %s", TABLE_NAME, toWithClause(tableProps));
+    sql("INSERT INTO %s VALUES (1, 'aaa'), (2, 'bbb'), (3, 'ccc')", TABLE_NAME);
+    Assert.assertEquals("Should have expected rows",
+        Lists.newArrayList(Row.of(1L, "aaa"), Row.of(2L, "bbb"), Row.of(3L, "ccc")),
+        sql("SELECT * FROM %s", TABLE_NAME));
+
+    FlinkCatalogFactory factory = new FlinkCatalogFactory();
+    Catalog flinkCatalog = factory.createCatalog("test-hadoop", tableProps, new Configuration());
+    Assert.assertTrue("Should have created the database",
+        flinkCatalog.databaseExists("not_existing_db"));
+    Assert.assertTrue("Should have created the table",
+        flinkCatalog.tableExists(new ObjectPath("not_existing_db", TABLE_NAME)));
+  }
+
+  @Test
+  public void testHive() throws Exception {
     Map<String, String> tableProps = Maps.newHashMap();
     tableProps.put("connector", "iceberg");
     tableProps.put("catalog-name", "test-hive");
     tableProps.put("catalog-type", "hive");
-    tableProps.put("catalog-database", "default");
     tableProps.put(CatalogProperties.URI, FlinkCatalogTestBase.getURI(hiveConf));
     tableProps.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseRoot());
 
-    sql("CREATE TABLE hive_table(id BIGINT, data STRING) WITH %s", FlinkCatalogTestBase.toWithClause(tableProps));
-    sql("INSERT INTO hive_table VALUES (1, 'AAA'), (2, 'BBB'), (3, 'CCC')");
+    sql("CREATE TABLE %s(id BIGINT, data STRING) WITH %s", TABLE_NAME, toWithClause(tableProps));
+    sql("INSERT INTO %s VALUES (1, 'AAA'), (2, 'BBB'), (3, 'CCC')", TABLE_NAME);
     Assert.assertEquals("Should have the expected rows",
         Lists.newArrayList(Row.of(1L, "AAA"), Row.of(2L, "BBB"), Row.of(3L, "CCC")),
-        sql("SELECT * FROM hive_table"));
+        sql("SELECT * FROM %s", TABLE_NAME));
 
     // Drop and create it again.
-    sql("DROP TABLE hive_table");
-    sql("CREATE TABLE hive_table (id BIGINT, data STRING) WITH %s", toWithClause(tableProps));
+    sql("DROP TABLE %s", TABLE_NAME);
+    sql("CREATE TABLE %s (id BIGINT, data STRING) WITH %s", TABLE_NAME, toWithClause(tableProps));
     Assert.assertEquals("Should have expected rows",
         Lists.newArrayList(Row.of(1L, "AAA"), Row.of(2L, "BBB"), Row.of(3L, "CCC")),
-        sql("SELECT * FROM hive_table"));
+        sql("SELECT * FROM %s", TABLE_NAME));
 
-    sql("DROP TABLE hive_table");
+    sql("DROP TABLE %s", TABLE_NAME);
+    HiveMetaStoreClient metaStoreClient = new HiveMetaStoreClient(hiveConf);
+    try {
+      metaStoreClient.dropTable("default", TABLE_NAME);
+    } finally {
+      metaStoreClient.close();
+    }
+  }
+
+  @Test
+  public void testHiveCreateDatabaseIfNotExist() throws Exception {
+    Map<String, String> tableProps = Maps.newHashMap();
+    tableProps.put("connector", "iceberg");
+    tableProps.put("catalog-name", "test-hive");
+    tableProps.put("catalog-type", "hive");
+    tableProps.put("catalog-database", "not_existing_db");
+    tableProps.put(CatalogProperties.URI, FlinkCatalogTestBase.getURI(hiveConf));
+    tableProps.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseRoot());
+
+    sql("CREATE TABLE %s (id BIGINT, data STRING) WITH %s", TABLE_NAME, toWithClause(tableProps));
+    sql("INSERT INTO %s VALUES (1, 'aaa'), (2, 'bbb'), (3, 'ccc')", TABLE_NAME);
+    Assert.assertEquals("Should have expected rows",
+        Lists.newArrayList(Row.of(1L, "aaa"), Row.of(2L, "bbb"), Row.of(3L, "ccc")),
+        sql("SELECT * FROM %s", TABLE_NAME));
+
+    FlinkCatalogFactory factory = new FlinkCatalogFactory();
+    Catalog catalog = factory.createCatalog("test-hive", tableProps, hiveConf);
+    Assert.assertTrue("Should have created the database", catalog.databaseExists("not_existing_db"));
+    Assert.assertTrue("Should have created the table",
+        catalog.tableExists(new ObjectPath("not_existing_db", TABLE_NAME)));
+
+    HiveMetaStoreClient metaStoreClient = new HiveMetaStoreClient(hiveConf);
+    try {
+      metaStoreClient.dropTable("not_existing_db", TABLE_NAME);
+      metaStoreClient.dropDatabase("not_existing_db");
+    } finally {
+      metaStoreClient.close();
+    }
   }
 
   private String toWithClause(Map<String, String> props) {
@@ -117,20 +222,5 @@ public class TestIcebergConnector extends FlinkTestBase {
 
   private String warehouseRoot() {
     return String.format("file://%s", warehouse.getRoot().getAbsolutePath());
-  }
-
-  protected List<Row> sql(String query, Object... args) {
-    TableResult tableResult = tEnv.executeSql(String.format(query, args));
-    try {
-      tableResult.await();
-    } catch (InterruptedException | ExecutionException e) {
-      throw new RuntimeException(e);
-    }
-
-    try (CloseableIterator<Row> iter = tableResult.collect()) {
-      return Lists.newArrayList(iter);
-    } catch (Exception e) {
-      throw new RuntimeException("Failed to collect table result", e);
-    }
   }
 }

@@ -78,7 +78,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
    * @param hadoopConf Hadoop configuration for catalog
    * @return an Iceberg catalog loader
    */
-  static CatalogLoader createCatalogLoader(String name, Map<String, String> properties, Configuration hadoopConf) {
+  protected CatalogLoader createCatalogLoader(String name, Map<String, String> properties, Configuration hadoopConf) {
     String catalogImpl = properties.get(CatalogProperties.CATALOG_IMPL);
     if (catalogImpl != null) {
       return CatalogLoader.custom(name, properties, hadoopConf, catalogImpl);

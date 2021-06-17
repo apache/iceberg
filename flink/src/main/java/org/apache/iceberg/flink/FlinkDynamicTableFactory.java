@@ -27,9 +27,12 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.catalog.CatalogBaseTable;
+import org.apache.flink.table.catalog.CatalogDatabaseImpl;
 import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.catalog.ObjectPath;
+import org.apache.flink.table.catalog.exceptions.CatalogException;
+import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.DatabaseNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableAlreadyExistException;
 import org.apache.flink.table.connector.sink.DynamicTableSink;
@@ -39,6 +42,7 @@ import org.apache.flink.table.factories.DynamicTableSourceFactory;
 import org.apache.flink.table.utils.TableSchemaUtils;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, DynamicTableSourceFactory {
@@ -54,7 +58,7 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
       ConfigOptions.key(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE)
           .stringType()
           .noDefaultValue()
-          .withDescription("Catalog type.");
+          .withDescription("Catalog type, the optional types are: custom, hadoop, hive.");
 
   private static final ConfigOption<String> CATALOG_DATABASE =
       ConfigOptions.key("catalog-database")
@@ -138,11 +142,22 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
     Preconditions.checkNotNull(catalogDatabase, "Table property '%s' cannot be null", CATALOG_DATABASE.key());
 
     org.apache.hadoop.conf.Configuration hadoopConf = FlinkCatalogFactory.clusterHadoopConf();
-    CatalogLoader catalogLoader = FlinkCatalogFactory.createCatalogLoader(catalogName, tableProps, hadoopConf);
-
     FlinkCatalogFactory factory = new FlinkCatalogFactory();
+    CatalogLoader catalogLoader = factory.createCatalogLoader(catalogName, tableProps, hadoopConf);
+
     Catalog flinkCatalog = factory.createCatalog(catalogName, tableProps, hadoopConf);
     ObjectPath objectPath = new ObjectPath(catalogDatabase, tableName);
+
+    // Create database if not exists in the external catalog.
+    if (!flinkCatalog.databaseExists(catalogDatabase)) {
+      try {
+        flinkCatalog.createDatabase(catalogDatabase, new CatalogDatabaseImpl(Maps.newHashMap(), null), true);
+      } catch (DatabaseAlreadyExistException | CatalogException e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    // Create table if not exists in the external catalog.
     if (!flinkCatalog.tableExists(objectPath)) {
       try {
         flinkCatalog.createTable(objectPath, catalogTable, true);
