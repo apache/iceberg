@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.catalog;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -53,5 +54,31 @@ public class TestTableIdentifier {
     Assert.assertEquals(
         TableIdentifier.of("Catalog", "dB", "TBL").toLowerCase(),
         TableIdentifier.of("catalog", "db", "tbl"));
+  }
+
+  @Test
+  public void testInvalidTableName() {
+    Assertions.assertThatThrownBy(() -> TableIdentifier.of(Namespace.empty(), ""))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid table name: null or empty");
+
+    Assertions.assertThatThrownBy(() -> TableIdentifier.of(Namespace.empty(), null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid table name: null or empty");
+  }
+
+  @Test
+  public void testNulls() {
+    Assertions.assertThatThrownBy(() -> TableIdentifier.of((String[]) null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot create table identifier from null array");
+
+    Assertions.assertThatThrownBy(() -> TableIdentifier.parse(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse table identifier: null");
+
+    Assertions.assertThatThrownBy(() -> TableIdentifier.of(null, "name"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid Namespace: null");
   }
 }
