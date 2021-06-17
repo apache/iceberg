@@ -458,7 +458,7 @@ class SchemaUpdate implements UpdateSchema {
     Set<Integer> freshIdentifierFieldIds = Sets.newHashSet();
     for (String name : identifierFieldNames) {
       Preconditions.checkArgument(nameToId.containsKey(name),
-          "Cannot add field %s as an identifier field: not found in current schema or added columns");
+          "Cannot add field %s as an identifier field: not found in current schema or added columns", name);
       freshIdentifierFieldIds.add(nameToId.get(name));
     }
 
