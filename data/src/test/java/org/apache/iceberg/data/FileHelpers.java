@@ -22,7 +22,6 @@ package org.apache.iceberg.data;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
@@ -37,19 +36,20 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
 
 public class FileHelpers {
   private FileHelpers() {
   }
 
-  public static Pair<DeleteFile, Set<CharSequence>> writeDeleteFile(Table table, OutputFile out,
+  public static Pair<DeleteFile, CharSequenceSet> writeDeleteFile(Table table, OutputFile out,
                                                                     List<Pair<CharSequence, Long>> deletes)
       throws IOException {
     return writeDeleteFile(table, out, null, deletes);
   }
 
-  public static Pair<DeleteFile, Set<CharSequence>> writeDeleteFile(Table table, OutputFile out, StructLike partition,
+  public static Pair<DeleteFile, CharSequenceSet> writeDeleteFile(Table table, OutputFile out, StructLike partition,
                                                                     List<Pair<CharSequence, Long>> deletes)
       throws IOException {
     PositionDeleteWriter<?> writer = Parquet.writeDeletes(out)

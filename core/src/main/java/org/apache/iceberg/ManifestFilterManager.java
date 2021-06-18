@@ -68,7 +68,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private final Map<Integer, PartitionSpec> specsById;
   private final PartitionSet deleteFilePartitions;
   private final PartitionSet dropPartitions;
-  private final Set<CharSequence> deletePaths = CharSequenceSet.empty();
+  private final CharSequenceSet deletePaths = CharSequenceSet.empty();
   private Expression deleteExpression = Expressions.alwaysFalse();
   private long minSequenceNumber = 0;
   private boolean hasPathOnlyDeletes = false;
@@ -216,17 +216,18 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
    *
    * @param manifests a set of filtered manifests
    */
+  @SuppressWarnings("CollectionUndefinedEquality")
   private void validateRequiredDeletes(ManifestFile... manifests) {
     if (failMissingDeletePaths) {
-      Set<CharSequence> deletedFiles = deletedFiles(manifests);
+      CharSequenceSet deletedFiles = deletedFiles(manifests);
       ValidationException.check(deletedFiles.containsAll(deletePaths),
           "Missing required files to delete: %s",
           COMMA.join(Iterables.filter(deletePaths, path -> !deletedFiles.contains(path))));
     }
   }
 
-  private Set<CharSequence> deletedFiles(ManifestFile[] manifests) {
-    Set<CharSequence> deletedFiles = CharSequenceSet.empty();
+  private CharSequenceSet deletedFiles(ManifestFile[] manifests) {
+    CharSequenceSet deletedFiles = CharSequenceSet.empty();
 
     if (manifests != null) {
       for (ManifestFile manifest : manifests) {
@@ -337,6 +338,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     return canContainExpressionDeletes || canContainDroppedPartitions || canContainDroppedFiles || canContainDropBySeq;
   }
 
+  @SuppressWarnings("CollectionUndefinedEquality")
   private boolean manifestHasDeletedFiles(
       StrictMetricsEvaluator metricsEvaluator, ManifestReader<F> reader) {
     boolean isDelete = reader.isDeleteManifestReader();
@@ -364,6 +366,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     return hasDeletedFiles;
   }
 
+  @SuppressWarnings("CollectionUndefinedEquality")
   private ManifestFile filterManifestWithDeletedFiles(
       StrictMetricsEvaluator metricsEvaluator, ManifestFile manifest, ManifestReader<F> reader) {
     boolean isDelete = reader.isDeleteManifestReader();

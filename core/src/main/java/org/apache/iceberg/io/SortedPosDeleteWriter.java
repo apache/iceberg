@@ -25,7 +25,6 @@ import java.io.UncheckedIOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.StructLike;
@@ -42,7 +41,7 @@ class SortedPosDeleteWriter<T> implements Closeable {
 
   private final Map<CharSequenceWrapper, List<PosRow<T>>> posDeletes = Maps.newHashMap();
   private final List<DeleteFile> completedFiles = Lists.newArrayList();
-  private final Set<CharSequence> referencedDataFiles = CharSequenceSet.empty();
+  private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
   private final CharSequenceWrapper wrapper = CharSequenceWrapper.wrap(null);
 
   private final FileAppenderFactory<T> appenderFactory;
@@ -98,7 +97,7 @@ class SortedPosDeleteWriter<T> implements Closeable {
     return completedFiles;
   }
 
-  public Set<CharSequence> referencedDataFiles() {
+  public CharSequenceSet referencedDataFiles() {
     return referencedDataFiles;
   }
 
