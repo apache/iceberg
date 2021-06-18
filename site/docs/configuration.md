@@ -61,7 +61,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | commit.retry.min-wait-ms           | 100              | Minimum time in milliseconds to wait before retrying a commit |
 | commit.retry.max-wait-ms           | 60000 (1 min)    | Maximum time in milliseconds to wait before retrying a commit |
 | commit.retry.total-timeout-ms      | 1800000 (30 min) | Maximum time in milliseconds to wait before retrying a commit |
-| commit.status-check.num-retries    | 3                | Number of times to check the commit status before failing     |
+| commit.status-check.num-retries    | 3                | Number of times to check whether a commit succeeded after a connection is lost before failing due to an unknown commit state |
 | commit.status-check.min-wait-ms    | 1000 (1s)        | Minimum time in milliseconds to wait before retrying a status-check |
 | commit.status-check.max-wait-ms    | 60000 (1 min)    | Maximum time in milliseconds to wait before retrying a status-check |
 | commit.status-check.total-timeout-ms| 1800000 (30 min) | Maximum time in milliseconds to wait before retrying a status-check |
