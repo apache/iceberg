@@ -73,8 +73,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
 
     // Table not exists AND currentMetadataLocation is not NULL!
     if (table.isEmpty() && currentMetadataLocation() != null) {
-      throw new NoSuchTableException("Failed to get table %s from catalog %s" +
-          " maybe another process deleted it", tableIdentifier, catalogName);
+      throw new NoSuchTableException("Failed to get table %s from catalog %s", tableIdentifier, catalogName);
     }
 
     // Table not exists in the catalog! metadataLocation is null here!
@@ -147,8 +146,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     if (updatedRecords == 1) {
       LOG.debug("Successfully committed to existing table: {}", tableIdentifier);
     } else {
-      throw new CommitFailedException("Failed to update the table %s from catalog %s " +
-          "Maybe another process changed it", tableIdentifier, catalogName);
+      throw new CommitFailedException("Failed to update table %s from catalog %s", tableIdentifier, catalogName);
     }
 
   }
@@ -167,7 +165,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     if (insertRecord == 1) {
       LOG.debug("Successfully committed to new table: {}", tableIdentifier);
     } else {
-      throw new CommitFailedException("Failed to create table %s catalog %s", tableIdentifier, catalogName);
+      throw new CommitFailedException("Failed to create table %s in catalog %s", tableIdentifier, catalogName);
     }
   }
 
