@@ -110,7 +110,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       }
 
     } catch (SQLIntegrityConstraintViolationException e) {
-      throw new AlreadyExistsException(e, "Table already exists, maybe another process created it");
+      throw new AlreadyExistsException(e, "Table already exists: %s", tableIdentifier);
     } catch (SQLTimeoutException e) {
       throw new UncheckedSQLException(e, "Database Connection timeout");
     } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
