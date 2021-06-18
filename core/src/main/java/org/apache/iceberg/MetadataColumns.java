@@ -36,6 +36,8 @@ public class MetadataColumns {
       Integer.MAX_VALUE - 1, "_file", Types.StringType.get(), "Path of the file in which a row is stored");
   public static final NestedField ROW_POSITION = NestedField.required(
       Integer.MAX_VALUE - 2, "_pos", Types.LongType.get(), "Ordinal position of a row in the source data file");
+  public static final NestedField IS_DELETED = NestedField.required(
+      Integer.MAX_VALUE - 3, "_deleted", Types.BooleanType.get(), "Whether the row has been deleted");
 
   // IDs Integer.MAX_VALUE - (101-200) are used for reserved columns
   public static final NestedField DELETE_FILE_PATH = NestedField.required(
@@ -47,7 +49,8 @@ public class MetadataColumns {
 
   private static final Map<String, NestedField> META_COLUMNS = ImmutableMap.of(
       FILE_PATH.name(), FILE_PATH,
-      ROW_POSITION.name(), ROW_POSITION);
+      ROW_POSITION.name(), ROW_POSITION,
+      IS_DELETED.name(), IS_DELETED);
 
   private static final Set<Integer> META_IDS = META_COLUMNS.values().stream().map(NestedField::fieldId)
       .collect(ImmutableSet.toImmutableSet());
