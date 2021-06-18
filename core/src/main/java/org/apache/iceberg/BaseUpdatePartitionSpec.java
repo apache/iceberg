@@ -22,7 +22,6 @@ package org.apache.iceberg;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.BoundTerm;
@@ -51,7 +50,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   private final Map<String, PartitionField> nameToField;
   private final Map<Pair<Integer, String>, PartitionField> transformToField;
 
-  private final List<Pair<PartitionField, String>> adds = Lists.newArrayList();
+  private final List<PartitionField> adds = Lists.newArrayList();
   private final Map<Integer, PartitionField> addedTimeFields = Maps.newHashMap();
   private final Map<Pair<Integer, String>, PartitionField> transformToAddedField = Maps.newHashMap();
   private final Map<String, PartitionField> nameToAddedField = Maps.newHashMap();
@@ -143,32 +142,27 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
 
     PartitionField newField = new PartitionField(
         sourceTransform.first(), assignFieldId(), name, sourceTransform.second());
-    checkForRedundantAddedPartitions(newField);
-
-    transformToAddedField.put(validationKey, newField);
-
-    String partitionName;
-    if (newField.name() != null) {
-      partitionName = newField.name();
-    } else {
-      partitionName = PartitionSpecVisitor.visit(schema, newField, PartitionNameGenerator.INSTANCE);
+    if (newField.name() == null) {
+      String partitionName = PartitionSpecVisitor.visit(schema, newField, PartitionNameGenerator.INSTANCE);
+      newField = new PartitionField(newField.sourceId(), newField.fieldId(), partitionName, newField.transform());
     }
 
-    PartitionField existingField = nameToField.get(partitionName);
+    checkForRedundantAddedPartitions(newField);
+    transformToAddedField.put(validationKey, newField);
+
+    PartitionField existingField = nameToField.get(newField.name());
     if (existingField != null) {
       if (isVoidTransform(existingField)) {
         // rename the old deleted field that is being replaced by the new field
-        renameField(existingField.name(), existingField.name() + "_" + UUID.randomUUID());
+        renameField(existingField.name(), existingField.name() + "_" + existingField.fieldId());
       } else {
         throw new IllegalArgumentException(String.format("Cannot add duplicate partition field name: %s", name));
       }
     }
 
-    if (partitionName != null) {
-      nameToAddedField.put(partitionName, newField);
-    }
+    nameToAddedField.put(newField.name(), newField);
 
-    adds.add(Pair.of(newField, partitionName));
+    adds.add(newField);
 
     return this;
   }
@@ -214,7 +208,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     PartitionField existingField = nameToField.get(newName);
     if (existingField != null && isVoidTransform(existingField)) {
       // rename the old deleted field that is being replaced by the new field
-      renameField(existingField.name(), existingField.name() + "_" + UUID.randomUUID());
+      renameField(existingField.name(), existingField.name() + "_" + existingField.fieldId());
     }
 
     PartitionField added = nameToAddedField.get(name);
@@ -252,10 +246,8 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
       }
     }
 
-    for (Pair<PartitionField, String> newFieldAndNamePair : adds) {
-      PartitionField newField = newFieldAndNamePair.first();
-      String partitionName = newFieldAndNamePair.second();
-      builder.add(newField.sourceId(), newField.fieldId(), partitionName, newField.transform());
+    for (PartitionField newField : adds) {
+      builder.add(newField.sourceId(), newField.fieldId(), newField.name(), newField.transform());
     }
 
     return builder.build();

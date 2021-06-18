@@ -594,9 +594,9 @@ public class TestUpdatePartitionSpec extends TableTestBase {
       Assert.assertEquals("Should match expected spec field size", 3, updated.fields().size());
 
       Assert.assertTrue("Should match expected field name",
-              updated.fields().get(0).name().matches("^ts_date(?:_\\w{8}-\\w{4}-\\w{4}-\\w{4}-\\w{12})+$"));
+              updated.fields().get(0).name().matches("^ts_date(?:_\\d+)+$"));
       Assert.assertTrue("Should match expected field name",
-              updated.fields().get(1).name().matches("^ts_date_(?:\\w{8}-\\w{4}-\\w{4}-\\w{4}-\\w{12})+$"));
+              updated.fields().get(1).name().matches("^ts_date_(?:\\d+)+$"));
       Assert.assertEquals("Should match expected field name", "ts_date", updated.fields().get(2).name());
 
       Assert.assertEquals("Should match expected field transform", "void",
