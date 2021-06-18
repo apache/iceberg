@@ -245,8 +245,8 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       }
     }
 
-    @Override
-    public <T> void set(int pos, T value) {
+    @SuppressWarnings("unchecked")
+    private void put(int pos, Object value) {
       switch (pos) {
         case 0:
           this.path = (CharSequence) value;
@@ -257,6 +257,11 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      put(pos, value);
     }
   }
 
