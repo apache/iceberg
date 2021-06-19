@@ -77,13 +77,14 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
         throw new NoSuchTableException("Failed to load table %s from catalog %s: dropped by another process",
             tableIdentifier, catalogName);
       } else {
-        this.disableRefresh();
+        // this.disableRefresh();
         return;
       }
     }
 
     String newMetadataLocation = table.get(JdbcUtil.METADATA_LOCATION);
-    Preconditions.checkState(newMetadataLocation != null, "Invalid table %s: metadata location is null", tableIdentifier);
+    Preconditions.checkState(newMetadataLocation != null, "Invalid table %s: metadata location is null",
+        tableIdentifier);
     refreshFromMetadataLocation(newMetadataLocation);
   }
 
