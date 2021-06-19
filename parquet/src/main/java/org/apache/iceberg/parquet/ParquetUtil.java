@@ -23,12 +23,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -44,6 +42,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
@@ -92,6 +91,8 @@ public class ParquetUtil {
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static Metrics footerMetrics(ParquetMetadata metadata, Stream<FieldMetrics> fieldMetrics,
                                       MetricsConfig metricsConfig, NameMapping nameMapping) {
+    Preconditions.checkNotNull(fieldMetrics, "fieldMetrics should not be null");
+
     long rowCount = 0;
     Map<Integer, Long> columnSizes = Maps.newHashMap();
     Map<Integer, Long> valueCounts = Maps.newHashMap();
@@ -104,9 +105,8 @@ public class ParquetUtil {
     MessageType parquetTypeWithIds = getParquetTypeWithIds(metadata, nameMapping);
     Schema fileSchema = ParquetSchemaUtil.convertAndPrune(parquetTypeWithIds);
 
-    Map<Integer, FieldMetrics> fieldMetricsMap = Optional.ofNullable(fieldMetrics)
-        .map(stream -> stream.collect(Collectors.toMap(FieldMetrics::id, Function.identity())))
-        .orElseGet(HashMap::new);
+    Map<Integer, FieldMetrics> fieldMetricsMap = fieldMetrics.collect(
+        Collectors.toMap(FieldMetrics::id, Function.identity()));
 
     List<BlockMetaData> blocks = metadata.getBlocks();
     for (BlockMetaData block : blocks) {
@@ -134,8 +134,8 @@ public class ParquetUtil {
         } else if (!stats.isEmpty()) {
           increment(nullValueCounts, fieldId, stats.getNumNulls());
 
-          // since Parquet includes NaN for upper/lower bounds of floating point column that we don't want,
-          // we have tracked metrics for such columns ourselves and thus do not need to rely on Parquet's stats.
+          // when there are metrics gathered by Iceberg for a column, we should use those instead
+          // of the ones from Parquet
           if (metricsMode != MetricsModes.Counts.get() && !fieldMetricsMap.containsKey(fieldId)) {
             Types.NestedField field = fileSchema.findField(fieldId);
             if (field != null && stats.hasNonNullValue() && shouldStoreBounds(column, fileSchema)) {
@@ -158,8 +158,7 @@ public class ParquetUtil {
       upperBounds.remove(fieldId);
     }
 
-    // populate upper and lower bounds for floating columns
-    updateFloatingColumnsBounds(fieldMetricsMap, metricsConfig, fileSchema, lowerBounds, upperBounds);
+    updateFromFieldMetrics(fieldMetricsMap, metricsConfig, fileSchema, lowerBounds, upperBounds);
 
     return new Metrics(rowCount, columnSizes, valueCounts, nullValueCounts,
         MetricsUtil.createNanValueCounts(fieldMetricsMap.values().stream(), metricsConfig, fileSchema),
@@ -167,7 +166,7 @@ public class ParquetUtil {
         toBufferMap(fileSchema, upperBounds));
   }
 
-  private static void updateFloatingColumnsBounds(
+  private static void updateFromFieldMetrics(
       Map<Integer, FieldMetrics> idToFieldMetricsMap, MetricsConfig metricsConfig, Schema schema,
       Map<Integer, Literal<?>> lowerBounds, Map<Integer, Literal<?>> upperBounds) {
     idToFieldMetricsMap.entrySet().forEach(entry -> {
@@ -188,7 +187,7 @@ public class ParquetUtil {
           lowerBounds.put(fieldId, Literal.of((Double) metrics.lowerBound()));
           upperBounds.put(fieldId, Literal.of((Double) metrics.upperBound()));
         } else {
-          throw new IllegalStateException("[BUG] Only Float/Double column metrics should be collected by Iceberg");
+          throw new UnsupportedOperationException("Expected only float or double column metrics");
         }
       }
     });

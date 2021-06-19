@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.DoubleFieldMetrics;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FloatFieldMetrics;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -170,44 +171,44 @@ public class ParquetValueWriters {
   }
 
   private static class FloatWriter extends UnboxedWriter<Float> {
-    private final FloatFieldMetrics.FloatFieldMetricsContext floatFieldMetricsContext;
+    private final FloatFieldMetrics.Builder floatFieldMetricsBuilder;
 
     private FloatWriter(ColumnDescriptor desc) {
       super(desc);
       int id = desc.getPrimitiveType().getId().intValue();
-      this.floatFieldMetricsContext = new FloatFieldMetrics.FloatFieldMetricsContext(id);
+      this.floatFieldMetricsBuilder = new FloatFieldMetrics.Builder(id);
     }
 
     @Override
     public void write(int repetitionLevel, Float value) {
       writeFloat(repetitionLevel, value);
-      floatFieldMetricsContext.updateMetricsContext(value);
+      floatFieldMetricsBuilder.addValue(value);
     }
 
     @Override
     public Stream<FieldMetrics> metrics() {
-      return Stream.of(floatFieldMetricsContext.buildMetrics());
+      return Stream.of(floatFieldMetricsBuilder.build());
     }
   }
 
   private static class DoubleWriter extends UnboxedWriter<Double> {
-    private final FloatFieldMetrics.DoubleFieldMetricsContext doubleFieldMetricsContext;
+    private final DoubleFieldMetrics.Builder doubleFieldMetricsBuilder;
 
     private DoubleWriter(ColumnDescriptor desc) {
       super(desc);
       int id = desc.getPrimitiveType().getId().intValue();
-      this.doubleFieldMetricsContext = new FloatFieldMetrics.DoubleFieldMetricsContext(id);
+      this.doubleFieldMetricsBuilder = new DoubleFieldMetrics.Builder(id);
     }
 
     @Override
     public void write(int repetitionLevel, Double value) {
       writeDouble(repetitionLevel, value);
-      doubleFieldMetricsContext.updateMetricsContext(value);
+      doubleFieldMetricsBuilder.addValue(value);
     }
 
     @Override
     public Stream<FieldMetrics> metrics() {
-      return Stream.of(doubleFieldMetricsContext.buildMetrics());
+      return Stream.of(doubleFieldMetricsBuilder.build());
     }
   }
 

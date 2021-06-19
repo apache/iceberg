@@ -48,7 +48,6 @@ import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.junit.Assert.assertEquals;
 
 @RunWith(Parameterized.class)
 public abstract class TestMergingMetrics<T> {
@@ -190,7 +189,7 @@ public abstract class TestMergingMetrics<T> {
     int actualFieldId = FIELDS_WITH_NAN_COUNT_TO_ID.get(field);
     ByteBuffer byteBuffer = boundMap.get(actualFieldId);
     Type type = SCHEMA.findType(actualFieldId);
-    assertEquals(String.format("Bound value for field %s must match", field.name()),
+    Assert.assertEquals(String.format("Bound value for field %s must match", field.name()),
         expected, byteBuffer == null ? null : Conversions.fromByteBuffer(type, byteBuffer));
   }
 

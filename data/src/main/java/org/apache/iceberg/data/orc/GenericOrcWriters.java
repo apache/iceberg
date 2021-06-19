@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
+import org.apache.iceberg.DoubleFieldMetrics;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FloatFieldMetrics;
 import org.apache.iceberg.orc.OrcValueWriter;
@@ -219,10 +220,10 @@ public class GenericOrcWriters {
   }
 
   private static class FloatWriter implements OrcValueWriter<Float> {
-    private final FloatFieldMetrics.FloatFieldMetricsContext floatFieldMetricsContext;
+    private final FloatFieldMetrics.Builder floatFieldMetricsBuilder;
 
     private FloatWriter(int id) {
-      this.floatFieldMetricsContext = new FloatFieldMetrics.FloatFieldMetricsContext(id);
+      this.floatFieldMetricsBuilder = new FloatFieldMetrics.Builder(id);
     }
 
     @Override
@@ -233,20 +234,20 @@ public class GenericOrcWriters {
     @Override
     public void nonNullWrite(int rowId, Float data, ColumnVector output) {
       ((DoubleColumnVector) output).vector[rowId] = data;
-      floatFieldMetricsContext.updateMetricsContext(data);
+      floatFieldMetricsBuilder.addValue(data);
     }
 
     @Override
     public Stream<FieldMetrics> metrics() {
-      return Stream.of(floatFieldMetricsContext.buildMetrics());
+      return Stream.of(floatFieldMetricsBuilder.build());
     }
   }
 
   private static class DoubleWriter implements OrcValueWriter<Double> {
-    private final FloatFieldMetrics.DoubleFieldMetricsContext doubleFieldMetricsContext;
+    private final DoubleFieldMetrics.Builder doubleFieldMetricsBuilder;
 
     private DoubleWriter(Integer id) {
-      this.doubleFieldMetricsContext = new FloatFieldMetrics.DoubleFieldMetricsContext(id);
+      this.doubleFieldMetricsBuilder = new DoubleFieldMetrics.Builder(id);
     }
 
     @Override
@@ -257,12 +258,12 @@ public class GenericOrcWriters {
     @Override
     public void nonNullWrite(int rowId, Double data, ColumnVector output) {
       ((DoubleColumnVector) output).vector[rowId] = data;
-      doubleFieldMetricsContext.updateMetricsContext(data);
+      doubleFieldMetricsBuilder.addValue(data);
     }
 
     @Override
     public Stream<FieldMetrics> metrics() {
-      return Stream.of(doubleFieldMetricsContext.buildMetrics());
+      return Stream.of(doubleFieldMetricsBuilder.build());
     }
   }
 
