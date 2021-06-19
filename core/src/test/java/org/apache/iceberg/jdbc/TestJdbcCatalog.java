@@ -296,7 +296,7 @@ public class TestJdbcCatalog {
         .build();
 
     AssertHelpers.assertThrows("Should fail", NoSuchTableException.class,
-        "Failed to get table", () -> table.newAppend().appendFile(dataFile2).commit()
+        "Failed to load table", () -> table.newAppend().appendFile(dataFile2).commit()
     );
   }
 

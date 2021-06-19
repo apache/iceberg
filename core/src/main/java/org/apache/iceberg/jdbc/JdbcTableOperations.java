@@ -37,6 +37,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,24 +72,18 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       throw new UncheckedSQLException(e, "Failed to get table %s from catalog %s", tableIdentifier, catalogName);
     }
 
-    // Table not exists AND currentMetadataLocation is not NULL!
-    if (table.isEmpty() && currentMetadataLocation() != null) {
-      throw new NoSuchTableException("Failed to get table %s from catalog %s", tableIdentifier, catalogName);
-    }
-
-    // Table not exists in the catalog! metadataLocation is null here!
     if (table.isEmpty()) {
-      refreshFromMetadataLocation(null);
-      return;
+      if (currentMetadataLocation() != null) {
+        throw new NoSuchTableException("Failed to load table %s from catalog %s: dropped by another process",
+            tableIdentifier, catalogName);
+      } else {
+        return;
+      }
     }
 
-    // Table exists but metadataLocation is null
-    if (table.getOrDefault(JdbcUtil.METADATA_LOCATION, null) == null) {
-      throw new RuntimeException(String.format("Failed to get metadata location of the table %s from catalog %s",
-          tableIdentifier, catalogName));
-    }
-
-    refreshFromMetadataLocation(table.get(JdbcUtil.METADATA_LOCATION));
+    String newMetadataLocation = table.get(JdbcUtil.METADATA_LOCATION);
+    Preconditions.checkState(newMetadataLocation != null, "Invalid table %s: metadata location is null", tableIdentifier);
+    refreshFromMetadataLocation(newMetadataLocation);
   }
 
   @Override
@@ -110,7 +105,13 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       }
 
     } catch (SQLIntegrityConstraintViolationException e) {
-      throw new AlreadyExistsException(e, "Table already exists: %s", tableIdentifier);
+
+      if (currentMetadataLocation() == null) {
+        throw new AlreadyExistsException(e, "Table already exists: %s", tableIdentifier);
+      } else {
+        throw new UncheckedSQLException(e, "Table already exists: %s", tableIdentifier);
+      }
+
     } catch (SQLTimeoutException e) {
       throw new UncheckedSQLException(e, "Database Connection timeout");
     } catch (SQLTransientConnectionException | SQLNonTransientConnectionException e) {
@@ -120,7 +121,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     } catch (SQLWarning e) {
       throw new UncheckedSQLException(e, "Database warning");
     } catch (SQLException e) {
-      throw new UncheckedSQLException(e, "Failed to connect to database");
+      throw new UncheckedSQLException(e, "Unknown failure");
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(e, "Interrupted during commit");
@@ -170,12 +171,11 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   }
 
   private void validateMetadataLocation(Map<String, String> table, TableMetadata base) {
-    String catalogMetadataLocation = !table.isEmpty() ? table.get(JdbcUtil.METADATA_LOCATION) : null;
+    String catalogMetadataLocation = table.get(JdbcUtil.METADATA_LOCATION);
     String baseMetadataLocation = base != null ? base.metadataFileLocation() : null;
 
     if (!Objects.equals(baseMetadataLocation, catalogMetadataLocation)) {
-      throw new CommitFailedException(
-          "Cannot commit %s because base metadata location '%s' is not same as the current Catalog location '%s'",
+      throw new CommitFailedException("Cannot commit %s: metadata location %s has changed from %s",
           tableIdentifier, baseMetadataLocation, catalogMetadataLocation);
     }
   }
