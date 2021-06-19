@@ -77,6 +77,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
         throw new NoSuchTableException("Failed to load table %s from catalog %s: dropped by another process",
             tableIdentifier, catalogName);
       } else {
+        this.disableRefresh();
         return;
       }
     }
