@@ -28,19 +28,19 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.CaseInsensitiveMap;
 
 public class GenericRecord implements Record, StructLike {
   private static final LoadingCache<StructType, Map<String, Integer>> NAME_MAP_CACHE =
       Caffeine.newBuilder()
       .weakKeys()
       .build(struct -> {
-        Map<String, Integer> idToPos = Maps.newHashMap();
+        Map<String, Integer> idToPos = new CaseInsensitiveMap<>();
         List<Types.NestedField> fields = struct.fields();
         for (int i = 0; i < fields.size(); i += 1) {
-          idToPos.put(fields.get(i).name().toLowerCase(), i);
+          idToPos.put(fields.get(i).name(), i);
         }
         return idToPos;
       });
