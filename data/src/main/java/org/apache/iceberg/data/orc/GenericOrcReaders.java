@@ -50,8 +50,6 @@ import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 
 
 public class GenericOrcReaders {
-  private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
-  private static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
 
   private GenericOrcReaders() {
   }

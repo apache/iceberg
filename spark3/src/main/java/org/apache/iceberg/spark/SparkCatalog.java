@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -71,6 +72,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *   <li><code>uri</code> - the Hive Metastore URI (Hive catalog only)</li>
  *   <li><code>warehouse</code> - the warehouse path (Hadoop catalog only)</li>
  *   <li><code>default-namespace</code> - a namespace to use as the default</li>
+ *   <li><code>cache-enabled</code> - whether to enable catalog cache</li>
  * </ul>
  * <p>
  * To use a custom catalog that is not a Hive or Hadoop catalog, extend this class and override
@@ -97,6 +99,8 @@ public class SparkCatalog extends BaseCatalog {
     Configuration conf = SparkSession.active().sessionState().newHadoopConf();
     Map<String, String> optionsMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     optionsMap.putAll(options);
+    optionsMap.put(CatalogProperties.APP_ID, SparkSession.active().sparkContext().applicationId());
+    optionsMap.put(CatalogProperties.USER, SparkSession.active().sparkContext().sparkUser());
     return CatalogUtil.buildIcebergCatalog(name, optionsMap, conf);
   }
 

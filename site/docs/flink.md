@@ -196,6 +196,7 @@ CREATE CATALOG hive_catalog WITH (
 * `property-version`: Version number to describe the property version. This property can be used for backwards compatibility in case the property format changes. The current property version is `1`. (Optional)
 * `warehouse`: The Hive warehouse location, users should specify this path if neither set the `hive-conf-dir` to specify a location containing a `hive-site.xml` configuration file nor add a correct `hive-site.xml` to classpath.
 * `hive-conf-dir`: Path to a directory containing a `hive-site.xml` configuration file which will be used to provide custom Hive configuration values. The value of `hive.metastore.warehouse.dir` from `<hive-conf-dir>/hive-site.xml` (or hive configure file from classpath) will be overwrote with the `warehouse` value if setting both `hive-conf-dir` and `warehouse` when creating iceberg catalog.
+* `cache-enabled`: Whether to enable catalog cache, default value is `true`
 
 ### Hadoop catalog
 
@@ -408,7 +409,7 @@ StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironme
 TableLoader tableLoader = TableLoader.fromHadooptable("hdfs://nn:8020/warehouse/path");
 DataStream<RowData> batch = FlinkSource.forRowData()
      .env(env)
-     .tableLoader(loader)
+     .tableLoader(tableLoader)
      .streaming(false)
      .build();
 
@@ -428,7 +429,7 @@ StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironme
 TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path");
 DataStream<RowData> stream = FlinkSource.forRowData()
      .env(env)
-     .tableLoader(loader)
+     .tableLoader(tableLoader)
      .streaming(true)
      .startSnapshotId(3821550127947089987L)
      .build();

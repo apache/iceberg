@@ -15,29 +15,38 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from .transform import Transform
 
-class Transform(object):
+
+class VoidTransform(Transform):
+    _INSTANCE = None
+
+    @staticmethod
+    def get():
+        if VoidTransform._INSTANCE is None:
+            VoidTransform._INSTANCE = VoidTransform()
+        return VoidTransform._INSTANCE
 
     def __init__(self):
-        raise NotImplementedError()
+        pass
 
     def apply(self, value):
-        raise NotImplementedError()
+        return None
 
     def can_transform(self, type_var):
-        raise NotImplementedError()
+        return True
 
     def get_result_type(self, source_type):
-        raise NotImplementedError()
+        return source_type
 
     def project(self, name, predicate):
-        raise NotImplementedError()
+        return None
 
     def project_strict(self, name, predicate):
-        raise NotImplementedError()
+        return None
 
     def to_human_string(self, value):
-        return str(value)
+        return "null"
 
-    def dedup_name(self):
-        return self.__str__()
+    def __str__(self):
+        return "void"

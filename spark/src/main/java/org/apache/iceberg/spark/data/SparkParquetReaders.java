@@ -166,6 +166,9 @@ public class SparkParquetReaders {
         } else if (id == MetadataColumns.ROW_POSITION.fieldId()) {
           reorderedFields.add(ParquetValueReaders.position());
           types.add(null);
+        } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
+          reorderedFields.add(ParquetValueReaders.constant(false));
+          types.add(null);
         } else {
           ParquetValueReader<?> reader = readersById.get(id);
           if (reader != null) {

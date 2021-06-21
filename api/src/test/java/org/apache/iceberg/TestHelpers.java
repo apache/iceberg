@@ -34,6 +34,7 @@ import org.apache.iceberg.expressions.BoundSetPredicate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.util.ByteBuffers;
 import org.junit.Assert;
 
 public class TestHelpers {
@@ -240,10 +241,11 @@ public class TestHelpers {
     private final Integer deletedFiles;
     private final Long deletedRows;
     private final List<PartitionFieldSummary> partitions;
+    private final byte[] keyMetadata;
 
     public TestManifestFile(String path, long length, int specId, Long snapshotId,
                             Integer addedFiles, Integer existingFiles, Integer deletedFiles,
-                            List<PartitionFieldSummary> partitions) {
+                            List<PartitionFieldSummary> partitions, ByteBuffer keyMetadata) {
       this.path = path;
       this.length = length;
       this.specId = specId;
@@ -256,12 +258,13 @@ public class TestHelpers {
       this.deletedFiles = deletedFiles;
       this.deletedRows = null;
       this.partitions = partitions;
+      this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
     }
 
     public TestManifestFile(String path, long length, int specId, ManifestContent content, Long snapshotId,
                             Integer addedFiles, Long addedRows, Integer existingFiles,
                             Long existingRows, Integer deletedFiles, Long deletedRows,
-                            List<PartitionFieldSummary> partitions) {
+                            List<PartitionFieldSummary> partitions, ByteBuffer keyMetadata) {
       this.path = path;
       this.length = length;
       this.specId = specId;
@@ -274,6 +277,7 @@ public class TestHelpers {
       this.deletedFiles = deletedFiles;
       this.deletedRows = deletedRows;
       this.partitions = partitions;
+      this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
     }
 
     @Override
@@ -344,6 +348,11 @@ public class TestHelpers {
     @Override
     public List<PartitionFieldSummary> partitions() {
       return partitions;
+    }
+
+    @Override
+    public ByteBuffer keyMetadata() {
+      return keyMetadata == null ? null : ByteBuffer.wrap(keyMetadata);
     }
 
     @Override

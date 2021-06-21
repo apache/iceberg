@@ -19,65 +19,59 @@
 
 package org.apache.iceberg.nessie;
 
-import org.apache.iceberg.AssertHelpers;
-import org.junit.Assert;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 public class TestTableReference {
-
 
   @Test
   public void noMarkings() {
     String path = "foo";
     TableReference pti = TableReference.parse(path);
-    Assert.assertEquals(path, pti.tableIdentifier().name());
-    Assert.assertNull(pti.reference());
-    Assert.assertNull(pti.timestamp());
+    Assertions.assertThat(path).isEqualTo(pti.tableIdentifier().name());
+    Assertions.assertThat(pti.reference()).isNull();
+    Assertions.assertThat(pti.timestamp()).isNull();
   }
 
   @Test
   public void branchOnly() {
     String path = "foo@bar";
     TableReference pti = TableReference.parse(path);
-    Assert.assertEquals("foo", pti.tableIdentifier().name());
-    Assert.assertEquals("bar", pti.reference());
-    Assert.assertNull(pti.timestamp());
+    Assertions.assertThat("foo").isEqualTo(pti.tableIdentifier().name());
+    Assertions.assertThat("bar").isEqualTo(pti.reference());
+    Assertions.assertThat(pti.timestamp()).isNull();
   }
 
   @Test
   public void timestampOnly() {
     String path = "foo#baz";
-    AssertHelpers.assertThrows("TableIdentifier is not parsable",
-        IllegalArgumentException.class,
-        "Invalid table name: # is not allowed (reference by timestamp is not supported)", () ->
-            TableReference.parse(path));
+    Assertions.assertThatThrownBy(() -> TableReference.parse(path))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid table name: # is not allowed (reference by timestamp is not supported)");
   }
 
   @Test
   public void branchAndTimestamp() {
     String path = "foo@bar#baz";
-    AssertHelpers.assertThrows("TableIdentifier is not parsable",
-        IllegalArgumentException.class,
-        "Invalid table name: # is not allowed (reference by timestamp is not supported)", () ->
-            TableReference.parse(path));
+    Assertions.assertThatThrownBy(() -> TableReference.parse(path))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid table name: # is not allowed (reference by timestamp is not supported)");
   }
 
   @Test
   public void twoBranches() {
     String path = "foo@bar@boo";
-    AssertHelpers.assertThrows("TableIdentifier is not parsable",
-        IllegalArgumentException.class,
-        "Can only reference one branch in", () ->
-            TableReference.parse(path));
+    Assertions.assertThatThrownBy(() -> TableReference.parse(path))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Can only reference one branch in");
   }
 
   @Test
   public void twoTimestamps() {
     String path = "foo#baz#baa";
-    AssertHelpers.assertThrows("TableIdentifier is not parsable",
-        IllegalArgumentException.class,
-        "Can only reference one timestamp in", () ->
-            TableReference.parse(path));
+    Assertions.assertThatThrownBy(() -> TableReference.parse(path))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Can only reference one timestamp in");
   }
 
   @Test
@@ -85,22 +79,22 @@ public class TestTableReference {
     String branch = "bar";
     String path = "/%";
     TableReference pti = TableReference.parse(path);
-    Assert.assertEquals(path, pti.tableIdentifier().name());
-    Assert.assertNull(pti.reference());
-    Assert.assertNull(pti.timestamp());
+    Assertions.assertThat(path).isEqualTo(pti.tableIdentifier().name());
+    Assertions.assertThat(pti.reference()).isNull();
+    Assertions.assertThat(pti.timestamp()).isNull();
     pti = TableReference.parse(path + "@" + branch);
-    Assert.assertEquals(path, pti.tableIdentifier().name());
-    Assert.assertEquals(branch, pti.reference());
-    Assert.assertNull(pti.timestamp());
+    Assertions.assertThat(path).isEqualTo(pti.tableIdentifier().name());
+    Assertions.assertThat(branch).isEqualTo(pti.reference());
+    Assertions.assertThat(pti.timestamp()).isNull();
     path = "&&";
     pti = TableReference.parse(path);
-    Assert.assertEquals(path, pti.tableIdentifier().name());
-    Assert.assertNull(pti.reference());
-    Assert.assertNull(pti.timestamp());
+    Assertions.assertThat(path).isEqualTo(pti.tableIdentifier().name());
+    Assertions.assertThat(pti.reference()).isNull();
+    Assertions.assertThat(pti.timestamp()).isNull();
     pti = TableReference.parse(path + "@" + branch);
-    Assert.assertEquals(path, pti.tableIdentifier().name());
-    Assert.assertEquals(branch, pti.reference());
-    Assert.assertNull(pti.timestamp());
+    Assertions.assertThat(path).isEqualTo(pti.tableIdentifier().name());
+    Assertions.assertThat(branch).isEqualTo(pti.reference());
+    Assertions.assertThat(pti.timestamp()).isNull();
   }
 
   @Test
@@ -108,22 +102,22 @@ public class TestTableReference {
     String branch = "bar";
     String path = "/%国";
     TableReference pti = TableReference.parse(path);
-    Assert.assertEquals(path, pti.tableIdentifier().name());
-    Assert.assertNull(pti.reference());
-    Assert.assertNull(pti.timestamp());
+    Assertions.assertThat(path).isEqualTo(pti.tableIdentifier().name());
+    Assertions.assertThat(pti.reference()).isNull();
+    Assertions.assertThat(pti.timestamp()).isNull();
     pti = TableReference.parse(path + "@" + branch);
-    Assert.assertEquals(path, pti.tableIdentifier().name());
-    Assert.assertEquals(branch, pti.reference());
-    Assert.assertNull(pti.timestamp());
+    Assertions.assertThat(path).isEqualTo(pti.tableIdentifier().name());
+    Assertions.assertThat(branch).isEqualTo(pti.reference());
+    Assertions.assertThat(pti.timestamp()).isNull();
     path = "国.国";
     pti = TableReference.parse(path);
-    Assert.assertEquals(path, pti.tableIdentifier().toString());
-    Assert.assertNull(pti.reference());
-    Assert.assertNull(pti.timestamp());
+    Assertions.assertThat(path).isEqualTo(pti.tableIdentifier().toString());
+    Assertions.assertThat(pti.reference()).isNull();
+    Assertions.assertThat(pti.timestamp()).isNull();
     pti = TableReference.parse(path + "@" + branch);
-    Assert.assertEquals(path, pti.tableIdentifier().toString());
-    Assert.assertEquals(branch, pti.reference());
-    Assert.assertNull(pti.timestamp());
+    Assertions.assertThat(path).isEqualTo(pti.tableIdentifier().toString());
+    Assertions.assertThat(branch).isEqualTo(pti.reference());
+    Assertions.assertThat(pti.timestamp()).isNull();
   }
 
   @Test
@@ -131,12 +125,12 @@ public class TestTableReference {
     String branch = "bar ";
     String path = "foo ";
     TableReference pti = TableReference.parse(path);
-    Assert.assertEquals(path, pti.tableIdentifier().name());
-    Assert.assertNull(pti.reference());
-    Assert.assertNull(pti.timestamp());
+    Assertions.assertThat(path).isEqualTo(pti.tableIdentifier().name());
+    Assertions.assertThat(pti.reference()).isNull();
+    Assertions.assertThat(pti.timestamp()).isNull();
     pti = TableReference.parse(path + "@" + branch);
-    Assert.assertEquals(path, pti.tableIdentifier().name());
-    Assert.assertEquals(branch, pti.reference());
-    Assert.assertNull(pti.timestamp());
+    Assertions.assertThat(path).isEqualTo(pti.tableIdentifier().name());
+    Assertions.assertThat(branch).isEqualTo(pti.reference());
+    Assertions.assertThat(pti.timestamp()).isNull();
   }
 }

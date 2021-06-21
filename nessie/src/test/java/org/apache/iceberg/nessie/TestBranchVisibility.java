@@ -21,8 +21,8 @@ package org.apache.iceberg.nessie;
 
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.projectnessie.error.NessieConflictException;
@@ -78,7 +78,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
     testCatalogEquality(catalog, testCatalog, false, false);
 
     // points to the previous metadata location
-    Assert.assertEquals(initialMetadataLocation, metadataLocation(catalog, tableIdentifier2));
+    Assertions.assertThat(initialMetadataLocation).isEqualTo(metadataLocation(catalog, tableIdentifier2));
   }
 
   @Test
@@ -102,12 +102,12 @@ public class TestBranchVisibility extends BaseTestIceberg {
     String mainHash = tree.getReferenceByName("main").getHash();
 
     // asking for table@branch gives expected regardless of catalog
-    Assert.assertEquals(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@test")),
-        metadataLocation(testCatalog, tableIdentifier1));
+    Assertions.assertThat(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@test")))
+        .isEqualTo(metadataLocation(testCatalog, tableIdentifier1));
 
     // asking for table@branch#hash gives expected regardless of catalog
-    Assert.assertEquals(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@" + mainHash)),
-        metadataLocation(testCatalog, tableIdentifier1));
+    Assertions.assertThat(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@" + mainHash)))
+        .isEqualTo(metadataLocation(testCatalog, tableIdentifier1));
   }
 
   @Test
@@ -131,12 +131,24 @@ public class TestBranchVisibility extends BaseTestIceberg {
     String testTable2 = metadataLocation(compareCatalog, tableIdentifier2);
     String table2 = metadataLocation(catalog, tableIdentifier2);
 
-    String msg1 = String.format("Table %s on ref %s should%s equal table %s on ref %s", tableIdentifier1.name(),
-        tableIdentifier2.name(), table1Equal ? "" : " not", catalog.currentRefName(), testCatalog.currentRefName());
-    Assert.assertEquals(msg1, table1Equal, table1.equals(testTable1));
-    String msg2 = String.format("Table %s on ref %s should%s equal table %s on ref %s", tableIdentifier1.name(),
-        tableIdentifier2.name(), table1Equal ? "" : " not", catalog.currentRefName(), testCatalog.currentRefName());
-    Assert.assertEquals(msg2, table2Equal, table2.equals(testTable2));
-  }
+    Assertions.assertThat(table1.equals(testTable1))
+        .withFailMessage(() -> String.format(
+            "Table %s on ref %s should%s equal table %s on ref %s",
+            tableIdentifier1.name(),
+            tableIdentifier2.name(),
+            table1Equal ? "" : " not",
+            catalog.currentRefName(),
+            testCatalog.currentRefName()))
+        .isEqualTo(table1Equal);
 
+    Assertions.assertThat(table2.equals(testTable2))
+        .withFailMessage(() -> String.format(
+            "Table %s on ref %s should%s equal table %s on ref %s",
+            tableIdentifier1.name(),
+            tableIdentifier2.name(),
+            table1Equal ? "" : " not",
+            catalog.currentRefName(),
+            testCatalog.currentRefName()))
+        .isEqualTo(table2Equal);
+  }
 }
