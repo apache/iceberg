@@ -125,10 +125,10 @@ public class SnapshotUtil {
   /**
    * Traverses the history of the table's current snapshot and finds the snapshot with the given snapshot id as its
    * parent.
-   * Throws IllegalArgumentException when the given SnapshotId is not found in the table
-   * Throws IllegalStateException when the given snapshot ID is not an ancestor of the current table state
    * @return null if the passed in snapshot is not present in the table, else the snapshot for which the given snapshot
    * is the parent
+   * @throws IllegalArgumentException when the given SnapshotId is not found in the table
+   * @throws IllegalStateException when the given snapshot ID is not an ancestor of the current table state
    */
   public static Snapshot snapshotAfter(Table table, long snapshotId) {
     Snapshot previousSnapshot = table.snapshot(snapshotId);
