@@ -25,6 +25,12 @@ lib/
 # web site build
 site/site
 
+# benchmark output
+spark2/benchmark/*
+!spark2/benchmark/.gitkeep
+spark3/benchmark/*
+!spark3/benchmark/.gitkeep
+
 __pycache__/
 *.py[cod]
 .eggs/
