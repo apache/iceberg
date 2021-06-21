@@ -63,17 +63,8 @@ public class RepairManifestHelper {
     // Prevent Construction
   }
 
-    /**
-     * Given a DataFile information, return Metrics
-     * @param format file format
-     * @param status file status
-     * @param conf Hadoop configuration
-     * @param metricsSpec metrics configuration
-     * @param mapping name mapping
-     * @return metrics
-     */
-  private static Metrics getMetrics(FileFormat format, FileStatus status, Configuration conf,
-                                    MetricsConfig metricsSpec, NameMapping mapping) {
+  private static Metrics metricsFromFile(FileFormat format, FileStatus status, Configuration conf,
+                                         MetricsConfig metricsSpec, NameMapping mapping) {
     switch (format) {
       case AVRO:
         return new Metrics(-1L, null, null, null);
@@ -150,12 +141,12 @@ public class RepairManifestHelper {
       if (options.repairMetrics) {
         String nameMappingString = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
         NameMapping nameMapping = nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
-        newDfBuilder.withMetrics(getMetrics(file.format(), status, conf,
+        newDfBuilder.withMetrics(metricsFromFile(file.format(), status, conf,
             MetricsConfig.fromProperties(table.properties()), nameMapping));
       }
 
       DataFile newFile = newDfBuilder.build();
-      Set<String> diff = RepairManifestHelper.diff(file, newFile);
+      Set<String> diff = diff(file, newFile);
       if (diff.isEmpty()) {
         return Optional.empty();
       } else {
