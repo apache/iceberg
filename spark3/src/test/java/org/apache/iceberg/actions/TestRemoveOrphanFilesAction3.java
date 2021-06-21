@@ -29,6 +29,7 @@ import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.expressions.Transform;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -131,10 +132,6 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
         .olderThan(System.currentTimeMillis() + 1000).execute();
     Assert.assertTrue("trash file should be removed",
         results.contains("file:" + location + "/data/trashfile"));
-    // reset spark_catalog to default
-    spark.conf().unset("spark.sql.catalog.spark_catalog");
-    spark.conf().unset("spark.sql.catalog.spark_catalog.type");
-    spark.conf().unset("spark.sql.catalog.spark_catalog.warehouse");
   }
 
   @Test
@@ -160,9 +157,13 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
         .olderThan(System.currentTimeMillis() + 1000).execute();
     Assert.assertTrue("trash file should be removed",
         results.contains("file:" + location + "/data/trashfile"));
-    // reset spark_catalog to default
+  }
+
+  @After
+  public void resetSparkSessionCatalog() throws Exception {
     spark.conf().unset("spark.sql.catalog.spark_catalog");
     spark.conf().unset("spark.sql.catalog.spark_catalog.type");
+    spark.conf().unset("spark.sql.catalog.spark_catalog.warehouse");
   }
 
 }

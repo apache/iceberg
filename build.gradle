@@ -225,6 +225,7 @@ project(':iceberg-core') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
+    testCompile "org.xerial:sqlite-jdbc"
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
 }
@@ -1001,6 +1002,7 @@ project(':iceberg-spark3') {
     testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
+    testCompile "org.xerial:sqlite-jdbc"
   }
 
   test {
