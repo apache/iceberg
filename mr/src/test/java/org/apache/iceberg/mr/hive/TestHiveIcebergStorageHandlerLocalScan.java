@@ -567,6 +567,23 @@ public class TestHiveIcebergStorageHandlerLocalScan {
     }
   }
 
+  @Test
+  public void testGetFieldByNameInsensitive() throws IOException {
+    Schema schema = new Schema(
+            required(1, "Private_Integer", Types.IntegerType.get()),
+            required(2, "Private_String", Types.StringType.get())
+    );
+    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "uppercaseinschema", schema, fileFormat, 1);
+    // access a single element from the array
+    for (int i = 0; i < records.size(); i++) {
+      GenericRecord expect = (GenericRecord) records.get(i);
+      List<Object[]> queryResult = shell.executeStatement(String.format(
+              "SELECT * FROM default.uppercaseinschema LIMIT 1 OFFSET %d", i));
+      Assert.assertEquals(expect.getField("private_integer"), queryResult.get(0)[0]);
+      Assert.assertEquals(expect.getField("private_string"), queryResult.get(0)[1]);
+    }
+  }
+
   private void runCreateAndReadTest(TableIdentifier identifier, String createSQL, Schema expectedSchema,
       PartitionSpec expectedSpec, Map<StructLike, List<Record>> data) throws IOException {
     shell.executeStatement(createSQL);
