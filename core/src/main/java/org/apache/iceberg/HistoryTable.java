@@ -85,7 +85,7 @@ public class HistoryTable extends BaseMetadataTable {
 
     @Override
     protected String tableType() {
-      return String.valueOf(HistoryTable.this.metadataTableType());
+      return HistoryTable.this.metadataTableType().name();
     }
   }
 

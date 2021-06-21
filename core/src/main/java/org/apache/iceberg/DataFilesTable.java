@@ -118,7 +118,7 @@ public class DataFilesTable extends BaseMetadataTable {
     }
 
     private String tableType() {
-      return String.valueOf(MetadataTableType.FILES);
+      return MetadataTableType.FILES.name();
     }
   }
 

@@ -108,7 +108,7 @@ public class AllManifestsTable extends BaseMetadataTable {
 
     @Override
     protected String tableType() {
-      return String.valueOf(MetadataTableType.ALL_MANIFESTS);
+      return MetadataTableType.ALL_MANIFESTS.name();
     }
 
     @Override

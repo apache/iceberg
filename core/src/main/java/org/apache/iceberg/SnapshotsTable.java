@@ -82,7 +82,7 @@ public class SnapshotsTable extends BaseMetadataTable {
 
     @Override
     protected String tableType() {
-      return String.valueOf(SnapshotsTable.this.metadataTableType());
+      return SnapshotsTable.this.metadataTableType().name();
     }
   }
 

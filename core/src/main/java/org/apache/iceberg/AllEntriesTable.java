@@ -88,7 +88,7 @@ public class AllEntriesTable extends BaseMetadataTable {
 
     @Override
     protected String tableType() {
-      return String.valueOf(MetadataTableType.ALL_ENTRIES);
+      return MetadataTableType.ALL_ENTRIES.name();
     }
 
     @Override

@@ -102,7 +102,7 @@ public class PartitionsTable extends BaseMetadataTable {
 
     @Override
     protected String tableType() {
-      return String.valueOf(PartitionsTable.this.metadataTableType());
+      return PartitionsTable.this.metadataTableType().name();
     }
   }
 

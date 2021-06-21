@@ -120,7 +120,7 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     }
 
     private String tableType() {
-      return String.valueOf(MetadataTableType.ENTRIES);
+      return MetadataTableType.ENTRIES.name();
     }
   }
 
