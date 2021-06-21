@@ -37,7 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
-import org.apache.iceberg.util.RocksDBStructLikeMap;
+import org.apache.iceberg.util.StructLikeMapUtil;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.Tasks;
 
@@ -52,15 +52,18 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   private final OutputFileFactory fileFactory;
   private final FileIO io;
   private final long targetFileSize;
+  private final Map<String, String> properties;
 
   protected BaseTaskWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                           OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
+                           OutputFileFactory fileFactory, FileIO io, long targetFileSize,
+                           Map<String, String> properties) {
     this.spec = spec;
     this.format = format;
     this.appenderFactory = appenderFactory;
     this.fileFactory = fileFactory;
     this.io = io;
     this.targetFileSize = targetFileSize;
+    this.properties = properties;
   }
 
   protected PartitionSpec spec() {
@@ -97,7 +100,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     private RollingFileWriter dataWriter;
     private RollingEqDeleteWriter eqDeleteWriter;
     private SortedPosDeleteWriter<T> posDeleteWriter;
-    private Map<StructLike, PathOffset> insertedRowMap;
+    private Map<StructLike, StructLike> insertedRowMap;
 
     protected BaseEqualityDeltaWriter(StructLike partition, Schema schema, Schema deleteSchema) {
       Preconditions.checkNotNull(schema, "Iceberg table schema cannot be null.");
@@ -108,11 +111,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       this.eqDeleteWriter = new RollingEqDeleteWriter(partition);
       this.posDeleteWriter = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition);
 
-      // TODO add a configurable key to choose in-memory StructLikeMap or RocksDBStructLikeMap.
-      this.insertedRowMap = RocksDBStructLikeMap.create(
-          System.getProperty("java.io.tmpdir"),
-          deleteSchema.asStruct(),
-          PATH_OFFSET_SCHEMA.asStruct());
+      this.insertedRowMap = StructLikeMapUtil.load(deleteSchema.asStruct(), PATH_OFFSET_SCHEMA.asStruct(), properties);
     }
 
     /**
@@ -127,10 +126,10 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       StructLike copiedKey = StructCopy.copy(structProjection.wrap(asStructLike(row)));
 
       // Adding a pos-delete to replace the old path-offset.
-      PathOffset previous = insertedRowMap.put(copiedKey, pathOffset);
+      StructLike previous = insertedRowMap.put(copiedKey, pathOffset);
       if (previous != null) {
         // TODO attach the previous row if has a positional-delete row schema in appender factory.
-        posDeleteWriter.delete(previous.path, previous.rowOffset, null);
+        posDeleteWriter.delete(previous.get(0, CharSequence.class), previous.get(1, Long.class), null);
       }
 
       dataWriter.write(row);
@@ -142,11 +141,11 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      * @param key has the same columns with the equality fields.
      */
     private void internalPosDelete(StructLike key) {
-      PathOffset previous = insertedRowMap.remove(key);
+      StructLike previous = insertedRowMap.remove(key);
 
       if (previous != null) {
         // TODO attach the previous row if has a positional-delete row schema in appender factory.
-        posDeleteWriter.delete(previous.path, previous.rowOffset, null);
+        posDeleteWriter.delete(previous.get(0, CharSequence.class), previous.get(1, Long.class), null);
       }
     }
 
@@ -245,7 +244,6 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       }
     }
 
-    @SuppressWarnings("unchecked")
     private void put(int pos, Object value) {
       switch (pos) {
         case 0:

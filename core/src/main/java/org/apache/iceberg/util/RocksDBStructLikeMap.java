@@ -22,6 +22,9 @@ package org.apache.iceberg.util;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collection;
@@ -40,16 +43,26 @@ import org.rocksdb.RocksDBException;
 import org.rocksdb.RocksIterator;
 import org.rocksdb.WriteOptions;
 
-public class RocksDBStructLikeMap<T> extends AbstractMap<StructLike, T> implements Map<StructLike, T> {
+public class RocksDBStructLikeMap extends AbstractMap<StructLike, StructLike> implements Map<StructLike, StructLike> {
 
   static {
     RocksDB.loadLibrary();
   }
 
-  public static <T> RocksDBStructLikeMap<T> create(String path,
-                                                   Types.StructType keyType,
-                                                   Types.StructType valType) {
-    return new RocksDBStructLikeMap<>(path, keyType, valType);
+  public static RocksDBStructLikeMap create(String path,
+                                            Types.StructType keyType,
+                                            Types.StructType valType) {
+    // Create the RocksDB directory if not exists.
+    Path rocksDBDir = Paths.get(path);
+    if (!Files.exists(rocksDBDir)) {
+      try {
+        Files.createDirectory(rocksDBDir);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    return new RocksDBStructLikeMap(path, keyType, valType);
   }
 
   private final String path;
@@ -118,8 +131,7 @@ public class RocksDBStructLikeMap<T> extends AbstractMap<StructLike, T> implemen
   }
 
   @Override
-  @SuppressWarnings("unchecked")
-  public T get(Object key) {
+  public StructLike get(Object key) {
     if (key instanceof StructLike) {
       byte[] keyData = keySerializer.serialize((StructLike) key);
       try {
@@ -128,7 +140,7 @@ public class RocksDBStructLikeMap<T> extends AbstractMap<StructLike, T> implemen
           return null;
         }
 
-        return (T) valSerializer.deserialize(valData);
+        return valSerializer.deserialize(valData);
       } catch (RocksDBException e) {
         throw new RuntimeException(e);
       }
@@ -137,34 +149,28 @@ public class RocksDBStructLikeMap<T> extends AbstractMap<StructLike, T> implemen
   }
 
   @Override
-  @SuppressWarnings("unchecked")
-  public T put(StructLike key, T value) {
-    if (value instanceof StructLike) {
-      byte[] keyData = keySerializer.serialize(key);
-      byte[] newValue = valSerializer.serialize((StructLike) value);
-      try {
-        byte[] oldValue = db.get(keyData);
-        db.put(writeOptions, keyData, newValue);
+  public StructLike put(StructLike key, StructLike value) {
+    byte[] keyData = keySerializer.serialize(key);
+    byte[] newValue = valSerializer.serialize(value);
+    try {
+      byte[] oldValue = db.get(keyData);
+      db.put(writeOptions, keyData, newValue);
 
-        if (oldValue == null) {
-          // Add a new row into the map.
-          size += 1;
-          return null;
-        } else {
-          // Replace the old row with the new row.
-          return (T) valSerializer.deserialize(oldValue);
-        }
-      } catch (RocksDBException e) {
-        throw new RuntimeException(e);
+      if (oldValue == null) {
+        // Add a new row into the map.
+        size += 1;
+        return null;
+      } else {
+        // Replace the old row with the new row.
+        return valSerializer.deserialize(oldValue);
       }
-    } else {
-      throw new IllegalArgumentException("Value isn't the expected StructLike: " + value);
+    } catch (RocksDBException e) {
+      throw new RuntimeException(e);
     }
   }
 
   @Override
-  @SuppressWarnings("unchecked")
-  public T remove(Object key) {
+  public StructLike remove(Object key) {
     if (key instanceof StructLike) {
       byte[] keyData = keySerializer.serialize((StructLike) key);
       try {
@@ -173,7 +179,7 @@ public class RocksDBStructLikeMap<T> extends AbstractMap<StructLike, T> implemen
           db.delete(writeOptions, keyData);
 
           size -= 1;
-          return (T) valSerializer.deserialize(valData);
+          return valSerializer.deserialize(valData);
         }
       } catch (RocksDBException e) {
         throw new RuntimeException(e);
@@ -207,13 +213,12 @@ public class RocksDBStructLikeMap<T> extends AbstractMap<StructLike, T> implemen
   }
 
   @Override
-  @SuppressWarnings("unchecked")
-  public Collection<T> values() {
-    Set<T> valueSet = Sets.newHashSet();
+  public Collection<StructLike> values() {
+    Set<StructLike> valueSet = Sets.newHashSet();
 
     try (RocksIterator iter = db.newIterator()) {
       for (iter.seekToFirst(); iter.isValid(); iter.next()) {
-        valueSet.add((T) valSerializer.deserialize(iter.value()));
+        valueSet.add(valSerializer.deserialize(iter.value()));
       }
     }
 
@@ -221,14 +226,13 @@ public class RocksDBStructLikeMap<T> extends AbstractMap<StructLike, T> implemen
   }
 
   @Override
-  @SuppressWarnings("unchecked")
-  public Set<Entry<StructLike, T>> entrySet() {
-    Set<Entry<StructLike, T>> entrySet = Sets.newHashSet();
+  public Set<Entry<StructLike, StructLike>> entrySet() {
+    Set<Entry<StructLike, StructLike>> entrySet = Sets.newHashSet();
     try (RocksIterator iter = db.newIterator()) {
       for (iter.seekToFirst(); iter.isValid(); iter.next()) {
-        StructLikeEntry<T> entry = new StructLikeEntry<>(
+        StructLikeEntry<StructLike> entry = new StructLikeEntry<>(
             keySerializer.deserialize(iter.key()),
-            (T) valSerializer.deserialize(iter.value()));
+            valSerializer.deserialize(iter.value()));
         entrySet.add(entry);
       }
       return entrySet;

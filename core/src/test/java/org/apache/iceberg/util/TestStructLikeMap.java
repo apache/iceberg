@@ -28,6 +28,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
@@ -62,18 +63,15 @@ public class TestStructLikeMap {
 
   @Before
   public void before() {
-    switch (mapType) {
-      case "in-memory":
-        this.map = StructLikeMap.create(KEY_TYPE);
-        break;
-      case "rocksdb":
-        this.map = RocksDBStructLikeMap.create(temp.getRoot().getAbsolutePath(), KEY_TYPE, VAL_TYPE);
-        break;
-      default:
-        throw new UnsupportedOperationException("Unknown StructLikeMap type: " + mapType);
-    }
-  }
+    Map<String, String> props = Maps.newHashMap();
+    props.put(StructLikeMapUtil.IMPL, mapType);
 
+    if (StructLikeMapUtil.ROCKSDB_DIR.equals(mapType)) {
+      props.put(StructLikeMapUtil.ROCKSDB_DIR, temp.getRoot().getAbsolutePath());
+    }
+
+    this.map = StructLikeMapUtil.load(KEY_TYPE, VAL_TYPE, props);
+  }
 
   @After
   public void after() {
