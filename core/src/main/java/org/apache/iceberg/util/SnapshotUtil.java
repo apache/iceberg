@@ -128,11 +128,11 @@ public class SnapshotUtil {
    */
   public static Snapshot snapshotAfter(Table table, long snapshotId) {
     Snapshot previousSnapshot = table.snapshot(snapshotId);
-    Snapshot pointer = table.currentSnapshot();
-    while (previousSnapshot != null && pointer != null && previousSnapshot.snapshotId() != pointer.parentId()) {
-      pointer = table.snapshot(pointer.parentId());
+    Snapshot current = table.currentSnapshot();
+    while (previousSnapshot != null && current != null && previousSnapshot.snapshotId() != current.parentId()) {
+      current = table.snapshot(current.parentId());
     }
 
-    return pointer;
+    return current;
   }
 }
