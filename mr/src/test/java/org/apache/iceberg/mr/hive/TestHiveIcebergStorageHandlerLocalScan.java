@@ -573,7 +573,8 @@ public class TestHiveIcebergStorageHandlerLocalScan {
             required(1, "Private_Integer", Types.IntegerType.get()),
             required(2, "Private_String", Types.StringType.get())
     );
-    List<Record> records = testTables.createTableWithGeneratedRecords(shell, "uppercaseinschema", schema, fileFormat, 1);
+    List<Record> records = testTables.createTableWithGeneratedRecords(
+            shell, "uppercaseinschema", schema, fileFormat, 1);
     // access a single element from the array
     for (int i = 0; i < records.size(); i++) {
       GenericRecord expect = (GenericRecord) records.get(i);
