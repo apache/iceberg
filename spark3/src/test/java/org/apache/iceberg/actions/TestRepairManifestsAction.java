@@ -637,6 +637,50 @@ public class TestRepairManifestsAction extends SparkTestBase {
     Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
   }
 
+  @Test
+  public void testNothingToRepair() throws IOException {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
+        .identity("c1")
+        .truncate("c2", 2)
+        .build();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
+    options.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none");
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    List<ThreeColumnRecord> records1 = Lists.newArrayList(
+        new ThreeColumnRecord(1, null, "AAAA"),
+        new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB")
+    );
+    writeRecords(records1);
+
+    List<ThreeColumnRecord> records2 = Lists.newArrayList(
+        new ThreeColumnRecord(2, "CCCCCCCCCC", "CCCC"),
+        new ThreeColumnRecord(2, "DDDDDDDDDD", "DDDD")
+    );
+    writeRecords(records2);
+
+    List<ThreeColumnRecord> records3 = Lists.newArrayList(
+        new ThreeColumnRecord(3, "EEEEEEEEEE", "EEEE"),
+        new ThreeColumnRecord(3, "FFFFFFFFFF", "FFFF")
+    );
+    writeRecords(records3);
+
+    List<ThreeColumnRecord> records4 = Lists.newArrayList(
+        new ThreeColumnRecord(4, "GGGGGGGGGG", "GGGG"),
+        new ThreeColumnRecord(4, "HHHHHHHHHG", "HHHH")
+    );
+    writeRecords(records4);
+
+    table.refresh();
+    RepairManifests repairManifests = SparkActions.get().repairManifests(table);
+    RepairManifests.Result result = repairManifests
+        .execute();
+
+    Assert.assertEquals("No manifests should have been added", 0, result.addedManifests().size());
+    Assert.assertEquals("No manifests should have been added", 0, result.deletedManifests().size());
+  }
+
   private void writeRecords(List<ThreeColumnRecord> records) {
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class);
     writeDF(df);
