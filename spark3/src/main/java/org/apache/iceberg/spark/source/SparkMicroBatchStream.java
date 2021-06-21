@@ -110,22 +110,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
       return StreamingOffset.START_OFFSET;
     }
 
-    // a readStream on an Iceberg table can be started from 2 types of snapshots
-    // 1. a valid starting Snapshot:
-    //      when this valid starting Snapshot is the initialOffset - then, scanAllFiles must be set to true;
-    //      for all StreamingOffsets following this - scanAllFiles must be set to false
-    // 2. START_OFFSET:
-    //      if the stream started on the table from START_OFFSET - it implies - that all the subsequent Snapshots added
-    //      will have all files as net New manifests & hence scanAllFiles can be false.
-    boolean scanAllFiles = !StreamingOffset.START_OFFSET.equals(initialOffset) &&
-        latestSnapshot.snapshotId() == initialOffset.snapshotId();
-
-    long filesNewlyAddedInLatestSnapshot = Iterables.size(latestSnapshot.addedFiles());
-    long existingFilesInheritedByLatestSnapshot = SnapshotUtil.existingDataFilesCount(latestSnapshot);
-    long positionValue = scanAllFiles ? existingFilesInheritedByLatestSnapshot + filesNewlyAddedInLatestSnapshot :
-        filesNewlyAddedInLatestSnapshot;
-
-    return new StreamingOffset(latestSnapshot.snapshotId(), positionValue, scanAllFiles);
+    return new StreamingOffset(latestSnapshot.snapshotId(), Iterables.size(latestSnapshot.addedFiles()), false);
   }
 
   @Override
@@ -207,18 +192,13 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   }
 
   private long snapshotAfter(long snapshotId) {
-    Snapshot previousSnapshot = table.snapshot(snapshotId);
-    Snapshot pointer = table.currentSnapshot();
-    while (pointer != null && previousSnapshot.snapshotId() != pointer.parentId()) {
-      Preconditions.checkState(pointer.operation().equals(DataOperations.APPEND),
-          "Invalid Snapshot operation: %s, only APPEND is allowed.", pointer.operation());
+    Snapshot snapshotAfter = SnapshotUtil.snapshotAfter(table, snapshotId);
 
-      pointer = table.snapshot(pointer.parentId());
-    }
+    Preconditions.checkState(snapshotAfter != null, "Cannot find next snapshot: as Snapshot %s expired", snapshotId);
+    Preconditions.checkState(snapshotAfter.operation().equals(DataOperations.APPEND),
+            "Invalid Snapshot operation: %s, only APPEND is allowed.", snapshotAfter.operation());
 
-    Preconditions.checkState(pointer != null, "Cannot find next snapshot: as Snapshot %s expired", snapshotId);
-
-    return pointer.snapshotId();
+    return snapshotAfter.snapshotId();
   }
 
   private static class InitialOffsetStore {
@@ -241,7 +221,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
       table.refresh();
       StreamingOffset offset = table.currentSnapshot() == null ?
           StreamingOffset.START_OFFSET :
-          new StreamingOffset(SnapshotUtil.oldestSnapshot(table).snapshotId(), 0, true);
+          new StreamingOffset(SnapshotUtil.oldestSnapshot(table).snapshotId(), 0, false);
 
       OutputFile outputFile = io.newOutputFile(initialOffsetLocation);
       writeOffset(offset, outputFile);

@@ -22,7 +22,6 @@ package org.apache.iceberg.util;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -65,8 +64,7 @@ public class SnapshotUtil {
   }
 
   /**
-   * Find the oldest Snapshot of a table.
-   * @param table the table to find the oldest snapshot on.
+   * Find the oldest Snapshot of a {@link Table}.
    * @return null if the table is empty, else the oldest Snapshot.
    */
   public static Snapshot oldestSnapshot(Table table) {
@@ -123,15 +121,18 @@ public class SnapshotUtil {
     return newFiles;
   }
 
-  public static int existingDataFilesCount(Snapshot snapshot) {
-    int totalExistingDataFilesCount = 0;
-
-    if (snapshot != null) {
-      for (ManifestFile dataManifest : snapshot.dataManifests()) {
-        totalExistingDataFilesCount += dataManifest.existingFilesCount();
-      }
+  /**
+   * traverses through the table's snapshots and finds the {@link Table}'s
+   * Snapshot that is committed after the specified snapshotId
+   * @return null if passed in snapshot expired, else the snapshot after the passed in snapshot
+   */
+  public static Snapshot snapshotAfter(Table table, long snapshotId) {
+    Snapshot previousSnapshot = table.snapshot(snapshotId);
+    Snapshot pointer = table.currentSnapshot();
+    while (previousSnapshot != null && pointer != null && previousSnapshot.snapshotId() != pointer.parentId()) {
+      pointer = table.snapshot(pointer.parentId());
     }
 
-    return totalExistingDataFilesCount;
+    return pointer;
   }
 }
