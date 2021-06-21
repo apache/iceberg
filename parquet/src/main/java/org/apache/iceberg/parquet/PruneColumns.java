@@ -131,7 +131,7 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
     } else if (value != null) {
       Integer mapId = getId(map);
       if (!Objects.equal(value, originalValue)) {
-        Type mapType =  Types.map(map.getRepetition())
+        Type mapType = Types.map(map.getRepetition())
             .key(originalKey)
             .value(value)
             .named(map.getName());

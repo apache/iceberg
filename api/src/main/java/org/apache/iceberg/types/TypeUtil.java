@@ -22,6 +22,7 @@ package org.apache.iceberg.types;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
@@ -45,7 +46,7 @@ public class TypeUtil {
     Preconditions.checkNotNull(schema, "Schema cannot be null");
 
     Types.StructType result = select(schema.asStruct(), fieldIds);
-    if (schema.asStruct() == result) {
+    if (Objects.equals(schema.asStruct(), result)) {
       return schema;
     } else if (result != null) {
       if (schema.getAliases() != null) {

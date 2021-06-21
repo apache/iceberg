@@ -80,7 +80,7 @@ public class SortField implements Serializable {
    * @return true if this order satisfies the given order
    */
   public boolean satisfies(SortField other) {
-    if (this == other) {
+    if (Objects.equals(this, other)) {
       return true;
     } else if (sourceId != other.sourceId || direction != other.direction || nullOrder != other.nullOrder) {
       return false;
