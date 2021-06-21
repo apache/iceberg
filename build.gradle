@@ -30,12 +30,14 @@ buildscript {
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:3.14.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:2.1.0'
     classpath 'me.champeau.gradle:jmh-gradle-plugin:0.4.8'
+    classpath 'org.jetbrains.gradle.plugin.idea-ext:1.0'
   }
 }
 
 plugins {
   id 'nebula.dependency-recommender' version '9.0.2'
   id 'org.projectnessie' version '0.5.1'
+  id 'org.jetbrains.gradle.plugin.idea-ext' version '1.0'
 }
 
 try {
@@ -1237,4 +1239,5 @@ String getJavadocVersion() {
 apply from: 'baseline.gradle'
 apply from: 'deploy.gradle'
 apply from: 'tasks.gradle'
+apply from: 'idea.gradle'
 
