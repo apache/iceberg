@@ -65,7 +65,7 @@ class StreamingOffset extends Offset {
       JsonNode node = JsonUtil.mapper().readValue(json, JsonNode.class);
       return fromJsonNode(node);
     } catch (IOException e) {
-      throw new IllegalArgumentException(String.format("Failed to parse StreamingOffset from JSON string %s", json), e);
+      throw new UncheckedIOException(String.format("Failed to parse StreamingOffset from JSON string %s", json), e);
     }
   }
 

@@ -25,6 +25,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -64,8 +65,8 @@ public class SnapshotUtil {
   }
 
   /**
-   * Traverses the history of the table's state and finds the oldest Snapshot.
-   * @return null if the table is empty, else the oldest Snapshot.
+   * Traverses the history of the table's current snapshot and finds the oldest Snapshot.
+   * @return null if there is no current snapshot in the table, else the oldest Snapshot.
    */
   public static Snapshot oldestSnapshot(Table table) {
     Snapshot current = table.currentSnapshot();
@@ -124,16 +125,22 @@ public class SnapshotUtil {
   /**
    * Traverses the history of the table's current snapshot and finds the snapshot with the given snapshot id as its
    * parent.
+   * Throws IllegalArgumentException when the given SnapshotId is not found in the table
+   * Throws IllegalStateException when the given snapshot ID is not an ancestor of the current table state
    * @return null if the passed in snapshot is not present in the table, else the snapshot for which the given snapshot
    * is the parent
    */
   public static Snapshot snapshotAfter(Table table, long snapshotId) {
     Snapshot previousSnapshot = table.snapshot(snapshotId);
+    Preconditions.checkArgument(previousSnapshot != null,
+        "Invalid snapshotId: %s, snapshot not found in the table.", snapshotId);
+
     Snapshot current = table.currentSnapshot();
     while (previousSnapshot != null && current != null && previousSnapshot.snapshotId() != current.parentId()) {
       current = table.snapshot(current.parentId());
     }
 
+    Preconditions.checkState(current != null, "Cannot find next snapshot: as Snapshot %s expired", snapshotId);
     return current;
   }
 }

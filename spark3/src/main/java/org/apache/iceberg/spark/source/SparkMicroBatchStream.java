@@ -194,7 +194,6 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private long snapshotAfter(long snapshotId) {
     Snapshot snapshotAfter = SnapshotUtil.snapshotAfter(table, snapshotId);
 
-    Preconditions.checkState(snapshotAfter != null, "Cannot find next snapshot: as Snapshot %s expired", snapshotId);
     Preconditions.checkState(snapshotAfter.operation().equals(DataOperations.APPEND),
             "Invalid Snapshot operation: %s, only APPEND is allowed.", snapshotAfter.operation());
 
