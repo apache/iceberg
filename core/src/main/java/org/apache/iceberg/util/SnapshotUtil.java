@@ -64,7 +64,7 @@ public class SnapshotUtil {
   }
 
   /**
-   * Find the oldest Snapshot of a {@link Table}.
+   * Traverses the history of the table's state and finds the oldest Snapshot.
    * @return null if the table is empty, else the oldest Snapshot.
    */
   public static Snapshot oldestSnapshot(Table table) {
@@ -122,9 +122,10 @@ public class SnapshotUtil {
   }
 
   /**
-   * traverses through the table's snapshots and finds the {@link Table}'s
-   * Snapshot that is committed after the specified snapshotId
-   * @return null if passed in snapshot expired, else the snapshot after the passed in snapshot
+   * Traverses the history of the table's current snapshot and finds the snapshot with the given snapshot id as its
+   * parent.
+   * @return null if the passed in snapshot is not present in the table, else the snapshot for which the given snapshot
+   * is the parent
    */
   public static Snapshot snapshotAfter(Table table, long snapshotId) {
     Snapshot previousSnapshot = table.snapshot(snapshotId);
