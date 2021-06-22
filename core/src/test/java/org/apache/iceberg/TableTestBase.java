@@ -106,6 +106,30 @@ public class TableTestBase {
       .withPartitionPath("data_bucket=3") // easy way to set partition data for now
       .withRecordCount(1)
       .build();
+  static final DataFile FILE_PARTITION_0 = DataFiles.builder(SPEC)
+      .withPath("/path/to/data-0.parquet")
+      .withFileSizeInBytes(10)
+      .withPartition(TestHelpers.Row.of(0))
+      .withRecordCount(1)
+      .build();
+  static final DataFile FILE_PARTITION_1 = DataFiles.builder(SPEC)
+      .withPath("/path/to/data-1.parquet")
+      .withFileSizeInBytes(10)
+      .withPartition(TestHelpers.Row.of(1))
+      .withRecordCount(1)
+      .build();
+  static final DataFile FILE_PARTITION_2 = DataFiles.builder(SPEC)
+      .withPath("/path/to/data-2.parquet")
+      .withFileSizeInBytes(10)
+      .withPartition(TestHelpers.Row.of(2))
+      .withRecordCount(1)
+      .build();
+  static final DataFile FILE_PARTITION_3 = DataFiles.builder(SPEC)
+      .withPath("/path/to/data-3.parquet")
+      .withFileSizeInBytes(10)
+      .withPartition(TestHelpers.Row.of(3))
+      .withRecordCount(1)
+      .build();
 
   static final FileIO FILE_IO = new TestTables.LocalFileIO();
 
