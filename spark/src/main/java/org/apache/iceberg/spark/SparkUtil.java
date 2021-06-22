@@ -40,10 +40,8 @@ public class SparkUtil {
 
   public static FileIO serializableFileIO(Table table) {
     if (table.io() instanceof HadoopConfigurable) {
-      HadoopConfigurable hadoopConfigurableIO = (HadoopConfigurable) table.io();
       // we need to use Spark's SerializableConfiguration to avoid issues with Kryo serialization
-      SerializableConfiguration conf = new SerializableConfiguration(hadoopConfigurableIO.getConf());
-      hadoopConfigurableIO.setConfSupplier(conf::value);
+      ((HadoopConfigurable) table.io()).serializeConfWith(conf -> new SerializableConfiguration(conf)::value);
     }
 
     return table.io();

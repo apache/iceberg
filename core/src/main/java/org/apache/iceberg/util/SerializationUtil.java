@@ -35,7 +35,17 @@ public class SerializationUtil {
   private SerializationUtil() {
   }
 
+  /**
+   * Serialize an object to bytes. If the object implements {@link HadoopConfigurable}, its Hadoop configuration will
+   * be serialized into a {@link SerializableConfiguration}.
+   * @param obj object to serialize
+   * @return serialized bytes
+   */
   public static byte[] serializeToBytes(Object obj) {
+    if (obj instanceof HadoopConfigurable) {
+      ((HadoopConfigurable) obj).serializeConfWith(conf -> new SerializableConfiguration(conf)::get);
+    }
+
     try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
          ObjectOutputStream oos = new ObjectOutputStream(baos)) {
       oos.writeObject(obj);
@@ -43,16 +53,6 @@ public class SerializationUtil {
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to serialize object", e);
     }
-  }
-
-  public static byte[] serializeToBytesWithHadoopConfig(Object obj) {
-    if (obj instanceof HadoopConfigurable) {
-      HadoopConfigurable configurableObj = (HadoopConfigurable) obj;
-      SerializableConfiguration serializableConf = new SerializableConfiguration(configurableObj.getConf());
-      configurableObj.setConfSupplier(serializableConf::get);
-    }
-
-    return serializeToBytes(obj);
   }
 
   @SuppressWarnings("unchecked")

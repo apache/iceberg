@@ -103,9 +103,7 @@ public class SerializableTable implements Table, Serializable {
 
   private FileIO fileIO(Table table) {
     if (table.io() instanceof HadoopConfigurable) {
-      HadoopConfigurable hadoopConfigurableIO = (HadoopConfigurable) table.io();
-      SerializableConfiguration serializedConf = new SerializableConfiguration(hadoopConfigurableIO.getConf());
-      hadoopConfigurableIO.setConfSupplier(serializedConf::get);
+      ((HadoopConfigurable) table.io()).serializeConfWith(conf -> new SerializableConfiguration(conf)::get);
     }
 
     return table.io();

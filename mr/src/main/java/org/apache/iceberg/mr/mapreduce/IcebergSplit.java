@@ -90,11 +90,11 @@ public class IcebergSplit extends InputSplit implements org.apache.hadoop.mapred
     out.writeInt(data.length);
     out.write(data);
 
-    byte[] ioData = SerializationUtil.serializeToBytesWithHadoopConfig(io);
+    byte[] ioData = SerializationUtil.serializeToBytes(io);
     out.writeInt(ioData.length);
     out.write(ioData);
 
-    byte[] encryptionManagerData = SerializationUtil.serializeToBytesWithHadoopConfig(encryptionManager);
+    byte[] encryptionManagerData = SerializationUtil.serializeToBytes(encryptionManager);
     out.writeInt(encryptionManagerData.length);
     out.write(encryptionManagerData);
   }
