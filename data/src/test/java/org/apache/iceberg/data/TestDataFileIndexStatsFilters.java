@@ -22,7 +22,6 @@ package org.apache.iceberg.data;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -35,6 +34,7 @@ import org.apache.iceberg.TestTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
 import org.junit.After;
 import org.junit.Assert;
@@ -97,7 +97,7 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(Pair.of(dataFile.path(), 0L));
     deletes.add(Pair.of(dataFile.path(), 1L));
 
-    Pair<DeleteFile, Set<CharSequence>> posDeletes = FileHelpers.writeDeleteFile(
+    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
         table, Files.localOutput(temp.newFile()), deletes);
     table.newRowDelta()
         .addDeletes(posDeletes.first())
@@ -124,7 +124,7 @@ public class TestDataFileIndexStatsFilters {
     deletes.add(Pair.of("some-other-file.parquet", 0L));
     deletes.add(Pair.of("some-other-file.parquet", 1L));
 
-    Pair<DeleteFile, Set<CharSequence>> posDeletes = FileHelpers.writeDeleteFile(
+    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
         table, Files.localOutput(temp.newFile()), deletes);
     table.newRowDelta()
         .addDeletes(posDeletes.first())

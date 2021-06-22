@@ -22,7 +22,6 @@ package org.apache.iceberg.deletes;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Set;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileMetadata;
@@ -41,7 +40,7 @@ public class PositionDeleteWriter<T> implements Closeable {
   private final StructLike partition;
   private final ByteBuffer keyMetadata;
   private final PositionDelete<T> delete;
-  private final Set<CharSequence> pathSet;
+  private final CharSequenceSet pathSet;
   private DeleteFile deleteFile = null;
 
   public PositionDeleteWriter(FileAppender<StructLike> appender, FileFormat format, String location,
@@ -81,7 +80,7 @@ public class PositionDeleteWriter<T> implements Closeable {
     }
   }
 
-  public Set<CharSequence> referencedDataFiles() {
+  public CharSequenceSet referencedDataFiles() {
     return pathSet;
   }
 

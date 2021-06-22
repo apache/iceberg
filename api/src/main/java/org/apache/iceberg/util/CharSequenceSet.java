@@ -32,11 +32,11 @@ public class CharSequenceSet implements Set<CharSequence>, Serializable {
   private static final ThreadLocal<CharSequenceWrapper> wrappers = ThreadLocal.withInitial(
       () -> CharSequenceWrapper.wrap(null));
 
-  public static Set<CharSequence> of(Iterable<CharSequence> charSequences) {
+  public static CharSequenceSet of(Iterable<CharSequence> charSequences) {
     return new CharSequenceSet(charSequences);
   }
 
-  public static Set<CharSequence> empty() {
+  public static CharSequenceSet empty() {
     return new CharSequenceSet(ImmutableList.of());
   }
 
@@ -116,6 +116,7 @@ public class CharSequenceSet implements Set<CharSequence>, Serializable {
   }
 
   @Override
+  @SuppressWarnings("CollectionUndefinedEquality")
   public boolean containsAll(Collection<?> objects) {
     if (objects != null) {
       return Iterables.all(objects, this::contains);

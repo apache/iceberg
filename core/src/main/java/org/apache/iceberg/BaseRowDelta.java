@@ -19,14 +19,13 @@
 
 package org.apache.iceberg;
 
-import java.util.Set;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.CharSequenceSet;
 
 class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta {
   private Long startingSnapshotId = null; // check all versions by default
-  private final Set<CharSequence> referencedDataFiles = CharSequenceSet.empty();
+  private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
   private boolean validateDeletes = false;
   private Expression conflictDetectionFilter = null;
   private boolean caseSensitive = true;

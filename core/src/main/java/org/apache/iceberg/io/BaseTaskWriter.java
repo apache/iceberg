@@ -23,7 +23,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -44,7 +43,7 @@ import org.apache.iceberg.util.Tasks;
 public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   private final List<DataFile> completedDataFiles = Lists.newArrayList();
   private final List<DeleteFile> completedDeleteFiles = Lists.newArrayList();
-  private final Set<CharSequence> referencedDataFiles = CharSequenceSet.empty();
+  private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
 
   private final PartitionSpec spec;
   private final FileFormat format;
