@@ -24,20 +24,20 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
-import org.apache.iceberg.util.CaseInsensitiveMap;
 
 public class GenericRecord implements Record, StructLike {
   private static final LoadingCache<StructType, Map<String, Integer>> NAME_MAP_CACHE =
       Caffeine.newBuilder()
       .weakKeys()
       .build(struct -> {
-        Map<String, Integer> idToPos = new CaseInsensitiveMap<>();
+        Map<String, Integer> idToPos = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         List<Types.NestedField> fields = struct.fields();
         for (int i = 0; i < fields.size(); i += 1) {
           idToPos.put(fields.get(i).name(), i);
