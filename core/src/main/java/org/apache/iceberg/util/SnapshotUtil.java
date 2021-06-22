@@ -127,20 +127,22 @@ public class SnapshotUtil {
    * parent.
    * @return null if the passed in snapshot is not present in the table, else the snapshot for which the given snapshot
    * is the parent
-   * @throws IllegalArgumentException when the given SnapshotId is not found in the table
-   * @throws IllegalStateException when the given snapshot ID is not an ancestor of the current table state
+   * @throws IllegalArgumentException when the given snapshotId is not found in the table
+   * @throws IllegalStateException when the given snapshotId is not an ancestor of the current table state
    */
   public static Snapshot snapshotAfter(Table table, long snapshotId) {
-    Snapshot previousSnapshot = table.snapshot(snapshotId);
-    Preconditions.checkArgument(previousSnapshot != null,
-        "Invalid snapshotId: %s, snapshot not found in the table.", snapshotId);
+    Preconditions.checkArgument(table.snapshot(snapshotId) != null, "Cannot find parent snapshot: %s", snapshotId);
 
     Snapshot current = table.currentSnapshot();
-    while (previousSnapshot != null && current != null && previousSnapshot.snapshotId() != current.parentId()) {
+    while (current != null) {
+      if (current.parentId() == snapshotId) {
+        return current;
+      }
+
       current = table.snapshot(current.parentId());
     }
 
-    Preconditions.checkState(current != null, "Cannot find next snapshot: as Snapshot %s expired", snapshotId);
-    return current;
+    throw new IllegalStateException(
+        String.format("Cannot find snapshot after %s: not an ancestor of table's current snapshot", snapshotId));
   }
 }

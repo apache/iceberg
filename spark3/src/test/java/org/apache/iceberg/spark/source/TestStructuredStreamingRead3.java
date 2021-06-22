@@ -20,7 +20,6 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
@@ -66,9 +65,58 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 public final class TestStructuredStreamingRead3 {
   private static final Configuration CONF = new Configuration();
   private static final Schema SCHEMA = new Schema(
-          optional(1, "id", Types.IntegerType.get()),
-          optional(2, "data", Types.StringType.get())
+      optional(1, "id", Types.IntegerType.get()),
+      optional(2, "data", Types.StringType.get())
   );
+
+  /**
+   * test data to be used by multiple writes
+   * each write creates a snapshot and writes a list of records
+   */
+  private static final List<List<SimpleRecord>> TEST_DATA_MULTIPLE_SNAPSHOTS = Lists.newArrayList(
+      Lists.newArrayList(
+          new SimpleRecord(1, "one"),
+          new SimpleRecord(2, "two"),
+          new SimpleRecord(3, "three")),
+      Lists.newArrayList(
+          new SimpleRecord(4, "four"),
+          new SimpleRecord(5, "five")),
+      Lists.newArrayList(
+          new SimpleRecord(6, "six"),
+          new SimpleRecord(7, "seven")));
+
+  /**
+   * test data - to be used for multiple write batches
+   * each batch inturn will have multiple snapshots
+   */
+  private static final List<List<List<SimpleRecord>>> TEST_DATA_MULTIPLE_WRITES_MULTIPLE_SNAPSHOTS = Lists.newArrayList(
+      Lists.newArrayList(
+          Lists.newArrayList(
+              new SimpleRecord(1, "one"),
+              new SimpleRecord(2, "two"),
+              new SimpleRecord(3, "three")),
+          Lists.newArrayList(
+              new SimpleRecord(4, "four"),
+              new SimpleRecord(5, "five"))),
+      Lists.newArrayList(
+          Lists.newArrayList(
+              new SimpleRecord(6, "six"),
+              new SimpleRecord(7, "seven")),
+          Lists.newArrayList(
+              new SimpleRecord(8, "eight"),
+              new SimpleRecord(9, "nine"))),
+      Lists.newArrayList(
+          Lists.newArrayList(
+              new SimpleRecord(10, "ten"),
+              new SimpleRecord(11, "eleven"),
+              new SimpleRecord(12, "twelve")),
+          Lists.newArrayList(
+              new SimpleRecord(13, "thirteen"),
+              new SimpleRecord(14, "fourteen")),
+          Lists.newArrayList(
+              new SimpleRecord(15, "fifteen"),
+              new SimpleRecord(16, "sixteen"))));
+
   private static SparkSession spark = null;
 
   @Rule
@@ -80,9 +128,9 @@ public final class TestStructuredStreamingRead3 {
   @BeforeClass
   public static void startSpark() {
     TestStructuredStreamingRead3.spark = SparkSession.builder()
-            .master("local[2]")
-            .config("spark.sql.shuffle.partitions", 4)
-            .getOrCreate();
+        .master("local[2]")
+        .config("spark.sql.shuffle.partitions", 4)
+        .getOrCreate();
   }
 
   @AfterClass
@@ -94,7 +142,7 @@ public final class TestStructuredStreamingRead3 {
 
   @SuppressWarnings("unchecked")
   @Test
-  public void testReadStreamOnIcebergTableWithMultipleSnapshots() throws IOException, TimeoutException {
+  public void testReadStreamOnIcebergTableWithMultipleSnapshots() throws Exception {
     File parent = temp.newFolder("parent");
     File location = new File(parent, "test-table");
 
@@ -102,15 +150,15 @@ public final class TestStructuredStreamingRead3 {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 3).build();
     Table table = tables.create(SCHEMA, spec, location.toString());
 
-    List<List<SimpleRecord>> expected = getTestDataForMultipleSnapshots();
-    appendData(expected, location);
+    List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(expected, location);
 
     table.refresh();
 
     try {
       Dataset<Row> df = spark.readStream()
-              .format("iceberg")
-              .load(location.toString());
+          .format("iceberg")
+          .load(location.toString());
       List<SimpleRecord> actual = processStreamTillEnd(df);
 
       Assert.assertEquals(
@@ -125,7 +173,7 @@ public final class TestStructuredStreamingRead3 {
 
   @SuppressWarnings("unchecked")
   @Test
-  public void testResumingStreamReadFromCheckpoint() throws IOException, TimeoutException, StreamingQueryException {
+  public void testResumingStreamReadFromCheckpoint() throws Exception {
     File parent = temp.newFolder("parent");
     File location = new File(parent, "test-table");
     File writerCheckpoint = new File(parent, "writer-checkpoint");
@@ -153,8 +201,8 @@ public final class TestStructuredStreamingRead3 {
           Collections.emptyList(),
           processStreamOnEmptyIcebergTable);
 
-      for (List<List<SimpleRecord>> expectedCheckpoint : getTestDataForMultipleWritesWithMultipleSnapshots()) {
-        appendData(expectedCheckpoint, location);
+      for (List<List<SimpleRecord>> expectedCheckpoint : TEST_DATA_MULTIPLE_WRITES_MULTIPLE_SNAPSHOTS) {
+        appendDataAsMultipleSnapshots(expectedCheckpoint, location);
         table.refresh();
 
         List<SimpleRecord> actualDataInCurrentMicroBatch = processMicroBatch(singleBatchWriter, globalTempView);
@@ -171,7 +219,7 @@ public final class TestStructuredStreamingRead3 {
 
   @SuppressWarnings("unchecked")
   @Test
-  public void testParquetOrcAvroDataInOneTable() throws IOException, TimeoutException {
+  public void testParquetOrcAvroDataInOneTable() throws Exception {
     File parent = temp.newFolder("parent");
     File location = new File(parent, "test-table");
 
@@ -221,7 +269,7 @@ public final class TestStructuredStreamingRead3 {
 
   @SuppressWarnings("unchecked")
   @Test
-  public void testReadStreamFromEmptyTable() throws IOException, TimeoutException {
+  public void testReadStreamFromEmptyTable() throws Exception {
     File parent = temp.newFolder("parent");
     File location = new File(parent, "test-table");
 
@@ -247,7 +295,7 @@ public final class TestStructuredStreamingRead3 {
 
   @SuppressWarnings("unchecked")
   @Test
-  public void testReadStreamWithSnapshotTypeOverwriteErrorsOut() throws IOException, TimeoutException {
+  public void testReadStreamWithSnapshotTypeOverwriteErrorsOut() throws Exception {
     File parent = temp.newFolder("parent");
     File location = new File(parent, "test-table");
 
@@ -261,8 +309,8 @@ public final class TestStructuredStreamingRead3 {
     ops.commit(meta, meta.upgradeToFormatVersion(2));
 
     // fill table with some data
-    List<List<SimpleRecord>> dataAcrossSnapshots = getTestDataForMultipleSnapshots();
-    appendData(dataAcrossSnapshots, location);
+    List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(dataAcrossSnapshots, location);
 
     table.refresh();
 
@@ -309,7 +357,7 @@ public final class TestStructuredStreamingRead3 {
 
   @SuppressWarnings("unchecked")
   @Test
-  public void testReadStreamWithSnapshotTypeReplaceErrorsOut() throws IOException, TimeoutException {
+  public void testReadStreamWithSnapshotTypeReplaceErrorsOut() throws Exception {
     File parent = temp.newFolder("parent");
     File location = new File(parent, "test-table");
 
@@ -318,8 +366,8 @@ public final class TestStructuredStreamingRead3 {
     Table table = tables.create(SCHEMA, spec, location.toString());
 
     // fill table with some data
-    List<List<SimpleRecord>> dataAcrossSnapshots = getTestDataForMultipleSnapshots();
-    appendData(dataAcrossSnapshots, location);
+    List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(dataAcrossSnapshots, location);
 
     table.refresh();
 
@@ -358,7 +406,7 @@ public final class TestStructuredStreamingRead3 {
 
   @SuppressWarnings("unchecked")
   @Test
-  public void testReadStreamWithSnapshotTypeDeleteErrorsOut() throws IOException, TimeoutException {
+  public void testReadStreamWithSnapshotTypeDeleteErrorsOut() throws Exception {
     File parent = temp.newFolder("parent");
     File location = new File(parent, "test-table");
 
@@ -367,8 +415,8 @@ public final class TestStructuredStreamingRead3 {
     Table table = tables.create(SCHEMA, spec, location.toString());
 
     // fill table with some data
-    List<List<SimpleRecord>> dataAcrossSnapshots = getTestDataForMultipleSnapshots();
-    appendData(dataAcrossSnapshots, location);
+    List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(dataAcrossSnapshots, location);
 
     table.refresh();
 
@@ -416,29 +464,10 @@ public final class TestStructuredStreamingRead3 {
   }
 
   /**
-   * get test data - a list of records per snapshot
-   */
-  private static List<List<SimpleRecord>> getTestDataForMultipleSnapshots() {
-    return Lists.newArrayList(
-        Lists.newArrayList(
-            new SimpleRecord(1, "one"),
-            new SimpleRecord(2, "two"),
-            new SimpleRecord(3, "three")),
-        Lists.newArrayList(
-            new SimpleRecord(4, "four"),
-            new SimpleRecord(5, "five")),
-        Lists.newArrayList(
-            new SimpleRecord(6, "six"),
-            new SimpleRecord(7, "seven"))
-    );
-  }
-
-  /**
    * appends each list as a Snapshot on the iceberg table at the given location.
    * accepts a list of lists - each list representing data per snapshot.
    */
-  private static void appendData(List<List<SimpleRecord>> data, File location) {
-    // generate multiple snapshots
+  private static void appendDataAsMultipleSnapshots(List<List<SimpleRecord>> data, File location) {
     for (List<SimpleRecord> l : data) {
       appendData(l, location, "parquet");
     }
@@ -463,40 +492,5 @@ public final class TestStructuredStreamingRead3 {
     return spark.sql("select * from test12")
         .as(Encoders.bean(SimpleRecord.class))
         .collectAsList();
-  }
-
-  /**
-   * gets test data - to be used for multiple write batches
-   * each batch inturn will have multiple snapshots
-   */
-  private static List<List<List<SimpleRecord>>> getTestDataForMultipleWritesWithMultipleSnapshots() {
-    return Lists.newArrayList(
-        Lists.newArrayList(
-            Lists.newArrayList(
-                new SimpleRecord(1, "one"),
-                new SimpleRecord(2, "two"),
-                new SimpleRecord(3, "three")),
-            Lists.newArrayList(
-                new SimpleRecord(4, "four"),
-                new SimpleRecord(5, "five"))),
-        Lists.newArrayList(
-            Lists.newArrayList(
-                new SimpleRecord(6, "six"),
-                new SimpleRecord(7, "seven")),
-            Lists.newArrayList(
-                new SimpleRecord(8, "eight"),
-                new SimpleRecord(9, "nine"))),
-        Lists.newArrayList(
-            Lists.newArrayList(
-                new SimpleRecord(10, "ten"),
-                new SimpleRecord(11, "eleven"),
-                new SimpleRecord(12, "twelve")),
-            Lists.newArrayList(
-                new SimpleRecord(13, "thirteen"),
-                new SimpleRecord(14, "fourteen")),
-            Lists.newArrayList(
-                new SimpleRecord(15, "fifteen"),
-                new SimpleRecord(16, "sixteen")))
-    );
   }
 }
