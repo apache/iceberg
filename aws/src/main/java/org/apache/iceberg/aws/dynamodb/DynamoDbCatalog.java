@@ -534,7 +534,6 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
   }
 
   private void ensureCatalogTableExistsOrCreate() {
-
     if (dynamoDbTableExists(awsProperties.dynamoDbTableName())) {
       return;
     }
@@ -558,6 +557,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
         .billingMode(BillingMode.PAY_PER_REQUEST)
         .build());
 
+    // wait for the dynamo table to complete provisioning, which takes around 10 seconds
     Tasks.foreach(awsProperties.dynamoDbTableName())
         .retry(CATALOG_TABLE_CREATION_WAIT_ATTEMPTS_MAX)
         .throwFailureWhenFinished()
