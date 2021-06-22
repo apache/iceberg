@@ -77,6 +77,18 @@ public class DataFilesTable extends BaseMetadataTable {
     }
 
     @Override
+    public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
+      throw new UnsupportedOperationException(
+          String.format("Cannot incrementally scan table of type %s", MetadataTableType.FILES.name()));
+    }
+
+    @Override
+    public TableScan appendsAfter(long fromSnapshotId) {
+      throw new UnsupportedOperationException(
+          String.format("Cannot incrementally scan table of type %s", MetadataTableType.FILES.name()));
+    }
+
+    @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
       return new FilesTableScan(ops, table, schema, fileSchema, context);
     }

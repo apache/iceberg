@@ -78,6 +78,18 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     }
 
     @Override
+    public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
+      throw new UnsupportedOperationException(
+          String.format("Cannot incrementally scan table of type %s", MetadataTableType.ENTRIES.name()));
+    }
+
+    @Override
+    public TableScan appendsAfter(long fromSnapshotId) {
+      throw new UnsupportedOperationException(
+          String.format("Cannot incrementally scan table of type %s", MetadataTableType.ENTRIES.name()));
+    }
+
+    @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema,
                                        TableScanContext context) {
       return new EntriesTableScan(ops, table, schema, context);

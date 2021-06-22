@@ -36,6 +36,26 @@ abstract class BaseAllMetadataTableScan extends BaseTableScan {
     super(ops, table, schema, context);
   }
 
+  /**
+   * Type of scan being performed, such as {@link MetadataTableType#ALL_DATA_FILES} when scanning
+   * a table's {@link org.apache.iceberg.AllDataFilesTable}.
+   * <p>
+   * Used for logging and error messages.
+   */
+  protected abstract String tableType();
+
+  @Override
+  public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
+    throw new UnsupportedOperationException(
+        String.format("Cannot incrementally scan table of type %s", tableType()));
+  }
+
+  @Override
+  public TableScan appendsAfter(long fromSnapshotId) {
+    throw new UnsupportedOperationException(
+        String.format("Cannot incrementally scan table of type %s", tableType()));
+  }
+
   @Override
   public CloseableIterable<FileScanTask> planFiles() {
     LOG.info("Scanning metadata table {} with filter {}.", table(), filter());

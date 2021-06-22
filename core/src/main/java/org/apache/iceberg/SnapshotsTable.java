@@ -71,7 +71,7 @@ public class SnapshotsTable extends BaseMetadataTable {
 
   private class SnapshotsTableScan extends StaticTableScan {
     SnapshotsTableScan(TableOperations ops, Table table) {
-      super(ops, table, SNAPSHOT_SCHEMA, SnapshotsTable.this::task);
+      super(ops, table, SNAPSHOT_SCHEMA, SnapshotsTable.this.metadataTableType().name(), SnapshotsTable.this::task);
     }
 
     @Override

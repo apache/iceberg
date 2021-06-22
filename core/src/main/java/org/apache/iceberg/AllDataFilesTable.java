@@ -85,6 +85,11 @@ public class AllDataFilesTable extends BaseMetadataTable {
     }
 
     @Override
+    protected String tableType() {
+      return MetadataTableType.ALL_DATA_FILES.name();
+    }
+
+    @Override
     protected TableScan newRefinedScan(TableOperations ops, Table table, Schema schema, TableScanContext context) {
       return new AllDataFilesTableScan(ops, table, schema, fileSchema, context);
     }

@@ -61,6 +61,19 @@ public class TestStaticTable extends HadoopTableTestBase {
   }
 
   @Test
+  public void testCannotDoIncrementalScanOnMetadataTable() {
+    table.newAppend().appendFile(FILE_A).commit();
+
+    for (MetadataTableType type : MetadataTableType.values()) {
+      Table staticTable = getStaticTable(type);
+      AssertHelpers.assertThrows("Static tables do not support incremental scans",
+          UnsupportedOperationException.class,
+          String.format("Cannot incrementally scan table of type %s", type),
+          () -> staticTable.newScan().appendsAfter(1));
+    }
+  }
+
+  @Test
   public void testHasSameProperties() {
     table.newAppend().appendFile(FILE_A).commit();
     table.newAppend().appendFile(FILE_B).commit();
