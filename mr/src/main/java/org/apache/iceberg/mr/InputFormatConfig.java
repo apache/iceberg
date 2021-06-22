@@ -102,7 +102,7 @@ public class InputFormatConfig {
    * For example:
    * <pre>
    *   CREATE TABLE table (id bigint, category string)
-   *   TBLPROPERTIES ('iceberg.partitioning'='bucket(id,16)|category')
+   *   TBLPROPERTIES ('iceberg.partitioning'='bucket(16,id)|category')
    * </pre>
    */
   public static final String PARTITIONING = "iceberg.partitioning";
