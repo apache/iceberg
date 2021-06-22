@@ -74,18 +74,13 @@ public class HistoryTable extends BaseMetadataTable {
 
   private class HistoryScan extends StaticTableScan {
     HistoryScan(TableOperations ops, Table table) {
-      super(ops, table, HISTORY_SCHEMA, HistoryTable.this::task);
+      super(ops, table, HISTORY_SCHEMA, HistoryTable.this.metadataTableType().name(), HistoryTable.this::task);
     }
 
     @Override
     public CloseableIterable<FileScanTask> planFiles() {
       // override planFiles to avoid the check for a current snapshot because this metadata table is for all snapshots
       return CloseableIterable.withNoopClose(HistoryTable.this.task(this));
-    }
-
-    @Override
-    protected String tableType() {
-      return HistoryTable.this.metadataTableType().name();
     }
   }
 

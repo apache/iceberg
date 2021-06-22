@@ -79,13 +79,13 @@ public class DataFilesTable extends BaseMetadataTable {
     @Override
     public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
       throw new UnsupportedOperationException(
-          String.format("Incremental scan is not supported for %s scan of table %s", tableType(), table().name()));
+          String.format("Cannot incrementally scan table of type %s", MetadataTableType.FILES.name()));
     }
 
     @Override
     public TableScan appendsAfter(long fromSnapshotId) {
       throw new UnsupportedOperationException(
-              String.format("Incremental scan is not supported for %s scan of table %s", tableType(), table().name()));
+          String.format("Cannot incrementally scan table of type %s", MetadataTableType.FILES.name()));
     }
 
     @Override
@@ -115,10 +115,6 @@ public class DataFilesTable extends BaseMetadataTable {
       // all cases.
       return CloseableIterable.transform(manifests, manifest ->
           new ManifestReadTask(ops.io(), manifest, fileSchema, schemaString, specString, residuals));
-    }
-
-    private String tableType() {
-      return MetadataTableType.FILES.name();
     }
   }
 

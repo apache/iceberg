@@ -71,18 +71,13 @@ public class SnapshotsTable extends BaseMetadataTable {
 
   private class SnapshotsTableScan extends StaticTableScan {
     SnapshotsTableScan(TableOperations ops, Table table) {
-      super(ops, table, SNAPSHOT_SCHEMA, SnapshotsTable.this::task);
+      super(ops, table, SNAPSHOT_SCHEMA, SnapshotsTable.this.metadataTableType().name(), SnapshotsTable.this::task);
     }
 
     @Override
     public CloseableIterable<FileScanTask> planFiles() {
       // override planFiles to avoid the check for a current snapshot because this metadata table is for all snapshots
       return CloseableIterable.withNoopClose(SnapshotsTable.this.task(this));
-    }
-
-    @Override
-    protected String tableType() {
-      return SnapshotsTable.this.metadataTableType().name();
     }
   }
 
