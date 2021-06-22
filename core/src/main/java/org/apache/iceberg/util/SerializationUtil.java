@@ -27,6 +27,8 @@ import java.io.ObjectOutputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.function.Function;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 
@@ -42,8 +44,20 @@ public class SerializationUtil {
    * @return serialized bytes
    */
   public static byte[] serializeToBytes(Object obj) {
+    return serializeToBytes(obj, conf -> new SerializableConfiguration(conf)::get);
+  }
+
+  /**
+   * Serialize an object to bytes. If the object implements {@link HadoopConfigurable}, the confSerializer will be used
+   * to serialize Hadoop configuration used by the object.
+   * @param obj object to serialize
+   * @param confSerializer serializer for the Hadoop configuration
+   * @return serialized bytes
+   */
+  public static byte[] serializeToBytes(Object obj,
+                                        Function<Configuration, SerializableSupplier<Configuration>> confSerializer) {
     if (obj instanceof HadoopConfigurable) {
-      ((HadoopConfigurable) obj).serializeConfWith(conf -> new SerializableConfiguration(conf)::get);
+      ((HadoopConfigurable) obj).serializeConfWith(confSerializer);
     }
 
     try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
