@@ -96,6 +96,17 @@ public class InputFormatConfig {
 
   public static final String CATALOG_CONFIG_PREFIX = "iceberg.catalog.";
 
+  /**
+   * Property used to input Iceberg partitioning strategy (pipe delimited transforms) through table property.
+   * <p>
+   * For example:
+   * <pre>
+   *   CREATE TABLE table (id bigint, category string)
+   *   TBLPROPERTIES ('iceberg.partitioning'='bucket(id,16)|category')
+   * </pre>
+   */
+  public static final String PARTITIONING = "iceberg.partitioning";
+
   public enum InMemoryDataModel {
     PIG,
     HIVE,
