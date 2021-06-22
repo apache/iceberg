@@ -24,11 +24,12 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -38,6 +39,7 @@ import org.apache.iceberg.actions.ActionsProvider;
 import org.apache.iceberg.actions.BinPackStrategy;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFiles.Result;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
@@ -50,10 +52,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.actions.BaseRewriteDataFilesSparkAction.FileGroup;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.AnalysisException;
+import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.junit.Assert;
 import org.junit.Before;
@@ -66,8 +70,10 @@ import org.mockito.Mockito;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.spy;
 
 public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
 
@@ -94,195 +100,74 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
 
   private RewriteDataFiles basicRewrite(Table table) {
     // Always compact regardless of input files
+    table.refresh();
     return actions().rewriteDataFiles(table).option(BinPackStrategy.MIN_INPUT_FILES, "1");
   }
 
   @Test
-  public void testRewriteDataFilesEmptyTable() {
+  public void testEmptyTable() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
 
     Assert.assertNull("Table must be empty", table.currentSnapshot());
 
-    basicRewrite(table);
+    basicRewrite(table).execute();
 
     Assert.assertNull("Table must stay empty", table.currentSnapshot());
   }
 
   @Test
-  public void testRewriteDataFilesUnpartitionedTable() {
-    PartitionSpec spec = PartitionSpec.unpartitioned();
-    Map<String, String> options = Maps.newHashMap();
-    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
-
-    List<ThreeColumnRecord> records1 = Lists.newArrayList(
-        new ThreeColumnRecord(1, null, "AAAA"),
-        new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB")
-    );
-    writeRecords(records1);
-
-    List<ThreeColumnRecord> records2 = Lists.newArrayList(
-        new ThreeColumnRecord(2, "CCCCCCCCCC", "CCCC"),
-        new ThreeColumnRecord(2, "DDDDDDDDDD", "DDDD")
-    );
-    writeRecords(records2);
-
-    table.refresh();
-
-    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    Assert.assertEquals("Should have 4 data files before rewrite", 4, dataFiles.size());
+  public void testBinPackUnpartitionedTable() {
+    Table table = createTable(4);
+    shouldHaveFiles(table, 4);
+    List<Object[]> expectedRecords = currentData();
 
     Result result = basicRewrite(table).execute();
     Assert.assertEquals("Action should rewrite 4 data files", 4, result.rewrittenDataFilesCount());
     Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFilesCount());
 
-    table.refresh();
+    shouldHaveFiles(table, 1);
+    List<Object[]> actual = currentData();
 
-    CloseableIterable<FileScanTask> tasks1 = table.newScan().planFiles();
-    List<DataFile> dataFiles1 = Lists.newArrayList(CloseableIterable.transform(tasks1, FileScanTask::file));
-    Assert.assertEquals("Should have 1 data files before rewrite", 1, dataFiles1.size());
-
-    List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
-    expectedRecords.addAll(records1);
-    expectedRecords.addAll(records2);
-
-    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords = resultDF.sort("c1", "c2")
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
-
-    Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Rows must match", expectedRecords, actual);
   }
 
   @Test
-  public void testRewriteDataFilesPartitionedTable() {
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
-        .identity("c1")
-        .truncate("c2", 2)
-        .build();
-    Map<String, String> options = Maps.newHashMap();
-    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+  public void testBinPackPartitionedTable() {
+    Table table = createTablePartitioned(4, 2);
+    shouldHaveFiles(table, 8);
+    List<Object[]> expectedRecords = currentData();
 
-    List<ThreeColumnRecord> records1 = Lists.newArrayList(
-        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"),
-        new ThreeColumnRecord(1, "AAAAAAAAAA", "CCCC")
-    );
-    writeRecords(records1);
-
-    List<ThreeColumnRecord> records2 = Lists.newArrayList(
-        new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"),
-        new ThreeColumnRecord(1, "BBBBBBBBBB", "DDDD")
-    );
-    writeRecords(records2);
-
-    List<ThreeColumnRecord> records3 = Lists.newArrayList(
-        new ThreeColumnRecord(2, "AAAAAAAAAA", "EEEE"),
-        new ThreeColumnRecord(2, "AAAAAAAAAA", "GGGG")
-    );
-    writeRecords(records3);
-
-    List<ThreeColumnRecord> records4 = Lists.newArrayList(
-        new ThreeColumnRecord(2, "BBBBBBBBBB", "FFFF"),
-        new ThreeColumnRecord(2, "BBBBBBBBBB", "HHHH")
-    );
-    writeRecords(records4);
-
-    table.refresh();
-
-    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    Assert.assertEquals("Should have 8 data files before rewrite", 8, dataFiles.size());
 
     Result result = basicRewrite(table).execute();
     Assert.assertEquals("Action should rewrite 8 data files", 8, result.rewrittenDataFilesCount());
     Assert.assertEquals("Action should add 4 data file", 4, result.addedDataFilesCount());
 
-    table.refresh();
+    shouldHaveFiles(table, 4);
+    List<Object[]> actualRecords = currentData();
 
-    CloseableIterable<FileScanTask> tasks1 = table.newScan().planFiles();
-    List<DataFile> dataFiles1 = Lists.newArrayList(CloseableIterable.transform(tasks1, FileScanTask::file));
-    Assert.assertEquals("Should have 4 data files before rewrite", 4, dataFiles1.size());
-
-    List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
-    expectedRecords.addAll(records1);
-    expectedRecords.addAll(records2);
-    expectedRecords.addAll(records3);
-    expectedRecords.addAll(records4);
-
-    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords = resultDF.sort("c1", "c2", "c3")
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
-
-    Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
   }
 
   @Test
-  public void testRewriteDataFilesWithFilter() {
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
-        .identity("c1")
-        .truncate("c2", 2)
-        .build();
-    Map<String, String> options = Maps.newHashMap();
-    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
-
-    List<ThreeColumnRecord> records1 = Lists.newArrayList(
-        new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"),
-        new ThreeColumnRecord(1, "AAAAAAAAAA", "CCCC")
-    );
-    writeRecords(records1);
-
-    List<ThreeColumnRecord> records2 = Lists.newArrayList(
-        new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"),
-        new ThreeColumnRecord(1, "BBBBBBBBBB", "DDDD")
-    );
-    writeRecords(records2);
-
-    List<ThreeColumnRecord> records3 = Lists.newArrayList(
-        new ThreeColumnRecord(2, "AAAAAAAAAA", "EEEE"),
-        new ThreeColumnRecord(2, "AAAAAAAAAA", "GGGG")
-    );
-    writeRecords(records3);
-
-    List<ThreeColumnRecord> records4 = Lists.newArrayList(
-        new ThreeColumnRecord(2, "BBBBBBBBBB", "FFFF"),
-        new ThreeColumnRecord(2, "BBBBBBBBBB", "HHHH")
-    );
-    writeRecords(records4);
-
-    table.refresh();
-
-    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    Assert.assertEquals("Should have 8 data files before rewrite", 8, dataFiles.size());
+  public void testBinPackWithFilter() {
+    Table table = createTablePartitioned(4, 2);
+    shouldHaveFiles(table, 8);
+    List<Object[]> expectedRecords = currentData();
 
     Result result = basicRewrite(table)
         .filter(Expressions.equal("c1", 1))
-        .filter(Expressions.startsWith("c2", "AA"))
+        .filter(Expressions.startsWith("c2", "foo"))
         .execute();
+
     Assert.assertEquals("Action should rewrite 2 data files", 2, result.rewrittenDataFilesCount());
     Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFilesCount());
 
-    table.refresh();
+    shouldHaveFiles(table, 7);
 
-    CloseableIterable<FileScanTask> tasks1 = table.newScan().planFiles();
-    List<DataFile> dataFiles1 = Lists.newArrayList(CloseableIterable.transform(tasks1, FileScanTask::file));
-    Assert.assertEquals("Should have 7 data files before rewrite", 7, dataFiles1.size());
-
-    List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
-    expectedRecords.addAll(records1);
-    expectedRecords.addAll(records2);
-    expectedRecords.addAll(records3);
-    expectedRecords.addAll(records4);
-
-    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords = resultDF.sort("c1", "c2", "c3")
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
-
-    Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Rows must match", expectedRecords, actualRecords);
   }
 
   @Test
@@ -300,6 +185,8 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class);
     writeDF(df);
 
+    List<Object[]> expectedRecords = currentData();
+
     table.refresh();
 
     CloseableIterable<FileScanTask> tasks = table.newScan()
@@ -309,8 +196,8 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     for (FileScanTask task : tasks) {
       Assert.assertEquals("Residuals must be ignored", Expressions.alwaysTrue(), task.residual());
     }
-    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    Assert.assertEquals("Should have 2 data files before rewrite", 2, dataFiles.size());
+
+    shouldHaveFiles(table, 2);
 
     Result result = basicRewrite(table)
         .filter(Expressions.equal("c3", "0"))
@@ -318,62 +205,61 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     Assert.assertEquals("Action should rewrite 2 data files", 2, result.rewrittenDataFilesCount());
     Assert.assertEquals("Action should add 1 data file", 1, result.addedDataFilesCount());
 
-    table.refresh();
+    List<Object[]> actualRecords = currentData();
 
-    Dataset<Row> resultDF = spark.read().format("iceberg").load(tableLocation);
-    List<ThreeColumnRecord> actualRecords = resultDF.sort("c1")
-        .as(Encoders.bean(ThreeColumnRecord.class))
-        .collectAsList();
-
-    Assert.assertEquals("Rows must match", records, actualRecords);
+    assertEquals("Rows must match", expectedRecords, actualRecords);
   }
 
   @Test
-  public void testRewriteDataFilesForLargeFile() throws AnalysisException {
-    PartitionSpec spec = PartitionSpec.unpartitioned();
-    Map<String, String> options = Maps.newHashMap();
-    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
-    Assert.assertNull("Table must be empty", table.currentSnapshot());
+  public void testBinPackSplitLargeFile() {
+    Table table = createTable(1);
+    shouldHaveFiles(table, 1);
 
-    List<ThreeColumnRecord> records1 = Lists.newArrayList();
+    List<Object[]> expectedRecords = currentData();
+    long targetSize = testDataSize(table) / 2;
 
-    IntStream.range(0, 2000).forEach(i -> records1.add(new ThreeColumnRecord(i, "foo" + i, "bar" + i)));
-    Dataset<Row> df = spark.createDataFrame(records1, ThreeColumnRecord.class).repartition(1);
-    writeDF(df);
-
-    List<ThreeColumnRecord> records2 = Lists.newArrayList(
-        new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB"),
-        new ThreeColumnRecord(1, "DDDDDDDDDD", "DDDD")
-    );
-    writeRecords(records2);
-
-    table.refresh();
-
-    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
-    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
-    DataFile maxSizeFile = Collections.max(dataFiles, Comparator.comparingLong(DataFile::fileSizeInBytes));
-    Assert.assertEquals("Should have 3 files before rewrite", 3, dataFiles.size());
-
-    spark.read().format("iceberg").load(tableLocation).createTempView("origin");
-    long originalNumRecords = spark.read().format("iceberg").load(tableLocation).count();
-    List<Object[]> originalRecords = sql("SELECT * from origin sort by c2");
-
-    long targetSizeInBytes = maxSizeFile.fileSizeInBytes() - 10;
     Result result = basicRewrite(table)
-        .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(targetSizeInBytes))
-        .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, Long.toString(targetSizeInBytes - 1))
-        .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Long.toString(targetSizeInBytes + 1))
+        .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(targetSize))
+        .execute();
+
+    Assert.assertEquals("Action should delete 1 data files", 1, result.rewrittenDataFilesCount());
+    Assert.assertEquals("Action should add 2 data files", 2, result.addedDataFilesCount());
+
+    shouldHaveFiles(table, 2);
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+  }
+
+  @Test
+  public void testBinPackCombineMixedFiles() {
+    // One file too big
+    Table table = createTable(1);
+    shouldHaveFiles(table, 1);
+
+    // Two files too small
+    writeRecords(1, 100);
+    writeRecords(1, 100);
+    shouldHaveFiles(table, 3);
+
+    List<Object[]> expectedRecords = currentData();
+
+    int targetSize = averageFileSize(table);
+
+    Result result = basicRewrite(table)
+        .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(targetSize))
+        .option(BinPackStrategy.MAX_FILE_SIZE_BYTES, Integer.toString(targetSize + 100))
+        .option(BinPackStrategy.MIN_FILE_SIZE_BYTES, Integer.toString(targetSize - 100))
         .execute();
 
     Assert.assertEquals("Action should delete 3 data files", 3, result.rewrittenDataFilesCount());
-    Assert.assertEquals("Action should add 2 data files", 2, result.addedDataFilesCount());
+    // Should Split the big files into 3 pieces, one of which should be combined with the two smaller files
+    Assert.assertEquals("Action should add 3 data files", 3, result.addedDataFilesCount());
 
-    spark.read().format("iceberg").load(tableLocation).createTempView("postRewrite");
-    long postRewriteNumRecords = spark.read().format("iceberg").load(tableLocation).count();
-    List<Object[]> rewrittenRecords = sql("SELECT * from postRewrite sort by c2");
+    shouldHaveFiles(table, 3);
 
-    Assert.assertEquals(originalNumRecords, postRewriteNumRecords);
-    assertEquals("Rows should be unchanged", originalRecords, rewrittenRecords);
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Rows must match", expectedRecords, actualRecords);
   }
 
   @Test
@@ -655,7 +541,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
 
     RewriteDataFiles.Result result = spyRewrite.execute();
 
-    // Commit 1: 4, Commit 2 failed : 4, Commit 3: 2
+    // Commit 1: 4/4 + Commit 2 failed 0/4 + Commit 3: 2/2 == 6 out of 10 total groups comitted
     Assert.assertEquals("Should have 6 fileGroups", 6, result.resultMap().keySet().size());
 
     table.refresh();
@@ -693,17 +579,54 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
             .execute());
   }
 
-  private List<Object[]> currentData() {
-    return rowsToJava(spark.read().format("iceberg").load(tableLocation).sort("c1").collectAsList());
+  @Test
+  public void testCommitStateUnknownException() {
+    Table table = createTable(20);
+    shouldHaveFiles(table, 20);
+
+    List<Object[]> originalData = currentData();
+
+    BaseRewriteDataFilesSparkAction action = (BaseRewriteDataFilesSparkAction) basicRewrite(table);
+    BaseRewriteDataFilesSparkAction spyAction = spy(action);
+
+    doAnswer(invocationOnMock -> {
+      invocationOnMock.callRealMethod();
+      throw new CommitStateUnknownException(new RuntimeException("Unknown State"));
+    }).when(spyAction).commitFileGroups(any());
+
+    AssertHelpers.assertThrows("Should propagate CommitStateUnknown Exception",
+        CommitStateUnknownException.class, () -> spyAction.execute());
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 2); // Commit actually Succeeded
   }
 
-  private void shouldHaveSnapshots(Table table, int expectedSnapshots) {
+  protected List<Object[]> currentData() {
+    return rowsToJava(spark.read().format("iceberg").load(tableLocation)
+        .sort("c1", "c2", "c3")
+        .collectAsList());
+  }
+
+  protected long testDataSize(Table table) {
+    return Streams.stream(table.newScan().planFiles()).mapToLong(FileScanTask::length).sum();
+  }
+
+  protected void shouldHaveFiles(Table table, int numExpected) {
+    table.refresh();
+    int numFiles = Iterables.size(table.newScan().planFiles());
+    Assert.assertEquals("Did not have the expected number of files", numExpected, numFiles);
+  }
+
+  protected void shouldHaveSnapshots(Table table, int expectedSnapshots) {
+    table.refresh();
     int actualSnapshots = Iterables.size(table.snapshots());
     Assert.assertEquals("Table did not have the expected number of snapshots",
         expectedSnapshots, actualSnapshots);
   }
 
-  private void shouldHaveNoOrphans(Table table) {
+  protected void shouldHaveNoOrphans(Table table) {
     Assert.assertEquals("Should not have found any orphan files", ImmutableList.of(),
         actions().removeOrphanFiles(table)
             .olderThan(System.currentTimeMillis())
@@ -711,9 +634,56 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
             .orphanFileLocations());
   }
 
-  private void shouldHaveACleanCache(Table table) {
+  protected void shouldHaveACleanCache(Table table) {
     Assert.assertEquals("Should not have any entries in cache", ImmutableSet.of(),
         cacheContents(table));
+  }
+
+  protected <T> void shouldHaveLastCommitSorted(Table table, String column) {
+    List<Pair<Pair<T, T>, Pair<T, T>>>
+        overlappingFiles = getOverlappingFiles(table, column);
+
+    Assert.assertEquals("Found overlapping files", Collections.emptyList(), overlappingFiles);
+  }
+
+  protected <T> void shouldHaveLastCommitUnsorted(Table table, String column) {
+    List<Pair<Pair<T, T>, Pair<T, T>>>
+        overlappingFiles = getOverlappingFiles(table, column);
+
+    Assert.assertNotEquals("Found overlapping files", Collections.emptyList(), overlappingFiles);
+  }
+
+  private <T> List<Pair<Pair<T, T>, Pair<T, T>>> getOverlappingFiles(Table table, String column) {
+    table.refresh();
+    NestedField field = table.schema().caseInsensitiveFindField(column);
+    int columnId = field.fieldId();
+    Class<T> javaClass = (Class<T>) field.type().typeId().javaClass();
+    List<Pair<T, T>> columnBounds =
+        Streams.stream(table.currentSnapshot().addedFiles())
+            .map(file -> Pair.of(
+                javaClass.cast(Conversions.fromByteBuffer(field.type(), file.lowerBounds().get(columnId))),
+                javaClass.cast(Conversions.fromByteBuffer(field.type(), file.upperBounds().get(columnId)))))
+            .collect(Collectors.toList());
+
+    Comparator<T> comparator = Comparators.forType(field.type().asPrimitiveType());
+
+    List<Pair<Pair<T, T>, Pair<T, T>>> overlappingFiles = columnBounds.stream()
+        .flatMap(left -> columnBounds.stream().map(right -> Pair.of(left, right)))
+        .filter(filePair -> {
+          Pair<T, T> left = filePair.first();
+          T leftLower = left.first();
+          T leftUpper = left.second();
+          Pair<T, T> right = filePair.second();
+          T rightLower = right.first();
+          T rightUpper = right.second();
+          boolean boundsOverlap =
+              (comparator.compare(leftUpper, rightLower) > 0 && comparator.compare(leftUpper, rightUpper) < 0) ||
+                  (comparator.compare(leftLower, rightLower) > 0 && comparator.compare(leftLower, rightUpper) < 0);
+
+          return (left != right) && boundsOverlap;
+        })
+        .collect(Collectors.toList());
+    return overlappingFiles;
   }
 
   /**
@@ -721,36 +691,56 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
    * @param files number of files to create
    * @return size of a file
    */
-  private Table createTable(int files) {
+  protected Table createTable(int files) {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+    table.updateProperties().set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, "1024").commit();
     Assert.assertNull("Table must be empty", table.currentSnapshot());
 
-    List<ThreeColumnRecord> records1 = Lists.newArrayList();
-
-    IntStream.range(0, 2000).forEach(i -> records1.add(new ThreeColumnRecord(i, "foo" + i, "bar" + i)));
-    Dataset<Row> df = spark.createDataFrame(records1, ThreeColumnRecord.class).repartition(files);
-    writeDF(df);
-    table.refresh();
+    writeRecords(files, 2000);
 
     return table;
   }
 
-  private int averageFileSize(Table table) {
-    return (int) Streams.stream(table.currentSnapshot().addedFiles().iterator())
-        .mapToLong(DataFile::fileSizeInBytes)
-        .average()
-        .getAsDouble();
+  protected Table createTablePartitioned(int partitions, int files) {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
+        .identity("c1")
+        .truncate("c2", 2)
+        .build();
+    Map<String, String> options = Maps.newHashMap();
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+    Assert.assertNull("Table must be empty", table.currentSnapshot());
+
+    writeRecords(files, 2000, partitions);
+    return table;
   }
 
-  private void writeRecords(List<ThreeColumnRecord> records) {
-    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class);
+  protected int averageFileSize(Table table) {
+    table.refresh();
+    return (int) Streams.stream(table.newScan().planFiles()).mapToLong(FileScanTask::length).average().getAsDouble();
+  }
+
+  private void writeRecords(int files, int numRecords) {
+    writeRecords(files, numRecords, 0);
+  }
+
+  private void writeRecords(int files, int numRecords, int partitions) {
+    List<ThreeColumnRecord> records = Lists.newArrayList();
+    List<Integer> data = IntStream.range(0, numRecords).boxed().collect(Collectors.toList());
+    Collections.shuffle(data, new Random(42));
+    if (partitions > 0) {
+      data.forEach(i -> records.add(new ThreeColumnRecord(i % partitions, "foo" + i, "bar" + i)));
+    } else {
+      data.forEach(i -> records.add(new ThreeColumnRecord(i, "foo" + i, "bar" + i)));
+    }
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).repartition(files);
     writeDF(df);
   }
 
   private void writeDF(Dataset<Row> df) {
     df.select("c1", "c2", "c3")
+        .sortWithinPartitions("c1", "c2")
         .write()
         .format("iceberg")
         .mode("append")

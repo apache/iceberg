@@ -80,7 +80,6 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   private long maxFileSize;
   private long targetFileSize;
   private long maxGroupSize;
-  private long specId;
 
   @Override
   public String name() {
@@ -242,6 +241,55 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   }
 
   /**
+   * Determine how many output files to create when rewriting. We use this to determine the split-size
+   * we want to use when actually writing files to avoid the following situation.
+   * <p>
+   * If we are writing 10.1 G of data with a target file size of 1G we would end up with
+   * 11 files, one of which would only have 0.1g. This would most likely be less preferable to
+   * 10 files each of which was 1.01g. So here we decide whether to round up or round down
+   * based on what the estimated average file size will be if we ignore the remainder (0.1g). If
+   * the new file size is less than 10% greater than the target file size then we will round down
+   * when determining the number of output files.
+   * @param totalSizeInBytes total data size for a file group
+   * @return the number of files this strategy should create
+   */
+  protected long numOutputFiles(long totalSizeInBytes) {
+    if (totalSizeInBytes < targetFileSize) {
+      return 1;
+    }
+
+    long fileCountWithRemainder = LongMath.divide(totalSizeInBytes, targetFileSize, RoundingMode.CEILING);
+    if (LongMath.mod(totalSizeInBytes, targetFileSize) > minFileSize) {
+      // Our Remainder file is of valid size for this compaction so keep it
+      return fileCountWithRemainder;
+    }
+
+    long fileCountWithoutRemainder = LongMath.divide(totalSizeInBytes, targetFileSize, RoundingMode.FLOOR);
+    long avgFileSizeWithoutRemainder = totalSizeInBytes / fileCountWithoutRemainder;
+    if (avgFileSizeWithoutRemainder < 1.1 * targetFileSize) {
+      // Round down and distribute remainder amongst other files
+      return fileCountWithoutRemainder;
+    } else {
+      // Keep the remainder file
+      return fileCountWithRemainder;
+    }
+  }
+
+  /**
+   * Returns the smaller of our max write file threshold, and our estimated split size based on
+   * the number of output files we want to generate.
+   */
+  protected long splitSize(long totalSizeInBytes) {
+    long estimatedSplitSize = totalSizeInBytes / numOutputFiles(totalSizeInBytes);
+    return Math.min(estimatedSplitSize, writeMaxFileSize());
+  }
+
+  protected static long inputFileSize(List<FileScanTask> fileToRewrite) {
+    return fileToRewrite.stream().mapToLong(FileScanTask::length).sum();
+  }
+
+
+  /**
    * Ideally every Spark Task that is generated will be less than or equal to our target size but
    * in practice this is not the case. When we actually write our files, they may exceed the target
    * size and end up being split. This would end up producing 2 files out of one task, one target sized
@@ -253,10 +301,5 @@ public abstract class BinPackStrategy implements RewriteStrategy {
    */
   protected long writeMaxFileSize() {
     return (long) (this.targetFileSize + ((this.maxFileSize - this.targetFileSize) * 0.5));
-
-  }
-
-  protected long specId() {
-    return this.specId;
   }
 }
