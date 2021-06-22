@@ -115,12 +115,15 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
         "Missing database in namespace: %s", namespace);
     String database = namespace.level(0);
 
+    String filter = String.format("%s%s = \"%s\"",
+        hive_metastoreConstants.HIVE_FILTER_FIELD_PARAMS,
+        BaseMetastoreTableOperations.TABLE_TYPE_PROP,
+        BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
+
     try {
-      List<String> tableNames = clients.run(client -> client.getAllTables(database));
+      List<String> tableNames = clients.run(client -> client.listTableNamesByFilter(database, filter, -1));
       List<Table> tableObjects = clients.run(client -> client.getTableObjectsByName(database, tableNames));
       List<TableIdentifier> tableIdentifiers = tableObjects.stream()
-          .filter(table -> table.getParameters() != null && BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE
-                  .equalsIgnoreCase(table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP)))
           .map(table -> TableIdentifier.of(namespace, table.getTableName()))
           .collect(Collectors.toList());
 
