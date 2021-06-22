@@ -71,8 +71,8 @@ statement
     | ALTER TABLE multipartIdentifier DROP PARTITION FIELD transform                        #dropPartitionField
     | ALTER TABLE multipartIdentifier REPLACE PARTITION FIELD transform WITH transform (AS name=identifier)? #replacePartitionField
     | ALTER TABLE multipartIdentifier WRITE writeSpec                                       #setWriteDistributionAndOrdering
-    | ALTER TABLE table=multipartIdentifier SET IDENTIFIER_KW FIELDS '(' fields+=multipartIdentifier (',' fields+=multipartIdentifier)* ')' #setIdentifierFields
-    | ALTER TABLE table=multipartIdentifier DROP IDENTIFIER_KW FIELDS '(' fields+=multipartIdentifier (',' fields+=multipartIdentifier)* ')' #dropIdentifierFields
+    | ALTER TABLE multipartIdentifier SET IDENTIFIER_KW FIELDS fieldList                    #setIdentifierFields
+    | ALTER TABLE multipartIdentifier DROP IDENTIFIER_KW FIELDS fieldList                   #dropIdentifierFields
     ;
 
 writeSpec
@@ -157,6 +157,10 @@ identifier
 
 quotedIdentifier
     : BACKQUOTED_IDENTIFIER
+    ;
+
+fieldList
+    : fields+=multipartIdentifier (',' fields+=multipartIdentifier)*
     ;
 
 nonReserved

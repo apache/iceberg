@@ -102,8 +102,8 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
    */
   override def visitSetIdentifierFields(ctx: SetIdentifierFieldsContext): SetIdentifierFields = withOrigin(ctx) {
     SetIdentifierFields(
-      typedVisit[Seq[String]](ctx.table),
-      ctx.fields.asScala.map(_.getText))
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.fieldList.fields.asScala.map(_.getText))
   }
 
   /**
@@ -111,8 +111,8 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
    */
   override def visitDropIdentifierFields(ctx: DropIdentifierFieldsContext): DropIdentifierFields = withOrigin(ctx) {
     DropIdentifierFields(
-      typedVisit[Seq[String]](ctx.table),
-      ctx.fields.asScala.map(_.getText))
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.fieldList.fields.asScala.map(_.getText))
   }
 
   /**

@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions
 import org.apache.iceberg.relocated.com.google.common.collect.Sets
 import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.catalyst.InternalRow
@@ -37,8 +38,17 @@ case class DropIdentifierFieldsExec(
   override protected def run(): Seq[InternalRow] = {
     catalog.loadTable(ident) match {
       case iceberg: SparkTable =>
-        val identifierFieldNames = iceberg.table.schema().identifierFieldNames()
-        fields.map(f => identifierFieldNames.remove(f))
+        val schema = iceberg.table.schema
+        val identifierFieldNames = Sets.newHashSet(schema.identifierFieldNames)
+
+        for (name <- fields) {
+          Preconditions.checkArgument(schema.findField(name) != null,
+            "Cannot complete drop identifier fields operation: field %s not found", name)
+          Preconditions.checkArgument(identifierFieldNames.contains(name),
+            "Cannot complete drop identifier fields operation: %s is not an identifier field", name)
+          identifierFieldNames.remove(name)
+        }
+
         iceberg.table.updateSchema()
           .setIdentifierFields(identifierFieldNames)
           .commit();
