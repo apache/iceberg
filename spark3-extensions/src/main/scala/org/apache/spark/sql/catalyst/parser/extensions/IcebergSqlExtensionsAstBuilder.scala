@@ -37,11 +37,13 @@ import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParse
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.CallArgument
 import org.apache.spark.sql.catalyst.plans.logical.CallStatement
+import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.NamedArgument
 import org.apache.spark.sql.catalyst.plans.logical.PositionalArgument
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
+import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
 import org.apache.spark.sql.catalyst.trees.CurrentOrigin
 import org.apache.spark.sql.catalyst.trees.Origin
@@ -85,7 +87,7 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
 
 
   /**
-   * Create an CHANGE PARTITION FIELD logical command.
+   * Create an REPLACE PARTITION FIELD logical command.
    */
   override def visitReplacePartitionField(ctx: ReplacePartitionFieldContext): ReplacePartitionField = withOrigin(ctx) {
     ReplacePartitionField(
@@ -93,6 +95,24 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       typedVisit[Transform](ctx.transform(0)),
       typedVisit[Transform](ctx.transform(1)),
       Option(ctx.name).map(_.getText))
+  }
+
+  /**
+   * Create an SET IDENTIFIER FIELDS logical command.
+   */
+  override def visitSetIdentifierFields(ctx: SetIdentifierFieldsContext): SetIdentifierFields = withOrigin(ctx) {
+    SetIdentifierFields(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.fieldList.fields.asScala.map(_.getText))
+  }
+
+  /**
+   * Create an DROP IDENTIFIER FIELDS logical command.
+   */
+  override def visitDropIdentifierFields(ctx: DropIdentifierFieldsContext): DropIdentifierFields = withOrigin(ctx) {
+    DropIdentifierFields(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      ctx.fieldList.fields.asScala.map(_.getText))
   }
 
   /**

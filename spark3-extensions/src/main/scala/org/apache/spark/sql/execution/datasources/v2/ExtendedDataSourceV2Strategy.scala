@@ -33,6 +33,7 @@ import org.apache.spark.sql.catalyst.expressions.NamedExpression
 import org.apache.spark.sql.catalyst.planning.PhysicalOperation
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.Call
+import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
 import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilterWithCardinalityCheck
@@ -40,6 +41,7 @@ import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.MergeInto
 import org.apache.spark.sql.catalyst.plans.logical.ReplaceData
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
+import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
@@ -65,6 +67,12 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
 
     case ReplacePartitionField(IcebergCatalogAndIdentifier(catalog, ident), transformFrom, transformTo, name) =>
       ReplacePartitionFieldExec(catalog, ident, transformFrom, transformTo, name) :: Nil
+
+    case SetIdentifierFields(IcebergCatalogAndIdentifier(catalog, ident), fields) =>
+      SetIdentifierFieldsExec(catalog, ident, fields) :: Nil
+
+    case DropIdentifierFields(IcebergCatalogAndIdentifier(catalog, ident), fields) =>
+      DropIdentifierFieldsExec(catalog, ident, fields) :: Nil
 
     case SetWriteDistributionAndOrdering(
         IcebergCatalogAndIdentifier(catalog, ident), distributionMode, ordering) =>
