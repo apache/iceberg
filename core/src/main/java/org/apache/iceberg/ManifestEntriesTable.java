@@ -80,13 +80,13 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     @Override
     public TableScan appendsBetween(long fromSnapshotId, long toSnapshotId) {
       throw new UnsupportedOperationException(
-          String.format("Cannot incrementally scan table of type %s", tableType()));
+          String.format("Cannot incrementally scan table of type %s", MetadataTableType.ENTRIES.name()));
     }
 
     @Override
     public TableScan appendsAfter(long fromSnapshotId) {
       throw new UnsupportedOperationException(
-          String.format("Cannot incrementally scan table of type %s", tableType()));
+          String.format("Cannot incrementally scan table of type %s", MetadataTableType.ENTRIES.name()));
     }
 
     @Override
@@ -117,10 +117,6 @@ public class ManifestEntriesTable extends BaseMetadataTable {
       return CloseableIterable.transform(manifests, manifest ->
           new ManifestReadTask(ops.io(), manifest, fileSchema, schemaString, specString, residuals,
               ops.current().specsById()));
-    }
-
-    private String tableType() {
-      return MetadataTableType.ENTRIES.name();
     }
   }
 
