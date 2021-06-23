@@ -34,7 +34,7 @@ public interface ParquetValueWriter<T> {
   /**
    * Returns a stream of {@link FieldMetrics} that this ParquetValueWriter keeps track of.
    */
-  default Stream<FieldMetrics> metrics() {
+  default Stream<FieldMetrics<?>> metrics() {
     return Stream.empty();
   }
 }

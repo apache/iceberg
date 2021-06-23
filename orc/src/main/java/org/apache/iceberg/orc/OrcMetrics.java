@@ -96,7 +96,7 @@ public class OrcMetrics {
     }
   }
 
-  static Metrics fromWriter(Writer writer, Stream<FieldMetrics> fieldMetricsStream, MetricsConfig metricsConfig) {
+  static Metrics fromWriter(Writer writer, Stream<FieldMetrics<?>> fieldMetricsStream, MetricsConfig metricsConfig) {
     try {
       return buildOrcMetrics(writer.getNumberOfRows(), writer.getSchema(), writer.getStatistics(),
           fieldMetricsStream, metricsConfig, null);
@@ -107,7 +107,7 @@ public class OrcMetrics {
 
   private static Metrics buildOrcMetrics(final long numOfRows, final TypeDescription orcSchema,
                                          final ColumnStatistics[] colStats,
-                                         final Stream<FieldMetrics> fieldMetricsStream,
+                                         final Stream<FieldMetrics<?>> fieldMetricsStream,
                                          final MetricsConfig metricsConfig,
                                          final NameMapping mapping) {
     final TypeDescription orcSchemaWithIds = (!ORCSchemaUtil.hasIds(orcSchema) && mapping != null) ?
@@ -133,7 +133,7 @@ public class OrcMetrics {
     Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
     Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
 
-    Map<Integer, FieldMetrics> fieldMetricsMap = Optional.ofNullable(fieldMetricsStream)
+    Map<Integer, FieldMetrics<?>> fieldMetricsMap = Optional.ofNullable(fieldMetricsStream)
         .map(stream -> stream.collect(Collectors.toMap(FieldMetrics::id, Function.identity())))
         .orElseGet(HashMap::new);
 
@@ -188,7 +188,7 @@ public class OrcMetrics {
   }
 
   private static Optional<ByteBuffer> fromOrcMin(Type type, ColumnStatistics columnStats,
-                                                 MetricsMode metricsMode, FieldMetrics fieldMetrics) {
+                                                 MetricsMode metricsMode, FieldMetrics<?> fieldMetrics) {
     Object min = null;
     if (columnStats instanceof IntegerColumnStatistics) {
       min = ((IntegerColumnStatistics) columnStats).getMinimum();
@@ -226,7 +226,7 @@ public class OrcMetrics {
   }
 
   private static Optional<ByteBuffer> fromOrcMax(Type type, ColumnStatistics columnStats,
-                                                 MetricsMode metricsMode, FieldMetrics fieldMetrics) {
+                                                 MetricsMode metricsMode, FieldMetrics<?> fieldMetrics) {
     Object max = null;
     if (columnStats instanceof IntegerColumnStatistics) {
       max = ((IntegerColumnStatistics) columnStats).getMaximum();

@@ -86,4 +86,11 @@ public class FieldMetrics<T> {
   public T upperBound() {
     return upperBound;
   }
+
+  /**
+   * Returns if the metrics has bounds (i.e. there is at least non-null value for this field)
+   */
+  public boolean hasBounds() {
+    return upperBound != null;
+  }
 }

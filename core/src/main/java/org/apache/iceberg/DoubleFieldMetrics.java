@@ -28,45 +28,39 @@ package org.apache.iceberg;
  */
 public class DoubleFieldMetrics extends FieldMetrics<Double> {
 
-  private DoubleFieldMetrics(int id, long nanValueCount, Double lowerBound, Double upperBound) {
-    super(id, 0L, 0L, nanValueCount, lowerBound, upperBound);
-  }
-
-  @Override
-  public long valueCount() {
-    throw new IllegalStateException("Shouldn't access this method, as this metric is tracked in file statistics. ");
-  }
-
-  @Override
-  public long nullValueCount() {
-    throw new IllegalStateException("Shouldn't access this method, as this metric is tracked in file statistics. ");
+  private DoubleFieldMetrics(int id, long valueCount, long nanValueCount, Double lowerBound, Double upperBound) {
+    super(id, valueCount, 0L, nanValueCount, lowerBound, upperBound);
   }
 
   public static class Builder {
     private final int id;
+    private long valueCount = 0;
     private long nanValueCount = 0;
-    private Double lowerBound = null;
-    private Double upperBound = null;
+    private double lowerBound = Double.POSITIVE_INFINITY;
+    private double upperBound = Double.NEGATIVE_INFINITY;
 
     public Builder(int id) {
       this.id = id;
     }
 
     public void addValue(double value) {
+      this.valueCount++;
       if (Double.isNaN(value)) {
         this.nanValueCount++;
       } else {
-        if (lowerBound == null || Double.compare(value, lowerBound) < 0) {
+        if (Double.compare(value, lowerBound) < 0) {
           this.lowerBound = value;
         }
-        if (upperBound == null || Double.compare(value, upperBound) > 0) {
+        if (Double.compare(value, upperBound) > 0) {
           this.upperBound = value;
         }
       }
     }
 
     public DoubleFieldMetrics build() {
-      return new DoubleFieldMetrics(id, nanValueCount, lowerBound, upperBound);
+      boolean hasBound = valueCount - nanValueCount > 0;
+      return new DoubleFieldMetrics(id, valueCount, nanValueCount,
+          hasBound ? lowerBound : null, hasBound ? upperBound : null);
     }
   }
 }

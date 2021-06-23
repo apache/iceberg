@@ -83,13 +83,13 @@ public class ParquetUtil {
     }
   }
 
-  public static Metrics footerMetrics(ParquetMetadata metadata, Stream<FieldMetrics> fieldMetrics,
+  public static Metrics footerMetrics(ParquetMetadata metadata, Stream<FieldMetrics<?>> fieldMetrics,
                                       MetricsConfig metricsConfig) {
     return footerMetrics(metadata, fieldMetrics, metricsConfig, null);
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  public static Metrics footerMetrics(ParquetMetadata metadata, Stream<FieldMetrics> fieldMetrics,
+  public static Metrics footerMetrics(ParquetMetadata metadata, Stream<FieldMetrics<?>> fieldMetrics,
                                       MetricsConfig metricsConfig, NameMapping nameMapping) {
     Preconditions.checkNotNull(fieldMetrics, "fieldMetrics should not be null");
 
@@ -105,7 +105,7 @@ public class ParquetUtil {
     MessageType parquetTypeWithIds = getParquetTypeWithIds(metadata, nameMapping);
     Schema fileSchema = ParquetSchemaUtil.convertAndPrune(parquetTypeWithIds);
 
-    Map<Integer, FieldMetrics> fieldMetricsMap = fieldMetrics.collect(
+    Map<Integer, FieldMetrics<?>> fieldMetricsMap = fieldMetrics.collect(
         Collectors.toMap(FieldMetrics::id, Function.identity()));
 
     List<BlockMetaData> blocks = metadata.getBlocks();
@@ -167,17 +167,16 @@ public class ParquetUtil {
   }
 
   private static void updateFromFieldMetrics(
-      Map<Integer, FieldMetrics> idToFieldMetricsMap, MetricsConfig metricsConfig, Schema schema,
+      Map<Integer, FieldMetrics<?>> idToFieldMetricsMap, MetricsConfig metricsConfig, Schema schema,
       Map<Integer, Literal<?>> lowerBounds, Map<Integer, Literal<?>> upperBounds) {
     idToFieldMetricsMap.entrySet().forEach(entry -> {
       int fieldId = entry.getKey();
-      FieldMetrics metrics = entry.getValue();
+      FieldMetrics<?> metrics = entry.getValue();
       MetricsMode metricsMode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
 
       // only check for MetricsModes.None, since we don't truncate float/double values.
       if (metricsMode != MetricsModes.None.get()) {
-        if (metrics.upperBound() == null) {
-          // upper and lower bounds will both null or neither
+        if (!metrics.hasBounds()) {
           lowerBounds.remove(fieldId);
           upperBounds.remove(fieldId);
         } else if (metrics.upperBound() instanceof Float) {

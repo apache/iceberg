@@ -65,7 +65,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
   }
 
   @Override
-  public Stream<FieldMetrics> metrics() {
+  public Stream<FieldMetrics<?>> metrics() {
     return writer.metrics();
   }
 
@@ -146,7 +146,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return writers.stream().flatMap(SparkOrcValueWriter::metrics);
     }
 

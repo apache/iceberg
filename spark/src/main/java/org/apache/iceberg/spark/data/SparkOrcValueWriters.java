@@ -156,7 +156,7 @@ class SparkOrcValueWriters {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return Stream.of(floatFieldMetricsBuilder.build());
     }
   }
@@ -176,7 +176,7 @@ class SparkOrcValueWriters {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return Stream.of(doubleFieldMetricsBuilder.build());
     }
   }
@@ -272,7 +272,7 @@ class SparkOrcValueWriters {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return writer.metrics();
     }
   }
@@ -308,7 +308,7 @@ class SparkOrcValueWriters {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
     }
   }

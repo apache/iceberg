@@ -28,18 +28,8 @@ package org.apache.iceberg;
  */
 public class FloatFieldMetrics extends FieldMetrics<Float> {
 
-  private FloatFieldMetrics(int id, long nanValueCount, Float lowerBound, Float upperBound) {
-    super(id, 0L, 0L, nanValueCount, lowerBound, upperBound);
-  }
-
-  @Override
-  public long valueCount() {
-    throw new IllegalStateException("Shouldn't access this method, as this metric is tracked in file statistics. ");
-  }
-
-  @Override
-  public long nullValueCount() {
-    throw new IllegalStateException("Shouldn't access this method, as this metric is tracked in file statistics. ");
+  private FloatFieldMetrics(int id, long valueCount, long nanValueCount, Float lowerBound, Float upperBound) {
+    super(id, valueCount, 0L, nanValueCount, lowerBound, upperBound);
   }
 
   public Builder builderFor(int id) {
@@ -48,29 +38,33 @@ public class FloatFieldMetrics extends FieldMetrics<Float> {
 
   public static class Builder {
     private final int id;
+    private long valueCount = 0;
     private long nanValueCount = 0;
-    private Float lowerBound = null;
-    private Float upperBound = null;
+    private float lowerBound = Float.POSITIVE_INFINITY;
+    private float upperBound = Float.NEGATIVE_INFINITY;
 
     public Builder(int id) {
       this.id = id;
     }
 
     public void addValue(float value) {
+      this.valueCount++;
       if (Float.isNaN(value)) {
         this.nanValueCount++;
       } else {
-        if (lowerBound == null || Float.compare(value, lowerBound) < 0) {
+        if (Float.compare(value, lowerBound) < 0) {
           this.lowerBound = value;
         }
-        if (upperBound == null || Float.compare(value, upperBound) > 0) {
+        if (Float.compare(value, upperBound) > 0) {
           this.upperBound = value;
         }
       }
     }
 
     public FloatFieldMetrics build() {
-      return new FloatFieldMetrics(id, nanValueCount, lowerBound, upperBound);
+      boolean hasBound = valueCount - nanValueCount > 0;
+      return new FloatFieldMetrics(id, valueCount, nanValueCount,
+          hasBound ? lowerBound : null, hasBound ? upperBound : null);
     }
   }
 }

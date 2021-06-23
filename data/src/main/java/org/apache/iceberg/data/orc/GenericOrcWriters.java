@@ -221,6 +221,7 @@ public class GenericOrcWriters {
 
   private static class FloatWriter implements OrcValueWriter<Float> {
     private final FloatFieldMetrics.Builder floatFieldMetricsBuilder;
+    private long nullValueCount = 0;
 
     private FloatWriter(int id) {
       this.floatFieldMetricsBuilder = new FloatFieldMetrics.Builder(id);
@@ -238,13 +239,23 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
-      return Stream.of(floatFieldMetricsBuilder.build());
+    public void nullWrite() {
+      nullValueCount++;
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      FieldMetrics<Float> metricsWithoutNullCount = floatFieldMetricsBuilder.build();
+      return Stream.of(new FieldMetrics<>(metricsWithoutNullCount.id(),
+          metricsWithoutNullCount.valueCount() + nullValueCount,
+          nullValueCount, metricsWithoutNullCount.nanValueCount(),
+          metricsWithoutNullCount.lowerBound(), metricsWithoutNullCount.upperBound()));
     }
   }
 
   private static class DoubleWriter implements OrcValueWriter<Double> {
     private final DoubleFieldMetrics.Builder doubleFieldMetricsBuilder;
+    private long nullValueCount = 0;
 
     private DoubleWriter(Integer id) {
       this.doubleFieldMetricsBuilder = new DoubleFieldMetrics.Builder(id);
@@ -262,8 +273,17 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
-      return Stream.of(doubleFieldMetricsBuilder.build());
+    public void nullWrite() {
+      nullValueCount++;
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      FieldMetrics<Double> metricsWithoutNullCount = doubleFieldMetricsBuilder.build();
+      return Stream.of(new FieldMetrics<>(metricsWithoutNullCount.id(),
+          metricsWithoutNullCount.valueCount() + nullValueCount,
+          nullValueCount, metricsWithoutNullCount.nanValueCount(),
+          metricsWithoutNullCount.lowerBound(), metricsWithoutNullCount.upperBound()));
     }
   }
 
@@ -462,7 +482,7 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return element.metrics();
     }
   }
@@ -506,7 +526,7 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
     }
   }

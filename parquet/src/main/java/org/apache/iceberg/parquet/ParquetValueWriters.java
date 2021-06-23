@@ -28,6 +28,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.DoubleFieldMetrics;
@@ -186,7 +187,7 @@ public class ParquetValueWriters {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return Stream.of(floatFieldMetricsBuilder.build());
     }
   }
@@ -207,7 +208,7 @@ public class ParquetValueWriters {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return Stream.of(doubleFieldMetricsBuilder.build());
     }
   }
@@ -327,6 +328,7 @@ public class ParquetValueWriters {
     private final int definitionLevel;
     private final ParquetValueWriter<T> writer;
     private final List<TripleWriter<?>> children;
+    private long nullValueCount = 0;
 
     OptionWriter(int definitionLevel, ParquetValueWriter<T> writer) {
       this.definitionLevel = definitionLevel;
@@ -340,6 +342,7 @@ public class ParquetValueWriters {
         writer.write(repetitionLevel, value);
 
       } else {
+        nullValueCount++;
         for (TripleWriter<?> column : children) {
           column.writeNull(repetitionLevel, definitionLevel - 1);
         }
@@ -357,7 +360,29 @@ public class ParquetValueWriters {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
+      if (writer instanceof PrimitiveWriter) {
+        List<FieldMetrics<?>> fieldMetricsFromWriter = writer.metrics().collect(Collectors.toList());
+
+        if (fieldMetricsFromWriter.size() == 0) {
+          // we are not tracking field metrics for this type ourselves
+          return Stream.empty();
+        } else if (fieldMetricsFromWriter.size() == 1) {
+          FieldMetrics<?> metrics = fieldMetricsFromWriter.get(0);
+          return Stream.of(
+              new FieldMetrics<>(metrics.id(),
+                  metrics.valueCount() + nullValueCount, nullValueCount,
+                  metrics.nanValueCount(), metrics.lowerBound(), metrics.upperBound())
+          );
+        } else {
+          throw new IllegalStateException(String.format(
+              "OptionWriter should only expect at most one field metric from a primitive writer." +
+                  "Current number of fields: %s, primitive writer type: %s",
+              fieldMetricsFromWriter.size(), writer.getClass().getSimpleName()));
+        }
+      }
+
+      // skipping updating null stats for non-primitive types since we don't use them today, to avoid unnecessary work
       return writer.metrics();
     }
   }
@@ -416,7 +441,7 @@ public class ParquetValueWriters {
     protected abstract Iterator<E> elements(L value);
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return writer.metrics();
     }
   }
@@ -494,7 +519,7 @@ public class ParquetValueWriters {
     protected abstract Iterator<Map.Entry<K, V>> pairs(M value);
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
     }
   }
@@ -553,7 +578,7 @@ public class ParquetValueWriters {
     protected abstract Object get(S struct, int index);
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return Arrays.stream(writers).flatMap(ParquetValueWriter::metrics);
     }
   }
