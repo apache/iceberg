@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark.actions;
 
+import com.esotericsoftware.minlog.Log;
 import java.io.IOException;
 import java.math.RoundingMode;
 import java.util.Collections;
@@ -161,7 +162,9 @@ abstract class BaseRewriteDataFilesSparkAction
       Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition = Maps.newHashMap();
 
       filesByPartition.forEach((partition, tasks) -> {
-        List<List<FileScanTask>> fileGroups = toFileGroups(tasks);
+        Iterable<FileScanTask> filtered = strategy.selectFilesToRewrite(tasks);
+        Iterable<List<FileScanTask>> groupedTasks = strategy.planFileGroups(filtered);
+        List<List<FileScanTask>> fileGroups = ImmutableList.copyOf(groupedTasks);
         if (fileGroups.size() > 0) {
           fileGroupsByPartition.put(partition, fileGroups);
         }
@@ -177,12 +180,6 @@ abstract class BaseRewriteDataFilesSparkAction
     }
   }
 
-  private List<List<FileScanTask>> toFileGroups(List<FileScanTask> tasks) {
-    Iterable<FileScanTask> filtered = strategy.selectFilesToRewrite(tasks);
-    Iterable<List<FileScanTask>> groupedTasks = strategy.planFileGroups(filtered);
-    return ImmutableList.copyOf(groupedTasks);
-  }
-
   @VisibleForTesting
   void rewriteFiles(RewriteExecutionContext ctx, FileGroup fileGroup,
                     ConcurrentLinkedQueue<String> rewrittenIDs,
@@ -194,8 +191,7 @@ abstract class BaseRewriteDataFilesSparkAction
     String desc = jobDesc(fileGroup, ctx);
 
     Set<DataFile> addedFiles =
-        withJobGroupInfo(
-            newJobGroupInfo("REWRITE-DATA-FILES", desc),
+        withJobGroupInfo(newJobGroupInfo("REWRITE-DATA-FILES", desc),
             () -> strategy.rewriteFiles(groupID, fileGroup.files()));
 
     rewrittenIDs.offer(groupID);
@@ -226,8 +222,7 @@ abstract class BaseRewriteDataFilesSparkAction
             maxConcurrentFileGroupRewrites,
             new ThreadFactoryBuilder()
                 .setNameFormat("Rewrite-Service-%d")
-                .build())
-    );
+                .build()));
   }
 
   private Result doExecute(RewriteExecutionContext ctx, Stream<FileGroup> groupStream) {
@@ -242,7 +237,7 @@ abstract class BaseRewriteDataFilesSparkAction
         .stopOnFailure()
         .noRetry()
         .onFailure((fileGroup, exception) -> {
-          LOG.error("Failure during rewrite process for group {}", fileGroup.info, exception);
+          LOG.warn("Failure during rewrite process for group {}", fileGroup.info, exception);
         });
 
     try {
@@ -287,10 +282,9 @@ abstract class BaseRewriteDataFilesSparkAction
 
     ExecutorService rewriteService = rewriteService();
 
-    ExecutorService committerService =  Executors.newSingleThreadExecutor(
-            new ThreadFactoryBuilder()
-                .setNameFormat("Committer-Service")
-                .build());
+    ExecutorService committerService =  Executors.newSingleThreadExecutor(new ThreadFactoryBuilder()
+        .setNameFormat("Committer-Service")
+        .build());
 
     int groupsPerCommit = IntMath.divide(ctx.totalGroupCount(), maxCommits, RoundingMode.CEILING);
 
@@ -322,7 +316,7 @@ abstract class BaseRewriteDataFilesSparkAction
     });
 
     // Start rewrite tasks
-    Tasks.foreach(groupStream.iterator())
+    Tasks.foreach(groupStream)
         .suppressFailureWhenFinished()
         .executeWith(rewriteService)
         .noRetry()
@@ -337,14 +331,21 @@ abstract class BaseRewriteDataFilesSparkAction
     committerService.shutdown();
 
     try {
-      committerService.awaitTermination(10, TimeUnit.MINUTES);
+      // All rewrites have completed and all new files have been created, we are now waiting for the commit
+      // pool to finish doing it's commits to Iceberg State. In the case of partial progress this should
+      // have been occurring simultaneously with rewrites, if not there should be only a single commit operation.
+      // In either case this should take much less than 10 minutes to actually complete.
+      if (!committerService.awaitTermination(10, TimeUnit.MINUTES)) {
+        Log.warn("Commit operation did not complete within 10 minutes of the files being written. This may mean that " +
+            "changes were not successfully committed to the the Iceberg table.");
+      }
     } catch (InterruptedException e) {
       throw new RuntimeException("Cannot complete commit for rewrite, commit service interrupted", e);
     }
 
     if (results.size() == 0) {
-      LOG.error("{} is true but no rewrite commits succeeded. Check the logs to determine why the individual" +
-          "commits failed. If this is persistent it may help to increase {} which will break the rewrite operation" +
+      LOG.error("{} is true but no rewrite commits succeeded. Check the logs to determine why the individual " +
+          "commits failed. If this is persistent it may help to increase {} which will break the rewrite operation " +
           "into smaller commits.", PARTIAL_PROGRESS_ENABLED, PARTIAL_PROGRESS_MAX_COMMITS);
     }
 

@@ -63,9 +63,6 @@ class SparkFilesScan extends SparkBatchScan {
     long tableSplitSize = PropertyUtil.propertyAsLong(props, SPLIT_SIZE, SPLIT_SIZE_DEFAULT);
     this.splitSize = Spark3Util.propertyAsLong(options, SparkReadOptions.SPLIT_SIZE, tableSplitSize);
 
-    Preconditions.checkArgument(splitSize > 0,
-        "Cannot create a plan with a split size that is not positive, splitSize = %s", splitSize);
-
     int tableSplitLookback = PropertyUtil.propertyAsInt(props, SPLIT_LOOKBACK, SPLIT_LOOKBACK_DEFAULT);
     this.splitLookback = Spark3Util.propertyAsInt(options, SparkReadOptions.LOOKBACK, tableSplitLookback);
 

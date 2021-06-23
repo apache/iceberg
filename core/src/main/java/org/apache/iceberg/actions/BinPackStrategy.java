@@ -290,16 +290,21 @@ public abstract class BinPackStrategy implements RewriteStrategy {
 
 
   /**
-   * Ideally every Spark Task that is generated will be less than or equal to our target size but
-   * in practice this is not the case. When we actually write our files, they may exceed the target
-   * size and end up being split. This would end up producing 2 files out of one task, one target sized
-   * and one very small file. Since the output file can vary in size, it is better to
-   * use a slightly larger (but still within threshold) size for actually writing the tasks out.
-   * This helps us in the case where our estimate for the task size is under the target size but the
-   * actual written file size is slightly larger.
+   * Estimates a larger max target file size than our target size used in task creation to avoid
+   * tasks which are predicted to have a certain size, but exceed that target size when serde is complete creating
+   * tiny remainder files.
+   * <p>
+   * While we create tasks that should all be smaller than our target size there is a chance that the actual
+   * data will end up being larger than our target size due to various factors of compression, serialization and
+   * other factors outside our control. If this occurs, instead of making a single file that is close in size to
+   * our target we would end up producing one file of the target size, and then a small extra file with the remaining
+   * data. For example, if our target is 512 MB we may generate a rewrite task that should be 500 MB. When we write
+   * the data we may find we actually have to write out 530 MB. If we use the target size while writing we would
+   * produced a 512 MB file and a 18 MB file. If instead we use a larger size estimated by this method,
+   * then we end up writing a single file.
    * @return the target size plus one half of the distance between max and target
    */
   protected long writeMaxFileSize() {
-    return (long) (this.targetFileSize + ((this.maxFileSize - this.targetFileSize) * 0.5));
+    return (long) (targetFileSize + ((maxFileSize - targetFileSize) * 0.5));
   }
 }
