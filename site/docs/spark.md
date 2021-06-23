@@ -386,29 +386,6 @@ variable can take a number of forms as listed below:
 
 The above list is in order of priority. For example: a matching catalog will take priority over any namespace resolution.
 
-### Spark 2.4
-
-Spark 2.4 requires using the DataFrame reader with `iceberg` as a format, because 2.4 does not support catalogs:
-
-```scala
-// named metastore table
-spark.read.format("iceberg").load("db.table")
-// Hadoop path table
-spark.read.format("iceberg").load("hdfs://nn:8020/path/to/table")
-```
-
-#### Spark 2.4 with SQL
-
-To run SQL `SELECT` statements on Iceberg tables in 2.4, register the DataFrame as a temporary table:
-
-```scala
-val df = spark.read.format("iceberg").load("db.table")
-df.createOrReplaceTempView("table")
-
-spark.sql("""select count(1) from table""").show()
-```
-
-
 ## Writing with SQL
 
 Spark 3 supports SQL `INSERT INTO` and `INSERT OVERWRITE`, as well as the new `DataFrameWriterV2` API.
