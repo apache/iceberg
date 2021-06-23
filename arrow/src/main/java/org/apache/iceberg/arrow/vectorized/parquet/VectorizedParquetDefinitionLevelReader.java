@@ -26,7 +26,6 @@ import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.ValuesAsBytesReader;
@@ -36,48 +35,6 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
 
   public VectorizedParquetDefinitionLevelReader(int bitWidth, int maxDefLevel, boolean setArrowValidityVector) {
     super(bitWidth, maxDefLevel, setArrowValidityVector);
-  }
-
-  public void readBatchOfDictionaryIds(
-      final IntVector vector,
-      final int startOffset,
-      final int numValsToRead,
-      NullabilityHolder nullabilityHolder,
-      VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader) {
-    int idx = startOffset;
-    int left = numValsToRead;
-    while (left > 0) {
-      if (this.currentCount == 0) {
-        this.readNextGroup();
-      }
-      int numValues = Math.min(left, this.currentCount);
-      switch (mode) {
-        case RLE:
-          if (currentValue == maxDefLevel) {
-            dictionaryEncodedValuesReader.readBatchOfDictionaryIds(vector, idx, numValues, nullabilityHolder);
-          } else {
-            setNulls(nullabilityHolder, idx, numValues, vector.getValidityBuffer());
-          }
-          idx += numValues;
-          break;
-        case PACKED:
-          for (int i = 0; i < numValues; i++) {
-            if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
-              vector.getDataBuffer().setInt(idx * IntVector.TYPE_WIDTH, dictionaryEncodedValuesReader.readInteger());
-              nullabilityHolder.setNotNull(idx);
-              if (setArrowValidityVector) {
-                BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
-              }
-            } else {
-              setNull(nullabilityHolder, idx, vector.getValidityBuffer());
-            }
-            idx++;
-          }
-          break;
-      }
-      left -= numValues;
-      currentCount -= numValues;
-    }
   }
 
   public void readBatchOfLongs(

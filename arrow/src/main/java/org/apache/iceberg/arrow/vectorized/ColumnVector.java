@@ -54,8 +54,6 @@ public class ColumnVector implements AutoCloseable {
   }
 
   public FieldVector getFieldVector() {
-    // TODO Convert dictionary encoded vectors to correctly typed arrow vector.
-    //   e.g. convert long dictionary encoded vector to a BigIntVector.
     return vectorHolder.vector();
   }
 

@@ -20,7 +20,6 @@
 package org.apache.iceberg.arrow.vectorized.parquet;
 
 import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.BaseColumnIterator;
 import org.apache.iceberg.parquet.BasePageIterator;
@@ -40,7 +39,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
 
   public VectorizedColumnIterator(ColumnDescriptor desc, String writerVersion, boolean setArrowValidityVector) {
     super(desc);
-    Preconditions.checkArgument(desc.getMaxRepetitionLevel() == 0,
+    Preconditions.checkArgument(
+        desc.getMaxRepetitionLevel() == 0,
         "Only non-nested columns are supported for vectorized reads");
     this.vectorizedPageIterator = new VectorizedPageIterator(desc, writerVersion, setArrowValidityVector);
   }
@@ -49,10 +49,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     this.batchSize = batchSize;
   }
 
-  public Dictionary setRowGroupInfo(PageReader store, boolean allPagesDictEncoded) {
-    // setPageSource can result in a data page read. If that happens, we need
-    // to know in advance whether all the pages in the row group are dictionary encoded or not
-    this.vectorizedPageIterator.setAllPagesDictEncoded(allPagesDictEncoded);
+  public Dictionary setRowGroupInfo(PageReader store) {
     super.setPageSource(store);
     return dictionary;
   }
@@ -66,18 +63,6 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
       rowsReadSoFar += rowsInThisBatch;
       this.triplesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
-    }
-  }
-
-  public void nextBatchDictionaryIds(IntVector vector, NullabilityHolder holder) {
-    int rowsReadSoFar = 0;
-    while (rowsReadSoFar < batchSize && hasNext()) {
-      advance();
-      int rowsInThisBatch = vectorizedPageIterator.nextBatchDictionaryIds(vector, batchSize - rowsReadSoFar,
-          rowsReadSoFar, holder);
-      rowsReadSoFar += rowsInThisBatch;
-      this.triplesRead += rowsInThisBatch;
-      vector.setValueCount(rowsReadSoFar);
     }
   }
 
@@ -145,14 +130,14 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
   }
 
   public void nextBatchLongBackedDecimal(
-          FieldVector fieldVector,
-          NullabilityHolder nullabilityHolder) {
+      FieldVector fieldVector,
+      NullabilityHolder nullabilityHolder) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
       advance();
       int rowsInThisBatch =
-              vectorizedPageIterator.nextBatchLongBackedDecimal(fieldVector, batchSize - rowsReadSoFar,
-                      rowsReadSoFar, nullabilityHolder);
+          vectorizedPageIterator.nextBatchLongBackedDecimal(fieldVector, batchSize - rowsReadSoFar,
+              rowsReadSoFar, nullabilityHolder);
       rowsReadSoFar += rowsInThisBatch;
       this.triplesRead += rowsInThisBatch;
       fieldVector.setValueCount(rowsReadSoFar);
@@ -216,9 +201,4 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
   protected BasePageIterator pageIterator() {
     return vectorizedPageIterator;
   }
-
-  public boolean producesDictionaryEncodedVector() {
-    return vectorizedPageIterator.producesDictionaryEncodedVector();
-  }
-
 }

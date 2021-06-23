@@ -23,7 +23,6 @@ import org.apache.arrow.util.Preconditions;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.iceberg.types.Type;
 import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.parquet.column.Dictionary;
 
 /**
  * Container class for holding the Arrow vector storing a batch of values along with other state needed for reading
@@ -32,14 +31,11 @@ import org.apache.parquet.column.Dictionary;
 public class VectorHolder {
   private final ColumnDescriptor columnDescriptor;
   private final FieldVector vector;
-  private final boolean isDictionaryEncoded;
-  private final Dictionary dictionary;
   private final NullabilityHolder nullabilityHolder;
   private final Type icebergType;
 
   public VectorHolder(
-      ColumnDescriptor columnDescriptor, FieldVector vector, boolean isDictionaryEncoded,
-      Dictionary dictionary, NullabilityHolder holder, Type type) {
+      ColumnDescriptor columnDescriptor, FieldVector vector, NullabilityHolder holder, Type type) {
     // All the fields except dictionary are not nullable unless it is a dummy holder
     Preconditions.checkNotNull(columnDescriptor, "ColumnDescriptor cannot be null");
     Preconditions.checkNotNull(vector, "Vector cannot be null");
@@ -47,8 +43,6 @@ public class VectorHolder {
     Preconditions.checkNotNull(type, "IcebergType cannot be null");
     this.columnDescriptor = columnDescriptor;
     this.vector = vector;
-    this.isDictionaryEncoded = isDictionaryEncoded;
-    this.dictionary = dictionary;
     this.nullabilityHolder = holder;
     this.icebergType = type;
   }
@@ -57,8 +51,6 @@ public class VectorHolder {
   private VectorHolder() {
     columnDescriptor = null;
     vector = null;
-    isDictionaryEncoded = false;
-    dictionary = null;
     nullabilityHolder = null;
     icebergType = null;
   }
@@ -66,8 +58,6 @@ public class VectorHolder {
   private VectorHolder(FieldVector vec, Type type, NullabilityHolder nulls) {
     columnDescriptor = null;
     vector = vec;
-    isDictionaryEncoded = false;
-    dictionary = null;
     nullabilityHolder = nulls;
     icebergType = type;
   }
@@ -78,14 +68,6 @@ public class VectorHolder {
 
   public FieldVector vector() {
     return vector;
-  }
-
-  public boolean isDictionaryEncoded() {
-    return isDictionaryEncoded;
-  }
-
-  public Dictionary dictionary() {
-    return dictionary;
   }
 
   public NullabilityHolder nullabilityHolder() {
@@ -113,8 +95,8 @@ public class VectorHolder {
   }
 
   /**
-   * A Vector Holder which does not actually produce values, consumers of this class should
-   * use the constantValue to populate their ColumnVector implementation.
+   * A Vector Holder which does not actually produce values, consumers of this class should use the constantValue to
+   * populate their ColumnVector implementation.
    */
   public static class ConstantVectorHolder<T> extends VectorHolder {
     private final T constantValue;
@@ -145,5 +127,4 @@ public class VectorHolder {
       super(vector, type, nulls);
     }
   }
-
 }

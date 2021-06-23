@@ -21,7 +21,6 @@ package org.apache.iceberg.arrow.vectorized;
 
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -41,15 +40,10 @@ import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.util.DecimalUtility;
-import org.apache.parquet.Preconditions;
-import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.parquet.column.Dictionary;
-import org.apache.parquet.io.api.Binary;
-import org.apache.parquet.schema.PrimitiveType;
 
 /**
- * This class is creates typed {@link ArrowVectorAccessor} from {@link VectorHolder}.
- * It provides a generic implementation for following Arrow types:
+ * This class is creates typed {@link ArrowVectorAccessor} from {@link VectorHolder}. It provides a generic
+ * implementation for following Arrow types:
  * <ul>
  *   <li>Decimal type can be deserialized to a type that supports decimal,
  *   e.g. BigDecimal or Spark's Decimal.</li>
@@ -58,9 +52,11 @@ import org.apache.parquet.schema.PrimitiveType;
  *   <li>Struct type: the child elements of a struct can be deserialized to a Spark's ArrowColumnVector
  *   or similar type.</li>
  * </ul>
- * @param <DecimalT> A concrete type that can represent a decimal.
- * @param <Utf8StringT> A concrete type that can represent a UTF8 string.
- * @param <ArrayT> A concrete type that can represent an array value in a list vector, e.g. Spark's ColumnarArray.
+ *
+ * @param <DecimalT>     A concrete type that can represent a decimal.
+ * @param <Utf8StringT>  A concrete type that can represent a UTF8 string.
+ * @param <ArrayT>       A concrete type that can represent an array value in a list vector, e.g. Spark's
+ *                       ColumnarArray.
  * @param <ChildVectorT> A concrete type that can represent a child vector in a struct, e.g. Spark's ArrowColumnVector.
  */
 public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable> {
@@ -71,15 +67,14 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
   private final Supplier<ArrayFactory<ChildVectorT, ArrayT>> arrayFactorySupplier;
 
   /**
-   * The constructor is parameterized using the decimal, string, struct and array factories.
-   * If a specific type is not supported, the factory supplier can raise an
-   * {@link UnsupportedOperationException}.
+   * The constructor is parameterized using the decimal, string, struct and array factories. If a specific type is not
+   * supported, the factory supplier can raise an {@link UnsupportedOperationException}.
    */
   protected GenericArrowVectorAccessorFactory(
-          Supplier<DecimalFactory<DecimalT>> decimalFactorySupplier,
-          Supplier<StringFactory<Utf8StringT>> stringFactorySupplier,
-          Supplier<StructChildFactory<ChildVectorT>> structChildFactorySupplier,
-          Supplier<ArrayFactory<ChildVectorT, ArrayT>> arrayFactorySupplier) {
+      Supplier<DecimalFactory<DecimalT>> decimalFactorySupplier,
+      Supplier<StringFactory<Utf8StringT>> stringFactorySupplier,
+      Supplier<StructChildFactory<ChildVectorT>> structChildFactorySupplier,
+      Supplier<ArrayFactory<ChildVectorT, ArrayT>> arrayFactorySupplier) {
     this.decimalFactorySupplier = decimalFactorySupplier;
     this.stringFactorySupplier = stringFactorySupplier;
     this.structChildFactorySupplier = structChildFactorySupplier;
@@ -87,80 +82,12 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
   }
 
   public ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> getVectorAccessor(VectorHolder holder) {
-    Dictionary dictionary = holder.dictionary();
-    boolean isVectorDictEncoded = holder.isDictionaryEncoded();
     FieldVector vector = holder.vector();
-    if (isVectorDictEncoded) {
-      ColumnDescriptor desc = holder.descriptor();
-      PrimitiveType primitive = desc.getPrimitiveType();
-      return getDictionaryVectorAccessor(dictionary, desc, vector, primitive);
-    } else {
-      return getPlainVectorAccessor(vector);
-    }
-  }
-
-  private ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> getDictionaryVectorAccessor(
-      Dictionary dictionary,
-      ColumnDescriptor desc,
-      FieldVector vector, PrimitiveType primitive) {
-    Preconditions.checkState(vector instanceof IntVector, "Dictionary ids should be stored in IntVectors only");
-    if (primitive.getOriginalType() != null) {
-      switch (desc.getPrimitiveType().getOriginalType()) {
-        case ENUM:
-        case JSON:
-        case UTF8:
-        case BSON:
-          return new DictionaryStringAccessor<>((IntVector) vector, dictionary, stringFactorySupplier.get());
-        case INT_64:
-        case TIMESTAMP_MILLIS:
-        case TIMESTAMP_MICROS:
-          return new DictionaryLongAccessor<>((IntVector) vector, dictionary);
-        case DECIMAL:
-          switch (primitive.getPrimitiveTypeName()) {
-            case BINARY:
-            case FIXED_LEN_BYTE_ARRAY:
-              return new DictionaryDecimalBinaryAccessor<>(
-                  (IntVector) vector,
-                  dictionary,
-                  decimalFactorySupplier.get());
-            case INT64:
-              return new DictionaryDecimalLongAccessor<>(
-                  (IntVector) vector,
-                  dictionary,
-                  decimalFactorySupplier.get());
-            case INT32:
-              return new DictionaryDecimalIntAccessor<>(
-                  (IntVector) vector,
-                  dictionary,
-                  decimalFactorySupplier.get());
-            default:
-              throw new UnsupportedOperationException(
-                  "Unsupported base type for decimal: " + primitive.getPrimitiveTypeName());
-          }
-        default:
-          throw new UnsupportedOperationException(
-              "Unsupported logical type: " + primitive.getOriginalType());
-      }
-    } else {
-      switch (primitive.getPrimitiveTypeName()) {
-        case FIXED_LEN_BYTE_ARRAY:
-        case BINARY:
-          return new DictionaryBinaryAccessor<>((IntVector) vector, dictionary);
-        case FLOAT:
-          return new DictionaryFloatAccessor<>((IntVector) vector, dictionary);
-        case INT64:
-          return new DictionaryLongAccessor<>((IntVector) vector, dictionary);
-        case DOUBLE:
-          return new DictionaryDoubleAccessor<>((IntVector) vector, dictionary);
-        default:
-          throw new UnsupportedOperationException("Unsupported type: " + primitive);
-      }
-    }
+    return getPlainVectorAccessor(vector);
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  private ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT>
-      getPlainVectorAccessor(FieldVector vector) {
+  private ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> getPlainVectorAccessor(FieldVector vector) {
     if (vector instanceof BitVector) {
       return new BooleanAccessor<>((BitVector) vector);
     } else if (vector instanceof IntVector) {
@@ -194,7 +121,7 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
   }
 
   private static class BooleanAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
     private final BitVector vector;
 
     BooleanAccessor(BitVector vector) {
@@ -209,7 +136,7 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
   }
 
   private static class IntAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
 
     private final IntVector vector;
 
@@ -230,7 +157,7 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
   }
 
   private static class LongAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
 
     private final BigIntVector vector;
 
@@ -245,27 +172,8 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
     }
   }
 
-  private static class DictionaryLongAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
-    private final IntVector offsetVector;
-    private final long[] decodedDictionary;
-
-    DictionaryLongAccessor(IntVector vector, Dictionary dictionary) {
-      super(vector);
-      this.offsetVector = vector;
-      this.decodedDictionary = IntStream.rangeClosed(0, dictionary.getMaxId())
-          .mapToLong(dictionary::decodeToLong)
-          .toArray();
-    }
-
-    @Override
-    public final long getLong(int rowId) {
-      return decodedDictionary[offsetVector.get(rowId)];
-    }
-  }
-
   private static class FloatAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
 
     private final Float4Vector vector;
 
@@ -285,33 +193,8 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
     }
   }
 
-  private static class DictionaryFloatAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
-    private final IntVector offsetVector;
-    private final float[] decodedDictionary;
-
-    DictionaryFloatAccessor(IntVector vector, Dictionary dictionary) {
-      super(vector);
-      this.offsetVector = vector;
-      this.decodedDictionary = new float[dictionary.getMaxId() + 1];
-      for (int i = 0; i <= dictionary.getMaxId(); i++) {
-        decodedDictionary[i] = dictionary.decodeToFloat(i);
-      }
-    }
-
-    @Override
-    public final float getFloat(int rowId) {
-      return decodedDictionary[offsetVector.get(rowId)];
-    }
-
-    @Override
-    public final double getDouble(int rowId) {
-      return getFloat(rowId);
-    }
-  }
-
   private static class DoubleAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
 
     private final Float8Vector vector;
 
@@ -326,27 +209,8 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
     }
   }
 
-  private static class DictionaryDoubleAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
-    private final IntVector offsetVector;
-    private final double[] decodedDictionary;
-
-    DictionaryDoubleAccessor(IntVector vector, Dictionary dictionary) {
-      super(vector);
-      this.offsetVector = vector;
-      this.decodedDictionary = IntStream.rangeClosed(0, dictionary.getMaxId())
-          .mapToDouble(dictionary::decodeToDouble)
-          .toArray();
-    }
-
-    @Override
-    public final double getDouble(int rowId) {
-      return decodedDictionary[offsetVector.get(rowId)];
-    }
-  }
-
   private static class StringAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
 
     private final VarCharVector vector;
     private final StringFactory<Utf8StringT> stringFactory;
@@ -363,29 +227,8 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
     }
   }
 
-  private static class DictionaryStringAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
-    private final Utf8StringT[] decodedDictionary;
-    private final IntVector offsetVector;
-
-    DictionaryStringAccessor(IntVector vector, Dictionary dictionary, StringFactory<Utf8StringT> stringFactory) {
-      super(vector);
-      this.offsetVector = vector;
-      this.decodedDictionary = IntStream.rangeClosed(0, dictionary.getMaxId())
-          .mapToObj(dictionary::decodeToBinary)
-          .map(binary -> stringFactory.ofBytes(binary.getBytes()))
-          .toArray(genericArray(stringFactory.getGenericClass()));
-    }
-
-    @Override
-    public final Utf8StringT getUTF8String(int rowId) {
-      int offset = offsetVector.get(rowId);
-      return decodedDictionary[offset];
-    }
-  }
-
   private static class BinaryAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
 
     private final VarBinaryVector vector;
 
@@ -400,29 +243,8 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
     }
   }
 
-  private static class DictionaryBinaryAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
-    private final IntVector offsetVector;
-    private final byte[][] decodedDictionary;
-
-    DictionaryBinaryAccessor(IntVector vector, Dictionary dictionary) {
-      super(vector);
-      this.offsetVector = vector;
-      this.decodedDictionary = IntStream.rangeClosed(0, dictionary.getMaxId())
-          .mapToObj(dictionary::decodeToBinary)
-          .map(Binary::getBytes)
-          .toArray(byte[][]::new);
-    }
-
-    @Override
-    public final byte[] getBinary(int rowId) {
-      int offset = offsetVector.get(rowId);
-      return decodedDictionary[offset];
-    }
-  }
-
   private static class DateAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
 
     private final DateDayVector vector;
 
@@ -438,7 +260,7 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
   }
 
   private static class TimestampMicroTzAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
 
     private final TimeStampMicroTZVector vector;
 
@@ -470,7 +292,7 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
   }
 
   private static class ArrayAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
 
     private final ListVector vector;
     private final ChildVectorT arrayData;
@@ -490,17 +312,17 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
   }
 
   private static class StructAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
     StructAccessor(StructVector structVector, StructChildFactory<ChildVectorT> structChildFactory) {
       super(structVector, IntStream.range(0, structVector.size())
-              .mapToObj(structVector::getVectorById)
-              .map(structChildFactory::of)
-              .toArray(genericArray(structChildFactory.getGenericClass())));
+          .mapToObj(structVector::getVectorById)
+          .map(structChildFactory::of)
+          .toArray(genericArray(structChildFactory.getGenericClass())));
     }
   }
 
   private static class DecimalAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
 
     private final DecimalVector vector;
     private final DecimalFactory<DecimalT> decimalFactory;
@@ -514,100 +336,14 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
     @Override
     public final DecimalT getDecimal(int rowId, int precision, int scale) {
       return decimalFactory.ofBigDecimal(
-              DecimalUtility.getBigDecimalFromArrowBuf(vector.getDataBuffer(), rowId, scale),
-              precision, scale);
-    }
-  }
-
-  @SuppressWarnings("checkstyle:VisibilityModifier")
-  private abstract static class
-      DictionaryDecimalAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
-    private final DecimalT[] cache;
-    private final DecimalFactory<DecimalT> decimalFactory;
-    private final Dictionary parquetDictionary;
-    private final IntVector offsetVector;
-
-    private DictionaryDecimalAccessor(
-            IntVector vector,
-            Dictionary dictionary,
-            DecimalFactory<DecimalT> decimalFactory) {
-      super(vector);
-      this.offsetVector = vector;
-      this.parquetDictionary = dictionary;
-      this.decimalFactory = decimalFactory;
-      this.cache = genericArray(decimalFactory.getGenericClass(), dictionary.getMaxId() + 1);
-    }
-
-    protected long decodeToBinary(int dictId) {
-      return new BigInteger(parquetDictionary.decodeToBinary(dictId).getBytes()).longValue();
-    }
-
-    protected long decodeToLong(int dictId) {
-      return parquetDictionary.decodeToLong(dictId);
-    }
-
-    protected int decodeToInt(int dictId) {
-      return parquetDictionary.decodeToInt(dictId);
-    }
-
-    @Override
-    public final DecimalT getDecimal(int rowId, int precision, int scale) {
-      int dictId = offsetVector.get(rowId);
-      if (cache[dictId] == null) {
-        cache[dictId] = decimalFactory.ofLong(
-            decode(dictId),
-            precision,
-            scale);
-      }
-      return cache[dictId];
-    }
-
-    protected abstract long decode(int dictId);
-  }
-
-  private static class
-      DictionaryDecimalBinaryAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends DictionaryDecimalAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
-
-    DictionaryDecimalBinaryAccessor(IntVector vector, Dictionary dictionary, DecimalFactory<DecimalT> decimalFactory) {
-      super(vector, dictionary, decimalFactory);
-    }
-
-    @Override
-    protected long decode(int dictId) {
-      return decodeToBinary(dictId);
-    }
-  }
-
-  private static class DictionaryDecimalLongAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends DictionaryDecimalAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
-
-    DictionaryDecimalLongAccessor(IntVector vector, Dictionary dictionary, DecimalFactory<DecimalT> decimalFactory) {
-      super(vector, dictionary, decimalFactory);
-    }
-
-    @Override
-    protected long decode(int dictId) {
-      return decodeToLong(dictId);
-    }
-  }
-
-  private static class DictionaryDecimalIntAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends DictionaryDecimalAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
-
-    DictionaryDecimalIntAccessor(IntVector vector, Dictionary dictionary, DecimalFactory<DecimalT> decimalFactory) {
-      super(vector, dictionary, decimalFactory);
-    }
-
-    @Override
-    protected long decode(int dictId) {
-      return decodeToInt(dictId);
+          DecimalUtility.getBigDecimalFromArrowBuf(vector.getDataBuffer(), rowId, scale),
+          precision, scale);
     }
   }
 
   /**
    * Create a decimal value of type {@code DecimalT} from arrow vector value.
+   *
    * @param <DecimalT> A concrete type that can represent a decimal, e.g, Spark's Decimal.
    */
   protected interface DecimalFactory<DecimalT> {
@@ -629,6 +365,7 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
 
   /**
    * Create a UTF8 String value of type {@code Utf8StringT} from arrow vector value.
+   *
    * @param <Utf8StringT> A concrete type that can represent a UTF8 string.
    */
   protected interface StringFactory<Utf8StringT> {
@@ -650,10 +387,11 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
 
   /**
    * Create an array value of type {@code ArrayT} from arrow vector value.
-   * @param <ArrayT> A concrete type that can represent an array value in a list vector,
-   *                e.g. Spark's ColumnarArray.
-   * @param <ChildVectorT> A concrete type that can represent a child vector in a struct,
-   *                     e.g. Spark's ArrowColumnVector.
+   *
+   * @param <ArrayT>       A concrete type that can represent an array value in a list vector, e.g. Spark's
+   *                       ColumnarArray.
+   * @param <ChildVectorT> A concrete type that can represent a child vector in a struct, e.g. Spark's
+   *                       ArrowColumnVector.
    */
   protected interface ArrayFactory<ChildVectorT, ArrayT> {
     /**
@@ -669,8 +407,9 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
 
   /**
    * Create a struct child vector of type {@code ChildVectorT} from arrow vector value.
-   * @param <ChildVectorT> A concrete type that can represent a child vector in a struct,
-   *                     e.g. Spark's ArrowColumnVector.
+   *
+   * @param <ChildVectorT> A concrete type that can represent a child vector in a struct, e.g. Spark's
+   *                       ArrowColumnVector.
    */
   protected interface StructChildFactory<ChildVectorT> {
     /**
