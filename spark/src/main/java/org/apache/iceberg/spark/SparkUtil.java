@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.hadoop.HadoopFileIO;
+import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.transforms.Transform;
@@ -39,13 +39,12 @@ public class SparkUtil {
   }
 
   public static FileIO serializableFileIO(Table table) {
-    if (table.io() instanceof HadoopFileIO) {
+    if (table.io() instanceof HadoopConfigurable) {
       // we need to use Spark's SerializableConfiguration to avoid issues with Kryo serialization
-      SerializableConfiguration conf = new SerializableConfiguration(((HadoopFileIO) table.io()).conf());
-      return new HadoopFileIO(conf::value);
-    } else {
-      return table.io();
+      ((HadoopConfigurable) table.io()).serializeConfWith(conf -> new SerializableConfiguration(conf)::value);
     }
+
+    return table.io();
   }
 
   /**
