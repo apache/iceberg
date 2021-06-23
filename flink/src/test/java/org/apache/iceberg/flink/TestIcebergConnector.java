@@ -36,7 +36,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.After;
 import org.junit.Assert;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -46,13 +45,13 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class TestIcebergConnector extends FlinkTestBase {
 
-  private static TableEnvironment tEnv;
   private static final String TABLE_NAME = "test_table";
 
   @Rule
   public final TemporaryFolder warehouse = new TemporaryFolder();
 
   private final boolean isStreaming;
+  private volatile TableEnvironment tEnv;
 
   @Parameterized.Parameters(name = "isStreaming={0}")
   public static Iterable<Object[]> parameters() {
@@ -70,38 +69,30 @@ public class TestIcebergConnector extends FlinkTestBase {
   protected TableEnvironment getTableEnv() {
     if (tEnv == null) {
       synchronized (this) {
-        EnvironmentSettings.Builder settingsBuilder = EnvironmentSettings
-            .newInstance()
-            .useBlinkPlanner();
-        if (isStreaming) {
-          settingsBuilder.inStreamingMode();
-          StreamExecutionEnvironment env = StreamExecutionEnvironment
-              .getExecutionEnvironment(MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG);
-          env.enableCheckpointing(400);
-          env.setMaxParallelism(2);
-          env.setParallelism(2);
-          tEnv = StreamTableEnvironment.create(env, settingsBuilder.build());
-        } else {
-          settingsBuilder.inBatchMode();
-          tEnv = TableEnvironment.create(settingsBuilder.build());
+        if (tEnv == null) {
+          EnvironmentSettings.Builder settingsBuilder = EnvironmentSettings
+              .newInstance()
+              .useBlinkPlanner();
+          if (isStreaming) {
+            settingsBuilder.inStreamingMode();
+            StreamExecutionEnvironment env = StreamExecutionEnvironment
+                .getExecutionEnvironment(MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG);
+            env.enableCheckpointing(400);
+            env.setMaxParallelism(2);
+            env.setParallelism(2);
+            tEnv = StreamTableEnvironment.create(env, settingsBuilder.build());
+          } else {
+            settingsBuilder.inBatchMode();
+            tEnv = TableEnvironment.create(settingsBuilder.build());
+          }
+          // Set only one parallelism.
+          tEnv.getConfig().getConfiguration()
+              .set(CoreOptions.DEFAULT_PARALLELISM, 1)
+              .set(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
         }
       }
     }
     return tEnv;
-  }
-
-  @BeforeClass
-  public static void beforeClass() {
-    EnvironmentSettings settings = EnvironmentSettings
-        .newInstance()
-        .useBlinkPlanner()
-        .inBatchMode()
-        .build();
-
-    tEnv = TableEnvironment.create(settings);
-    tEnv.getConfig().getConfiguration()
-        .set(CoreOptions.DEFAULT_PARALLELISM, 1)
-        .set(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
   }
 
   @After
