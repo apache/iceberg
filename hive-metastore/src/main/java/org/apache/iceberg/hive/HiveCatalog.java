@@ -123,7 +123,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
         BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH));
 
     try {
-      List<String> tableNames = clients.run(client -> client.listTableNamesByFilter(database, filter, -1));
+      List<String> tableNames = clients.run(client -> client.listTableNamesByFilter(database, filter, (short) -1));
       List<Table> tableObjects = clients.run(client -> client.getTableObjectsByName(database, tableNames));
       List<TableIdentifier> tableIdentifiers = tableObjects.stream()
           .map(table -> TableIdentifier.of(namespace, table.getTableName()))
