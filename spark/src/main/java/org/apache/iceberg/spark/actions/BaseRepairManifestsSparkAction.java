@@ -126,8 +126,8 @@ public class BaseRepairManifestsSparkAction extends BaseManifestSparkAction<Repa
 
   @Override
   public Result execute() {
-    String desc = String.format("Rewriting manifests (staging location=%s) of %s", stagingLocation, getTable().name());
-    JobGroupInfo info = newJobGroupInfo("REWRITE-MANIFESTS", desc);
+    String desc = String.format("Repairing manifests (staging location=%s) of %s", stagingLocation, getTable().name());
+    JobGroupInfo info = newJobGroupInfo("REPAIR-MANIFESTS", desc);
     return withJobGroupInfo(info, this::doExecute);
   }
 
