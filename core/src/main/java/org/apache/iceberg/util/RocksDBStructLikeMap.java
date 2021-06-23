@@ -33,6 +33,7 @@ import java.util.Objects;
 import java.util.Set;
 import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Serializer;
 import org.apache.iceberg.types.Serializers;
@@ -60,6 +61,8 @@ public class RocksDBStructLikeMap extends AbstractMap<StructLike, StructLike> im
       } catch (IOException e) {
         throw new RuntimeException(e);
       }
+    } else if (!Files.isDirectory(rocksDBDir)) {
+      throw new ValidationException("The existing path %s is not a directory", path);
     }
 
     return new RocksDBStructLikeMap(path, keyType, valType);
@@ -230,7 +233,7 @@ public class RocksDBStructLikeMap extends AbstractMap<StructLike, StructLike> im
     Set<Entry<StructLike, StructLike>> entrySet = Sets.newHashSet();
     try (RocksIterator iter = db.newIterator()) {
       for (iter.seekToFirst(); iter.isValid(); iter.next()) {
-        StructLikeEntry<StructLike> entry = new StructLikeEntry<>(
+        StructLikeEntry entry = new StructLikeEntry(
             keySerializer.deserialize(iter.key()),
             valSerializer.deserialize(iter.value()));
         entrySet.add(entry);
@@ -239,12 +242,12 @@ public class RocksDBStructLikeMap extends AbstractMap<StructLike, StructLike> im
     }
   }
 
-  private class StructLikeEntry<R> implements Entry<StructLike, R> {
+  private class StructLikeEntry implements Entry<StructLike, StructLike> {
 
     private final StructLike key;
-    private final R value;
+    private final StructLike value;
 
-    private StructLikeEntry(StructLike key, R value) {
+    private StructLikeEntry(StructLike key, StructLike value) {
       this.key = key;
       this.value = value;
     }
@@ -255,41 +258,42 @@ public class RocksDBStructLikeMap extends AbstractMap<StructLike, StructLike> im
     }
 
     @Override
-    public R getValue() {
+    public StructLike getValue() {
       return value;
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public boolean equals(Object o) {
       if (this == o) {
         return true;
       } else if (!(o instanceof StructLikeEntry)) {
         return false;
       } else {
-        StructLikeEntry<R> that = (StructLikeEntry<R>) o;
+        StructLikeEntry that = (StructLikeEntry) o;
         return Objects.equals(
             StructLikeWrapper.forType(keyType).set(key),
             StructLikeWrapper.forType(keyType).set(that.key)) &&
             Objects.equals(
-                StructLikeWrapper.forType(valType).set((StructLike) value),
-                StructLikeWrapper.forType(valType).set((StructLike) that.value)
+                StructLikeWrapper.forType(valType).set(value),
+                StructLikeWrapper.forType(valType).set(that.value)
             );
-
       }
     }
 
     @Override
     public int hashCode() {
-      int hashCode = StructLikeWrapper.forType(keyType).set(key).hashCode();
+      int hashCode = 0;
+      if (key != null) {
+        hashCode ^= StructLikeWrapper.forType(keyType).set(key).hashCode();
+      }
       if (value != null) {
-        hashCode ^= StructLikeWrapper.forType(valType).set((StructLike) value).hashCode();
+        hashCode ^= StructLikeWrapper.forType(valType).set(value).hashCode();
       }
       return hashCode;
     }
 
     @Override
-    public R setValue(R newValue) {
+    public StructLike setValue(StructLike newValue) {
       throw new UnsupportedOperationException("Does not support setValue.");
     }
   }

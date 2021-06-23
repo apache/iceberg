@@ -128,11 +128,17 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       // Adding a pos-delete to replace the old path-offset.
       StructLike previous = insertedRowMap.put(copiedKey, pathOffset);
       if (previous != null) {
-        // TODO attach the previous row if has a positional-delete row schema in appender factory.
-        posDeleteWriter.delete(previous.get(0, CharSequence.class), previous.get(1, Long.class), null);
+        writePosDelete(previous, null);
       }
 
       dataWriter.write(row);
+    }
+
+    private void writePosDelete(StructLike pathOffset, T row) {
+      Preconditions.checkNotNull(pathOffset, "StructLike pathOffset cannot be null.");
+      CharSequence path = pathOffset.get(0, CharSequence.class);
+      long offset = pathOffset.get(1, Long.class);
+      posDeleteWriter.delete(path, offset, row);
     }
 
     /**
@@ -144,8 +150,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       StructLike previous = insertedRowMap.remove(key);
 
       if (previous != null) {
-        // TODO attach the previous row if has a positional-delete row schema in appender factory.
-        posDeleteWriter.delete(previous.get(0, CharSequence.class), previous.get(1, Long.class), null);
+        writePosDelete(previous, null);
       }
     }
 

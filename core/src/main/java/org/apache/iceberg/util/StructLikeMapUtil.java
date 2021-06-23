@@ -19,6 +19,9 @@
 
 package org.apache.iceberg.util;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Map;
 import org.apache.iceberg.StructLike;
@@ -29,7 +32,9 @@ import org.slf4j.LoggerFactory;
 public class StructLikeMapUtil {
 
   private static final Logger LOG = LoggerFactory.getLogger(StructLikeMap.class);
-  public static final String IMPL = "struct-like-map-impl";
+  private static final String ROCKSDB_DIR_PREFIX = "iceberg-rocksdb-";
+
+  public static final String IMPL = "spill-disk-impl";
   public static final String IN_MEMORY_MAP = "in-memory";
   public static final String ROCKSDB_MAP = "rocksdb";
   public static final String ROCKSDB_DIR = "rocksdb-dir";
@@ -41,18 +46,24 @@ public class StructLikeMapUtil {
                                                  Types.StructType valType,
                                                  Map<String, String> properties) {
     String impl = properties.getOrDefault(IMPL, IN_MEMORY_MAP);
-
     LOG.info("Loading StructLikeMap implementation: {}", impl);
 
     switch (impl) {
       case IN_MEMORY_MAP:
         return StructLikeMap.create(keyType);
       case ROCKSDB_MAP:
-        String defaultDir = Paths.get(System.getProperty("java.io.tmpdir"), "iceberg-rocksdb").toString();
-
-        return RocksDBStructLikeMap.create(properties.getOrDefault(ROCKSDB_DIR, defaultDir), keyType, valType);
+        return RocksDBStructLikeMap.create(rocksDBDir(properties), keyType, valType);
       default:
         throw new UnsupportedOperationException("Unknown StructLikeMap implementation: " + impl);
+    }
+  }
+
+  private static String rocksDBDir(Map<String, String> properties) {
+    String dir = properties.getOrDefault(ROCKSDB_DIR, System.getProperty("java.io.tmpdir"));
+    try {
+      return Files.createTempDirectory(Paths.get(dir), ROCKSDB_DIR_PREFIX).toString();
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to create the temporary directory", e);
     }
   }
 }
