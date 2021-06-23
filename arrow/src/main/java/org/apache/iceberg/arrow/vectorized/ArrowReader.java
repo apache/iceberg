@@ -22,7 +22,6 @@ package org.apache.iceberg.arrow.vectorized;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -226,7 +225,7 @@ public class ArrowReader extends CloseableGroup {
 
       Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(fileTasks.size());
       decryptedFiles.forEach(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
-      this.inputFiles = Collections.unmodifiableMap(files);
+      this.inputFiles = ImmutableMap.copyOf(files);
       this.currentIterator = CloseableIterator.empty();
       this.expectedSchema = expectedSchema;
       this.nameMapping = nameMapping;
