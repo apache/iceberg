@@ -66,7 +66,7 @@ public class TestStructLikeMap {
     Map<String, String> props = Maps.newHashMap();
     props.put(StructLikeMapUtil.IMPL, mapType);
 
-    if (StructLikeMapUtil.ROCKSDB_DIR.equals(mapType)) {
+    if (StructLikeMapUtil.ROCKSDB_MAP.equals(mapType)) {
       props.put(StructLikeMapUtil.ROCKSDB_DIR, temp.getRoot().getAbsolutePath());
     }
 
