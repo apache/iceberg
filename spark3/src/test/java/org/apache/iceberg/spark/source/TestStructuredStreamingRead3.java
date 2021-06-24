@@ -38,6 +38,7 @@ import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
@@ -363,8 +364,12 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
     appendDataAsMultipleSnapshots(dataAcrossSnapshots, tableIdentifier);
 
+    table.refresh();
+
     // this should create a snapshot with type delete.
-    sql("DELETE from %s where id=4", tableName);
+    table.newDelete()
+        .deleteFromRowFilter(Expressions.equal("id", 4))
+        .commit();
 
     // check pre-condition - that the above delete operation on table resulted in Snapshot of Type DELETE.
     table.refresh();
