@@ -43,7 +43,6 @@ class HiveIcebergPartitionTextParser {
   private static final Pattern ALWAYS_NULL_PATTERN = Pattern.compile(
       "alwaysNull\\((.*?)\\)", Pattern.CASE_INSENSITIVE);
   private static final String INTEGER_PATTERN = "\\d+";
-  private static final String PIPE_DELIMITER = "\\|";
 
   private HiveIcebergPartitionTextParser() {
   }
@@ -82,11 +81,11 @@ class HiveIcebergPartitionTextParser {
     return false;
   }
 
-  public static PartitionSpec fromText(Schema schema, String text) {
+  public static PartitionSpec fromText(Schema schema, String text, String delimiter) {
     Preconditions.checkArgument(text.length() < PARTITION_TEXT_MAX_LENGTH,
         "Partition spec text too long: max allowed length %s, but got %s",
         PARTITION_TEXT_MAX_LENGTH, text.length());
-    String[] parts = text.split(PIPE_DELIMITER);
+    String[] parts = text.split(delimiter);
     PartitionSpec.Builder builder = PartitionSpec.builderFor(schema);
 
     for (String part : parts) {

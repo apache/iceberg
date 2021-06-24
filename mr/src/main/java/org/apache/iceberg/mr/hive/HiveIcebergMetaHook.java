@@ -252,6 +252,8 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
       org.apache.hadoop.hive.metastore.api.Table hmsTable) {
     String partitionSpecJson = hmsTable.getParameters().get(InputFormatConfig.PARTITION_SPEC);
     String partitionSpecText = hmsTable.getParameters().get(InputFormatConfig.PARTITIONING);
+    String partitionSpecTextDelimiter = hmsTable.getParameters().getOrDefault(
+        InputFormatConfig.PARTITIONING_DELIMITER, InputFormatConfig.PARTITIONING_DELIMITER_DEFAULT);
     boolean hasHsmTablePartitionKeys = hmsTable.isSetPartitionKeys() && !hmsTable.getPartitionKeys().isEmpty();
 
     if (Stream.of(hasHsmTablePartitionKeys, partitionSpecJson != null, partitionSpecText != null)
@@ -270,7 +272,7 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
     if (partitionSpecJson != null) {
       return PartitionSpecParser.fromJson(schema, partitionSpecJson);
     } else if (partitionSpecText != null) {
-      return HiveIcebergPartitionTextParser.fromText(schema, partitionSpecText);
+      return HiveIcebergPartitionTextParser.fromText(schema, partitionSpecText, partitionSpecTextDelimiter);
     } else if (hasHsmTablePartitionKeys) {
       // If the table is partitioned then generate the identity partition definitions for the Iceberg table
       return HiveSchemaUtil.spec(schema, hmsTable.getPartitionKeys());

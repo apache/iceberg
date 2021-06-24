@@ -97,7 +97,8 @@ public class InputFormatConfig {
   public static final String CATALOG_CONFIG_PREFIX = "iceberg.catalog.";
 
   /**
-   * Property used to input Iceberg partitioning strategy (pipe delimited transforms) through table property.
+   * Property used to input Iceberg partitioning strategy through table property.
+   * The partition text is a list of partition transforms delimited by {@link #PARTITIONING_DELIMITER}
    * <p>
    * For example:
    * <pre>
@@ -106,6 +107,12 @@ public class InputFormatConfig {
    * </pre>
    */
   public static final String PARTITIONING = "iceberg.partitioning";
+
+  /**
+   * Regex expression used to delimit partition text, default to {@link #PARTITIONING_DELIMITER_DEFAULT pipe}
+   */
+  public static final String PARTITIONING_DELIMITER = "iceberg.partitioning.delimiter";
+  public static final String PARTITIONING_DELIMITER_DEFAULT = "\\|";
 
   public enum InMemoryDataModel {
     PIG,

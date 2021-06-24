@@ -22,6 +22,7 @@ package org.apache.iceberg.mr.hive;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -47,20 +48,25 @@ public class TestHiveIcebergPartitionTextParser {
     AssertHelpers.assertThrows("should fail when input exceeding max allowed length",
         IllegalArgumentException.class,
         "Partition spec text too long: max allowed length 1000, but got 1024",
-        () -> HiveIcebergPartitionTextParser.fromText(SCHEMA, new String(new char[1024]).replace("\0", "s")));
+        () -> HiveIcebergPartitionTextParser.fromText(SCHEMA, new String(new char[1024]).replace("\0", "s"),
+            InputFormatConfig.PARTITIONING_DELIMITER_DEFAULT));
   }
 
   @Test
   public void testParsingColumns() {
     PartitionSpec expected = PartitionSpec.builderFor(SCHEMA)
         .identity("id").identity("name").build();
-    Assert.assertEquals(expected, HiveIcebergPartitionTextParser.fromText(SCHEMA, "id|name"));
+    Assert.assertEquals(expected, HiveIcebergPartitionTextParser.fromText(SCHEMA, "id|name",
+        InputFormatConfig.PARTITIONING_DELIMITER_DEFAULT));
     Assert.assertEquals("space on the right of pipe should not matter",
-        expected, HiveIcebergPartitionTextParser.fromText(SCHEMA, "id| name"));
+        expected, HiveIcebergPartitionTextParser.fromText(SCHEMA, "id| name",
+            InputFormatConfig.PARTITIONING_DELIMITER_DEFAULT));
     Assert.assertEquals("space on the left of pipe should not matter",
-        expected, HiveIcebergPartitionTextParser.fromText(SCHEMA, "id |name"));
+        expected, HiveIcebergPartitionTextParser.fromText(SCHEMA, "id |name",
+            InputFormatConfig.PARTITIONING_DELIMITER_DEFAULT));
     Assert.assertEquals("space on both sides of pipe should not matter",
-        expected, HiveIcebergPartitionTextParser.fromText(SCHEMA, "id | name"));
+        expected, HiveIcebergPartitionTextParser.fromText(SCHEMA, "id | name",
+            InputFormatConfig.PARTITIONING_DELIMITER_DEFAULT));
   }
 
   @Test
@@ -68,7 +74,8 @@ public class TestHiveIcebergPartitionTextParser {
     AssertHelpers.assertThrows("should fail when column does not exist",
         IllegalArgumentException.class,
         "Cannot recognized partition transform or find column",
-        () -> HiveIcebergPartitionTextParser.fromText(SCHEMA, "col"));
+        () -> HiveIcebergPartitionTextParser.fromText(SCHEMA, "col",
+            InputFormatConfig.PARTITIONING_DELIMITER_DEFAULT));
   }
 
   @Test
@@ -76,10 +83,12 @@ public class TestHiveIcebergPartitionTextParser {
     PartitionSpec expected = PartitionSpec.builderFor(SCHEMA)
         .bucket("name", 16).truncate("employee_info.address", 8).build();
     Assert.assertEquals(expected, HiveIcebergPartitionTextParser.fromText(
-        SCHEMA, "bucket(16,name)|truncate(employee_info.address,8)"));
+        SCHEMA, "bucket(16,name)|truncate(employee_info.address,8)",
+        InputFormatConfig.PARTITIONING_DELIMITER_DEFAULT));
     Assert.assertEquals("space in args should not matter",
         expected, HiveIcebergPartitionTextParser.fromText(
-            SCHEMA, "bucket( 16, name)| truncate(employee_info.address , 8 )"));
+            SCHEMA, "bucket( 16, name)| truncate(employee_info.address , 8 )",
+            InputFormatConfig.PARTITIONING_DELIMITER_DEFAULT));
   }
 
   @Test
@@ -87,17 +96,20 @@ public class TestHiveIcebergPartitionTextParser {
     AssertHelpers.assertThrows("should fail when there is only 1 arg",
         IllegalArgumentException.class,
         "Cannot recognized partition transform",
-        () -> HiveIcebergPartitionTextParser.fromText(SCHEMA, "bucket(a)"));
+        () -> HiveIcebergPartitionTextParser.fromText(SCHEMA, "bucket(a)",
+            InputFormatConfig.PARTITIONING_DELIMITER_DEFAULT));
 
     AssertHelpers.assertThrows("should fail when column does not exist",
         IllegalArgumentException.class,
         "Cannot find source column",
-        () -> HiveIcebergPartitionTextParser.fromText(SCHEMA, "bucket(8, col)"));
+        () -> HiveIcebergPartitionTextParser.fromText(SCHEMA, "bucket(8, col)",
+            InputFormatConfig.PARTITIONING_DELIMITER_DEFAULT));
 
     AssertHelpers.assertThrows("should fail when input to transform is wrong",
         IllegalArgumentException.class,
         "Cannot find integer as argument 1 in 2-arg partition transform",
-        () -> HiveIcebergPartitionTextParser.fromText(SCHEMA, "bucket(name, 8)"));
+        () -> HiveIcebergPartitionTextParser.fromText(SCHEMA, "bucket(name, 8)",
+            InputFormatConfig.PARTITIONING_DELIMITER_DEFAULT));
   }
 
   @Test
@@ -105,13 +117,16 @@ public class TestHiveIcebergPartitionTextParser {
     PartitionSpec expected = PartitionSpec.builderFor(SCHEMA)
         .day("created").hour("updated").alwaysNull("id").build();
     Assert.assertEquals(expected, HiveIcebergPartitionTextParser.fromText(
-        SCHEMA, "day(created)|hour(updated)|alwaysNull(id)"));
+        SCHEMA, "day(created)|hour(updated)|alwaysNull(id)",
+        InputFormatConfig.PARTITIONING_DELIMITER_DEFAULT));
     Assert.assertEquals("space in args should not matter",
         expected, HiveIcebergPartitionTextParser.fromText(
-            SCHEMA, "day(created )| hour( updated)| alwaysNull(id)"));
+            SCHEMA, "day(created )| hour( updated)| alwaysNull(id)",
+            InputFormatConfig.PARTITIONING_DELIMITER_DEFAULT));
     Assert.assertEquals("case sensitivity should not matter",
         expected, HiveIcebergPartitionTextParser.fromText(
-            SCHEMA, "day(created)|hour(updated)|alwaysnull(id)"));
+            SCHEMA, "day(created)|hour(updated)|alwaysnull(id)",
+            InputFormatConfig.PARTITIONING_DELIMITER_DEFAULT));
   }
 
   @Test
@@ -119,11 +134,13 @@ public class TestHiveIcebergPartitionTextParser {
     AssertHelpers.assertThrows("should fail when column does not exist",
         IllegalArgumentException.class,
         "Cannot find source column",
-        () -> HiveIcebergPartitionTextParser.fromText(SCHEMA, "year(col)"));
+        () -> HiveIcebergPartitionTextParser.fromText(SCHEMA, "year(col)",
+            InputFormatConfig.PARTITIONING_DELIMITER_DEFAULT));
     AssertHelpers.assertThrows("should treat additional arguments as plain text column and fail",
         IllegalArgumentException.class,
         "Cannot find source column",
-        () -> HiveIcebergPartitionTextParser.fromText(SCHEMA, "year(8,col)"));
+        () -> HiveIcebergPartitionTextParser.fromText(SCHEMA, "year(8,col)",
+            InputFormatConfig.PARTITIONING_DELIMITER_DEFAULT));
   }
 
   @Test
@@ -134,6 +151,18 @@ public class TestHiveIcebergPartitionTextParser {
         .identity("employee_info.employer")
         .build();
     Assert.assertEquals(expected, HiveIcebergPartitionTextParser.fromText(
-        SCHEMA, "day(created)|bucket(16,id)|employee_info.employer"));
+        SCHEMA, "day(created)|bucket(16,id)|employee_info.employer",
+        InputFormatConfig.PARTITIONING_DELIMITER_DEFAULT));
+  }
+
+  @Test
+  public void testNonDefaultDelimiter() {
+    Schema schema = new Schema(
+        optional(1, "i|d", Types.LongType.get()),
+        optional(2, "na,me", Types.StringType.get()));
+    PartitionSpec expected = PartitionSpec.builderFor(schema)
+        .bucket("i|d", 16).alwaysNull("na,me").build();
+    Assert.assertEquals(expected, HiveIcebergPartitionTextParser.fromText(
+        schema, "bucket(16,i|d);alwaysNull(na,me)", ";"));
   }
 }
