@@ -234,6 +234,189 @@ SELECT * FROM prod.db.table.manifests
 +----------------------------------------------------------------------+--------+-------------------+---------------------+------------------------+---------------------------+--------------------------+---------------------------------+
 ```
 
+### Metadata Table Schema
+
+1. `AllDataFilesTable`
+
+```json
+table {
+  134: content: optional int (Contents of the file: 0=data, 1=position deletes, 2=equality deletes)
+  100: file_path: required string (Location URI with FS scheme)
+  101: file_format: required string (File format name: avro, orc, or parquet)
+  102: partition: required struct<1000: data_bucket: optional int> (Partition data tuple, schema based on the partition spec)
+  103: record_count: required long (Number of records in the file)
+  104: file_size_in_bytes: required long (Total file size in bytes)
+  108: column_sizes: optional map<int, long> (Map of column id to total size on disk)
+  109: value_counts: optional map<int, long> (Map of column id to total count, including null and NaN)
+  110: null_value_counts: optional map<int, long> (Map of column id to null value count)
+  137: nan_value_counts: optional map<int, long> (Map of column id to number of NaN values in the column)
+  125: lower_bounds: optional map<int, binary> (Map of column id to lower bound)
+  128: upper_bounds: optional map<int, binary> (Map of column id to upper bound)
+  131: key_metadata: optional binary (Encryption key metadata blob)
+  132: split_offsets: optional list<long> (Splittable offsets)
+  135: equality_ids: optional list<int> (Equality comparison field IDs)
+  140: sort_order_id: optional int (Sort order ID)
+}
+```
+
+2. `AllEntriesTable`
+
+```json
+table {
+  0: status: required int
+  1: snapshot_id: optional long
+  3: sequence_number: optional long
+  2: data_file: required struct<
+        134: content: optional int (Contents of the file: 0=data, 1=position deletes, 2=equality deletes),
+        100: file_path: required string (Location URI with FS scheme),
+        101: file_format: required string (File format name: avro, orc, or parquet),
+        102: partition: required struct<1000: data_bucket: optional int> (Partition data tuple, schema based on the partition spec),
+            103: record_count: required long (Number of records in the file),
+            104: file_size_in_bytes: required long (Total file size in bytes),
+            108: column_sizes: optional map<int, long> (Map of column id to total size on disk),
+            109: value_counts: optional map<int, long> (Map of column id to total count, including null and NaN),
+            110: null_value_counts: optional map<int, long> (Map of column id to null value count),
+            137: nan_value_counts: optional map<int, long> (Map of column id to number of NaN values in the column),
+            125: lower_bounds: optional map<int, binary> (Map of column id to lower bound),
+            128: upper_bounds: optional map<int, binary> (Map of column id to upper bound),
+            131: key_metadata: optional binary (Encryption key metadata blob),
+            132: split_offsets: optional list<long> (Splittable offsets),
+            135: equality_ids: optional list<int> (Equality comparison field IDs),
+            140: sort_order_id: optional int (Sort order ID)
+    >
+}
+```
+
+3. `AllManifestsTable`
+
+```json
+table {
+    1: path: required string
+    2: length: required long
+    3: partition_spec_id: optional int
+    4: added_snapshot_id: optional long
+    5: added_data_files_count: optional int
+    6: existing_data_files_count: optional int
+    7: deleted_data_files_count: optional int
+    8: partition_summaries: optional list<
+        struct<
+            10: contains_null: required boolean,
+            11: contains_nan: required boolean,
+            12: lower_bound: optional string,
+            13: upper_bound: optional string
+        >
+    >
+}
+```
+
+4. `DataFilesTable`
+
+```json
+table {
+  134: content: optional int (Contents of the file: 0=data, 1=position deletes, 2=equality deletes)
+  100: file_path: required string (Location URI with FS scheme)
+  101: file_format: required string (File format name: avro, orc, or parquet)
+  102: partition: required struct<1000: data_bucket: optional int> (Partition data tuple, schema based on the partition spec)
+  103: record_count: required long (Number of records in the file)
+  104: file_size_in_bytes: required long (Total file size in bytes)
+  108: column_sizes: optional map<int, long> (Map of column id to total size on disk)
+  109: value_counts: optional map<int, long> (Map of column id to total count, including null and NaN)
+  110: null_value_counts: optional map<int, long> (Map of column id to null value count)
+  137: nan_value_counts: optional map<int, long> (Map of column id to number of NaN values in the column)
+  125: lower_bounds: optional map<int, binary> (Map of column id to lower bound)
+  128: upper_bounds: optional map<int, binary> (Map of column id to upper bound)
+  131: key_metadata: optional binary (Encryption key metadata blob)
+  132: split_offsets: optional list<long> (Splittable offsets)
+  135: equality_ids: optional list<int> (Equality comparison field IDs)
+  140: sort_order_id: optional int (Sort order ID)
+}
+```
+
+5. `HistoryTable`
+
+```java
+private static final Schema HISTORY_SCHEMA = new Schema(
+    Types.NestedField.required(1, "made_current_at", Types.TimestampType.withZone()),
+    Types.NestedField.required(2, "snapshot_id", Types.LongType.get()),
+    Types.NestedField.optional(3, "parent_id", Types.LongType.get()),
+    Types.NestedField.required(4, "is_current_ancestor", Types.BooleanType.get())
+);
+```
+
+6. `ManifestEntriesTable`
+
+```json
+table {
+    0: status: required int
+    1: snapshot_id: optional long
+    3: sequence_number: optional long
+    2: data_file: required struct<
+        134: content: optional int (Contents of the file: 0=data, 1=position deletes, 2=equality deletes),
+        100: file_path: required string (Location URI with FS scheme),
+        101: file_format: required string (File format name: avro, orc, or parquet),
+        102: partition: required struct<1000: data_bucket: optional int> (Partition data tuple, schema based on the partition spec),
+            103: record_count: required long (Number of records in the file),
+            104: file_size_in_bytes: required long (Total file size in bytes),
+            108: column_sizes: optional map<int, long> (Map of column id to total size on disk),
+            109: value_counts: optional map<int, long> (Map of column id to total count, including null and NaN),
+            110: null_value_counts: optional map<int, long> (Map of column id to null value count),
+            137: nan_value_counts: optional map<int, long> (Map of column id to number of NaN values in the column),
+            125: lower_bounds: optional map<int, binary> (Map of column id to lower bound),
+            128: upper_bounds: optional map<int, binary> (Map of column id to upper bound),
+            131: key_metadata: optional binary (Encryption key metadata blob),
+            132: split_offsets: optional list<long> (Splittable offsets),
+            135: equality_ids: optional list<int> (Equality comparison field IDs),
+            140: sort_order_id: optional int (Sort order ID)
+    >
+}
+```
+
+7. `ManifestsTable`
+
+```json
+table {
+    1: path: required string
+    2: length: required long
+    3: partition_spec_id: required int
+    4: added_snapshot_id: required long
+    5: added_data_files_count: required int
+    6: existing_data_files_count: required int
+    7: deleted_data_files_count: required int
+    8: partition_summaries: required list<
+        struct<
+            10: contains_null: required boolean,
+            11: contains_nan: required boolean,
+            12: lower_bound: optional string,
+            13: upper_bound: optional string
+        >
+    >
+}
+```
+
+8. `PartitionsTable`
+
+```java
+this.schema = new Schema(
+    Types.NestedField.required(1, "partition", table.spec().partitionType()),
+    Types.NestedField.required(2, "record_count", Types.LongType.get()),
+    Types.NestedField.required(3, "file_count", Types.IntegerType.get())
+);
+```
+
+9. `SnapshotsTable`
+
+```java
+private static final Schema SNAPSHOT_SCHEMA = new Schema(
+    Types.NestedField.required(1, "committed_at", Types.TimestampType.withZone()),
+    Types.NestedField.required(2, "snapshot_id", Types.LongType.get()),
+    Types.NestedField.optional(3, "parent_id", Types.LongType.get()),
+    Types.NestedField.optional(4, "operation", Types.StringType.get()),
+    Types.NestedField.optional(5, "manifest_list", Types.StringType.get()),
+    Types.NestedField.optional(6, "summary",
+        Types.MapType.ofRequired(7, 8, Types.StringType.get(), Types.StringType.get()))
+);
+```
+
 ## Inspecting with DataFrames
 
 Metadata tables can be loaded in Spark 2.4 or Spark 3 using the DataFrameReader API:
