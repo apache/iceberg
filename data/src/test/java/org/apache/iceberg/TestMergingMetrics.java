@@ -19,15 +19,26 @@
 
 package org.apache.iceberg;
 
+import java.nio.ByteBuffer;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.NaNUtil;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -105,22 +116,62 @@ public abstract class TestMergingMetrics<T> {
   @Test
   public void verifySingleRecordMetric() throws Exception {
     Record record = GenericRecord.create(SCHEMA);
-    record.setField("id", 3);
-    record.setField("float", Float.NaN); // FLOAT_FIELD - 1
-    record.setField("double", Double.NaN); // DOUBLE_FIELD - 1
-    record.setField("floatlist", ImmutableList.of(3.3F, 2.8F, Float.NaN, -25.1F, Float.NaN)); // FLOAT_LIST - 2
-    record.setField("map1", ImmutableMap.of(Float.NaN, "a", 0F, "b")); // MAP_FIELD_1 - 1
-    record.setField("map2", ImmutableMap.of(
+    record.setField(ID_FIELD.name(), 3);
+    record.setField(FLOAT_FIELD.name(), Float.NaN); // FLOAT_FIELD - 1
+    record.setField(DOUBLE_FIELD.name(), Double.NaN); // DOUBLE_FIELD - 1
+    record.setField(FLOAT_LIST.name(), ImmutableList.of(3.3F, 2.8F, Float.NaN, -25.1F, Float.NaN)); // FLOAT_LIST - 2
+    record.setField(MAP_FIELD_1.name(), ImmutableMap.of(Float.NaN, "a", 0F, "b")); // MAP_FIELD_1 - 1
+    record.setField(MAP_FIELD_2.name(), ImmutableMap.of(
         0, 0D, 1, Double.NaN, 2, 2D, 3, Double.NaN, 4, Double.NaN)); // MAP_FIELD_2 - 3
 
     FileAppender<T> appender = writeAndGetAppender(ImmutableList.of(record));
-    Map<Integer, Long> nanValueCount = appender.metrics().nanValueCounts();
+    Metrics metrics = appender.metrics();
+    Map<Integer, Long> nanValueCount = metrics.nanValueCounts();
+    Map<Integer, ByteBuffer> upperBounds = metrics.upperBounds();
+    Map<Integer, ByteBuffer> lowerBounds = metrics.lowerBounds();
 
     assertNaNCountMatch(1L, nanValueCount, FLOAT_FIELD);
     assertNaNCountMatch(1L, nanValueCount, DOUBLE_FIELD);
     assertNaNCountMatch(2L, nanValueCount, FLOAT_LIST);
     assertNaNCountMatch(1L, nanValueCount, MAP_FIELD_1);
     assertNaNCountMatch(3L, nanValueCount, MAP_FIELD_2);
+
+    assertBoundValueMatch(null, upperBounds, FLOAT_FIELD);
+    assertBoundValueMatch(null, upperBounds, DOUBLE_FIELD);
+    assertBoundValueMatch(3.3F, upperBounds, FLOAT_LIST);
+    assertBoundValueMatch(0F, upperBounds, MAP_FIELD_1);
+    assertBoundValueMatch(2D, upperBounds, MAP_FIELD_2);
+
+    assertBoundValueMatch(null, lowerBounds, FLOAT_FIELD);
+    assertBoundValueMatch(null, lowerBounds, DOUBLE_FIELD);
+    assertBoundValueMatch(-25.1F, lowerBounds, FLOAT_LIST);
+    assertBoundValueMatch(0F, lowerBounds, MAP_FIELD_1);
+    assertBoundValueMatch(0D, lowerBounds, MAP_FIELD_2);
+  }
+
+  @Test
+  public void verifyRandomlyGeneratedRecordsMetric() throws Exception {
+    // too big of the record count will more likely to make all upper/lower bounds +/-infinity,
+    // which makes the tests easier to pass
+    List<Record> recordList = RandomGenericData.generate(SCHEMA, 5, 250L);
+    FileAppender<T> appender = writeAndGetAppender(recordList);
+
+    Map<Types.NestedField, AtomicReference<Number>> expectedUpperBounds = new HashMap<>();
+    Map<Types.NestedField, AtomicReference<Number>> expectedLowerBounds = new HashMap<>();
+    Map<Types.NestedField, AtomicLong> expectedNaNCount = new HashMap<>();
+
+    populateExpectedValues(recordList, expectedUpperBounds, expectedLowerBounds, expectedNaNCount);
+
+    Metrics metrics = appender.metrics();
+    expectedUpperBounds.forEach((key, value) -> assertBoundValueMatch(value.get(), metrics.upperBounds(), key));
+    expectedLowerBounds.forEach((key, value) -> assertBoundValueMatch(value.get(), metrics.lowerBounds(), key));
+    expectedNaNCount.forEach((key, value) -> assertNaNCountMatch(value.get(), metrics.nanValueCounts(), key));
+
+    SCHEMA.columns().stream()
+        .filter(column -> !FIELDS_WITH_NAN_COUNT_TO_ID.containsKey(column))
+        .map(Types.NestedField::fieldId)
+        .forEach(id -> Assert.assertNull("NaN count for field %s should be null",
+            metrics.nanValueCounts().get(id)));
   }
 
   private void assertNaNCountMatch(Long expected, Map<Integer, Long> nanValueCount, Types.NestedField field) {
@@ -129,50 +180,88 @@ public abstract class TestMergingMetrics<T> {
         expected, nanValueCount.get(FIELDS_WITH_NAN_COUNT_TO_ID.get(field)));
   }
 
-  @Test
-  public void verifyRandomlyGeneratedRecordsMetric() throws Exception {
-    List<Record> recordList = RandomGenericData.generate(SCHEMA, 50, 250L);
+  private void assertBoundValueMatch(Number expected, Map<Integer, ByteBuffer> boundMap, Types.NestedField field) {
+    if (field.type().isNestedType() && fileFormat == FileFormat.ORC) {
+      // we don't update floating column bounds values within ORC nested columns
+      return;
+    }
 
-    FileAppender<T> appender = writeAndGetAppender(recordList);
-    Map<Integer, Long> nanValueCount = appender.metrics().nanValueCounts();
-
-    FIELDS_WITH_NAN_COUNT_TO_ID.forEach((key, value) -> Assert.assertEquals(
-        String.format("NaN count for field %s does not match expected", key.name()),
-        getExpectedNaNCount(recordList, key),
-        nanValueCount.get(value)));
-
-    SCHEMA.columns().stream()
-        .filter(column -> !FIELDS_WITH_NAN_COUNT_TO_ID.containsKey(column))
-        .map(Types.NestedField::fieldId)
-        .forEach(id -> Assert.assertNull("NaN count for field %s should be null", nanValueCount.get(id)));
+    int actualFieldId = FIELDS_WITH_NAN_COUNT_TO_ID.get(field);
+    ByteBuffer byteBuffer = boundMap.get(actualFieldId);
+    Type type = SCHEMA.findType(actualFieldId);
+    Assert.assertEquals(String.format("Bound value for field %s must match", field.name()),
+        expected, byteBuffer == null ? null : Conversions.fromByteBuffer(type, byteBuffer));
   }
 
-  private Long getExpectedNaNCount(List<Record> expectedRecords, Types.NestedField field) {
-    return expectedRecords.stream()
-        .mapToLong(e -> {
-          Object value = e.getField(field.name());
-          if (value == null) {
-            return 0;
-          }
-          if (FLOAT_FIELD.equals(field)) {
-            return Float.isNaN((Float) value) ? 1 : 0;
-          } else if  (DOUBLE_FIELD.equals(field)) {
-            return Double.isNaN((Double) value) ? 1 : 0;
-          } else if  (FLOAT_LIST.equals(field)) {
-            return ((List<Float>) value).stream()
-                .filter(val -> val != null && Float.isNaN(val))
-                .count();
-          } else if  (MAP_FIELD_1.equals(field)) {
-            return ((Map<Float, ?>) value).keySet().stream()
-                .filter(key -> Float.isNaN(key))
-                .count();
-          } else if  (MAP_FIELD_2.equals(field)) {
-            return ((Map<?, Double>) value).values().stream()
-                .filter(val -> val != null && Double.isNaN(val))
-                .count();
-          } else {
-            throw new RuntimeException("unknown field name for getting expected NaN count: " + field.name());
-          }
-        }).sum();
+  private void populateExpectedValues(List<Record> records,
+                                      Map<Types.NestedField, AtomicReference<Number>> upperBounds,
+                                      Map<Types.NestedField, AtomicReference<Number>> lowerBounds,
+                                      Map<Types.NestedField, AtomicLong> expectedNaNCount) {
+    for (Types.NestedField field : FIELDS_WITH_NAN_COUNT_TO_ID.keySet()) {
+      expectedNaNCount.put(field, new AtomicLong(0));
+    }
+
+    for (Record record : records) {
+      updateExpectedValuePerRecord(upperBounds, lowerBounds, expectedNaNCount,
+          FLOAT_FIELD, (Float) record.getField(FLOAT_FIELD.name()));
+      updateExpectedValuePerRecord(upperBounds, lowerBounds, expectedNaNCount,
+          DOUBLE_FIELD, (Double) record.getField(DOUBLE_FIELD.name()));
+
+      List<Float> floatList = (List<Float>) record.getField(FLOAT_LIST.name());
+      if (floatList != null) {
+        updateExpectedValueFromRecords(upperBounds, lowerBounds, expectedNaNCount, FLOAT_LIST, floatList);
+      }
+
+      Map<Float, ?> map1 = (Map<Float, ?>) record.getField(MAP_FIELD_1.name());
+      if (map1 != null) {
+        updateExpectedValueFromRecords(upperBounds, lowerBounds, expectedNaNCount, MAP_FIELD_1, map1.keySet());
+      }
+
+      Map<?, Double> map2 = (Map<?, Double>) record.getField(MAP_FIELD_2.name());
+      if (map2 != null) {
+        updateExpectedValueFromRecords(upperBounds, lowerBounds, expectedNaNCount, MAP_FIELD_2, map2.values());
+      }
+    }
+  }
+
+  private <T1 extends Number> void updateExpectedValueFromRecords(
+      Map<Types.NestedField, AtomicReference<Number>> upperBounds,
+      Map<Types.NestedField, AtomicReference<Number>> lowerBounds,
+      Map<Types.NestedField, AtomicLong> expectedNaNCount,
+      Types.NestedField key, Collection<T1> vals) {
+    List<Number> nonNullNumbers = vals.stream().filter(v -> !NaNUtil.isNaN(v)).collect(Collectors.toList());
+    Optional<Number> maxOptional = nonNullNumbers.stream().filter(Objects::nonNull)
+        .reduce((v1, v2) -> getMinOrMax(v1, v2, true));
+    Optional<Number> minOptional = nonNullNumbers.stream().filter(Objects::nonNull)
+        .reduce((v1, v2) -> getMinOrMax(v1, v2, false));
+
+    expectedNaNCount.get(key).addAndGet(vals.size() - nonNullNumbers.size());
+    maxOptional.ifPresent(max -> updateBound(key, max, upperBounds, true));
+    minOptional.ifPresent(min -> updateBound(key, min, lowerBounds, false));
+  }
+
+  private void updateExpectedValuePerRecord(Map<Types.NestedField, AtomicReference<Number>> upperBounds,
+                                            Map<Types.NestedField, AtomicReference<Number>> lowerBounds,
+                                            Map<Types.NestedField, AtomicLong> expectedNaNCount,
+                                            Types.NestedField key, Number val) {
+    if (NaNUtil.isNaN(val)) {
+      expectedNaNCount.get(key).incrementAndGet();
+    } else if (val != null) {
+      updateBound(key, val, upperBounds, true);
+      updateBound(key, val, lowerBounds, false);
+    }
+  }
+
+  private void updateBound(
+      Types.NestedField key, Number val, Map<Types.NestedField, AtomicReference<Number>> bounds, boolean isMax) {
+    bounds.computeIfAbsent(key, k -> new AtomicReference<>(val)).updateAndGet(old -> getMinOrMax(old, val, isMax));
+  }
+
+  private Number getMinOrMax(Number val1, Number val2, boolean isMax) {
+    if (val1 instanceof Double) {
+      return isMax ? Double.max((Double) val1, (Double) val2) : Double.min((Double) val1, (Double) val2);
+    } else {
+      return isMax ? Float.max((Float) val1, (Float) val2) : Float.min((Float) val1, (Float) val2);
+    }
   }
 }

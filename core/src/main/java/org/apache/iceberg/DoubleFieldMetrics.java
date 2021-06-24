@@ -26,44 +26,40 @@ package org.apache.iceberg;
  * This wrapper ensures that metrics not being updated by those writers will not be incorrectly used, by throwing
  * exceptions when they are accessed.
  */
-public class FloatFieldMetrics extends FieldMetrics<Float> {
+public class DoubleFieldMetrics extends FieldMetrics<Double> {
 
-  private FloatFieldMetrics(int id, long valueCount, long nanValueCount, Float lowerBound, Float upperBound) {
+  private DoubleFieldMetrics(int id, long valueCount, long nanValueCount, Double lowerBound, Double upperBound) {
     super(id, valueCount, 0L, nanValueCount, lowerBound, upperBound);
-  }
-
-  public Builder builderFor(int id) {
-    return new Builder(id);
   }
 
   public static class Builder {
     private final int id;
     private long valueCount = 0;
     private long nanValueCount = 0;
-    private float lowerBound = Float.POSITIVE_INFINITY;
-    private float upperBound = Float.NEGATIVE_INFINITY;
+    private double lowerBound = Double.POSITIVE_INFINITY;
+    private double upperBound = Double.NEGATIVE_INFINITY;
 
     public Builder(int id) {
       this.id = id;
     }
 
-    public void addValue(float value) {
+    public void addValue(double value) {
       this.valueCount++;
-      if (Float.isNaN(value)) {
+      if (Double.isNaN(value)) {
         this.nanValueCount++;
       } else {
-        if (Float.compare(value, lowerBound) < 0) {
+        if (Double.compare(value, lowerBound) < 0) {
           this.lowerBound = value;
         }
-        if (Float.compare(value, upperBound) > 0) {
+        if (Double.compare(value, upperBound) > 0) {
           this.upperBound = value;
         }
       }
     }
 
-    public FloatFieldMetrics build() {
+    public DoubleFieldMetrics build() {
       boolean hasBound = valueCount - nanValueCount > 0;
-      return new FloatFieldMetrics(id, valueCount, nanValueCount,
+      return new DoubleFieldMetrics(id, valueCount, nanValueCount,
           hasBound ? lowerBound : null, hasBound ? upperBound : null);
     }
   }

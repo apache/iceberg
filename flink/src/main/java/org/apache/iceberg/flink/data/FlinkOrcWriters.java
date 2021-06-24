@@ -258,7 +258,7 @@ class FlinkOrcWriters {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return elementWriter.metrics();
     }
 
@@ -306,7 +306,7 @@ class FlinkOrcWriters {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
     }
   }
@@ -344,7 +344,7 @@ class FlinkOrcWriters {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return writers.stream().flatMap(OrcValueWriter::metrics);
     }
   }

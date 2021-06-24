@@ -274,7 +274,7 @@ public abstract class TestMetrics {
     assertBounds(6, BinaryType.get(),
         ByteBuffer.wrap("A".getBytes()), ByteBuffer.wrap("A".getBytes()), metrics);
     assertCounts(7, 1L, 0L, 1L, metrics);
-    assertBounds(7, DoubleType.get(), Double.NaN, Double.NaN, metrics);
+    assertBounds(7, DoubleType.get(), null, null, metrics);
   }
 
   private Record buildNestedTestRecord() {
@@ -354,9 +354,9 @@ public abstract class TestMetrics {
     Assert.assertEquals(2L, (long) metrics.recordCount());
     assertCounts(1, 2L, 0L, 2L, metrics);
     assertCounts(2, 2L, 0L, 2L, metrics);
-    // below: current behavior; will be null once NaN is excluded from upper/lower bound
-    assertBounds(1, FloatType.get(), Float.NaN, Float.NaN, metrics);
-    assertBounds(2, DoubleType.get(), Double.NaN, Double.NaN, metrics);
+
+    assertBounds(1, FloatType.get(), null, null, metrics);
+    assertBounds(2, DoubleType.get(), null, null, metrics);
   }
 
   @Test
@@ -367,15 +367,8 @@ public abstract class TestMetrics {
     assertCounts(1, 3L, 0L, 1L, metrics);
     assertCounts(2, 3L, 0L, 1L, metrics);
 
-    // below: current behavior; will be non-NaN values once NaN is excluded from upper/lower bound. ORC and Parquet's
-    // behaviors differ due to their implementation of comparison being different.
-    if (fileFormat() == FileFormat.ORC) {
-      assertBounds(1, FloatType.get(), Float.NaN, Float.NaN, metrics);
-      assertBounds(2, DoubleType.get(), Double.NaN, Double.NaN, metrics);
-    } else {
-      assertBounds(1, FloatType.get(), 1.2F, Float.NaN, metrics);
-      assertBounds(2, DoubleType.get(), 3.4D, Double.NaN, metrics);
-    }
+    assertBounds(1, FloatType.get(), 1.2F, 5.6F, metrics);
+    assertBounds(2, DoubleType.get(), 3.4D, 7.8D, metrics);
   }
 
   @Test
@@ -386,15 +379,8 @@ public abstract class TestMetrics {
     assertCounts(1, 3L, 0L, 1L, metrics);
     assertCounts(2, 3L, 0L, 1L, metrics);
 
-    // below: current behavior; will be non-NaN values once NaN is excluded from upper/lower bound. ORC and Parquet's
-    // behaviors differ due to their implementation of comparison being different.
-    if (fileFormat() == FileFormat.ORC) {
-      assertBounds(1, FloatType.get(), 1.2F, 5.6F, metrics);
-      assertBounds(2, DoubleType.get(), 3.4D, 7.8D, metrics);
-    } else {
-      assertBounds(1, FloatType.get(), 1.2F, Float.NaN, metrics);
-      assertBounds(2, DoubleType.get(), 3.4D, Double.NaN, metrics);
-    }
+    assertBounds(1, FloatType.get(), 1.2F, 5.6F, metrics);
+    assertBounds(2, DoubleType.get(), 3.4D, 7.8D, metrics);
   }
 
   @Test
@@ -405,15 +391,8 @@ public abstract class TestMetrics {
     assertCounts(1, 3L, 0L, 1L, metrics);
     assertCounts(2, 3L, 0L, 1L, metrics);
 
-    // below: current behavior; will be non-NaN values once NaN is excluded from upper/lower bound. ORC and Parquet's
-    // behaviors differ due to their implementation of comparison being different.
-    if (fileFormat() == FileFormat.ORC) {
-      assertBounds(1, FloatType.get(), 1.2F, 5.6F, metrics);
-      assertBounds(2, DoubleType.get(), 3.4D, 7.8D, metrics);
-    } else {
-      assertBounds(1, FloatType.get(), 1.2F, Float.NaN, metrics);
-      assertBounds(2, DoubleType.get(), 3.4D, Double.NaN, metrics);
-    }
+    assertBounds(1, FloatType.get(), 1.2F, 5.6F, metrics);
+    assertBounds(2, DoubleType.get(), 3.4D, 7.8D, metrics);
   }
 
   @Test
@@ -506,7 +485,7 @@ public abstract class TestMetrics {
     assertBounds(6, BinaryType.get(),
         ByteBuffer.wrap("A".getBytes()), ByteBuffer.wrap("A".getBytes()), metrics);
     assertCounts(7, 201L, 0L, 201L, metrics);
-    assertBounds(7, DoubleType.get(), Double.NaN, Double.NaN, metrics);
+    assertBounds(7, DoubleType.get(), null, null, metrics);
   }
 
   @Test
@@ -567,7 +546,7 @@ public abstract class TestMetrics {
     assertBounds(6, Types.BinaryType.get(),
         ByteBuffer.wrap("A".getBytes()), ByteBuffer.wrap("A".getBytes()), metrics);
     assertCounts(7, 1L, 0L, 1L, metrics);
-    assertBounds(7, Types.DoubleType.get(), Double.NaN, Double.NaN, metrics);
+    assertBounds(7, Types.DoubleType.get(), null, null, metrics);
   }
 
   @Test

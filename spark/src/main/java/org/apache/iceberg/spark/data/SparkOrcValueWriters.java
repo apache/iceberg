@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.data;
 
 import java.util.stream.Stream;
+import org.apache.iceberg.DoubleFieldMetrics;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FloatFieldMetrics;
 import org.apache.orc.storage.common.type.HiveDecimal;
@@ -141,52 +142,42 @@ class SparkOrcValueWriters {
   }
 
   private static class FloatWriter implements SparkOrcValueWriter {
-    private final int id;
-    private long nanCount;
+    private final FloatFieldMetrics.Builder floatFieldMetricsBuilder;
 
     private FloatWriter(int id) {
-      this.id = id;
-      this.nanCount = 0;
+      this.floatFieldMetricsBuilder = new FloatFieldMetrics.Builder(id);
     }
 
     @Override
     public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
       float floatValue = data.getFloat(column);
       ((DoubleColumnVector) output).vector[rowId] = floatValue;
-
-      if (Float.isNaN(floatValue)) {
-        nanCount++;
-      }
+      floatFieldMetricsBuilder.addValue(floatValue);
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
-      return Stream.of(new FloatFieldMetrics(id, nanCount));
+    public Stream<FieldMetrics<?>> metrics() {
+      return Stream.of(floatFieldMetricsBuilder.build());
     }
   }
 
   private static class DoubleWriter implements SparkOrcValueWriter {
-    private final int id;
-    private long nanCount;
+    private final DoubleFieldMetrics.Builder doubleFieldMetricsBuilder;
 
     private DoubleWriter(int id) {
-      this.id = id;
-      this.nanCount = 0;
+      this.doubleFieldMetricsBuilder = new DoubleFieldMetrics.Builder(id);
     }
 
     @Override
     public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
       double doubleValue = data.getDouble(column);
       ((DoubleColumnVector) output).vector[rowId] = doubleValue;
-
-      if (Double.isNaN(doubleValue)) {
-        nanCount++;
-      }
+      doubleFieldMetricsBuilder.addValue(doubleValue);
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
-      return Stream.of(new FloatFieldMetrics(id, nanCount));
+    public Stream<FieldMetrics<?>> metrics() {
+      return Stream.of(doubleFieldMetricsBuilder.build());
     }
   }
 
@@ -281,7 +272,7 @@ class SparkOrcValueWriters {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return writer.metrics();
     }
   }
@@ -317,7 +308,7 @@ class SparkOrcValueWriters {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
     }
   }
