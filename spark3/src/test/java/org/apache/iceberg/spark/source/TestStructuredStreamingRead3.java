@@ -20,8 +20,10 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -41,7 +43,11 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkCatalog;
+import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -52,17 +58,70 @@ import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.StreamingQueryException;
 import org.apache.spark.sql.streaming.Trigger;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+import static org.apache.iceberg.expressions.Expressions.ref;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public final class TestStructuredStreamingRead3 {
+@RunWith(Parameterized.class)
+public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
+
+  public TestStructuredStreamingRead3(String catalogName, String implementation, Map<String, String> config, boolean fileBased)
+  {
+    super(catalogName, implementation, config);
+    this.fileBased = fileBased;
+  }
+
+  @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, fileBased = {3}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+            {
+              "testhive",
+               SparkCatalog.class.getName(),
+               ImmutableMap.of(
+                "type", "hive",
+                "default-namespace", "default"
+               ),
+               false
+            },
+            {
+              "testhadoop",
+              SparkCatalog.class.getName(),
+              ImmutableMap.of(
+                "type", "hadoop",
+                "default-namespace", "default"
+              ),
+              false
+            },
+            {
+              "spark_catalog", SparkSessionCatalog.class.getName(),
+              ImmutableMap.of(
+                "type", "hive",
+                "default-namespace", "default",
+                "parquet-enabled", "true",
+                "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
+              ),
+              false
+            },
+            {
+              "dummy_catalog",
+              SparkCatalog.class.getName(),
+              ImmutableMap.of(
+                "type", "hadoop"
+              ),
+              true
+            }
+    };
+  }
+
+  private final boolean fileBased;
+  private Table table;
+  private String tableIdentifier;
+
   private static final Configuration CONF = new Configuration();
   private static final Schema SCHEMA = new Schema(
       optional(1, "id", Types.IntegerType.get()),
@@ -140,25 +199,33 @@ public final class TestStructuredStreamingRead3 {
     currentSpark.stop();
   }
 
+  @Before
+  public void setupTable() throws IOException {
+    if (this.fileBased) {
+      this.setupFileBasedTable();
+    }
+    else {
+      this.setupCatalogBasedTable();
+    }
+  }
+
+  @After
+  public void removeTables() {
+    sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
   @SuppressWarnings("unchecked")
   @Test
   public void testReadStreamOnIcebergTableWithMultipleSnapshots() throws Exception {
-    File parent = temp.newFolder("parent");
-    File location = new File(parent, "test-table");
-
-    HadoopTables tables = new HadoopTables(CONF);
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 3).build();
-    Table table = tables.create(SCHEMA, spec, location.toString());
-
     List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
-    appendDataAsMultipleSnapshots(expected, location);
+    appendDataAsMultipleSnapshots(expected, this.tableIdentifier);
 
     table.refresh();
 
     try {
       Dataset<Row> df = spark.readStream()
           .format("iceberg")
-          .load(location.toString());
+          .load(this.tableIdentifier);
       List<SimpleRecord> actual = processStreamTillEnd(df);
 
       Assert.assertEquals(
@@ -174,19 +241,14 @@ public final class TestStructuredStreamingRead3 {
   @SuppressWarnings("unchecked")
   @Test
   public void testResumingStreamReadFromCheckpoint() throws Exception {
-    File parent = temp.newFolder("parent");
-    File location = new File(parent, "test-table");
-    File writerCheckpoint = new File(parent, "writer-checkpoint");
-
-    HadoopTables tables = new HadoopTables(CONF);
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 3).build();
-    Table table = tables.create(SCHEMA, spec, location.toString());
+    File writerCheckpointFolder = temp.newFolder("writer-checkpoint-folder");
+    File writerCheckpoint = new File(writerCheckpointFolder, "writer-checkpoint");
     final String tempView = "microBatchView";
 
     try {
       Dataset<Row> df = spark.readStream()
           .format("iceberg")
-          .load(location.toString());
+          .load(tableIdentifier);
       DataStreamWriter<Row> singleBatchWriter = df.writeStream()
           .trigger(Trigger.Once())
           .option("checkpointLocation", writerCheckpoint.toString())
@@ -202,7 +264,7 @@ public final class TestStructuredStreamingRead3 {
           processStreamOnEmptyIcebergTable);
 
       for (List<List<SimpleRecord>> expectedCheckpoint : TEST_DATA_MULTIPLE_WRITES_MULTIPLE_SNAPSHOTS) {
-        appendDataAsMultipleSnapshots(expectedCheckpoint, location);
+        appendDataAsMultipleSnapshots(expectedCheckpoint, tableIdentifier);
         table.refresh();
 
         List<SimpleRecord> actualDataInCurrentMicroBatch = processMicroBatch(singleBatchWriter, globalTempView);
@@ -220,15 +282,6 @@ public final class TestStructuredStreamingRead3 {
   @SuppressWarnings("unchecked")
   @Test
   public void testParquetOrcAvroDataInOneTable() throws Exception {
-    File parent = temp.newFolder("parent");
-    File location = new File(parent, "test-table");
-
-    HadoopTables tables = new HadoopTables(CONF);
-
-    // use partition buckets - so that single list<SimpleRecord> can generate multiple files per write
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 3).build();
-    Table table = tables.create(SCHEMA, spec, location.toString());
-
     List<SimpleRecord> parquetFileRecords = Lists.newArrayList(
         new SimpleRecord(1, "one"),
         new SimpleRecord(2, "two"),
@@ -242,9 +295,9 @@ public final class TestStructuredStreamingRead3 {
         new SimpleRecord(6, "six"),
         new SimpleRecord(7, "seven"));
 
-    appendData(parquetFileRecords, location, "parquet");
-    appendData(orcFileRecords, location, "orc");
-    appendData(avroFileRecords, location, "avro");
+    appendData(parquetFileRecords, tableIdentifier, "parquet");
+    appendData(orcFileRecords, tableIdentifier, "orc");
+    appendData(avroFileRecords, tableIdentifier, "avro");
 
     table.refresh();
 
@@ -252,7 +305,7 @@ public final class TestStructuredStreamingRead3 {
     try {
       Dataset<Row> ds = spark.readStream()
           .format("iceberg")
-          .load(location.toString());
+          .load(tableIdentifier);
       List<SimpleRecord> actual = processStreamTillEnd(ds);
       List<SimpleRecord> expected = Stream.concat(Stream.concat(
           parquetFileRecords.stream(),
@@ -270,19 +323,12 @@ public final class TestStructuredStreamingRead3 {
   @SuppressWarnings("unchecked")
   @Test
   public void testReadStreamFromEmptyTable() throws Exception {
-    File parent = temp.newFolder("parent");
-    File location = new File(parent, "test-table");
-
-    HadoopTables tables = new HadoopTables(CONF);
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 3).build();
-    Table table = tables.create(SCHEMA, spec, location.toString());
-
     table.refresh();
 
     try {
       Dataset<Row> df = spark.readStream()
           .format("iceberg")
-          .load(location.toString());
+          .load(tableIdentifier);
 
       List<SimpleRecord> actual = processStreamTillEnd(df);
       Assert.assertEquals(Collections.emptyList(), actual);
@@ -296,13 +342,6 @@ public final class TestStructuredStreamingRead3 {
   @SuppressWarnings("unchecked")
   @Test
   public void testReadStreamWithSnapshotTypeOverwriteErrorsOut() throws Exception {
-    File parent = temp.newFolder("parent");
-    File location = new File(parent, "test-table");
-
-    HadoopTables tables = new HadoopTables(CONF);
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 3).build();
-    Table table = tables.create(SCHEMA, spec, location.toString());
-
     // upgrade table to verison 2 - to facilitate creation of Snapshot of type OVERWRITE.
     TableOperations ops = ((BaseTable) table).operations();
     TableMetadata meta = ops.current();
@@ -310,7 +349,7 @@ public final class TestStructuredStreamingRead3 {
 
     // fill table with some data
     List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
-    appendDataAsMultipleSnapshots(dataAcrossSnapshots, location);
+    appendDataAsMultipleSnapshots(dataAcrossSnapshots, tableIdentifier);
 
     table.refresh();
 
@@ -333,7 +372,7 @@ public final class TestStructuredStreamingRead3 {
     try {
       Dataset<Row> df = spark.readStream()
           .format("iceberg")
-          .load(location.toString());
+          .load(tableIdentifier);
       StreamingQuery streamingQuery = df.writeStream()
           .format("memory")
           .queryName("testtablewithoverwrites")
@@ -358,16 +397,9 @@ public final class TestStructuredStreamingRead3 {
   @SuppressWarnings("unchecked")
   @Test
   public void testReadStreamWithSnapshotTypeReplaceErrorsOut() throws Exception {
-    File parent = temp.newFolder("parent");
-    File location = new File(parent, "test-table");
-
-    HadoopTables tables = new HadoopTables(CONF);
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).build();
-    Table table = tables.create(SCHEMA, spec, location.toString());
-
     // fill table with some data
     List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
-    appendDataAsMultipleSnapshots(dataAcrossSnapshots, location);
+    appendDataAsMultipleSnapshots(dataAcrossSnapshots, tableIdentifier);
 
     table.refresh();
 
@@ -382,7 +414,7 @@ public final class TestStructuredStreamingRead3 {
     try {
       Dataset<Row> df = spark.readStream()
           .format("iceberg")
-          .load(location.toString());
+          .load(tableIdentifier);
       StreamingQuery streamingQuery = df.writeStream()
           .format("memory")
           .queryName("testtablewithreplace")
@@ -407,16 +439,16 @@ public final class TestStructuredStreamingRead3 {
   @SuppressWarnings("unchecked")
   @Test
   public void testReadStreamWithSnapshotTypeDeleteErrorsOut() throws Exception {
-    File parent = temp.newFolder("parent");
-    File location = new File(parent, "test-table");
+    table.updateSpec()
+            .removeField("id_bucket")
+            .addField(ref("id"))
+            .commit();
 
-    HadoopTables tables = new HadoopTables(CONF);
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
-    Table table = tables.create(SCHEMA, spec, location.toString());
+    table.refresh();
 
     // fill table with some data
     List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
-    appendDataAsMultipleSnapshots(dataAcrossSnapshots, location);
+    appendDataAsMultipleSnapshots(dataAcrossSnapshots, tableIdentifier);
 
     table.refresh();
 
@@ -431,7 +463,7 @@ public final class TestStructuredStreamingRead3 {
     try {
       Dataset<Row> df = spark.readStream()
           .format("iceberg")
-          .load(location.toString());
+          .load(tableIdentifier);
       StreamingQuery streamingQuery = df.writeStream()
           .format("memory")
           .queryName("testtablewithdelete")
@@ -467,19 +499,19 @@ public final class TestStructuredStreamingRead3 {
    * appends each list as a Snapshot on the iceberg table at the given location.
    * accepts a list of lists - each list representing data per snapshot.
    */
-  private static void appendDataAsMultipleSnapshots(List<List<SimpleRecord>> data, File location) {
+  private static void appendDataAsMultipleSnapshots(List<List<SimpleRecord>> data, String tableIdentifier) {
     for (List<SimpleRecord> l : data) {
-      appendData(l, location, "parquet");
+      appendData(l, tableIdentifier, "parquet");
     }
   }
 
-  private static void appendData(List<SimpleRecord> data, File location, String fileFormat) {
+  private static void appendData(List<SimpleRecord> data, String tableIdentifier, String fileFormat) {
     Dataset<Row> df = spark.createDataFrame(data, SimpleRecord.class);
     df.select("id", "data").write()
         .format("iceberg")
         .option("write-format", fileFormat)
         .mode("append")
-        .save(location.toString());
+        .save(tableIdentifier);
   }
 
   private static List<SimpleRecord> processStreamTillEnd(Dataset<Row> df) throws TimeoutException {
@@ -492,5 +524,26 @@ public final class TestStructuredStreamingRead3 {
     return spark.sql("select * from test12")
         .as(Encoders.bean(SimpleRecord.class))
         .collectAsList();
+  }
+
+  private void setupFileBasedTable() throws IOException {
+    File parent = temp.newFolder("parent");
+    File location = new File(parent, "test-table");
+
+    HadoopTables tables = new HadoopTables(CONF);
+
+    // use partition buckets - so that single list<SimpleRecord> can generate multiple files per write
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 3).build();
+    this.table = tables.create(SCHEMA, spec, location.toString());
+    this.tableIdentifier = location.toString();
+  }
+
+  private void setupCatalogBasedTable() {
+    sql("CREATE TABLE %s " +
+            "(id INT, data STRING) " +
+            "USING iceberg " +
+            "PARTITIONED BY (bucket(3, id))", tableName);
+    this.table = validationCatalog.loadTable(tableIdent);
+    this.tableIdentifier = tableName;
   }
 }
