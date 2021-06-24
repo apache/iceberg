@@ -21,6 +21,7 @@ package org.apache.iceberg.avro;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
@@ -133,7 +134,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
     try {
       Schema schema = fieldResult.get();
 
-      if (schema != field.schema() || !expectedName.equals(field.name())) {
+      if (!Objects.equals(schema, field.schema()) || !expectedName.equals(field.name())) {
         // add an alias for the field
         return AvroSchemaUtil.copyField(field, schema, AvroSchemaUtil.makeCompatibleName(expectedName));
       } else {
@@ -153,7 +154,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
     Schema nonNullOriginal = AvroSchemaUtil.fromOption(union);
     Schema nonNullResult = AvroSchemaUtil.fromOptions(Lists.newArrayList(options));
 
-    if (nonNullOriginal != nonNullResult) {
+    if (!Objects.equals(nonNullOriginal, nonNullResult)) {
       return AvroSchemaUtil.toOption(nonNullResult);
     }
 
@@ -174,7 +175,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
         Schema.Field valueProjection = element.get().getField("value");
 
         // element was changed, create a new array
-        if (valueProjection.schema() != valueField.schema()) {
+        if (!Objects.equals(valueProjection.schema(), valueField.schema())) {
           return AvroSchemaUtil.createProjectionMap(keyValueSchema.getFullName(),
               AvroSchemaUtil.getFieldId(keyField), keyField.name(), keyField.schema(),
               AvroSchemaUtil.getFieldId(valueField), valueField.name(), valueProjection.schema());
@@ -199,7 +200,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
         Schema elementSchema = element.get();
 
         // element was changed, create a new array
-        if (elementSchema != array.getElementType()) {
+        if (!Objects.equals(elementSchema, array.getElementType())) {
           return Schema.createArray(elementSchema);
         }
 
@@ -223,7 +224,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
       Schema valueSchema = value.get();
 
       // element was changed, create a new map
-      if (valueSchema != map.getValueType()) {
+      if (!Objects.equals(valueSchema, map.getValueType())) {
         return Schema.createMap(valueSchema);
       }
 

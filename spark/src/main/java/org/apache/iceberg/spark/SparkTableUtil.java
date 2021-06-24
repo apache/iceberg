@@ -372,7 +372,7 @@ public class SparkTableUtil {
     try {
       PartitionSpec spec = SparkSchemaUtil.specForTable(spark, sourceTableIdentWithDB.unquotedString());
 
-      if (spec == PartitionSpec.unpartitioned()) {
+      if (Objects.equal(spec, PartitionSpec.unpartitioned())) {
         importUnpartitionedSparkTable(spark, sourceTableIdentWithDB, targetTable);
       } else {
         List<SparkPartition> sourceTablePartitions = getPartitions(spark, sourceTableIdent);
