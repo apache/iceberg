@@ -150,7 +150,7 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
       try {
         flinkCatalog.createDatabase(catalogDatabase, new CatalogDatabaseImpl(Maps.newHashMap(), null), true);
       } catch (DatabaseAlreadyExistException | CatalogException e) {
-        throw new RuntimeException(e);
+        throw new RuntimeException(String.format("Failed to create database %s.%s", catalogName, catalogDatabase), e);
       }
     }
 
@@ -159,7 +159,7 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
       try {
         flinkCatalog.createTable(objectPath, catalogTable, true);
       } catch (TableAlreadyExistException | CatalogException e) {
-        throw new RuntimeException(e);
+        throw new RuntimeException(String.format("Failed to create table %s.%s", catalogName, objectPath), e);
       }
     }
 

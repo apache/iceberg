@@ -154,24 +154,24 @@ public class TestIcebergConnector extends FlinkTestBase {
     tableProps.put(CatalogProperties.URI, FlinkCatalogTestBase.getURI(hiveConf));
     tableProps.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseRoot());
 
-    sql("CREATE TABLE %s(id BIGINT, data STRING) WITH %s", TABLE_NAME, toWithClause(tableProps));
-    sql("INSERT INTO %s VALUES (1, 'AAA'), (2, 'BBB'), (3, 'CCC')", TABLE_NAME);
-    Assert.assertEquals("Should have the expected rows",
-        Lists.newArrayList(Row.of(1L, "AAA"), Row.of(2L, "BBB"), Row.of(3L, "CCC")),
-        sql("SELECT * FROM %s", TABLE_NAME));
-
-    // Drop and create it again.
-    sql("DROP TABLE %s", TABLE_NAME);
-    sql("CREATE TABLE %s (id BIGINT, data STRING) WITH %s", TABLE_NAME, toWithClause(tableProps));
-    Assert.assertEquals("Should have expected rows",
-        Lists.newArrayList(Row.of(1L, "AAA"), Row.of(2L, "BBB"), Row.of(3L, "CCC")),
-        sql("SELECT * FROM %s", TABLE_NAME));
-
-    sql("DROP TABLE %s", TABLE_NAME);
     HiveMetaStoreClient metaStoreClient = new HiveMetaStoreClient(hiveConf);
     try {
-      metaStoreClient.dropTable("default", TABLE_NAME);
+      sql("CREATE TABLE %s(id BIGINT, data STRING) WITH %s", TABLE_NAME, toWithClause(tableProps));
+      sql("INSERT INTO %s VALUES (1, 'AAA'), (2, 'BBB'), (3, 'CCC')", TABLE_NAME);
+      Assert.assertEquals("Should have the expected rows",
+          Lists.newArrayList(Row.of(1L, "AAA"), Row.of(2L, "BBB"), Row.of(3L, "CCC")),
+          sql("SELECT * FROM %s", TABLE_NAME));
+
+      // Drop and create it again.
+      sql("DROP TABLE %s", TABLE_NAME);
+      sql("CREATE TABLE %s (id BIGINT, data STRING) WITH %s", TABLE_NAME, toWithClause(tableProps));
+      Assert.assertEquals("Should have expected rows",
+          Lists.newArrayList(Row.of(1L, "AAA"), Row.of(2L, "BBB"), Row.of(3L, "CCC")),
+          sql("SELECT * FROM %s", TABLE_NAME));
+
+      sql("DROP TABLE %s", TABLE_NAME);
     } finally {
+      metaStoreClient.dropTable("default", TABLE_NAME);
       metaStoreClient.close();
     }
   }
@@ -186,23 +186,22 @@ public class TestIcebergConnector extends FlinkTestBase {
     tableProps.put(CatalogProperties.URI, FlinkCatalogTestBase.getURI(hiveConf));
     tableProps.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseRoot());
 
-    sql("CREATE TABLE %s (id BIGINT, data STRING) WITH %s", TABLE_NAME, toWithClause(tableProps));
-    sql("INSERT INTO %s VALUES (1, 'aaa'), (2, 'bbb'), (3, 'ccc')", TABLE_NAME);
-    Assert.assertEquals("Should have expected rows",
-        Lists.newArrayList(Row.of(1L, "aaa"), Row.of(2L, "bbb"), Row.of(3L, "ccc")),
-        sql("SELECT * FROM %s", TABLE_NAME));
-
-    FlinkCatalogFactory factory = new FlinkCatalogFactory();
-    Catalog catalog = factory.createCatalog("test-hive", tableProps, hiveConf);
-    Assert.assertTrue("Should have created the database", catalog.databaseExists("not_existing_db"));
-    Assert.assertTrue("Should have created the table",
-        catalog.tableExists(new ObjectPath("not_existing_db", TABLE_NAME)));
-
     HiveMetaStoreClient metaStoreClient = new HiveMetaStoreClient(hiveConf);
     try {
+      sql("CREATE TABLE %s (id BIGINT, data STRING) WITH %s", TABLE_NAME, toWithClause(tableProps));
+      sql("INSERT INTO %s VALUES (1, 'aaa'), (2, 'bbb'), (3, 'ccc')", TABLE_NAME);
+      Assert.assertEquals("Should have expected rows",
+          Lists.newArrayList(Row.of(1L, "aaa"), Row.of(2L, "bbb"), Row.of(3L, "ccc")),
+          sql("SELECT * FROM %s", TABLE_NAME));
+
+      FlinkCatalogFactory factory = new FlinkCatalogFactory();
+      Catalog catalog = factory.createCatalog("test-hive", tableProps, hiveConf);
+      Assert.assertTrue("Should have created the database", catalog.databaseExists("not_existing_db"));
+      Assert.assertTrue("Should have created the table",
+          catalog.tableExists(new ObjectPath("not_existing_db", TABLE_NAME)));
+    } finally {
       metaStoreClient.dropTable("not_existing_db", TABLE_NAME);
       metaStoreClient.dropDatabase("not_existing_db");
-    } finally {
       metaStoreClient.close();
     }
   }
