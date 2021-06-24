@@ -80,8 +80,8 @@ import org.apache.parquet.schema.MessageType;
  *     <li>Columns with constant values are physically encoded as a dictionary. The Arrow vector
  *     type is int32 instead of the type as per the schema.
  *     See https://github.com/apache/iceberg/issues/2484.</li>
- *     <li>Data types: {@link Types.TimeType}, {@link Types.ListType}, {@link Types.MapType},
- *     {@link Types.StructType}, {@link Types.UUIDType}, {@link Types.FixedType} and
+ *     <li>Data types: {@link Types.ListType}, {@link Types.MapType},
+ *     {@link Types.StructType}, {@link Types.FixedType} and
  *     {@link Types.DecimalType}
  *     See https://github.com/apache/iceberg/issues/2485 and https://github.com/apache/iceberg/issues/2486.</li>
  *     <li>Iceberg v2 spec is not supported.

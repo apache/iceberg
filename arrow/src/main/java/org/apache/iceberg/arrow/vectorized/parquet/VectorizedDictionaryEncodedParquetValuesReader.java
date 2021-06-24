@@ -24,6 +24,7 @@ import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.parquet.column.Dictionary;
@@ -401,6 +402,44 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
           for (int i = 0; i < num; i++) {
             ((DecimalVector) vector).set(
                     idx, dict.decodeToLong(packedValuesBuffer[packedValuesBufferIdx++]));
+            nullabilityHolder.setNotNull(idx);
+            idx++;
+          }
+          break;
+      }
+      left -= num;
+      currentCount -= num;
+    }
+  }
+
+  void readBatchOfDictionaryEncodedFixedSizeBinary(
+      FieldVector vector, int typeWidth, int startOffset,
+      int numValuesToRead, Dictionary dict,
+      NullabilityHolder nullabilityHolder) {
+    int left = numValuesToRead;
+    int idx = startOffset;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int num = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          for (int i = 0; i < num; i++) {
+            byte[] bytes = dict.decodeToBinary(currentValue).getBytesUnsafe();
+            byte[] vectorBytes = new byte[typeWidth];
+            System.arraycopy(bytes, 0, vectorBytes, 0, typeWidth);
+            ((FixedSizeBinaryVector) vector).set(idx, vectorBytes);
+            nullabilityHolder.setNotNull(idx);
+            idx++;
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < num; i++) {
+            byte[] decimalBytes = dict.decodeToBinary(packedValuesBuffer[packedValuesBufferIdx++]).getBytesUnsafe();
+            byte[] vectorBytes = new byte[typeWidth];
+            System.arraycopy(decimalBytes, 0, vectorBytes, 0, typeWidth);
+            ((FixedSizeBinaryVector) vector).set(idx, vectorBytes);
             nullabilityHolder.setNotNull(idx);
             idx++;
           }

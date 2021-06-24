@@ -30,6 +30,7 @@ import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.TimeMicroVector;
 import org.apache.arrow.vector.TimeStampMicroTZVector;
 import org.apache.arrow.vector.TimeStampMicroVector;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
@@ -108,6 +109,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     FLOAT,
     DOUBLE,
     TIMESTAMP_MILLIS,
+    TIME_MICROS,
+    UUID,
     DICTIONARY
   }
 
@@ -169,6 +172,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           case TIMESTAMP_MILLIS:
             vectorizedColumnIterator.nextBatchTimestampMillis(vec, typeWidth, nullabilityHolder);
             break;
+          case UUID:
+            vectorizedColumnIterator.nextBatchFixedSizeBinary(vec, typeWidth, nullabilityHolder);
+            break;
         }
       }
     }
@@ -178,6 +184,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         nullabilityHolder, icebergField.type());
   }
 
+  @SuppressWarnings("MethodLength")
   private void allocateFieldVector(boolean dictionaryEncodedVector) {
     if (dictionaryEncodedVector) {
       Field field = new Field(
@@ -240,6 +247,12 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
             this.readType = ReadType.LONG;
             this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
             break;
+          case TIME_MICROS:
+            this.vec = arrowField.createVector(rootAlloc);
+            ((TimeMicroVector) vec).allocateNew(batchSize);
+            this.readType = ReadType.LONG;
+            this.typeWidth = 8;
+            break;
           case DECIMAL:
             this.vec = arrowField.createVector(rootAlloc);
             ((DecimalVector) vec).allocateNew(batchSize);
@@ -269,11 +282,17 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       } else {
         switch (primitive.getPrimitiveTypeName()) {
           case FIXED_LEN_BYTE_ARRAY:
-            int len = ((Types.FixedType) icebergField.type()).length();
+            int len;
+            if (icebergField.type() instanceof Types.UUIDType) {
+              len = 16;
+              this.readType = ReadType.UUID;
+            } else {
+              len = ((Types.FixedType) icebergField.type()).length();
+              this.readType = ReadType.FIXED_WIDTH_BINARY;
+            }
             this.vec = arrowField.createVector(rootAlloc);
             vec.setInitialCapacity(batchSize * len);
             vec.allocateNew();
-            this.readType = ReadType.FIXED_WIDTH_BINARY;
             this.typeWidth = len;
             break;
           case BINARY:
