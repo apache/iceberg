@@ -25,8 +25,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataOperations;
@@ -44,6 +42,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
@@ -58,6 +57,7 @@ import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.StreamingQueryException;
 import org.apache.spark.sql.streaming.Trigger;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -214,6 +214,13 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
   }
 
   @After
+  public void stopStreams() throws TimeoutException {
+    for (StreamingQuery query : spark.streams().active()) {
+      query.stop();
+    }
+  }
+
+  @After
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
@@ -226,20 +233,12 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     table.refresh();
 
-    try {
-      Dataset<Row> df = spark.readStream()
-          .format("iceberg")
-          .load(this.tableIdentifier);
-      List<SimpleRecord> actual = processStreamTillEnd(df);
+    Dataset<Row> df = spark.readStream()
+        .format("iceberg")
+        .load(this.tableIdentifier);
+    List<SimpleRecord> actual = processStreamTillEnd(df);
 
-      Assert.assertEquals(
-          expected.stream().flatMap(List::stream).collect(Collectors.toList()),
-          actual);
-    } finally {
-      for (StreamingQuery query : spark.streams().active()) {
-        query.stop();
-      }
-    }
+    Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
   }
 
   @SuppressWarnings("unchecked")
@@ -249,37 +248,28 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     File writerCheckpoint = new File(writerCheckpointFolder, "writer-checkpoint");
     final String tempView = "microBatchView";
 
-    try {
-      Dataset<Row> df = spark.readStream()
-          .format("iceberg")
-          .load(tableIdentifier);
-      DataStreamWriter<Row> singleBatchWriter = df.writeStream()
-          .trigger(Trigger.Once())
-          .option("checkpointLocation", writerCheckpoint.toString())
-          .foreachBatch((batchDF, batchId) -> {
-            batchDF.createOrReplaceGlobalTempView(tempView);
-          });
+    Dataset<Row> df = spark.readStream()
+        .format("iceberg")
+        .load(tableIdentifier);
+    DataStreamWriter<Row> singleBatchWriter = df.writeStream()
+        .trigger(Trigger.Once())
+        .option("checkpointLocation", writerCheckpoint.toString())
+        .foreachBatch((batchDF, batchId) -> {
+          batchDF.createOrReplaceGlobalTempView(tempView);
+        });
 
-      String globalTempView = "global_temp." + tempView;
+    String globalTempView = "global_temp." + tempView;
 
-      List<SimpleRecord> processStreamOnEmptyIcebergTable = processMicroBatch(singleBatchWriter, globalTempView);
-      Assert.assertEquals(
-          Collections.emptyList(),
-          processStreamOnEmptyIcebergTable);
+    List<SimpleRecord> processStreamOnEmptyIcebergTable = processMicroBatch(singleBatchWriter, globalTempView);
+    Assert.assertEquals(Collections.emptyList(), processStreamOnEmptyIcebergTable);
 
-      for (List<List<SimpleRecord>> expectedCheckpoint : TEST_DATA_MULTIPLE_WRITES_MULTIPLE_SNAPSHOTS) {
-        appendDataAsMultipleSnapshots(expectedCheckpoint, tableIdentifier);
-        table.refresh();
+    for (List<List<SimpleRecord>> expectedCheckpoint : TEST_DATA_MULTIPLE_WRITES_MULTIPLE_SNAPSHOTS) {
+      appendDataAsMultipleSnapshots(expectedCheckpoint, tableIdentifier);
+      table.refresh();
 
-        List<SimpleRecord> actualDataInCurrentMicroBatch = processMicroBatch(singleBatchWriter, globalTempView);
-        Assert.assertEquals(
-            expectedCheckpoint.stream().flatMap(List::stream).collect(Collectors.toList()),
-            actualDataInCurrentMicroBatch);
-      }
-    } finally {
-      for (StreamingQuery query : spark.streams().active()) {
-        query.stop();
-      }
+      List<SimpleRecord> actualDataInCurrentMicroBatch = processMicroBatch(singleBatchWriter, globalTempView);
+      Assertions.assertThat(actualDataInCurrentMicroBatch)
+          .containsExactlyInAnyOrderElementsOf(Iterables.concat(expectedCheckpoint));
     }
   }
 
@@ -305,23 +295,11 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     table.refresh();
 
-
-    try {
-      Dataset<Row> ds = spark.readStream()
-          .format("iceberg")
-          .load(tableIdentifier);
-      List<SimpleRecord> actual = processStreamTillEnd(ds);
-      List<SimpleRecord> expected = Stream.concat(Stream.concat(
-          parquetFileRecords.stream(),
-          orcFileRecords.stream()),
-          avroFileRecords.stream())
-            .collect(Collectors.toList());
-      Assert.assertEquals(expected, actual);
-    } finally {
-      for (StreamingQuery query : spark.streams().active()) {
-        query.stop();
-      }
-    }
+    Dataset<Row> ds = spark.readStream()
+        .format("iceberg")
+        .load(tableIdentifier);
+    Assertions.assertThat(processStreamTillEnd(ds))
+        .containsExactlyInAnyOrderElementsOf(Iterables.concat(parquetFileRecords, orcFileRecords, avroFileRecords));
   }
 
   @SuppressWarnings("unchecked")
@@ -329,18 +307,12 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
   public void testReadStreamFromEmptyTable() throws Exception {
     table.refresh();
 
-    try {
-      Dataset<Row> df = spark.readStream()
-          .format("iceberg")
-          .load(tableIdentifier);
+    Dataset<Row> df = spark.readStream()
+        .format("iceberg")
+        .load(tableIdentifier);
 
-      List<SimpleRecord> actual = processStreamTillEnd(df);
-      Assert.assertEquals(Collections.emptyList(), actual);
-    } finally {
-      for (StreamingQuery query : spark.streams().active()) {
-        query.stop();
-      }
-    }
+    List<SimpleRecord> actual = processStreamTillEnd(df);
+    Assert.assertEquals(Collections.emptyList(), actual);
   }
 
   @SuppressWarnings("unchecked")
@@ -373,28 +345,21 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     // check pre-condition - that the above Delete file write - actually resulted in snapshot of type OVERWRITE
     Assert.assertEquals(DataOperations.OVERWRITE, table.currentSnapshot().operation());
 
+    Dataset<Row> df = spark.readStream()
+        .format("iceberg")
+        .load(tableIdentifier);
+    StreamingQuery streamingQuery = df.writeStream()
+        .format("memory")
+        .queryName("testtablewithoverwrites")
+        .outputMode(OutputMode.Append())
+        .start();
+
     try {
-      Dataset<Row> df = spark.readStream()
-          .format("iceberg")
-          .load(tableIdentifier);
-      StreamingQuery streamingQuery = df.writeStream()
-          .format("memory")
-          .queryName("testtablewithoverwrites")
-          .outputMode(OutputMode.Append())
-          .start();
-
-      try {
-        streamingQuery.processAllAvailable();
-        Assert.assertTrue(false); // should be unreachable
-      } catch (Exception exception) {
-        Assert.assertTrue(exception instanceof StreamingQueryException);
-        Assert.assertTrue(((StreamingQueryException) exception).cause() instanceof IllegalStateException);
-      }
-
-    } finally {
-      for (StreamingQuery query : spark.streams().active()) {
-        query.stop();
-      }
+      streamingQuery.processAllAvailable();
+      Assert.assertTrue(false); // should be unreachable
+    } catch (Exception exception) {
+      Assert.assertTrue(exception instanceof StreamingQueryException);
+      Assert.assertTrue(((StreamingQueryException) exception).cause() instanceof IllegalStateException);
     }
   }
 
@@ -415,28 +380,21 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     // check pre-condition
     Assert.assertEquals(DataOperations.REPLACE, table.currentSnapshot().operation());
 
+    Dataset<Row> df = spark.readStream()
+        .format("iceberg")
+        .load(tableIdentifier);
+    StreamingQuery streamingQuery = df.writeStream()
+        .format("memory")
+        .queryName("testtablewithreplace")
+        .outputMode(OutputMode.Append())
+        .start();
+
     try {
-      Dataset<Row> df = spark.readStream()
-          .format("iceberg")
-          .load(tableIdentifier);
-      StreamingQuery streamingQuery = df.writeStream()
-          .format("memory")
-          .queryName("testtablewithreplace")
-          .outputMode(OutputMode.Append())
-          .start();
-
-      try {
-        streamingQuery.processAllAvailable();
-        Assert.assertTrue(false); // should be unreachable
-      } catch (Exception exception) {
-        Assert.assertTrue(exception instanceof StreamingQueryException);
-        Assert.assertTrue(((StreamingQueryException) exception).cause() instanceof IllegalStateException);
-      }
-
-    } finally {
-      for (StreamingQuery query : spark.streams().active()) {
-        query.stop();
-      }
+      streamingQuery.processAllAvailable();
+      Assert.assertTrue(false); // should be unreachable
+    } catch (Exception exception) {
+      Assert.assertTrue(exception instanceof StreamingQueryException);
+      Assert.assertTrue(((StreamingQueryException) exception).cause() instanceof IllegalStateException);
     }
   }
 
@@ -464,28 +422,21 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     // check pre-condition - that the above newDelete operation on table resulted in Snapshot of Type DELETE.
     Assert.assertEquals(DataOperations.DELETE, table.currentSnapshot().operation());
 
+    Dataset<Row> df = spark.readStream()
+        .format("iceberg")
+        .load(tableIdentifier);
+    StreamingQuery streamingQuery = df.writeStream()
+        .format("memory")
+        .queryName("testtablewithdelete")
+        .outputMode(OutputMode.Append())
+        .start();
+
     try {
-      Dataset<Row> df = spark.readStream()
-          .format("iceberg")
-          .load(tableIdentifier);
-      StreamingQuery streamingQuery = df.writeStream()
-          .format("memory")
-          .queryName("testtablewithdelete")
-          .outputMode(OutputMode.Append())
-          .start();
-
-      try {
-        streamingQuery.processAllAvailable();
-        Assert.assertTrue(false); // should be unreachable
-      } catch (Exception exception) {
-        Assert.assertTrue(exception instanceof StreamingQueryException);
-        Assert.assertTrue(((StreamingQueryException) exception).cause() instanceof IllegalStateException);
-      }
-
-    } finally {
-      for (StreamingQuery query : spark.streams().active()) {
-        query.stop();
-      }
+      streamingQuery.processAllAvailable();
+      Assert.assertTrue(false); // should be unreachable
+    } catch (Exception exception) {
+      Assert.assertTrue(exception instanceof StreamingQueryException);
+      Assert.assertTrue(((StreamingQueryException) exception).cause() instanceof IllegalStateException);
     }
   }
 
