@@ -106,7 +106,7 @@ public abstract class BaseTestIceberg {
         CatalogProperties.URI, uri,
         "auth_type", "NONE",
         CatalogProperties.WAREHOUSE_LOCATION, temp.getRoot().toURI().toString()
-        ));
+    ));
     return newCatalog;
   }
 
@@ -120,8 +120,7 @@ public abstract class BaseTestIceberg {
   }
 
   protected void createTable(TableIdentifier tableIdentifier) {
-    Schema schema = new Schema(StructType.of(required(1, "id", LongType.get()))
-                                         .fields());
+    Schema schema = new Schema(StructType.of(required(1, "id", LongType.get())).fields());
     catalog.createTable(tableIdentifier, schema).location();
   }
 
@@ -153,5 +152,4 @@ public abstract class BaseTestIceberg {
     NessieTableOperations icebergOps = (NessieTableOperations) ops;
     return icebergOps.currentMetadataLocation();
   }
-
 }

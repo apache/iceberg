@@ -25,7 +25,6 @@ import org.assertj.core.api.Assertions;
 import org.junit.Test;
 import org.projectnessie.model.CommitMeta;
 
-
 public class NessieUtilTest {
 
   @Test
