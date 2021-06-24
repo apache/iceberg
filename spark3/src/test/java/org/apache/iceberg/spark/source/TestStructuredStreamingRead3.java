@@ -58,7 +58,13 @@ import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.StreamingQueryException;
 import org.apache.spark.sql.streaming.Trigger;
-import org.junit.*;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
@@ -69,9 +75,8 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 
 @RunWith(Parameterized.class)
 public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
-
-  public TestStructuredStreamingRead3(String catalogName, String implementation, Map<String, String> config, boolean fileBased)
-  {
+  public TestStructuredStreamingRead3(
+      String catalogName, String implementation, Map<String, String> config, boolean fileBased) {
     super(catalogName, implementation, config);
     this.fileBased = fileBased;
   }
@@ -79,42 +84,42 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
   @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, fileBased = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
-            {
-              "testhive",
-               SparkCatalog.class.getName(),
-               ImmutableMap.of(
-                "type", "hive",
-                "default-namespace", "default"
-               ),
-               false
-            },
-            {
-              "testhadoop",
-              SparkCatalog.class.getName(),
-              ImmutableMap.of(
-                "type", "hadoop",
-                "default-namespace", "default"
-              ),
-              false
-            },
-            {
-              "spark_catalog", SparkSessionCatalog.class.getName(),
-              ImmutableMap.of(
-                "type", "hive",
-                "default-namespace", "default",
-                "parquet-enabled", "true",
-                "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
-              ),
-              false
-            },
-            {
-              "dummy_catalog",
-              SparkCatalog.class.getName(),
-              ImmutableMap.of(
-                "type", "hadoop"
-              ),
-              true
-            }
+        {
+            "testhive",
+            SparkCatalog.class.getName(),
+            ImmutableMap.of(
+            "type", "hive",
+            "default-namespace", "default"
+            ),
+            false
+        },
+        {
+            "testhadoop",
+            SparkCatalog.class.getName(),
+            ImmutableMap.of(
+            "type", "hadoop",
+            "default-namespace", "default"
+            ),
+            false
+        },
+        {
+            "spark_catalog", SparkSessionCatalog.class.getName(),
+            ImmutableMap.of(
+            "type", "hive",
+            "default-namespace", "default",
+            "parquet-enabled", "true",
+            "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
+            ),
+            false
+        },
+        {
+            "dummy_catalog",
+            SparkCatalog.class.getName(),
+            ImmutableMap.of(
+            "type", "hadoop"
+            ),
+            true
+        }
     };
   }
 
@@ -203,8 +208,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
   public void setupTable() throws IOException {
     if (this.fileBased) {
       this.setupFileBasedTable();
-    }
-    else {
+    } else {
       this.setupCatalogBasedTable();
     }
   }
