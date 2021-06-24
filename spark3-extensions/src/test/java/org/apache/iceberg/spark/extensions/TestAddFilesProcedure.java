@@ -319,6 +319,26 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void addFilteredPartitionsToPartitioned2() {
+    createCompositePartitionedTable("parquet");
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg " +
+            "PARTITIONED BY (id, dept)";
+
+    sql(createIceberg, tableName);
+
+    Object result = scalarSql("CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', 'hr'))",
+        catalogName, tableName, fileTableDir.getAbsolutePath());
+
+    Assert.assertEquals(6L, result);
+
+    assertEquals("Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s WHERE dept = 'hr' ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
   public void addWeirdCaseHiveTable() {
     createWeirdCaseTable();
 

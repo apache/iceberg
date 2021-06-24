@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -80,10 +81,12 @@ import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import scala.Function2;
 import scala.Option;
+import scala.Predef;
 import scala.Some;
 import scala.Tuple2;
 import scala.collection.JavaConverters;
 import scala.collection.Seq;
+import scala.compat.java8.OptionConverters;
 import scala.runtime.AbstractPartialFunction;
 
 import static org.apache.spark.sql.functions.col;
@@ -140,7 +143,7 @@ public class SparkTableUtil {
   public static List<SparkPartition> getPartitions(SparkSession spark, String table) {
     try {
       TableIdentifier tableIdent = spark.sessionState().sqlParser().parseTableIdentifier(table);
-      return getPartitions(spark, tableIdent);
+      return getPartitions(spark, tableIdent, Optional.empty());
     } catch (ParseException e) {
       throw SparkExceptionUtil.toUncheckedException(e, "Unable to parse table identifier: %s", table);
     }
@@ -151,15 +154,21 @@ public class SparkTableUtil {
    *
    * @param spark a Spark session
    * @param tableIdent a table identifier
+   * @param partitionFilter the partition filter
    * @return all table's partitions
    */
-  public static List<SparkPartition> getPartitions(SparkSession spark, TableIdentifier tableIdent) {
+  public static List<SparkPartition> getPartitions(SparkSession spark, TableIdentifier tableIdent,
+                                                   Optional<Map<String, String>> partitionFilter) {
     try {
       SessionCatalog catalog = spark.sessionState().catalog();
       CatalogTable catalogTable = catalog.getTableMetadata(tableIdent);
 
-      Seq<CatalogTablePartition> partitions = catalog.listPartitions(tableIdent, Option.empty());
+      Option<scala.collection.immutable.Map<String, String>> partSpec =
+          OptionConverters.toScala(partitionFilter.map(pf ->
+              JavaConverters.mapAsScalaMapConverter(pf).asScala()
+                  .toMap(Predef.<Tuple2<String, String>>conforms())));
 
+      Seq<CatalogTablePartition> partitions = catalog.listPartitions(tableIdent, partSpec);
       return JavaConverters
           .seqAsJavaListConverter(partitions)
           .asJava()
@@ -375,14 +384,11 @@ public class SparkTableUtil {
       if (Objects.equal(spec, PartitionSpec.unpartitioned())) {
         importUnpartitionedSparkTable(spark, sourceTableIdentWithDB, targetTable);
       } else {
-        List<SparkPartition> sourceTablePartitions = getPartitions(spark, sourceTableIdent);
+        List<SparkPartition> sourceTablePartitions = getPartitions(spark, sourceTableIdent,
+            Optional.of(partitionFilter));
         Preconditions.checkArgument(!sourceTablePartitions.isEmpty(),
             "Cannot find any partitions in table %s", sourceTableIdent);
-        List<SparkPartition> filteredPartitions = filterPartitions(sourceTablePartitions, partitionFilter);
-        Preconditions.checkArgument(!filteredPartitions.isEmpty(),
-            "Cannot find any partitions which match the given filter. Partition filter is %s",
-            MAP_JOINER.join(partitionFilter));
-        importSparkPartitions(spark, filteredPartitions, targetTable, spec, stagingDir);
+        importSparkPartitions(spark, sourceTablePartitions, targetTable, spec, stagingDir);
       }
     } catch (AnalysisException e) {
       throw SparkExceptionUtil.toUncheckedException(
