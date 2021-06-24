@@ -34,6 +34,7 @@ import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.data.FlinkAvroReader;
 import org.apache.iceberg.flink.data.FlinkOrcReader;
 import org.apache.iceberg.flink.data.FlinkParquetReaders;
+import org.apache.iceberg.flink.data.RowDataProjection;
 import org.apache.iceberg.flink.data.RowDataUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -70,9 +71,16 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
         PartitionUtil.constantsMap(task, RowDataUtil::convertConstant);
 
     FlinkDeleteFilter deletes = new FlinkDeleteFilter(task, tableSchema, projectedSchema, inputFilesDecryptor);
-    return deletes
-        .filter(newIterable(task, deletes.requiredSchema(), idToConstant, inputFilesDecryptor))
-        .iterator();
+    CloseableIterable<RowData> iterable =
+        deletes.filter(newIterable(task, deletes.requiredSchema(), idToConstant, inputFilesDecryptor));
+
+    // Project the RowData to remove the extra meta columns.
+    if (!projectedSchema.sameSchema(deletes.requiredSchema())) {
+      RowDataProjection rowDataProjection = RowDataProjection.create(deletes.requiredSchema(), projectedSchema);
+      iterable = CloseableIterable.transform(iterable, rowDataProjection::project);
+    }
+
+    return iterable.iterator();
   }
 
   private CloseableIterable<RowData> newIterable(

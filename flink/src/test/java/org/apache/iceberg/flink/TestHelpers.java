@@ -50,6 +50,7 @@ import org.apache.flink.types.Row;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.data.RowDataUtil;
 import org.apache.iceberg.flink.source.FlinkInputFormat;
@@ -116,7 +117,11 @@ public class TestHelpers {
     Assert.assertEquals(expected, results);
   }
 
-  public static void assertRowData(Types.StructType structType, LogicalType rowType, Record expectedRecord,
+  public static void assertRowData(Schema schema, StructLike expected, RowData actual) {
+    assertRowData(schema.asStruct(), FlinkSchemaUtil.convert(schema), expected, actual);
+  }
+
+  public static void assertRowData(Types.StructType structType, LogicalType rowType, StructLike expectedRecord,
                                    RowData actualRowData) {
     if (expectedRecord == null && actualRowData == null) {
       return;
@@ -131,7 +136,7 @@ public class TestHelpers {
     }
 
     for (int i = 0; i < types.size(); i += 1) {
-      Object expected = expectedRecord.get(i);
+      Object expected = expectedRecord.get(i, Object.class);
       LogicalType logicalType = ((RowType) rowType).getTypeAt(i);
       assertEquals(types.get(i), logicalType, expected,
           RowData.createFieldGetter(logicalType, i).getFieldOrNull(actualRowData));
@@ -213,8 +218,9 @@ public class TestHelpers {
         assertMapValues(type.asMapType(), logicalType, (Map<?, ?>) expected, (MapData) actual);
         break;
       case STRUCT:
-        Assertions.assertThat(expected).as("Should expect a Record").isInstanceOf(Record.class);
-        assertRowData(type.asStructType(), logicalType, (Record) expected, (RowData) actual);
+        Assertions.assertThat(expected).as("Should expect a StructLike").isInstanceOf(StructLike.class);
+        Assert.assertTrue("Should expect a Record", expected instanceof StructLike);
+        assertRowData(type.asStructType(), logicalType, (StructLike) expected, (RowData) actual);
         break;
       case UUID:
         Assertions.assertThat(expected).as("Should expect a UUID").isInstanceOf(UUID.class);
