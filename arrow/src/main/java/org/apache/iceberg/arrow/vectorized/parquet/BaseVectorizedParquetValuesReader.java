@@ -183,8 +183,14 @@ public class BaseVectorizedParquetValuesReader extends ValuesReader {
    * Reads the next group.
    */
   void readNextGroup() {
+    int header;
     try {
-      int header = readUnsignedVarInt();
+      try {
+        header = readUnsignedVarInt();
+      } catch (NullPointerException nullPointerException) {
+        throw new ParquetDecodingException("Cannot determine the encoding of parquet file. Vectorized reading of " +
+            "Parquet files is currently only compatible with Parquet V1 Encodings.", nullPointerException);
+      }
       this.mode = (header & 1) == 0 ? Mode.RLE : Mode.PACKED;
       switch (mode) {
         case RLE:
