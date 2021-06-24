@@ -20,17 +20,16 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Files;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -39,14 +38,9 @@ import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
-import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -76,54 +70,10 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 @RunWith(Parameterized.class)
 public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
   public TestStructuredStreamingRead3(
-      String catalogName, String implementation, Map<String, String> config, boolean fileBased) {
+      String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
-    this.fileBased = fileBased;
   }
 
-  @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, fileBased = {3}")
-  public static Object[][] parameters() {
-    return new Object[][] {
-        {
-            "testhive",
-            SparkCatalog.class.getName(),
-            ImmutableMap.of(
-            "type", "hive",
-            "default-namespace", "default"
-            ),
-            false
-        },
-        {
-            "testhadoop",
-            SparkCatalog.class.getName(),
-            ImmutableMap.of(
-            "type", "hadoop",
-            "default-namespace", "default"
-            ),
-            false
-        },
-        {
-            "spark_catalog", SparkSessionCatalog.class.getName(),
-            ImmutableMap.of(
-            "type", "hive",
-            "default-namespace", "default",
-            "parquet-enabled", "true",
-            "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
-            ),
-            false
-        },
-        {
-            "dummy_catalog",
-            SparkCatalog.class.getName(),
-            ImmutableMap.of(
-            "type", "hadoop"
-            ),
-            true
-        }
-    };
-  }
-
-  private final boolean fileBased;
   private Table table;
   private String tableIdentifier;
 
@@ -205,12 +155,13 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
   }
 
   @Before
-  public void setupTable() throws IOException {
-    if (this.fileBased) {
-      this.setupFileBasedTable();
-    } else {
-      this.setupCatalogBasedTable();
-    }
+  public void setupTable() {
+    sql("CREATE TABLE %s " +
+        "(id INT, data STRING) " +
+        "USING iceberg " +
+        "PARTITIONED BY (bucket(3, id))", tableName);
+    this.table = validationCatalog.loadTable(tableIdent);
+    this.tableIdentifier = tableName;
   }
 
   @After
@@ -236,7 +187,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     Dataset<Row> df = spark.readStream()
         .format("iceberg")
         .load(this.tableIdentifier);
-    List<SimpleRecord> actual = processStreamTillEnd(df);
+    List<SimpleRecord> actual = processAvailable(df);
 
     Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
   }
@@ -251,6 +202,10 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     Dataset<Row> df = spark.readStream()
         .format("iceberg")
         .load(tableIdentifier);
+
+    // Trigger.Once with the combination of StreamingQuery.awaitTermination, which succeeds after this code
+    // will result in stopping the stream.
+    // This is how Stream STOP and RESUME is simulated in this Test Case.
     DataStreamWriter<Row> singleBatchWriter = df.writeStream()
         .trigger(Trigger.Once())
         .option("checkpointLocation", writerCheckpoint.toString())
@@ -298,7 +253,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     Dataset<Row> ds = spark.readStream()
         .format("iceberg")
         .load(tableIdentifier);
-    Assertions.assertThat(processStreamTillEnd(ds))
+    Assertions.assertThat(processAvailable(ds))
         .containsExactlyInAnyOrderElementsOf(Iterables.concat(parquetFileRecords, orcFileRecords, avroFileRecords));
   }
 
@@ -311,23 +266,21 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         .format("iceberg")
         .load(tableIdentifier);
 
-    List<SimpleRecord> actual = processStreamTillEnd(df);
+    List<SimpleRecord> actual = processAvailable(df);
     Assert.assertEquals(Collections.emptyList(), actual);
   }
 
   @SuppressWarnings("unchecked")
   @Test
   public void testReadStreamWithSnapshotTypeOverwriteErrorsOut() throws Exception {
-    // upgrade table to verison 2 - to facilitate creation of Snapshot of type OVERWRITE.
+    // upgrade table to version 2 - to facilitate creation of Snapshot of type OVERWRITE.
     TableOperations ops = ((BaseTable) table).operations();
     TableMetadata meta = ops.current();
     ops.commit(meta, meta.upgradeToFormatVersion(2));
 
-    // fill table with some data
+    // fill table with some initial data
     List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
     appendDataAsMultipleSnapshots(dataAcrossSnapshots, tableIdentifier);
-
-    table.refresh();
 
     Schema deleteRowSchema = table.schema().select("data");
     Record dataDelete = GenericRecord.create(deleteRowSchema);
@@ -354,13 +307,12 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         .outputMode(OutputMode.Append())
         .start();
 
-    try {
-      streamingQuery.processAllAvailable();
-      Assert.assertTrue(false); // should be unreachable
-    } catch (Exception exception) {
-      Assert.assertTrue(exception instanceof StreamingQueryException);
-      Assert.assertTrue(((StreamingQueryException) exception).cause() instanceof IllegalStateException);
-    }
+    AssertHelpers.assertThrowsCause(
+        "Streaming should fail with IllegalStateException, as the snapshot is not of type APPEND",
+        IllegalStateException.class,
+        "Invalid Snapshot operation",
+        () -> streamingQuery.processAllAvailable()
+    );
   }
 
   @SuppressWarnings("unchecked")
@@ -389,13 +341,12 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         .outputMode(OutputMode.Append())
         .start();
 
-    try {
-      streamingQuery.processAllAvailable();
-      Assert.assertTrue(false); // should be unreachable
-    } catch (Exception exception) {
-      Assert.assertTrue(exception instanceof StreamingQueryException);
-      Assert.assertTrue(((StreamingQueryException) exception).cause() instanceof IllegalStateException);
-    }
+    AssertHelpers.assertThrowsCause(
+        "Streaming should fail with IllegalStateException, as the snapshot is not of type APPEND",
+        IllegalStateException.class,
+        "Invalid Snapshot operation",
+        () -> streamingQuery.processAllAvailable()
+    );
   }
 
   @SuppressWarnings("unchecked")
@@ -412,14 +363,11 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
     appendDataAsMultipleSnapshots(dataAcrossSnapshots, tableIdentifier);
 
-    table.refresh();
-
     // this should create a snapshot with type delete.
-    table.newDelete()
-        .deleteFromRowFilter(Expressions.equal("id", 4))
-        .commit();
+    sql("DELETE from %s where id=4", tableName);
 
-    // check pre-condition - that the above newDelete operation on table resulted in Snapshot of Type DELETE.
+    // check pre-condition - that the above delete operation on table resulted in Snapshot of Type DELETE.
+    table.refresh();
     Assert.assertEquals(DataOperations.DELETE, table.currentSnapshot().operation());
 
     Dataset<Row> df = spark.readStream()
@@ -431,13 +379,12 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         .outputMode(OutputMode.Append())
         .start();
 
-    try {
-      streamingQuery.processAllAvailable();
-      Assert.assertTrue(false); // should be unreachable
-    } catch (Exception exception) {
-      Assert.assertTrue(exception instanceof StreamingQueryException);
-      Assert.assertTrue(((StreamingQueryException) exception).cause() instanceof IllegalStateException);
-    }
+    AssertHelpers.assertThrowsCause(
+        "Streaming should fail with IllegalStateException, as the snapshot is not of type APPEND",
+        IllegalStateException.class,
+        "Invalid Snapshot operation",
+        () -> streamingQuery.processAllAvailable()
+    );
   }
 
   private static List<SimpleRecord> processMicroBatch(DataStreamWriter<Row> singleBatchWriter, String viewName)
@@ -469,7 +416,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         .save(tableIdentifier);
   }
 
-  private static List<SimpleRecord> processStreamTillEnd(Dataset<Row> df) throws TimeoutException {
+  private static List<SimpleRecord> processAvailable(Dataset<Row> df) throws TimeoutException {
     StreamingQuery streamingQuery = df.writeStream()
         .format("memory")
         .queryName("test12")
@@ -479,26 +426,5 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     return spark.sql("select * from test12")
         .as(Encoders.bean(SimpleRecord.class))
         .collectAsList();
-  }
-
-  private void setupFileBasedTable() throws IOException {
-    File parent = temp.newFolder("parent");
-    File location = new File(parent, "test-table");
-
-    HadoopTables tables = new HadoopTables(CONF);
-
-    // use partition buckets - so that single list<SimpleRecord> can generate multiple files per write
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("id", 3).build();
-    this.table = tables.create(SCHEMA, spec, location.toString());
-    this.tableIdentifier = location.toString();
-  }
-
-  private void setupCatalogBasedTable() {
-    sql("CREATE TABLE %s " +
-            "(id INT, data STRING) " +
-            "USING iceberg " +
-            "PARTITIONED BY (bucket(3, id))", tableName);
-    this.table = validationCatalog.loadTable(tableIdent);
-    this.tableIdentifier = tableName;
   }
 }
