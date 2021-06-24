@@ -55,9 +55,12 @@ import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implici
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.BooleanType
 
-case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper  {
+case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with RewriteRowLevelOperationHelper {
   import ExtendedDataSourceV2Implicits._
   import RewriteMergeInto._
+  import RewriteRowLevelOperationHelper._
+
+  override def conf: SQLConf = SQLConf.get
 
   override def apply(plan: LogicalPlan): LogicalPlan = {
     plan transform {
@@ -79,7 +82,7 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
 
         val outputExprs = insertAction.assignments.map(_.value)
         val outputColNames = target.output.map(_.name)
-        val outputCols = outputExprs.zip(outputColNames).map { case (expr, name) => Alias(expr, name)() }
+        val outputCols = outputExprs.zip(outputColNames).map { case (expr, name) => createAlias(expr, name) }
         val mergePlan = Project(outputCols, joinPlan)
 
         val writePlan = buildWritePlan(mergePlan, target.table)
@@ -121,7 +124,7 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
 
         // when there are no not-matched actions, use a right outer join to ignore source rows that do not match, but
         // keep all unmatched target rows that must be preserved.
-        val sourceTableProj = source.output ++ Seq(Alias(TRUE_LITERAL, ROW_FROM_SOURCE)())
+        val sourceTableProj = source.output ++ Seq(createAlias(TRUE_LITERAL, ROW_FROM_SOURCE))
         val newSourceTableScan = Project(sourceTableProj, source)
         val targetTableScan = buildDynamicFilterTargetScan(mergeBuilder, target, source, cond, matchedActions)
         val joinPlan = Join(newSourceTableScan, targetTableScan, RightOuter, Some(cond), JoinHint.NONE)
@@ -151,10 +154,10 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
         val (matchedConditions, matchedOutputs) = rewriteMatchedActions(matchedActions, target.output)
 
         // use a full outer join because there are both matched and not matched actions
-        val sourceTableProj = source.output ++ Seq(Alias(TRUE_LITERAL, ROW_FROM_SOURCE)())
+        val sourceTableProj = source.output ++ Seq(createAlias(TRUE_LITERAL, ROW_FROM_SOURCE))
         val newSourceTableScan = Project(sourceTableProj, source)
         val targetTableScan = buildDynamicFilterTargetScan(mergeBuilder, target, source, cond, matchedActions)
-        val targetTableProj = targetTableScan.output ++ Seq(Alias(TRUE_LITERAL, ROW_FROM_TARGET)())
+        val targetTableProj = targetTableScan.output ++ Seq(createAlias(TRUE_LITERAL, ROW_FROM_TARGET))
         val newTargetTableScan = Project(targetTableProj, targetTableScan)
         val joinPlan = Join(newSourceTableScan, newTargetTableScan, FullOuter, Some(cond), JoinHint.NONE)
 
@@ -202,7 +205,7 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
     val output = target.output
     val matchingRowsPlanBuilder = rel => Join(source, rel, Inner, Some(cond), JoinHint.NONE)
     val runCardinalityCheck = isCardinalityCheckEnabled(table) && isCardinalityCheckNeeded(matchedActions)
-    buildDynamicFilterScanPlan(spark, table, output, mergeBuilder, cond, matchingRowsPlanBuilder, runCardinalityCheck)
+    buildDynamicFilterScanPlan(spark, target, output, mergeBuilder, cond, matchingRowsPlanBuilder, runCardinalityCheck)
   }
 
   private def rewriteMatchedActions(

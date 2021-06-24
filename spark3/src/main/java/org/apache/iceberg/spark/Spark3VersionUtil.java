@@ -17,20 +17,20 @@
  * under the License.
  */
 
-package org.apache.spark.sql.catalyst.plans.logical
+package org.apache.iceberg.spark;
 
-import org.apache.spark.sql.catalyst.analysis.NamedRelation
-import org.apache.spark.sql.connector.write.BatchWrite
+import org.apache.spark.package$;
 
-case class ReplaceData(
-    table: NamedRelation,
-    write: BatchWrite,
-    query: LogicalPlan) extends V2WriteCommand {
+public class Spark3VersionUtil {
 
-  def isByName: Boolean = false
+  private Spark3VersionUtil() {
+  }
 
-  def withNewQuery(newQuery: LogicalPlan): ReplaceData = copy(query = newQuery)
+  public static boolean isSpark30() {
+    return package$.MODULE$.SPARK_VERSION_SHORT().startsWith("3.0");
+  }
 
-  def withNewTable(newTable: NamedRelation): ReplaceData = copy(table = newTable)
-
+  public static boolean isSpark31() {
+    return package$.MODULE$.SPARK_VERSION_SHORT().startsWith("3.1");
+  }
 }
