@@ -23,9 +23,9 @@ package org.apache.iceberg.flink;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 
-public class FlinkTableOptions {
+public class FlinkConfigOptions {
 
-  private FlinkTableOptions() {
+  private FlinkConfigOptions() {
   }
 
   public static final ConfigOption<Boolean> TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM =
