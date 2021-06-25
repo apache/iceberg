@@ -25,13 +25,10 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.flink.FlinkSchemaUtil;
-import org.apache.iceberg.flink.RowDataWrapper;
+import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.StructLikeWrapper;
 import org.apache.iceberg.util.StructProjection;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestRowDataProjection {
@@ -101,8 +98,6 @@ public class TestRowDataProjection {
   }
 
   @Test
-  @Ignore("Disable it because the StructProjection will handle null value as non-null StructLike but throw NPE when" +
-      "access its fields, which breaks this unit tests. We will need to prepare patch for this first.")
   public void testNestedProjection() {
     Schema schema = new Schema(
         Types.NestedField.required(0, "id", Types.LongType.get()),
@@ -157,20 +152,10 @@ public class TestRowDataProjection {
       StructLike expected = structProjection.wrap(recordIter.next());
       RowData actual = rowDataProjection.project(rowDataIter.next());
 
-      assertEquals(projectSchema, expected, actual);
+      TestHelpers.assertRowData(projectSchema, expected, actual);
     }
 
     Assert.assertFalse("Shouldn't have more record", recordIter.hasNext());
     Assert.assertFalse("Shouldn't have more RowData", rowDataIter.hasNext());
-  }
-
-  private static void assertEquals(Schema schema, StructLike expected, RowData rowData) {
-    StructLikeWrapper actualWrapper = StructLikeWrapper.forType(schema.asStruct());
-    StructLikeWrapper expectedWrapper = StructLikeWrapper.forType(schema.asStruct());
-
-    RowDataWrapper rowDataWrapper = new RowDataWrapper(FlinkSchemaUtil.convert(schema), schema.asStruct());
-
-    Assert.assertEquals("Should have expected StructLike values",
-        actualWrapper.set(expected), expectedWrapper.set(rowDataWrapper.wrap(rowData)));
   }
 }

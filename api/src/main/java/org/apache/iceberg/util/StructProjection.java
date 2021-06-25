@@ -155,8 +155,11 @@ public class StructProjection implements StructLike {
 
   @Override
   public <T> T get(int pos, Class<T> javaClass) {
-    int structPos = positionMap[pos];
+    if (struct == null) {
+      return null;
+    }
 
+    int structPos = positionMap[pos];
     if (nestedProjections[pos] != null) {
       return javaClass.cast(nestedProjections[pos].wrap(struct.get(structPos, StructLike.class)));
     }
