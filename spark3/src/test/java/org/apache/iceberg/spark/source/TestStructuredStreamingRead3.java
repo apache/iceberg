@@ -129,12 +129,6 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
               new SimpleRecord(15, "fifteen"),
               new SimpleRecord(16, "sixteen"))));
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
-
-  @Rule
-  public ExpectedException exceptionRule = ExpectedException.none();
-
   @Before
   public void setupTable() {
     sql("CREATE TABLE %s " +
