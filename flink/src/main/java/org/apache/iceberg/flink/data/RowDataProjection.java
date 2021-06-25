@@ -55,11 +55,11 @@ public class RowDataProjection {
           case STRUCT:
             RowType nestedRowType = (RowType) rowType.getTypeAt(i);
             int rowPos = i;
-            return row -> new RowDataProjection(
-                nestedRowType,
-                rowField.type().asStructType(),
-                projectField.type().asStructType()
-            ).project(row.getRow(rowPos, nestedRowType.getFieldCount()));
+            return row -> {
+              RowData nestedRow = row.isNullAt(rowPos) ? null : row.getRow(rowPos, nestedRowType.getFieldCount());
+              return new RowDataProjection(nestedRowType, rowField.type().asStructType(),
+                  projectField.type().asStructType()).project(nestedRow);
+            };
 
           case MAP:
           case LIST:

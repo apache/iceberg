@@ -135,10 +135,15 @@ public class TestHelpers {
     }
 
     for (int i = 0; i < types.size(); i += 1) {
-      Object expected = expectedRecord.get(i, Object.class);
       LogicalType logicalType = ((RowType) rowType).getTypeAt(i);
-      assertEquals(types.get(i), logicalType, expected,
-          RowData.createFieldGetter(logicalType, i).getFieldOrNull(actualRowData));
+      Object expected = expectedRecord.get(i, Object.class);
+      // The RowData.createFieldGetter won't return null for the required field. But in the projection case, if we are
+      // projecting a nested required field from a optional struct, then we should give a null for the projected field
+      // if the outer struct value is null. So we need to check the nullable for actualRowData here. For more details
+      // please see issue #2738.
+      Object actual = actualRowData.isNullAt(i) ? null :
+          RowData.createFieldGetter(logicalType, i).getFieldOrNull(actualRowData);
+      assertEquals(types.get(i), logicalType, expected, actual);
     }
   }
 
