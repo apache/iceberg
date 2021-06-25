@@ -125,8 +125,7 @@ public class SnapshotUtil {
   /**
    * Traverses the history of the table's current snapshot and finds the snapshot with the given snapshot id as its
    * parent.
-   * @return null if the passed in snapshot is not present in the table, else the snapshot for which the given snapshot
-   * is the parent
+   * @return the snapshot for which the given snapshot is the parent
    * @throws IllegalArgumentException when the given snapshotId is not found in the table
    * @throws IllegalStateException when the given snapshotId is not an ancestor of the current table state
    */

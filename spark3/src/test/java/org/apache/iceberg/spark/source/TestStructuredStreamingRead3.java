@@ -46,7 +46,6 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.streaming.DataStreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.streaming.StreamingQuery;
@@ -54,10 +53,8 @@ import org.apache.spark.sql.streaming.StreamingQueryException;
 import org.apache.spark.sql.streaming.Trigger;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -132,28 +129,11 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
               new SimpleRecord(15, "fifteen"),
               new SimpleRecord(16, "sixteen"))));
 
-  private static SparkSession spark = null;
-
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
   @Rule
   public ExpectedException exceptionRule = ExpectedException.none();
-
-  @BeforeClass
-  public static void startSpark() {
-    TestStructuredStreamingRead3.spark = SparkSession.builder()
-        .master("local[2]")
-        .config("spark.sql.shuffle.partitions", 4)
-        .getOrCreate();
-  }
-
-  @AfterClass
-  public static void stopSpark() {
-    SparkSession currentSpark = TestStructuredStreamingRead3.spark;
-    TestStructuredStreamingRead3.spark = null;
-    currentSpark.stop();
-  }
 
   @Before
   public void setupTable() {
@@ -181,13 +161,13 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
   @Test
   public void testReadStreamOnIcebergTableWithMultipleSnapshots() throws Exception {
     List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
-    appendDataAsMultipleSnapshots(expected, this.tableIdentifier);
+    appendDataAsMultipleSnapshots(expected, tableIdentifier);
 
     table.refresh();
 
     Dataset<Row> df = spark.readStream()
         .format("iceberg")
-        .load(this.tableIdentifier);
+        .load(tableIdentifier);
     List<SimpleRecord> actual = processAvailable(df);
 
     Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
