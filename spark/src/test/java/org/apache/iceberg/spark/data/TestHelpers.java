@@ -98,7 +98,8 @@ public class TestHelpers {
         if (checkArrowValidityVector) {
           ColumnVector columnVector = batch.column(i);
           ValueVector arrowVector = ((IcebergArrowColumnVector) columnVector).vectorAccessor().getVector();
-          Assert.assertFalse("Nullability doesn't match", expectedValue == null ^ arrowVector.isNull(rowId));
+          Assert.assertFalse("Nullability doesn't match of " + columnVector.dataType(),
+              expectedValue == null ^ arrowVector.isNull(rowId));
         }
       }
     }
