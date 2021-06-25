@@ -25,6 +25,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -61,6 +62,19 @@ public class SnapshotUtil {
    */
   public static List<Long> currentAncestors(Table table) {
     return ancestorIds(table.currentSnapshot(), table::snapshot);
+  }
+
+  /**
+   * Traverses the history of the table's current snapshot and finds the oldest Snapshot.
+   * @return null if there is no current snapshot in the table, else the oldest Snapshot.
+   */
+  public static Snapshot oldestSnapshot(Table table) {
+    Snapshot current = table.currentSnapshot();
+    while (current != null && current.parentId() != null) {
+      current = table.snapshot(current.parentId());
+    }
+
+    return current;
   }
 
   /**
@@ -106,5 +120,28 @@ public class SnapshotUtil {
     }
 
     return newFiles;
+  }
+
+  /**
+   * Traverses the history of the table's current snapshot and finds the snapshot with the given snapshot id as its
+   * parent.
+   * @return the snapshot for which the given snapshot is the parent
+   * @throws IllegalArgumentException when the given snapshotId is not found in the table
+   * @throws IllegalStateException when the given snapshotId is not an ancestor of the current table state
+   */
+  public static Snapshot snapshotAfter(Table table, long snapshotId) {
+    Preconditions.checkArgument(table.snapshot(snapshotId) != null, "Cannot find parent snapshot: %s", snapshotId);
+
+    Snapshot current = table.currentSnapshot();
+    while (current != null) {
+      if (current.parentId() == snapshotId) {
+        return current;
+      }
+
+      current = table.snapshot(current.parentId());
+    }
+
+    throw new IllegalStateException(
+        String.format("Cannot find snapshot after %s: not an ancestor of table's current snapshot", snapshotId));
   }
 }
