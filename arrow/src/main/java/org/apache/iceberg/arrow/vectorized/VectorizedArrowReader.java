@@ -133,47 +133,45 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     }
     if (vectorizedColumnIterator.hasNext()) {
       if (dictEncoded) {
-        vectorizedColumnIterator.nextBatchDictionaryIds((IntVector) vec, nullabilityHolder);
+        vectorizedColumnIterator.dictionaryBatchReader().nextBatch(vec, -1, nullabilityHolder);
       } else {
         switch (readType) {
           case FIXED_LENGTH_DECIMAL:
-            vectorizedColumnIterator.nextBatchFixedLengthDecimal(vec, typeWidth, nullabilityHolder);
+            vectorizedColumnIterator.fixedLengthDecimalBatchReader().nextBatch(vec, typeWidth, nullabilityHolder);
             break;
           case INT_BACKED_DECIMAL:
-            vectorizedColumnIterator.nextBatchIntBackedDecimal(vec, nullabilityHolder);
+            vectorizedColumnIterator.intBackedDecimalBatchReader().nextBatch(vec, -1, nullabilityHolder);
             break;
           case LONG_BACKED_DECIMAL:
-            vectorizedColumnIterator.nextBatchLongBackedDecimal(vec, nullabilityHolder);
+            vectorizedColumnIterator.longBackedDecimalBatchReader().nextBatch(vec, -1, nullabilityHolder);
             break;
           case VARBINARY:
-            vectorizedColumnIterator.nextBatchVarWidthType(vec, nullabilityHolder);
-            break;
           case VARCHAR:
-            vectorizedColumnIterator.nextBatchVarWidthType(vec, nullabilityHolder);
+            vectorizedColumnIterator.varWidthTypeBatchReader().nextBatch(vec, -1, nullabilityHolder);
             break;
           case FIXED_WIDTH_BINARY:
-            vectorizedColumnIterator.nextBatchFixedWidthBinary(vec, typeWidth, nullabilityHolder);
+            vectorizedColumnIterator.fixedWidthTypeBinaryBatchReader().nextBatch(vec, typeWidth, nullabilityHolder);
             break;
           case BOOLEAN:
-            vectorizedColumnIterator.nextBatchBoolean(vec, nullabilityHolder);
+            vectorizedColumnIterator.booleanBatchReader().nextBatch(vec, -1, nullabilityHolder);
             break;
           case INT:
-            vectorizedColumnIterator.nextBatchIntegers(vec, typeWidth, nullabilityHolder);
+            vectorizedColumnIterator.integerBatchReader().nextBatch(vec, typeWidth, nullabilityHolder);
             break;
           case LONG:
-            vectorizedColumnIterator.nextBatchLongs(vec, typeWidth, nullabilityHolder);
+            vectorizedColumnIterator.longBatchReader().nextBatch(vec, typeWidth, nullabilityHolder);
             break;
           case FLOAT:
-            vectorizedColumnIterator.nextBatchFloats(vec, typeWidth, nullabilityHolder);
+            vectorizedColumnIterator.floatBatchReader().nextBatch(vec, typeWidth, nullabilityHolder);
             break;
           case DOUBLE:
-            vectorizedColumnIterator.nextBatchDoubles(vec, typeWidth, nullabilityHolder);
+            vectorizedColumnIterator.doubleBatchReader().nextBatch(vec, typeWidth, nullabilityHolder);
             break;
           case TIMESTAMP_MILLIS:
-            vectorizedColumnIterator.nextBatchTimestampMillis(vec, typeWidth, nullabilityHolder);
+            vectorizedColumnIterator.timestampMillisBatchReader().nextBatch(vec, typeWidth, nullabilityHolder);
             break;
           case UUID:
-            vectorizedColumnIterator.nextBatchFixedSizeBinary(vec, typeWidth, nullabilityHolder);
+            vectorizedColumnIterator.fixedSizeBinaryBatchReader().nextBatch(vec, typeWidth, nullabilityHolder);
             break;
         }
       }
