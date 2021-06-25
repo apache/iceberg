@@ -109,7 +109,7 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
   }
 
   private def isIcebergCommand(sqlText: String): Boolean = {
-    val normalized = sqlText.toLowerCase(Locale.ROOT).trim()
+    val normalized = sqlText.toLowerCase(Locale.ROOT).trim().replaceAll("\\s+", " ")
     normalized.startsWith("call") || (
         normalized.startsWith("alter table") && (
             normalized.contains("add partition field") ||

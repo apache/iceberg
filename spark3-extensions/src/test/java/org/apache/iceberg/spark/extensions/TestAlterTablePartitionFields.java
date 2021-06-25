@@ -265,7 +265,8 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
 
     Assert.assertEquals("Table should have 1 partition field", 1, table.spec().fields().size());
 
-    sql("ALTER TABLE %s DROP PARTITION FIELD shard", tableName);
+    // Should be recognized as iceberg command even with extra white spaces
+    sql("ALTER TABLE %s DROP  PARTITION \n FIELD shard", tableName);
 
     table.refresh();
 
