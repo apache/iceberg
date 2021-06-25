@@ -416,7 +416,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
           vec.getDataBuffer().setLong(i * Long.BYTES, rowStart + i);
         }
         for (int i = 0; i < numValsToRead; i += 1) {
-          BitVectorHelper.setValidityBitToOne(vec.getValidityBuffer(), i);
+          BitVectorHelper.setBit(vec.getValidityBuffer(), i);
         }
         nulls = new NullabilityHolder(numValsToRead);
       }

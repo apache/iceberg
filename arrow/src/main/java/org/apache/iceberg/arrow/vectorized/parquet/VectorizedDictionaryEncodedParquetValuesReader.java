@@ -269,7 +269,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
   private void setNotNull(FieldVector vector, NullabilityHolder nullabilityHolder, int idx) {
     nullabilityHolder.setNotNull(idx);
     if (setArrowValidityVector) {
-      BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
+      BitVectorHelper.setBit(vector.getValidityBuffer(), idx);
     }
   }
 
