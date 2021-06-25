@@ -66,7 +66,6 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     return vectorizedPageIterator.producesDictionaryEncodedVector();
   }
 
-
   public abstract class BatchReader {
     public void nextBatch(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
       int rowsReadSoFar = 0;
@@ -81,8 +80,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     }
 
     protected abstract int nextBatchOf(
-        final FieldVector vector, final int expectedBatchSize,
-        final int numValsInVector, final int typeWidth, NullabilityHolder holder);
+        FieldVector vector, int expectedBatchSize, int numValsInVector, int typeWidth, NullabilityHolder holder);
   }
 
   public class IntegerBatchReader extends BatchReader {
