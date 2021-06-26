@@ -562,6 +562,19 @@ public class Spark3Util {
     return null;
   }
 
+  public static Boolean propertyAsBoolean(CaseInsensitiveStringMap options, String property, Boolean defaultValue) {
+    if (defaultValue != null) {
+      return options.getBoolean(property, defaultValue);
+    }
+
+    String value = options.get(property);
+    if (value != null) {
+      return Boolean.parseBoolean(value);
+    }
+
+    return null;
+  }
+
   public static class DescribeSchemaVisitor extends TypeUtil.SchemaVisitor<String> {
     private static final Joiner COMMA = Joiner.on(',');
     private static final DescribeSchemaVisitor INSTANCE = new DescribeSchemaVisitor();
