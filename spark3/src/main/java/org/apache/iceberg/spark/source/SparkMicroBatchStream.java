@@ -96,7 +96,8 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
     long tableSplitOpenFileCost = PropertyUtil.propertyAsLong(
         table.properties(), SPLIT_OPEN_FILE_COST, SPLIT_OPEN_FILE_COST_DEFAULT);
-    this.splitOpenFileCost = Spark3Util.propertyAsLong(options, SPLIT_OPEN_FILE_COST, tableSplitOpenFileCost);
+    this.splitOpenFileCost = Spark3Util.propertyAsLong(
+        options, SparkReadOptions.FILE_OPEN_COST, tableSplitOpenFileCost);
 
     InitialOffsetStore initialOffsetStore = new InitialOffsetStore(table, checkpointLocation);
     this.initialOffset = initialOffsetStore.initialOffset();
