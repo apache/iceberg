@@ -170,6 +170,11 @@ public class Parquet {
       return this;
     }
 
+    public WriteBuilder writerVersion(WriterVersion version) {
+      this.writerVersion = version;
+      return this;
+    }
+
     @SuppressWarnings("unchecked")
     private <T> WriteSupport<T> getWriteSupport(MessageType type) {
       if (writeSupport != null) {
@@ -216,6 +221,7 @@ public class Parquet {
           PARQUET_DICT_SIZE_BYTES, PARQUET_DICT_SIZE_BYTES_DEFAULT));
       String compressionLevel = config.getOrDefault(
           PARQUET_COMPRESSION_LEVEL, PARQUET_COMPRESSION_LEVEL_DEFAULT);
+
 
       if (compressionLevel != null) {
         switch (codec()) {
