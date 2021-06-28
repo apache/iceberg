@@ -88,7 +88,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     protected int nextBatchOf(
         final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
         NullabilityHolder holder) {
-      return vectorizedPageIterator.nextBatchIntegers(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+      return vectorizedPageIterator.intPageReader()
+          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
     }
   }
 
@@ -97,10 +98,7 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     protected int nextBatchOf(
         final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
         NullabilityHolder holder) {
-      return vectorizedPageIterator.nextBatchDictionaryIds(
-          (IntVector) vector,
-          expectedBatchSize,
-          numValsInVector,
+      return vectorizedPageIterator.nextBatchDictionaryIds((IntVector) vector, expectedBatchSize, numValsInVector,
           holder);
     }
   }
@@ -110,7 +108,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     protected int nextBatchOf(
         final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
         NullabilityHolder holder) {
-      return vectorizedPageIterator.nextBatchLongs(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+      return vectorizedPageIterator.longPageReader()
+          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
     }
   }
 
@@ -119,12 +118,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     protected int nextBatchOf(
         final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
         NullabilityHolder holder) {
-      return vectorizedPageIterator.nextBatchTimestampMillis(
-          vector,
-          expectedBatchSize,
-          numValsInVector,
-          typeWidth,
-          holder);
+      return vectorizedPageIterator.timestampMillisPageReader().nextBatch(vector, expectedBatchSize, numValsInVector,
+          typeWidth, holder);
     }
   }
 
@@ -133,7 +128,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     protected int nextBatchOf(
         final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
         NullabilityHolder holder) {
-      return vectorizedPageIterator.nextBatchFloats(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+      return vectorizedPageIterator.floatPageReader()
+          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
     }
   }
 
@@ -142,7 +138,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     protected int nextBatchOf(
         final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
         NullabilityHolder holder) {
-      return vectorizedPageIterator.nextBatchDoubles(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+      return vectorizedPageIterator.doublePageReader()
+          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
     }
   }
 
@@ -151,7 +148,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     protected int nextBatchOf(
         final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
         NullabilityHolder holder) {
-      return vectorizedPageIterator.nextBatchIntBackedDecimal(vector, expectedBatchSize, numValsInVector, holder);
+      return vectorizedPageIterator.intBackedDecimalPageReader()
+          .nextBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
     }
   }
 
@@ -160,7 +158,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     protected int nextBatchOf(
         final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
         NullabilityHolder holder) {
-      return vectorizedPageIterator.nextBatchLongBackedDecimal(vector, expectedBatchSize, numValsInVector, holder);
+      return vectorizedPageIterator.longBackedDecimalPageReader().nextBatch(vector, expectedBatchSize, numValsInVector,
+          typeWidth, holder);
     }
   }
 
@@ -169,12 +168,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     protected int nextBatchOf(
         final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
         NullabilityHolder holder) {
-      return vectorizedPageIterator.nextBatchFixedLengthDecimal(
-          vector,
-          expectedBatchSize,
-          numValsInVector,
-          typeWidth,
-          holder);
+      return vectorizedPageIterator.fixedLengthDecimalPageReader().nextBatch(vector, expectedBatchSize, numValsInVector,
+          typeWidth, holder);
     }
   }
 
@@ -183,12 +178,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     protected int nextBatchOf(
         final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
         NullabilityHolder holder) {
-      return vectorizedPageIterator.nextBatchFixedSizeBinary(
-          vector,
-          expectedBatchSize,
-          numValsInVector,
-          typeWidth,
-          holder);
+      return vectorizedPageIterator.fixedSizeBinaryPageReader().nextBatch(vector, expectedBatchSize, numValsInVector,
+          typeWidth, holder);
     }
   }
 
@@ -197,7 +188,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     protected int nextBatchOf(
         final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
         NullabilityHolder holder) {
-      return vectorizedPageIterator.nextBatchVarWidthType(vector, expectedBatchSize, numValsInVector, holder);
+      return vectorizedPageIterator.varWidthTypePageReader().nextBatch(vector, expectedBatchSize, numValsInVector,
+          typeWidth, holder);
     }
   }
 
@@ -206,12 +198,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     protected int nextBatchOf(
         final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
         NullabilityHolder holder) {
-      return vectorizedPageIterator.nextBatchFixedWidthBinary(
-          vector,
-          expectedBatchSize,
-          numValsInVector,
-          typeWidth,
-          holder);
+      return vectorizedPageIterator.fixedWidthBinaryPageReader().nextBatch(vector, expectedBatchSize, numValsInVector,
+          typeWidth, holder);
     }
   }
 
@@ -220,7 +208,8 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     protected int nextBatchOf(
         final FieldVector vector, final int expectedBatchSize, final int numValsInVector, final int typeWidth,
         NullabilityHolder holder) {
-      return vectorizedPageIterator.nextBatchBoolean(vector, expectedBatchSize, numValsInVector, holder);
+      return vectorizedPageIterator.booleanPageReader().nextBatch(vector, expectedBatchSize, numValsInVector,
+          typeWidth, holder);
     }
   }
 
