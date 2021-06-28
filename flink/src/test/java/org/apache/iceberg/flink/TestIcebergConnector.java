@@ -185,7 +185,11 @@ public class TestIcebergConnector extends FlinkTestBase {
       try {
         metaStoreClient.dropTable(databaseName(), TABLE_NAME);
         if (!isDefaultDatabaseName()) {
-          metaStoreClient.dropDatabase(databaseName());
+          try {
+            metaStoreClient.dropDatabase(databaseName());
+          } catch (Exception ignored) {
+            // Ignore
+          }
         }
       } finally {
         metaStoreClient.close();
@@ -239,6 +243,39 @@ public class TestIcebergConnector extends FlinkTestBase {
       if (!isDefaultDatabaseName()) {
         sql("DROP DATABASE `%s`", databaseName());
       }
+    }
+  }
+
+  @Test
+  public void testConnectorTableInIcebergCatalog() {
+    // Create the catalog properties
+    Map<String, String> catalogProps = Maps.newHashMap();
+    catalogProps.put("type", "iceberg");
+    if (isHiveCatalog()) {
+      catalogProps.put("catalog-type", "hive");
+      catalogProps.put(CatalogProperties.URI, FlinkCatalogTestBase.getURI(hiveConf));
+    } else {
+      catalogProps.put("catalog-type", "hadoop");
+    }
+    catalogProps.put(CatalogProperties.WAREHOUSE_LOCATION, createWarehouse());
+
+    // Create the table properties
+    Map<String, String> tableProps = createTableProps();
+
+    // Create a connector table in an iceberg table.
+    sql("CREATE CATALOG `test_catalog` WITH %s", toWithClause(catalogProps));
+    try {
+      AssertHelpers.assertThrowsCause("Cannot create the iceberg connector table in iceberg catalog",
+          IllegalArgumentException.class,
+          "Cannot create the table with 'connector'='iceberg' table property in an iceberg catalog",
+          () -> sql("CREATE TABLE `test_catalog`.`%s`.`%s` (id BIGINT, data STRING) WITH %s",
+              FlinkCatalogFactory.DEFAULT_DATABASE_NAME,
+              TABLE_NAME,
+              toWithClause(tableProps)
+          )
+      );
+    } finally {
+      sql("DROP CATALOG IF EXISTS `test_catalog`");
     }
   }
 

@@ -44,7 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, DynamicTableSourceFactory {
-  private static final String FACTORY_IDENTIFIER = "iceberg";
+  static final String FACTORY_IDENTIFIER = "iceberg";
 
   private static final ConfigOption<String> CATALOG_NAME =
       ConfigOptions.key("catalog-name")
@@ -158,7 +158,7 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
     // Create table if not exists in the external catalog.
     if (!flinkCatalog.tableExists(objectPath)) {
       try {
-        flinkCatalog.createTable(objectPath, catalogTable, true);
+        flinkCatalog.createIcebergTable(objectPath, catalogTable, true);
       } catch (TableAlreadyExistException e) {
         throw new AlreadyExistsException(e, "Table %s already exists in the database %s and catalog %s",
             tableName, catalogDatabase, catalogName);
