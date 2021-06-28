@@ -223,7 +223,7 @@ abstract class BaseTableScan implements TableScan {
     } else {
       splitSize = targetSplitSize();
     }
-    Preconditions.checkArgument(splitSize > 0, "Split size should be greater than zero. Found: %s", splitSize);
+    Preconditions.checkArgument(splitSize > 0, "Invalid split size (negative): %s", splitSize);
 
     int lookback;
     if (options.containsKey(TableProperties.SPLIT_LOOKBACK)) {
@@ -232,8 +232,7 @@ abstract class BaseTableScan implements TableScan {
       lookback = ops.current().propertyAsInt(
           TableProperties.SPLIT_LOOKBACK, TableProperties.SPLIT_LOOKBACK_DEFAULT);
     }
-    Preconditions.checkArgument(lookback > 0,
-        "Split planning lookback should be greater than zero. Found: %s", lookback);
+    Preconditions.checkArgument(lookback > 0, "Invalid split planning lookback (negative): %s", lookback);
 
     long openFileCost;
     if (options.containsKey(TableProperties.SPLIT_OPEN_FILE_COST)) {
@@ -242,8 +241,7 @@ abstract class BaseTableScan implements TableScan {
       openFileCost = ops.current().propertyAsLong(
           TableProperties.SPLIT_OPEN_FILE_COST, TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
     }
-    Preconditions.checkArgument(openFileCost >= 0,
-        "Split open file cost should not be negative. Found: %s", openFileCost);
+    Preconditions.checkArgument(openFileCost >= 0, "Invalid file open file cost (negative): %s", openFileCost);
 
     CloseableIterable<FileScanTask> fileScanTasks = planFiles();
     CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(fileScanTasks, splitSize);
