@@ -27,12 +27,14 @@ import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.types.Row;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -222,9 +224,22 @@ public class TestIcebergConnector extends FlinkTestBase {
 
   @Test
   public void testCatalogDatabaseConflictWithFlinkDatabase() {
-    sql("CREATE DATABASE IF NOT EXISTS %s", databaseName());
-    sql("USE %s", databaseName());
-    testCreateConnectorTable();
+    sql("CREATE DATABASE IF NOT EXISTS `%s`", databaseName());
+    sql("USE `%s`", databaseName());
+
+    try {
+      testCreateConnectorTable();
+      // Ensure that the table was created under the specific database.
+      AssertHelpers.assertThrows("Table should already exists",
+          ValidationException.class,
+          "Could not execute CreateTable in path",
+          () -> sql("CREATE TABLE `default_catalog`.`%s`.`%s`", databaseName(), TABLE_NAME));
+    } finally {
+      sql("DROP TABLE IF EXISTS `%s`.`%s`", databaseName(), TABLE_NAME);
+      if (!isDefaultDatabaseName()) {
+        sql("DROP DATABASE `%s`", databaseName());
+      }
+    }
   }
 
   private Map<String, String> createTableProps() {
