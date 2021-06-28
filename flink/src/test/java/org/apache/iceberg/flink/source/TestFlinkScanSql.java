@@ -38,7 +38,7 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.flink.FlinkTableOptions;
+import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -158,7 +158,7 @@ public class TestFlinkScanSql extends TestFlinkSource {
 
     // 2 splits and max infer parallelism is 1 (max < splits num), the parallelism is  1
     Configuration configuration = new Configuration();
-    configuration.setInteger(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX, 1);
+    configuration.setInteger(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX, 1);
     parallelism = FlinkSource.forRowData()
         .flinkConf(configuration)
         .inferParallelism(flinkInputFormat, ScanContext.builder().build());
@@ -171,7 +171,7 @@ public class TestFlinkScanSql extends TestFlinkSource {
     Assert.assertEquals("Should produce the expected parallelism.", 1, parallelism);
 
     // 2 splits, infer parallelism is disabled, the parallelism is flink default parallelism 1
-    configuration.setBoolean(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
+    configuration.setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
     parallelism = FlinkSource.forRowData()
         .flinkConf(configuration)
         .inferParallelism(flinkInputFormat, ScanContext.builder().limit(3).build());
