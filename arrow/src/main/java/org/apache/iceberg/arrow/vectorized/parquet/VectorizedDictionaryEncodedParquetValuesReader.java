@@ -61,7 +61,10 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
           } else if (Mode.PACKED.equals(mode)) {
             nextVal(vector, dict, index, packedValuesBuffer[packedValuesBufferIdx++], typeWidth);
           }
-          setNotNull(vector, nullabilityHolder, idx);
+          nullabilityHolder.setNotNull(idx);
+          if (setArrowValidityVector) {
+            BitVectorHelper.setBit(vector.getValidityBuffer(), idx);
+          }
           idx++;
         }
         left -= numValues;
@@ -215,12 +218,5 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
 
   public FixedSizeBinaryDictEncodedReader fixedSizeBinaryDictEncodedReader() {
     return new FixedSizeBinaryDictEncodedReader();
-  }
-
-  private void setNotNull(FieldVector vector, NullabilityHolder nullabilityHolder, int idx) {
-    nullabilityHolder.setNotNull(idx);
-    if (setArrowValidityVector) {
-      BitVectorHelper.setBit(vector.getValidityBuffer(), idx);
-    }
   }
 }
