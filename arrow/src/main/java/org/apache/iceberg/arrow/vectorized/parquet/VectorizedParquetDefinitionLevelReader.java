@@ -60,7 +60,8 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
       switch (mode) {
         case RLE:
           if (currentValue == maxDefLevel) {
-            dictionaryEncodedValuesReader.dictionaryIdReader().nextBatch(vector, idx, numValues, null, nullabilityHolder, -1);
+            dictionaryEncodedValuesReader.dictionaryIdReader()
+                .nextBatch(vector, idx, numValues, null, nullabilityHolder, -1);
           } else {
             setNulls(nullabilityHolder, idx, numValues, vector.getValidityBuffer());
           }
