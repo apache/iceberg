@@ -30,7 +30,6 @@ import org.apache.flink.table.catalog.CatalogDatabaseImpl;
 import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.ObjectIdentifier;
 import org.apache.flink.table.catalog.ObjectPath;
-import org.apache.flink.table.catalog.exceptions.CatalogException;
 import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.TableAlreadyExistException;
 import org.apache.flink.table.connector.sink.DynamicTableSink;
@@ -40,6 +39,7 @@ import org.apache.flink.table.factories.DynamicTableSourceFactory;
 import org.apache.flink.table.utils.TableSchemaUtils;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
@@ -149,8 +149,9 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
     if (!flinkCatalog.databaseExists(catalogDatabase)) {
       try {
         flinkCatalog.createDatabase(catalogDatabase, new CatalogDatabaseImpl(Maps.newHashMap(), null), true);
-      } catch (DatabaseAlreadyExistException | CatalogException e) {
-        throw new RuntimeException(String.format("Failed to create database %s.%s", catalogName, catalogDatabase), e);
+      } catch (DatabaseAlreadyExistException e) {
+        throw new AlreadyExistsException(e, "Database %s already exists in the iceberg catalog %s.", catalogName,
+            catalogDatabase);
       }
     }
 
@@ -158,8 +159,9 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
     if (!flinkCatalog.tableExists(objectPath)) {
       try {
         flinkCatalog.createTable(objectPath, catalogTable, true);
-      } catch (TableAlreadyExistException | CatalogException e) {
-        throw new RuntimeException(String.format("Failed to create table %s.%s", catalogName, objectPath), e);
+      } catch (TableAlreadyExistException e) {
+        throw new AlreadyExistsException(e, "Table %s already exists in the database %s and catalog %s",
+            tableName, catalogDatabase, catalogName);
       }
     }
 
