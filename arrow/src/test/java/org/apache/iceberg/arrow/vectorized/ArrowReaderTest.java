@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
@@ -34,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -41,9 +43,11 @@ import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DateDayVector;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.TimeMicroVector;
 import org.apache.arrow.vector.TimeStampMicroTZVector;
 import org.apache.arrow.vector.TimeStampMicroVector;
 import org.apache.arrow.vector.VarBinaryVector;
@@ -74,6 +78,8 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.UUIDUtil;
+import org.assertj.core.api.Assertions;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
@@ -112,7 +118,11 @@ public class ArrowReaderTest {
           "bytes_nullable",
           "date",
           "date_nullable",
-          "int_promotion"
+          "int_promotion",
+          "time",
+          "time_nullable",
+          "uuid",
+          "uuid_nullable"
       );
 
   @Rule
@@ -343,6 +353,7 @@ public class ArrowReaderTest {
     assertEquals(expectedTotalRows, totalRows);
   }
 
+  @SuppressWarnings("MethodLength")
   private void checkColumnarBatch(
       int expectedNumRows,
       List<GenericRecord> expectedRows,
@@ -364,6 +375,7 @@ public class ArrowReaderTest {
         (records, i) -> records.get(i).getField("timestamp"),
         (array, i) -> timestampFromMicros(array.getLong(i))
     );
+
     checkColumnarArrayValues(
         expectedNumRows, expectedRows, batch, columnNameToIndex.get("timestamp_nullable"),
         columnSet, "timestamp_nullable",
@@ -484,6 +496,33 @@ public class ArrowReaderTest {
         (records, i) -> records.get(i).getField("int_promotion"),
         ColumnVector::getInt
     );
+
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("uuid"),
+        columnSet, "uuid",
+        (records, i) -> records.get(i).getField("uuid"),
+        ColumnVector::getBinary
+
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("uuid_nullable"),
+        columnSet, "uuid_nullable",
+        (records, i) -> records.get(i).getField("uuid_nullable"),
+        ColumnVector::getBinary
+    );
+
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("time"),
+        columnSet, "time",
+        (records, i) -> records.get(i).getField("time"),
+        (array, i) -> LocalTime.ofNanoOfDay(array.getLong(i) * 1000)
+    );
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("time_nullable"),
+        columnSet, "time_nullable",
+        (records, i) -> records.get(i).getField("time_nullable"),
+        (array, i) -> LocalTime.ofNanoOfDay(array.getLong(i) * 1000)
+    );
   }
 
   private static void checkColumnarArrayValues(
@@ -500,7 +539,9 @@ public class ArrowReaderTest {
       for (int i = 0; i < expectedNumRows; i++) {
         Object expectedValue = expectedValueExtractor.apply(expectedRows, i);
         Object actualValue = vectorValueExtractor.apply(columnVector, i);
-        assertEquals("Row#" + i + " mismatches", expectedValue, actualValue);
+        // we need to use assertThat() here because it does a java.util.Objects.deepEquals() and that
+        // is relevant for byte[]
+        Assertions.assertThat(actualValue).as("Row#" + i + " mismatches").isEqualTo(expectedValue);
       }
     }
   }
@@ -539,7 +580,11 @@ public class ArrowReaderTest {
         Types.NestedField.optional(18, "bytes_nullable", Types.BinaryType.get()),
         Types.NestedField.required(19, "date", Types.DateType.get()),
         Types.NestedField.optional(20, "date_nullable", Types.DateType.get()),
-        Types.NestedField.required(21, "int_promotion", Types.IntegerType.get())
+        Types.NestedField.required(21, "int_promotion", Types.IntegerType.get()),
+        Types.NestedField.required(22, "time", Types.TimeType.get()),
+        Types.NestedField.optional(23, "time_nullable", Types.TimeType.get()),
+        Types.NestedField.required(24, "uuid", Types.UUIDType.get()),
+        Types.NestedField.optional(25, "uuid_nullable", Types.UUIDType.get())
     );
 
     PartitionSpec spec = PartitionSpec.builderFor(schema)
@@ -617,7 +662,15 @@ public class ArrowReaderTest {
         new Field(
             "date_nullable", new FieldType(true, MinorType.DATEDAY.getType(), null), null),
         new Field(
-            "int_promotion", new FieldType(false, MinorType.INT.getType(), null), null)
+            "int_promotion", new FieldType(false, MinorType.INT.getType(), null), null),
+        new Field(
+            "time", new FieldType(false, MinorType.TIMEMICRO.getType(), null), null),
+        new Field(
+            "time_nullable", new FieldType(true, MinorType.TIMEMICRO.getType(), null), null),
+        new Field(
+            "uuid", new FieldType(false, new ArrowType.FixedSizeBinary(16), null), null),
+        new Field(
+            "uuid_nullable", new FieldType(true, new ArrowType.FixedSizeBinary(16), null), null)
     );
     List<Field> filteredFields = allFields.stream()
         .filter(f -> columnSet.contains(f.getName()))
@@ -650,6 +703,12 @@ public class ArrowReaderTest {
       rec.setField("date", LocalDate.of(2020, 1, 1).plus(i, ChronoUnit.DAYS));
       rec.setField("date_nullable", LocalDate.of(2020, 1, 1).plus(i, ChronoUnit.DAYS));
       rec.setField("int_promotion", i);
+      rec.setField("time", LocalTime.of(11, i));
+      rec.setField("time_nullable", LocalTime.of(11, i));
+      ByteBuffer bb = UUIDUtil.convertToByteBuffer(UUID.randomUUID());
+      byte[] uuid = bb.array();
+      rec.setField("uuid", uuid);
+      rec.setField("uuid_nullable", uuid);
       records.add(rec);
     }
     return records;
@@ -680,6 +739,12 @@ public class ArrowReaderTest {
       rec.setField("date", LocalDate.of(2020, 1, 1));
       rec.setField("date_nullable", LocalDate.of(2020, 1, 1));
       rec.setField("int_promotion", 1);
+      rec.setField("time", LocalTime.of(11, 30));
+      rec.setField("time_nullable", LocalTime.of(11, 30));
+      ByteBuffer bb = UUIDUtil.convertToByteBuffer(UUID.fromString("abcd91cf-08d0-4223-b145-f64030b3077f"));
+      byte[] uuid = bb.array();
+      rec.setField("uuid", uuid);
+      rec.setField("uuid_nullable", uuid);
       records.add(rec);
     }
     return records;
@@ -753,6 +818,10 @@ public class ArrowReaderTest {
     assertEqualsForField(root, columnSet, "bytes_nullable", VarBinaryVector.class);
     assertEqualsForField(root, columnSet, "date", DateDayVector.class);
     assertEqualsForField(root, columnSet, "date_nullable", DateDayVector.class);
+    assertEqualsForField(root, columnSet, "time", TimeMicroVector.class);
+    assertEqualsForField(root, columnSet, "time_nullable", TimeMicroVector.class);
+    assertEqualsForField(root, columnSet, "uuid", FixedSizeBinaryVector.class);
+    assertEqualsForField(root, columnSet, "uuid_nullable", FixedSizeBinaryVector.class);
     assertEqualsForField(root, columnSet, "int_promotion", IntVector.class);
   }
 
@@ -875,6 +944,29 @@ public class ArrowReaderTest {
         (records, i) -> records.get(i).getField("int_promotion"),
         (vector, i) -> ((IntVector) vector).get(i)
     );
+
+    checkVectorValues(
+        expectedNumRows, expectedRows, root, columnSet, "uuid",
+        (records, i) -> records.get(i).getField("uuid"),
+        (vector, i) -> ((FixedSizeBinaryVector) vector).get(i)
+    );
+
+    checkVectorValues(
+        expectedNumRows, expectedRows, root, columnSet, "uuid_nullable",
+        (records, i) -> records.get(i).getField("uuid_nullable"),
+        (vector, i) -> ((FixedSizeBinaryVector) vector).get(i)
+    );
+
+    checkVectorValues(
+        expectedNumRows, expectedRows, root, columnSet, "time",
+        (records, i) -> records.get(i).getField("time"),
+        (vector, i) -> LocalTime.ofNanoOfDay(((TimeMicroVector) vector).get(i) * 1000)
+    );
+    checkVectorValues(
+        expectedNumRows, expectedRows, root, columnSet, "time_nullable",
+        (records, i) -> records.get(i).getField("time_nullable"),
+        (vector, i) -> LocalTime.ofNanoOfDay(((TimeMicroVector) vector).get(i) * 1000)
+    );
   }
 
   private static void checkVectorValues(
@@ -891,7 +983,9 @@ public class ArrowReaderTest {
       for (int i = 0; i < expectedNumRows; i++) {
         Object expectedValue = expectedValueExtractor.apply(expectedRows, i);
         Object actualValue = vectorValueExtractor.apply(vector, i);
-        assertEquals("Row#" + i + " mismatches", expectedValue, actualValue);
+        // we need to use assertThat() here because it does a java.util.Objects.deepEquals() and that
+        // is relevant for byte[]
+        Assertions.assertThat(actualValue).as("Row#" + i + " mismatches").isEqualTo(expectedValue);
       }
     }
   }

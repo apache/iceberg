@@ -98,6 +98,9 @@ public class ArrowSchemaUtil {
       case TIME:
         arrowType = new ArrowType.Time(TimeUnit.MICROSECOND, Long.SIZE);
         break;
+      case UUID:
+        arrowType = new ArrowType.FixedSizeBinary(16);
+        break;
       case TIMESTAMP:
         arrowType = new ArrowType.Timestamp(TimeUnit.MICROSECOND,
             ((Types.TimestampType) field.type()).shouldAdjustToUTC() ? "UTC" : null);

@@ -26,6 +26,7 @@ import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
@@ -656,6 +657,50 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
     }
   }
 
+  public void readBatchOfFixedSizeBinary(
+      final FieldVector vector, final int startOffset,
+      final int typeWidth, final int numValsToRead, NullabilityHolder nullabilityHolder,
+      ValuesAsBytesReader valuesReader) {
+    int bufferIdx = startOffset;
+    int left = numValsToRead;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int num = Math.min(left, this.currentCount);
+      byte[] byteArray = new byte[typeWidth];
+      switch (mode) {
+        case RLE:
+          if (currentValue == maxDefLevel) {
+            for (int i = 0; i < num; i++) {
+              valuesReader.getBuffer(typeWidth).get(byteArray, 0, typeWidth);
+              ((FixedSizeBinaryVector) vector).set(bufferIdx, byteArray);
+              nullabilityHolder.setNotNull(bufferIdx);
+              bufferIdx++;
+            }
+          } else {
+            setNulls(nullabilityHolder, bufferIdx, num, vector.getValidityBuffer());
+            bufferIdx += num;
+          }
+          break;
+        case PACKED:
+          for (int i = 0; i < num; ++i) {
+            if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
+              valuesReader.getBuffer(typeWidth).get(byteArray, 0, typeWidth);
+              ((FixedSizeBinaryVector) vector).set(bufferIdx, byteArray);
+              nullabilityHolder.setNotNull(bufferIdx);
+            } else {
+              setNull(nullabilityHolder, bufferIdx, vector.getValidityBuffer());
+            }
+            bufferIdx++;
+          }
+          break;
+      }
+      left -= num;
+      currentCount -= num;
+    }
+  }
+
   public void readBatchOfDictionaryEncodedFixedLengthDecimals(
       final FieldVector vector,
       final int startOffset,
@@ -688,6 +733,51 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
               byte[] vectorBytes = new byte[typeWidth];
               System.arraycopy(decimalBytes, 0, vectorBytes, 0, typeWidth);
               ((DecimalVector) vector).setBigEndian(idx, vectorBytes);
+              nullabilityHolder.setNotNull(idx);
+            } else {
+              setNull(nullabilityHolder, idx, vector.getValidityBuffer());
+            }
+            idx++;
+          }
+          break;
+      }
+      left -= num;
+      currentCount -= num;
+    }
+  }
+
+  public void readBatchOfDictionaryEncodedFixedSizeBinary(
+      final FieldVector vector,
+      final int startOffset,
+      final int typeWidth,
+      final int numValsToRead,
+      NullabilityHolder nullabilityHolder,
+      VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader,
+      Dictionary dict) {
+    int idx = startOffset;
+    int left = numValsToRead;
+    while (left > 0) {
+      if (this.currentCount == 0) {
+        this.readNextGroup();
+      }
+      int num = Math.min(left, this.currentCount);
+      switch (mode) {
+        case RLE:
+          if (currentValue == maxDefLevel) {
+            dictionaryEncodedValuesReader.readBatchOfDictionaryEncodedFixedSizeBinary(vector, typeWidth, idx,
+                num, dict, nullabilityHolder);
+          } else {
+            setNulls(nullabilityHolder, idx, num, vector.getValidityBuffer());
+          }
+          idx += num;
+          break;
+        case PACKED:
+          for (int i = 0; i < num; i++) {
+            if (packedValuesBuffer[packedValuesBufferIdx++] == maxDefLevel) {
+              byte[] bytes = dict.decodeToBinary(dictionaryEncodedValuesReader.readInteger()).getBytes();
+              byte[] vectorBytes = new byte[typeWidth];
+              System.arraycopy(bytes, 0, vectorBytes, 0, typeWidth);
+              ((FixedSizeBinaryVector) vector).set(idx, vectorBytes);
               nullabilityHolder.setNotNull(idx);
             } else {
               setNull(nullabilityHolder, idx, vector.getValidityBuffer());
