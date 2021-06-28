@@ -178,7 +178,7 @@ public class TestSplitPlanning extends TableTestBase {
     AssertHelpers.assertThrows(
         "User provided split size should be validated",
         IllegalArgumentException.class,
-        "Split size should be greater than zero",
+        "Invalid split size (negative): -10",
         () -> {
           table.newScan()
               .option(TableProperties.SPLIT_SIZE, String.valueOf(-10))
@@ -188,7 +188,7 @@ public class TestSplitPlanning extends TableTestBase {
     AssertHelpers.assertThrows(
         "User provided split planning lookback should be validated",
         IllegalArgumentException.class,
-        "Split planning lookback should be greater than zero",
+        "Invalid split planning lookback (negative): -10",
         () -> {
           table.newScan()
               .option(TableProperties.SPLIT_LOOKBACK, String.valueOf(-10))
@@ -198,7 +198,7 @@ public class TestSplitPlanning extends TableTestBase {
     AssertHelpers.assertThrows(
         "User provided split open file cost should be validated",
         IllegalArgumentException.class,
-        "Split open file cost should not be negative",
+        "Invalid file open cost (negative): -10",
         () -> {
           table.newScan()
               .option(TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(-10))
