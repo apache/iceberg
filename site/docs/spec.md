@@ -42,7 +42,7 @@ The primary goal of version 2 is to provide a way to encode row-level deletes. T
 
 ## Overview
 
-![Iceberg snapshot structure](img/iceberg-metadata.png){.floating}
+![Iceberg snapshot structure](img/iceberg-metadata.png){.spec-img}
 
 This table format tracks individual data files in a table instead of directories. This allows writers to create data files in-place and only adds files to the table in an explicit commit.
 
