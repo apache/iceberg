@@ -223,7 +223,7 @@ public class FlinkSink {
      * checkpointed files were actually committed or not. {@code --allowNonRestoredState} can lead to data loss if the
      * Iceberg commit failed in the last completed checkpoints.
      *
-     * @param newPrefix defines the iceberg table's key.
+     * @param newPrefix UID prefix for Flink sink operators
      * @return {@link Builder} to connect the iceberg table.
      */
     public Builder uidPrefix(String newPrefix) {
