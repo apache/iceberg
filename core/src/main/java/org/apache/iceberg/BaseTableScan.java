@@ -241,7 +241,7 @@ abstract class BaseTableScan implements TableScan {
       openFileCost = ops.current().propertyAsLong(
           TableProperties.SPLIT_OPEN_FILE_COST, TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
     }
-    Preconditions.checkArgument(openFileCost >= 0, "Invalid file open file cost (negative): %s", openFileCost);
+    Preconditions.checkArgument(openFileCost >= 0, "Invalid file open cost (negative): %s", openFileCost);
 
     CloseableIterable<FileScanTask> fileScanTasks = planFiles();
     CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(fileScanTasks, splitSize);
