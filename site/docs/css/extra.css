@@ -92,3 +92,10 @@ pre {
   padding: 0.5em;
   padding-left: 1em;
 }
+
+.spec-img {
+  float: right;
+  max-width: 50%; 
+  min-width: 265px; 
+  margin: 1em 0 1em 2em;
+}
