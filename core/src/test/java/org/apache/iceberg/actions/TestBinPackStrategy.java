@@ -22,6 +22,7 @@ package org.apache.iceberg.actions;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
@@ -59,7 +60,7 @@ public class TestBinPackStrategy extends TableTestBase {
     }
 
     @Override
-    public List<DataFile> rewriteFiles(List<FileScanTask> filesToRewrite) {
+    public Set<DataFile> rewriteFiles(String groupId, List<FileScanTask> filesToRewrite) {
       throw new UnsupportedOperationException();
     }
   }
@@ -164,6 +165,24 @@ public class TestBinPackStrategy extends TableTestBase {
   }
 
   @Test
+  public void testNumOuputFiles() {
+    BinPackStrategy strategy = (BinPackStrategy) defaultBinPack();
+    long targetFileSize = strategy.targetFileSize();
+    Assert.assertEquals("Should keep remainder if the remainder is a valid size",
+        2, strategy.numOutputFiles(targetFileSize + 450 * MB));
+    Assert.assertEquals("Should discard remainder file if the remainder is very small",
+        1, strategy.numOutputFiles(targetFileSize + 40 * MB));
+    Assert.assertEquals("Should keep remainder file if it would change average file size greatly",
+        2, strategy.numOutputFiles((long) (targetFileSize + 0.40 * targetFileSize)));
+    Assert.assertEquals("Should discard remainder if file is small and wouldn't change average that much",
+        200, strategy.numOutputFiles(200 * targetFileSize + 13 * MB));
+    Assert.assertEquals("Should keep remainder if it's a valid size",
+        201, strategy.numOutputFiles(200 * targetFileSize + 499 * MB));
+    Assert.assertEquals("Should not return 0 even for very small files",
+        1, strategy.numOutputFiles(1));
+  }
+
+  @Test
   public void testInvalidOptions() {
     AssertHelpers.assertThrows("Should not allow max size smaller than target",
         IllegalArgumentException.class, () -> {
@@ -188,6 +207,5 @@ public class TestBinPackStrategy extends TableTestBase {
           defaultBinPack().options(ImmutableMap.of(
               RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(-5)));
         });
-
   }
 }

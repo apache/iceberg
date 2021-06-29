@@ -49,10 +49,10 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
   /**
    * The entire rewrite operation is broken down into pieces based on partitioning and within partitions based
    * on size into groups. These sub-units of the rewrite are referred to as file groups. The largest amount of data that
-   * should be compacted in a single group is controlled by MAX_FILE_GROUP_SIZE_BYTES. This helps with breaking down the
-   * rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the
-   * cluster. For example a sort based rewrite may not scale to terabyte sized partitions, those partitions need to be
-   * worked on in small subsections to avoid exhaustion of resources.
+   * should be compacted in a single group is controlled by {@link #MAX_FILE_GROUP_SIZE_BYTES}. This helps with
+   * breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource
+   * constraints of the cluster. For example a sort based rewrite may not scale to terabyte sized partitions, those
+   * partitions need to be worked on in small subsections to avoid exhaustion of resources.
    * <p>
    * When grouping files, the underlying rewrite strategy will use this value as to limit the files which
    * will be included in a single file group. A group will be processed by a single framework "action". For example,
@@ -75,12 +75,6 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
    * will use the "write.target-file-size-bytes value" in the table properties of the table being updated.
    */
   String TARGET_FILE_SIZE_BYTES = "target-file-size-bytes";
-
-  /**
-   * The partition spec to use when writing the output data from this operation. By default uses the
-   * current table partition spec.
-   */
-  String OUTPUT_PARTITION_SPEC_ID = "output-partition-spec-id";
 
   /**
    * Choose BINPACK as a strategy for this rewrite operation
@@ -107,6 +101,14 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
    */
   interface Result {
     Map<FileGroupInfo, FileGroupRewriteResult> resultMap();
+
+    default int addedDataFilesCount() {
+      return resultMap().values().stream().mapToInt(FileGroupRewriteResult::addedDataFilesCount).sum();
+    }
+
+    default int rewrittenDataFilesCount() {
+      return resultMap().values().stream().mapToInt(FileGroupRewriteResult::rewrittenDataFilesCount).sum();
+    }
   }
 
   /**
