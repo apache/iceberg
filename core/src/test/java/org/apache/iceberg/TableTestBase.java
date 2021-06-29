@@ -332,6 +332,8 @@ public class TableTestBase {
     }
 
     Assert.assertFalse("Should find all files in the manifest", newPaths.hasNext());
+
+    Assert.assertEquals("Schema ID should match", table.schema().schemaId(), (int) snap.schemaId());
   }
 
   void validateTableFiles(Table tbl, DataFile... expectedFiles) {
