@@ -52,6 +52,7 @@ import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
+import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
@@ -106,6 +107,12 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   @Override
   public Batch toBatch() {
     return this;
+  }
+
+  @Override
+  public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
+    return new SparkMicroBatchStream(
+        sparkContext, table, caseSensitive, expectedSchema, options, checkpointLocation);
   }
 
   @Override
@@ -213,10 +220,10 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     return String.format("%s [filters=%s]", table, filters);
   }
 
-  private static class ReaderFactory implements PartitionReaderFactory {
+  static class ReaderFactory implements PartitionReaderFactory {
     private final int batchSize;
 
-    private ReaderFactory(int batchSize) {
+    ReaderFactory(int batchSize) {
       this.batchSize = batchSize;
     }
 
@@ -256,7 +263,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     }
   }
 
-  private static class ReadTask implements InputPartition, Serializable {
+  static class ReadTask implements InputPartition, Serializable {
     private final CombinedScanTask task;
     private final Broadcast<Table> tableBroadcast;
     private final String expectedSchemaString;
