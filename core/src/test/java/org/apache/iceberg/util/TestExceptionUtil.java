@@ -20,6 +20,7 @@
 package org.apache.iceberg.util;
 
 import java.io.IOException;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -56,11 +57,11 @@ public class TestExceptionUtil {
       Assert.assertEquals("Should have 2 suppressed exceptions", 2, e.getSuppressed().length);
 
       Throwable throwSuppressed = e.getSuppressed()[0];
-      Assert.assertTrue("Should be an Exception", throwSuppressed instanceof Exception);
+      Assertions.assertThat(throwSuppressed).as("Should be an Exception").isInstanceOf(Exception.class);
       Assert.assertEquals("Should have correct message", "test catch suppression", throwSuppressed.getMessage());
 
       Throwable finallySuppressed = e.getSuppressed()[1];
-      Assert.assertTrue("Should be a RuntimeException", finallySuppressed instanceof RuntimeException);
+      Assertions.assertThat(finallySuppressed).as("Should be a RuntimeException").isInstanceOf(RuntimeException.class);
       Assert.assertEquals("Should have correct message", "test finally suppression", finallySuppressed.getMessage());
     }
   }
@@ -90,11 +91,11 @@ public class TestExceptionUtil {
       Assert.assertEquals("Should have 2 suppressed exceptions", 2, e.getSuppressed().length);
 
       Throwable throwSuppressed = e.getSuppressed()[0];
-      Assert.assertTrue("Should be an Exception", throwSuppressed instanceof Exception);
+      Assertions.assertThat(throwSuppressed).as("Should be an Exception").isInstanceOf(Exception.class);
       Assert.assertEquals("Should have correct message", "test catch suppression", throwSuppressed.getMessage());
 
       Throwable finallySuppressed = e.getSuppressed()[1];
-      Assert.assertTrue("Should be a RuntimeException", finallySuppressed instanceof RuntimeException);
+      Assertions.assertThat(finallySuppressed).as("Should be a RuntimeException").isInstanceOf(RuntimeException.class);
       Assert.assertEquals("Should have correct message", "test finally suppression", finallySuppressed.getMessage());
     }
   }
@@ -125,11 +126,11 @@ public class TestExceptionUtil {
       Assert.assertEquals("Should have 2 suppressed exceptions", 2, e.getSuppressed().length);
 
       Throwable throwSuppressed = e.getSuppressed()[0];
-      Assert.assertTrue("Should be an Exception", throwSuppressed instanceof Exception);
+      Assertions.assertThat(throwSuppressed).as("Should be an Exception").isInstanceOf(Exception.class);
       Assert.assertEquals("Should have correct message", "test catch suppression", throwSuppressed.getMessage());
 
       Throwable finallySuppressed = e.getSuppressed()[1];
-      Assert.assertTrue("Should be a RuntimeException", finallySuppressed instanceof RuntimeException);
+      Assertions.assertThat(finallySuppressed).as("Should be a RuntimeException").isInstanceOf(RuntimeException.class);
       Assert.assertEquals("Should have correct message", "test finally suppression", finallySuppressed.getMessage());
     }
   }
@@ -156,11 +157,12 @@ public class TestExceptionUtil {
       Assert.assertEquals("Should have 2 suppressed exceptions", 2, e.getSuppressed().length);
 
       Throwable throwSuppressed = e.getSuppressed()[0];
-      Assert.assertTrue("Should be an Exception", throwSuppressed instanceof Exception);
+      Assertions.assertThat(throwSuppressed).as("Should be an Exception").isInstanceOf(Exception.class);
       Assert.assertEquals("Should have correct message", "test catch suppression", throwSuppressed.getMessage());
 
       Throwable finallySuppressed = e.getSuppressed()[1];
-      Assert.assertTrue("Should be a CustomCheckedException", finallySuppressed instanceof CustomCheckedException);
+      Assertions.assertThat(finallySuppressed).as("Should be a CustomCheckedException")
+          .isInstanceOf(CustomCheckedException.class);
       Assert.assertEquals("Should have correct message", "test finally suppression", finallySuppressed.getMessage());
     }
   }

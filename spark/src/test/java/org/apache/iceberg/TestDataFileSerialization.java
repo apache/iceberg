@@ -45,6 +45,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.SparkConf;
 import org.apache.spark.serializer.KryoSerializer;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -113,7 +114,7 @@ public class TestDataFileSerialization {
     try (Input in = new Input(new FileInputStream(data))) {
       for (int i = 0; i < 2; i += 1) {
         Object obj = kryo.readClassAndObject(in);
-        Assert.assertTrue("Should be a DataFile", obj instanceof DataFile);
+        Assertions.assertThat(obj).as("Should be a DataFile").isInstanceOf(DataFile.class);
         assertEquals(DATA_FILE, (DataFile) obj);
       }
     }
@@ -130,7 +131,7 @@ public class TestDataFileSerialization {
     try (ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
       for (int i = 0; i < 2; i += 1) {
         Object obj = in.readObject();
-        Assert.assertTrue("Should be a DataFile", obj instanceof DataFile);
+        Assertions.assertThat(obj).as("Should be a DataFile").isInstanceOf(DataFile.class);
         assertEquals(DATA_FILE, (DataFile) obj);
       }
     }

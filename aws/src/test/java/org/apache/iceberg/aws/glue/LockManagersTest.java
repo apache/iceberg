@@ -22,21 +22,21 @@ package org.apache.iceberg.aws.glue;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.junit.Assert;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 public class LockManagersTest {
 
   @Test
   public void testLoadDefaultLockManager() {
-    Assert.assertTrue(LockManagers.defaultLockManager() instanceof LockManagers.InMemoryLockManager);
+    Assertions.assertThat(LockManagers.defaultLockManager()).isInstanceOf(LockManagers.InMemoryLockManager.class);
   }
 
   @Test
   public void testLoadCustomLockManager() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(CatalogProperties.LOCK_IMPL, CustomLockManager.class.getName());
-    Assert.assertTrue(LockManagers.from(properties) instanceof CustomLockManager);
+    Assertions.assertThat(LockManagers.from(properties)).isInstanceOf(CustomLockManager.class);
   }
 
   static class CustomLockManager implements LockManager {

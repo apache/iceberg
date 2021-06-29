@@ -46,6 +46,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -140,7 +141,7 @@ public class TestManifestFileSerialization {
     try (ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
       for (int i = 0; i < 3; i += 1) {
         Object obj = in.readObject();
-        Assert.assertTrue("Should be a ManifestFile", obj instanceof ManifestFile);
+        Assertions.assertThat(obj).as("Should be a ManifestFile").isInstanceOf(ManifestFile.class);
         TestHelpers.assertEquals(manifest, (ManifestFile) obj);
       }
     }
