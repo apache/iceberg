@@ -300,7 +300,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
       writer.addAll(data);
     }
     AssertHelpers.assertThrows("Vectorized reads not supported",
-        UnsupportedOperationException.class, "Unsupported encoding:", () -> {
+        UnsupportedOperationException.class, "Cannot support vectorized reads for column", () -> {
           assertRecordsMatch(schema, 30000, data, dataFile, false,
               true, BATCH_SIZE);
           return null;
