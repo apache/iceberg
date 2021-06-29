@@ -94,7 +94,7 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
   @Test
   public void testWriteTimestampWithoutZoneError() {
     String errorMessage = String.format("Write operation performed on a timestamp without timezone field while " +
-            "'%s' set to false should throw exception", SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_FLAG);
+            "'%s' set to false should throw exception", SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_SESSION_PROPERTY);
     Runnable insert = () -> sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
 
     AssertHelpers.assertThrows(errorMessage,
@@ -151,7 +151,7 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
   @Test
   public void testCreateNewTableShouldHaveTimestampWithoutZoneIcebergType() {
     spark.conf().set(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_SESSION_PROPERTY, "true");
-    spark.conf().set(SparkUtil.STORE_TIMESTAMP_WITHOUT_TIMEZONE_SESSION_PROPERTY, "true");
+    spark.conf().set(SparkUtil.READ_TIMESTAMP_AS_TIMESTAMP_WITHOUT_TIMEZONE, "true");
     spark.sessionState().catalogManager().currentCatalog()
             .initialize(catalog.name(), new CaseInsensitiveStringMap(config));
     sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));

@@ -50,6 +50,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.util.HadoopOutputFile;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -92,6 +93,11 @@ public class TestSparkParquetReader extends AvroDataTest {
       }
       Assert.assertFalse("Should not have extra rows", rows.hasNext());
     }
+  }
+
+  @Override
+  protected SparkSession getSparkSession() {
+    return null;
   }
 
   protected List<InternalRow> rowsFromFile(InputFile inputFile, Schema schema) throws IOException {

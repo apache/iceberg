@@ -46,19 +46,12 @@ import org.apache.spark.sql.types.VarcharType;
 class SparkTypeToType extends SparkTypeVisitor<Type> {
   private final StructType root;
   private int nextId = 0;
-  private final boolean useTimestampWithoutZone;
 
   SparkTypeToType() {
     this.root = null;
-    this.useTimestampWithoutZone = false;
   }
 
   SparkTypeToType(StructType root) {
-    this(root, false);
-  }
-
-  SparkTypeToType(StructType root, boolean useTimestampWithoutZone) {
-    this.useTimestampWithoutZone = useTimestampWithoutZone;
     this.root = root;
     // the root struct's fields use the first ids
     this.nextId = root.fields().length;
@@ -154,9 +147,6 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
       return Types.DateType.get();
 
     } else if (atomic instanceof TimestampType) {
-      if (useTimestampWithoutZone) {
-        return Types.TimestampType.withoutZone();
-      }
       return Types.TimestampType.withZone();
     } else if (atomic instanceof DecimalType) {
       return Types.DecimalType.of(

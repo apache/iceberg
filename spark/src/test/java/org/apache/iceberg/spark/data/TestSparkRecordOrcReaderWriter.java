@@ -36,6 +36,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.Assert;
 import org.junit.Test;
@@ -99,6 +100,11 @@ public class TestSparkRecordOrcReaderWriter extends AvroDataTest {
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expectedRecords = RandomGenericData.generate(schema, NUM_RECORDS, 1992L);
     writeAndValidate(schema, expectedRecords);
+  }
+
+  @Override
+  protected SparkSession getSparkSession() {
+    return null;
   }
 
   @Test

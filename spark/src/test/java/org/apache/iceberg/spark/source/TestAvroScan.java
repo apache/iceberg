@@ -112,4 +112,9 @@ public abstract class TestAvroScan extends AvroDataTest {
       TestHelpers.assertEqualsSafe(tableSchema.asStruct(), expected.get(i), rows.get(i));
     }
   }
+
+  @Override
+  protected SparkSession getSparkSession() {
+    return spark;
+  }
 }

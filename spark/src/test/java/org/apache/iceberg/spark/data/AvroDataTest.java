@@ -23,12 +23,14 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.spark.sql.SparkSession;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -39,6 +41,8 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 public abstract class AvroDataTest {
 
   protected abstract void writeAndValidate(Schema schema) throws IOException;
+
+  protected abstract SparkSession getSparkSession();
 
   protected static final StructType SUPPORTED_PRIMITIVES = StructType.of(
       required(100, "id", LongType.get()),
@@ -182,6 +186,20 @@ public abstract class AvroDataTest {
 
     Schema schema = new Schema(TypeUtil.assignFreshIds(structType, new AtomicInteger(0)::incrementAndGet)
         .asStructType().fields());
+
+    writeAndValidate(schema);
+  }
+
+  @Test
+  public void testTimestampWithoutZone() throws IOException {
+    SparkSession sparkSession = getSparkSession();
+    if (sparkSession != null) {
+      sparkSession.conf().set(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_SESSION_PROPERTY, "true");
+    }
+
+    Schema schema = TypeUtil.assignIncreasingFreshIds(new Schema(
+            required(0, "id", LongType.get()),
+            optional(1, "ts_without_zone", Types.TimestampType.withoutZone())));
 
     writeAndValidate(schema);
   }

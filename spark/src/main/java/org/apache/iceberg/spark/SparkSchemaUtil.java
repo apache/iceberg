@@ -141,8 +141,9 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the type cannot be converted
    */
   public static Schema convert(StructType sparkType, boolean useTimestampWithoutZone) {
-    Type converted = SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType, useTimestampWithoutZone));
-    return new Schema(converted.asNestedType().asStructType().fields());
+    Type converted = SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType));
+    Schema schema = new Schema(converted.asNestedType().asStructType().fields());
+    return SparkFixupTimestampType.fixup(schema, useTimestampWithoutZone);
   }
 
   /**
@@ -197,11 +198,11 @@ public class SparkSchemaUtil {
   public static Schema convert(Schema baseSchema, StructType sparkType, boolean useTimestampWithoutZone) {
     // convert to a type with fresh ids
     Types.StructType struct = SparkTypeVisitor.visit(sparkType,
-            new SparkTypeToType(sparkType, useTimestampWithoutZone)).asStructType();
+            new SparkTypeToType(sparkType)).asStructType();
     // reassign ids to match the base schema
     Schema schema = TypeUtil.reassignIds(new Schema(struct.fields()), baseSchema);
     // fix types that can't be represented in Spark (UUID and Fixed)
-    return SparkFixupTypes.fixup(schema, baseSchema);
+    return SparkFixupTypes.fixup(SparkFixupTimestampType.fixup(schema, useTimestampWithoutZone), baseSchema);
   }
 
   /**

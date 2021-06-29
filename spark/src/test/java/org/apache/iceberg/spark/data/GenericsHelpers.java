@@ -26,6 +26,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
@@ -248,9 +249,16 @@ public class GenericsHelpers {
         Assert.assertEquals("Primitive value should be equal to expected", expectedDays, actual);
         break;
       case TIMESTAMP:
-        Assert.assertTrue("Should expect an OffsetDateTime", expected instanceof OffsetDateTime);
-        long expectedMicros = ChronoUnit.MICROS.between(EPOCH, (OffsetDateTime) expected);
-        Assert.assertEquals("Primitive value should be equal to expected", expectedMicros, actual);
+        Types.TimestampType timestampType = (Types.TimestampType) type;
+        if (timestampType.shouldAdjustToUTC()) {
+          Assert.assertTrue("Should expect an OffsetDateTime", expected instanceof OffsetDateTime);
+          long expectedMicros = ChronoUnit.MICROS.between(EPOCH, (OffsetDateTime) expected);
+          Assert.assertEquals("Primitive value should be equal to expected", expectedMicros, actual);
+        } else {
+          Assert.assertTrue("Should expect an LocalDateTime", expected instanceof LocalDateTime);
+          long expectedMicros = ChronoUnit.MICROS.between(EPOCH, ((LocalDateTime) expected).atZone(ZoneId.of("UTC")));
+          Assert.assertEquals("Primitive value should be equal to expected", expectedMicros, actual);
+        }
         break;
       case STRING:
         Assert.assertTrue("Should be a UTF8String", actual instanceof UTF8String);
