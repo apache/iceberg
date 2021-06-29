@@ -388,7 +388,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
       String stagingLocation = table.location() + "/metadata";
       SparkTableUtil.importSparkTable(spark,
           new org.apache.spark.sql.catalyst.TableIdentifier("parquet_table"),
-          table, stagingLocation);
+          table, stagingLocation, false);
 
       List<Row> actual = spark.read()
           .format("iceberg")
@@ -447,7 +447,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     try {
       String stagingLocation = table.location() + "/metadata";
       SparkTableUtil.importSparkTable(
-          spark, new org.apache.spark.sql.catalyst.TableIdentifier("parquet_table"), table, stagingLocation);
+          spark, new org.apache.spark.sql.catalyst.TableIdentifier("parquet_table"), table, stagingLocation, false);
 
       List<Row> actual = spark.read()
           .format("iceberg")
