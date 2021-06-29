@@ -21,12 +21,12 @@
 
 Apache Iceberg tracks issues in GitHub and prefers to receive contributions as pull requests.
 
-Community discussions happen primarily on the dev mailing list or on specific issues.
+Community discussions happen primarily on the dev mailing list, on the #iceberg channel on the ASF's Slack workspace, and on specific Github issues.
 
 
 ## Contributing
 
-Iceberg uses Apache's GitHub integration. The code is available at <https://github.com/apache/iceberg>
+The Iceberg Project is hosted on Github at <https://github.com/apache/iceberg>.
 
 The Iceberg community prefers to receive contributions as [Github pull requests][github-pr-docs].
 
@@ -48,7 +48,12 @@ Issues are tracked in GitHub:
 [new-issue]: https://github.com/apache/iceberg/issues/new
 
 ## Slack
-[![Slack](https://img.shields.io/badge/chat-on%20Slack-brightgreen.svg)](https://the-asf.slack.com/archives/CF01LKV9S)
+
+We use the [#iceberg](https://the-asf.slack.com/archives/CF01LKV9S) channel on
+the ASF's Slack workspace. You get can an invitation to join this workspace at
+<https://s.apache.org/slack-invite>. Please note that this link occasionally
+breaks when Slack does an upgrade. If you encounter problems using it, please
+let us know by sending an email to <dev@iceberg.apache.org>.
 
 ## Mailing Lists
 
