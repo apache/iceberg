@@ -79,6 +79,8 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final Long splitOpenFileCost;
   private final boolean localityPreferred;
   private final StreamingOffset initialOffset;
+  private final boolean skipDelete;
+  private final boolean skipReplace;
 
   SparkMicroBatchStream(JavaSparkContext sparkContext, Table table, boolean caseSensitive,
                         Schema expectedSchema, CaseInsensitiveStringMap options, String checkpointLocation) {
@@ -101,6 +103,9 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
     InitialOffsetStore initialOffsetStore = new InitialOffsetStore(table, checkpointLocation);
     this.initialOffset = initialOffsetStore.initialOffset();
+
+    this.skipDelete = Spark3Util.propertyAsBoolean(options, SparkReadOptions.READ_STREAM_SKIP_DELETE, false);
+    this.skipReplace = Spark3Util.propertyAsBoolean(options, SparkReadOptions.READ_STREAM_SKIP_REPLACE, false);
   }
 
   @Override
@@ -170,35 +175,64 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   private List<FileScanTask> planFiles(StreamingOffset startOffset, StreamingOffset endOffset) {
     List<FileScanTask> fileScanTasks = Lists.newArrayList();
-    MicroBatch latestMicroBatch = null;
     StreamingOffset batchStartOffset = StreamingOffset.START_OFFSET.equals(startOffset) ?
         new StreamingOffset(SnapshotUtil.oldestSnapshot(table).snapshotId(), 0, false) :
         startOffset;
 
-    do {
-      StreamingOffset currentOffset =
-          latestMicroBatch != null && latestMicroBatch.lastIndexOfSnapshot() ?
-              new StreamingOffset(snapshotAfter(latestMicroBatch.snapshotId()), 0L, false) :
-              batchStartOffset;
+    StreamingOffset currentOffset = null;
 
-      latestMicroBatch = MicroBatches.from(table.snapshot(currentOffset.snapshotId()), table.io())
+    do {
+      if (currentOffset == null) {
+        currentOffset = batchStartOffset;
+      } else {
+        Snapshot snapshotAfter = SnapshotUtil.snapshotAfter(table, currentOffset.snapshotId());
+        boolean shouldSkip = shouldSkip(snapshotAfter);
+
+        currentOffset = new StreamingOffset(snapshotAfter.snapshotId(), 0L, false);
+
+        if (shouldSkip) {
+          continue;
+        }
+      }
+
+      MicroBatch latestMicroBatch = MicroBatches.from(table.snapshot(currentOffset.snapshotId()), table.io())
           .caseSensitive(caseSensitive)
           .specsById(table.specs())
           .generate(currentOffset.position(), Long.MAX_VALUE, currentOffset.shouldScanAllFiles());
 
       fileScanTasks.addAll(latestMicroBatch.tasks());
-    } while (latestMicroBatch.snapshotId() != endOffset.snapshotId());
+    } while (currentOffset.snapshotId() != endOffset.snapshotId());
 
     return fileScanTasks;
   }
 
-  private long snapshotAfter(long snapshotId) {
-    Snapshot snapshotAfter = SnapshotUtil.snapshotAfter(table, snapshotId);
+  private boolean shouldSkip(Snapshot snapshot) {
+    if (snapshot.operation().equals(DataOperations.DELETE)) {
+      return shouldSkipDelete(snapshot);
+    } else if (snapshot.operation().equals(DataOperations.REPLACE)) {
+      return shouldSkipReplace(snapshot);
+    }
 
-    Preconditions.checkState(snapshotAfter.operation().equals(DataOperations.APPEND),
-            "Invalid Snapshot operation: %s, only APPEND is allowed.", snapshotAfter.operation());
+    Preconditions.checkState(
+        snapshot.operation().equals(DataOperations.APPEND),
+        "Invalid Snapshot operation: %s, only APPEND is allowed.", snapshot.operation());
+    return false;
+  }
 
-    return snapshotAfter.snapshotId();
+  private boolean shouldSkipDelete(Snapshot snapshot) {
+    Preconditions.checkState(skipDelete,
+        "Invalid Snapshot operation: %s, only APPEND is allowed. To skip delete, set Spark Option %s",
+        snapshot.operation(),
+        SparkReadOptions.READ_STREAM_SKIP_DELETE);
+    return true;
+  }
+
+  private boolean shouldSkipReplace(Snapshot snapshot) {
+    Preconditions.checkState(skipReplace,
+        "Invalid Snapshot operation: %s, only APPEND is allowed. To skip replace, set Spark Option %s",
+        snapshot.operation(),
+        SparkReadOptions.READ_STREAM_SKIP_REPLACE);
+    return true;
   }
 
   private static class InitialOffsetStore {
