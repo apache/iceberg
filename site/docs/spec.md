@@ -937,7 +937,7 @@ Table metadata is serialized as a JSON object according to the following table. 
 |**`last-updated-ms`**|`JSON long`|`1515100955770`|
 |**`last-column-id`**|`JSON int`|`22`|
 |**`schema`**|`JSON schema (object)`|`See above, read schemas instead`|
-|**`schemas`**|`JSON schemas (list of objects)`|`See above, read schemas instead`|
+|**`schemas`**|`JSON schemas (list of objects)`|`See above`|
 |**`current-schema-id`**|`JSON int`|`0`|
 |**`partition-spec`**|`JSON partition fields (list)`|`See above, read partition-specs instead`|
 |**`partition-specs`**|`JSON partition specs (list of objects)`|`See above`|
