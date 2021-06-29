@@ -42,7 +42,7 @@ The primary goal of version 2 is to provide a way to encode row-level deletes. T
 
 ## Overview
 
-![Iceberg snapshot structure](img/iceberg-metadata.png){.floating}
+![Iceberg snapshot structure](img/iceberg-metadata.png){.spec-img}
 
 This table format tracks individual data files in a table instead of directories. This allows writers to create data files in-place and only adds files to the table in an explicit commit.
 
@@ -318,8 +318,9 @@ A manifest file must store the partition spec and other metadata as properties i
 | v1         | v2         | Key                 | Value                                                                        |
 |------------|------------|---------------------|------------------------------------------------------------------------------|
 | _required_ | _required_ | `schema`            | JSON representation of the table schema at the time the manifest was written |
+| _optional_ | _required_ | `schema-id`         | ID of the schema used to write the manifest as a string                      |
 | _required_ | _required_ | `partition-spec`    | JSON fields representation of the partition spec used to write the manifest  |
-| _optional_ | _required_ | `partition-spec-id` | Id of the partition spec used to write the manifest as a string              |
+| _optional_ | _required_ | `partition-spec-id` | ID of the partition spec used to write the manifest as a string              |
 | _optional_ | _required_ | `format-version`    | Table format version number of the manifest as a string                      |
 |            | _required_ | `content`           | Type of content files tracked by the manifest: "data" or "deletes"           |
 
@@ -528,10 +529,10 @@ Table metadata consists of the following fields:
 |            | _required_ | **`last-sequence-number`**| The table's highest assigned sequence number, a monotonically increasing long that tracks the order of snapshots in a table. |
 | _required_ | _required_ | **`last-updated-ms`**| Timestamp in milliseconds from the unix epoch when the table was last updated. Each table metadata file should update this field just before writing. |
 | _required_ | _required_ | **`last-column-id`**| An integer; the highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. |
-| _required_ | _required_ | **`schema`**| The table’s current schema. In v2, this must be the schema identified by the `current-schema-id`. |
+| _required_ |            | **`schema`**| The table’s current schema. (**Deprecated**: use `schemas` and `current-schema-id` instead) |
 | _optional_ | _required_ | **`schemas`**| A list of schemas, stored as objects with `schema-id`. |
 | _optional_ | _required_ | **`current-schema-id`**| ID of the table's current schema. |
-| _required_ |            | **`partition-spec`**| The table’s current partition spec, stored as only fields. Note that this is used by writers to partition data, but is not used when reading because reads use the specs stored in manifest files. (**Deprecated**: use `partition-specs` and `default-spec-id`instead ) |
+| _required_ |            | **`partition-spec`**| The table’s current partition spec, stored as only fields. Note that this is used by writers to partition data, but is not used when reading because reads use the specs stored in manifest files. (**Deprecated**: use `partition-specs` and `default-spec-id` instead) |
 | _optional_ | _required_ | **`partition-specs`**| A list of partition specs, stored as full partition spec objects. |
 | _optional_ | _required_ | **`default-spec-id`**| ID of the "current" spec that writers should use by default. |
 | _optional_ | _required_ | **`last-partition-id`**| An integer; the highest assigned partition field ID across all partition specs for the table. This is used to ensure partition fields are always assigned an unused ID when evolving specs. |
@@ -935,14 +936,16 @@ Table metadata is serialized as a JSON object according to the following table. 
 |**`location`**|`JSON string`|`"s3://b/wh/data.db/table"`|
 |**`last-updated-ms`**|`JSON long`|`1515100955770`|
 |**`last-column-id`**|`JSON int`|`22`|
-|**`schema`**|`JSON schema (object)`|`See above`|
+|**`schema`**|`JSON schema (object)`|`See above, read schemas instead`|
+|**`schemas`**|`JSON schemas (list of objects)`|`See above`|
+|**`current-schema-id`**|`JSON int`|`0`|
 |**`partition-spec`**|`JSON partition fields (list)`|`See above, read partition-specs instead`|
 |**`partition-specs`**|`JSON partition specs (list of objects)`|`See above`|
 |**`default-spec-id`**|`JSON int`|`0`|
 |**`last-partition-id`**|`JSON int`|`1000`|
 |**`properties`**|`JSON object: {`<br />&nbsp;&nbsp;`"<key>": "<val>",`<br />&nbsp;&nbsp;`...`<br />`}`|`{`<br />&nbsp;&nbsp;`"write.format.default": "avro",`<br />&nbsp;&nbsp;`"commit.retry.num-retries": "4"`<br />`}`|
 |**`current-snapshot-id`**|`JSON long`|`3051729675574597004`|
-|**`snapshots`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": <operation>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`... },`<br />&nbsp;&nbsp;`"manifest-list": "<location>"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 3051729675574597004,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": "append"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`"manifest-list": "s3://b/wh/.../s1.avro"`<br />`} ]`|
+|**`snapshots`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": <operation>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`... },`<br />&nbsp;&nbsp;`"manifest-list": "<location>",`<br />&nbsp;&nbsp;`"schema-id": "<id>"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 3051729675574597004,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": "append"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`"manifest-list": "s3://b/wh/.../s1.avro"`<br />&nbsp;&nbsp;`"schema-id": 0`<br />`} ]`|
 |**`snapshot-log`**|`JSON list of objects: [`<br />&nbsp;&nbsp;`{`<br />&nbsp;&nbsp;`"snapshot-id": ,`<br />&nbsp;&nbsp;`"timestamp-ms": `<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 30517296...,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100...`<br />`} ]`|
 |**`metadata-log`**|`JSON list of objects: [`<br />&nbsp;&nbsp;`{`<br />&nbsp;&nbsp;`"metadata-file": ,`<br />&nbsp;&nbsp;`"timestamp-ms": `<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"metadata-file": "s3://bucket/.../v1.json",`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100...`<br />`} ]` |
 |**`sort-orders`**|`JSON sort orders (list of sort field object)`|`See above`|

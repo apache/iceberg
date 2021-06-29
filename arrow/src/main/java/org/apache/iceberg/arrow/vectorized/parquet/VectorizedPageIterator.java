@@ -369,6 +369,36 @@ public class VectorizedPageIterator extends BasePageIterator {
     return actualBatchSize;
   }
 
+  public int nextBatchFixedSizeBinary(
+      final FieldVector vector, final int expectedBatchSize, final int numValsInVector,
+      final int typeWidth, NullabilityHolder nullabilityHolder) {
+    final int actualBatchSize = getActualBatchSize(expectedBatchSize);
+    if (actualBatchSize <= 0) {
+      return 0;
+    }
+    if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
+      vectorizedDefinitionLevelReader.readBatchOfDictionaryEncodedFixedSizeBinary(
+          vector,
+          numValsInVector,
+          typeWidth,
+          actualBatchSize,
+          nullabilityHolder,
+          dictionaryEncodedValuesReader,
+          dictionary);
+    } else {
+      vectorizedDefinitionLevelReader.readBatchOfFixedSizeBinary(
+          vector,
+          numValsInVector,
+          typeWidth,
+          actualBatchSize,
+          nullabilityHolder,
+          plainValuesReader);
+    }
+    triplesRead += actualBatchSize;
+    this.hasNext = triplesRead < triplesCount;
+    return actualBatchSize;
+  }
+
   /**
    * Method for reading a batch of variable width data type (ENUM, JSON, UTF8, BSON).
    */

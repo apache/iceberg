@@ -30,9 +30,11 @@ import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DateDayVector;
 import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.TimeMicroVector;
 import org.apache.arrow.vector.TimeStampMicroTZVector;
 import org.apache.arrow.vector.TimeStampMicroVector;
 import org.apache.arrow.vector.ValueVector;
@@ -112,6 +114,7 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
         case BSON:
           return new DictionaryStringAccessor<>((IntVector) vector, dictionary, stringFactorySupplier.get());
         case INT_64:
+        case TIME_MICROS:
         case TIMESTAMP_MILLIS:
         case TIMESTAMP_MICROS:
           return new DictionaryLongAccessor<>((IntVector) vector, dictionary);
@@ -189,6 +192,10 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
     } else if (vector instanceof StructVector) {
       StructVector structVector = (StructVector) vector;
       return new StructAccessor<>(structVector, structChildFactorySupplier.get());
+    } else if (vector instanceof TimeMicroVector) {
+      return new TimeMicroAccessor<>((TimeMicroVector) vector);
+    } else if (vector instanceof FixedSizeBinaryVector) {
+      return new FixedSizeBinaryAccessor<>((FixedSizeBinaryVector) vector);
     }
     throw new UnsupportedOperationException("Unsupported vector: " + vector.getClass());
   }
@@ -465,6 +472,38 @@ public class GenericArrowVectorAccessorFactory<DecimalT, Utf8StringT, ArrayT, Ch
 
     @Override
     public final long getLong(int rowId) {
+      return vector.get(rowId);
+    }
+  }
+
+  private static class TimeMicroAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+
+    private final TimeMicroVector vector;
+
+    TimeMicroAccessor(TimeMicroVector vector) {
+      super(vector);
+      this.vector = vector;
+    }
+
+    @Override
+    public final long getLong(int rowId) {
+      return vector.get(rowId);
+    }
+  }
+
+  private static class FixedSizeBinaryAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+
+    private final FixedSizeBinaryVector vector;
+
+    FixedSizeBinaryAccessor(FixedSizeBinaryVector vector) {
+      super(vector);
+      this.vector = vector;
+    }
+
+    @Override
+    public byte[] getBinary(int rowId) {
       return vector.get(rowId);
     }
   }

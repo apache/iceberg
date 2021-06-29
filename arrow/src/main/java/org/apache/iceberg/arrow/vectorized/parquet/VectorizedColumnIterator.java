@@ -175,6 +175,22 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     }
   }
 
+  public void nextBatchFixedSizeBinary(
+      FieldVector fieldVector,
+      int typeWidth,
+      NullabilityHolder nullabilityHolder) {
+    int rowsReadSoFar = 0;
+    while (rowsReadSoFar < batchSize && hasNext()) {
+      advance();
+      int rowsInThisBatch =
+          vectorizedPageIterator.nextBatchFixedSizeBinary(fieldVector, batchSize - rowsReadSoFar,
+              rowsReadSoFar, typeWidth, nullabilityHolder);
+      rowsReadSoFar += rowsInThisBatch;
+      this.triplesRead += rowsInThisBatch;
+      fieldVector.setValueCount(rowsReadSoFar);
+    }
+  }
+
   public void nextBatchVarWidthType(FieldVector fieldVector, NullabilityHolder nullabilityHolder) {
     int rowsReadSoFar = 0;
     while (rowsReadSoFar < batchSize && hasNext()) {
