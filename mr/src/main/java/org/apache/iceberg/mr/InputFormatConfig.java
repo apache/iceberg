@@ -98,21 +98,17 @@ public class InputFormatConfig {
 
   /**
    * Property used to input Iceberg partitioning strategy through table property.
-   * The partition text is a list of partition transforms delimited by {@link #PARTITIONING_DELIMITER}
+   * The partition text is a list of partition transforms delimited by pipe
    * <p>
    * For example:
    * <pre>
    *   CREATE TABLE table (id bigint, category string)
    *   TBLPROPERTIES ('iceberg.partitioning'='bucket(16,id)|category')
    * </pre>
+   * <p>
+   * To reference column names with special characters, use backquote to escape, such as bucket(16,`co,l`)
    */
   public static final String PARTITIONING = "iceberg.partitioning";
-
-  /**
-   * Regex expression used to delimit partition text, default to {@link #PARTITIONING_DELIMITER_DEFAULT pipe}
-   */
-  public static final String PARTITIONING_DELIMITER = "iceberg.partitioning.delimiter";
-  public static final String PARTITIONING_DELIMITER_DEFAULT = "\\|";
 
   public enum InMemoryDataModel {
     PIG,
