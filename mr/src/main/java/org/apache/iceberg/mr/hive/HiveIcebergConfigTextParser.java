@@ -104,7 +104,7 @@ class HiveIcebergConfigTextParser {
   }
 
   private static void addToPartitionSpec(PartitionSpec.Builder builder, String text,
-                                  String transformPart, String[] argParts) {
+                                         String transformPart, String[] argParts) {
     if (transformPart == null) {
       Preconditions.checkArgument(argParts[1] == null,
           "Cannot parse partitioning text: detected multiple args for identity transform in %s", text);
