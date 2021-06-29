@@ -390,6 +390,45 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     );
   }
 
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testReadStreamWithSnapshotTypeDeleteAndSkipDeleteOption() throws Exception {
+    table.updateSpec()
+            .removeField("id_bucket")
+            .addField(ref("id"))
+            .commit();
+
+    table.refresh();
+
+    // fill table with some data
+    List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(dataAcrossSnapshots, tableIdentifier);
+
+    table.refresh();
+
+    // this should create a snapshot with type delete.
+    table.newDelete()
+            .deleteFromRowFilter(Expressions.equal("id", 4))
+            .commit();
+
+    // check pre-condition - that the above delete operation on table resulted in Snapshot of Type DELETE.
+    table.refresh();
+    Assert.assertEquals(DataOperations.DELETE, table.currentSnapshot().operation());
+
+    Dataset<Row> df = spark.readStream()
+            .format("iceberg")
+            .option(SparkReadOptions.READ_STREAM_SKIP_DELETE, "true")
+            .load(tableIdentifier);
+    StreamingQuery streamingQuery = df.writeStream()
+            .format("memory")
+            .queryName("testtablewithdelete")
+            .outputMode(OutputMode.Append())
+            .start();
+
+    Assertions.assertThat(processAvailable(df))
+            .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
+  }
+
   private static List<SimpleRecord> processMicroBatch(DataStreamWriter<Row> singleBatchWriter, String viewName)
       throws TimeoutException, StreamingQueryException {
     StreamingQuery streamingQuery = singleBatchWriter.start();
