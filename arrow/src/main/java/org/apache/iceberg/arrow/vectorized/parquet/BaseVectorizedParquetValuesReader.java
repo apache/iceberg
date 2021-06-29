@@ -81,11 +81,7 @@ public class BaseVectorizedParquetValuesReader extends ValuesReader {
   }
 
   public BaseVectorizedParquetValuesReader(int bitWidth, int maxDefLevel, boolean setValidityVector) {
-    this.fixedWidth = true;
-    this.readLength = bitWidth != 0;
-    this.maxDefLevel = maxDefLevel;
-    this.setArrowValidityVector = setValidityVector;
-    init(bitWidth);
+    this(bitWidth, maxDefLevel, bitWidth != 0, setValidityVector);
   }
 
   public BaseVectorizedParquetValuesReader(int bitWidth, int maxDefLevel, boolean readLength,

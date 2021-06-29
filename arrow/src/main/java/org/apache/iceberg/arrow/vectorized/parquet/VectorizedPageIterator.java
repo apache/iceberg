@@ -513,7 +513,8 @@ public class VectorizedPageIterator extends BasePageIterator {
       }
     } else {
       if (dataEncoding != Encoding.PLAIN) {
-        throw new UnsupportedOperationException("Unsupported encoding: " + dataEncoding);
+        throw new UnsupportedOperationException("Vectorized reads are not supported for column " + desc + " with " +
+            "encoding " + dataEncoding + ". Disable vectorized reads to read this table/file");
       }
       plainValuesReader = new ValuesAsBytesReader();
       plainValuesReader.initFromPage(valueCount, in);

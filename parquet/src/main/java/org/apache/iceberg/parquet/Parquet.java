@@ -222,7 +222,6 @@ public class Parquet {
       String compressionLevel = config.getOrDefault(
           PARQUET_COMPRESSION_LEVEL, PARQUET_COMPRESSION_LEVEL_DEFAULT);
 
-
       if (compressionLevel != null) {
         switch (codec()) {
           case GZIP:
