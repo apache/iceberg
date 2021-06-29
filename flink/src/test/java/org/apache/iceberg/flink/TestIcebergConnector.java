@@ -206,7 +206,7 @@ public class TestIcebergConnector extends FlinkTestBase {
           // Set only one parallelism.
           tEnv.getConfig().getConfiguration()
               .set(CoreOptions.DEFAULT_PARALLELISM, 1)
-              .set(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
+              .set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
         }
       }
     }
