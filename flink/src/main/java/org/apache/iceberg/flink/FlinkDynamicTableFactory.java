@@ -62,7 +62,13 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
       ConfigOptions.key("catalog-database")
           .stringType()
           .defaultValue(FlinkCatalogFactory.DEFAULT_DATABASE_NAME)
-          .withDescription("Database name that managed in the iceberg catalog.");
+          .withDescription("Database name managed in the iceberg catalog.");
+
+  private static final ConfigOption<String> CATALOG_TABLE =
+      ConfigOptions.key("catalog-table")
+          .stringType()
+          .noDefaultValue()
+          .withDescription("Table name managed in the underlying iceberg catalog and database.");
 
   private final FlinkCatalog catalog;
 
@@ -85,7 +91,8 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
     if (catalog != null) {
       tableLoader = createTableLoader(catalog, objectIdentifier.toObjectPath());
     } else {
-      tableLoader = createTableLoader(catalogTable, tableProps, objectIdentifier.getObjectName());
+      tableLoader = createTableLoader(catalogTable, tableProps, objectIdentifier.getDatabaseName(),
+          objectIdentifier.getObjectName());
     }
 
     return new IcebergTableSource(tableLoader, tableSchema, tableProps, context.getConfiguration());
@@ -102,7 +109,8 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
     if (catalog != null) {
       tableLoader = createTableLoader(catalog, objectPath);
     } else {
-      tableLoader = createTableLoader(catalogTable, tableProps, objectPath.getObjectName());
+      tableLoader = createTableLoader(catalogTable, tableProps, objectPath.getDatabaseName(),
+          objectPath.getObjectName());
     }
 
     return new IcebergTableSink(tableLoader, tableSchema);
@@ -120,6 +128,7 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
   public Set<ConfigOption<?>> optionalOptions() {
     Set<ConfigOption<?>> options = Sets.newHashSet();
     options.add(CATALOG_DATABASE);
+    options.add(CATALOG_TABLE);
     return options;
   }
 
@@ -128,8 +137,9 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
     return FACTORY_IDENTIFIER;
   }
 
-  private static TableLoader createTableLoader(CatalogBaseTable catalogTable,
+  private static TableLoader createTableLoader(CatalogBaseTable catalogBaseTable,
                                                Map<String, String> tableProps,
+                                               String databaseName,
                                                String tableName) {
     Configuration flinkConf = new Configuration();
     tableProps.forEach(flinkConf::setString);
@@ -137,13 +147,16 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
     String catalogName = flinkConf.getString(CATALOG_NAME);
     Preconditions.checkNotNull(catalogName, "Table property '%s' cannot be null", CATALOG_NAME.key());
 
-    String catalogDatabase = flinkConf.getString(CATALOG_DATABASE);
-    Preconditions.checkNotNull(catalogDatabase, "Table property '%s' cannot be null", CATALOG_DATABASE.key());
+    String catalogDatabase = flinkConf.getString(CATALOG_DATABASE, databaseName);
+    Preconditions.checkNotNull(catalogDatabase, "The iceberg database name cannot be null");
+
+    String catalogTable = flinkConf.getString(CATALOG_TABLE, tableName);
+    Preconditions.checkNotNull(catalogTable, "The iceberg table name cannot be null");
 
     org.apache.hadoop.conf.Configuration hadoopConf = FlinkCatalogFactory.clusterHadoopConf();
     FlinkCatalogFactory factory = new FlinkCatalogFactory();
     FlinkCatalog flinkCatalog = (FlinkCatalog) factory.createCatalog(catalogName, tableProps, hadoopConf);
-    ObjectPath objectPath = new ObjectPath(catalogDatabase, tableName);
+    ObjectPath objectPath = new ObjectPath(catalogDatabase, catalogTable);
 
     // Create database if not exists in the external catalog.
     if (!flinkCatalog.databaseExists(catalogDatabase)) {
@@ -158,14 +171,14 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
     // Create table if not exists in the external catalog.
     if (!flinkCatalog.tableExists(objectPath)) {
       try {
-        flinkCatalog.createIcebergTable(objectPath, catalogTable, true);
+        flinkCatalog.createIcebergTable(objectPath, catalogBaseTable, true);
       } catch (TableAlreadyExistException e) {
         throw new AlreadyExistsException(e, "Table %s already exists in the database %s and catalog %s",
-            tableName, catalogDatabase, catalogName);
+            catalogTable, catalogDatabase, catalogName);
       }
     }
 
-    return TableLoader.fromCatalog(flinkCatalog.getCatalogLoader(), TableIdentifier.of(catalogDatabase, tableName));
+    return TableLoader.fromCatalog(flinkCatalog.getCatalogLoader(), TableIdentifier.of(catalogDatabase, catalogTable));
   }
 
   private static TableLoader createTableLoader(FlinkCatalog catalog, ObjectPath objectPath) {

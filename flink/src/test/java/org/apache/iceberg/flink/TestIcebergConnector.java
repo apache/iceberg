@@ -77,6 +77,15 @@ public class TestIcebergConnector extends FlinkTestBase {
             "testhadoop",
             ImmutableMap.of(
                 "connector", "iceberg",
+                "catalog-type", "hadoop",
+                "catalog-table", "not_existing_table"
+            ),
+            true
+        },
+        new Object[] {
+            "testhadoop",
+            ImmutableMap.of(
+                "connector", "iceberg",
                 "catalog-type", "hadoop"
             ),
             false
@@ -88,6 +97,16 @@ public class TestIcebergConnector extends FlinkTestBase {
                 "connector", "iceberg",
                 "catalog-type", "hadoop",
                 "catalog-database", "not_existing_db"
+            ),
+            true
+        },
+        new Object[] {
+            "testhadoop",
+            ImmutableMap.of(
+                "connector", "iceberg",
+                "catalog-type", "hadoop",
+                "catalog-database", "not_existing_db",
+                "catalog-table", "not_existing_table"
             ),
             true
         },
@@ -113,6 +132,15 @@ public class TestIcebergConnector extends FlinkTestBase {
             "testhive",
             ImmutableMap.of(
                 "connector", "iceberg",
+                "catalog-type", "hive",
+                "catalog-table", "not_existing_table"
+            ),
+            true
+        },
+        new Object[] {
+            "testhive",
+            ImmutableMap.of(
+                "connector", "iceberg",
                 "catalog-type", "hive"
             ),
             false
@@ -124,6 +152,16 @@ public class TestIcebergConnector extends FlinkTestBase {
                 "connector", "iceberg",
                 "catalog-type", "hive",
                 "catalog-database", "not_existing_db"
+            ),
+            true
+        },
+        new Object[] {
+            "testhive",
+            ImmutableMap.of(
+                "connector", "iceberg",
+                "catalog-type", "hive",
+                "catalog-database", "not_existing_db",
+                "catalog-table", "not_existing_table"
             ),
             true
         },
@@ -183,7 +221,7 @@ public class TestIcebergConnector extends FlinkTestBase {
     if (isHiveCatalog()) {
       HiveMetaStoreClient metaStoreClient = new HiveMetaStoreClient(hiveConf);
       try {
-        metaStoreClient.dropTable(databaseName(), TABLE_NAME);
+        metaStoreClient.dropTable(databaseName(), tableName());
         if (!isDefaultDatabaseName()) {
           try {
             metaStoreClient.dropDatabase(databaseName());
@@ -209,9 +247,10 @@ public class TestIcebergConnector extends FlinkTestBase {
 
     FlinkCatalogFactory factory = new FlinkCatalogFactory();
     Catalog flinkCatalog = factory.createCatalog(catalogName, tableProps, new Configuration());
-    Assert.assertTrue("Should have created the expected database", flinkCatalog.databaseExists(databaseName()));
+    Assert.assertTrue("Should have created the expected database",
+        flinkCatalog.databaseExists(databaseName()));
     Assert.assertTrue("Should have created the expected table",
-        flinkCatalog.tableExists(new ObjectPath(databaseName(), TABLE_NAME)));
+        flinkCatalog.tableExists(new ObjectPath(databaseName(), tableName())));
 
     // Drop and create it again.
     sql("DROP TABLE %s", TABLE_NAME);
@@ -262,7 +301,7 @@ public class TestIcebergConnector extends FlinkTestBase {
     // Create the table properties
     Map<String, String> tableProps = createTableProps();
 
-    // Create a connector table in an iceberg table.
+    // Create a connector table in an iceberg catalog.
     sql("CREATE CATALOG `test_catalog` WITH %s", toWithClause(catalogProps));
     try {
       AssertHelpers.assertThrowsCause("Cannot create the iceberg connector table in iceberg catalog",
@@ -297,8 +336,12 @@ public class TestIcebergConnector extends FlinkTestBase {
     return FlinkCatalogFactory.DEFAULT_DATABASE_NAME.equalsIgnoreCase(databaseName());
   }
 
+  private String tableName() {
+    return properties.getOrDefault("catalog-table", TABLE_NAME);
+  }
+
   private String databaseName() {
-    return properties.getOrDefault("catalog-database", FlinkCatalogFactory.DEFAULT_DATABASE_NAME);
+    return properties.getOrDefault("catalog-database", "default_database");
   }
 
   private String toWithClause(Map<String, String> props) {
