@@ -213,24 +213,24 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     }
 
     Preconditions.checkState(
-            snapshot.operation().equals(DataOperations.APPEND),
-            "Invalid Snapshot operation: %s, only APPEND is allowed.", snapshot.operation());
+        snapshot.operation().equals(DataOperations.APPEND),
+        "Invalid Snapshot operation: %s, only APPEND is allowed.", snapshot.operation());
     return false;
   }
 
   private boolean shouldSkipDelete(Snapshot snapshot) {
     Preconditions.checkState(skipDelete,
-            "Invalid Snapshot operation: %s, only APPEND is allowed. To skip delete, set Spark Option %s",
-            snapshot.operation(),
-            SparkReadOptions.READ_STREAM_SKIP_DELETE);
+        "Invalid Snapshot operation: %s, only APPEND is allowed. To skip delete, set Spark Option %s",
+        snapshot.operation(),
+        SparkReadOptions.READ_STREAM_SKIP_DELETE);
     return true;
   }
 
   private boolean shouldSkipReplace(Snapshot snapshot) {
     Preconditions.checkState(skipReplace,
-            "Invalid Snapshot operation: %s, only APPEND is allowed. To skip replace, set Spark Option %s",
-            snapshot.operation(),
-            SparkReadOptions.READ_STREAM_SKIP_REPLACE);
+        "Invalid Snapshot operation: %s, only APPEND is allowed. To skip replace, set Spark Option %s",
+        snapshot.operation(),
+        SparkReadOptions.READ_STREAM_SKIP_REPLACE);
     return true;
   }
 
