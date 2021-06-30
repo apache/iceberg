@@ -169,7 +169,7 @@ abstract class BinPackStrategy implements RewriteStrategy {
 
     long fileCountWithoutRemainder = LongMath.divide(totalSizeInBytes, targetFileSize, RoundingMode.FLOOR);
     long avgFileSizeWithoutRemainder = totalSizeInBytes / fileCountWithoutRemainder;
-    if (avgFileSizeWithoutRemainder < 1.1 * targetFileSize) {
+    if (avgFileSizeWithoutRemainder < Math.min(1.1 * targetFileSize, writeMaxFileSize())) {
       // Round down and distribute remainder amongst other files
       return fileCountWithoutRemainder;
     } else {
@@ -187,10 +187,9 @@ abstract class BinPackStrategy implements RewriteStrategy {
     return Math.min(estimatedSplitSize, writeMaxFileSize());
   }
 
-  protected static long inputFileSize(List<FileScanTask> fileToRewrite) {
+  protected long inputFileSize(List<FileScanTask> fileToRewrite) {
     return fileToRewrite.stream().mapToLong(FileScanTask::length).sum();
   }
-
 
   /**
    * Estimates a larger max target file size than our target size used in task creation to avoid
