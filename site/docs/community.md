@@ -84,3 +84,9 @@ Point to [intellij-java-palantir-style.xml](../../.baseline/idea/intellij-java-p
 
 See also the IntelliJ [Code Style docs](https://www.jetbrains.com/help/idea/copying-code-style-settings.html) and [Reformat Code docs](https://www.jetbrains.com/help/idea/reformat-and-rearrange-code.html) for additional details.
 
+## Running Benchmarks
+Some PRs/changesets might require running benchmarks to determine whether they are affecting the baseline performance. Currently there is 
+no "push a single button to get a performance comparison" solution available, therefore one has to run JMH performance tests on their local machine and
+post the results on the PR.
+
+See [Benchmarks](benchmarks.md) for a summary of available benchmarks and how to run them.
