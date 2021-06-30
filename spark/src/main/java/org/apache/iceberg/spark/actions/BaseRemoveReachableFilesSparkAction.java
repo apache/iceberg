@@ -31,6 +31,7 @@ import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.actions.BaseRemoveFilesActionResult;
 import org.apache.iceberg.actions.RemoveReachableFiles;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -45,6 +46,9 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.functions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
+import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 /**
  * An implementation of {@link RemoveReachableFiles} that uses metadata tables in Spark
@@ -80,6 +84,10 @@ public class BaseRemoveReachableFilesSparkAction
   public BaseRemoveReachableFilesSparkAction(SparkSession spark, String metadataLocation) {
     super(spark);
     this.metadataLocation = metadataLocation;
+    TableMetadata metadata = TableMetadataParser.read(io, metadataLocation);
+    ValidationException.check(
+        PropertyUtil.propertyAsBoolean(metadata.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
+        "Cannot remove files: GC is disabled (deleting files may corrupt other tables)");
   }
 
   @Override

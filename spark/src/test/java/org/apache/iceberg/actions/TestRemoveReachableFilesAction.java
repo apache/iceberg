@@ -35,6 +35,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -320,6 +321,17 @@ public abstract class TestRemoveReachableFilesAction extends SparkTestBase {
     AssertHelpers.assertThrows("FileIO needs to be set to use RemoveFiles action",
         IllegalArgumentException.class, "File IO cannot be null",
         baseRemoveFilesSparkAction::execute);
+  }
+
+  @Test
+  public void testRemoveFilesActionWhenGarabageCollectionDisabled() {
+    table.updateProperties()
+        .set(TableProperties.GC_ENABLED, "false")
+        .commit();
+
+    AssertHelpers.assertThrows("Should complain about removing files when GC is disabled",
+        ValidationException.class, "Cannot remove files: GC is disabled (deleting files may corrupt other tables)",
+        () -> sparkActions().removeReachableFiles(metadataLocation(table)));
   }
 
   private String metadataLocation(Table tbl) {
