@@ -29,7 +29,6 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.Assert;
 
@@ -63,10 +62,5 @@ public class TestSparkAvroReader extends AvroDataTest {
     for (int i = 0; i < expected.size(); i += 1) {
       assertEqualsUnsafe(schema.asStruct(), expected.get(i), rows.get(i));
     }
-  }
-
-  @Override
-  protected SparkSession getSparkSession() {
-    return null;
   }
 }

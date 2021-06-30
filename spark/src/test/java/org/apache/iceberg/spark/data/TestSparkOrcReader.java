@@ -33,7 +33,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.Assert;
@@ -49,11 +48,6 @@ public class TestSparkOrcReader extends AvroDataTest {
         .generateSpark(schema, 100, 0L);
 
     writeAndValidateRecords(schema, expected);
-  }
-
-  @Override
-  protected SparkSession getSparkSession() {
-    return null;
   }
 
   @Test

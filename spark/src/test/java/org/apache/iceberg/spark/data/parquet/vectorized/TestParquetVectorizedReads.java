@@ -43,7 +43,6 @@ import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
-import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -62,11 +61,6 @@ public class TestParquetVectorizedReads extends AvroDataTest {
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     writeAndValidate(schema, getNumRows(), 0L, RandomData.DEFAULT_NULL_PERCENTAGE, false, true);
-  }
-
-  @Override
-  protected SparkSession getSparkSession() {
-    return null;
   }
 
   private void writeAndValidate(

@@ -381,9 +381,4 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
     Assert.assertEquals(snapshotAfterFailingWrite, snapshotBeforeFailingWrite);
     Assert.assertEquals(resultAfterFailingWrite, resultBeforeFailingWrite);
   }
-
-  @Override
-  protected SparkSession getSparkSession() {
-    return spark;
-  }
 }

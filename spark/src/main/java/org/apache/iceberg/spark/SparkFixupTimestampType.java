@@ -26,32 +26,26 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 /**
- * By default Spark TimestampType should be converted to Types.TimestampType.withZone() iceberg type.
- * But we also can convert TimestampType to Types.TimestampType.withoutZone() iceberg type
- * by setting SparkUtil.STORE_TIMESTAMP_WITHOUT_TIMEZONE_SESSION_PROPERTY to 'true'
+ * By default Spark type {@link org.apache.iceberg.types.Types.TimestampType} should be converted to
+ * {@link Types.TimestampType#withZone()} iceberg type. But we also can convert
+ * {@link org.apache.iceberg.types.Types.TimestampType} to {@link Types.TimestampType#withoutZone()} ()} iceberg type
+ * by setting {@link SparkUtil#READ_TIMESTAMP_AS_TIMESTAMP_WITHOUT_TIMEZONE} to 'true'
  */
 class SparkFixupTimestampType extends FixupTypes {
 
-  private final boolean useTimestampWithoutZone;
-
-  private SparkFixupTimestampType(Schema referenceSchema, boolean useTimestampWithoutZone) {
+  private SparkFixupTimestampType(Schema referenceSchema) {
     super(referenceSchema);
-    this.useTimestampWithoutZone = useTimestampWithoutZone;
   }
 
-  static Schema fixup(Schema schema, boolean useTimestampWithoutZone) {
+  static Schema fixup(Schema schema) {
     return new Schema(TypeUtil.visit(schema,
-            new SparkFixupTimestampType(schema, useTimestampWithoutZone)).asStructType().fields());
+            new SparkFixupTimestampType(schema)).asStructType().fields());
   }
 
   @Override
   public Type primitive(Type.PrimitiveType primitive) {
     if (primitive.typeId() == Type.TypeID.TIMESTAMP) {
-      if (useTimestampWithoutZone) {
-        return Types.TimestampType.withoutZone();
-      } else {
-        return Types.TimestampType.withZone();
-      }
+      return Types.TimestampType.withoutZone();
     }
     return primitive;
   }

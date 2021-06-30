@@ -34,6 +34,7 @@ import org.apache.spark.sql.SparkSession;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import scala.Option;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -41,8 +42,6 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 public abstract class AvroDataTest {
 
   protected abstract void writeAndValidate(Schema schema) throws IOException;
-
-  protected abstract SparkSession getSparkSession();
 
   protected static final StructType SUPPORTED_PRIMITIVES = StructType.of(
       required(100, "id", LongType.get()),
@@ -192,9 +191,9 @@ public abstract class AvroDataTest {
 
   @Test
   public void testTimestampWithoutZone() throws IOException {
-    SparkSession sparkSession = getSparkSession();
-    if (sparkSession != null) {
-      sparkSession.conf().set(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_SESSION_PROPERTY, "true");
+    Option<SparkSession> sparkSession = SparkSession.getActiveSession();
+    if (sparkSession.isDefined()) {
+      sparkSession.get().conf().set(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_SESSION_PROPERTY, "true");
     }
 
     Schema schema = TypeUtil.assignIncreasingFreshIds(new Schema(
