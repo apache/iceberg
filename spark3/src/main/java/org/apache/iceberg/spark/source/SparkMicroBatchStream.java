@@ -27,6 +27,8 @@ import java.io.OutputStreamWriter;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Locale;
+
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileScanTask;
@@ -80,7 +82,6 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final boolean localityPreferred;
   private final StreamingOffset initialOffset;
   private final boolean skipDelete;
-  private final boolean skipReplace;
 
   SparkMicroBatchStream(JavaSparkContext sparkContext, Table table, boolean caseSensitive,
                         Schema expectedSchema, CaseInsensitiveStringMap options, String checkpointLocation) {
@@ -103,8 +104,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     InitialOffsetStore initialOffsetStore = new InitialOffsetStore(table, checkpointLocation);
     this.initialOffset = initialOffsetStore.initialOffset();
 
-    this.skipDelete = Spark3Util.propertyAsBoolean(options, SparkReadOptions.READ_STREAM_SKIP_DELETE, false);
-    this.skipReplace = Spark3Util.propertyAsBoolean(options, SparkReadOptions.READ_STREAM_SKIP_REPLACE, false);
+    this.skipDelete = Spark3Util.propertyAsBoolean(options, SparkReadOptions.SKIP_DELETES_ON_STREAM_READ, false);
   }
 
   @Override
@@ -185,11 +185,10 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         currentOffset = batchStartOffset;
       } else {
         Snapshot snapshotAfter = SnapshotUtil.snapshotAfter(table, currentOffset.snapshotId());
-        boolean shouldSkip = shouldSkip(snapshotAfter);
-
+        boolean shouldProcess = shouldProcess(snapshotAfter);
         currentOffset = new StreamingOffset(snapshotAfter.snapshotId(), 0L, false);
 
-        if (shouldSkip) {
+        if (!shouldProcess) {
           continue;
         }
       }
@@ -205,33 +204,13 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     return fileScanTasks;
   }
 
-  private boolean shouldSkip(Snapshot snapshot) {
-    if (snapshot.operation().equals(DataOperations.DELETE)) {
-      return shouldSkipDelete(snapshot);
-    } else if (snapshot.operation().equals(DataOperations.REPLACE)) {
-      return shouldSkipReplace(snapshot);
-    }
-
-    Preconditions.checkState(
-        snapshot.operation().equals(DataOperations.APPEND),
-        "Invalid Snapshot operation: %s, only APPEND is allowed.", snapshot.operation());
-    return false;
-  }
-
-  private boolean shouldSkipDelete(Snapshot snapshot) {
-    Preconditions.checkState(skipDelete,
-        "Invalid Snapshot operation: %s, only APPEND is allowed. To skip delete, set Spark Option %s",
-        snapshot.operation(),
-        SparkReadOptions.READ_STREAM_SKIP_DELETE);
-    return true;
-  }
-
-  private boolean shouldSkipReplace(Snapshot snapshot) {
-    Preconditions.checkState(skipReplace,
-        "Invalid Snapshot operation: %s, only APPEND is allowed. To skip replace, set Spark Option %s",
-        snapshot.operation(),
-        SparkReadOptions.READ_STREAM_SKIP_REPLACE);
-    return true;
+  private boolean shouldProcess(Snapshot snapshot) {
+    String op = snapshot.operation();
+    Preconditions.checkState(!op.equals(DataOperations.DELETE) || skipDelete,
+        "Cannot process delete snapshot: %s", snapshot.snapshotId());
+    Preconditions.checkState(op.equals(DataOperations.DELETE) || op.equals(DataOperations.APPEND) || op.equals(DataOperations.REPLACE),
+        "Cannot process %s snapshot: %s", op.toLowerCase(Locale.ROOT), snapshot.snapshotId());
+    return op.equals(DataOperations.APPEND);
   }
 
   private static class InitialOffsetStore {

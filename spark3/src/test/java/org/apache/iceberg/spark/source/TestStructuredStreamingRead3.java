@@ -283,17 +283,17 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     AssertHelpers.assertThrowsCause(
         "Streaming should fail with IllegalStateException, as the snapshot is not of type APPEND",
         IllegalStateException.class,
-        "Invalid Snapshot operation",
+        "Cannot process overwrite snapshot",
         () -> streamingQuery.processAllAvailable()
     );
   }
 
   @SuppressWarnings("unchecked")
   @Test
-  public void testReadStreamWithSnapshotTypeReplaceErrorsOut() throws Exception {
+  public void testReadStreamWithSnapshotTypeReplaceIgnoresReplace() throws Exception {
     // fill table with some data
-    List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
-    appendDataAsMultipleSnapshots(dataAcrossSnapshots, tableIdentifier);
+    List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(expected, tableIdentifier);
 
     table.refresh();
 
@@ -308,53 +308,18 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     Dataset<Row> df = spark.readStream()
         .format("iceberg")
         .load(tableIdentifier);
-    StreamingQuery streamingQuery = df.writeStream()
-        .format("memory")
-        .queryName("testtablewithreplace")
-        .outputMode(OutputMode.Append())
-        .start();
 
-    AssertHelpers.assertThrowsCause(
-        "Streaming should fail with IllegalStateException, as the snapshot is not of type APPEND",
-        IllegalStateException.class,
-        "Invalid Snapshot operation",
-        () -> streamingQuery.processAllAvailable()
-    );
-  }
-
-  @SuppressWarnings("unchecked")
-  @Test
-  public void testReadStreamWithSnapshotTypeReplaceAndSkipReplaceOption() throws Exception {
-    // fill table with some data
-    List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
-    appendDataAsMultipleSnapshots(dataAcrossSnapshots, tableIdentifier);
-
-    table.refresh();
-
-    // this should create a snapshot with type Replace.
-    table.rewriteManifests()
-        .clusterBy(f -> 1)
-        .commit();
-
-    // check pre-condition
-    Assert.assertEquals(DataOperations.REPLACE, table.currentSnapshot().operation());
-
-    Dataset<Row> df = spark.readStream()
-        .format("iceberg")
-        .option(SparkReadOptions.READ_STREAM_SKIP_REPLACE, "true")
-        .load(tableIdentifier);
-
-    Assertions.assertThat(processAvailable(df))
-        .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
+    List<SimpleRecord> actual = processAvailable(df);
+    Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
   }
 
   @SuppressWarnings("unchecked")
   @Test
   public void testReadStreamWithSnapshotTypeDeleteErrorsOut() throws Exception {
     table.updateSpec()
-            .removeField("id_bucket")
-            .addField(ref("id"))
-            .commit();
+        .removeField("id_bucket")
+        .addField(ref("id"))
+        .commit();
 
     table.refresh();
 
@@ -385,7 +350,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     AssertHelpers.assertThrowsCause(
         "Streaming should fail with IllegalStateException, as the snapshot is not of type APPEND",
         IllegalStateException.class,
-        "Invalid Snapshot operation",
+        "Cannot process delete snapshot",
         () -> streamingQuery.processAllAvailable()
     );
   }
@@ -394,9 +359,9 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
   @Test
   public void testReadStreamWithSnapshotTypeDeleteAndSkipDeleteOption() throws Exception {
     table.updateSpec()
-            .removeField("id_bucket")
-            .addField(ref("id"))
-            .commit();
+        .removeField("id_bucket")
+        .addField(ref("id"))
+        .commit();
 
     table.refresh();
 
@@ -408,25 +373,19 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     // this should create a snapshot with type delete.
     table.newDelete()
-            .deleteFromRowFilter(Expressions.equal("id", 4))
-            .commit();
+        .deleteFromRowFilter(Expressions.equal("id", 4))
+        .commit();
 
     // check pre-condition - that the above delete operation on table resulted in Snapshot of Type DELETE.
     table.refresh();
     Assert.assertEquals(DataOperations.DELETE, table.currentSnapshot().operation());
 
     Dataset<Row> df = spark.readStream()
-            .format("iceberg")
-            .option(SparkReadOptions.READ_STREAM_SKIP_DELETE, "true")
-            .load(tableIdentifier);
-    StreamingQuery streamingQuery = df.writeStream()
-            .format("memory")
-            .queryName("testtablewithdelete")
-            .outputMode(OutputMode.Append())
-            .start();
-
+        .format("iceberg")
+        .option(SparkReadOptions.SKIP_DELETES_ON_STREAM_READ, "true")
+        .load(tableIdentifier);
     Assertions.assertThat(processAvailable(df))
-            .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
+        .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
   }
 
   private static List<SimpleRecord> processMicroBatch(DataStreamWriter<Row> singleBatchWriter, String viewName)
