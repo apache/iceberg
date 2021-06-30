@@ -60,6 +60,8 @@ import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK;
 import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK_DEFAULT;
@@ -70,6 +72,7 @@ import static org.apache.iceberg.TableProperties.SPLIT_SIZE_DEFAULT;
 
 public class SparkMicroBatchStream implements MicroBatchStream {
   private static final Joiner SLASH = Joiner.on("/");
+  private static final Logger LOG = LoggerFactory.getLogger(SparkMicroBatchStream.class);
 
   private final Table table;
   private final boolean caseSensitive;
@@ -184,12 +187,12 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         currentOffset = batchStartOffset;
       } else {
         Snapshot snapshotAfter = SnapshotUtil.snapshotAfter(table, currentOffset.snapshotId());
-        boolean shouldProcess = shouldProcess(snapshotAfter);
         currentOffset = new StreamingOffset(snapshotAfter.snapshotId(), 0L, false);
+      }
 
-        if (!shouldProcess) {
-          continue;
-        }
+      if(!shouldProcess(table.snapshot(currentOffset.snapshotId()))) {
+        LOG.debug("Skipping snapshot: {}", currentOffset.snapshotId());
+        continue;
       }
 
       MicroBatch latestMicroBatch = MicroBatches.from(table.snapshot(currentOffset.snapshotId()), table.io())
