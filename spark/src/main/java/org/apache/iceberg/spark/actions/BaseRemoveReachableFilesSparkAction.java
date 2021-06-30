@@ -69,7 +69,8 @@ public class BaseRemoveReachableFilesSparkAction
   // Creates an executor service that runs each task in the thread that invokes execute/submit.
   private static final ExecutorService DEFAULT_DELETE_EXECUTOR_SERVICE = null;
 
-  private final String metadataLocation;
+  private final TableMetadata tableMetadata;
+
   private final Consumer<String> defaultDelete = new Consumer<String>() {
     @Override
     public void accept(String file) {
@@ -83,10 +84,9 @@ public class BaseRemoveReachableFilesSparkAction
 
   public BaseRemoveReachableFilesSparkAction(SparkSession spark, String metadataLocation) {
     super(spark);
-    this.metadataLocation = metadataLocation;
-    TableMetadata metadata = TableMetadataParser.read(io, metadataLocation);
+    this.tableMetadata = TableMetadataParser.read(io, metadataLocation);
     ValidationException.check(
-        PropertyUtil.propertyAsBoolean(metadata.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
+        PropertyUtil.propertyAsBoolean(tableMetadata.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
         "Cannot remove files: GC is disabled (deleting files may corrupt other tables)");
   }
 
@@ -117,15 +117,14 @@ public class BaseRemoveReachableFilesSparkAction
   @Override
   public Result execute() {
     Preconditions.checkArgument(io != null, "File IO cannot be null");
-    String msg = String.format("Removing files reachable from %s", metadataLocation);
+    String msg = String.format("Removing files reachable from %s", tableMetadata.metadataFileLocation());
     JobGroupInfo info = newJobGroupInfo("REMOVE-FILES", msg);
     return withJobGroupInfo(info, this::doExecute);
   }
 
   private Result doExecute() {
     boolean streamResults = PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, false);
-    TableMetadata metadata = TableMetadataParser.read(io, metadataLocation);
-    Dataset<Row> validFileDF = buildValidFileDF(metadata).distinct();
+    Dataset<Row> validFileDF = buildValidFileDF(tableMetadata).distinct();
     if (streamResults) {
       return deleteFiles(validFileDF.toLocalIterator());
     } else {
