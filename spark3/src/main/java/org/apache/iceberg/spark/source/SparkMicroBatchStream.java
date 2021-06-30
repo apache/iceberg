@@ -190,8 +190,8 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         currentOffset = new StreamingOffset(snapshotAfter.snapshotId(), 0L, false);
       }
 
-      if(!shouldProcess(table.snapshot(currentOffset.snapshotId()))) {
-        LOG.debug("Skipping snapshot: {}", currentOffset.snapshotId());
+      if (!shouldProcess(table.snapshot(currentOffset.snapshotId()))) {
+        LOG.debug("Skipping snapshot: {} of table {}", currentOffset.snapshotId(), table.name());
         continue;
       }
 
