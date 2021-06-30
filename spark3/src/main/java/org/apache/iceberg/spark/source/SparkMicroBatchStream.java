@@ -28,7 +28,6 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
-
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileScanTask;
@@ -208,7 +207,8 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     String op = snapshot.operation();
     Preconditions.checkState(!op.equals(DataOperations.DELETE) || skipDelete,
         "Cannot process delete snapshot: %s", snapshot.snapshotId());
-    Preconditions.checkState(op.equals(DataOperations.DELETE) || op.equals(DataOperations.APPEND) || op.equals(DataOperations.REPLACE),
+    Preconditions.checkState(
+        op.equals(DataOperations.DELETE) || op.equals(DataOperations.APPEND) || op.equals(DataOperations.REPLACE),
         "Cannot process %s snapshot: %s", op.toLowerCase(Locale.ROOT), snapshot.snapshotId());
     return op.equals(DataOperations.APPEND);
   }
