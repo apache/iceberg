@@ -148,6 +148,7 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
 
     } else if (atomic instanceof TimestampType) {
       return Types.TimestampType.withZone();
+
     } else if (atomic instanceof DecimalType) {
       return Types.DecimalType.of(
           ((DecimalType) atomic).precision(),

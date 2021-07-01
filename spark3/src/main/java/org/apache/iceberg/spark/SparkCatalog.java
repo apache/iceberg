@@ -389,7 +389,7 @@ public class SparkCatalog extends BaseCatalog {
 
     this.catalogName = name;
     SparkSession sparkSession = SparkSession.active();
-    this.useTimestampsWithoutZone = SparkUtil.shouldStoreTimestampWithoutZone(sparkSession.conf());
+    this.useTimestampsWithoutZone = SparkUtil.useTimestampWithoutZoneInNewTables(sparkSession.conf());
     this.tables = new HadoopTables(sparkSession.sessionState().newHadoopConf());
     this.icebergCatalog = cacheEnabled ? CachingCatalog.wrap(catalog) : catalog;
     if (catalog instanceof SupportsNamespaces) {

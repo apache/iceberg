@@ -193,7 +193,7 @@ public abstract class AvroDataTest {
   public void testTimestampWithoutZone() throws IOException {
     Option<SparkSession> sparkSession = SparkSession.getActiveSession();
     if (sparkSession.isDefined()) {
-      sparkSession.get().conf().set(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE_SESSION_PROPERTY, "true");
+      sparkSession.get().conf().set(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true");
     }
 
     Schema schema = TypeUtil.assignIncreasingFreshIds(new Schema(

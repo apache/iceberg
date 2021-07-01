@@ -28,8 +28,8 @@ import org.apache.iceberg.types.Types;
 /**
  * By default Spark type {@link org.apache.iceberg.types.Types.TimestampType} should be converted to
  * {@link Types.TimestampType#withZone()} iceberg type. But we also can convert
- * {@link org.apache.iceberg.types.Types.TimestampType} to {@link Types.TimestampType#withoutZone()} ()} iceberg type
- * by setting {@link SparkUtil#READ_TIMESTAMP_AS_TIMESTAMP_WITHOUT_TIMEZONE} to 'true'
+ * {@link org.apache.iceberg.types.Types.TimestampType} to {@link Types.TimestampType#withoutZone()} iceberg type
+ * by setting {@link SparkUtil#USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES} to 'true'
  */
 class SparkFixupTimestampType extends FixupTypes {
 
