@@ -39,6 +39,7 @@ import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
@@ -108,6 +109,14 @@ public class TestParquetVectorizedReads extends AvroDataTest {
         .schema(schema)
         .named("test")
         .build();
+  }
+
+  FileAppender<GenericData.Record> getParquetV2Writer(Schema schema, File testFile) throws IOException {
+    return Parquet.write(Files.localOutput(testFile))
+            .schema(schema)
+            .named("test")
+            .writerVersion(ParquetProperties.WriterVersion.PARQUET_2_0)
+            .build();
   }
 
   void assertRecordsMatch(
@@ -259,5 +268,42 @@ public class TestParquetVectorizedReads extends AvroDataTest {
 
     assertRecordsMatch(readSchema, 30000, data, dataFile, false,
         true, BATCH_SIZE);
+  }
+
+  @Test
+  public void testSupportedReadsForParquetV2() throws Exception {
+    // Only float and double column types are written using plain encoding with Parquet V2
+    Schema schema = new Schema(
+            optional(102, "float_data", Types.FloatType.get()),
+            optional(103, "double_data", Types.DoubleType.get()));
+
+    File dataFile = temp.newFile();
+    Assert.assertTrue("Delete should succeed", dataFile.delete());
+    Iterable<GenericData.Record> data = generateData(schema, 30000, 0L,
+            RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
+    try (FileAppender<GenericData.Record> writer = getParquetV2Writer(schema, dataFile)) {
+      writer.addAll(data);
+    }
+    assertRecordsMatch(schema, 30000, data, dataFile, false,
+            true, BATCH_SIZE);
+  }
+
+  @Test
+  public void testUnsupportedReadsForParquetV2() throws Exception {
+    // Longs, ints, string types etc use delta encoding and which are not supported for vectorized reads
+    Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
+    File dataFile = temp.newFile();
+    Assert.assertTrue("Delete should succeed", dataFile.delete());
+    Iterable<GenericData.Record> data = generateData(schema, 30000, 0L,
+        RandomData.DEFAULT_NULL_PERCENTAGE, IDENTITY);
+    try (FileAppender<GenericData.Record> writer = getParquetV2Writer(schema, dataFile)) {
+      writer.addAll(data);
+    }
+    AssertHelpers.assertThrows("Vectorized reads not supported",
+        UnsupportedOperationException.class, "Cannot support vectorized reads for column", () -> {
+          assertRecordsMatch(schema, 30000, data, dataFile, false,
+              true, BATCH_SIZE);
+          return null;
+        });
   }
 }

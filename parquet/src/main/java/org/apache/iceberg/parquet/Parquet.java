@@ -170,6 +170,11 @@ public class Parquet {
       return this;
     }
 
+    public WriteBuilder writerVersion(WriterVersion version) {
+      this.writerVersion = version;
+      return this;
+    }
+
     @SuppressWarnings("unchecked")
     private <T> WriteSupport<T> getWriteSupport(MessageType type) {
       if (writeSupport != null) {

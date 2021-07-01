@@ -512,6 +512,10 @@ public class VectorizedPageIterator extends BasePageIterator {
         throw new ParquetDecodingException("could not read page in col " + desc, e);
       }
     } else {
+      if (dataEncoding != Encoding.PLAIN) {
+        throw new UnsupportedOperationException("Cannot support vectorized reads for column " + desc + " with " +
+                "encoding " + dataEncoding + ". Disable vectorized reads to read this table/file");
+      }
       plainValuesReader = new ValuesAsBytesReader();
       plainValuesReader.initFromPage(valueCount, in);
       dictionaryDecodeMode = DictionaryDecodeMode.NONE;
@@ -526,18 +530,20 @@ public class VectorizedPageIterator extends BasePageIterator {
   @Override
   protected void initDefinitionLevelsReader(DataPageV1 dataPageV1, ColumnDescriptor desc, ByteBufferInputStream in,
                                             int triplesCount) throws IOException {
-    this.vectorizedDefinitionLevelReader = newVectorizedDefinitionLevelReader(desc);
+    int bitWidth = BytesUtils.getWidthFromMaxInt(desc.getMaxDefinitionLevel());
+    this.vectorizedDefinitionLevelReader = new VectorizedParquetDefinitionLevelReader(bitWidth,
+            desc.getMaxDefinitionLevel(), setArrowValidityVector);
     this.vectorizedDefinitionLevelReader.initFromPage(triplesCount, in);
   }
 
   @Override
-  protected void initDefinitionLevelsReader(DataPageV2 dataPageV2, ColumnDescriptor desc) {
-    this.vectorizedDefinitionLevelReader = newVectorizedDefinitionLevelReader(desc);
-  }
-
-  private VectorizedParquetDefinitionLevelReader newVectorizedDefinitionLevelReader(ColumnDescriptor desc) {
-    int bitwidth = BytesUtils.getWidthFromMaxInt(desc.getMaxDefinitionLevel());
-    return new VectorizedParquetDefinitionLevelReader(bitwidth, desc.getMaxDefinitionLevel(), setArrowValidityVector);
+  protected void initDefinitionLevelsReader(DataPageV2 dataPageV2, ColumnDescriptor desc) throws IOException {
+    int bitWidth = BytesUtils.getWidthFromMaxInt(desc.getMaxDefinitionLevel());
+    // do not read the length from the stream. v2 pages handle dividing the page bytes.
+    this.vectorizedDefinitionLevelReader = new VectorizedParquetDefinitionLevelReader(bitWidth,
+            desc.getMaxDefinitionLevel(), false, setArrowValidityVector);
+    this.vectorizedDefinitionLevelReader.initFromPage(
+            dataPageV2.getValueCount(), dataPageV2.getDefinitionLevels().toInputStream());
   }
 
 }

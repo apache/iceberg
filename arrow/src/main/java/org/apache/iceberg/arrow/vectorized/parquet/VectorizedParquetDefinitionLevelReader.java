@@ -39,6 +39,11 @@ public final class VectorizedParquetDefinitionLevelReader extends BaseVectorized
     super(bitWidth, maxDefLevel, setArrowValidityVector);
   }
 
+  public VectorizedParquetDefinitionLevelReader(int bitWidth, int maxDefLevel, boolean readLength,
+                                                boolean setArrowValidityVector) {
+    super(bitWidth, maxDefLevel, readLength, setArrowValidityVector);
+  }
+
   public void readBatchOfDictionaryIds(
       final IntVector vector,
       final int startOffset,
