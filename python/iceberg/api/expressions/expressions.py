@@ -106,11 +106,12 @@ class Expressions(object):
     def not_equal(name, value):
         return UnboundPredicate(Operation.NOT_EQ, Expressions.ref(name), value)
 
-    # In Python we use "startswith", to match the direct conversion & the pythonic impl do both.
+    # startswith matches the Python API folks are used to using on strings.
     @staticmethod
     def startswith(name, value):
         return UnboundPredicate(Operation.STARTS_WITH, Expressions.ref(name), value)
 
+    # starts_with matches the camelCase to snake_case conversion used elsewhere.
     @staticmethod
     def starts_with(name, value):
         return UnboundPredicate(Operation.STARTS_WITH, Expressions.ref(name), value)
