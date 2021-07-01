@@ -406,7 +406,7 @@ This example will read all records from iceberg table and then print to the stdo
 
 ```java
 StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
-TableLoader tableLoader = TableLoader.fromHadooptable("hdfs://nn:8020/warehouse/path");
+TableLoader tableLoader = TableLoader.fromHadoopTable("hdfs://nn:8020/warehouse/path");
 DataStream<RowData> batch = FlinkSource.forRowData()
      .env(env)
      .tableLoader(tableLoader)
