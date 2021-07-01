@@ -18,6 +18,7 @@
 #
 
 site_name: Apache Iceberg
+site_url: https://iceberg.apache.org/
 site_description: A table format for large, slow-moving tabular data
 
 remote_name: apache
@@ -32,7 +33,10 @@ extra:
   versions:
     iceberg: 0.11.1
 plugins:
-  - redirects
+  - redirects:
+      redirect_maps:
+        'time-travel.md': 'spark-queries/#time-travel'
+        'presto.md': 'trino.md'
   - markdownextradata  
 markdown_extensions:
   - toc:
@@ -67,7 +71,7 @@ nav:
     - Writes: spark-writes.md
     - Maintenance Procedures: spark-procedures.md
     - Structured Streaming: spark-structured-streaming.md
-    - Time Travel: spark#time-travel
+    - Time Travel: spark-queries/#time-travel
   - Trino: https://trino.io/docs/current/connector/iceberg.html
   - Flink: flink.md
   - Hive: hive.md
@@ -92,6 +96,3 @@ nav:
     - Sponsors: https://www.apache.org/foundation/thanks.html
     - Donate: https://www.apache.org/foundation/sponsorship.html
     - Events: https://www.apache.org/events/current-event.html
-redirects:
-  time-travel/index: snapshots/index
-  presto/index: trino/index
