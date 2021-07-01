@@ -29,6 +29,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Flink data iterator that reads {@link CombinedScanTask} into a {@link CloseableIterator}
@@ -37,20 +38,46 @@ import org.apache.iceberg.io.FileIO;
  */
 @Internal
 public class DataIterator<T> implements CloseableIterator<T> {
-
   private final FileScanTaskReader<T> fileScanTaskReader;
-
   private final InputFilesDecryptor inputFilesDecryptor;
+  private final CombinedScanTask combinedTask;
+
   private Iterator<FileScanTask> tasks;
   private CloseableIterator<T> currentIterator;
+  private Position position;
 
   public DataIterator(FileScanTaskReader<T> fileScanTaskReader, CombinedScanTask task,
                       FileIO io, EncryptionManager encryption) {
     this.fileScanTaskReader = fileScanTaskReader;
-
     this.inputFilesDecryptor = new InputFilesDecryptor(task, io, encryption);
+    this.combinedTask = task;
+
     this.tasks = task.files().iterator();
     this.currentIterator = CloseableIterator.empty();
+    // fileOffset starts at -1 because we started
+    // from an empty iterator that is not from the split files.
+    this.position = new Position(-1L, 0L);
+  }
+
+  public void seek(Position startingPosition) {
+    // skip files
+    Preconditions.checkArgument(startingPosition.fileOffset() < combinedTask.files().size(),
+        "Checkpointed file offset is %d, while CombinedScanTask has %d files",
+        startingPosition.fileOffset(), combinedTask.files().size());
+    for (long i = 0L; i < startingPosition.fileOffset(); ++i) {
+      tasks.next();
+    }
+    updateCurrentIterator();
+    // skip records within the file
+    for (long i = 0; i < startingPosition.recordOffset(); ++i) {
+      if (hasNext()) {
+        next();
+      } else {
+        throw new IllegalStateException("Not enough records to skip: " +
+            startingPosition.recordOffset());
+      }
+    }
+    this.position.update(startingPosition.fileOffset(), startingPosition.recordOffset());
   }
 
   @Override
@@ -62,7 +89,12 @@ public class DataIterator<T> implements CloseableIterator<T> {
   @Override
   public T next() {
     updateCurrentIterator();
+    position.advanceRecord();
     return currentIterator.next();
+  }
+
+  public boolean isCurrentIteratorDone() {
+    return !currentIterator.hasNext();
   }
 
   /**
@@ -74,6 +106,7 @@ public class DataIterator<T> implements CloseableIterator<T> {
       while (!currentIterator.hasNext() && tasks.hasNext()) {
         currentIterator.close();
         currentIterator = openTaskIterator(tasks.next());
+        position.advanceFile();
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
@@ -89,5 +122,9 @@ public class DataIterator<T> implements CloseableIterator<T> {
     // close the current iterator
     currentIterator.close();
     tasks = null;
+  }
+
+  public Position position() {
+    return position;
   }
 }
