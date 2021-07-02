@@ -20,6 +20,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -74,6 +75,8 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   // lazy variables
   private StructType readSchema = null;
 
+  private InputPartition[] readTasks = null;
+
   SparkBatchScan(SparkSession spark, Table table, boolean caseSensitive, Schema expectedSchema,
                  List<Expression> filters, CaseInsensitiveStringMap options) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
@@ -125,13 +128,17 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
   @Override
   public InputPartition[] planInputPartitions() {
+    if (readTasks != null) {
+      return readTasks;
+    }
+
     String expectedSchemaString = SchemaParser.toJson(expectedSchema);
 
     // broadcast the table metadata as input partitions will be sent to executors
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
 
     List<CombinedScanTask> scanTasks = tasks();
-    InputPartition[] readTasks = new InputPartition[scanTasks.size()];
+    readTasks = new InputPartition[scanTasks.size()];
     for (int i = 0; i < scanTasks.size(); i++) {
       readTasks[i] = new ReadTask(
           scanTasks.get(i), tableBroadcast, expectedSchemaString,
@@ -217,7 +224,17 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   @Override
   public String description() {
     String filters = filterExpressions.stream().map(Spark3Util::describe).collect(Collectors.joining(", "));
-    return String.format("%s [filters=%s]", table, filters);
+
+    planInputPartitions();
+    List<String> filePaths = new ArrayList<>();
+    for (InputPartition partition : readTasks) {
+      SparkBatchScan.ReadTask readTask = (SparkBatchScan.ReadTask) partition;
+      for (FileScanTask partitionFile : readTask.files()) {
+        filePaths.add(partitionFile.file().path().toString());
+      }
+    }
+    String partitions = String.join(", ", filePaths);
+    return String.format("%s [filters=%s] [partitions=%s]", table, filters, partitions);
   }
 
   static class ReaderFactory implements PartitionReaderFactory {
