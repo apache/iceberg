@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.actions;
 
-import java.util.Set;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BinPackStrategy;
 import org.apache.iceberg.actions.RewriteDataFiles;
@@ -41,22 +40,6 @@ public class BaseRewriteDataFilesSpark3Action extends BaseRewriteDataFilesSparkA
   @Override
   protected BinPackStrategy binPackStrategy() {
     return new Spark3BinPackStrategy(table(), spark());
-  }
-
-  @Override
-  protected void commitFileGroups(Set<String> completedGroupIDs) {
-    coordinator.commitRewrite(table(), completedGroupIDs);
-    completedGroupIDs.forEach(groupID -> manager.removeTasks(table(), groupID));
-  }
-
-  @Override
-  protected void abortFileGroup(String groupID) {
-    try {
-      coordinator.abortRewrite(table(), groupID);
-      manager.removeTasks(table(), groupID);
-    } catch (Exception e) {
-      LOG.error("Unable to cleanup rewrite file group {} for table {}", groupID, table().name(), e);
-    }
   }
 
   @Override

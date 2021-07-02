@@ -117,6 +117,11 @@ public class FileRewriteCoordinator {
     return newDataFiles;
   }
 
+  public void clearRewrite(Table table, String fileSetID) {
+    Pair<String, String> id = toID(table, fileSetID);
+    resultMap.remove(id);
+  }
+
   public void abortRewrite(Table table, String fileSetID) {
     Pair<String, String> id = toID(table, fileSetID);
     Set<DataFile> dataFiles = resultMap.remove(id);
