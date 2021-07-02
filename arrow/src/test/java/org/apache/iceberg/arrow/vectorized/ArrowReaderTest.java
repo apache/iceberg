@@ -24,6 +24,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -43,6 +44,7 @@ import java.util.stream.Collectors;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DateDayVector;
+import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.Float4Vector;
@@ -123,7 +125,9 @@ public class ArrowReaderTest {
           "time",
           "time_nullable",
           "uuid",
-          "uuid_nullable");
+          "uuid_nullable",
+          "decimal",
+          "decimal_nullable");
 
   @Rule public final TemporaryFolder temp = new TemporaryFolder();
 
@@ -665,6 +669,26 @@ public class ArrowReaderTest {
         "time_nullable",
         (records, i) -> records.get(i).getField("time_nullable"),
         (array, i) -> LocalTime.ofNanoOfDay(array.getLong(i) * 1000));
+
+    checkColumnarArrayValues(
+        expectedNumRows,
+        expectedRows,
+        batch,
+        columnNameToIndex.get("decimal"),
+        columnSet,
+        "decimal",
+        (records, i) -> records.get(i).getField("decimal"),
+        (array, i) -> array.getDecimal(i, 9, 2));
+
+    checkColumnarArrayValues(
+        expectedNumRows,
+        expectedRows,
+        batch,
+        columnNameToIndex.get("decimal_nullable"),
+        columnSet,
+        "decimal_nullable",
+        (records, i) -> records.get(i).getField("decimal_nullable"),
+        (array, i) -> array.getDecimal(i, 9, 2));
   }
 
   private static void checkColumnarArrayValues(
@@ -728,7 +752,9 @@ public class ArrowReaderTest {
             Types.NestedField.required(22, "time", Types.TimeType.get()),
             Types.NestedField.optional(23, "time_nullable", Types.TimeType.get()),
             Types.NestedField.required(24, "uuid", Types.UUIDType.get()),
-            Types.NestedField.optional(25, "uuid_nullable", Types.UUIDType.get()));
+            Types.NestedField.optional(25, "uuid_nullable", Types.UUIDType.get()),
+            Types.NestedField.required(26, "decimal", Types.DecimalType.of(9, 2)),
+            Types.NestedField.optional(27, "decimal_nullable", Types.DecimalType.of(9, 2)));
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).month("timestamp").build();
 
@@ -809,7 +835,10 @@ public class ArrowReaderTest {
             new Field(
                 "uuid_nullable",
                 new FieldType(true, new ArrowType.FixedSizeBinary(16), null),
-                null));
+                null),
+            new Field("decimal", new FieldType(false, new ArrowType.Decimal(9, 2), null), null),
+            new Field(
+                "decimal_nullable", new FieldType(true, new ArrowType.Decimal(9, 2), null), null));
     List<Field> filteredFields =
         allFields.stream()
             .filter(f -> columnSet.contains(f.getName()))
@@ -851,6 +880,8 @@ public class ArrowReaderTest {
       byte[] uuid = bb.array();
       rec.setField("uuid", uuid);
       rec.setField("uuid_nullable", uuid);
+      rec.setField("decimal", new BigDecimal("14.0" + i % 10));
+      rec.setField("decimal_nullable", new BigDecimal("14.0" + i % 10));
       records.add(rec);
     }
     return records;
@@ -888,6 +919,8 @@ public class ArrowReaderTest {
       byte[] uuid = bb.array();
       rec.setField("uuid", uuid);
       rec.setField("uuid_nullable", uuid);
+      rec.setField("decimal", new BigDecimal("14.20"));
+      rec.setField("decimal_nullable", new BigDecimal("14.20"));
       records.add(rec);
     }
     return records;
@@ -966,6 +999,8 @@ public class ArrowReaderTest {
     assertEqualsForField(root, columnSet, "uuid", FixedSizeBinaryVector.class);
     assertEqualsForField(root, columnSet, "uuid_nullable", FixedSizeBinaryVector.class);
     assertEqualsForField(root, columnSet, "int_promotion", IntVector.class);
+    assertEqualsForField(root, columnSet, "decimal", DecimalVector.class);
+    assertEqualsForField(root, columnSet, "decimal_nullable", DecimalVector.class);
   }
 
   private void assertEqualsForField(
@@ -1188,6 +1223,24 @@ public class ArrowReaderTest {
         "time_nullable",
         (records, i) -> records.get(i).getField("time_nullable"),
         (vector, i) -> LocalTime.ofNanoOfDay(((TimeMicroVector) vector).get(i) * 1000));
+
+    checkVectorValues(
+        expectedNumRows,
+        expectedRows,
+        root,
+        columnSet,
+        "decimal",
+        (records, i) -> records.get(i).getField("decimal"),
+        (vector, i) -> ((DecimalVector) vector).getObject(i));
+
+    checkVectorValues(
+        expectedNumRows,
+        expectedRows,
+        root,
+        columnSet,
+        "decimal_nullable",
+        (records, i) -> records.get(i).getField("decimal_nullable"),
+        (vector, i) -> ((DecimalVector) vector).getObject(i));
   }
 
   private static void checkVectorValues(
