@@ -42,11 +42,11 @@ final class JdbcUtil {
   protected static final String CREATE_CATALOG_TABLE =
       "CREATE TABLE " + CATALOG_TABLE_NAME +
           "(" +
-          CATALOG_NAME + " VARCHAR(1255) NOT NULL," +
-          TABLE_NAMESPACE + " VARCHAR(1255) NOT NULL," +
-          TABLE_NAME + " VARCHAR(1255) NOT NULL," +
-          METADATA_LOCATION + " VARCHAR(32768)," +
-          PREVIOUS_METADATA_LOCATION + " VARCHAR(32768)," +
+          CATALOG_NAME + " VARCHAR(255) NOT NULL," +
+          TABLE_NAMESPACE + " VARCHAR(255) NOT NULL," +
+          TABLE_NAME + " VARCHAR(255) NOT NULL," +
+          METADATA_LOCATION + " VARCHAR(5500)," +
+          PREVIOUS_METADATA_LOCATION + " VARCHAR(5500)," +
           "PRIMARY KEY (" + CATALOG_NAME + ", " + TABLE_NAMESPACE + ", " + TABLE_NAME + ")" +
           ")";
   protected static final String GET_TABLE_SQL = "SELECT * FROM " + CATALOG_TABLE_NAME +
