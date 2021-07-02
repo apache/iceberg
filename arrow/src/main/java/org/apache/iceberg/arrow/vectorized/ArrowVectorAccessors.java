@@ -19,9 +19,11 @@
 
 package org.apache.iceberg.arrow.vectorized;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Supplier;
 import org.apache.arrow.vector.VarCharVector;
+import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory.DecimalFactory;
 import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory.StringFactory;
 
 final class ArrowVectorAccessors {
@@ -30,7 +32,7 @@ final class ArrowVectorAccessors {
 
   static {
     factory = new GenericArrowVectorAccessorFactory<>(
-        throwingSupplier("Decimal type is not supported"),
+        JavaDecimalFactory::new,
         JavaStringFactory::new,
         throwingSupplier("Struct type is not supported"),
         throwingSupplier("List type is not supported")
@@ -65,6 +67,24 @@ final class ArrowVectorAccessors {
     @Override
     public String ofBytes(byte[] bytes) {
       return new String(bytes, StandardCharsets.UTF_8);
+    }
+  }
+
+  private static final class JavaDecimalFactory implements DecimalFactory<BigDecimal> {
+
+    @Override
+    public Class<BigDecimal> getGenericClass() {
+      return BigDecimal.class;
+    }
+
+    @Override
+    public BigDecimal ofLong(long value, int precision, int scale) {
+      return BigDecimal.valueOf(value, scale);
+    }
+
+    @Override
+    public BigDecimal ofBigDecimal(BigDecimal value, int precision, int scale) {
+      return BigDecimal.valueOf(value.unscaledValue().longValue(), scale);
     }
   }
 }

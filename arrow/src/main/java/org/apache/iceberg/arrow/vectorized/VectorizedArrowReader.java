@@ -40,6 +40,7 @@ import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.arrow.ArrowSchemaUtil;
+import org.apache.iceberg.arrow.DictEncodedArrowConverter;
 import org.apache.iceberg.arrow.vectorized.parquet.VectorizedColumnIterator;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.VectorizedReader;
@@ -68,6 +69,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
   private int batchSize;
   private FieldVector vec;
+  private FieldVector nonDictEncodedVector;
   private Integer typeWidth;
   private ReadType readType;
   private NullabilityHolder nullabilityHolder;
@@ -125,11 +127,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     boolean dictEncoded = vectorizedColumnIterator.producesDictionaryEncodedVector();
     if (reuse == null || (!dictEncoded && readType == ReadType.DICTIONARY) ||
         (dictEncoded && readType != ReadType.DICTIONARY)) {
-      allocateFieldVector(dictEncoded);
-      nullabilityHolder = new NullabilityHolder(batchSize);
+      initVectors(dictEncoded);
     } else {
-      vec.setValueCount(0);
-      nullabilityHolder.reset();
+      resetVectors();
     }
     if (vectorizedColumnIterator.hasNext()) {
       if (dictEncoded) {
@@ -178,8 +178,26 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     }
     Preconditions.checkState(vec.getValueCount() == numValsToRead,
         "Number of values read, %s, does not equal expected, %s", vec.getValueCount(), numValsToRead);
-    return new VectorHolder(columnDescriptor, vec, dictEncoded, dictionary,
-        nullabilityHolder, icebergField.type());
+    return new VectorHolder(columnDescriptor, vec, nonDictEncodedVector, dictEncoded, dictionary,
+        nullabilityHolder, icebergField);
+  }
+
+  private void initVectors(boolean dictEncoded) {
+    allocateFieldVector(dictEncoded);
+    if (dictEncoded) {
+      // we only need to create/allocate it when dictEncoded is enabled
+      this.nonDictEncodedVector = DictEncodedArrowConverter.allocateNonDictEncodedArrowVector(icebergField,
+          batchSize, rootAlloc);
+    }
+    nullabilityHolder = new NullabilityHolder(batchSize);
+  }
+
+  private void resetVectors() {
+    vec.setValueCount(0);
+    if (null != nonDictEncodedVector) {
+      nonDictEncodedVector.setValueCount(0);
+    }
+    nullabilityHolder.reset();
   }
 
   private void allocateFieldVector(boolean dictionaryEncodedVector) {
@@ -433,7 +451,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       vec.setValueCount(numValsToRead);
       nulls.setNotNulls(0, numValsToRead);
 
-      return new VectorHolder.PositionVectorHolder(vec, MetadataColumns.ROW_POSITION.type(), nulls);
+      return new VectorHolder.PositionVectorHolder(vec, MetadataColumns.ROW_POSITION, nulls);
     }
 
     @Override

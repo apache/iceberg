@@ -19,7 +19,9 @@
 
 package org.apache.iceberg.arrow.vectorized;
 
+import java.math.BigDecimal;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.iceberg.arrow.DictEncodedArrowConverter;
 import org.apache.iceberg.types.Types;
 
 /**
@@ -42,6 +44,7 @@ import org.apache.iceberg.types.Types;
  *     <li>{@link Types.DateType}</li>
  *     <li>{@link Types.TimeType}</li>
  *     <li>{@link Types.UUIDType}</li>
+ *     <li>{@link Types.DecimalType}</li>
  *   </ul>
  */
 public class ColumnVector implements AutoCloseable {
@@ -56,8 +59,15 @@ public class ColumnVector implements AutoCloseable {
   }
 
   public FieldVector getFieldVector() {
-    // TODO Convert dictionary encoded vectors to correctly typed arrow vector.
-    //   e.g. convert long dictionary encoded vector to a BigIntVector.
+    return vectorHolder.vector();
+  }
+
+  public FieldVector getArrowVector() {
+    if (vectorHolder.isDictionaryEncoded()) {
+      return DictEncodedArrowConverter.copyToNonDictEncodedVector(vectorHolder.vector(),
+          vectorHolder.nonDictEncodedVector(),
+          vectorHolder.icebergField(), vectorHolder.nullabilityHolder(), accessor);
+    }
     return vectorHolder.vector();
   }
 
@@ -110,6 +120,13 @@ public class ColumnVector implements AutoCloseable {
       return null;
     }
     return accessor.getBinary(rowId);
+  }
+
+  public BigDecimal getDecimal(int rowId, int precision, int scale) {
+    if (isNullAt(rowId)) {
+      return null;
+    }
+    return (BigDecimal) accessor.getDecimal(rowId, precision, scale);
   }
 
   private static ArrowVectorAccessor<?, String, ?, ?> getVectorAccessor(VectorHolder holder) {

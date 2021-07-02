@@ -22,6 +22,7 @@ package org.apache.iceberg.arrow.vectorized;
 import org.apache.arrow.util.Preconditions;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 
@@ -32,44 +33,48 @@ import org.apache.parquet.column.Dictionary;
 public class VectorHolder {
   private final ColumnDescriptor columnDescriptor;
   private final FieldVector vector;
+  private final FieldVector nonDictEncodedVector;
   private final boolean isDictionaryEncoded;
   private final Dictionary dictionary;
   private final NullabilityHolder nullabilityHolder;
-  private final Type icebergType;
+  private final Types.NestedField icebergField;
 
   public VectorHolder(
-      ColumnDescriptor columnDescriptor, FieldVector vector, boolean isDictionaryEncoded,
-      Dictionary dictionary, NullabilityHolder holder, Type type) {
+      ColumnDescriptor columnDescriptor, FieldVector vector, FieldVector nonDictEncodedVector,
+      boolean isDictionaryEncoded, Dictionary dictionary, NullabilityHolder holder, Types.NestedField icebergField) {
     // All the fields except dictionary are not nullable unless it is a dummy holder
     Preconditions.checkNotNull(columnDescriptor, "ColumnDescriptor cannot be null");
     Preconditions.checkNotNull(vector, "Vector cannot be null");
     Preconditions.checkNotNull(holder, "NullabilityHolder cannot be null");
-    Preconditions.checkNotNull(type, "IcebergType cannot be null");
+    Preconditions.checkNotNull(icebergField, "IcebergField cannot be null");
     this.columnDescriptor = columnDescriptor;
     this.vector = vector;
+    this.nonDictEncodedVector = nonDictEncodedVector;
     this.isDictionaryEncoded = isDictionaryEncoded;
     this.dictionary = dictionary;
     this.nullabilityHolder = holder;
-    this.icebergType = type;
+    this.icebergField = icebergField;
   }
 
   // Only used for returning dummy holder
   private VectorHolder() {
     columnDescriptor = null;
     vector = null;
+    nonDictEncodedVector = null;
     isDictionaryEncoded = false;
     dictionary = null;
     nullabilityHolder = null;
-    icebergType = null;
+    icebergField = null;
   }
 
-  private VectorHolder(FieldVector vec, Type type, NullabilityHolder nulls) {
+  private VectorHolder(FieldVector vec, Types.NestedField field, NullabilityHolder nulls) {
     columnDescriptor = null;
     vector = vec;
+    nonDictEncodedVector = null;
     isDictionaryEncoded = false;
     dictionary = null;
     nullabilityHolder = nulls;
-    icebergType = type;
+    icebergField = field;
   }
 
   public ColumnDescriptor descriptor() {
@@ -78,6 +83,10 @@ public class VectorHolder {
 
   public FieldVector vector() {
     return vector;
+  }
+
+  public FieldVector nonDictEncodedVector() {
+    return nonDictEncodedVector;
   }
 
   public boolean isDictionaryEncoded() {
@@ -93,7 +102,11 @@ public class VectorHolder {
   }
 
   public Type icebergType() {
-    return icebergType;
+    return icebergField.type();
+  }
+
+  public Types.NestedField icebergField() {
+    return icebergField;
   }
 
   public int numValues() {
@@ -141,8 +154,8 @@ public class VectorHolder {
   }
 
   public static class PositionVectorHolder extends VectorHolder {
-    public PositionVectorHolder(FieldVector vector, Type type, NullabilityHolder nulls) {
-      super(vector, type, nulls);
+    public PositionVectorHolder(FieldVector vector, Types.NestedField icebergField, NullabilityHolder nulls) {
+      super(vector, icebergField, nulls);
     }
   }
 

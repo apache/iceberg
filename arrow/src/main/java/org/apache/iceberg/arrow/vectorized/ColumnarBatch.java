@@ -50,7 +50,7 @@ public class ColumnarBatch implements AutoCloseable {
    */
   public VectorSchemaRoot createVectorSchemaRootFromVectors() {
     return VectorSchemaRoot.of(Arrays.stream(columns)
-        .map(ColumnVector::getFieldVector)
+        .map(ColumnVector::getArrowVector)
         .toArray(FieldVector[]::new));
   }
 
