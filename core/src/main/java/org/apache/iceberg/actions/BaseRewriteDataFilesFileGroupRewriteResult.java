@@ -17,26 +17,24 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.actions;
+package org.apache.iceberg.actions;
 
-import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.BinPackStrategy;
-import org.apache.iceberg.actions.RewriteDataFiles;
-import org.apache.spark.sql.SparkSession;
+public class BaseRewriteDataFilesFileGroupRewriteResult implements RewriteDataFiles.FileGroupRewriteResult {
+  private final int addedDataFilesCount;
+  private final int rewrittenDataFilesCount;
 
-public class BaseRewriteDataFilesSpark3Action extends BaseRewriteDataFilesSparkAction {
-
-  protected BaseRewriteDataFilesSpark3Action(SparkSession spark, Table table) {
-    super(spark, table);
+  public BaseRewriteDataFilesFileGroupRewriteResult(int addedDataFilesCount, int rewrittenDataFilesCount) {
+    this.addedDataFilesCount = addedDataFilesCount;
+    this.rewrittenDataFilesCount = rewrittenDataFilesCount;
   }
 
   @Override
-  protected BinPackStrategy binPackStrategy() {
-    return new Spark3BinPackStrategy(table(), spark());
+  public int addedDataFilesCount() {
+    return this.addedDataFilesCount;
   }
 
   @Override
-  protected RewriteDataFiles self() {
-    return this;
+  public int rewrittenDataFilesCount() {
+    return this.rewrittenDataFilesCount;
   }
 }

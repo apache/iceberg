@@ -39,6 +39,8 @@ import org.apache.iceberg.actions.ActionsProvider;
 import org.apache.iceberg.actions.BinPackStrategy;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFiles.Result;
+import org.apache.iceberg.actions.RewriteDataFilesCommitUtil;
+import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
@@ -50,7 +52,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkTestBase;
-import org.apache.iceberg.spark.actions.BaseRewriteDataFilesSparkAction.FileGroup;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
@@ -72,6 +73,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
 
@@ -357,7 +359,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
     doThrow(new RuntimeException("Rewrite Failed"))
         .when(spyRewrite)
-        .rewriteFiles(any(), argThat(failGroup), any());
+        .rewriteFiles(any(), argThat(failGroup));
 
     AssertHelpers.assertThrows("Should fail entire rewrite if part fails", RuntimeException.class,
         () -> spyRewrite.execute());
@@ -384,12 +386,17 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
             basicRewrite(table)
                 .option(RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 100));
 
-    BaseRewriteDataFilesSparkAction spyRewrite = Mockito.spy(realRewrite);
+    BaseRewriteDataFilesSparkAction spyRewrite = spy(realRewrite);
+    RewriteDataFilesCommitUtil util = spy(new RewriteDataFilesCommitUtil(table));
 
     // Fail to commit
     doThrow(new RuntimeException("Commit Failure"))
-        .when(spyRewrite)
+        .when(util)
         .commitFileGroups(any());
+
+    doReturn(util)
+        .when(spyRewrite)
+        .commitUtil();
 
     AssertHelpers.assertThrows("Should fail entire rewrite if commit fails", RuntimeException.class,
         () -> spyRewrite.execute());
@@ -423,7 +430,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
     doThrow(new RuntimeException("Rewrite Failed"))
         .when(spyRewrite)
-        .rewriteFiles(any(), argThat(failGroup), any());
+        .rewriteFiles(any(), argThat(failGroup));
 
     AssertHelpers.assertThrows("Should fail entire rewrite if part fails", RuntimeException.class,
         () -> spyRewrite.execute());
@@ -458,7 +465,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
     doThrow(new RuntimeException("Rewrite Failed"))
         .when(spyRewrite)
-        .rewriteFiles(any(), argThat(failGroup), any());
+        .rewriteFiles(any(), argThat(failGroup));
 
     RewriteDataFiles.Result result = spyRewrite.execute();
 
@@ -497,7 +504,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
     doThrow(new RuntimeException("Rewrite Failed"))
         .when(spyRewrite)
-        .rewriteFiles(any(), argThat(failGroup), any());
+        .rewriteFiles(any(), argThat(failGroup));
 
     RewriteDataFiles.Result result = spyRewrite.execute();
 
@@ -530,14 +537,19 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
                 .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
                 .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "3");
 
-    BaseRewriteDataFilesSparkAction spyRewrite = Mockito.spy(realRewrite);
+    BaseRewriteDataFilesSparkAction spyRewrite = spy(realRewrite);
+    RewriteDataFilesCommitUtil util = spy(new RewriteDataFilesCommitUtil(table));
 
     // First and Third commits work, second does not
     doCallRealMethod()
         .doThrow(new RuntimeException("Commit Failed"))
         .doCallRealMethod()
-        .when(spyRewrite)
+        .when(util)
         .commitFileGroups(any());
+
+    doReturn(util)
+        .when(spyRewrite)
+        .commitUtil();
 
     RewriteDataFiles.Result result = spyRewrite.execute();
 
@@ -588,11 +600,16 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
 
     BaseRewriteDataFilesSparkAction action = (BaseRewriteDataFilesSparkAction) basicRewrite(table);
     BaseRewriteDataFilesSparkAction spyAction = spy(action);
+    RewriteDataFilesCommitUtil util = spy(new RewriteDataFilesCommitUtil(table));
 
     doAnswer(invocationOnMock -> {
       invocationOnMock.callRealMethod();
       throw new CommitStateUnknownException(new RuntimeException("Unknown State"));
-    }).when(spyAction).commitFileGroups(any());
+    }).when(util).commitFileGroups(any());
+
+    doReturn(util)
+        .when(spyAction)
+        .commitUtil();
 
     AssertHelpers.assertThrows("Should propagate CommitStateUnknown Exception",
         CommitStateUnknownException.class, () -> spyAction.execute());
@@ -747,7 +764,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
         .save(tableLocation);
   }
 
-  class GroupInfoMatcher implements ArgumentMatcher<FileGroup> {
+  class GroupInfoMatcher implements ArgumentMatcher<RewriteFileGroup> {
     private final Set<Integer> groupIDs;
 
     GroupInfoMatcher(Integer... globalIndex) {
@@ -755,7 +772,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     }
 
     @Override
-    public boolean matches(FileGroup argument) {
+    public boolean matches(RewriteFileGroup argument) {
       return groupIDs.contains(argument.globalIndex());
     }
   }
