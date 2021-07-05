@@ -65,9 +65,9 @@ import org.slf4j.LoggerFactory;
  * Nessie implementation of Iceberg Catalog.
  *
  * <p>
- *   A note on namespaces: Nessie namespaces are implicit and do not need to be explicitly created or deleted.
- *   The create and delete namespace methods are no-ops for the NessieCatalog. One can still list namespaces that have
- *   objects stored in them to assist with namespace-centric catalog exploration.
+ * A note on namespaces: Nessie namespaces are implicit and do not need to be explicitly created or deleted.
+ * The create and delete namespace methods are no-ops for the NessieCatalog. One can still list namespaces that have
+ * objects stored in them to assist with namespace-centric catalog exploration.
  * </p>
  */
 public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces, Configurable {
@@ -177,14 +177,14 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     boolean threw = true;
     try {
       Tasks.foreach(contents)
-           .retry(5)
-           .stopRetryOn(NessieNotFoundException.class)
-           .throwFailureWhenFinished()
-           .onFailure((c, exception) -> refresh())
-           .run(c -> {
-             client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(), reference.getHash(), c);
-             refresh(); // note: updated to reference.updateReference() with Nessie 0.6
-           }, BaseNessieClientServerException.class);
+          .retry(5)
+          .stopRetryOn(NessieNotFoundException.class)
+          .throwFailureWhenFinished()
+          .onFailure((c, exception) -> refresh())
+          .run(c -> {
+            client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(), reference.getHash(), c);
+            refresh(); // note: updated to reference.updateReference() with Nessie 0.6
+          }, BaseNessieClientServerException.class);
       threw = false;
     } catch (NessieConflictException e) {
       logger.error("Cannot drop table: failed after retry (update ref and retry)", e);
@@ -212,7 +212,8 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
     }
 
     Operations contents = ImmutableOperations.builder()
-        .addOperations(ImmutablePut.builder().key(NessieUtil.toKey(to)).contents(existingFromTable).build(),
+        .addOperations(
+            ImmutablePut.builder().key(NessieUtil.toKey(to)).contents(existingFromTable).build(),
             ImmutableDelete.builder().key(NessieUtil.toKey(from)).build())
         .commitMeta(NessieUtil.buildCommitMetadata("iceberg rename table", catalogOptions))
         .build();
@@ -227,7 +228,6 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
             client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(), reference.getHash(), c);
             refresh();
           }, BaseNessieClientServerException.class);
-
     } catch (NessieNotFoundException e) {
       // important note: the NotFoundException refers to the ref only. If a table was not found it would imply that the
       // another commit has deleted the table from underneath us. This would arise as a Conflict exception as opposed to
@@ -247,7 +247,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
    * creating namespaces in nessie is implicit, therefore this is a no-op. Metadata is ignored.
    *
    * @param namespace a multi-part namespace
-   * @param metadata a string Map of properties for the given namespace
+   * @param metadata  a string Map of properties for the given namespace
    */
   @Override
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
@@ -338,11 +338,13 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
       return new UpdateableReference(ref, client.getTreeApi());
     } catch (NessieNotFoundException ex) {
       if (requestedRef != null) {
-        throw new IllegalArgumentException(String.format("Nessie ref '%s' does not exist. " +
-            "This ref must exist before creating a NessieCatalog.", requestedRef), ex);
+        throw new IllegalArgumentException(String.format(
+            "Nessie ref '%s' does not exist. This ref must exist before creating a NessieCatalog.",
+            requestedRef), ex);
       }
 
-      throw new IllegalArgumentException(String.format("Nessie does not have an existing default branch." +
+      throw new IllegalArgumentException(String.format(
+          "Nessie does not have an existing default branch." +
               "Either configure an alternative ref via %s or create the default branch on the server.",
           NessieConfigConstants.CONF_NESSIE_REF), ex);
     }

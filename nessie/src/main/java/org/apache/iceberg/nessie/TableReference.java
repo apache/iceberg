@@ -57,7 +57,8 @@ public class TableReference {
    */
   public static TableReference parse(TableIdentifier path) {
     TableReference pti = parse(path.name());
-    return new TableReference(TableIdentifier.of(path.namespace(), pti.tableIdentifier().name()),
+    return new TableReference(
+        TableIdentifier.of(path.namespace(), pti.tableIdentifier().name()),
         pti.timestamp(),
         pti.reference());
   }

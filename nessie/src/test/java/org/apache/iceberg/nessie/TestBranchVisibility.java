@@ -30,7 +30,6 @@ import org.projectnessie.error.NessieNotFoundException;
 
 public class TestBranchVisibility extends BaseTestIceberg {
 
-
   private final TableIdentifier tableIdentifier1 = TableIdentifier.of("test-ns", "table1");
   private final TableIdentifier tableIdentifier2 = TableIdentifier.of("test-ns", "table2");
   private NessieCatalog testCatalog;
@@ -39,7 +38,6 @@ public class TestBranchVisibility extends BaseTestIceberg {
   public TestBranchVisibility() {
     super("main");
   }
-
 
   @Before
   public void before() throws NessieNotFoundException, NessieConflictException {
@@ -55,8 +53,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
     catalog.dropTable(tableIdentifier1);
     catalog.dropTable(tableIdentifier2);
     catalog.refresh();
-    catalog.getTreeApi().deleteBranch("test",
-        catalog.getTreeApi().getReferenceByName("test").getHash());
+    catalog.getTreeApi().deleteBranch("test", catalog.getTreeApi().getReferenceByName("test").getHash());
     testCatalog = null;
   }
 
@@ -111,7 +108,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
   }
 
   @Test
-  public void testConcurrentChanges() throws NessieNotFoundException {
+  public void testConcurrentChanges() {
     NessieCatalog emptyTestCatalog = initCatalog("test");
     updateSchema(testCatalog, tableIdentifier1);
     // Updating table with out of date hash. We expect this to succeed because of retry despite the conflict.
@@ -122,10 +119,8 @@ public class TestBranchVisibility extends BaseTestIceberg {
     catalog.loadTable(identifier).updateSchema().addColumn("id" + schemaCounter++, Types.LongType.get()).commit();
   }
 
-  private void testCatalogEquality(NessieCatalog catalog,
-                                   NessieCatalog compareCatalog,
-                                   boolean table1Equal,
-                                   boolean table2Equal) {
+  private void testCatalogEquality(
+      NessieCatalog catalog, NessieCatalog compareCatalog, boolean table1Equal, boolean table2Equal) {
     String testTable1 = metadataLocation(compareCatalog, tableIdentifier1);
     String table1 = metadataLocation(catalog, tableIdentifier1);
     String testTable2 = metadataLocation(compareCatalog, tableIdentifier2);
