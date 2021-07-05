@@ -110,6 +110,31 @@ Tables do not require rename, except for tables that use atomic rename to implem
 * **Data file** -- A file that contains rows of a table.
 * **Delete file** -- A file that encodes rows of a table that are deleted by position or data values.
 
+#### Writer requirements
+
+Some tables in this spec have columns that specify requirements for v1 and v2 tables. These requirements are intended for writers when adding metadata files to a table with the given version.
+
+| Requirement | Write behavior |
+|-------------|----------------|
+| (blank)     | The field should be omitted |
+| _optional_  | The field can be written |
+| _required_  | The field must be written |
+
+Readers should be more permissive because v1 metadata files are allowed in v2 tables so that tables can be upgraded to v2 without rewriting the metadata tree. For manifest list and manifest files, this table shows the expected v2 read behavior:
+
+| v1         | v2         | v2 read behavior |
+|------------|------------|------------------|
+|            | _optional_ | Read the field as _optional_ |
+|            | _required_ | Read the field as _optional_; it may be missing in v1 files |
+| _optional_ |            | Ignore the field |
+| _optional_ | _optional_ | Read the field as _optional_ |
+| _optional_ | _required_ | Read the field as _optional_; it may be missing in v1 files |
+| _required_ |            | Ignore the field |
+| _required_ | _optional_ | Read the field as _optional_ |
+| _required_ | _required_ | Fill in a default or throw an exception if the field is missing |
+
+Readers may be more strict for metadata JSON files because the JSON files are not reused and will always match the table version. Required v2 fields that were not present in v1 or optional in v1 may be handled as required fields. For example, a v2 table that is missing `last-sequence-number` can throw an exception.
+
 ### Schemas and Data Types
 
 A table's **schema** is a list of named columns. All data types are either primitives or nested types, which are maps, lists, or structs. A table schema is also a struct type.
@@ -979,42 +1004,26 @@ This serialization scheme is for storing single values as individual binary valu
 
 ## Format version changes
 
-Some tables in this spec have columns that specify requirements for v1 and v2 tables. These requirements are intended for writers when adding metadata files to a table with the given version.
-
-| Requirement | Write behavior |
-|-------------|----------------|
-| (blank)     | The field should be omitted |
-| _optional_  | The field can be written |
-| _required_  | The field must be written |
-
-Readers should be more permissive because v1 metadata files are allowed in v2 tables so that tables can be upgraded to v2 without rewriting the metadata tree. For manifest list and manifest files, this table shows the expected v2 read behavior:
-
-| v1         | v2         | v2 read behavior |
-|------------|------------|------------------|
-|            | _optional_ | Read the field as _optional_ |
-|            | _required_ | Read the field as _optional_; it may be missing in v1 files |
-| _optional_ |            | Ignore the field |
-| _optional_ | _optional_ | Read the field as _optional_ |
-| _optional_ | _required_ | Read the field as _optional_; it may be missing in v1 files |
-| _required_ |            | Ignore the field |
-| _required_ | _optional_ | Read the field as _optional_ |
-| _required_ | _required_ | Fill in a default or throw an exception if the field is missing |
-
-Readers may be more strict for metadata JSON files because a v1 JSON file will not appear in a v2 table. Required v2 fields that were not present in v1 or optional in v1 may be handled as required fields.
-
 ### Version 2
 
 Writing v1 metadata:
 
 * Table metadata field `last-sequence-number` should not be written
 * Snapshot field `sequence-number` should not be written
+* Manifest list field `sequence-number` should not be written
+* Manifest list field `min-sequence-number` should not be written
+* Manifest list field `content` must be 0 (data) or omitted
 * Manifest entry field `sequence_number` should not be written
+* Data file field `content` must be 0 (data) or omitted
 
 Reading v1 metadata for v2:
 
 * Table metadata field `last-sequence-number` must default to 0
 * Snapshot field `sequence-number` must default to 0
+* Manifest list field `sequence-number` must default to 0
+* Manifest list field `min-sequence-number` must default to 0
 * Manifest list field `content` must default to 0 (data)
+* Manifest entry field `sequence_number` must default to 0
 * Data file field `content` must default to 0 (data)
 
 Writing v2 metadata:
