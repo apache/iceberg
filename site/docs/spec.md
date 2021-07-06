@@ -110,6 +110,31 @@ Tables do not require rename, except for tables that use atomic rename to implem
 * **Data file** -- A file that contains rows of a table.
 * **Delete file** -- A file that encodes rows of a table that are deleted by position or data values.
 
+#### Writer requirements
+
+Some tables in this spec have columns that specify requirements for v1 and v2 tables. These requirements are intended for writers when adding metadata files to a table with the given version.
+
+| Requirement | Write behavior |
+|-------------|----------------|
+| (blank)     | The field should be omitted |
+| _optional_  | The field can be written |
+| _required_  | The field must be written |
+
+Readers should be more permissive because v1 metadata files are allowed in v2 tables so that tables can be upgraded to v2 without rewriting the metadata tree. For manifest list and manifest files, this table shows the expected v2 read behavior:
+
+| v1         | v2         | v2 read behavior |
+|------------|------------|------------------|
+|            | _optional_ | Read the field as _optional_ |
+|            | _required_ | Read the field as _optional_; it may be missing in v1 files |
+| _optional_ |            | Ignore the field |
+| _optional_ | _optional_ | Read the field as _optional_ |
+| _optional_ | _required_ | Read the field as _optional_; it may be missing in v1 files |
+| _required_ |            | Ignore the field |
+| _required_ | _optional_ | Read the field as _optional_ |
+| _required_ | _required_ | Fill in a default or throw an exception if the field is missing |
+
+Readers may be more strict for metadata JSON files because the JSON files are not reused and will always match the table version. Required v2 fields that were not present in v1 or optional in v1 may be handled as required fields. For example, a v2 table that is missing `last-sequence-number` can throw an exception.
+
 ### Schemas and Data Types
 
 A table's **schema** is a list of named columns. All data types are either primitives or nested types, which are maps, lists, or structs. A table schema is also a struct type.
@@ -983,26 +1008,68 @@ This serialization scheme is for storing single values as individual binary valu
 
 Writing v1 metadata:
 
-* Table metadata field `last-sequence-number` should not be written.
-* Snapshot field `sequence-number` should not be written.
+* Table metadata field `last-sequence-number` should not be written
+* Snapshot field `sequence-number` should not be written
+* Manifest list field `sequence-number` should not be written
+* Manifest list field `min-sequence-number` should not be written
+* Manifest list field `content` must be 0 (data) or omitted
+* Manifest entry field `sequence_number` should not be written
+* Data file field `content` must be 0 (data) or omitted
 
-Reading v1 metadata:
+Reading v1 metadata for v2:
 
-* Table metadata field `last-sequence-number` must default to 0.
-* Snapshot field `sequence-number` must default to 0.
+* Table metadata field `last-sequence-number` must default to 0
+* Snapshot field `sequence-number` must default to 0
+* Manifest list field `sequence-number` must default to 0
+* Manifest list field `min-sequence-number` must default to 0
+* Manifest list field `content` must default to 0 (data)
+* Manifest entry field `sequence_number` must default to 0
+* Data file field `content` must default to 0 (data)
 
 Writing v2 metadata:
 
-* Table metadata added required field `last-sequence-number`.
-* Table metadata now requires field `table-uuid`.
-* Table metadata now requires field `partition-specs`.
-* Table metadata now requires field `default-spec-id`.
-* Table metadata now requires field `last-partition-id`.
-* Table metadata field `partition-spec` is no longer required and may be omitted.
-* Snapshot added required field `sequence-number`.
-* Snapshot now requires field `manifest-list`.
-* Snapshot field `manifests` is no longer allowed.
-* Table metadata now requires field `sort-orders`.
-* Table metadata now requires field `default-sort-order-id`.
+* Table metadata JSON:
+    * `last-sequence-number` was added and is required; default to 0 when reading v1 metadata
+    * `table-uuid` is now required
+    * `current-schema-id` is now required
+    * `schemas` is now required
+    * `partition-specs` is now required
+    * `default-spec-id` is now required
+    * `last-partition-id` is now required
+    * `sort-orders` is now required
+    * `default-sort-order-id` is now required
+    * `schema` is no longer required and should be omitted; use `schemas` and `current-schema-id` instead
+    * `partition-spec` is no longer required and should be omitted; use `partition-specs` and `default-spec-id` instead
+* Snapshot JSON:
+    * `sequence-number` was added and is required; default to 0 when reading v1 metadata
+    * `manifest-list` is now required
+    * `manifests` is no longer required and should be omitted; always use `manifest-list` instead
+* Manifest list `manifest_file`:
+    * `content` was added and is required; 0=data, 1=deletes; default to 0 when reading v1 manifest lists
+    * `sequence_number` was added and is required
+    * `min_sequence_number` was added and is required
+    * `added_files_count` is now required
+    * `existing_files_count` is now required
+    * `deleted_files_count` is now required
+    * `added_rows_count` is now required
+    * `existing_rows_count` is now required
+    * `deleted_rows_count` is now required
+* Manifest list `field_summary`:
+    * `contains_nan` is now required
+* Manifest key-value metadata:
+    * `schema-id` is now required
+    * `partition-spec-id` is now required
+    * `format-version` is now required
+    * `content` was added and is required (must be "data" or "deletes")
+* Manifest `manifest_entry`:
+    * `snapshot_id` is now optional to support inheritance
+    * `sequence_number` was added and is optional, to support inheritance
+* Manifest `data_file`:
+    * `content` was added and is required; 0=data, 1=position deletes, 2=equality deletes; default to 0 when reading v1 manifests
+    * `equality_ids` was added, to be used for equality deletes only
+    * `block_size_in_bytes` was removed (breaks v1 reader compatibility)
+    * `file_ordinal` was removed
+    * `sort_columns` was removed
+    * `distinct_counts` was removed
 
 Note that these requirements apply when writing data to a v2 table. Tables that are upgraded from v1 may contain metadata that does not follow these requirements. Implementations should remain backward-compatible with v1 metadata requirements.
