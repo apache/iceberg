@@ -41,6 +41,9 @@ import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Functionality used by RewriteDataFile Actions from different platforms to handle commits.
+ */
 public class RewriteDataFilesCommitUtil {
   private static final Logger LOG = LoggerFactory.getLogger(RewriteDataFilesCommitUtil.class);
 
@@ -100,6 +103,13 @@ public class RewriteDataFilesCommitUtil {
     }
   }
 
+  /**
+   * An async service which allows for committing multiple file groups as their rewrites complete. The service also
+   * allows for partial-progress since commits can fail. Once the service has been closed no new file groups should not
+   * be offered.
+   * @param rewritesPerCommit number of file groups to include in a commit
+   * @return the service for handling commits
+   */
   public CommitService service(int rewritesPerCommit) {
     return new CommitService(rewritesPerCommit);
   }
@@ -123,6 +133,9 @@ public class RewriteDataFilesCommitUtil {
       committedRewrites = Lists.newArrayList();
     }
 
+    /**
+     * Starts a single threaded executor service for handling file group commits.
+     */
     public void start() {
       Preconditions.checkState(running.compareAndSet(false, true), "Rewrite Commit service already started");
       LOG.info("Starting commit service for {}", table);
@@ -149,12 +162,20 @@ public class RewriteDataFilesCommitUtil {
       });
     }
 
+    /**
+     * Places a file group in the queue to be asynchronously committed either when the queue has enough elements
+     * to do a batch of size {@link #rewritesPerCommit} or the service has been closed.
+     * @param group file group to eventually be committed
+     */
     public void offer(RewriteFileGroup group) {
-      LOG.info("Offered {}", group);
+      LOG.info("Offered to commit service: {}", group);
       Preconditions.checkState(running.get(), "Cannot add rewrites to a service which has already been closed");
       completedRewrites.add(group);
     }
 
+    /**
+     * Returns all File groups which have been committed
+     */
     public List<RewriteFileGroup> results() {
       Preconditions.checkState(committerService.isShutdown(),
           "Cannot get results from a service which has not been closed");
@@ -180,6 +201,8 @@ public class RewriteDataFilesCommitUtil {
       } catch (InterruptedException e) {
         throw new RuntimeException("Cannot complete commit for rewrite, commit service interrupted", e);
       }
+      Preconditions.checkState(completedRewrites.isEmpty(), "File groups offered after service was closed, " +
+          "they were not successfully committed.");
     }
   }
 }

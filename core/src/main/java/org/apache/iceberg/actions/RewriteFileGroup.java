@@ -28,6 +28,10 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
+/**
+ * Container class representing a set of files to be rewritten by a RewriteAction and the new files which have been
+ * written by the action.
+ */
 public class RewriteFileGroup {
   private final RewriteDataFiles.FileGroupInfo info;
   private final List<FileScanTask> fileScanTasks;

@@ -166,14 +166,15 @@ abstract class BaseRewriteDataFilesSparkAction
   }
 
   @VisibleForTesting
-  void rewriteFiles(RewriteExecutionContext ctx, RewriteFileGroup fileGroup) {
+  RewriteFileGroup rewriteFiles(RewriteExecutionContext ctx, RewriteFileGroup fileGroup) {
     String desc = jobDesc(fileGroup, ctx);
-    Set<DataFile> addedFiles =
-        withJobGroupInfo(newJobGroupInfo("REWRITE-DATA-FILES", desc),
-            () -> strategy.rewriteFiles(fileGroup.fileScans()));
+    Set<DataFile> addedFiles = withJobGroupInfo(
+        newJobGroupInfo("REWRITE-DATA-FILES", desc),
+        () -> strategy.rewriteFiles(fileGroup.fileScans()));
 
     fileGroup.outputFiles(addedFiles);
     LOG.info("Rewrite Files Ready to be Committed - {}", desc);
+    return fileGroup;
   }
 
   private ExecutorService rewriteService() {
@@ -207,14 +208,13 @@ abstract class BaseRewriteDataFilesSparkAction
 
     try {
       rewriteTaskBuilder.run(fileGroup -> {
-        rewriteFiles(ctx, fileGroup);
-        rewrittenGroups.add(fileGroup);
+        rewrittenGroups.add(rewriteFiles(ctx, fileGroup));
       });
     } catch (Exception e) {
       // At least one rewrite group failed, clean up all completed rewrites
       LOG.error("Cannot complete rewrite, {} is not enabled and one of the file set groups failed to " +
-          "be rewritten. This error occurred during the writing of new files, not during the commit process. This" +
-          "indicates something is wrong that doesn't involve conflicts with other Iceberg operations. Enabling" +
+          "be rewritten. This error occurred during the writing of new files, not during the commit process. This " +
+          "indicates something is wrong that doesn't involve conflicts with other Iceberg operations. Enabling " +
           "{} may help in this case but the root cause should be investigated. Cleaning up {} groups which finished " +
           "being written.", PARTIAL_PROGRESS_ENABLED, PARTIAL_PROGRESS_ENABLED, rewrittenGroups.size(), e);
 
@@ -231,16 +231,14 @@ abstract class BaseRewriteDataFilesSparkAction
       rewrittenGroups.forEach(group -> results.put(group.info(), group.asResult()));
     } catch (ValidationException | CommitFailedException e) {
       String errorMessage = String.format(
-          "Cannot commit rewrite because of a ValidationException or CommitFailedException. This usually means that" +
-              "this rewrite has conflicted with another concurrent Iceberg operation. To reduce the likelihood of" +
-              "conflicts, set %s which will break up the rewrite into multiple smaller commits controlled by %s." +
-              "Separate smaller rewrite commits can succeed independently while any commits that conflict with" +
+          "Cannot commit rewrite because of a ValidationException or CommitFailedException. This usually means that " +
+              "this rewrite has conflicted with another concurrent Iceberg operation. To reduce the likelihood of " +
+              "conflicts, set %s which will break up the rewrite into multiple smaller commits controlled by %s. " +
+              "Separate smaller rewrite commits can succeed independently while any commits that conflict with " +
               "another Iceberg operation will be ignored. This mode will create additional snapshots in the table " +
               "history, one for each commit.",
           PARTIAL_PROGRESS_ENABLED, PARTIAL_PROGRESS_MAX_COMMITS);
       throw new RuntimeException(errorMessage, e);
-    } catch (Exception e) {
-      throw e;
     }
 
     return new BaseRewriteDataFilesResult(Maps.newHashMap(results));
@@ -259,13 +257,8 @@ abstract class BaseRewriteDataFilesSparkAction
         .suppressFailureWhenFinished()
         .executeWith(rewriteService)
         .noRetry()
-        .onFailure((fileGroup, exception) -> {
-          LOG.error("Failure during rewrite process for group {}", fileGroup.info(), exception);
-        })
-        .run(fileGroup -> {
-          rewriteFiles(ctx, fileGroup);
-          commitService.offer(fileGroup);
-        });
+        .onFailure((fileGroup, exception) -> LOG.error("Failure during rewrite group {}", fileGroup.info(), exception))
+        .run(fileGroup -> commitService.offer(rewriteFiles(ctx, fileGroup)));
     rewriteService.shutdown();
 
     // Stop Commit service
@@ -287,12 +280,16 @@ abstract class BaseRewriteDataFilesSparkAction
     // Todo Add intelligence to the order in which we do rewrites instead of just using partition order
     return fileGroupsByPartition.entrySet().stream()
         .flatMap(
-            e -> e.getValue().stream().map(tasks -> {
-              int globalIndex = ctx.currentGlobalIndex();
-              int partitionIndex = ctx.currentPartitionIndex(e.getKey());
-              return new RewriteFileGroup(
-                  new BaseRewriteDataFilesFileGroupInfo(globalIndex, partitionIndex, e.getKey()), tasks);
-            }));
+            e -> {
+              StructLike partition = e.getKey();
+              List<List<FileScanTask>> fileGroups = e.getValue();
+              return fileGroups.stream().map(tasks -> {
+                int globalIndex = ctx.currentGlobalIndex();
+                int partitionIndex = ctx.currentPartitionIndex(partition));
+                FileGroupInfo info = new BaseRewriteDataFilesFileGroupInfo(globalIndex, partitionIndex, partition);
+                return new RewriteFileGroup(info, tasks);
+              });
+            });
   }
 
   private void validateOptions() {
@@ -303,7 +300,7 @@ abstract class BaseRewriteDataFilesSparkAction
     invalidKeys.removeAll(validOptions);
 
     Preconditions.checkArgument(invalidKeys.isEmpty(),
-        "Cannot use options %s, they are not supported by RewriteDatafiles or the strategy %s",
+        "Cannot use options %s, they are not supported by the action or the strategy %s",
         invalidKeys, strategy.name());
 
     maxConcurrentFileGroupRewrites = PropertyUtil.propertyAsInt(options(),
