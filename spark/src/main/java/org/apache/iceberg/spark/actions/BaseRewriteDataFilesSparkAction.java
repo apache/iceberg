@@ -285,7 +285,7 @@ abstract class BaseRewriteDataFilesSparkAction
               List<List<FileScanTask>> fileGroups = e.getValue();
               return fileGroups.stream().map(tasks -> {
                 int globalIndex = ctx.currentGlobalIndex();
-                int partitionIndex = ctx.currentPartitionIndex(partition));
+                int partitionIndex = ctx.currentPartitionIndex(partition);
                 FileGroupInfo info = new BaseRewriteDataFilesFileGroupInfo(globalIndex, partitionIndex, partition);
                 return new RewriteFileGroup(info, tasks);
               });
