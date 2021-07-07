@@ -279,7 +279,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
             .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "10")
             .execute();
 
-    Assert.assertEquals("Should have 10 fileGroups", result.resultMap().keySet().size(), 10);
+    Assert.assertEquals("Should have 10 fileGroups", result.rewriteResults().size(), 10);
 
     table.refresh();
 
@@ -304,7 +304,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
             .option(BinPackStrategy.MIN_INPUT_FILES, "1")
             .execute();
 
-    Assert.assertEquals("Should have 10 fileGroups", result.resultMap().keySet().size(), 10);
+    Assert.assertEquals("Should have 10 fileGroups", result.rewriteResults().size(), 10);
 
     table.refresh();
 
@@ -330,7 +330,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
             .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "3")
             .execute();
 
-    Assert.assertEquals("Should have 10 fileGroups", result.resultMap().keySet().size(), 10);
+    Assert.assertEquals("Should have 10 fileGroups", result.rewriteResults().size(), 10);
 
     table.refresh();
 
@@ -469,7 +469,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
 
     RewriteDataFiles.Result result = spyRewrite.execute();
 
-    Assert.assertEquals("Should have 7 fileGroups", result.resultMap().keySet().size(), 7);
+    Assert.assertEquals("Should have 7 fileGroups", result.rewriteResults().size(), 7);
 
     table.refresh();
 
@@ -508,7 +508,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
 
     RewriteDataFiles.Result result = spyRewrite.execute();
 
-    Assert.assertEquals("Should have 7 fileGroups", result.resultMap().keySet().size(), 7);
+    Assert.assertEquals("Should have 7 fileGroups", result.rewriteResults().size(), 7);
 
     table.refresh();
 
@@ -554,7 +554,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     RewriteDataFiles.Result result = spyRewrite.execute();
 
     // Commit 1: 4/4 + Commit 2 failed 0/4 + Commit 3: 2/2 == 6 out of 10 total groups comitted
-    Assert.assertEquals("Should have 6 fileGroups", 6, result.resultMap().keySet().size());
+    Assert.assertEquals("Should have 6 fileGroups", 6, result.rewriteResults().size());
 
     table.refresh();
 
@@ -773,7 +773,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
 
     @Override
     public boolean matches(RewriteFileGroup argument) {
-      return groupIDs.contains(argument.globalIndex());
+      return groupIDs.contains(argument.info().globalIndex());
     }
   }
 }

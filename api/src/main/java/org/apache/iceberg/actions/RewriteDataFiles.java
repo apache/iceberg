@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.actions;
 
-import java.util.Map;
+import java.util.List;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.Expression;
 
@@ -100,14 +100,14 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
    * will report a total failure for the job.
    */
   interface Result {
-    Map<FileGroupInfo, FileGroupRewriteResult> resultMap();
+    List<FileGroupRewriteResult> rewriteResults();
 
     default int addedDataFilesCount() {
-      return resultMap().values().stream().mapToInt(FileGroupRewriteResult::addedDataFilesCount).sum();
+      return rewriteResults().stream().mapToInt(FileGroupRewriteResult::addedDataFilesCount).sum();
     }
 
     default int rewrittenDataFilesCount() {
-      return resultMap().values().stream().mapToInt(FileGroupRewriteResult::rewrittenDataFilesCount).sum();
+      return rewriteResults().stream().mapToInt(FileGroupRewriteResult::rewrittenDataFilesCount).sum();
     }
   }
 
@@ -116,6 +116,8 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
    *  which were formerly part of the table but have been rewritten.
    */
   interface FileGroupRewriteResult {
+    FileGroupInfo info();
+
     int addedDataFilesCount();
 
     int rewrittenDataFilesCount();

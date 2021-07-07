@@ -56,32 +56,4 @@ public class BaseRewriteDataFilesFileGroupInfo implements RewriteDataFiles.FileG
         .add("partition", partition)
         .toString();
   }
-
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-    if (o == null || getClass() != o.getClass()) {
-      return false;
-    }
-
-    BaseRewriteDataFilesFileGroupInfo that = (BaseRewriteDataFilesFileGroupInfo) o;
-
-    if (globalIndex != that.globalIndex) {
-      return false;
-    }
-    if (partitionIndex != that.partitionIndex) {
-      return false;
-    }
-    return partition.equals(that.partition);
-  }
-
-  @Override
-  public int hashCode() {
-    int result = globalIndex;
-    result = 31 * result + partitionIndex;
-    result = 31 * result + partition.hashCode();
-    return result;
-  }
 }

@@ -19,21 +19,19 @@
 
 package org.apache.iceberg.actions;
 
-import java.util.Map;
-import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
+import java.util.List;
 import org.apache.iceberg.actions.RewriteDataFiles.FileGroupRewriteResult;
 import org.apache.iceberg.actions.RewriteDataFiles.Result;
 
 public class BaseRewriteDataFilesResult implements Result {
-  private final Map<FileGroupInfo, FileGroupRewriteResult> resultMap;
+  private final List<FileGroupRewriteResult> rewriteResults;
 
-  public BaseRewriteDataFilesResult(
-      Map<FileGroupInfo, FileGroupRewriteResult> resultMap) {
-    this.resultMap = resultMap;
+  public BaseRewriteDataFilesResult(List<FileGroupRewriteResult> rewriteResults) {
+    this.rewriteResults = rewriteResults;
   }
 
   @Override
-  public Map<FileGroupInfo, FileGroupRewriteResult> resultMap() {
-    return resultMap;
+  public List<FileGroupRewriteResult> rewriteResults() {
+    return rewriteResults;
   }
 }

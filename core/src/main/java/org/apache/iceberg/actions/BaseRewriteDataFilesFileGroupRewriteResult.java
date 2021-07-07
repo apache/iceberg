@@ -19,13 +19,23 @@
 
 package org.apache.iceberg.actions;
 
-public class BaseRewriteDataFilesFileGroupRewriteResult implements RewriteDataFiles.FileGroupRewriteResult {
+import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
+import org.apache.iceberg.actions.RewriteDataFiles.FileGroupRewriteResult;
+
+public class BaseRewriteDataFilesFileGroupRewriteResult implements FileGroupRewriteResult {
   private final int addedDataFilesCount;
   private final int rewrittenDataFilesCount;
+  private final FileGroupInfo info;
 
-  public BaseRewriteDataFilesFileGroupRewriteResult(int addedDataFilesCount, int rewrittenDataFilesCount) {
-    this.addedDataFilesCount = addedDataFilesCount;
-    this.rewrittenDataFilesCount = rewrittenDataFilesCount;
+  public BaseRewriteDataFilesFileGroupRewriteResult(FileGroupInfo info, int addedFilesCount, int rewrittenFilesCount) {
+    this.info = info;
+    this.addedDataFilesCount = addedFilesCount;
+    this.rewrittenDataFilesCount = rewrittenFilesCount;
+  }
+
+  @Override
+  public FileGroupInfo info() {
+    return info;
   }
 
   @Override

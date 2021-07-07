@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -124,7 +123,7 @@ abstract class BaseRewriteDataFilesSparkAction
 
     if (ctx.totalGroupCount() == 0) {
       LOG.info("Nothing found to rewrite in {}", table.name());
-      return new BaseRewriteDataFilesResult(Collections.emptyMap());
+      return new BaseRewriteDataFilesResult(Collections.emptyList());
     }
 
     if (partialProgressEnabled) {
@@ -196,7 +195,6 @@ abstract class BaseRewriteDataFilesSparkAction
     RewriteDataFilesCommitManager commitUtil = commitUtil();
 
     ConcurrentLinkedQueue<RewriteFileGroup> rewrittenGroups = Queues.newConcurrentLinkedQueue();
-    ConcurrentMap<FileGroupInfo, FileGroupRewriteResult> results = Maps.newConcurrentMap();
 
     Tasks.Builder<RewriteFileGroup> rewriteTaskBuilder = Tasks.foreach(groupStream)
         .executeWith(rewriteService)
@@ -228,7 +226,6 @@ abstract class BaseRewriteDataFilesSparkAction
 
     try {
       commitUtil.commitOrClean(Sets.newHashSet(rewrittenGroups));
-      rewrittenGroups.forEach(group -> results.put(group.info(), group.asResult()));
     } catch (ValidationException | CommitFailedException e) {
       String errorMessage = String.format(
           "Cannot commit rewrite because of a ValidationException or CommitFailedException. This usually means that " +
@@ -241,7 +238,10 @@ abstract class BaseRewriteDataFilesSparkAction
       throw new RuntimeException(errorMessage, e);
     }
 
-    return new BaseRewriteDataFilesResult(Maps.newHashMap(results));
+    List<FileGroupRewriteResult> rewriteResults = rewrittenGroups.stream()
+        .map(RewriteFileGroup::asResult)
+        .collect(Collectors.toList());
+    return new BaseRewriteDataFilesResult(rewriteResults);
   }
 
   private Result doExecuteWithPartialProgress(RewriteExecutionContext ctx, Stream<RewriteFileGroup> groupStream) {
@@ -270,8 +270,10 @@ abstract class BaseRewriteDataFilesSparkAction
           "into smaller commits.", PARTIAL_PROGRESS_ENABLED, PARTIAL_PROGRESS_MAX_COMMITS);
     }
 
-    return new BaseRewriteDataFilesResult(commitResults.stream()
-        .collect(Collectors.toMap(RewriteFileGroup::info, RewriteFileGroup::asResult)));
+    List<FileGroupRewriteResult> rewriteResults = commitResults.stream()
+        .map(RewriteFileGroup::asResult)
+        .collect(Collectors.toList());
+    return new BaseRewriteDataFilesResult(rewriteResults);
   }
 
   private Stream<RewriteFileGroup> toGroupStream(RewriteExecutionContext ctx,
@@ -325,14 +327,18 @@ abstract class BaseRewriteDataFilesSparkAction
   }
 
   private String jobDesc(RewriteFileGroup group, RewriteExecutionContext ctx) {
-    StructLike partition = group.partition();
+    StructLike partition = group.info().partition();
     if (partition.size() > 0) {
       return String.format("Rewriting %d files (%s, file group %d/%d, %s (%d/%d)) in %s",
-          group.numInputFiles(), strategy.name(), group.globalIndex(), ctx.totalGroupCount(), partition,
-          group.partitionIndex(), ctx.groupsInPartition(partition), table.name());
+          group.rewrittenFiles().size(),
+          strategy.name(), group.info().globalIndex(),
+          ctx.totalGroupCount(), partition, group.info().partitionIndex(), ctx.groupsInPartition(partition),
+          table.name());
     } else {
       return String.format("Rewriting %d files (%s, file group %d/%d) in %s",
-          group.numInputFiles(), strategy.name(), group.globalIndex(), ctx.totalGroupCount(), table.name());
+          group.rewrittenFiles().size(),
+          strategy.name(), group.info().globalIndex(), ctx.totalGroupCount(),
+          table.name());
     }
   }
 
