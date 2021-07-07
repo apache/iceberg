@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -37,6 +38,7 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.RuntimeConfig;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.util.SerializableConfiguration;
 
 public class SparkUtil {
@@ -51,6 +53,8 @@ public class SparkUtil {
           "-spark-sql-timestamps", HANDLE_TIMESTAMP_WITHOUT_TIMEZONE);
   public static final String USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES =
           "spark.sql.iceberg.use-timestamp-without-timezone-in-new-tables";
+
+  private static final String SPARK_CATALOG_CONF_PREFIX = "spark.sql.catalog";
 
   private SparkUtil() {
   }
@@ -170,4 +174,31 @@ public class SparkUtil {
     return false;
   }
 
+  /**
+   * Pulls any Catalog specific overrides for the Hadoop conf from the current SparkSession, which can be
+   * set via spark.sql.catalog.$catalogName.hadoop.*
+   *
+   * The SparkCatalog allows for hadoop configurations to be overridden per catalog, by setting
+   * them on the SQLConf, where the following will add the property "fs.default.name" with value
+   * "hdfs://hanksnamenode:8020" to the catalog's hadoop configuration.
+   *   SparkSession.builder()
+   *     .config(s"spark.sql.catalog.$catalogName.hadoop.fs.default.name", "hdfs://hanksnamenode:8020")
+   *     .getOrCreate()
+   * @param spark The current Spark session
+   * @param catalogName Name of the catalog to find overrides for.
+   * @return the Hadoop Configuration that should be used for this catalog, with catalog specific overrides applied.
+   */
+  public static Configuration hadoopConfCatalogOverrides(SparkSession spark, String catalogName) {
+    // Find keys for the catalog intended to be hadoop configurations
+    final String hadoopConfCatalogPrefix = String.format("%s.%s.%s", SPARK_CATALOG_CONF_PREFIX, catalogName, "hadoop.");
+    final Configuration conf = spark.sessionState().newHadoopConf();
+    spark.sqlContext().conf().settings().forEach((k, v) -> {
+      // These checks are copied from `spark.sessionState().newHadoopConfWithOptions()`, which we
+      // avoid using to not have to convert back and forth between scala / java map types.
+      if (v != null && k != null && k.startsWith(hadoopConfCatalogPrefix)) {
+        conf.set(k.substring(hadoopConfCatalogPrefix.length()), v);
+      }
+    });
+    return conf;
+  }
 }
