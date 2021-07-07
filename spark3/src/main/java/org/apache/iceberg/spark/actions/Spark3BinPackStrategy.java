@@ -54,8 +54,6 @@ public class Spark3BinPackStrategy extends BinPackStrategy {
 
   @Override
   public Set<DataFile> rewriteFiles(List<FileScanTask> filesToRewrite) {
-    Set<DataFile> results;
-
     String groupID = UUID.randomUUID().toString();
     try {
       manager.stageTasks(table, groupID, filesToRewrite);
@@ -78,12 +76,10 @@ public class Spark3BinPackStrategy extends BinPackStrategy {
           .mode("append")
           .save(table.name());
 
-      results = rewriteCoordinator.fetchNewDataFiles(table, ImmutableSet.of(groupID));
+      return rewriteCoordinator.fetchNewDataFiles(table, ImmutableSet.of(groupID));
     } finally {
       manager.removeTasks(table, groupID);
       rewriteCoordinator.clearRewrite(table, groupID);
     }
-
-    return results;
   }
 }

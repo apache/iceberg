@@ -39,7 +39,7 @@ import org.apache.iceberg.actions.ActionsProvider;
 import org.apache.iceberg.actions.BinPackStrategy;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFiles.Result;
-import org.apache.iceberg.actions.RewriteDataFilesCommitUtil;
+import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.expressions.Expressions;
@@ -387,7 +387,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
                 .option(RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 100));
 
     BaseRewriteDataFilesSparkAction spyRewrite = spy(realRewrite);
-    RewriteDataFilesCommitUtil util = spy(new RewriteDataFilesCommitUtil(table));
+    RewriteDataFilesCommitManager util = spy(new RewriteDataFilesCommitManager(table));
 
     // Fail to commit
     doThrow(new RuntimeException("Commit Failure"))
@@ -538,7 +538,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
                 .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "3");
 
     BaseRewriteDataFilesSparkAction spyRewrite = spy(realRewrite);
-    RewriteDataFilesCommitUtil util = spy(new RewriteDataFilesCommitUtil(table));
+    RewriteDataFilesCommitManager util = spy(new RewriteDataFilesCommitManager(table));
 
     // First and Third commits work, second does not
     doCallRealMethod()
@@ -600,7 +600,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
 
     BaseRewriteDataFilesSparkAction action = (BaseRewriteDataFilesSparkAction) basicRewrite(table);
     BaseRewriteDataFilesSparkAction spyAction = spy(action);
-    RewriteDataFilesCommitUtil util = spy(new RewriteDataFilesCommitUtil(table));
+    RewriteDataFilesCommitManager util = spy(new RewriteDataFilesCommitManager(table));
 
     doAnswer(invocationOnMock -> {
       invocationOnMock.callRealMethod();

@@ -41,7 +41,7 @@ import org.apache.iceberg.actions.BaseRewriteDataFilesFileGroupInfo;
 import org.apache.iceberg.actions.BaseRewriteDataFilesResult;
 import org.apache.iceberg.actions.BinPackStrategy;
 import org.apache.iceberg.actions.RewriteDataFiles;
-import org.apache.iceberg.actions.RewriteDataFilesCommitUtil;
+import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.actions.RewriteStrategy;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -172,7 +172,7 @@ abstract class BaseRewriteDataFilesSparkAction
         newJobGroupInfo("REWRITE-DATA-FILES", desc),
         () -> strategy.rewriteFiles(fileGroup.fileScans()));
 
-    fileGroup.outputFiles(addedFiles);
+    fileGroup.setOutputFiles(addedFiles);
     LOG.info("Rewrite Files Ready to be Committed - {}", desc);
     return fileGroup;
   }
@@ -187,13 +187,13 @@ abstract class BaseRewriteDataFilesSparkAction
   }
 
   @VisibleForTesting
-  RewriteDataFilesCommitUtil commitUtil() {
-    return new RewriteDataFilesCommitUtil(table);
+  RewriteDataFilesCommitManager commitUtil() {
+    return new RewriteDataFilesCommitManager(table);
   }
 
   private Result doExecute(RewriteExecutionContext ctx, Stream<RewriteFileGroup> groupStream) {
     ExecutorService rewriteService = rewriteService();
-    RewriteDataFilesCommitUtil commitUtil = commitUtil();
+    RewriteDataFilesCommitManager commitUtil = commitUtil();
 
     ConcurrentLinkedQueue<RewriteFileGroup> rewrittenGroups = Queues.newConcurrentLinkedQueue();
     ConcurrentMap<FileGroupInfo, FileGroupRewriteResult> results = Maps.newConcurrentMap();
@@ -249,7 +249,7 @@ abstract class BaseRewriteDataFilesSparkAction
 
     // Start Commit Service
     int groupsPerCommit = IntMath.divide(ctx.totalGroupCount(), maxCommits, RoundingMode.CEILING);
-    RewriteDataFilesCommitUtil.CommitService commitService = commitUtil().service(groupsPerCommit);
+    RewriteDataFilesCommitManager.CommitService commitService = commitUtil().service(groupsPerCommit);
     commitService.start();
 
     // Start rewrite tasks

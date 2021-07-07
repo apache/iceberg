@@ -20,6 +20,7 @@
 package org.apache.iceberg.actions;
 
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 public class BaseRewriteDataFilesFileGroupInfo implements RewriteDataFiles.FileGroupInfo {
   private final int globalIndex;
@@ -49,10 +50,38 @@ public class BaseRewriteDataFilesFileGroupInfo implements RewriteDataFiles.FileG
 
   @Override
   public String toString() {
-    return "FileGroupInfo{" +
-        " globalIndex=" + globalIndex +
-        ", partitionIndex=" + partitionIndex +
-        ", partition=" + partition +
-        " }";
+    return MoreObjects.toStringHelper(this)
+        .add("globalIndex", globalIndex)
+        .add("partitionIndex", partitionIndex)
+        .add("partition", partition)
+        .toString();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+
+    BaseRewriteDataFilesFileGroupInfo that = (BaseRewriteDataFilesFileGroupInfo) o;
+
+    if (globalIndex != that.globalIndex) {
+      return false;
+    }
+    if (partitionIndex != that.partitionIndex) {
+      return false;
+    }
+    return partition.equals(that.partition);
+  }
+
+  @Override
+  public int hashCode() {
+    int result = globalIndex;
+    result = 31 * result + partitionIndex;
+    result = 31 * result + partition.hashCode();
+    return result;
   }
 }

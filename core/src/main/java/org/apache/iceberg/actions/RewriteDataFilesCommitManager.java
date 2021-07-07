@@ -17,7 +17,6 @@
  * under the License.
  */
 
-
 package org.apache.iceberg.actions;
 
 import java.io.Closeable;
@@ -44,12 +43,12 @@ import org.slf4j.LoggerFactory;
 /**
  * Functionality used by RewriteDataFile Actions from different platforms to handle commits.
  */
-public class RewriteDataFilesCommitUtil {
-  private static final Logger LOG = LoggerFactory.getLogger(RewriteDataFilesCommitUtil.class);
+public class RewriteDataFilesCommitManager {
+  private static final Logger LOG = LoggerFactory.getLogger(RewriteDataFilesCommitManager.class);
 
   private final Table table;
 
-  public RewriteDataFilesCommitUtil(Table table) {
+  public RewriteDataFilesCommitManager(Table table) {
     this.table = table;
   }
 
@@ -59,27 +58,27 @@ public class RewriteDataFilesCommitUtil {
    * @param fileGroups fileSets to commit
    */
   public void commitFileGroups(Set<RewriteFileGroup> fileGroups) {
-    Set<DataFile> rewrittenDataFiles = fileGroups.stream()
-        .flatMap(fileGroup -> fileGroup.rewrittenFiles().stream()).collect(Collectors.toSet());
-
-    Set<DataFile> newDataFiles = fileGroups.stream()
-        .flatMap(fileGroup -> fileGroup.addedFiles().stream()).collect(Collectors.toSet());
+    Set<DataFile> rewrittenDataFiles = Sets.newHashSet();
+    Set<DataFile> addedDataFiles = Sets.newHashSet();
+    for (RewriteFileGroup group : fileGroups) {
+      rewrittenDataFiles = Sets.union(rewrittenDataFiles, group.rewrittenFiles());
+      addedDataFiles = Sets.union(addedDataFiles, group.addedFiles());
+    }
 
     table.newRewrite()
-        .rewriteFiles(rewrittenDataFiles, newDataFiles)
+        .rewriteFiles(rewrittenDataFiles, addedDataFiles)
         .commit();
   }
 
   /**
    * Clean up a specified file set by removing any files created for that operation, should
    * not throw any exceptions
-   * @param fileGroup fileSet to clean
+   * @param fileGroup group of files which has already been rewritten
    */
   public void abortFileGroup(RewriteFileGroup fileGroup) {
-    if (fileGroup.addedFiles() == null) {
-      // Nothing to clean
-      return;
-    }
+    Preconditions.checkState(fileGroup.addedFiles() != null,
+        "Cannot abort a fileGroup that was not rewritten");
+
     Tasks.foreach(fileGroup.addedFiles())
         .noRetry()
         .suppressFailureWhenFinished()
@@ -96,9 +95,7 @@ public class RewriteDataFilesCommitUtil {
       throw e;
     } catch (Exception e) {
       LOG.error("Cannot commit groups {}, attempting to clean up written files", rewriteGroups, e);
-      Tasks.foreach(rewriteGroups)
-          .suppressFailureWhenFinished()
-          .run(group -> abortFileGroup(group));
+      rewriteGroups.forEach(this::abortFileGroup);
       throw e;
     }
   }
@@ -119,7 +116,7 @@ public class RewriteDataFilesCommitUtil {
     private final ConcurrentLinkedQueue<RewriteFileGroup> completedRewrites;
     private final List<RewriteFileGroup> committedRewrites;
     private final int rewritesPerCommit;
-    private AtomicBoolean running = new AtomicBoolean(false);
+    private final AtomicBoolean running = new AtomicBoolean(false);
 
     CommitService(int rewritesPerCommit) {
       LOG.info("Creating commit service for table {} with {} groups per commit", table, rewritesPerCommit);
@@ -142,10 +139,18 @@ public class RewriteDataFilesCommitUtil {
       // Partial progress commit service
       committerService.execute(() -> {
         while (running.get() || completedRewrites.size() > 0) {
-          Thread.yield();
+          try {
+            if (completedRewrites.size() == 0) {
+              // Give other threads a chance to make progress
+              Thread.sleep(100);
+            }
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted while processing commits", e);
+          }
+
           // Either we have a full commit group, or we have completed writing and need to commit what is left over
           if (completedRewrites.size() >= rewritesPerCommit || (!running.get() && completedRewrites.size() > 0)) {
-
             Set<RewriteFileGroup> batch = Sets.newHashSetWithExpectedSize(rewritesPerCommit);
             for (int i = 0; i < rewritesPerCommit && !completedRewrites.isEmpty(); i++) {
               batch.add(completedRewrites.poll());
@@ -168,7 +173,7 @@ public class RewriteDataFilesCommitUtil {
      * @param group file group to eventually be committed
      */
     public void offer(RewriteFileGroup group) {
-      LOG.info("Offered to commit service: {}", group);
+      LOG.debug("Offered to commit service: {}", group);
       Preconditions.checkState(running.get(), "Cannot add rewrites to a service which has already been closed");
       completedRewrites.add(group);
     }
@@ -199,8 +204,10 @@ public class RewriteDataFilesCommitUtil {
               "that changes were not successfully committed to the the Iceberg table.");
         }
       } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
         throw new RuntimeException("Cannot complete commit for rewrite, commit service interrupted", e);
       }
+
       Preconditions.checkState(completedRewrites.isEmpty(), "File groups offered after service was closed, " +
           "they were not successfully committed.");
     }

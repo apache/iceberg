@@ -30,11 +30,11 @@ public class BaseRewriteDataFilesFileGroupRewriteResult implements RewriteDataFi
 
   @Override
   public int addedDataFilesCount() {
-    return this.addedDataFilesCount;
+    return addedDataFilesCount;
   }
 
   @Override
   public int rewrittenDataFilesCount() {
-    return this.rewrittenDataFilesCount;
+    return rewrittenDataFilesCount;
   }
 }

@@ -25,7 +25,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.StructLike;
+import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -33,36 +33,17 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * written by the action.
  */
 public class RewriteFileGroup {
-  private final RewriteDataFiles.FileGroupInfo info;
+  private final FileGroupInfo info;
   private final List<FileScanTask> fileScanTasks;
-  private final int numInputFiles;
 
-  private Set<DataFile> outputFiles = Collections.emptySet();
-  private int numOutputFiles;
+  private Set<DataFile> addedFiles = Collections.emptySet();
 
-  public RewriteFileGroup(RewriteDataFiles.FileGroupInfo info, List<FileScanTask> fileScanTasks) {
+  public RewriteFileGroup(FileGroupInfo info, List<FileScanTask> fileScanTasks) {
     this.info = info;
     this.fileScanTasks = fileScanTasks;
-    this.numInputFiles = fileScanTasks.size();
   }
 
-  public int numInputFiles() {
-    return numInputFiles;
-  }
-
-  public StructLike partition() {
-    return info.partition();
-  }
-
-  public Integer globalIndex() {
-    return info.globalIndex();
-  }
-
-  public Integer partitionIndex() {
-    return info.partitionIndex();
-  }
-
-  public RewriteDataFiles.FileGroupInfo info() {
+  public FileGroupInfo info() {
     return info;
   }
 
@@ -70,21 +51,20 @@ public class RewriteFileGroup {
     return fileScanTasks;
   }
 
-  public void outputFiles(Set<DataFile> files) {
-    numOutputFiles = files.size();
-    outputFiles = files;
+  public void setOutputFiles(Set<DataFile> files) {
+    addedFiles = files;
   }
 
-  public List<DataFile> rewrittenFiles() {
-    return fileScans().stream().map(FileScanTask::file).collect(Collectors.toList());
+  public Set<DataFile> rewrittenFiles() {
+    return fileScans().stream().map(FileScanTask::file).collect(Collectors.toSet());
   }
 
   public Set<DataFile> addedFiles() {
-    return outputFiles;
+    return addedFiles;
   }
 
   public RewriteDataFiles.FileGroupRewriteResult asResult() {
-    Preconditions.checkState(outputFiles != null, "Cannot get result, Group was never rewritten");
-    return new BaseRewriteDataFilesFileGroupRewriteResult(numOutputFiles, numInputFiles);
+    Preconditions.checkState(addedFiles != null, "Cannot get result, Group was never rewritten");
+    return new BaseRewriteDataFilesFileGroupRewriteResult(addedFiles.size(), fileScanTasks.size());
   }
 }
