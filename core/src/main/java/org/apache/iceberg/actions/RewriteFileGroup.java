@@ -74,7 +74,7 @@ public class RewriteFileGroup {
     return MoreObjects.toStringHelper(this)
         .add("info", info)
         .add("numRewrittenFiles", fileScanTasks.size())
-        .add("numAddedFiles", addedFiles == null ? "Rewrite Incomplete", addedFiles.size())
+        .add("numAddedFiles", addedFiles == null ? "Rewrite Incomplete" : Integer.toString(addedFiles.size()))
         .toString();
   }
 }
