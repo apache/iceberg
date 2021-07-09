@@ -23,7 +23,8 @@ javax.ws.rs:javax.ws.rs-api = 2.1.1
 io.quarkus:* = 1.13.1.Final
 
 # test deps
-junit:junit = 4.12
+org.junit.vintage:junit-vintage-engine = 5.7.2
+org.junit.jupiter:junit-jupiter = 5.7.2
 org.mockito:mockito-core = 3.7.7
 org.apache.hive:hive-exec = 2.3.8
 org.apache.hive:hive-service = 2.3.8

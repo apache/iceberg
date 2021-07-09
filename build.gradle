@@ -126,7 +126,8 @@ subprojects {
     compile 'org.slf4j:slf4j-api'
     compile 'com.github.stephenc.findbugs:findbugs-annotations'
 
-    testCompile 'junit:junit'
+    testCompile 'org.junit.vintage:junit-vintage-engine'
+    testCompile 'org.junit.jupiter:junit-jupiter'
     testCompile 'org.slf4j:slf4j-simple'
     testCompile 'org.mockito:mockito-core'
     testCompile 'org.assertj:assertj-core'
@@ -285,6 +286,7 @@ project(':iceberg-aws') {
     testCompile("com.adobe.testing:s3mock-junit4") {
       exclude module: "spring-boot-starter-logging"
       exclude module: "logback-classic"
+      exclude group: 'junit'
     }
   }
 
@@ -332,9 +334,12 @@ project(':iceberg-flink') {
     testCompile "org.apache.flink:flink-core"
     testCompile "org.apache.flink:flink-runtime_2.12"
     testCompile "org.apache.flink:flink-table-planner-blink_2.12"
-    testCompile "org.apache.flink:flink-test-utils-junit"
+    testCompile ("org.apache.flink:flink-test-utils-junit") {
+      exclude group: 'junit'
+    }
     testCompile("org.apache.flink:flink-test-utils_2.12") {
       exclude group: "org.apache.curator", module: 'curator-test'
+      exclude group: 'junit'
     }
 
     testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
@@ -1026,6 +1031,7 @@ project(':iceberg-spark3') {
     spark31Implementation("org.apache.spark:spark-hive_2.12:${project.ext.Spark31Version}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
+      exclude group: 'junit'
     }
   }
 
@@ -1165,7 +1171,7 @@ project(':iceberg-spark3-runtime') {
     }
 
     integrationImplementation "org.apache.spark:spark-hive_2.12:${project.ext.Spark30Version}"
-    integrationImplementation 'junit:junit'
+    integrationImplementation 'org.junit.vintage:junit-vintage-engine'
     integrationImplementation 'org.slf4j:slf4j-simple'
     integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
