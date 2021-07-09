@@ -21,9 +21,13 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ForkJoinPool;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -95,6 +99,8 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   private Filter[] pushedFilters = NO_FILTERS;
   private final boolean localityPreferred;
   private final int batchSize;
+  private final int poolSize;
+  private final ForkJoinPool pool;
 
   // lazy variables
   private Schema schema = null;
@@ -157,6 +163,9 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     this.batchSize = options.get(SparkReadOptions.VECTORIZATION_BATCH_SIZE).map(Integer::parseInt).orElseGet(() ->
         PropertyUtil.propertyAsInt(table.properties(),
           TableProperties.PARQUET_BATCH_SIZE, TableProperties.PARQUET_BATCH_SIZE_DEFAULT));
+    this.poolSize = options.getInt(TableProperties.SPARK_BATCH_SCAN_POOL_SIZE,
+            TableProperties.SPARK_BATCH_SCAN_POOL_SIZE_DEFAULT);
+    this.pool = new ForkJoinPool(this.poolSize);
   }
 
   private Schema lazySchema() {
@@ -219,21 +228,34 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   /**
    * This is called in the Spark Driver when data is to be materialized into {@link InternalRow}
    */
+  @SuppressWarnings("checkstyle:LocalVariableName")
   @Override
   public List<InputPartition<InternalRow>> planInputPartitions() {
     String expectedSchemaString = SchemaParser.toJson(lazySchema());
 
     // broadcast the table metadata as input partitions will be sent to executors
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
-
-    List<InputPartition<InternalRow>> readTasks = Lists.newArrayList();
-    for (CombinedScanTask task : tasks()) {
-      readTasks.add(new ReadTask<>(
-          task, tableBroadcast, expectedSchemaString, caseSensitive,
-          localityPreferred, InternalRowReaderFactory.INSTANCE));
+    int taskSize = tasks().size();
+    InputPartition<InternalRow>[] readTasks = new InputPartition[taskSize];
+    Long start_time = System.currentTimeMillis();
+    try {
+      pool.submit(() -> IntStream.range(0, taskSize).parallel()
+              .mapToObj(taskId -> {
+                LOG.trace("The size of scanTasks is {},  current taskId is {}, current thread id is {}",
+                        taskSize, taskId, Thread.currentThread().getName());
+                readTasks[taskId] = new ReadTask<>(
+                        tasks().get(taskId), tableBroadcast, expectedSchemaString, caseSensitive,
+                        localityPreferred, InternalRowReaderFactory.INSTANCE);
+                return true;
+              }).collect(Collectors.toList())).get();
+    } catch (Exception e) {
+      // Do nothing.
     }
 
-    return readTasks;
+    Long end_time = System.currentTimeMillis();
+    LOG.info("It took {} s to construct {} readTasks with localityPreferred = {}.", (end_time - start_time) / 1000,
+            taskSize, localityPreferred);
+    return Arrays.asList(readTasks.clone());
   }
 
   @Override
