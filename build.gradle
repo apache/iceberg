@@ -65,7 +65,7 @@ allprojects {
     mavenLocal()
   }
   project.ext {
-    Spark30Version = '3.0.1'
+    Spark30Version = '3.0.3'
     Spark31Version = '3.1.1'
   }
 }
