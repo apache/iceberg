@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -65,6 +66,15 @@ public class RewriteFileGroup {
 
   public RewriteDataFiles.FileGroupRewriteResult asResult() {
     Preconditions.checkState(addedFiles != null, "Cannot get result, Group was never rewritten");
-    return new BaseRewriteDataFilesFileGroupRewriteResult(info, addedFiles.size(), fileScanTasks.size());
+    return new BaseFileGroupRewriteResult(info, addedFiles.size(), fileScanTasks.size());
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("info", info)
+        .add("numRewrittenFiles", fileScanTasks.size())
+        .add("numAddedFiles", addedFiles == null ? "Rewrite Incomplete", addedFiles.size())
+        .toString();
   }
 }

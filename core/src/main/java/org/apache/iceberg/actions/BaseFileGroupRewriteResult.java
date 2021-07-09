@@ -22,12 +22,12 @@ package org.apache.iceberg.actions;
 import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
 import org.apache.iceberg.actions.RewriteDataFiles.FileGroupRewriteResult;
 
-public class BaseRewriteDataFilesFileGroupRewriteResult implements FileGroupRewriteResult {
+public class BaseFileGroupRewriteResult implements FileGroupRewriteResult {
   private final int addedDataFilesCount;
   private final int rewrittenDataFilesCount;
   private final FileGroupInfo info;
 
-  public BaseRewriteDataFilesFileGroupRewriteResult(FileGroupInfo info, int addedFilesCount, int rewrittenFilesCount) {
+  public BaseFileGroupRewriteResult(FileGroupInfo info, int addedFilesCount, int rewrittenFilesCount) {
     this.info = info;
     this.addedDataFilesCount = addedFilesCount;
     this.rewrittenDataFilesCount = rewrittenFilesCount;

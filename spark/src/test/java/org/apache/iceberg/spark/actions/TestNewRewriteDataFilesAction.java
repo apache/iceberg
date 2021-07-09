@@ -141,7 +141,6 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     shouldHaveFiles(table, 8);
     List<Object[]> expectedRecords = currentData();
 
-
     Result result = basicRewrite(table).execute();
     Assert.assertEquals("Action should rewrite 8 data files", 8, result.rewrittenDataFilesCount());
     Assert.assertEquals("Action should add 4 data file", 4, result.addedDataFilesCount());
@@ -396,7 +395,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
 
     doReturn(util)
         .when(spyRewrite)
-        .commitUtil();
+        .commitManager();
 
     AssertHelpers.assertThrows("Should fail entire rewrite if commit fails", RuntimeException.class,
         () -> spyRewrite.execute());
@@ -549,7 +548,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
 
     doReturn(util)
         .when(spyRewrite)
-        .commitUtil();
+        .commitManager();
 
     RewriteDataFiles.Result result = spyRewrite.execute();
 
@@ -609,7 +608,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
 
     doReturn(util)
         .when(spyAction)
-        .commitUtil();
+        .commitManager();
 
     AssertHelpers.assertThrows("Should propagate CommitStateUnknown Exception",
         CommitStateUnknownException.class, () -> spyAction.execute());

@@ -114,7 +114,7 @@ abstract class BaseRewriteDataFilesSparkAction
 
   @Override
   public RewriteDataFiles.Result execute() {
-    validateOptions();
+    validateAndInitOptions();
     strategy = strategy.options(options());
 
     Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition = planFileGroups();
@@ -186,13 +186,13 @@ abstract class BaseRewriteDataFilesSparkAction
   }
 
   @VisibleForTesting
-  RewriteDataFilesCommitManager commitUtil() {
+  RewriteDataFilesCommitManager commitManager() {
     return new RewriteDataFilesCommitManager(table);
   }
 
   private Result doExecute(RewriteExecutionContext ctx, Stream<RewriteFileGroup> groupStream) {
     ExecutorService rewriteService = rewriteService();
-    RewriteDataFilesCommitManager commitUtil = commitUtil();
+    RewriteDataFilesCommitManager commitManager = commitManager();
 
     ConcurrentLinkedQueue<RewriteFileGroup> rewrittenGroups = Queues.newConcurrentLinkedQueue();
 
@@ -218,14 +218,14 @@ abstract class BaseRewriteDataFilesSparkAction
 
       Tasks.foreach(rewrittenGroups)
           .suppressFailureWhenFinished()
-          .run(group -> commitUtil.abortFileGroup(group));
+          .run(group -> commitManager.abortFileGroup(group));
       throw e;
     } finally {
       rewriteService.shutdown();
     }
 
     try {
-      commitUtil.commitOrClean(Sets.newHashSet(rewrittenGroups));
+      commitManager.commitOrClean(Sets.newHashSet(rewrittenGroups));
     } catch (ValidationException | CommitFailedException e) {
       String errorMessage = String.format(
           "Cannot commit rewrite because of a ValidationException or CommitFailedException. This usually means that " +
@@ -249,7 +249,7 @@ abstract class BaseRewriteDataFilesSparkAction
 
     // Start Commit Service
     int groupsPerCommit = IntMath.divide(ctx.totalGroupCount(), maxCommits, RoundingMode.CEILING);
-    RewriteDataFilesCommitManager.CommitService commitService = commitUtil().service(groupsPerCommit);
+    RewriteDataFilesCommitManager.CommitService commitService = commitManager().service(groupsPerCommit);
     commitService.start();
 
     // Start rewrite tasks
@@ -281,20 +281,19 @@ abstract class BaseRewriteDataFilesSparkAction
 
     // Todo Add intelligence to the order in which we do rewrites instead of just using partition order
     return fileGroupsByPartition.entrySet().stream()
-        .flatMap(
-            e -> {
-              StructLike partition = e.getKey();
-              List<List<FileScanTask>> fileGroups = e.getValue();
-              return fileGroups.stream().map(tasks -> {
-                int globalIndex = ctx.currentGlobalIndex();
-                int partitionIndex = ctx.currentPartitionIndex(partition);
-                FileGroupInfo info = new BaseRewriteDataFilesFileGroupInfo(globalIndex, partitionIndex, partition);
-                return new RewriteFileGroup(info, tasks);
-              });
-            });
+        .flatMap(e -> {
+          StructLike partition = e.getKey();
+          List<List<FileScanTask>> fileGroups = e.getValue();
+          return fileGroups.stream().map(tasks -> {
+            int globalIndex = ctx.currentGlobalIndex();
+            int partitionIndex = ctx.currentPartitionIndex(partition);
+            FileGroupInfo info = new BaseRewriteDataFilesFileGroupInfo(globalIndex, partitionIndex, partition);
+            return new RewriteFileGroup(info, tasks);
+          });
+        });
   }
 
-  private void validateOptions() {
+  private void validateAndInitOptions() {
     Set<String> validOptions = Sets.newHashSet(strategy.validOptions());
     validOptions.addAll(VALID_OPTIONS);
 
