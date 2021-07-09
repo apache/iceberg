@@ -24,6 +24,7 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -47,11 +48,14 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.TableScanUtil;
+import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.RuntimeConfig;
@@ -76,6 +80,10 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     SupportsPushDownRequiredColumns, SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(Reader.class);
 
+  // Creates an executor service that runs each task in the thread that invokes execute/submit.
+  private static final ExecutorService DEFAULT_READTASKS_INIT_EXECUTOR_SERVICE =
+      MoreExecutors.newDirectExecutorService();
+
   private static final Filter[] NO_FILTERS = new Filter[0];
   private static final ImmutableSet<String> LOCALITY_WHITELIST_FS = ImmutableSet.of("hdfs");
 
@@ -95,6 +103,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   private Filter[] pushedFilters = NO_FILTERS;
   private final boolean localityPreferred;
   private final int batchSize;
+  private ExecutorService readTasksInitExecutorService = DEFAULT_READTASKS_INIT_EXECUTOR_SERVICE;
 
   // lazy variables
   private Schema schema = null;
@@ -152,6 +161,10 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
       this.localityPreferred = false;
     }
 
+    if (this.localityPreferred) {
+      this.readTasksInitExecutorService = ThreadPools.getWorkerPool();
+    }
+
     this.schema = table.schema();
     this.caseSensitive = caseSensitive;
     this.batchSize = options.get(SparkReadOptions.VECTORIZATION_BATCH_SIZE).map(Integer::parseInt).orElseGet(() ->
@@ -206,11 +219,14 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
 
     List<InputPartition<ColumnarBatch>> readTasks = Lists.newArrayList();
-    for (CombinedScanTask task : tasks()) {
-      readTasks.add(new ReadTask<>(
-          task, tableBroadcast, expectedSchemaString, caseSensitive,
-          localityPreferred, new BatchReaderFactory(batchSize)));
-    }
+    Tasks.foreach(tasks())
+        .stopOnFailure()
+        .executeWith(readTasksInitExecutorService)
+        .run(task -> {
+          readTasks.add(new ReadTask<>(
+              task, tableBroadcast, expectedSchemaString, caseSensitive,
+              localityPreferred, new BatchReaderFactory(batchSize)));
+        });
     LOG.info("Batching input partitions with {} tasks.", readTasks.size());
 
     return readTasks;
@@ -227,11 +243,14 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
 
     List<InputPartition<InternalRow>> readTasks = Lists.newArrayList();
-    for (CombinedScanTask task : tasks()) {
-      readTasks.add(new ReadTask<>(
-          task, tableBroadcast, expectedSchemaString, caseSensitive,
-          localityPreferred, InternalRowReaderFactory.INSTANCE));
-    }
+    Tasks.foreach(tasks())
+        .stopOnFailure()
+        .executeWith(readTasksInitExecutorService)
+        .run(task -> {
+          readTasks.add(new ReadTask<>(
+              task, tableBroadcast, expectedSchemaString, caseSensitive,
+              localityPreferred, InternalRowReaderFactory.INSTANCE));
+        });
 
     return readTasks;
   }
