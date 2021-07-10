@@ -223,9 +223,12 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
         .stopOnFailure()
         .executeWith(readTasksInitExecutorService)
         .run(task -> {
-          readTasks.add(new ReadTask<>(
+          InputPartition<ColumnarBatch> readTask = new ReadTask<>(
               task, tableBroadcast, expectedSchemaString, caseSensitive,
-              localityPreferred, new BatchReaderFactory(batchSize)));
+              localityPreferred, new BatchReaderFactory(batchSize));
+          synchronized (readTasks) {
+            readTasks.add(readTask);
+          }
         });
     LOG.info("Batching input partitions with {} tasks.", readTasks.size());
 
@@ -247,9 +250,12 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
         .stopOnFailure()
         .executeWith(readTasksInitExecutorService)
         .run(task -> {
-          readTasks.add(new ReadTask<>(
+          InputPartition<InternalRow> readTask = new ReadTask<>(
               task, tableBroadcast, expectedSchemaString, caseSensitive,
-              localityPreferred, InternalRowReaderFactory.INSTANCE));
+              localityPreferred, InternalRowReaderFactory.INSTANCE);
+          synchronized (readTasks) {
+            readTasks.add(readTask);
+          }
         });
 
     return readTasks;
