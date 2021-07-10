@@ -154,7 +154,8 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
                 return true;
               }).collect(Collectors.toList())).get();
     } catch (Exception e) {
-      // Do nothing.
+      e.printStackTrace();
+      System.exit(-1);
     }
 
     long end_time = System.currentTimeMillis();

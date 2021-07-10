@@ -214,15 +214,28 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     // broadcast the table metadata as input partitions will be sent to executors
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
 
-    List<InputPartition<ColumnarBatch>> readTasks = Lists.newArrayList();
-    for (CombinedScanTask task : tasks()) {
-      readTasks.add(new ReadTask<>(
-          task, tableBroadcast, expectedSchemaString, caseSensitive,
-          localityPreferred, new BatchReaderFactory(batchSize)));
+    int taskSize = tasks().size();
+    InputPartition<ColumnarBatch>[] readTasks = new InputPartition[taskSize];
+    Long startTime = System.currentTimeMillis();
+    try {
+      pool.submit(() -> IntStream.range(0, taskSize).parallel()
+              .mapToObj(taskId -> {
+                LOG.trace("The size of scanTasks is {},  current taskId is {}, current thread id is {}",
+                        taskSize, taskId, Thread.currentThread().getName());
+                readTasks[taskId] = new ReadTask<>(
+                        tasks().get(taskId), tableBroadcast, expectedSchemaString, caseSensitive,
+                        localityPreferred, new BatchReaderFactory(batchSize));
+                return true;
+              }).collect(Collectors.toList())).get();
+    } catch (Exception e) {
+      e.printStackTrace();
+      System.exit(-1);
     }
-    LOG.info("Batching input partitions with {} tasks.", readTasks.size());
-
-    return readTasks;
+    Long endTime = System.currentTimeMillis();
+    LOG.info("Batching input partitions with {} tasks.", readTasks.length);
+    LOG.info("It took {} s to construct {} readTasks with localityPreferred = {}.", (endTime - startTime) / 1000,
+            taskSize, localityPreferred);
+    return Arrays.asList(readTasks.clone());
   }
 
   /**
@@ -249,7 +262,8 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
                 return true;
               }).collect(Collectors.toList())).get();
     } catch (Exception e) {
-      // Do nothing.
+      e.printStackTrace();
+      System.exit(-1);
     }
 
     Long end_time = System.currentTimeMillis();
