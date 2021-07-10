@@ -131,7 +131,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     return readSchema;
   }
 
-  @SuppressWarnings("checkstyle:LocalVariableName")
+  @SuppressWarnings({"checkstyle:LocalVariableName", "checkstyle:RegexpSinglelineJava"})
   @Override
   public InputPartition[] planInputPartitions() {
     String expectedSchemaString = SchemaParser.toJson(expectedSchema);

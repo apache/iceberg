@@ -202,6 +202,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   /**
    * This is called in the Spark Driver when data is to be materialized into {@link ColumnarBatch}
    */
+  @SuppressWarnings({"checkstyle:LocalVariableName", "checkstyle:RegexpSinglelineJava"})
   @Override
   public List<InputPartition<ColumnarBatch>> planBatchInputPartitions() {
     Preconditions.checkState(enableBatchRead(), "Batched reads not enabled");
@@ -241,7 +242,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   /**
    * This is called in the Spark Driver when data is to be materialized into {@link InternalRow}
    */
-  @SuppressWarnings("checkstyle:LocalVariableName")
+  @SuppressWarnings({"checkstyle:LocalVariableName", "checkstyle:RegexpSinglelineJava"})
   @Override
   public List<InputPartition<InternalRow>> planInputPartitions() {
     String expectedSchemaString = SchemaParser.toJson(lazySchema());
