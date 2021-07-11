@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -218,21 +219,20 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     // broadcast the table metadata as input partitions will be sent to executors
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
 
-    List<InputPartition<ColumnarBatch>> readTasks = Lists.newArrayList();
-    Tasks.foreach(tasks())
+    List<CombinedScanTask> scanTasks = tasks();
+    InputPartition<ColumnarBatch>[] readTasks = new InputPartition[scanTasks.size()];
+
+    Tasks.range(readTasks.length)
         .stopOnFailure()
         .executeWith(readTasksInitExecutorService)
-        .run(task -> {
-          InputPartition<ColumnarBatch> readTask = new ReadTask<>(
-              task, tableBroadcast, expectedSchemaString, caseSensitive,
+        .run(index -> {
+          readTasks[index] = new ReadTask<>(
+              scanTasks.get(index), tableBroadcast, expectedSchemaString, caseSensitive,
               localityPreferred, new BatchReaderFactory(batchSize));
-          synchronized (readTasks) {
-            readTasks.add(readTask);
-          }
         });
-    LOG.info("Batching input partitions with {} tasks.", readTasks.size());
+    LOG.info("Batching input partitions with {} tasks.", readTasks.length);
 
-    return readTasks;
+    return Arrays.asList(readTasks);
   }
 
   /**
@@ -245,20 +245,19 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     // broadcast the table metadata as input partitions will be sent to executors
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
 
-    List<InputPartition<InternalRow>> readTasks = Lists.newArrayList();
-    Tasks.foreach(tasks())
+    List<CombinedScanTask> scanTasks = tasks();
+    InputPartition<InternalRow>[] readTasks = new InputPartition[scanTasks.size()];
+
+    Tasks.range(readTasks.length)
         .stopOnFailure()
         .executeWith(readTasksInitExecutorService)
-        .run(task -> {
-          InputPartition<InternalRow> readTask = new ReadTask<>(
-              task, tableBroadcast, expectedSchemaString, caseSensitive,
+        .run(index -> {
+          readTasks[index] = new ReadTask<>(
+              scanTasks.get(index), tableBroadcast, expectedSchemaString, caseSensitive,
               localityPreferred, InternalRowReaderFactory.INSTANCE);
-          synchronized (readTasks) {
-            readTasks.add(readTask);
-          }
         });
 
-    return readTasks;
+    return Arrays.asList(readTasks);
   }
 
   @Override
