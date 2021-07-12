@@ -20,10 +20,13 @@
 package org.apache.iceberg.nessie;
 
 import java.time.Instant;
+import java.util.List;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 
 public class TableReference {
 
+  private static final Splitter BRANCH_NAME_SPLITTER = Splitter.on("@");
   private final TableIdentifier tableIdentifier;
   private final Instant timestamp;
   private final String reference;
@@ -54,7 +57,8 @@ public class TableReference {
    */
   public static TableReference parse(TableIdentifier path) {
     TableReference pti = parse(path.name());
-    return new TableReference(TableIdentifier.of(path.namespace(), pti.tableIdentifier().name()),
+    return new TableReference(
+        TableIdentifier.of(path.namespace(), pti.tableIdentifier().name()),
         pti.timestamp(),
         pti.reference());
   }
@@ -77,9 +81,9 @@ public class TableReference {
     }
 
     if (path.contains("@")) {
-      String[] tableRef = path.split("@");
-      TableIdentifier identifier = TableIdentifier.parse(tableRef[0]);
-      return new TableReference(identifier, null, tableRef[1]);
+      List<String> tableRef = BRANCH_NAME_SPLITTER.splitToList(path);
+      TableIdentifier identifier = TableIdentifier.parse(tableRef.get(0));
+      return new TableReference(identifier, null, tableRef.get(1));
     }
 
     if (path.contains("#")) {

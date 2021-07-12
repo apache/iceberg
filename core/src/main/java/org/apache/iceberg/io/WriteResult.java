@@ -22,7 +22,6 @@ package org.apache.iceberg.io;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -36,7 +35,7 @@ public class WriteResult implements Serializable {
 
   private WriteResult(List<DataFile> dataFiles,
                       List<DeleteFile> deleteFiles,
-                      Set<CharSequence> referencedDataFiles) {
+                      CharSequenceSet referencedDataFiles) {
     this.dataFiles = dataFiles.toArray(new DataFile[0]);
     this.deleteFiles = deleteFiles.toArray(new DeleteFile[0]);
     this.referencedDataFiles = referencedDataFiles.toArray(new CharSequence[0]);
@@ -61,7 +60,7 @@ public class WriteResult implements Serializable {
   public static class Builder {
     private final List<DataFile> dataFiles;
     private final List<DeleteFile> deleteFiles;
-    private final Set<CharSequence> referencedDataFiles;
+    private final CharSequenceSet referencedDataFiles;
 
     private Builder() {
       this.dataFiles = Lists.newArrayList();

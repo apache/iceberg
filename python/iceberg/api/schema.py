@@ -100,11 +100,21 @@ class Schema(object):
             return self.lazy_id_to_field().get(id)
 
         if not id:
-            raise RuntimeError("Invalid Column Name (empty)")
+            raise ValueError("Invalid Column Name (empty)")
 
         id = self.lazy_name_to_id().get(id)
-        if id:
+        if id is not None:
             return self.lazy_id_to_field().get(id)
+
+    def case_insensitive_find_field(self, name):
+        if name is None:
+            raise ValueError("Invalid Column Name (empty)")
+
+        id = self.lazy_lowercase_name_to_id().get(name.lower())
+        if id is not None:
+            return self.lazy_id_to_field().get(id)
+
+        return None
 
     def find_column_name(self, id):
         if isinstance(id, int):

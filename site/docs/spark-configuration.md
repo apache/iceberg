@@ -59,6 +59,7 @@ Both catalogs are configured using properties nested under the catalog name. Com
 | spark.sql.catalog._catalog-name_.default-namespace | default                       | The default current namespace for the catalog |
 | spark.sql.catalog._catalog-name_.uri               | thrift://host:port            | Metastore connect URI; default from `hive-site.xml` |
 | spark.sql.catalog._catalog-name_.warehouse         | hdfs://nn:8020/warehouse/path | Base path for the warehouse directory |
+| spark.sql.catalog._catalog-name_.cache-enabled     | `true` or `false`             | Whether to enable catalog cache, default value is `true` |
 
 Additional properties can be found in common [catalog configuration](./configuration.md#catalog-properties).
 
@@ -106,7 +107,7 @@ spark.sql.catalog.custom_prod.my-additional-catalog-config = my-value
 
 ### Catalogs in Spark 2.4
 
-When using Iceberg 0.11.0, Spark 2.4 can load tables from multiple Iceberg catalogs or from table locations.
+When using Iceberg 0.11.0 and later, Spark 2.4 can load tables from multiple Iceberg catalogs or from table locations.
 
 Catalogs in 2.4 are configured just like catalogs in 3.0, but only Iceberg catalogs are supported.
 

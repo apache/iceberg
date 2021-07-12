@@ -22,6 +22,10 @@
     {
       "type": "struct",
       "schema-id": 1,
+      "identifier-field-ids": [
+        1,
+        2
+      ],
       "fields": [
         {
           "id": 1,
@@ -81,8 +85,38 @@
     }
   ],
   "properties": {},
-  "current-snapshot-id": -1,
-  "snapshots": [],
-  "snapshot-log": [],
+  "current-snapshot-id": 3055729675574597004,
+  "snapshots": [
+    {
+      "snapshot-id": 3051729675574597004,
+      "timestamp-ms": 1515100955770,
+      "sequence-number": 0,
+      "summary": {
+        "operation": "append"
+      },
+      "manifest-list": "s3://a/b/1.avro"
+    },
+    {
+      "snapshot-id": 3055729675574597004,
+      "parent-snapshot-id": 3051729675574597004,
+      "timestamp-ms": 1555100955770,
+      "sequence-number": 1,
+      "summary": {
+        "operation": "append"
+      },
+      "manifest-list": "s3://a/b/2.avro",
+      "schema-id": 1
+    }
+  ],
+  "snapshot-log": [
+    {
+      "snapshot-id": 3051729675574597004,
+      "timestamp-ms": 1515100955770
+    },
+    {
+      "snapshot-id": 3055729675574597004,
+      "timestamp-ms": 1555100955770
+    }
+  ],
   "metadata-log": []
 }

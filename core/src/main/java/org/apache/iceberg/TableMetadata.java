@@ -48,6 +48,7 @@ import org.apache.iceberg.util.PropertyUtil;
  */
 public class TableMetadata implements Serializable {
   static final long INITIAL_SEQUENCE_NUMBER = 0;
+  static final long INVALID_SEQUENCE_NUMBER = -1;
   static final int DEFAULT_TABLE_FORMAT_VERSION = 1;
   static final int SUPPORTED_TABLE_FORMAT_VERSION = 2;
   static final int INITIAL_SPEC_ID = 0;
@@ -491,7 +492,7 @@ public class TableMetadata implements Serializable {
 
     ImmutableList.Builder<Schema> builder = ImmutableList.<Schema>builder().addAll(schemas);
     if (!schemasById.containsKey(newSchemaId)) {
-      builder.add(new Schema(newSchemaId, newSchema.columns()));
+      builder.add(new Schema(newSchemaId, newSchema.columns(), newSchema.identifierFieldIds()));
     }
 
     return new TableMetadata(null, formatVersion, uuid, location,
@@ -760,7 +761,7 @@ public class TableMetadata implements Serializable {
     ImmutableList.Builder<Schema> schemasBuilder = ImmutableList.<Schema>builder().addAll(schemas);
 
     if (!schemasById.containsKey(freshSchemaId)) {
-      schemasBuilder.add(new Schema(freshSchemaId, freshSchema.columns()));
+      schemasBuilder.add(new Schema(freshSchemaId, freshSchema.columns(), freshSchema.identifierFieldIds()));
     }
 
     return new TableMetadata(null, formatVersion, uuid, newLocation,
@@ -916,7 +917,7 @@ public class TableMetadata implements Serializable {
     // if the schema already exists, use its id; otherwise use the highest id + 1
     int newSchemaId = currentSchemaId;
     for (Schema schema : schemas) {
-      if (schema.asStruct().equals(newSchema.asStruct())) {
+      if (schema.sameSchema(newSchema)) {
         newSchemaId = schema.schemaId();
         break;
       } else if (schema.schemaId() >= newSchemaId) {

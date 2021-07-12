@@ -33,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
@@ -193,7 +194,7 @@ public abstract class DeleteReadTests {
         Pair.of(dataFile.path(), 6L) // id = 122
     );
 
-    Pair<DeleteFile, Set<CharSequence>> posDeletes = FileHelpers.writeDeleteFile(
+    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
         table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
 
     table.newRowDelta()
@@ -225,7 +226,7 @@ public abstract class DeleteReadTests {
         Pair.of(dataFile.path(), 5L) // id = 121
     );
 
-    Pair<DeleteFile, Set<CharSequence>> posDeletes = FileHelpers.writeDeleteFile(
+    Pair<DeleteFile, CharSequenceSet> posDeletes = FileHelpers.writeDeleteFile(
         table, Files.localOutput(temp.newFile()), Row.of(0), deletes);
 
     table.newRowDelta()
@@ -329,7 +330,7 @@ public abstract class DeleteReadTests {
     return set;
   }
 
-  protected StructLikeSet rowSetWitIds(int... idsToRetain) {
+  protected StructLikeSet rowSetWithIds(int... idsToRetain) {
     Set<Integer> deletedIds = Sets.newHashSet(ArrayUtil.toIntList(idsToRetain));
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
     records.stream()

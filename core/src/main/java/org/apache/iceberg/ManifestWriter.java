@@ -156,7 +156,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     long minSeqNumber = minSequenceNumber != null ? minSequenceNumber : UNASSIGNED_SEQ;
     return new GenericManifestFile(file.location(), writer.length(), specId, content(),
         UNASSIGNED_SEQ, minSeqNumber, snapshotId,
-        addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries());
+        addedFiles, addedRows, existingFiles, existingRows, deletedFiles, deletedRows, stats.summaries(), null);
   }
 
   @Override

@@ -21,6 +21,7 @@ package org.apache.iceberg.avro;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.apache.avro.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
@@ -74,7 +75,7 @@ public class RemoveIds extends AvroSchemaVisitor<Schema> {
     Schema.Field copy = new Schema.Field(field.name(), newSchema, field.doc(), field.defaultVal(), field.order());
     for (Map.Entry<String, Object> prop : field.getObjectProps().entrySet()) {
       String key = prop.getKey();
-      if (key != AvroSchemaUtil.FIELD_ID_PROP) {
+      if (!Objects.equals(key, AvroSchemaUtil.FIELD_ID_PROP)) {
         copy.addProp(key, prop.getValue());
       }
     }

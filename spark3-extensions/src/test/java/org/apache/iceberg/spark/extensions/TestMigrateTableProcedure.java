@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
 import org.junit.After;
@@ -97,6 +98,40 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
     sql("DROP TABLE %s", tableName + "_BACKUP_");
+  }
+
+  @Test
+  public void testMigrateWithInvalidMetricsConfig() throws IOException {
+    Assume.assumeTrue(catalogName.equals("spark_catalog"));
+
+    String location = temp.newFolder().toString();
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", tableName, location);
+
+    AssertHelpers.assertThrows("Should reject invalid metrics config",
+        ValidationException.class, "Invalid metrics config",
+        () -> {
+          String props = "map('write.metadata.metrics.column.x', 'X')";
+          sql("CALL %s.system.migrate('%s', %s)", catalogName, tableName, props);
+        });
+  }
+
+  @Test
+  public void testMigrateWithConflictingProps() throws IOException {
+    Assume.assumeTrue(catalogName.equals("spark_catalog"));
+
+    String location = temp.newFolder().toString();
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", tableName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    Object result = scalarSql("CALL %s.system.migrate('%s', map('migrated', 'false'))", catalogName, tableName);
+    Assert.assertEquals("Should have added one file", 1L, result);
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1L, "a")),
+        sql("SELECT * FROM %s", tableName));
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("Should override user value", "true", table.properties().get("migrated"));
   }
 
   @Test

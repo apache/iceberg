@@ -21,6 +21,7 @@ package org.apache.iceberg.avro;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
@@ -118,7 +119,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
     }
 
     if (pruned != null) {
-      if (pruned != AvroSchemaUtil.fromOption(union)) {
+      if (!Objects.equals(pruned, AvroSchemaUtil.fromOption(union))) {
         return AvroSchemaUtil.toOption(pruned);
       }
       return union;
@@ -149,13 +150,14 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
         Schema valueProjection = element.getField("value").schema();
         // it is possible that key is not selected, and
         // key schemas can be different if new field ids were assigned to them
-        if (keyProjectionField != null && keyValue.getField("key").schema() != keyProjectionField.schema()) {
+        if (keyProjectionField != null &&
+            !Objects.equals(keyValue.getField("key").schema(), keyProjectionField.schema())) {
           Preconditions.checkState(
               SchemaNormalization.parsingFingerprint64(keyValue.getField("key").schema()) ==
                   SchemaNormalization.parsingFingerprint64(keyProjectionField.schema()),
-                  "Map keys should not be projected");
+              "Map keys should not be projected");
           return AvroSchemaUtil.createMap(keyId, keyProjectionField.schema(), valueId, valueProjection);
-        } else if (keyValue.getField("value").schema() != valueProjection) {
+        } else if (!Objects.equals(keyValue.getField("value").schema(), valueProjection)) {
           return AvroSchemaUtil.createMap(keyId, keyValue.getField("key").schema(), valueId, valueProjection);
         } else {
           return complexMapWithIds(array, keyId, valueId);
@@ -171,7 +173,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       if (selectedIds.contains(elementId)) {
         return arrayWithId(array, elementId);
       } else if (element != null) {
-        if (element != array.getElementType()) {
+        if (!Objects.equals(element, array.getElementType())) {
           // the element must be a projection
           return arrayWithId(Schema.createArray(element), elementId);
         }
@@ -199,7 +201,7 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       // e.g if we are reading data not written by Iceberg writers
       return mapWithIds(map, keyId, valueId);
     } else if (value != null) {
-      if (value != map.getValueType()) {
+      if (!Objects.equals(value, map.getValueType())) {
         // the value must be a projection
         return mapWithIds(Schema.createMap(value), keyId, valueId);
       }

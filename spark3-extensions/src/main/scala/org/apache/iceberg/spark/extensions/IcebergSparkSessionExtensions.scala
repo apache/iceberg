@@ -41,7 +41,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     // analyzer extensions
     extensions.injectResolutionRule { spark => ResolveProcedures(spark) }
     extensions.injectResolutionRule { _ => ProcedureArgumentCoercion }
-    extensions.injectPostHocResolutionRule { spark => AlignRowLevelOperations(spark.sessionState.conf)}
+    extensions.injectPostHocResolutionRule { spark => AlignRowLevelOperations }
     extensions.injectCheckRule { _ => RowLevelOperationsPredicateCheck }
 
     // optimizer extensions

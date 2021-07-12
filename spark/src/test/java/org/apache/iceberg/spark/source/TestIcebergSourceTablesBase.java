@@ -880,6 +880,25 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Assert.assertEquals("Actual results should have one row", 1, actualAfterFirstCommit.size());
     TestHelpers.assertEqualsSafe(partitionsTable.schema().asStruct(), expected.get(0), actualAfterFirstCommit.get(0));
+
+    // check predicate push down
+    List<Row> filtered = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "partitions"))
+        .filter("partition.id < 2")
+        .collectAsList();
+    Assert.assertEquals("Actual results should have one row", 1, filtered.size());
+    TestHelpers.assertEqualsSafe(partitionsTable.schema().asStruct(), expected.get(0), filtered.get(0));
+
+    List<Row> nonFiltered = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "partitions"))
+        .filter("partition.id < 2 or record_count=1")
+        .collectAsList();
+    Assert.assertEquals("Actual results should have one row", 2, nonFiltered.size());
+    for (int i = 0; i < 2; i += 1) {
+      TestHelpers.assertEqualsSafe(partitionsTable.schema().asStruct(), expected.get(i), actual.get(i));
+    }
   }
 
   @Test

@@ -24,6 +24,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
@@ -33,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.schema.UnionByNameVisitor;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
@@ -59,25 +62,30 @@ class SchemaUpdate implements UpdateSchema {
   private final Multimap<Integer, Move> moves = Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
   private int lastColumnId;
   private boolean allowIncompatibleChanges = false;
-
+  private Set<String> identifierFieldNames;
 
   SchemaUpdate(TableOperations ops) {
-    this.ops = ops;
-    this.base = ops.current();
-    this.schema = base.schema();
-    this.lastColumnId = base.lastColumnId();
-    this.idToParent = Maps.newHashMap(TypeUtil.indexParents(schema.asStruct()));
+    this(ops, ops.current());
   }
 
   /**
    * For testing only.
    */
   SchemaUpdate(Schema schema, int lastColumnId) {
-    this.ops = null;
-    this.base = null;
+    this(null, null, schema, lastColumnId);
+  }
+
+  private SchemaUpdate(TableOperations ops, TableMetadata base) {
+    this(ops, base, base.schema(), base.lastColumnId());
+  }
+
+  private SchemaUpdate(TableOperations ops, TableMetadata base, Schema schema, int lastColumnId) {
+    this.ops = ops;
+    this.base = base;
     this.schema = schema;
     this.lastColumnId = lastColumnId;
     this.idToParent = Maps.newHashMap(TypeUtil.indexParents(schema.asStruct()));
+    this.identifierFieldNames = schema.identifierFieldNames();
   }
 
   @Override
@@ -170,7 +178,6 @@ class SchemaUpdate implements UpdateSchema {
         "Cannot delete a column that has additions: %s", name);
     Preconditions.checkArgument(!updates.containsKey(field.fieldId()),
         "Cannot delete a column that has updates: %s", name);
-
     deletes.add(field.fieldId());
 
     return this;
@@ -191,6 +198,11 @@ class SchemaUpdate implements UpdateSchema {
       updates.put(fieldId, Types.NestedField.of(fieldId, update.isOptional(), newName, update.type(), update.doc()));
     } else {
       updates.put(fieldId, Types.NestedField.of(fieldId, field.isOptional(), newName, field.type(), field.doc()));
+    }
+
+    if (identifierFieldNames.contains(name)) {
+      identifierFieldNames.remove(name);
+      identifierFieldNames.add(newName);
     }
 
     return this;
@@ -317,6 +329,12 @@ class SchemaUpdate implements UpdateSchema {
     return this;
   }
 
+  @Override
+  public UpdateSchema setIdentifierFields(Collection<String> names) {
+    this.identifierFieldNames = Sets.newHashSet(names);
+    return this;
+  }
+
   private Integer findForMove(String name) {
     Types.NestedField field = schema.findField(name);
     if (field != null) {
@@ -359,19 +377,14 @@ class SchemaUpdate implements UpdateSchema {
    */
   @Override
   public Schema apply() {
-    Schema newSchema = applyChanges(schema, deletes, updates, adds, moves);
-
-    // Validate the metrics if we have existing properties.
-    if (base != null && base.properties() != null) {
-      MetricsConfig.fromProperties(base.properties()).validateReferencedColumns(newSchema);
-    }
+    Schema newSchema = applyChanges(schema, deletes, updates, adds, moves, identifierFieldNames);
 
     return newSchema;
   }
 
   @Override
   public void commit() {
-    TableMetadata update = applyChangesToMapping(base.updateSchema(apply(), lastColumnId));
+    TableMetadata update = applyChangesToMetadata(base.updateSchema(apply(), lastColumnId));
     ops.commit(base, update);
   }
 
@@ -381,8 +394,9 @@ class SchemaUpdate implements UpdateSchema {
     return next;
   }
 
-  private TableMetadata applyChangesToMapping(TableMetadata metadata) {
+  private TableMetadata applyChangesToMetadata(TableMetadata metadata) {
     String mappingJson = metadata.property(TableProperties.DEFAULT_NAME_MAPPING, null);
+    TableMetadata newMetadata = metadata;
     if (mappingJson != null) {
       try {
         // parse and update the mapping
@@ -394,7 +408,7 @@ class SchemaUpdate implements UpdateSchema {
         updatedProperties.putAll(metadata.properties());
         updatedProperties.put(TableProperties.DEFAULT_NAME_MAPPING, NameMappingParser.toJson(updated));
 
-        return metadata.replaceProperties(updatedProperties);
+        newMetadata = metadata.replaceProperties(updatedProperties);
 
       } catch (RuntimeException e) {
         // log the error, but do not fail the update
@@ -402,17 +416,78 @@ class SchemaUpdate implements UpdateSchema {
       }
     }
 
-    return metadata;
+    // Transform the metrics if they exist
+    if (base != null && base.properties() != null) {
+      Schema newSchema = newMetadata.schema();
+      List<String> deletedColumns = deletes.stream()
+          .map(schema::findColumnName)
+          .collect(Collectors.toList());
+      Map<String, String> renamedColumns = updates.keySet().stream()
+          .filter(id -> !schema.findColumnName(id).equals(newSchema.findColumnName(id)))
+          .collect(Collectors.toMap(schema::findColumnName, newSchema::findColumnName));
+      Map<String, String> updatedProperties = MetricsConfig.updateProperties(
+          newMetadata.properties(), deletedColumns, renamedColumns);
+      newMetadata = newMetadata.replaceProperties(updatedProperties);
+    }
+
+    return newMetadata;
   }
 
   private static Schema applyChanges(Schema schema, List<Integer> deletes,
                                      Map<Integer, Types.NestedField> updates,
                                      Multimap<Integer, Types.NestedField> adds,
-                                     Multimap<Integer, Move> moves) {
+                                     Multimap<Integer, Move> moves,
+                                     Set<String> identifierFieldNames) {
+    // validate existing identifier fields are not deleted
+    for (String name : identifierFieldNames) {
+      Types.NestedField field = schema.findField(name);
+      if (field != null) {
+        Preconditions.checkArgument(!deletes.contains(field.fieldId()),
+            "Cannot delete identifier field %s. To force deletion, " +
+                "also call setIdentifierFields to update identifier fields.", field);
+      }
+    }
+
+    // apply schema changes
     Types.StructType struct = TypeUtil
         .visit(schema, new ApplyChanges(deletes, updates, adds, moves))
         .asNestedType().asStructType();
-    return new Schema(struct.fields());
+
+    // validate identifier requirements based on the latest schema
+    Map<String, Integer> nameToId = TypeUtil.indexByName(struct);
+    Set<Integer> freshIdentifierFieldIds = Sets.newHashSet();
+    for (String name : identifierFieldNames) {
+      Preconditions.checkArgument(nameToId.containsKey(name),
+          "Cannot add field %s as an identifier field: not found in current schema or added columns", name);
+      freshIdentifierFieldIds.add(nameToId.get(name));
+    }
+
+    Map<Integer, Integer> idToParent = TypeUtil.indexParents(schema.asStruct());
+    Map<Integer, Types.NestedField> idToField = TypeUtil.indexById(struct);
+    freshIdentifierFieldIds.forEach(id -> validateIdentifierField(id, idToField, idToParent));
+
+    return new Schema(struct.fields(), freshIdentifierFieldIds);
+  }
+
+  private static void validateIdentifierField(int fieldId, Map<Integer, Types.NestedField> idToField,
+                                              Map<Integer, Integer> idToParent) {
+    Types.NestedField field = idToField.get(fieldId);
+    Preconditions.checkArgument(field.type().isPrimitiveType(),
+        "Cannot add field %s as an identifier field: not a primitive type field", field.name());
+    Preconditions.checkArgument(field.isRequired(),
+        "Cannot add field %s as an identifier field: not a required field", field.name());
+    Preconditions.checkArgument(!Types.DoubleType.get().equals(field.type()) &&
+        !Types.FloatType.get().equals(field.type()),
+        "Cannot add field %s as an identifier field: must not be float or double field", field.name());
+
+    // check whether the nested field is in a chain of struct fields
+    Integer parentId = idToParent.get(field.fieldId());
+    while (parentId != null) {
+      Types.NestedField parent = idToField.get(parentId);
+      Preconditions.checkArgument(parent.type().isStructType(),
+          "Cannot add field %s as an identifier field: must not be nested in %s", field.name(), parent);
+      parentId = idToParent.get(parent.fieldId());
+    }
   }
 
   private static class ApplyChanges extends TypeUtil.SchemaVisitor<Type> {
@@ -602,7 +677,7 @@ class SchemaUpdate implements UpdateSchema {
     return newFields;
   }
 
-  @SuppressWarnings("checkstyle:IllegalType")
+  @SuppressWarnings({"checkstyle:IllegalType", "JdkObsolete"})
   private static List<Types.NestedField> moveFields(List<Types.NestedField> fields,
                                                     Collection<Move> moves) {
     LinkedList<Types.NestedField> reordered = Lists.newLinkedList(fields);

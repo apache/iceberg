@@ -30,14 +30,13 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.BaseRemoveOrphanFilesActionResult;
 import org.apache.iceberg.actions.RemoveOrphanFiles;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.util.PropertyUtil;
@@ -90,7 +89,6 @@ public class BaseRemoveOrphanFilesSparkAction
   private final SerializableConfiguration hadoopConf;
   private final int partitionDiscoveryParallelism;
   private final Table table;
-  private final TableOperations ops;
 
   private String location = null;
   private long olderThanTimestamp = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3);
@@ -107,7 +105,6 @@ public class BaseRemoveOrphanFilesSparkAction
     this.hadoopConf = new SerializableConfiguration(spark.sessionState().newHadoopConf());
     this.partitionDiscoveryParallelism = spark.sessionState().conf().parallelPartitionDiscoveryParallelism();
     this.table = table;
-    this.ops = ((HasTableOperations) table).operations();
     this.location = table.location();
 
     ValidationException.check(
@@ -140,13 +137,22 @@ public class BaseRemoveOrphanFilesSparkAction
 
   @Override
   public RemoveOrphanFiles.Result execute() {
-    JobGroupInfo info = newJobGroupInfo("REMOVE-ORPHAN-FILES", "REMOVE-ORPHAN-FILES");
+    JobGroupInfo info = newJobGroupInfo("REMOVE-ORPHAN-FILES", jobDesc());
     return withJobGroupInfo(info, this::doExecute);
+  }
+
+  private String jobDesc() {
+    List<String> options = Lists.newArrayList();
+    options.add("older_than=" + olderThanTimestamp);
+    if (location != null) {
+      options.add("location=" + location);
+    }
+    return String.format("Removing orphan files (%s) from %s", Joiner.on(',').join(options), table.name());
   }
 
   private RemoveOrphanFiles.Result doExecute() {
     Dataset<Row> validDataFileDF = buildValidDataFileDF(table);
-    Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table, ops);
+    Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table);
     Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);
     Dataset<Row> actualFileDF = buildActualFileDF();
 

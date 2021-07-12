@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.parquet;
 
-import java.util.LinkedList;
+import java.util.ArrayDeque;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -36,8 +36,8 @@ import org.apache.parquet.schema.Type;
  * @param <T> the Java class returned by the visitor
  */
 public class TypeWithSchemaVisitor<T> {
-  @SuppressWarnings({"checkstyle:VisibilityModifier", "checkstyle:IllegalType"})
-  protected LinkedList<String> fieldNames = Lists.newLinkedList();
+  @SuppressWarnings("checkstyle:VisibilityModifier")
+  protected ArrayDeque<String> fieldNames = new ArrayDeque<>();
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static <T> T visit(org.apache.iceberg.types.Type iType, Type type, TypeWithSchemaVisitor<T> visitor) {

@@ -142,12 +142,25 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
 
     PartitionField newField = new PartitionField(
         sourceTransform.first(), assignFieldId(), name, sourceTransform.second());
-    checkForRedundantAddedPartitions(newField);
-
-    transformToAddedField.put(validationKey, newField);
-    if (name != null) {
-      nameToAddedField.put(name, newField);
+    if (newField.name() == null) {
+      String partitionName = PartitionSpecVisitor.visit(schema, newField, PartitionNameGenerator.INSTANCE);
+      newField = new PartitionField(newField.sourceId(), newField.fieldId(), partitionName, newField.transform());
     }
+
+    checkForRedundantAddedPartitions(newField);
+    transformToAddedField.put(validationKey, newField);
+
+    PartitionField existingField = nameToField.get(newField.name());
+    if (existingField != null) {
+      if (isVoidTransform(existingField)) {
+        // rename the old deleted field that is being replaced by the new field
+        renameField(existingField.name(), existingField.name() + "_" + existingField.fieldId());
+      } else {
+        throw new IllegalArgumentException(String.format("Cannot add duplicate partition field name: %s", name));
+      }
+    }
+
+    nameToAddedField.put(newField.name(), newField);
 
     adds.add(newField);
 
@@ -192,6 +205,12 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
 
   @Override
   public BaseUpdatePartitionSpec renameField(String name, String newName) {
+    PartitionField existingField = nameToField.get(newName);
+    if (existingField != null && isVoidTransform(existingField)) {
+      // rename the old deleted field that is being replaced by the new field
+      renameField(existingField.name(), existingField.name() + "_" + existingField.fieldId());
+    }
+
     PartitionField added = nameToAddedField.get(name);
     Preconditions.checkArgument(added == null,
         "Cannot rename newly added partition field: %s", name);
@@ -228,14 +247,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     }
 
     for (PartitionField newField : adds) {
-      String partitionName;
-      if (newField.name() != null) {
-        partitionName = newField.name();
-      } else {
-        partitionName = PartitionSpecVisitor.visit(schema, newField, PartitionNameGenerator.INSTANCE);
-      }
-
-      builder.add(newField.sourceId(), newField.fieldId(), partitionName, newField.transform());
+      builder.add(newField.sourceId(), newField.fieldId(), newField.name(), newField.transform());
     }
 
     return builder.build();
@@ -287,13 +299,13 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   }
 
   private static Map<Pair<Integer, String>, PartitionField> indexSpecByTransform(PartitionSpec spec) {
-    ImmutableMap.Builder<Pair<Integer, String>, PartitionField> builder = ImmutableMap.builder();
+    Map<Pair<Integer, String>, PartitionField> indexSpecs = Maps.newHashMap();
     List<PartitionField> fields = spec.fields();
     for (PartitionField field : fields) {
-      builder.put(Pair.of(field.sourceId(), field.transform().toString()), field);
+      indexSpecs.put(Pair.of(field.sourceId(), field.transform().toString()), field);
     }
 
-    return builder.build();
+    return indexSpecs;
   }
 
   private boolean isTimeTransform(PartitionField field) {
@@ -344,6 +356,62 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     @Override
     public Boolean alwaysNull(int fieldId, String sourceName, int sourceId) {
       return false;
+    }
+
+    @Override
+    public Boolean unknown(int fieldId, String sourceName, int sourceId, String transform) {
+      return false;
+    }
+  }
+
+  private boolean isVoidTransform(PartitionField field) {
+    return PartitionSpecVisitor.visit(schema, field, IsVoidTransform.INSTANCE);
+  }
+
+  private static class IsVoidTransform implements PartitionSpecVisitor<Boolean> {
+    private static final IsVoidTransform INSTANCE = new IsVoidTransform();
+
+    private IsVoidTransform() {
+    }
+
+    @Override
+    public Boolean identity(int fieldId, String sourceName, int sourceId) {
+      return false;
+    }
+
+    @Override
+    public Boolean bucket(int fieldId, String sourceName, int sourceId, int numBuckets) {
+      return false;
+    }
+
+    @Override
+    public Boolean truncate(int fieldId, String sourceName, int sourceId, int width) {
+      return false;
+    }
+
+    @Override
+    public Boolean year(int fieldId, String sourceName, int sourceId) {
+      return false;
+    }
+
+    @Override
+    public Boolean month(int fieldId, String sourceName, int sourceId) {
+      return false;
+    }
+
+    @Override
+    public Boolean day(int fieldId, String sourceName, int sourceId) {
+      return false;
+    }
+
+    @Override
+    public Boolean hour(int fieldId, String sourceName, int sourceId) {
+      return false;
+    }
+
+    @Override
+    public Boolean alwaysNull(int fieldId, String sourceName, int sourceId) {
+      return true;
     }
 
     @Override

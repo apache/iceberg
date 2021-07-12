@@ -17,7 +17,8 @@
 
 
 import iceberg.api.expressions as exp
-from iceberg.api.types import (IntegerType,
+from iceberg.api.types import (FloatType,
+                               IntegerType,
                                NestedField,
                                StringType,
                                StructType)
@@ -146,3 +147,15 @@ def test_char_seq_value(row_of):
     evaluator = exp.evaluator.Evaluator(struct, exp.expressions.Expressions.equal("s", "abc"))
     assert evaluator.eval(row_of(("abc",)))
     assert not evaluator.eval(row_of(("abcd",)))
+
+
+def test_nan_errors(row_of):
+    # Placeholder until NaN support is fully implemented
+    struct = StructType.of([NestedField.required(34, "f", FloatType.get())])
+    evaluator = exp.evaluator.Evaluator(struct, exp.expressions.Expressions.is_nan("f"))
+    with raises(NotImplementedError):
+        evaluator.eval(row_of((123.4,)))
+
+    evaluator = exp.evaluator.Evaluator(struct, exp.expressions.Expressions.not_nan("f"))
+    with raises(NotImplementedError):
+        evaluator.eval(row_of((123.4,)))

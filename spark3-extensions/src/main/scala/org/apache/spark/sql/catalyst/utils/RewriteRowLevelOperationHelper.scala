@@ -19,7 +19,9 @@
 package org.apache.spark.sql.catalyst.utils
 
 import java.util.UUID
+import org.apache.iceberg.common.DynConstructors
 import org.apache.iceberg.spark.Spark3Util
+import org.apache.iceberg.spark.Spark3VersionUtil
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
@@ -31,8 +33,10 @@ import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
 import org.apache.spark.sql.catalyst.expressions.AttributeSet
 import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.expressions.ExprId
 import org.apache.spark.sql.catalyst.expressions.GreaterThan
 import org.apache.spark.sql.catalyst.expressions.Literal
+import org.apache.spark.sql.catalyst.expressions.NamedExpression
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.expressions.aggregate.AggregateExpression
 import org.apache.spark.sql.catalyst.expressions.aggregate.Complete
@@ -48,6 +52,7 @@ import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.iceberg.distributions.OrderedDistribution
 import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter
 import org.apache.spark.sql.connector.iceberg.write.MergeBuilder
+import org.apache.spark.sql.connector.read.Scan
 import org.apache.spark.sql.connector.read.ScanBuilder
 import org.apache.spark.sql.connector.write.LogicalWriteInfo
 import org.apache.spark.sql.connector.write.LogicalWriteInfoImpl
@@ -59,6 +64,7 @@ import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Implici
 import org.apache.spark.sql.execution.datasources.v2.PushDownUtils
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources
+import org.apache.spark.sql.types.Metadata
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
@@ -69,7 +75,7 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
   import ExtendedDataSourceV2Implicits.ScanBuilderHelper
 
   protected def spark: SparkSession
-  protected lazy val conf: SQLConf = spark.sessionState.conf
+  def conf: SQLConf
   protected lazy val resolver: Resolver = conf.resolver
 
   protected def buildSimpleScanPlan(
@@ -83,14 +89,14 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
     val scan = scanBuilder.asIceberg.withMetadataColumns(FILE_NAME_COL, ROW_POS_COL).build()
     val outputAttrs = toOutputAttrs(scan.readSchema(), relation.output)
     val predicates = extractFilters(cond, relation.output).reduceLeftOption(And)
-    val scanRelation = DataSourceV2ScanRelation(relation.table, scan, outputAttrs)
+    val scanRelation = createScanRelation(relation, scan, outputAttrs)
 
     predicates.map(Filter(_, scanRelation)).getOrElse(scanRelation)
   }
 
   protected def buildDynamicFilterScanPlan(
       spark: SparkSession,
-      table: Table,
+      relation: DataSourceV2Relation,
       tableAttrs: Seq[AttributeReference],
       mergeBuilder: MergeBuilder,
       cond: Expression,
@@ -103,7 +109,7 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
 
     val scan = scanBuilder.asIceberg.withMetadataColumns(FILE_NAME_COL, ROW_POS_COL).build()
     val outputAttrs = toOutputAttrs(scan.readSchema(), tableAttrs)
-    val scanRelation = DataSourceV2ScanRelation(table, scan, outputAttrs)
+    val scanRelation = createScanRelation(relation, scan, outputAttrs)
 
     scan match {
       case filterable: SupportsFileFilter if runCardinalityCheck =>
@@ -171,11 +177,11 @@ trait RewriteRowLevelOperationHelper extends PredicateHelper with Logging {
       prunedTargetPlan: LogicalPlan): LogicalPlan = {
     val fileAttr = findOutputAttr(prunedTargetPlan.output, FILE_NAME_COL)
     val rowPosAttr = findOutputAttr(prunedTargetPlan.output, ROW_POS_COL)
-    val accumulatorExpr = Alias(AccumulateFiles(filesAccumulator, fileAttr), AFFECTED_FILES_ACC_ALIAS_NAME)()
+    val accumulatorExpr = createAlias(AccumulateFiles(filesAccumulator, fileAttr), AFFECTED_FILES_ACC_ALIAS_NAME)
     val projectList = Seq(fileAttr, rowPosAttr, accumulatorExpr)
     val projectPlan = Project(projectList, prunedTargetPlan)
     val affectedFilesAttr = findOutputAttr(projectPlan.output, AFFECTED_FILES_ACC_ALIAS_NAME)
-    val aggSumCol = Alias(AggregateExpression(Sum(affectedFilesAttr), Complete, false), SUM_ROW_ID_ALIAS_NAME)()
+    val aggSumCol = createAlias(AggregateExpression(Sum(affectedFilesAttr), Complete, false), SUM_ROW_ID_ALIAS_NAME)
     // Group by the rows by row id while collecting the files that need to be over written via accumulator.
     val aggPlan = Aggregate(Seq(fileAttr, rowPosAttr), Seq(aggSumCol), projectPlan)
     val sumAttr = findOutputAttr(aggPlan.output, SUM_ROW_ID_ALIAS_NAME)
@@ -229,4 +235,48 @@ object RewriteRowLevelOperationHelper {
   private final val AFFECTED_FILES_ACC_NAME = "internal.metrics.merge.affectedFiles"
   private final val AFFECTED_FILES_ACC_ALIAS_NAME = "_affectedFiles_"
   private final val SUM_ROW_ID_ALIAS_NAME = "_sum_"
+
+  private val scanRelationCtor: DynConstructors.Ctor[DataSourceV2ScanRelation] =
+    DynConstructors.builder()
+      .impl(classOf[DataSourceV2ScanRelation],
+        classOf[DataSourceV2Relation],
+        classOf[Scan],
+        classOf[Seq[AttributeReference]])
+      .impl(classOf[DataSourceV2ScanRelation],
+        classOf[Table],
+        classOf[Scan],
+        classOf[Seq[AttributeReference]])
+      .build()
+
+  def createScanRelation(
+      relation: DataSourceV2Relation,
+      scan: Scan,
+      outputAttrs: Seq[AttributeReference]): DataSourceV2ScanRelation = {
+    if (Spark3VersionUtil.isSpark30) {
+      scanRelationCtor.newInstance(relation.table, scan, outputAttrs)
+    } else {
+      scanRelationCtor.newInstance(relation, scan, outputAttrs)
+    }
+  }
+
+  private val aliasCtor: DynConstructors.Ctor[Alias] =
+    DynConstructors.builder()
+      .impl(classOf[Alias],
+        classOf[Expression],
+        classOf[String],
+        classOf[ExprId],
+        classOf[Seq[String]],
+        classOf[Option[Metadata]],
+        classOf[Seq[String]])
+      .impl(classOf[Alias],
+        classOf[Expression],
+        classOf[String],
+        classOf[ExprId],
+        classOf[Seq[String]],
+        classOf[Option[Metadata]])
+      .build()
+
+  def createAlias(child: Expression, name: String): Alias = {
+    aliasCtor.newInstance(child, name, NamedExpression.newExprId, Seq.empty, None, Seq.empty)
+  }
 }

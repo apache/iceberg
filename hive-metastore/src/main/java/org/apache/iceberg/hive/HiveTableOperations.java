@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.hive;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
@@ -28,7 +30,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
@@ -47,6 +51,7 @@ import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.TableMetadata;
@@ -60,12 +65,16 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.iceberg.TableProperties.GC_ENABLED;
 
 /**
  * TODO we should be able to extract some more commonalities to BaseMetastoreTableOperations to
@@ -77,15 +86,48 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final String HIVE_ACQUIRE_LOCK_TIMEOUT_MS = "iceberg.hive.lock-timeout-ms";
   private static final String HIVE_LOCK_CHECK_MIN_WAIT_MS = "iceberg.hive.lock-check-min-wait-ms";
   private static final String HIVE_LOCK_CHECK_MAX_WAIT_MS = "iceberg.hive.lock-check-max-wait-ms";
+  private static final String HIVE_TABLE_LEVEL_LOCK_EVICT_MS = "iceberg.hive.table-level-lock-evict-ms";
   private static final long HIVE_ACQUIRE_LOCK_TIMEOUT_MS_DEFAULT = 3 * 60 * 1000; // 3 minutes
   private static final long HIVE_LOCK_CHECK_MIN_WAIT_MS_DEFAULT = 50; // 50 milliseconds
   private static final long HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT = 5 * 1000; // 5 seconds
+  private static final long HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT = TimeUnit.MINUTES.toMillis(10);
   private static final DynMethods.UnboundMethod ALTER_TABLE = DynMethods.builder("alter_table")
       .impl(HiveMetaStoreClient.class, "alter_table_with_environmentContext",
           String.class, String.class, Table.class, EnvironmentContext.class)
       .impl(HiveMetaStoreClient.class, "alter_table",
           String.class, String.class, Table.class, EnvironmentContext.class)
       .build();
+  private static final BiMap<String, String> ICEBERG_TO_HMS_TRANSLATION = ImmutableBiMap.of(
+      // gc.enabled in Iceberg and external.table.purge in Hive are meant to do the same things but with different names
+      GC_ENABLED, "external.table.purge"
+  );
+
+  private static Cache<String, ReentrantLock> commitLockCache;
+
+  private static synchronized void initTableLevelLockCache(long evictionTimeout) {
+    if (commitLockCache == null) {
+      commitLockCache = Caffeine.newBuilder()
+          .expireAfterAccess(evictionTimeout, TimeUnit.MILLISECONDS)
+          .build();
+    }
+  }
+
+  /**
+   * Provides key translation where necessary between Iceberg and HMS props. This translation is needed because some
+   * properties control the same behaviour but are named differently in Iceberg and Hive. Therefore changes to these
+   * property pairs should be synchronized.
+   *
+   * Example: Deleting data files upon DROP TABLE is enabled using gc.enabled=true in Iceberg and
+   * external.table.purge=true in Hive. Hive and Iceberg users are unaware of each other's control flags, therefore
+   * inconsistent behaviour can occur from e.g. a Hive user's point of view if external.table.purge=true is set on the
+   * HMS table but gc.enabled=false is set on the Iceberg table, resulting in no data file deletion.
+   *
+   * @param hmsProp The HMS property that should be translated to Iceberg property
+   * @return Iceberg property equivalent to the hmsProp. If no such translation exists, the original hmsProp is returned
+   */
+  public static String translateToIcebergProp(String hmsProp) {
+    return ICEBERG_TO_HMS_TRANSLATION.inverse().getOrDefault(hmsProp, hmsProp);
+  }
 
   private static class WaitingForLockException extends RuntimeException {
     WaitingForLockException(String message) {
@@ -117,6 +159,9 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         conf.getLong(HIVE_LOCK_CHECK_MIN_WAIT_MS, HIVE_LOCK_CHECK_MIN_WAIT_MS_DEFAULT);
     this.lockCheckMaxWaitTime =
         conf.getLong(HIVE_LOCK_CHECK_MAX_WAIT_MS, HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT);
+    long tableLevelLockCacheEvictionTimeout =
+        conf.getLong(HIVE_TABLE_LEVEL_LOCK_EVICT_MS, HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT);
+    initTableLevelLockCache(tableLevelLockCacheEvictionTimeout);
   }
 
   @Override
@@ -164,6 +209,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     CommitStatus commitStatus = CommitStatus.FAILURE;
     boolean updateHiveTable = false;
     Optional<Long> lockId = Optional.empty();
+    // getting a process-level lock per table to avoid concurrent commit attempts to the same table from the same
+    // JVM process, which would result in unnecessary and costly HMS lock acquisition requests
+    ReentrantLock tableLevelMutex = commitLockCache.get(fullName, t -> new ReentrantLock(true));
+    tableLevelMutex.lock();
     try {
       lockId = Optional.of(acquireLock());
       // TODO add lock heart beating for cases where default lock timeout is too low.
@@ -240,6 +289,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
 
     } finally {
       cleanupMetadataAndUnlock(commitStatus, newMetadataLocation, lockId);
+      tableLevelMutex.unlock();
     }
   }
 
@@ -293,14 +343,15 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private void setHmsTableParameters(String newMetadataLocation, Table tbl, Map<String, String> icebergTableProps,
                                      Set<String> obsoleteProps, boolean hiveEngineEnabled,
                                      Map<String, String> summary) {
-    Map<String, String> parameters = tbl.getParameters();
-
-    if (parameters == null) {
-      parameters = new HashMap<>();
-    }
+    Map<String, String> parameters = Optional.ofNullable(tbl.getParameters())
+        .orElseGet(HashMap::new);
 
     // push all Iceberg table properties into HMS
-    icebergTableProps.forEach(parameters::put);
+    icebergTableProps.forEach((key, value) -> {
+      // translate key names between Iceberg and HMS where needed
+      String hmsKey = ICEBERG_TO_HMS_TRANSLATION.getOrDefault(key, key);
+      parameters.put(hmsKey, value);
+    });
 
     // remove any props from HMS that are no longer present in Iceberg table props
     obsoleteProps.forEach(parameters::remove);

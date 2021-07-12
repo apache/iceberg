@@ -22,6 +22,10 @@ package org.apache.iceberg.spark.extensions;
 import java.util.Map;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.spark.source.SparkTable;
+import org.apache.spark.sql.connector.catalog.CatalogManager;
+import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -261,7 +265,8 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
 
     Assert.assertEquals("Table should have 1 partition field", 1, table.spec().fields().size());
 
-    sql("ALTER TABLE %s DROP PARTITION FIELD shard", tableName);
+    // Should be recognized as iceberg command even with extra white spaces
+    sql("ALTER TABLE %s DROP  PARTITION \n FIELD shard", tableName);
 
     table.refresh();
 
@@ -367,5 +372,44 @@ public class TestAlterTablePartitionFields extends SparkExtensionsTestBase {
         .hour("ts", "hour_col")
         .build();
     Assert.assertEquals("Should changed from daily to hourly partitioned field", expected, table.spec());
+  }
+
+  @Test
+  public void testSparkTableAddDropPartitions() throws Exception {
+    sql("CREATE TABLE %s (id bigint NOT NULL, ts timestamp, data string) USING iceberg", tableName);
+    Assert.assertEquals("spark table partition should be empty", 0, sparkTable().partitioning().length);
+
+    sql("ALTER TABLE %s ADD PARTITION FIELD bucket(16, id) AS shard", tableName);
+    assertPartitioningEquals(sparkTable(), 1, "bucket(16, id)");
+
+    sql("ALTER TABLE %s ADD PARTITION FIELD truncate(data, 4)", tableName);
+    assertPartitioningEquals(sparkTable(), 2, "truncate(data, 4)");
+
+    sql("ALTER TABLE %s ADD PARTITION FIELD years(ts)", tableName);
+    assertPartitioningEquals(sparkTable(), 3, "years(ts)");
+
+    sql("ALTER TABLE %s DROP PARTITION FIELD years(ts)", tableName);
+    assertPartitioningEquals(sparkTable(), 2, "truncate(data, 4)");
+
+    sql("ALTER TABLE %s DROP PARTITION FIELD truncate(data, 4)", tableName);
+    assertPartitioningEquals(sparkTable(), 1, "bucket(16, id)");
+
+    sql("ALTER TABLE %s DROP PARTITION FIELD shard", tableName);
+    sql("DESCRIBE %s", tableName);
+    Assert.assertEquals("spark table partition should be empty", 0, sparkTable().partitioning().length);
+  }
+
+  private void assertPartitioningEquals(SparkTable table, int len, String transform) {
+    Assert.assertEquals("spark table partition should be " + len, len, table.partitioning().length);
+    Assert.assertEquals("latest spark table partition transform should match",
+        transform, table.partitioning()[len - 1].toString());
+  }
+
+  private SparkTable sparkTable() throws Exception {
+    validationCatalog.loadTable(tableIdent).refresh();
+    CatalogManager catalogManager = spark.sessionState().catalogManager();
+    TableCatalog catalog = (TableCatalog) catalogManager.catalog(catalogName);
+    Identifier identifier = Identifier.of(tableIdent.namespace().levels(), tableIdent.name());
+    return (SparkTable) catalog.loadTable(identifier);
   }
 }

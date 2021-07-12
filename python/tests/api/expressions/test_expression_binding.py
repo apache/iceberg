@@ -83,10 +83,10 @@ def test_and(assert_all_bound, assert_and_unwrap):
 
     left = assert_and_unwrap(and_.left, None)
     # should bind x correctly
-    assert 0 == left.ref.field_id
+    assert 0 == left.ref.field.field_id
     right = assert_and_unwrap(and_.right, None)
     # should bind y correctly
-    assert 1 == right.ref.field_id
+    assert 1 == right.ref.field.field_id
 
 
 def test_or(assert_all_bound, assert_and_unwrap):
@@ -99,10 +99,10 @@ def test_or(assert_all_bound, assert_and_unwrap):
 
     left = assert_and_unwrap(or_.left, None)
     # should bind z correctly
-    assert 2 == left.ref.field_id
+    assert 2 == left.ref.field.field_id
     right = assert_and_unwrap(or_.right, None)
     # should bind y correctly
-    assert 1 == right.ref.field_id
+    assert 1 == right.ref.field.field_id
 
 
 def test_not(assert_all_bound, assert_and_unwrap):
@@ -114,7 +114,7 @@ def test_not(assert_all_bound, assert_and_unwrap):
 
     child = assert_and_unwrap(not_.child, None)
     # should bind x correctly
-    assert 0 == child.ref.field_id
+    assert 0 == child.ref.field.field_id
 
 
 def test_always_true():
@@ -140,4 +140,4 @@ def test_basic_simplification(assert_and_unwrap):
     bound = Binder.bind(STRUCT,
                         Expressions.not_(Expressions.not_(Expressions.less_than("y", 100))))
     pred = assert_and_unwrap(bound, None)
-    assert 1 == pred.ref.field_id
+    assert 1 == pred.ref.field.field_id

@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.schema.GroupType;
@@ -102,7 +103,7 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
     if (elementId != null && selectedIds.contains(elementId)) {
       return list;
     } else if (element != null) {
-      if (element != originalElement) {
+      if (!Objects.equal(element, originalElement)) {
         Integer listId = getId(list);
         // the element type was projected
         Type listType = Types.list(list.getRepetition())
@@ -129,8 +130,8 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
       return map;
     } else if (value != null) {
       Integer mapId = getId(map);
-      if (value != originalValue) {
-        Type mapType =  Types.map(map.getRepetition())
+      if (!Objects.equal(value, originalValue)) {
+        Type mapType = Types.map(map.getRepetition())
             .key(originalKey)
             .value(value)
             .named(map.getName());

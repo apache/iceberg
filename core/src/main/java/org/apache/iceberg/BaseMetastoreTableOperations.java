@@ -39,6 +39,12 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_MAX_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_MAX_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_MIN_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_MIN_WAIT_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS_DEFAULT;
 
 public abstract class BaseMetastoreTableOperations implements TableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(BaseMetastoreTableOperations.class);
@@ -49,8 +55,6 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   public static final String PREVIOUS_METADATA_LOCATION_PROP = "previous_metadata_location";
 
   private static final String METADATA_FOLDER_NAME = "metadata";
-
-  private static final int COMMIT_STATUS_CHECK_WAIT_MS = 1000;
 
   private TableMetadata currentMetadata = null;
   private String currentMetadataLocation = null;
@@ -65,9 +69,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
    * catalogName + "." + database + "." + table.
    * @return The full name
    */
-  protected String tableName() {
-    return null;
-  }
+  protected abstract String tableName();
 
   @Override
   public TableMetadata current() {
@@ -136,6 +138,10 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   protected void requestRefresh() {
     this.shouldRefresh = true;
+  }
+
+  protected void disableRefresh() {
+    this.shouldRefresh = false;
   }
 
   protected String writeNewMetadata(TableMetadata metadata, int newVersion) {
@@ -270,13 +276,19 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   protected CommitStatus checkCommitStatus(String newMetadataLocation, TableMetadata config) {
     int maxAttempts = PropertyUtil.propertyAsInt(config.properties(), COMMIT_NUM_STATUS_CHECKS,
         COMMIT_NUM_STATUS_CHECKS_DEFAULT);
+    long minWaitMs = PropertyUtil.propertyAsLong(config.properties(), COMMIT_STATUS_CHECKS_MIN_WAIT_MS,
+        COMMIT_STATUS_CHECKS_MIN_WAIT_MS_DEFAULT);
+    long maxWaitMs = PropertyUtil.propertyAsLong(config.properties(), COMMIT_STATUS_CHECKS_MAX_WAIT_MS,
+        COMMIT_STATUS_CHECKS_MAX_WAIT_MS_DEFAULT);
+    long totalRetryMs = PropertyUtil.propertyAsLong(config.properties(), COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS,
+        COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS_DEFAULT);
 
     AtomicReference<CommitStatus> status = new AtomicReference<>(CommitStatus.UNKNOWN);
 
     Tasks.foreach(newMetadataLocation)
         .retry(maxAttempts)
         .suppressFailureWhenFinished()
-        .exponentialBackoff(COMMIT_STATUS_CHECK_WAIT_MS, COMMIT_STATUS_CHECK_WAIT_MS, Long.MAX_VALUE, 2.0)
+        .exponentialBackoff(minWaitMs, maxWaitMs, totalRetryMs, 2.0)
         .onFailure((location, checkException) ->
             LOG.error("Cannot check if commit to {} exists.", tableName(), checkException))
         .run(location -> {

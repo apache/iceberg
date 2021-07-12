@@ -53,7 +53,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.HashMultiset;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -191,9 +190,19 @@ public class SimpleDataUtil {
 
   public static void assertTableRecords(Table table, List<Record> expected) throws IOException {
     table.refresh();
+
+    Types.StructType type = table.schema().asStruct();
+    StructLikeSet expectedSet = StructLikeSet.create(type);
+    expectedSet.addAll(expected);
+
     try (CloseableIterable<Record> iterable = IcebergGenerics.read(table).build()) {
-      Assert.assertEquals("Should produce the expected record",
-          HashMultiset.create(expected), HashMultiset.create(iterable));
+      StructLikeSet actualSet = StructLikeSet.create(type);
+
+      for (Record record : iterable) {
+        actualSet.add(record);
+      }
+
+      Assert.assertEquals("Should produce the expected record", expectedSet, actualSet);
     }
   }
 
@@ -209,9 +218,17 @@ public class SimpleDataUtil {
   }
 
   public static StructLikeSet actualRowSet(Table table, String... columns) throws IOException {
+    return actualRowSet(table, null, columns);
+  }
+
+  public static StructLikeSet actualRowSet(Table table, Long snapshotId, String... columns) throws IOException {
     table.refresh();
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
-    try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
+    try (CloseableIterable<Record> reader = IcebergGenerics
+        .read(table)
+        .useSnapshot(snapshotId == null ? table.currentSnapshot().snapshotId() : snapshotId)
+        .select(columns)
+        .build()) {
       reader.forEach(set::add);
     }
     return set;

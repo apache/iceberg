@@ -22,14 +22,17 @@ package org.apache.iceberg;
 import java.io.File;
 import java.io.IOException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.PartitionSpec.unpartitioned;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
 public class TestCreateTransaction extends TableTestBase {
@@ -65,6 +68,49 @@ public class TestCreateTransaction extends TableTestBase {
 
     Assert.assertEquals("Table schema should match with reassigned IDs",
         TypeUtil.assignIncreasingFreshIds(SCHEMA).asStruct(), meta.schema().asStruct());
+    Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
+    Assert.assertEquals("Table should not have any snapshots", 0, meta.snapshots().size());
+  }
+
+  @Test
+  public void testCreateTransactionAndUpdateSchema() throws IOException {
+    File tableDir = temp.newFolder();
+    Assert.assertTrue(tableDir.delete());
+
+    Transaction txn = TestTables.beginCreate(tableDir, "test_create", SCHEMA, unpartitioned());
+
+    Assert.assertNull("Starting a create transaction should not commit metadata",
+        TestTables.readMetadata("test_create"));
+    Assert.assertNull("Should have no metadata version",
+        TestTables.metadataVersion("test_create"));
+
+    txn.updateSchema()
+        .allowIncompatibleChanges()
+        .addRequiredColumn("col", Types.StringType.get())
+        .setIdentifierFields("id", "col")
+        .commit();
+
+    txn.commitTransaction();
+
+    TableMetadata meta = TestTables.readMetadata("test_create");
+    Assert.assertNotNull("Table metadata should be created after transaction commits", meta);
+    Assert.assertEquals("Should have metadata version 0",
+        0, (int) TestTables.metadataVersion("test_create"));
+    Assert.assertEquals("Should have 0 manifest files",
+        0, listManifestFiles(tableDir).size());
+
+    Schema resultSchema = new Schema(
+        Lists.newArrayList(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()),
+            required(3, "col", Types.StringType.get())),
+        Sets.newHashSet(1, 3)
+    );
+
+    Assert.assertEquals("Table schema should match with reassigned IDs",
+        resultSchema.asStruct(), meta.schema().asStruct());
+    Assert.assertEquals("Table schema identifier should match",
+        resultSchema.identifierFieldIds(), meta.schema().identifierFieldIds());
     Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
     Assert.assertEquals("Table should not have any snapshots", 0, meta.snapshots().size());
   }

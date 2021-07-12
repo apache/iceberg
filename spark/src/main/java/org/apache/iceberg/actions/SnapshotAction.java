@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.actions;
 
+@Deprecated
 public interface SnapshotAction extends CreateAction {
   SnapshotAction withLocation(String location);
 }

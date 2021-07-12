@@ -44,7 +44,7 @@ For example, to use AWS features with Spark 3 and AWS clients version 2.15.40, y
 
 ```sh
 # add Iceberg dependency
-ICEBERG_VERSION=0.11.0
+ICEBERG_VERSION={{ versions.iceberg }}
 DEPENDENCIES="org.apache.iceberg:iceberg-spark3-runtime:$ICEBERG_VERSION"
 
 # add AWS dependnecy
@@ -76,7 +76,7 @@ To use AWS module with Flink, you can download the necessary dependencies and sp
 
 ```sh
 # download Iceberg dependency
-ICEBERG_VERSION=0.11.0
+ICEBERG_VERSION={{ versions.iceberg }}
 MAVEN_URL=https://repo1.maven.org/maven2
 ICEBERG_MAVEN_URL=$MAVEN_URL/org/apache/iceberg
 wget $ICEBERG_MAVEN_URL/iceberg-flink-runtime/$ICEBERG_VERSION/iceberg-flink-runtime-$ICEBERG_VERSION.jar
@@ -126,6 +126,35 @@ catalogs:
     lock.table: myGlueLockTable
 ```
 
+### Hive
+
+To use AWS module with Hive, you can download the necessary dependencies similar to the Flink example,
+and then add them to the Hive classpath or add the jars at runtime in CLI:
+
+```
+add jar /my/path/to/iceberg-hive-runtime.jar;
+add jar /my/path/to/aws/bundle.jar;
+add jar /my/path/to/aws/url-connection-client.jar;
+```
+
+With those dependencies, you can register a Glue catalog and create external tables in Hive at runtime in CLI by:
+
+```sql
+SET iceberg.engine.hive.enabled=true;
+SET hive.vectorized.execution.enabled=false;
+SET iceberg.catalog.glue.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog;
+SET iceberg.catalog.glue.warehouse=s3://my-bucket/my/key/prefix;
+SET iceberg.catalog.glue.lock-impl=org.apache.iceberg.aws.glue.DynamoLockManager;
+SET iceberg.catalog.glue.lock.table=myGlueLockTable;
+
+-- suppose you have an Iceberg table database_a.table_a created by GlueCatalog
+CREATE EXTERNAL TABLE database_a.table_a
+STORED BY 'org.apache.iceberg.mr.hive.HiveIcebergStorageHandler'
+TBLPROPERTIES ('iceberg.catalog'='glue');
+```
+
+You can also preload the catalog by setting the configurations above in `hive-site.xml`.
+
 ## Glue Catalog
 
 Iceberg enables the use of [AWS Glue](https://aws.amazon.com/glue) as the `Catalog` implementation.
@@ -134,7 +163,7 @@ an Iceberg table is stored as a [Glue Table](https://docs.aws.amazon.com/glue/la
 and every Iceberg table version is stored as a [Glue TableVersion](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-catalog-tables.html#aws-glue-api-catalog-tables-TableVersion). 
 You can start using Glue catalog by specifying the `catalog-impl` as `org.apache.iceberg.aws.glue.GlueCatalog`,
 just like what is shown in the [enabling AWS integration](#enabling-aws-integration) section above. 
-More details about loading the catalog can be found in individual engine pages, such as [Spark](../spark/#loading-a-custom-catalog) and [Flink](../flink/#creating-catalogs-and-using-catalogs).
+More details about loading the catalog can be found in individual engine pages, such as [Spark](../spark-configuration/#loading-a-custom-catalog) and [Flink](../flink/#creating-catalogs-and-using-catalogs).
 
 ### Glue Catalog ID
 There is a unique Glue metastore in each AWS account and each AWS region.
@@ -322,7 +351,7 @@ The Glue, S3 and DynamoDB clients are then initialized with the assume-role cred
 Here is an example to start Spark shell with this client factory:
 
 ```shell
-spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:0.11.0,software.amazon.awssdk:bundle:2.15.40 \
+spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:{{ versions.iceberg }},software.amazon.awssdk:bundle:2.15.40 \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \    
     --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.aws.glue.GlueCatalog \
@@ -345,7 +374,7 @@ You can use a [bootstrap action](https://docs.aws.amazon.com/emr/latest/Manageme
 #!/bin/bash
 
 AWS_SDK_VERSION=2.15.40
-ICEBERG_VERSION=0.11.0
+ICEBERG_VERSION={{ versions.iceberg }}
 MAVEN_URL=https://repo1.maven.org/maven2
 ICEBERG_MAVEN_URL=$MAVEN_URL/org/apache/iceberg
 AWS_MAVEN_URL=$MAVEN_URL/software/amazon/awssdk

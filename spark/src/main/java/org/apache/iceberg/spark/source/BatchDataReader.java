@@ -28,10 +28,10 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.ORC;
@@ -51,12 +51,10 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
   private final boolean caseSensitive;
   private final int batchSize;
 
-  BatchDataReader(
-      CombinedScanTask task, Schema expectedSchema, String nameMapping, FileIO fileIo,
-      EncryptionManager encryptionManager, boolean caseSensitive, int size) {
-    super(task, fileIo, encryptionManager);
+  BatchDataReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive, int size) {
+    super(task, table.io(), table.encryption());
     this.expectedSchema = expectedSchema;
-    this.nameMapping = nameMapping;
+    this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     this.caseSensitive = caseSensitive;
     this.batchSize = size;
   }

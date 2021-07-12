@@ -129,7 +129,7 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
   }
 
   @Override
-  public Stream<FieldMetrics> metrics() {
+  public Stream<FieldMetrics<?>> metrics() {
     return writer.metrics();
   }
 
@@ -160,7 +160,7 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return writers.stream().flatMap(OrcValueWriter::metrics);
     }
   }

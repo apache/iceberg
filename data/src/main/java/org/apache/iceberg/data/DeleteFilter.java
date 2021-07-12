@@ -243,6 +243,8 @@ public abstract class DeleteFilter<T> {
       requiredIds.addAll(eqDelete.equalityFieldIds());
     }
 
+    requiredIds.add(MetadataColumns.IS_DELETED.fieldId());
+
     Set<Integer> missingIds = Sets.newLinkedHashSet(
         Sets.difference(requiredIds, TypeUtil.getProjectedIds(requestedSchema)));
 
@@ -253,8 +255,8 @@ public abstract class DeleteFilter<T> {
     // TODO: support adding nested columns. this will currently fail when finding nested columns to add
     List<Types.NestedField> columns = Lists.newArrayList(requestedSchema.columns());
     for (int fieldId : missingIds) {
-      if (fieldId == MetadataColumns.ROW_POSITION.fieldId()) {
-        continue; // add _pos at the end
+      if (fieldId == MetadataColumns.ROW_POSITION.fieldId() || fieldId == MetadataColumns.IS_DELETED.fieldId()) {
+        continue; // add _pos and _deleted at the end
       }
 
       Types.NestedField field = tableSchema.asStruct().field(fieldId);
@@ -265,6 +267,10 @@ public abstract class DeleteFilter<T> {
 
     if (missingIds.contains(MetadataColumns.ROW_POSITION.fieldId())) {
       columns.add(MetadataColumns.ROW_POSITION);
+    }
+
+    if (missingIds.contains(MetadataColumns.IS_DELETED.fieldId())) {
+      columns.add(MetadataColumns.IS_DELETED);
     }
 
     return new Schema(columns);

@@ -21,6 +21,7 @@ package org.apache.iceberg.aws;
 
 import java.io.Serializable;
 import java.util.Map;
+import org.apache.iceberg.aws.dynamodb.DynamoDbCatalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
@@ -131,6 +132,12 @@ public class AwsProperties implements Serializable {
   public static final String S3FILEIO_ACL = "s3.acl";
 
   /**
+   * DynamoDB table name for {@link DynamoDbCatalog}
+   */
+  public static final String DYNAMODB_TABLE_NAME = "dynamodb.table-name";
+  public static final String DYNAMODB_TABLE_NAME_DEFAULT = "iceberg";
+
+  /**
    * The implementation class of {@link AwsClientFactory} to customize AWS client configurations.
    * If set, all AWS clients will be initialized by the specified factory.
    * If not set, {@link AwsClientFactories#defaultFactory()} is used as default factory.
@@ -180,6 +187,8 @@ public class AwsProperties implements Serializable {
   private String glueCatalogId;
   private boolean glueCatalogSkipArchive;
 
+  private String dynamoDbTableName;
+
   public AwsProperties() {
     this.s3FileIoSseType = S3FILEIO_SSE_TYPE_NONE;
     this.s3FileIoSseKey = null;
@@ -193,6 +202,8 @@ public class AwsProperties implements Serializable {
 
     this.glueCatalogId = null;
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
+
+    this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
   }
 
   public AwsProperties(Map<String, String> properties) {
@@ -236,6 +247,9 @@ public class AwsProperties implements Serializable {
     this.s3FileIoAcl = ObjectCannedACL.fromValue(aclType);
     Preconditions.checkArgument(s3FileIoAcl == null || !s3FileIoAcl.equals(ObjectCannedACL.UNKNOWN_TO_SDK_VERSION),
         "Cannot support S3 CannedACL " + aclType);
+
+    this.dynamoDbTableName = PropertyUtil.propertyAsString(properties, DYNAMODB_TABLE_NAME,
+        DYNAMODB_TABLE_NAME_DEFAULT);
   }
 
   public String s3FileIoSseType() {
@@ -316,5 +330,13 @@ public class AwsProperties implements Serializable {
 
   public void setS3FileIoAcl(ObjectCannedACL acl) {
     this.s3FileIoAcl = acl;
+  }
+
+  public String dynamoDbTableName() {
+    return dynamoDbTableName;
+  }
+
+  public void setDynamoDbTableName(String name) {
+    this.dynamoDbTableName = name;
   }
 }

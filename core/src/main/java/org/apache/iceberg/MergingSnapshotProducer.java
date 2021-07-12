@@ -40,6 +40,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.CharSequenceSet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT_DEFAULT;
@@ -49,6 +52,8 @@ import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED
 import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED_DEFAULT;
 
 abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
+  private static final Logger LOG = LoggerFactory.getLogger(MergingSnapshotProducer.class);
+
   // data is only added in "append" and "overwrite" operations
   private static final Set<String> VALIDATE_ADDED_FILES_OPERATIONS =
       ImmutableSet.of(DataOperations.APPEND, DataOperations.OVERWRITE);
@@ -292,8 +297,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
   }
 
+  @SuppressWarnings("CollectionUndefinedEquality")
   protected void validateDataFilesExist(TableMetadata base, Long startingSnapshotId,
-                                        Set<CharSequence> requiredDataFiles, boolean skipDeletes) {
+                                        CharSequenceSet requiredDataFiles, boolean skipDeletes) {
     // if there is no current table state, no files have been removed
     if (base.currentSnapshot() == null) {
       return;
@@ -390,7 +396,16 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   @Override
   public Object updateEvent() {
     long snapshotId = snapshotId();
-    long sequenceNumber = ops.refresh().snapshot(snapshotId).sequenceNumber();
+    Snapshot justSaved = ops.refresh().snapshot(snapshotId);
+    long sequenceNumber = TableMetadata.INVALID_SEQUENCE_NUMBER;
+    if (justSaved == null) {
+      // The snapshot just saved may not be present if the latest metadata couldn't be loaded due to eventual
+      // consistency problems in refresh.
+      LOG.warn("Failed to load committed snapshot: omitting sequence number from notifications");
+    } else {
+      sequenceNumber = justSaved.sequenceNumber();
+    }
+
     return new CreateSnapshotEvent(
         tableName,
         operation(),

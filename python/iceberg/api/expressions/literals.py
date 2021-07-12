@@ -27,6 +27,7 @@ from .expression import (FALSE,
                          TRUE)
 from .java_variables import (JAVA_MAX_FLOAT,
                              JAVA_MIN_FLOAT)
+from ..types.conversions import Conversions
 from ..types.type import TypeID
 
 
@@ -60,7 +61,7 @@ class Literals(object):
         elif isinstance(value, Decimal):
             return DecimalLiteral(value)
         else:
-            raise RuntimeError("Unimplemented Type Literal")
+            raise NotImplementedError("Unimplemented Type Literal for value: %s" % value)
 
     @staticmethod
     def above_max():
@@ -101,15 +102,20 @@ class Literal(object):
         elif isinstance(value, Decimal):
             return DecimalLiteral(value)
 
-    def to(self, type):
+    def to(self, type_var):
+        raise NotImplementedError()
+
+    def to_byte_buffer(self):
         raise NotImplementedError()
 
 
 class BaseLiteral(Literal):
-    def __init__(self, value):
+    def __init__(self, value, type_id):
         self.value = value
+        self.byte_buffer = None
+        self.type_id = type_id
 
-    def to(self, type):
+    def to(self, type_var):
         raise NotImplementedError()
 
     def __eq__(self, other):
@@ -129,11 +135,17 @@ class BaseLiteral(Literal):
     def __str__(self):
         return str(self.value)
 
+    def to_byte_buffer(self):
+        if self.byte_buffer is None:
+            self.byte_buffer = Conversions.to_byte_buffer(self.type_id, self.value)
+
+        return self.byte_buffer
+
 
 class ComparableLiteral(BaseLiteral):
 
-    def __init__(self, value):
-        super(ComparableLiteral, self).__init__(value)
+    def __init__(self, value, type_id):
+        super(ComparableLiteral, self).__init__(value, type_id)
 
     def to(self, type):
         raise NotImplementedError()
@@ -212,7 +224,7 @@ class BelowMin(Literal):
 class BooleanLiteral(ComparableLiteral):
 
     def __init__(self, value):
-        super(BooleanLiteral, self).__init__(value)
+        super(BooleanLiteral, self).__init__(value, TypeID.BOOLEAN)
 
     def to(self, type_var):
         if type_var.type_id == TypeID.BOOLEAN:
@@ -222,7 +234,7 @@ class BooleanLiteral(ComparableLiteral):
 class IntegerLiteral(ComparableLiteral):
 
     def __init__(self, value):
-        super(IntegerLiteral, self).__init__(value)
+        super(IntegerLiteral, self).__init__(value, TypeID.INTEGER)
 
     def to(self, type_var):
         if type_var.type_id == TypeID.INTEGER:
@@ -247,7 +259,7 @@ class IntegerLiteral(ComparableLiteral):
 class LongLiteral(ComparableLiteral):
 
     def __init__(self, value):
-        super(LongLiteral, self).__init__(value)
+        super(LongLiteral, self).__init__(value, TypeID.LONG)
 
     def to(self, type_var):  # noqa: C901
         if type_var.type_id == TypeID.INTEGER:
@@ -279,7 +291,7 @@ class LongLiteral(ComparableLiteral):
 class FloatLiteral(ComparableLiteral):
 
     def __init__(self, value):
-        super(FloatLiteral, self).__init__(value)
+        super(FloatLiteral, self).__init__(value, TypeID.FLOAT)
 
     def to(self, type_var):
         if type_var.type_id == TypeID.FLOAT:
@@ -300,7 +312,7 @@ class FloatLiteral(ComparableLiteral):
 class DoubleLiteral(ComparableLiteral):
 
     def __init__(self, value):
-        super(DoubleLiteral, self).__init__(value)
+        super(DoubleLiteral, self).__init__(value, TypeID.DOUBLE)
 
     def to(self, type_var):
         if type_var.type_id == TypeID.FLOAT:
@@ -326,7 +338,7 @@ class DoubleLiteral(ComparableLiteral):
 class DateLiteral(ComparableLiteral):
 
     def __init__(self, value):
-        super(DateLiteral, self).__init__(value)
+        super(DateLiteral, self).__init__(value, TypeID.DATE)
 
     def to(self, type_var):
         if type_var.type_id == TypeID.DATE:
@@ -336,7 +348,7 @@ class DateLiteral(ComparableLiteral):
 class TimeLiteral(ComparableLiteral):
 
     def __init__(self, value):
-        super(TimeLiteral, self).__init__(value)
+        super(TimeLiteral, self).__init__(value, TypeID.TIME)
 
     def to(self, type_var):
         if type_var.type_id == TypeID.TIME:
@@ -346,7 +358,7 @@ class TimeLiteral(ComparableLiteral):
 class TimestampLiteral(ComparableLiteral):
 
     def __init__(self, value):
-        super(TimestampLiteral, self).__init__(value)
+        super(TimestampLiteral, self).__init__(value, TypeID.TIMESTAMP)
 
     def to(self, type_var):
         if type_var.type_id == TypeID.TIMESTAMP:
@@ -358,7 +370,7 @@ class TimestampLiteral(ComparableLiteral):
 class DecimalLiteral(ComparableLiteral):
 
     def __init__(self, value):
-        super(DecimalLiteral, self).__init__(value)
+        super(DecimalLiteral, self).__init__(value, TypeID.DECIMAL)
 
     def to(self, type_var):
         if type_var.type_id == TypeID.DECIMAL and type_var.scale == abs(self.value.as_tuple().exponent):
@@ -367,7 +379,7 @@ class DecimalLiteral(ComparableLiteral):
 
 class StringLiteral(BaseLiteral):
     def __init__(self, value):
-        super(StringLiteral, self).__init__(value)
+        super(StringLiteral, self).__init__(value, TypeID.STRING)
 
     def to(self, type_var):  # noqa: C901
         import dateutil.parser
@@ -445,7 +457,7 @@ class StringLiteral(BaseLiteral):
 
 class UUIDLiteral(ComparableLiteral):
     def __init__(self, value):
-        super(UUIDLiteral, self).__init__(value)
+        super(UUIDLiteral, self).__init__(value, TypeID.UUID)
 
     def to(self, type_var):
         if type_var.type_id == TypeID.UUID:
@@ -454,7 +466,7 @@ class UUIDLiteral(ComparableLiteral):
 
 class FixedLiteral(BaseLiteral):
     def __init__(self, value):
-        super(FixedLiteral, self).__init__(value)
+        super(FixedLiteral, self).__init__(value, TypeID.FIXED)
 
     def to(self, type_var):
         if type_var.type_id == TypeID.FIXED:
@@ -499,7 +511,7 @@ class FixedLiteral(BaseLiteral):
 
 class BinaryLiteral(BaseLiteral):
     def __init__(self, value):
-        super(BinaryLiteral, self).__init__(value)
+        super(BinaryLiteral, self).__init__(value, TypeID.BINARY)
 
     def to(self, type_var):
         if type_var.type_id == TypeID.FIXED:

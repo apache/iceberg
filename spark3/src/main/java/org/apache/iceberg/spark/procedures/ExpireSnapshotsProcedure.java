@@ -20,11 +20,10 @@
 package org.apache.iceberg.spark.procedures;
 
 import org.apache.iceberg.actions.Actions;
-import org.apache.iceberg.actions.ExpireSnapshotsAction;
-import org.apache.iceberg.actions.ExpireSnapshotsActionResult;
+import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
@@ -78,13 +77,11 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
   @Override
   public InternalRow[] call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
-    Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtils.toMillis(args.getLong(1));
+    Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtil.microsToMillis(args.getLong(1));
     Integer retainLastNum = args.isNullAt(2) ? null : args.getInt(2);
 
     return modifyIcebergTable(tableIdent, table -> {
-      Actions actions = Actions.forTable(table);
-
-      ExpireSnapshotsAction action = actions.expireSnapshots();
+      ExpireSnapshots action = actions().expireSnapshots(table);
 
       if (olderThanMillis != null) {
         action.expireOlderThan(olderThanMillis);
@@ -94,14 +91,19 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
         action.retainLast(retainLastNum);
       }
 
-      ExpireSnapshotsActionResult result = action.execute();
+      ExpireSnapshots.Result result = action.execute();
 
-      InternalRow outputRow = newInternalRow(
-          result.dataFilesDeleted(),
-          result.manifestFilesDeleted(),
-          result.manifestListsDeleted());
-      return new InternalRow[]{outputRow};
+      return toOutputRows(result);
     });
+  }
+
+  private InternalRow[] toOutputRows(ExpireSnapshots.Result result) {
+    InternalRow row = newInternalRow(
+        result.deletedDataFilesCount(),
+        result.deletedManifestsCount(),
+        result.deletedManifestListsCount()
+    );
+    return new InternalRow[]{row};
   }
 
   @Override

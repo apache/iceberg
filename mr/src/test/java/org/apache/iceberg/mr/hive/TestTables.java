@@ -26,10 +26,12 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
@@ -44,10 +46,12 @@ import org.apache.iceberg.Tables;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.MetastoreUtil;
+import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestCatalogs;
 import org.apache.iceberg.mr.TestHelper;
@@ -71,14 +75,16 @@ abstract class TestTables {
 
   private final Tables tables;
   protected final TemporaryFolder temp;
+  protected final String catalog;
 
-  protected TestTables(Tables tables, TemporaryFolder temp) {
+  protected TestTables(Tables tables, TemporaryFolder temp, String catalogName) {
     this.tables = tables;
     this.temp = temp;
+    this.catalog = catalogName;
   }
 
-  protected TestTables(Catalog catalog, TemporaryFolder temp) {
-    this(new CatalogToTables(catalog), temp);
+  protected TestTables(Catalog catalog, TemporaryFolder temp, String catalogName) {
+    this(new CatalogToTables(catalog), temp, catalogName);
   }
 
   public Map<String, String> properties() {
@@ -94,6 +100,10 @@ abstract class TestTables {
     return tables;
   }
 
+  public String catalogName() {
+    return catalog;
+  }
+
   /**
    * The location string needed to be provided for CREATE TABLE ... commands,
    * like "LOCATION 'file:///tmp/warehouse/default/tablename'. Empty ("") if LOCATION is not needed.
@@ -101,6 +111,20 @@ abstract class TestTables {
    * @return The location string for create table operation
    */
   public abstract String locationForCreateTableSQL(TableIdentifier identifier);
+
+  /**
+   * The table properties string needed for the CREATE TABLE ... commands,
+   * like "TBLPROPERTIES('iceberg.catalog'='mycatalog')
+   * @return
+   */
+  public String propertiesForCreateTableSQL(Map<String, String> tableProperties) {
+    Map<String, String> properties = new HashMap<>(tableProperties);
+    properties.putIfAbsent(InputFormatConfig.CATALOG_NAME, catalog);
+    String props = properties.entrySet().stream()
+            .map(entry -> String.format("'%s'='%s'", entry.getKey(), entry.getValue()))
+            .collect(Collectors.joining(","));
+    return " TBLPROPERTIES (" + props + ")";
+  }
 
   /**
    * If an independent Hive table creation is needed for the given Catalog then this should return the Hive SQL
@@ -113,15 +137,9 @@ abstract class TestTables {
   public String createHiveTableSQL(TableIdentifier identifier, Map<String, String> tableProps) {
     Preconditions.checkArgument(!identifier.namespace().isEmpty(), "Namespace should not be empty");
     Preconditions.checkArgument(identifier.namespace().levels().length == 1, "Namespace should be single level");
-    String sql = String.format("CREATE TABLE %s.%s STORED BY '%s' %s", identifier.namespace(), identifier.name(),
-        HiveIcebergStorageHandler.class.getName(), locationForCreateTableSQL(identifier));
-    if (tableProps != null && !tableProps.isEmpty()) {
-      String props = tableProps.entrySet().stream()
-          .map(entry -> String.format("'%s'='%s'", entry.getKey(), entry.getValue()))
-          .collect(Collectors.joining(","));
-      sql += " TBLPROPERTIES (" + props + ")";
-    }
-    return sql;
+    return String.format("CREATE TABLE %s.%s STORED BY '%s' %s %s", identifier.namespace(), identifier.name(),
+        HiveIcebergStorageHandler.class.getName(), locationForCreateTableSQL(identifier),
+            propertiesForCreateTableSQL(tableProps));
   }
 
   /**
@@ -179,7 +197,8 @@ abstract class TestTables {
         SchemaParser.toJson(schema) + "', " +
         "'" + InputFormatConfig.PARTITION_SPEC + "'='" +
         PartitionSpecParser.toJson(spec) + "', " +
-        "'" + TableProperties.DEFAULT_FILE_FORMAT + "'='" + fileFormat + "')");
+        "'" + TableProperties.DEFAULT_FILE_FORMAT + "'='" + fileFormat + "', " +
+        "'" + InputFormatConfig.CATALOG_NAME + "'='" + catalogName() + "')");
 
     if (records != null && !records.isEmpty()) {
       StringBuilder query = new StringBuilder().append("INSERT INTO " + identifier + " VALUES ");
@@ -262,6 +281,14 @@ abstract class TestTables {
     }
   }
 
+  /**
+   * Truncates an Iceberg table.
+   * @param table The iceberg table to truncate
+   */
+  public void truncateIcebergTable(Table table) {
+    table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
+  }
+
   private static class CatalogToTables implements Tables {
 
     private final Catalog catalog;
@@ -296,21 +323,23 @@ abstract class TestTables {
 
     private final String warehouseLocation;
 
-    CustomCatalogTestTables(Configuration conf, TemporaryFolder temp) throws IOException {
+    CustomCatalogTestTables(Configuration conf, TemporaryFolder temp, String catalogName) throws IOException {
       this(conf, temp, (MetastoreUtil.hive3PresentOnClasspath() ? "file:" : "") +
-          temp.newFolder("custom", "warehouse").toString());
+          temp.newFolder("custom", "warehouse").toString(), catalogName);
     }
 
-    CustomCatalogTestTables(Configuration conf, TemporaryFolder temp, String warehouseLocation) {
-      super(new TestCatalogs.CustomHadoopCatalog(conf, warehouseLocation), temp);
+    CustomCatalogTestTables(Configuration conf, TemporaryFolder temp, String warehouseLocation, String catalogName) {
+      super(new TestCatalogs.CustomHadoopCatalog(conf, warehouseLocation), temp, catalogName);
       this.warehouseLocation = warehouseLocation;
     }
 
     @Override
     public Map<String, String> properties() {
       return ImmutableMap.of(
-              InputFormatConfig.CATALOG_LOADER_CLASS, TestCatalogs.CustomHadoopCatalogLoader.class.getName(),
-              TestCatalogs.CustomHadoopCatalog.WAREHOUSE_LOCATION, warehouseLocation
+              InputFormatConfig.catalogPropertyConfigKey(catalog, CatalogProperties.CATALOG_IMPL),
+              TestCatalogs.CustomHadoopCatalog.class.getName(),
+              InputFormatConfig.catalogPropertyConfigKey(catalog, CatalogProperties.WAREHOUSE_LOCATION),
+              warehouseLocation
       );
     }
 
@@ -325,21 +354,23 @@ abstract class TestTables {
 
     private final String warehouseLocation;
 
-    HadoopCatalogTestTables(Configuration conf, TemporaryFolder temp) throws IOException {
+    HadoopCatalogTestTables(Configuration conf, TemporaryFolder temp, String catalogName) throws IOException {
       this(conf, temp, (MetastoreUtil.hive3PresentOnClasspath() ? "file:" : "") +
-          temp.newFolder("hadoop", "warehouse").toString());
+          temp.newFolder("hadoop", "warehouse").toString(), catalogName);
     }
 
-    HadoopCatalogTestTables(Configuration conf, TemporaryFolder temp, String warehouseLocation) {
-      super(new HadoopCatalog(conf, warehouseLocation), temp);
+    HadoopCatalogTestTables(Configuration conf, TemporaryFolder temp, String warehouseLocation, String catalogName) {
+      super(new HadoopCatalog(conf, warehouseLocation), temp, catalogName);
       this.warehouseLocation = warehouseLocation;
     }
 
     @Override
     public Map<String, String> properties() {
       return ImmutableMap.of(
-              InputFormatConfig.CATALOG, "hadoop",
-              InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION, warehouseLocation
+          InputFormatConfig.catalogPropertyConfigKey(catalog, CatalogUtil.ICEBERG_CATALOG_TYPE),
+          CatalogUtil.ICEBERG_CATALOG_TYPE_HADOOP,
+          InputFormatConfig.catalogPropertyConfigKey(catalog, CatalogProperties.WAREHOUSE_LOCATION),
+          warehouseLocation
       );
     }
 
@@ -350,7 +381,7 @@ abstract class TestTables {
 
   static class HadoopTestTables extends TestTables {
     HadoopTestTables(Configuration conf, TemporaryFolder temp) {
-      super(new HadoopTables(conf), temp);
+      super(new HadoopTables(conf), temp, Catalogs.ICEBERG_HADOOP_TABLE_NAME);
     }
 
     @Override
@@ -382,14 +413,15 @@ abstract class TestTables {
 
   static class HiveTestTables extends TestTables {
 
-    HiveTestTables(Configuration conf, TemporaryFolder temp) {
+    HiveTestTables(Configuration conf, TemporaryFolder temp, String catalogName) {
       super(CatalogUtil.loadCatalog(HiveCatalog.class.getName(), CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
-              ImmutableMap.of(), conf), temp);
+              ImmutableMap.of(), conf), temp, catalogName);
     }
 
     @Override
     public Map<String, String> properties() {
-      return ImmutableMap.of(InputFormatConfig.CATALOG, "hive");
+      return ImmutableMap.of(InputFormatConfig.catalogPropertyConfigKey(catalog, CatalogUtil.ICEBERG_CATALOG_TYPE),
+          CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE);
     }
 
     @Override
@@ -423,26 +455,29 @@ abstract class TestTables {
 
   enum TestTableType {
     HADOOP_TABLE {
-      public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder) {
+      public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder, String catalogName) {
         return new HadoopTestTables(conf, temporaryFolder);
       }
     },
     HADOOP_CATALOG {
-      public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder) throws IOException {
-        return new HadoopCatalogTestTables(conf, temporaryFolder);
+      public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder, String catalogName)
+          throws IOException {
+        return new HadoopCatalogTestTables(conf, temporaryFolder, catalogName);
       }
     },
     CUSTOM_CATALOG {
-      public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder) throws IOException {
-        return new CustomCatalogTestTables(conf, temporaryFolder);
+      public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder, String catalogName)
+          throws IOException {
+        return new CustomCatalogTestTables(conf, temporaryFolder, catalogName);
       }
     },
     HIVE_CATALOG {
-      public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder) {
-        return new HiveTestTables(conf, temporaryFolder);
+      public TestTables instance(Configuration conf, TemporaryFolder temporaryFolder, String catalogName) {
+        return new HiveTestTables(conf, temporaryFolder, catalogName);
       }
     };
 
-    public abstract TestTables instance(Configuration conf, TemporaryFolder temporaryFolder) throws IOException;
+    public abstract TestTables instance(Configuration conf, TemporaryFolder temporaryFolder, String catalogName)
+        throws IOException;
   }
 }

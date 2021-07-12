@@ -31,7 +31,10 @@ import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 import org.apache.spark.sql.internal.SQLConf
 
-case class AlignRowLevelOperations(conf: SQLConf) extends Rule[LogicalPlan] with AssignmentAlignmentSupport {
+case object AlignRowLevelOperations extends Rule[LogicalPlan]
+    with AssignmentAlignmentSupport with CastSupport {
+
+  override def conf: SQLConf = SQLConf.get
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case u: UpdateTable if u.resolved && isIcebergRelation(u.table)=>

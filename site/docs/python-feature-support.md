@@ -32,7 +32,7 @@ The goal is that the python library will provide a functional, performant subset
 | Update Current Snapshot |    X  |        |
 | Set Table Properties    |    X  |        |
 | Create Table            |    X  |    X   |
-| Drop Table              |    X  |        |
+| Drop Table              |    X  |    X   |
 | Alter Table             |    X  |        |
 
 

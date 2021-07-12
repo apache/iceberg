@@ -208,9 +208,9 @@ def file():
                         # null value counts
                         {4: 50, 5: 10, 6: 0},
                         # lower bounds
-                        {1: Conversions.to_byte_buffer(IntegerType.get(), 30)},
+                        {1: Conversions.to_byte_buffer(IntegerType.get().type_id, 30)},
                         # upper bounds
-                        {1: Conversions.to_byte_buffer(IntegerType.get(), 79)})
+                        {1: Conversions.to_byte_buffer(IntegerType.get().type_id, 79)})
 
 
 @pytest.fixture(scope="session")
@@ -220,10 +220,10 @@ def strict_file():
                         50,
                         {4: 50, 5: 50, 6: 50},
                         {4: 50, 5: 10, 6: 0},
-                        {1: Conversions.to_byte_buffer(IntegerType.get(), 30),
-                         7: Conversions.to_byte_buffer(IntegerType.get(), 5)},
-                        {1: Conversions.to_byte_buffer(IntegerType.get(), 79),
-                         7: Conversions.to_byte_buffer(IntegerType.get(), 5)}
+                        {1: Conversions.to_byte_buffer(IntegerType.get().type_id, 30),
+                         7: Conversions.to_byte_buffer(IntegerType.get().type_id, 5)},
+                        {1: Conversions.to_byte_buffer(IntegerType.get().type_id, 79),
+                         7: Conversions.to_byte_buffer(IntegerType.get().type_id, 5)}
                         )
 
 
@@ -406,17 +406,17 @@ def inc_man_spec():
 def inc_man_file():
     return TestManifestFile("manifest-list.avro", 1024, 0, int(time.time() * 1000), 5, 10, 0,
                             (TestFieldSummary(False,
-                                              Conversions.to_byte_buffer(IntegerType.get(), 30),
-                                              Conversions.to_byte_buffer(IntegerType.get(), 79)),
+                                              Conversions.to_byte_buffer(IntegerType.get().type_id, 30),
+                                              Conversions.to_byte_buffer(IntegerType.get().type_id, 79)),
                              TestFieldSummary(True,
                                               None,
                                               None),
                              TestFieldSummary(True,
-                                              Conversions.to_byte_buffer(StringType.get(), 'a'),
-                                              Conversions.to_byte_buffer(StringType.get(), 'z')),
+                                              Conversions.to_byte_buffer(StringType.get().type_id, 'a'),
+                                              Conversions.to_byte_buffer(StringType.get().type_id, 'z')),
                              TestFieldSummary(False,
-                                              Conversions.to_byte_buffer(StringType.get(), 'a'),
-                                              Conversions.to_byte_buffer(StringType.get(), 'z'))
+                                              Conversions.to_byte_buffer(StringType.get().type_id, 'a'),
+                                              Conversions.to_byte_buffer(StringType.get().type_id, 'z'))
                              ))
 
 

@@ -87,6 +87,11 @@ public class AllEntriesTable extends BaseMetadataTable {
     }
 
     @Override
+    protected String tableType() {
+      return MetadataTableType.ALL_ENTRIES.name();
+    }
+
+    @Override
     public long targetSplitSize() {
       return tableOps().current().propertyAsLong(
           TableProperties.METADATA_SPLIT_SIZE, TableProperties.METADATA_SPLIT_SIZE_DEFAULT);

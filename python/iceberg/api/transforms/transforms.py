@@ -22,6 +22,8 @@ from .dates import Dates
 from .identity import Identity
 from .timestamps import Timestamps
 from .truncate import Truncate
+from .unknown_transform import UnknownTransform
+from .void_transform import VoidTransform
 from ..types import (TypeID)
 
 
@@ -60,7 +62,10 @@ class Transforms(object):
         elif type_var.type_id == TypeID.DATE:
             return Dates(transform.lower(), transform.lower())
 
-        raise RuntimeError("Unknown transform: %s" % transform)
+        if transform.lower() == "void":
+            return VoidTransform.get()
+
+        return UnknownTransform(type_var, transform)
 
     @staticmethod
     def identity(type_var):
@@ -109,3 +114,7 @@ class Transforms(object):
     @staticmethod
     def truncate(type_var, width):
         return Truncate.get(type_var, width)
+
+    @staticmethod
+    def always_null():
+        return VoidTransform.get()

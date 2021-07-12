@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -29,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_WRITE_METRICS_MODE;
 import static org.apache.iceberg.TableProperties.DEFAULT_WRITE_METRICS_MODE_DEFAULT;
+import static org.apache.iceberg.TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX;
 
 public class MetricsConfig implements Serializable {
 
@@ -46,6 +48,34 @@ public class MetricsConfig implements Serializable {
     return spec;
   }
 
+  static Map<String, String> updateProperties(Map<String, String> props, List<String> deletedColumns,
+                                              Map<String, String> renamedColumns) {
+    if (props.keySet().stream().noneMatch(key -> key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX))) {
+      return props;
+    } else {
+      Map<String, String> updatedProperties = Maps.newHashMap();
+      // Put all of the non metrics columns we aren't modifying
+      props.keySet().forEach(key -> {
+        if (key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX)) {
+          String columnAlias = key.replaceFirst(METRICS_MODE_COLUMN_CONF_PREFIX, "");
+          if (renamedColumns.get(columnAlias) != null) {
+            // The name has changed.
+            String newKey = METRICS_MODE_COLUMN_CONF_PREFIX + renamedColumns.get(columnAlias);
+            updatedProperties.put(newKey, props.get(key));
+          } else if (!deletedColumns.contains(columnAlias)) {
+            // Copy over the original
+            updatedProperties.put(key, props.get(key));
+          }
+          // Implicit drop if deleted
+        } else {
+          // Not a metric property
+          updatedProperties.put(key, props.get(key));
+        }
+      });
+      return updatedProperties;
+    }
+  }
+
   public static MetricsConfig fromProperties(Map<String, String> props) {
     MetricsConfig spec = new MetricsConfig();
     String defaultModeAsString = props.getOrDefault(DEFAULT_WRITE_METRICS_MODE, DEFAULT_WRITE_METRICS_MODE_DEFAULT);
@@ -58,9 +88,9 @@ public class MetricsConfig implements Serializable {
     }
 
     props.keySet().stream()
-        .filter(key -> key.startsWith(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX))
+        .filter(key -> key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX))
         .forEach(key -> {
-          String columnAlias = key.replaceFirst(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX, "");
+          String columnAlias = key.replaceFirst(METRICS_MODE_COLUMN_CONF_PREFIX, "");
           MetricsMode mode;
           try {
             mode = MetricsModes.fromString(props.get(key));
@@ -80,7 +110,7 @@ public class MetricsConfig implements Serializable {
       ValidationException.check(
           schema.findField(column) != null,
           "Invalid metrics config, could not find column %s from table prop %s in schema %s",
-          column, TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + column, schema);
+          column, METRICS_MODE_COLUMN_CONF_PREFIX + column, schema);
     }
   }
 

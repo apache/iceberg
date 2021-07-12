@@ -38,6 +38,7 @@ import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
@@ -82,9 +83,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     this.fileIO = new HadoopFileIO(conf);
     Map<String, String> properties = ImmutableMap.of(
             CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
-            conf.get(CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS),
+            conf.get(CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
+                    String.valueOf(CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS_DEFAULT)),
             CatalogProperties.CLIENT_POOL_SIZE,
-            conf.get(CatalogProperties.CLIENT_POOL_SIZE)
+            conf.get(CatalogProperties.CLIENT_POOL_SIZE,
+                    String.valueOf(CatalogProperties.CLIENT_POOL_SIZE_DEFAULT))
     );
     this.clients = new CachedClientPool(conf, properties);
   }
@@ -116,8 +119,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
       List<String> tableNames = clients.run(client -> client.getAllTables(database));
       List<Table> tableObjects = clients.run(client -> client.getTableObjectsByName(database, tableNames));
       List<TableIdentifier> tableIdentifiers = tableObjects.stream()
-          .filter(table -> table.getParameters() == null ? false : BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE
-              .equalsIgnoreCase(table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP)))
+          .filter(table -> table.getParameters() != null && BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE
+                  .equalsIgnoreCase(table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP)))
           .map(table -> TableIdentifier.of(namespace, table.getTableName()))
           .collect(Collectors.toList());
 

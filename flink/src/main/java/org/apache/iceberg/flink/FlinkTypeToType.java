@@ -171,6 +171,7 @@ class FlinkTypeToType extends FlinkTypeVisitor<Type> {
   }
 
   @Override
+  @SuppressWarnings("ReferenceEquality")
   public Type visit(RowType rowType) {
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(rowType.getFieldCount());
     boolean isRoot = root == rowType;

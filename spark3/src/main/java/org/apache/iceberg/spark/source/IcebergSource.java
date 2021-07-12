@@ -139,7 +139,6 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     ImmutableMap<String, String> config = ImmutableMap.of(
         "type", "hive",
         "default-namespace", "default",
-        "parquet-enabled", "true",
         "cache-enabled", "false" // the source should not use a cache
     );
     String catalogName = "org.apache.iceberg.spark.SparkCatalog";

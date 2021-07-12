@@ -21,6 +21,7 @@ package org.apache.iceberg.actions;
 
 import java.util.Map;
 
+@Deprecated
 public interface CreateAction extends Action<CreateAction, Long> {
 
   /**

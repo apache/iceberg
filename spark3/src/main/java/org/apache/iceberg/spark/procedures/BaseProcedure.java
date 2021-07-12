@@ -24,6 +24,7 @@ import org.apache.arrow.util.Preconditions;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.SparkSession;
@@ -47,6 +48,8 @@ abstract class BaseProcedure implements Procedure {
   private final SparkSession spark;
   private final TableCatalog tableCatalog;
 
+  private SparkActions actions;
+
   protected BaseProcedure(TableCatalog tableCatalog) {
     this.spark = SparkSession.active();
     this.tableCatalog = tableCatalog;
@@ -54,6 +57,13 @@ abstract class BaseProcedure implements Procedure {
 
   protected SparkSession spark() {
     return this.spark;
+  }
+
+  protected SparkActions actions() {
+    if (actions == null) {
+      this.actions = SparkActions.get(spark);
+    }
+    return actions;
   }
 
   protected TableCatalog tableCatalog() {

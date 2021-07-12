@@ -19,8 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.nio.ByteBuffer;
-
 /**
  * Iceberg internally tracked field level metrics, used by Parquet and ORC writers only.
  * <p>
@@ -28,35 +26,45 @@ import java.nio.ByteBuffer;
  * This wrapper ensures that metrics not being updated by those writers will not be incorrectly used, by throwing
  * exceptions when they are accessed.
  */
-public class FloatFieldMetrics extends FieldMetrics {
+public class FloatFieldMetrics extends FieldMetrics<Float> {
 
-  /**
-   * Constructor for creating a FieldMetrics with only NaN counter.
-   * @param id field id being tracked by the writer
-   * @param nanValueCount number of NaN values, will only be non-0 for double or float field.
-   */
-  public FloatFieldMetrics(int id,
-                           long nanValueCount) {
-    super(id, 0L, 0L, nanValueCount, null, null);
+  private FloatFieldMetrics(int id, long valueCount, long nanValueCount, Float lowerBound, Float upperBound) {
+    super(id, valueCount, 0L, nanValueCount, lowerBound, upperBound);
   }
 
-  @Override
-  public long valueCount() {
-    throw new IllegalStateException("Shouldn't access this method, as this metric is tracked in file statistics. ");
+  public Builder builderFor(int id) {
+    return new Builder(id);
   }
 
-  @Override
-  public long nullValueCount() {
-    throw new IllegalStateException("Shouldn't access this method, as this metric is tracked in file statistics. ");
-  }
+  public static class Builder {
+    private final int id;
+    private long valueCount = 0;
+    private long nanValueCount = 0;
+    private float lowerBound = Float.POSITIVE_INFINITY;
+    private float upperBound = Float.NEGATIVE_INFINITY;
 
-  @Override
-  public ByteBuffer lowerBound() {
-    throw new IllegalStateException("Shouldn't access this method, as this metric is tracked in file statistics. ");
-  }
+    public Builder(int id) {
+      this.id = id;
+    }
 
-  @Override
-  public ByteBuffer upperBound() {
-    throw new IllegalStateException("Shouldn't access this method, as this metric is tracked in file statistics. ");
+    public void addValue(float value) {
+      this.valueCount++;
+      if (Float.isNaN(value)) {
+        this.nanValueCount++;
+      } else {
+        if (Float.compare(value, lowerBound) < 0) {
+          this.lowerBound = value;
+        }
+        if (Float.compare(value, upperBound) > 0) {
+          this.upperBound = value;
+        }
+      }
+    }
+
+    public FloatFieldMetrics build() {
+      boolean hasBound = valueCount - nanValueCount > 0;
+      return new FloatFieldMetrics(id, valueCount, nanValueCount,
+          hasBound ? lowerBound : null, hasBound ? upperBound : null);
+    }
   }
 }

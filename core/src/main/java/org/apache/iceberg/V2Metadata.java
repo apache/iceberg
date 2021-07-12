@@ -132,6 +132,8 @@ class V2Metadata {
           return wrapped.deletedRowsCount();
         case 13:
           return wrapped.partitions();
+        case 14:
+          return wrapped.keyMetadata();
         default:
           throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
       }
@@ -220,6 +222,11 @@ class V2Metadata {
     @Override
     public List<PartitionFieldSummary> partitions() {
       return wrapped.partitions();
+    }
+
+    @Override
+    public ByteBuffer keyMetadata() {
+      return wrapped.keyMetadata();
     }
 
     @Override

@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.mr.hive;
 
+import java.util.Locale;
 import java.util.Properties;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -73,7 +74,7 @@ public class HiveIcebergOutputFormat<T> implements OutputFormat<NullWritable, Co
     Schema schema = HiveIcebergStorageHandler.schema(jc);
     PartitionSpec spec = table.spec();
     FileFormat fileFormat = FileFormat.valueOf(PropertyUtil.propertyAsString(table.properties(),
-            TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT));
+        TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT).toUpperCase(Locale.ENGLISH));
     long targetFileSize = PropertyUtil.propertyAsLong(table.properties(), TableProperties.WRITE_TARGET_FILE_SIZE_BYTES,
             TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
     FileIO io = table.io();
@@ -83,9 +84,8 @@ public class HiveIcebergOutputFormat<T> implements OutputFormat<NullWritable, Co
         new OutputFileFactory(spec, fileFormat, location, io, encryption, taskAttemptID.getTaskID().getId(),
             taskAttemptID.getId(), jc.get(HiveConf.ConfVars.HIVEQUERYID.varname) + "-" + taskAttemptID.getJobID());
     String tableName = jc.get(Catalogs.NAME);
-    HiveIcebergRecordWriter writer = new HiveIcebergRecordWriter(schema, spec, fileFormat,
-        new GenericAppenderFactory(schema, spec), outputFileFactory, io, targetFileSize, taskAttemptID, tableName);
 
-    return writer;
+    return new HiveIcebergRecordWriter(schema, spec, fileFormat,
+        new GenericAppenderFactory(schema, spec), outputFileFactory, io, targetFileSize, taskAttemptID, tableName);
   }
 }

@@ -81,7 +81,13 @@ public class InternalRecordWrapper implements StructLike {
   @Override
   public <T> T get(int pos, Class<T> javaClass) {
     if (transforms[pos] != null) {
-      return javaClass.cast(transforms[pos].apply(wrapped.get(pos, Object.class)));
+      Object value = wrapped.get(pos, Object.class);
+      if (value == null) {
+        // transforms function don't allow to handle null values, so just return null here.
+        return null;
+      } else {
+        return javaClass.cast(transforms[pos].apply(value));
+      }
     }
     return wrapped.get(pos, javaClass);
   }

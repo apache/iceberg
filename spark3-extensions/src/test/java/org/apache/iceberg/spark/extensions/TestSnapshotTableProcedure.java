@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
 import org.junit.After;
@@ -136,6 +137,30 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     assertEquals("Source table should be intact",
         ImmutableList.of(row(1L, "a")),
         sql("SELECT * FROM %s", sourceName));
+  }
+
+  @Test
+  public void testSnapshotWithConflictingProps() throws IOException {
+    String location = temp.newFolder().toString();
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'", sourceName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+
+    Object result = scalarSql(
+        "CALL %s.system.snapshot(" +
+            "source_table => '%s'," +
+            "table => '%s'," +
+            "properties => map('%s', 'true', 'snapshot', 'false'))",
+        catalogName, sourceName, tableName, TableProperties.GC_ENABLED);
+    Assert.assertEquals("Should have added one file", 1L, result);
+
+    assertEquals("Should have expected rows",
+        ImmutableList.of(row(1L, "a")),
+        sql("SELECT * FROM %s", tableName));
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Map<String, String> props = table.properties();
+    Assert.assertEquals("Should override user value", "true", props.get("snapshot"));
+    Assert.assertEquals("Should override user value", "false", props.get(TableProperties.GC_ENABLED));
   }
 
   @Test

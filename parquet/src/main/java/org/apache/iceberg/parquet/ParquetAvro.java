@@ -35,6 +35,7 @@ import org.apache.avro.specific.SpecificData;
 import org.apache.commons.math3.util.Pair;
 import org.apache.iceberg.avro.AvroSchemaVisitor;
 import org.apache.iceberg.avro.UUIDConversion;
+import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.TypeUtil;
@@ -257,7 +258,7 @@ class ParquetAvro {
 
         newFields.add(copyField(field, type));
 
-        if (field.schema() != type) {
+        if (!Objects.equal(field.schema(), type)) {
           hasChange = true;
         }
       }
@@ -279,7 +280,7 @@ class ParquetAvro {
 
     @Override
     public Schema array(Schema array, Schema element) {
-      if (array.getElementType() != element) {
+      if (!Objects.equal(array.getElementType(), element)) {
         return Schema.createArray(element);
       }
       return array;
@@ -287,7 +288,7 @@ class ParquetAvro {
 
     @Override
     public Schema map(Schema map, Schema value) {
-      if (map.getValueType() != value) {
+      if (!Objects.equal(map.getValueType(), value)) {
         return Schema.createMap(value);
       }
       return map;
@@ -323,7 +324,7 @@ class ParquetAvro {
 
       int length = types.size();
       for (int i = 0; i < length; i += 1) {
-        if (types.get(i) != replacements.get(i)) {
+        if (!Objects.equal(types.get(i), replacements.get(i))) {
           return false;
         }
       }

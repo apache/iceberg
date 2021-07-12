@@ -569,6 +569,51 @@ public class TestUpdatePartitionSpec extends TableTestBase {
             .renameField("shard", "id_bucket"));
   }
 
+  @Test
+  public void testRemoveAndAddMultiTimes() {
+    PartitionSpec addFirstTime = new BaseUpdatePartitionSpec(formatVersion, UNPARTITIONED)
+            .addField("ts_date", day("ts"))
+            .apply();
+    PartitionSpec removeFirstTime = new BaseUpdatePartitionSpec(formatVersion, addFirstTime)
+            .removeField(day("ts"))
+            .apply();
+    PartitionSpec addSecondTime = new BaseUpdatePartitionSpec(formatVersion, removeFirstTime)
+            .addField("ts_date", day("ts"))
+            .apply();
+    PartitionSpec removeSecondTime = new BaseUpdatePartitionSpec(formatVersion, addSecondTime)
+            .removeField(day("ts"))
+            .apply();
+    PartitionSpec addThirdTime = new BaseUpdatePartitionSpec(formatVersion, removeSecondTime)
+            .addField(month("ts"))
+            .apply();
+    PartitionSpec updated = new BaseUpdatePartitionSpec(formatVersion, addThirdTime)
+            .renameField("ts_month", "ts_date")
+            .apply();
+
+    if (formatVersion == 1) {
+      Assert.assertEquals("Should match expected spec field size", 3, updated.fields().size());
+
+      Assert.assertTrue("Should match expected field name",
+              updated.fields().get(0).name().matches("^ts_date(?:_\\d+)+$"));
+      Assert.assertTrue("Should match expected field name",
+              updated.fields().get(1).name().matches("^ts_date_(?:\\d+)+$"));
+      Assert.assertEquals("Should match expected field name", "ts_date", updated.fields().get(2).name());
+
+      Assert.assertEquals("Should match expected field transform", "void",
+              updated.fields().get(0).transform().toString());
+      Assert.assertEquals("Should match expected field transform", "void",
+              updated.fields().get(1).transform().toString());
+      Assert.assertEquals("Should match expected field transform", "month",
+              updated.fields().get(2).transform().toString());
+    }
+
+    PartitionSpec v2Expected = PartitionSpec.builderFor(SCHEMA)
+            .month("ts", "ts_date")
+            .build();
+
+    V2Assert.assertEquals("Should match expected spec", v2Expected, updated);
+  }
+
   private static int id(String name) {
     return SCHEMA.findField(name).fieldId();
   }

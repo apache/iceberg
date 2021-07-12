@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark.data.vectorized;
 
+import org.apache.iceberg.arrow.vectorized.ArrowVectorAccessor;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.arrow.vectorized.VectorHolder;
 import org.apache.iceberg.arrow.vectorized.VectorHolder.ConstantVectorHolder;
@@ -38,7 +39,7 @@ import org.apache.spark.unsafe.types.UTF8String;
  */
 public class IcebergArrowColumnVector extends ColumnVector {
 
-  private final ArrowVectorAccessor accessor;
+  private final ArrowVectorAccessor<Decimal, UTF8String, ColumnarArray, ArrowColumnVector> accessor;
   private final NullabilityHolder nullabilityHolder;
 
   public IcebergArrowColumnVector(VectorHolder holder) {
@@ -150,7 +151,7 @@ public class IcebergArrowColumnVector extends ColumnVector {
         new IcebergArrowColumnVector(holder);
   }
 
-  public ArrowVectorAccessor vectorAccessor() {
+  public ArrowVectorAccessor<Decimal, UTF8String, ColumnarArray, ArrowColumnVector> vectorAccessor() {
     return accessor;
   }
 }

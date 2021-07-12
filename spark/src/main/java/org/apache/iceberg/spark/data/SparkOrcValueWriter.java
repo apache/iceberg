@@ -53,7 +53,7 @@ interface SparkOrcValueWriter {
    * counters, and only return non-empty stream if the writer writes double or float values either by itself or
    * transitively.
    */
-  default Stream<FieldMetrics> metrics() {
+  default Stream<FieldMetrics<?>> metrics() {
     return Stream.empty();
   }
 }

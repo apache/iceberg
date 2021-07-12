@@ -44,8 +44,10 @@ public class TestSparkAppenderFactory extends TestAppenderFactory<InternalRow> {
   protected FileAppenderFactory<InternalRow> createAppenderFactory(List<Integer> equalityFieldIds,
                                                                    Schema eqDeleteSchema,
                                                                    Schema posDeleteRowSchema) {
-    return new SparkAppenderFactory(table.properties(), table.schema(), sparkType, table.spec(),
-        ArrayUtil.toIntArray(equalityFieldIds), eqDeleteSchema, posDeleteRowSchema);
+    return SparkAppenderFactory.builderFor(table, table.schema(), sparkType)
+        .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
+        .eqDeleteRowSchema(eqDeleteSchema)
+        .posDelRowSchema(posDeleteRowSchema).build();
   }
 
   @Override

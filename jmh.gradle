@@ -17,7 +17,14 @@
  * under the License.
  */
 
-def jmhProjects = [ project("iceberg-spark2") ]
+def jmhProjects = []
+if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
+  jmhProjects = [ project("iceberg-spark2"), project("iceberg-spark3") ]
+} else if (JavaVersion.current() == JavaVersion.VERSION_11) {
+  jmhProjects = [ project("iceberg-spark3") ]
+} else {
+  throw new GradleException("The JMH benchamrks must be run with JDK 8 or JDK 11")
+}
 
 configure(jmhProjects) {
   apply plugin: 'me.champeau.gradle.jmh'
@@ -31,10 +38,17 @@ configure(jmhProjects) {
     include = [jmhIncludeRegex]
   }
 
+  // Path is relative to either spark2 or spark3 folder, depending on project being tested
+  sourceSets {
+    jmh {
+      java.srcDirs = ['src/jmh/java', '../spark/src/jmh/java']
+      compileClasspath += sourceSets.main.runtimeClasspath
+    }
+  }
+
   jmhCompileGeneratedClasses {
     pluginManager.withPlugin('com.palantir.baseline-error-prone') {
       options.errorprone.enabled = false
     }
   }
 }
-

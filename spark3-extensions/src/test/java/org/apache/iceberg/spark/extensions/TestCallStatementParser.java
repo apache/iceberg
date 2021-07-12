@@ -30,6 +30,7 @@ import org.apache.spark.sql.catalyst.expressions.Literal;
 import org.apache.spark.sql.catalyst.expressions.Literal$;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.parser.ParserInterface;
+import org.apache.spark.sql.catalyst.parser.extensions.IcebergParseException;
 import org.apache.spark.sql.catalyst.plans.logical.CallArgument;
 import org.apache.spark.sql.catalyst.plans.logical.CallStatement;
 import org.apache.spark.sql.catalyst.plans.logical.NamedArgument;
@@ -131,7 +132,7 @@ public class TestCallStatementParser {
 
   @Test
   public void testCallParseError() {
-    AssertHelpers.assertThrows("Should fail with a sensible parse error", ParseException.class,
+    AssertHelpers.assertThrows("Should fail with a sensible parse error", IcebergParseException.class,
         "missing '(' at 'radish'",
         () -> parser.parsePlan("CALL cat.system radish kebab"));
   }
