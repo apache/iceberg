@@ -21,6 +21,9 @@ package org.apache.iceberg.actions;
 
 import java.util.Map;
 
+/**
+ * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link SnapshotTable} or {@link MigrateTable} instead.
+ */
 @Deprecated
 public interface CreateAction extends Action<CreateAction, Long> {
 
