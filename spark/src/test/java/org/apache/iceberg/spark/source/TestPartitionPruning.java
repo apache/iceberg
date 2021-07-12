@@ -105,7 +105,7 @@ public abstract class TestPartitionPruning {
   @BeforeClass
   public static void startSpark() {
     TestPartitionPruning.spark = SparkSession.builder().master("local[2]").getOrCreate();
-    TestPartitionPruning.sparkContext = new JavaSparkContext(spark.sparkContext());
+    TestPartitionPruning.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
 
     String optionKey = String.format("fs.%s.impl", CountOpenLocalFileSystem.scheme);
     CONF.set(optionKey, CountOpenLocalFileSystem.class.getName());

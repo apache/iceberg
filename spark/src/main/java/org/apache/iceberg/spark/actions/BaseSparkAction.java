@@ -64,7 +64,7 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
 
   protected BaseSparkAction(SparkSession spark) {
     this.spark = spark;
-    this.sparkContext = new JavaSparkContext(spark.sparkContext());
+    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
   }
 
   protected SparkSession spark() {
@@ -115,7 +115,7 @@ abstract class BaseSparkAction<ThisT, R> implements Action<ThisT, R> {
   }
 
   protected Dataset<Row> buildValidDataFileDF(Table table) {
-    JavaSparkContext context = new JavaSparkContext(spark.sparkContext());
+    JavaSparkContext context = JavaSparkContext.fromSparkContext(spark.sparkContext());
     Broadcast<FileIO> ioBroadcast = context.broadcast(SparkUtil.serializableFileIO(table));
 
     Dataset<ManifestFileBean> allManifests = loadMetadataTable(table, ALL_MANIFESTS)

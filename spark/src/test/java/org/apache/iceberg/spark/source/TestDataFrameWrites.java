@@ -121,7 +121,7 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
   @BeforeClass
   public static void startSpark() {
     TestDataFrameWrites.spark = SparkSession.builder().master("local[2]").getOrCreate();
-    TestDataFrameWrites.sc = new JavaSparkContext(spark.sparkContext());
+    TestDataFrameWrites.sc = JavaSparkContext.fromSparkContext(spark.sparkContext());
   }
 
   @AfterClass
