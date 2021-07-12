@@ -22,7 +22,6 @@ package org.apache.iceberg;
 import java.util.concurrent.Callable;
 import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.generic.GenericRecord;
-import org.junit.Assert;
 import org.assertj.core.api.AbstractThrowableAssert;
 import org.assertj.core.api.Assertions;
 
