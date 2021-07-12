@@ -42,7 +42,7 @@ import org.apache.spark.util.SerializableConfiguration;
 public class SparkUtil {
 
   public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =
-          "spark.sql.iceberg.convert-timestamp-without-timezone";
+          "spark.sql.iceberg.handle-timestamp-without-timezone";
   public static final String TIMESTAMP_WITHOUT_TIMEZONE_ERROR = String.format("Cannot handle timestamp without" +
           " timezone fields in Spark. Spark does not natively support this type but if you would like to handle all" +
           " timestamps as timestamp with timezone set '%s' to true. This will not change the underlying values stored" +

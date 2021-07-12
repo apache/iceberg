@@ -93,14 +93,12 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
 
   @Test
   public void testWriteTimestampWithoutZoneError() {
-    String errorMessage = String.format("Write operation performed on a timestamp without timezone field while " +
-            "'%s' set to false should throw exception", SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE);
-    Runnable insert = () -> sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
-
-    AssertHelpers.assertThrows(errorMessage,
+    AssertHelpers.assertThrows(
+            String.format("Write operation performed on a timestamp without timezone field while " +
+                    "'%s' set to false should throw exception", SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE),
             IllegalArgumentException.class,
             SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR,
-            insert);
+            () -> sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values)));
   }
 
   @Test
