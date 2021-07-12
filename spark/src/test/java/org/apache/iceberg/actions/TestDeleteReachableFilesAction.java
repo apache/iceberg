@@ -51,7 +51,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public abstract class TestRemoveReachableFilesAction extends SparkTestBase {
+public abstract class TestDeleteReachableFilesAction extends SparkTestBase {
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA = new Schema(
       optional(1, "c1", Types.IntegerType.get()),
@@ -102,15 +102,15 @@ public abstract class TestRemoveReachableFilesAction extends SparkTestBase {
 
   private void checkRemoveFilesResults(long expectedDatafiles, long expectedManifestsDeleted,
                                        long expectedManifestListsDeleted, long expectedOtherFilesDeleted,
-                                       RemoveReachableFiles.Result results) {
+                                       DeleteReachableFiles.Result results) {
     Assert.assertEquals("Incorrect number of manifest files deleted",
-        expectedManifestsDeleted,  results.removedManifestsCount());
+        expectedManifestsDeleted,  results.deletedManifestsCount());
     Assert.assertEquals("Incorrect number of datafiles deleted",
-        expectedDatafiles, results.removedDataFilesCount());
+        expectedDatafiles, results.deletedDataFilesCount());
     Assert.assertEquals("Incorrect number of manifest lists deleted",
-        expectedManifestListsDeleted, results.removedManifestListsCount());
+        expectedManifestListsDeleted, results.deletedManifestListsCount());
     Assert.assertEquals("Incorrect number of other lists deleted",
-        expectedOtherFilesDeleted, results.otherRemovedFilesCount());
+        expectedOtherFilesDeleted, results.deletedOtherFilesCount());
   }
 
   @Test
@@ -135,7 +135,7 @@ public abstract class TestRemoveReachableFilesAction extends SparkTestBase {
     Set<String> deleteThreads = ConcurrentHashMap.newKeySet();
     AtomicInteger deleteThreadsIndex = new AtomicInteger(0);
 
-    RemoveReachableFiles.Result result = sparkActions().removeReachableFiles(metadataLocation(table))
+    DeleteReachableFiles.Result result = sparkActions().deleteReachableFiles(metadataLocation(table))
         .io(table.io())
         .executeDeleteWith(Executors.newFixedThreadPool(4, runnable -> {
           Thread thread = new Thread(runnable);
@@ -178,7 +178,7 @@ public abstract class TestRemoveReachableFilesAction extends SparkTestBase {
         .appendFile(FILE_C)
         .commit();
 
-    RemoveReachableFiles.Result result = sparkActions().removeReachableFiles(metadataLocation(table))
+    DeleteReachableFiles.Result result = sparkActions().deleteReachableFiles(metadataLocation(table))
         .io(table.io())
         .execute();
 
@@ -187,7 +187,7 @@ public abstract class TestRemoveReachableFilesAction extends SparkTestBase {
 
   @Test
   public void testRemoveFileActionOnEmptyTable() {
-    RemoveReachableFiles.Result result = sparkActions().removeReachableFiles(metadataLocation(table))
+    DeleteReachableFiles.Result result = sparkActions().deleteReachableFiles(metadataLocation(table))
         .io(table.io())
         .execute();
 
@@ -218,10 +218,10 @@ public abstract class TestRemoveReachableFilesAction extends SparkTestBase {
         .appendFile(FILE_D)
         .commit();
 
-    RemoveReachableFiles baseRemoveFilesSparkAction = sparkActions()
-        .removeReachableFiles(metadataLocation(table))
+    DeleteReachableFiles baseRemoveFilesSparkAction = sparkActions()
+        .deleteReachableFiles(metadataLocation(table))
         .io(table.io());
-    RemoveReachableFiles.Result result = baseRemoveFilesSparkAction.execute();
+    DeleteReachableFiles.Result result = baseRemoveFilesSparkAction.execute();
 
     checkRemoveFilesResults(4, 5, 5, 8, result);
   }
@@ -236,8 +236,8 @@ public abstract class TestRemoveReachableFilesAction extends SparkTestBase {
         .appendFile(FILE_B)
         .commit();
 
-    RemoveReachableFiles baseRemoveFilesSparkAction = sparkActions()
-        .removeReachableFiles(metadataLocation(table))
+    DeleteReachableFiles baseRemoveFilesSparkAction = sparkActions()
+        .deleteReachableFiles(metadataLocation(table))
         .io(table.io());
     checkRemoveFilesResults(2, 2, 2, 4,  baseRemoveFilesSparkAction.execute());
   }
@@ -254,8 +254,8 @@ public abstract class TestRemoveReachableFilesAction extends SparkTestBase {
 
     // IO not set explicitly on removeReachableFiles action
     // IO defaults to HadoopFileIO
-    RemoveReachableFiles baseRemoveFilesSparkAction = sparkActions()
-        .removeReachableFiles(metadataLocation(table));
+    DeleteReachableFiles baseRemoveFilesSparkAction = sparkActions()
+        .deleteReachableFiles(metadataLocation(table));
     checkRemoveFilesResults(2, 2, 2, 4,  baseRemoveFilesSparkAction.execute());
   }
 
@@ -276,7 +276,7 @@ public abstract class TestRemoveReachableFilesAction extends SparkTestBase {
 
     int jobsBefore = spark.sparkContext().dagScheduler().nextJobId().get();
 
-    RemoveReachableFiles.Result results = sparkActions().removeReachableFiles(metadataLocation(table))
+    DeleteReachableFiles.Result results = sparkActions().deleteReachableFiles(metadataLocation(table))
         .io(table.io())
         .option("stream-results", "true").execute();
 
@@ -305,18 +305,18 @@ public abstract class TestRemoveReachableFilesAction extends SparkTestBase {
     Assert.assertEquals("Should delete 1 file", 1, result.size());
     Assert.assertTrue("Should remove v1 file", result.get(0).contains("v1.metadata.json"));
 
-    RemoveReachableFiles baseRemoveFilesSparkAction = sparkActions()
-        .removeReachableFiles(metadataLocation(table))
+    DeleteReachableFiles baseRemoveFilesSparkAction = sparkActions()
+        .deleteReachableFiles(metadataLocation(table))
         .io(table.io());
-    RemoveReachableFiles.Result res = baseRemoveFilesSparkAction.execute();
+    DeleteReachableFiles.Result res = baseRemoveFilesSparkAction.execute();
 
     checkRemoveFilesResults(1, 1, 1, 4,  res);
   }
 
   @Test
   public void testEmptyIOThrowsException() {
-    RemoveReachableFiles baseRemoveFilesSparkAction = sparkActions()
-        .removeReachableFiles(metadataLocation(table))
+    DeleteReachableFiles baseRemoveFilesSparkAction = sparkActions()
+        .deleteReachableFiles(metadataLocation(table))
         .io(null);
     AssertHelpers.assertThrows("FileIO needs to be set to use RemoveFiles action",
         IllegalArgumentException.class, "File IO cannot be null",
@@ -331,7 +331,7 @@ public abstract class TestRemoveReachableFilesAction extends SparkTestBase {
 
     AssertHelpers.assertThrows("Should complain about removing files when GC is disabled",
         ValidationException.class, "Cannot remove files: GC is disabled (deleting files may corrupt other tables)",
-        () -> sparkActions().removeReachableFiles(metadataLocation(table)));
+        () -> sparkActions().deleteReachableFiles(metadataLocation(table)));
   }
 
   private String metadataLocation(Table tbl) {

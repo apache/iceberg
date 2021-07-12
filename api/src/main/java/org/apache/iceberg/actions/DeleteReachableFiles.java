@@ -24,7 +24,7 @@ import java.util.function.Consumer;
 import org.apache.iceberg.io.FileIO;
 
 /**
- * An action that removes all files referenced by a table metadata file.
+ * An action that deletes all files referenced by a table metadata file.
  * <p>
  * This action will irreversibly delete all reachable files such as data files, manifests,
  * manifest lists and should be used to clean up the underlying storage once a table is dropped
@@ -32,16 +32,16 @@ import org.apache.iceberg.io.FileIO;
  * <p>
  * Implementations may use a query engine to distribute parts of work.
  */
-public interface RemoveReachableFiles extends Action<RemoveReachableFiles, RemoveReachableFiles.Result> {
+public interface DeleteReachableFiles extends Action<DeleteReachableFiles, DeleteReachableFiles.Result> {
 
   /**
    * Passes an alternative delete implementation that will be used for files.
    *
-   * @param removeFunc a function that will be called to delete files.
+   * @param deleteFunc a function that will be called to delete files.
    *                   The function accepts path to file as an argument.
    * @return this for method chaining
    */
-  RemoveReachableFiles deleteWith(Consumer<String> removeFunc);
+  DeleteReachableFiles deleteWith(Consumer<String> deleteFunc);
 
   /**
    * Passes an alternative executor service that will be used for files removal.
@@ -51,7 +51,7 @@ public interface RemoveReachableFiles extends Action<RemoveReachableFiles, Remov
    *  @param executorService the service to use
    * @return this for method chaining
    */
-  RemoveReachableFiles executeDeleteWith(ExecutorService executorService);
+  DeleteReachableFiles executeDeleteWith(ExecutorService executorService);
 
   /**
    * Set the {@link FileIO} to be used for files removal
@@ -59,7 +59,7 @@ public interface RemoveReachableFiles extends Action<RemoveReachableFiles, Remov
    * @param io FileIO to use for files removal
    * @return this for method chaining
    */
-  RemoveReachableFiles io(FileIO io);
+  DeleteReachableFiles io(FileIO io);
 
   /**
    * The action result that contains a summary of the execution.
@@ -67,23 +67,23 @@ public interface RemoveReachableFiles extends Action<RemoveReachableFiles, Remov
   interface Result {
 
     /**
-     * Returns the number of data files removed.
+     * Returns the number of deleted data files.
      */
-    long removedDataFilesCount();
+    long deletedDataFilesCount();
 
     /**
-     * Returns the number of manifests removed.
+     * Returns the number of deleted manifests.
      */
-    long removedManifestsCount();
+    long deletedManifestsCount();
 
     /**
-     * Returns the number of manifest lists removed.
+     * Returns the number of deleted manifest lists.
      */
-    long removedManifestListsCount();
+    long deletedManifestListsCount();
 
     /**
-     * Returns the number of metadata json, version hint files removed.
+     * Returns the number of deleted metadata json, version hint files.
      */
-    long otherRemovedFilesCount();
+    long deletedOtherFilesCount();
   }
 }

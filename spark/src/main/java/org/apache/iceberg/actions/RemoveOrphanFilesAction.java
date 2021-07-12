@@ -39,13 +39,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
  * <em>Note:</em> It is dangerous to call this action with a short retention interval as it might corrupt
  * the state of the table if another operation is writing at the same time.
  *
- * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link RemoveOrphanFiles} instead.
+ * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link DeleteOrphanFiles} instead.
  */
 @Deprecated
 public class RemoveOrphanFilesAction implements Action<RemoveOrphanFilesAction, List<String>> {
-  private final RemoveOrphanFiles delegate;
+  private final DeleteOrphanFiles delegate;
 
-  RemoveOrphanFilesAction(RemoveOrphanFiles delegate) {
+  RemoveOrphanFilesAction(DeleteOrphanFiles delegate) {
     this.delegate = delegate;
   }
 
@@ -84,7 +84,7 @@ public class RemoveOrphanFilesAction implements Action<RemoveOrphanFilesAction, 
 
   @Override
   public List<String> execute() {
-    RemoveOrphanFiles.Result result = delegate.execute();
+    DeleteOrphanFiles.Result result = delegate.execute();
     return ImmutableList.copyOf(result.orphanFileLocations());
   }
 }

@@ -31,8 +31,8 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.BaseRemoveOrphanFilesActionResult;
-import org.apache.iceberg.actions.RemoveOrphanFiles;
+import org.apache.iceberg.actions.BaseDeleteOrphanFilesActionResult;
+import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
@@ -73,10 +73,10 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
  * <em>Note:</em> It is dangerous to call this action with a short retention interval as it might corrupt
  * the state of the table if another operation is writing at the same time.
  */
-public class BaseRemoveOrphanFilesSparkAction
-    extends BaseSparkAction<RemoveOrphanFiles, RemoveOrphanFiles.Result> implements RemoveOrphanFiles {
+public class BaseDeleteOrphanFilesSparkAction
+    extends BaseSparkAction<DeleteOrphanFiles, DeleteOrphanFiles.Result> implements DeleteOrphanFiles {
 
-  private static final Logger LOG = LoggerFactory.getLogger(BaseRemoveOrphanFilesSparkAction.class);
+  private static final Logger LOG = LoggerFactory.getLogger(BaseDeleteOrphanFilesSparkAction.class);
   private static final UserDefinedFunction filenameUDF = functions.udf((String path) -> {
     int lastIndex = path.lastIndexOf(File.separator);
     if (lastIndex == -1) {
@@ -99,7 +99,7 @@ public class BaseRemoveOrphanFilesSparkAction
     }
   };
 
-  public BaseRemoveOrphanFilesSparkAction(SparkSession spark, Table table) {
+  public BaseDeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
 
     this.hadoopConf = new SerializableConfiguration(spark.sessionState().newHadoopConf());
@@ -113,30 +113,30 @@ public class BaseRemoveOrphanFilesSparkAction
   }
 
   @Override
-  protected RemoveOrphanFiles self() {
+  protected DeleteOrphanFiles self() {
     return this;
   }
 
   @Override
-  public BaseRemoveOrphanFilesSparkAction location(String newLocation) {
+  public BaseDeleteOrphanFilesSparkAction location(String newLocation) {
     this.location = newLocation;
     return this;
   }
 
   @Override
-  public BaseRemoveOrphanFilesSparkAction olderThan(long newOlderThanTimestamp) {
+  public BaseDeleteOrphanFilesSparkAction olderThan(long newOlderThanTimestamp) {
     this.olderThanTimestamp = newOlderThanTimestamp;
     return this;
   }
 
   @Override
-  public BaseRemoveOrphanFilesSparkAction deleteWith(Consumer<String> newDeleteFunc) {
+  public BaseDeleteOrphanFilesSparkAction deleteWith(Consumer<String> newDeleteFunc) {
     this.deleteFunc = newDeleteFunc;
     return this;
   }
 
   @Override
-  public RemoveOrphanFiles.Result execute() {
+  public DeleteOrphanFiles.Result execute() {
     JobGroupInfo info = newJobGroupInfo("REMOVE-ORPHAN-FILES", jobDesc());
     return withJobGroupInfo(info, this::doExecute);
   }
@@ -150,7 +150,7 @@ public class BaseRemoveOrphanFilesSparkAction
     return String.format("Removing orphan files (%s) from %s", Joiner.on(',').join(options), table.name());
   }
 
-  private RemoveOrphanFiles.Result doExecute() {
+  private DeleteOrphanFiles.Result doExecute() {
     Dataset<Row> validDataFileDF = buildValidDataFileDF(table);
     Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table);
     Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);
@@ -171,7 +171,7 @@ public class BaseRemoveOrphanFilesSparkAction
         .onFailure((file, exc) -> LOG.warn("Failed to delete file: {}", file, exc))
         .run(deleteFunc::accept);
 
-    return new BaseRemoveOrphanFilesActionResult(orphanFiles);
+    return new BaseDeleteOrphanFilesActionResult(orphanFiles);
   }
 
   private Dataset<Row> buildActualFileDF() {

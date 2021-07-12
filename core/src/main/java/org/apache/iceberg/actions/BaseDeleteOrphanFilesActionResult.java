@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.actions;
 
-public class BaseRemoveOrphanFilesActionResult implements RemoveOrphanFiles.Result {
+public class BaseDeleteOrphanFilesActionResult implements DeleteOrphanFiles.Result {
 
   private final Iterable<String> orphanFileLocations;
 
-  public BaseRemoveOrphanFilesActionResult(Iterable<String> orphanFileLocations) {
+  public BaseDeleteOrphanFilesActionResult(Iterable<String> orphanFileLocations) {
     this.orphanFileLocations = orphanFileLocations;
   }
 
