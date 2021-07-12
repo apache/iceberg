@@ -19,14 +19,6 @@
 
 package org.apache.iceberg.spark.source;
 
-import java.io.File;
-import java.io.IOException;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Locale;
-import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
@@ -58,6 +50,15 @@ import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+
+import java.io.File;
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.apache.iceberg.Files.localOutput;
 
@@ -165,10 +166,10 @@ public abstract class TestTimestampWithoutZone {
             IllegalArgumentException.class,
             SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR,
             () -> spark.read().format("iceberg")
-            .option("vectorization-enabled", String.valueOf(vectorized))
-            .option(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "false")
-            .load(unpartitioned.toString())
-            .collectAsList());
+                    .option("vectorization-enabled", String.valueOf(vectorized))
+                    .option(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "false")
+                    .load(unpartitioned.toString())
+                    .collectAsList());
   }
 
   @Test
