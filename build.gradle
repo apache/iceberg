@@ -675,8 +675,8 @@ if (jdkVersion == '8') {
         exclude group: 'org.apache.hive', module: 'hive-exec'
         exclude group: 'org.apache.orc'
       }
-      testCompile("org.apache.tez:tez-dag:0.9.1")
-      testCompile("org.apache.tez:tez-mapreduce:0.9.1")
+      testCompile("org.apache.tez:tez-dag:0.10.1")
+      testCompile("org.apache.tez:tez-mapreduce:0.10.1")
     }
 
     test {
