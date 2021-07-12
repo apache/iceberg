@@ -52,6 +52,8 @@ import org.apache.iceberg.spark.source.SparkBatchScan.ReaderFactory;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
+import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.connector.read.InputPartition;
@@ -136,11 +138,12 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         TableScanUtil.planTasks(splitTasks, splitSize, splitLookback, splitOpenFileCost));
     InputPartition[] readTasks = new InputPartition[combinedScanTasks.size()];
 
-    for (int i = 0; i < combinedScanTasks.size(); i++) {
-      readTasks[i] = new ReadTask(
-          combinedScanTasks.get(i), tableBroadcast, expectedSchema,
-          caseSensitive, localityPreferred);
-    }
+    Tasks.range(readTasks.length)
+        .stopOnFailure()
+        .executeWith(localityPreferred ? ThreadPools.getWorkerPool() : null)
+        .run(index -> readTasks[index] = new ReadTask(
+            combinedScanTasks.get(index), tableBroadcast, expectedSchema,
+            caseSensitive, localityPreferred));
 
     return readTasks;
   }
