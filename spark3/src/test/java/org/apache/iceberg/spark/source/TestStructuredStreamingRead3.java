@@ -382,7 +382,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     Dataset<Row> df = spark.readStream()
         .format("iceberg")
-        .option(SparkReadOptions.SKIP_DELETES_ON_STREAM_READ, "true")
+        .option(SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS, "true")
         .load(tableIdentifier);
     Assertions.assertThat(processAvailable(df))
         .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));

@@ -52,5 +52,5 @@ public class SparkReadOptions {
   public static final String FILE_SCAN_TASK_SET_ID = "file-scan-task-set-id";
 
   // skip snapshots of type delete while reading stream out of iceberg table
-  public static final String SKIP_DELETES_ON_STREAM_READ = "skip-deletes-on-stream-read";
+  public static final String STREAMING_SKIP_DELETE_SNAPSHOTS = "streaming-skip-delete-snapshots";
 }

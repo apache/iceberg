@@ -106,7 +106,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     InitialOffsetStore initialOffsetStore = new InitialOffsetStore(table, checkpointLocation);
     this.initialOffset = initialOffsetStore.initialOffset();
 
-    this.skipDelete = Spark3Util.propertyAsBoolean(options, SparkReadOptions.SKIP_DELETES_ON_STREAM_READ, false);
+    this.skipDelete = Spark3Util.propertyAsBoolean(options, SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS, false);
   }
 
   @Override
