@@ -131,7 +131,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     return readSchema;
   }
 
-  @SuppressWarnings({"checkstyle:LocalVariableName", "checkstyle:RegexpSinglelineJava"})
+  @SuppressWarnings("checkstyle:LocalVariableName")
   @Override
   public InputPartition[] planInputPartitions() {
     String expectedSchemaString = SchemaParser.toJson(expectedSchema);
@@ -142,7 +142,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     List<CombinedScanTask> scanTasks = tasks();
     int taskSize = scanTasks.size();
     InputPartition[] readTasks = new InputPartition[taskSize];
-    long start_time = System.currentTimeMillis();
+    long startTime = System.currentTimeMillis();
 
     try {
       pool.submit(() -> IntStream.range(0, taskSize).parallel()
@@ -154,13 +154,14 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
                 return true;
               }).collect(Collectors.toList())).get();
     } catch (Exception e) {
-      e.printStackTrace();
+      LOG.error("Fail to construct ReadTask with thread size = {}, and the size of scanTasks is {}",
+          poolSize, taskSize, e);
       System.exit(-1);
     }
 
-    long end_time = System.currentTimeMillis();
-    LOG.info("It took {} s to construct {} readTasks with localityPreferred = {}.", (end_time - start_time) / 1000,
-            taskSize, localityPreferred);
+    long endTime = System.currentTimeMillis();
+    LOG.info("It took {} s to construct {} readTasks with localityPreferred = {}.", (startTime - endTime) / 1000,
+        taskSize, localityPreferred);
     return readTasks;
   }
 

@@ -202,7 +202,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   /**
    * This is called in the Spark Driver when data is to be materialized into {@link ColumnarBatch}
    */
-  @SuppressWarnings({"checkstyle:LocalVariableName", "checkstyle:RegexpSinglelineJava"})
+  @SuppressWarnings("checkstyle:LocalVariableName")
   @Override
   public List<InputPartition<ColumnarBatch>> planBatchInputPartitions() {
     Preconditions.checkState(enableBatchRead(), "Batched reads not enabled");
@@ -229,47 +229,50 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
                 return true;
               }).collect(Collectors.toList())).get();
     } catch (Exception e) {
-      e.printStackTrace();
+      LOG.error("Fail to construct ReadTask with thread size = {}, and the size of scanTasks is {}",
+          poolSize, taskSize, e);
       System.exit(-1);
     }
     Long endTime = System.currentTimeMillis();
     LOG.info("Batching input partitions with {} tasks.", readTasks.length);
     LOG.info("It took {} s to construct {} readTasks with localityPreferred = {}.", (endTime - startTime) / 1000,
-            taskSize, localityPreferred);
+        taskSize, localityPreferred);
     return Arrays.asList(readTasks.clone());
   }
 
   /**
    * This is called in the Spark Driver when data is to be materialized into {@link InternalRow}
    */
-  @SuppressWarnings({"checkstyle:LocalVariableName", "checkstyle:RegexpSinglelineJava"})
+  @SuppressWarnings("checkstyle:LocalVariableName")
   @Override
   public List<InputPartition<InternalRow>> planInputPartitions() {
     String expectedSchemaString = SchemaParser.toJson(lazySchema());
 
     // broadcast the table metadata as input partitions will be sent to executors
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
-    int taskSize = tasks().size();
+    List<CombinedScanTask> scanTasks = tasks();
+    int taskSize = scanTasks.size();
     InputPartition<InternalRow>[] readTasks = new InputPartition[taskSize];
-    Long start_time = System.currentTimeMillis();
+    Long startTime = System.currentTimeMillis();
     try {
       pool.submit(() -> IntStream.range(0, taskSize).parallel()
               .mapToObj(taskId -> {
-                LOG.trace("The size of scanTasks is {},  current taskId is {}, current thread id is {}",
+                LOG.trace("The size of scanTasks is {},  current taskId is {}, current thread name is {}",
                         taskSize, taskId, Thread.currentThread().getName());
                 readTasks[taskId] = new ReadTask<>(
-                        tasks().get(taskId), tableBroadcast, expectedSchemaString, caseSensitive,
+                        scanTasks.get(taskId), tableBroadcast, expectedSchemaString, caseSensitive,
                         localityPreferred, InternalRowReaderFactory.INSTANCE);
                 return true;
               }).collect(Collectors.toList())).get();
     } catch (Exception e) {
-      e.printStackTrace();
+      LOG.error("Fail to construct ReadTask with thread size = {}, and the size of scanTasks is {}",
+          poolSize, taskSize, e);
       System.exit(-1);
     }
 
-    Long end_time = System.currentTimeMillis();
-    LOG.info("It took {} s to construct {} readTasks with localityPreferred = {}.", (end_time - start_time) / 1000,
-            taskSize, localityPreferred);
+    Long endTime = System.currentTimeMillis();
+    LOG.info("It took {} s to construct {} readTasks with localityPreferred = {}.", (endTime - startTime) / 1000,
+        taskSize, localityPreferred);
     return Arrays.asList(readTasks.clone());
   }
 
