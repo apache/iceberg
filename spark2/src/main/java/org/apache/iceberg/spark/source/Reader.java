@@ -25,7 +25,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -49,7 +48,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -81,10 +79,6 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     SupportsPushDownRequiredColumns, SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(Reader.class);
 
-  // Creates an executor service that runs each task in the thread that invokes execute/submit.
-  private static final ExecutorService DEFAULT_READTASKS_INIT_EXECUTOR_SERVICE =
-      MoreExecutors.newDirectExecutorService();
-
   private static final Filter[] NO_FILTERS = new Filter[0];
   private static final ImmutableSet<String> LOCALITY_WHITELIST_FS = ImmutableSet.of("hdfs");
 
@@ -104,7 +98,6 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   private Filter[] pushedFilters = NO_FILTERS;
   private final boolean localityPreferred;
   private final int batchSize;
-  private ExecutorService readTasksInitExecutorService = DEFAULT_READTASKS_INIT_EXECUTOR_SERVICE;
 
   // lazy variables
   private Schema schema = null;
@@ -160,10 +153,6 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
           .orElseGet(() -> LOCALITY_WHITELIST_FS.contains(scheme));
     } else {
       this.localityPreferred = false;
-    }
-
-    if (this.localityPreferred) {
-      this.readTasksInitExecutorService = ThreadPools.getWorkerPool();
     }
 
     this.schema = table.schema();
@@ -224,12 +213,10 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
     Tasks.range(readTasks.length)
         .stopOnFailure()
-        .executeWith(readTasksInitExecutorService)
-        .run(index -> {
-          readTasks[index] = new ReadTask<>(
-              scanTasks.get(index), tableBroadcast, expectedSchemaString, caseSensitive,
-              localityPreferred, new BatchReaderFactory(batchSize));
-        });
+        .executeWith(localityPreferred ? ThreadPools.getWorkerPool() : null)
+        .run(index -> readTasks[index] = new ReadTask<>(
+            scanTasks.get(index), tableBroadcast, expectedSchemaString, caseSensitive,
+            localityPreferred, new BatchReaderFactory(batchSize)));
     LOG.info("Batching input partitions with {} tasks.", readTasks.length);
 
     return Arrays.asList(readTasks);
@@ -250,12 +237,10 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
     Tasks.range(readTasks.length)
         .stopOnFailure()
-        .executeWith(readTasksInitExecutorService)
-        .run(index -> {
-          readTasks[index] = new ReadTask<>(
-              scanTasks.get(index), tableBroadcast, expectedSchemaString, caseSensitive,
-              localityPreferred, InternalRowReaderFactory.INSTANCE);
-        });
+        .executeWith(localityPreferred ? ThreadPools.getWorkerPool() : null)
+        .run(index -> readTasks[index] = new ReadTask<>(
+            scanTasks.get(index), tableBroadcast, expectedSchemaString, caseSensitive,
+            localityPreferred, InternalRowReaderFactory.INSTANCE));
 
     return Arrays.asList(readTasks);
   }

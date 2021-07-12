@@ -24,7 +24,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
@@ -37,7 +36,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.Util;
-import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.PropertyUtil;
@@ -66,10 +64,6 @@ import org.slf4j.LoggerFactory;
 abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(SparkBatchScan.class);
 
-  // Creates an executor service that runs each task in the thread that invokes execute/submit.
-  private static final ExecutorService DEFAULT_READTASKS_INIT_EXECUTOR_SERVICE =
-      MoreExecutors.newDirectExecutorService();
-
   private final JavaSparkContext sparkContext;
   private final Table table;
   private final boolean caseSensitive;
@@ -78,7 +72,6 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private final List<Expression> filterExpressions;
   private final int batchSize;
   private final CaseInsensitiveStringMap options;
-  private ExecutorService readTasksInitExecutorService = DEFAULT_READTASKS_INIT_EXECUTOR_SERVICE;
 
   // lazy variables
   private StructType readSchema = null;
@@ -93,10 +86,6 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     this.localityPreferred = Spark3Util.isLocalityEnabled(table.io(), table.location(), options);
     this.batchSize = Spark3Util.batchSize(table.properties(), options);
     this.options = options;
-
-    if (this.localityPreferred) {
-      this.readTasksInitExecutorService = ThreadPools.getWorkerPool();
-    }
   }
 
   protected Table table() {
@@ -148,12 +137,10 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
     Tasks.range(readTasks.length)
         .stopOnFailure()
-        .executeWith(readTasksInitExecutorService)
-        .run(index -> {
-          readTasks[index] = new ReadTask(
-              scanTasks.get(index), tableBroadcast, expectedSchemaString,
-              caseSensitive, localityPreferred);
-        });
+        .executeWith(localityPreferred ? ThreadPools.getWorkerPool() : null)
+        .run(index -> readTasks[index] = new ReadTask(
+            scanTasks.get(index), tableBroadcast, expectedSchemaString,
+            caseSensitive, localityPreferred));
 
     return readTasks;
   }
