@@ -42,6 +42,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -282,17 +283,17 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     AssertHelpers.assertThrowsCause(
         "Streaming should fail with IllegalStateException, as the snapshot is not of type APPEND",
         IllegalStateException.class,
-        "Invalid Snapshot operation",
+        "Cannot process overwrite snapshot",
         () -> streamingQuery.processAllAvailable()
     );
   }
 
   @SuppressWarnings("unchecked")
   @Test
-  public void testReadStreamWithSnapshotTypeReplaceErrorsOut() throws Exception {
+  public void testReadStreamWithSnapshotTypeReplaceIgnoresReplace() throws Exception {
     // fill table with some data
-    List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
-    appendDataAsMultipleSnapshots(dataAcrossSnapshots, tableIdentifier);
+    List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(expected, tableIdentifier);
 
     table.refresh();
 
@@ -307,27 +308,18 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     Dataset<Row> df = spark.readStream()
         .format("iceberg")
         .load(tableIdentifier);
-    StreamingQuery streamingQuery = df.writeStream()
-        .format("memory")
-        .queryName("testtablewithreplace")
-        .outputMode(OutputMode.Append())
-        .start();
 
-    AssertHelpers.assertThrowsCause(
-        "Streaming should fail with IllegalStateException, as the snapshot is not of type APPEND",
-        IllegalStateException.class,
-        "Invalid Snapshot operation",
-        () -> streamingQuery.processAllAvailable()
-    );
+    List<SimpleRecord> actual = processAvailable(df);
+    Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
   }
 
   @SuppressWarnings("unchecked")
   @Test
   public void testReadStreamWithSnapshotTypeDeleteErrorsOut() throws Exception {
     table.updateSpec()
-            .removeField("id_bucket")
-            .addField(ref("id"))
-            .commit();
+        .removeField("id_bucket")
+        .addField(ref("id"))
+        .commit();
 
     table.refresh();
 
@@ -358,9 +350,42 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     AssertHelpers.assertThrowsCause(
         "Streaming should fail with IllegalStateException, as the snapshot is not of type APPEND",
         IllegalStateException.class,
-        "Invalid Snapshot operation",
+        "Cannot process delete snapshot",
         () -> streamingQuery.processAllAvailable()
     );
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testReadStreamWithSnapshotTypeDeleteAndSkipDeleteOption() throws Exception {
+    table.updateSpec()
+        .removeField("id_bucket")
+        .addField(ref("id"))
+        .commit();
+
+    table.refresh();
+
+    // fill table with some data
+    List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(dataAcrossSnapshots, tableIdentifier);
+
+    table.refresh();
+
+    // this should create a snapshot with type delete.
+    table.newDelete()
+        .deleteFromRowFilter(Expressions.equal("id", 4))
+        .commit();
+
+    // check pre-condition - that the above delete operation on table resulted in Snapshot of Type DELETE.
+    table.refresh();
+    Assert.assertEquals(DataOperations.DELETE, table.currentSnapshot().operation());
+
+    Dataset<Row> df = spark.readStream()
+        .format("iceberg")
+        .option(SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS, "true")
+        .load(tableIdentifier);
+    Assertions.assertThat(processAvailable(df))
+        .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
   }
 
   private static List<SimpleRecord> processMicroBatch(DataStreamWriter<Row> singleBatchWriter, String viewName)
