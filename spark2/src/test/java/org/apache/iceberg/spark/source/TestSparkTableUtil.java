@@ -22,6 +22,9 @@ package org.apache.iceberg.spark.source;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.FileFormat;
@@ -34,6 +37,7 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
@@ -366,6 +370,78 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
           .as(Encoders.bean(SimpleRecord.class)).collectAsList();
 
       Assert.assertEquals("Data should match", spacedRecords, results);
+    }
+  }
+
+  public static class GetPartitions {
+
+    @Rule
+    public TemporaryFolder temp = new TemporaryFolder();
+
+    // This logic does not really depend on format
+    private final FileFormat format = FileFormat.PARQUET;
+
+    @Test
+    public void testPartitionScan() throws Exception {
+
+      List<ThreeColumnRecord> records = Lists.newArrayList(
+          new ThreeColumnRecord(1, "ab", "data"),
+          new ThreeColumnRecord(2, "b c", "data"),
+          new ThreeColumnRecord(1, "b c", "data"),
+          new ThreeColumnRecord(2, "ab", "data"));
+
+      String tableName = "external_table";
+
+      spark.createDataFrame(records, ThreeColumnRecord.class)
+          .write().mode("overwrite").format(format.toString())
+          .partitionBy("c1", "c2").saveAsTable(tableName);
+
+      TableIdentifier source = spark.sessionState().sqlParser()
+          .parseTableIdentifier(tableName);
+
+      Map<String, String> partition1 = ImmutableMap.of(
+          "c1", "1",
+          "c2", "ab");
+      Map<String, String> partition2 = ImmutableMap.of(
+          "c1", "2",
+          "c2", "b c");
+      Map<String, String> partition3 = ImmutableMap.of(
+          "c1", "1",
+          "c2", "b c");
+      Map<String, String> partition4 = ImmutableMap.of(
+          "c1", "2",
+          "c2", "ab");
+
+      List<SparkPartition> partitionsC11 =
+          SparkTableUtil.getPartitions(spark, source, ImmutableMap.of("c1", "1"));
+      Set<Map<String, String>> expectedC11 =
+          Sets.newHashSet(partition1, partition3);
+      Set<Map<String, String>> actualC11 = partitionsC11.stream().map(
+          p -> p.getValues()).collect(Collectors.toSet());
+      Assert.assertEquals("Wrong partitions fetched for c1=1", expectedC11, actualC11);
+
+      List<SparkPartition> partitionsC12 =
+          SparkTableUtil.getPartitions(spark, source, ImmutableMap.of("c1", "2"));
+      Set<Map<String, String>> expectedC12 = Sets.newHashSet(partition2, partition4);
+      Set<Map<String, String>> actualC12 = partitionsC12.stream().map(
+          p -> p.getValues()).collect(Collectors.toSet());
+      Assert.assertEquals("Wrong partitions fetched for c1=2", expectedC12, actualC12);
+
+      List<SparkPartition> partitionsC21 =
+          SparkTableUtil.getPartitions(spark, source, ImmutableMap.of("c2", "ab"));
+      Set<Map<String, String>> expectedC21 =
+          Sets.newHashSet(partition1, partition4);
+      Set<Map<String, String>> actualC21 = partitionsC21.stream().map(
+          p -> p.getValues()).collect(Collectors.toSet());
+      Assert.assertEquals("Wrong partitions fetched for c2=ab", expectedC21, actualC21);
+
+      List<SparkPartition> partitionsC22 =
+          SparkTableUtil.getPartitions(spark, source, ImmutableMap.of("c2", "b c"));
+      Set<Map<String, String>> expectedC22 =
+          Sets.newHashSet(partition2, partition3);
+      Set<Map<String, String>> actualC22 = partitionsC22.stream().map(
+          p -> p.getValues()).collect(Collectors.toSet());
+      Assert.assertEquals("Wrong partitions fetched for c2=b c", expectedC22, actualC22);
     }
   }
 

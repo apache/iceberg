@@ -80,6 +80,7 @@ import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import scala.Function2;
 import scala.Option;
+import scala.Predef;
 import scala.Some;
 import scala.Tuple2;
 import scala.collection.JavaConverters;
@@ -140,7 +141,7 @@ public class SparkTableUtil {
   public static List<SparkPartition> getPartitions(SparkSession spark, String table) {
     try {
       TableIdentifier tableIdent = spark.sessionState().sqlParser().parseTableIdentifier(table);
-      return getPartitions(spark, tableIdent);
+      return getPartitions(spark, tableIdent, null);
     } catch (ParseException e) {
       throw SparkExceptionUtil.toUncheckedException(e, "Unable to parse table identifier: %s", table);
     }
@@ -151,15 +152,23 @@ public class SparkTableUtil {
    *
    * @param spark a Spark session
    * @param tableIdent a table identifier
+   * @param partitionFilter partition filter, or null if no filter
    * @return all table's partitions
    */
-  public static List<SparkPartition> getPartitions(SparkSession spark, TableIdentifier tableIdent) {
+  public static List<SparkPartition> getPartitions(SparkSession spark, TableIdentifier tableIdent,
+                                                   Map<String, String> partitionFilter) {
     try {
       SessionCatalog catalog = spark.sessionState().catalog();
       CatalogTable catalogTable = catalog.getTableMetadata(tableIdent);
 
-      Seq<CatalogTablePartition> partitions = catalog.listPartitions(tableIdent, Option.empty());
-
+      Option<scala.collection.immutable.Map<String, String>> scalaPartitionFilter;
+      if (partitionFilter != null && !partitionFilter.isEmpty()) {
+        scalaPartitionFilter = Option.apply(JavaConverters.mapAsScalaMapConverter(partitionFilter).asScala()
+            .toMap(Predef.conforms()));
+      } else {
+        scalaPartitionFilter = Option.empty();
+      }
+      Seq<CatalogTablePartition> partitions = catalog.listPartitions(tableIdent, scalaPartitionFilter);
       return JavaConverters
           .seqAsJavaListConverter(partitions)
           .asJava()
@@ -375,14 +384,11 @@ public class SparkTableUtil {
       if (Objects.equal(spec, PartitionSpec.unpartitioned())) {
         importUnpartitionedSparkTable(spark, sourceTableIdentWithDB, targetTable);
       } else {
-        List<SparkPartition> sourceTablePartitions = getPartitions(spark, sourceTableIdent);
+        List<SparkPartition> sourceTablePartitions = getPartitions(spark, sourceTableIdent,
+            partitionFilter);
         Preconditions.checkArgument(!sourceTablePartitions.isEmpty(),
             "Cannot find any partitions in table %s", sourceTableIdent);
-        List<SparkPartition> filteredPartitions = filterPartitions(sourceTablePartitions, partitionFilter);
-        Preconditions.checkArgument(!filteredPartitions.isEmpty(),
-            "Cannot find any partitions which match the given filter. Partition filter is %s",
-            MAP_JOINER.join(partitionFilter));
-        importSparkPartitions(spark, filteredPartitions, targetTable, spec, stagingDir);
+        importSparkPartitions(spark, sourceTablePartitions, targetTable, spec, stagingDir);
       }
     } catch (AnalysisException e) {
       throw SparkExceptionUtil.toUncheckedException(
