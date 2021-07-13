@@ -20,13 +20,10 @@
 package org.apache.iceberg.actions;
 
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.Set;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
@@ -40,8 +37,8 @@ import org.slf4j.LoggerFactory;
  * File C' (x: 41 - 60).
  * <p>
  * Currently the there is no clustering detection and we will rewrite all files if {@link SortStrategy#REWRITE_ALL}
- * is true (default: false). If this property is disabled any files with the incorrect sort-order as well as any files
- * that would be chosen by {@link BinPackStrategy} will be rewrite candidates.
+ * is true (default: false). If this property is disabled any files that would be chosen by
+ * {@link BinPackStrategy} will be rewrite candidates.
  * <p>
  * In the future other algorithms for determining files to rewrite will be provided.
  */
@@ -49,11 +46,12 @@ public abstract class SortStrategy extends BinPackStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(SortStrategy.class);
 
   /**
-   * Rewrites all files, regardless of their size. Defaults to false, rewriting only wrong sort-order and mis-sized
+   * Rewrites all files, regardless of their size. Defaults to false, rewriting only mis-sized
    * files;
    */
-  public static final String REWRITE_ALL = "no-size-filter";
+  public static final String REWRITE_ALL = "rewrite-all";
   public static final boolean REWRITE_ALL_DEFAULT = false;
+
 
   private static final Set<String> validOptions = ImmutableSet.of(
       REWRITE_ALL
@@ -61,7 +59,6 @@ public abstract class SortStrategy extends BinPackStrategy {
 
   private boolean rewriteAll;
   private SortOrder sortOrder;
-  private int sortOrderId = -1;
 
   /**
    * Sets the sort order to be used in this strategy when rewriting files
@@ -70,14 +67,11 @@ public abstract class SortStrategy extends BinPackStrategy {
    */
   public SortStrategy sortOrder(SortOrder order) {
     this.sortOrder = order;
-
-    // See if this order matches any of our known orders
-    Optional<Entry<Integer, SortOrder>> knownOrder = table().sortOrders().entrySet().stream()
-        .filter(entry -> entry.getValue().sameOrder(order))
-        .findFirst();
-    knownOrder.ifPresent(entry -> sortOrderId = entry.getKey());
-
     return this;
+  }
+
+  protected SortOrder sortOrder() {
+    return sortOrder;
   }
 
   @Override
@@ -103,7 +97,6 @@ public abstract class SortStrategy extends BinPackStrategy {
 
     if (sortOrder == null) {
       sortOrder = table().sortOrder();
-      sortOrderId = sortOrder.orderId();
     }
 
     validateOptions();
@@ -116,20 +109,11 @@ public abstract class SortStrategy extends BinPackStrategy {
       LOG.info("Sort Strategy for table {} set to rewrite all data files", table().name());
       return dataFiles;
     } else {
-      FluentIterable filesWithCorrectOrder =
-          FluentIterable.from(dataFiles).filter(file -> file.file().sortOrderId() == sortOrderId);
-
-      FluentIterable filesWithIncorrectOrder =
-          FluentIterable.from(dataFiles).filter(file -> file.file().sortOrderId() != sortOrderId);
-      return filesWithIncorrectOrder.append(super.selectFilesToRewrite(filesWithCorrectOrder));
+      return super.selectFilesToRewrite(dataFiles);
     }
   }
 
-  protected SortOrder sortOrder() {
-    return sortOrder;
-  }
-
-  private void validateOptions() {
+  protected void validateOptions() {
     Preconditions.checkArgument(!sortOrder.isUnsorted(),
         "Can't use %s when there is no sort order, either define table %s's sort order or set sort" +
             "order in the action",
