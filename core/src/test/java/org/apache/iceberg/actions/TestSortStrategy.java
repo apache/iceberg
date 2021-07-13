@@ -22,6 +22,7 @@ package org.apache.iceberg.actions;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.IntStream;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
@@ -68,7 +69,7 @@ public class TestSortStrategy extends TableTestBase {
     }
 
     @Override
-    public List<DataFile> rewriteFiles(List<FileScanTask> filesToRewrite) {
+    public Set<DataFile> rewriteFiles(List<FileScanTask> filesToRewrite) {
       throw new UnsupportedOperationException();
     }
   }
@@ -97,45 +98,6 @@ public class TestSortStrategy extends TableTestBase {
               .sortOrder(SortOrder.builderFor(badSchema).asc("nonexistant").build())
               .options(Collections.emptyMap());
         });
-  }
-
-  @Test
-  public void testSelectWrongSortOrder() {
-    List<FileScanTask> expected = tasksForSortOrder(-1, 500, 500, 500, 500);
-    RewriteStrategy strategy = defaultSort().options(Collections.emptyMap());
-    List<FileScanTask> actual = ImmutableList.copyOf(strategy.selectFilesToRewrite(expected));
-
-    Assert.assertEquals("Should mark all files for rewrite if they have the wrong sort order",
-        expected, actual);
-  }
-
-  @Test
-  public void testSelectCorrectSortOrder() {
-    List<FileScanTask> fileScanTasks = tasksForSortOrder(table.sortOrder().orderId(), 500, 500, 500, 500);
-    RewriteStrategy strategy = defaultSort().options(Collections.emptyMap());
-    List<FileScanTask> actual = ImmutableList.copyOf(strategy.selectFilesToRewrite(fileScanTasks));
-
-    Assert.assertEquals("Should mark no files for rewrite if they have a good size and the right sort order",
-        Collections.emptyList(), actual);
-  }
-
-  @Test
-  public void testSelectMixedOrderMixedSize() {
-    List<FileScanTask> expected = ImmutableList.<FileScanTask>builder()
-        .addAll(tasksForSortOrder(-1, 500, 500, 500, 500))
-        .addAll(tasksForSortOrder(table.sortOrder().orderId(), 10, 10, 2000, 10))
-        .build();
-
-    List<FileScanTask> fileScanTasks = ImmutableList.<FileScanTask>builder()
-        .addAll(expected)
-        .addAll(tasksForSortOrder(table.sortOrder().orderId(), 500, 490, 520))
-        .build();
-
-    RewriteStrategy strategy = defaultSort().options(Collections.emptyMap());
-    List<FileScanTask> actual = ImmutableList.copyOf(strategy.selectFilesToRewrite(fileScanTasks));
-
-    Assert.assertEquals("Should mark files for rewrite with invalid sort order and mixed sizes",
-        expected, actual);
   }
 
   @Test
@@ -177,6 +139,4 @@ public class TestSortStrategy extends TableTestBase {
     Assert.assertEquals("Should mark files for rewrite with adjusted min and max size",
         expected, actual);
   }
-
-
 }
