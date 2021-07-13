@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTestBase;
@@ -1123,7 +1124,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     // check time travel
     List<Row> actualAfterFirstCommit = spark.read()
         .format("iceberg")
-        .option("snapshot-id", String.valueOf(firstCommitId))
+        .option(SparkReadOptions.SNAPSHOT_ID, String.valueOf(firstCommitId))
         .load(loadLocation(tableIdentifier, "partitions"))
         .orderBy("partition.id")
         .collectAsList();
@@ -1208,7 +1209,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Dataset<Row> resultDf3 = spark.read()
         .format("iceberg")
-        .option("snapshot-id", snapshot1.snapshotId())
+        .option(SparkReadOptions.SNAPSHOT_ID, snapshot1.snapshotId())
         .load(loadLocation(tableIdentifier));
     List<Row> actualRecords3 = resultDf3.orderBy("id")
         .collectAsList();
@@ -1274,7 +1275,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Dataset<Row> resultDf3 = spark.read()
         .format("iceberg")
-        .option("as-of-timestamp", ts1)
+        .option(SparkReadOptions.AS_OF_TIMESTAMP, ts1)
         .load(loadLocation(tableIdentifier));
     List<Row> actualRecords3 = resultDf3.orderBy("id")
         .collectAsList();
@@ -1283,7 +1284,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Dataset<Row> resultDf4 = spark.read()
         .format("iceberg")
-        .option("as-of-timestamp", ts2)
+        .option(SparkReadOptions.AS_OF_TIMESTAMP, ts2)
         .load(loadLocation(tableIdentifier));
     List<Row> actualRecords4 = resultDf4.orderBy("id")
         .collectAsList();
@@ -1336,7 +1337,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     Dataset<Row> resultDf3 = spark.read()
         .format("iceberg")
-        .option("snapshot-id", snapshot1.snapshotId())
+        .option(SparkReadOptions.SNAPSHOT_ID, snapshot1.snapshotId())
         .load(loadLocation(tableIdentifier));
     List<Row> actualRecords3 = resultDf3.orderBy("id")
         .collectAsList();
