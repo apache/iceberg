@@ -19,6 +19,9 @@
 
 package org.apache.iceberg.actions;
 
+/**
+ * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link SnapshotTable} instead.
+ */
 @Deprecated
 public interface SnapshotAction extends CreateAction {
   SnapshotAction withLocation(String location);

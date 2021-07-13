@@ -26,15 +26,18 @@ import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 
+@Deprecated
 public class SparkActions extends Actions {
   protected SparkActions(SparkSession spark, Table table) {
     super(spark, table);
   }
 
+  @Deprecated
   public static CreateAction migrate(String tableName) {
     return migrate(SparkSession.active(), tableName);
   }
 
+  @Deprecated
   public static CreateAction migrate(SparkSession spark, String tableName) {
     CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
     CatalogAndIdentifier catalogAndIdentifier;
@@ -42,10 +45,12 @@ public class SparkActions extends Actions {
     return new Spark3MigrateAction(spark, catalogAndIdentifier.catalog(), catalogAndIdentifier.identifier());
   }
 
+  @Deprecated
   public static SnapshotAction snapshot(String sourceId, String destId) {
     return snapshot(SparkSession.active(), sourceId, destId);
   }
 
+  @Deprecated
   public static SnapshotAction snapshot(SparkSession spark, String sourceId, String destId) {
     CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
     CatalogAndIdentifier sourceIdent = Spark3Util.catalogAndIdentifier("snapshot source", spark, sourceId,
