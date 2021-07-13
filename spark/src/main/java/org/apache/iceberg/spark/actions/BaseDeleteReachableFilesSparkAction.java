@@ -28,8 +28,8 @@ import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
-import org.apache.iceberg.actions.BaseRemoveFilesActionResult;
-import org.apache.iceberg.actions.RemoveReachableFiles;
+import org.apache.iceberg.actions.BaseDeleteReachableFilesActionResult;
+import org.apache.iceberg.actions.DeleteReachableFiles;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
@@ -51,13 +51,13 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 /**
- * An implementation of {@link RemoveReachableFiles} that uses metadata tables in Spark
+ * An implementation of {@link DeleteReachableFiles} that uses metadata tables in Spark
  * to determine which files should be deleted.
  */
 @SuppressWarnings("UnnecessaryAnonymousClass")
-public class BaseRemoveReachableFilesSparkAction
-    extends BaseSparkAction<RemoveReachableFiles, RemoveReachableFiles.Result> implements RemoveReachableFiles {
-  private static final Logger LOG = LoggerFactory.getLogger(BaseRemoveReachableFilesSparkAction.class);
+public class BaseDeleteReachableFilesSparkAction
+    extends BaseSparkAction<DeleteReachableFiles, DeleteReachableFiles.Result> implements DeleteReachableFiles {
+  private static final Logger LOG = LoggerFactory.getLogger(BaseDeleteReachableFilesSparkAction.class);
 
   private static final String DATA_FILE = "Data File";
   private static final String MANIFEST = "Manifest";
@@ -82,7 +82,7 @@ public class BaseRemoveReachableFilesSparkAction
   private ExecutorService removeExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
   private FileIO io = new HadoopFileIO(spark().sessionState().newHadoopConf());
 
-  public BaseRemoveReachableFilesSparkAction(SparkSession spark, String metadataLocation) {
+  public BaseDeleteReachableFilesSparkAction(SparkSession spark, String metadataLocation) {
     super(spark);
     this.tableMetadata = TableMetadataParser.read(io, metadataLocation);
     ValidationException.check(
@@ -91,25 +91,25 @@ public class BaseRemoveReachableFilesSparkAction
   }
 
   @Override
-  protected RemoveReachableFiles self() {
+  protected DeleteReachableFiles self() {
     return this;
   }
 
   @Override
-  public RemoveReachableFiles io(FileIO fileIO) {
+  public DeleteReachableFiles io(FileIO fileIO) {
     this.io = fileIO;
     return this;
   }
 
   @Override
-  public RemoveReachableFiles deleteWith(Consumer<String> removeFn) {
-    this.removeFunc = removeFn;
+  public DeleteReachableFiles deleteWith(Consumer<String> deleteFunc) {
+    this.removeFunc = deleteFunc;
     return this;
 
   }
 
   @Override
-  public RemoveReachableFiles executeDeleteWith(ExecutorService executorService) {
+  public DeleteReachableFiles executeDeleteWith(ExecutorService executorService) {
     this.removeExecutorService = executorService;
     return this;
   }
@@ -158,7 +158,7 @@ public class BaseRemoveReachableFilesSparkAction
    * @param deleted an Iterator of Spark Rows of the structure (path: String, type: String)
    * @return Statistics on which files were deleted
    */
-  private BaseRemoveFilesActionResult deleteFiles(Iterator<Row> deleted) {
+  private BaseDeleteReachableFilesActionResult deleteFiles(Iterator<Row> deleted) {
     AtomicLong dataFileCount = new AtomicLong(0L);
     AtomicLong manifestCount = new AtomicLong(0L);
     AtomicLong manifestListCount = new AtomicLong(0L);
@@ -198,7 +198,7 @@ public class BaseRemoveReachableFilesSparkAction
 
     long filesCount = dataFileCount.get() + manifestCount.get() + manifestListCount.get() + otherFilesCount.get();
     LOG.info("Total files removed: {}", filesCount);
-    return new BaseRemoveFilesActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get(),
+    return new BaseDeleteReachableFilesActionResult(dataFileCount.get(), manifestCount.get(), manifestListCount.get(),
         otherFilesCount.get());
   }
 }

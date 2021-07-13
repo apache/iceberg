@@ -19,17 +19,17 @@
 
 package org.apache.iceberg.actions;
 
-public class BaseRemoveFilesActionResult implements RemoveReachableFiles.Result {
+public class BaseDeleteReachableFilesActionResult implements DeleteReachableFiles.Result {
 
   private final long deletedDataFilesCount;
   private final long deletedManifestsCount;
   private final long deletedManifestListsCount;
   private final long deletedOtherFilesCount;
 
-  public BaseRemoveFilesActionResult(long deletedDataFilesCount,
-                                     long deletedManifestsCount,
-                                     long deletedManifestListsCount,
-                                     long otherDeletedFilesCount) {
+  public BaseDeleteReachableFilesActionResult(long deletedDataFilesCount,
+                                              long deletedManifestsCount,
+                                              long deletedManifestListsCount,
+                                              long otherDeletedFilesCount) {
     this.deletedDataFilesCount = deletedDataFilesCount;
     this.deletedManifestsCount = deletedManifestsCount;
     this.deletedManifestListsCount = deletedManifestListsCount;
@@ -37,22 +37,22 @@ public class BaseRemoveFilesActionResult implements RemoveReachableFiles.Result 
   }
 
   @Override
-  public long removedDataFilesCount() {
+  public long deletedDataFilesCount() {
     return deletedDataFilesCount;
   }
 
   @Override
-  public long removedManifestsCount() {
+  public long deletedManifestsCount() {
     return deletedManifestsCount;
   }
 
   @Override
-  public long removedManifestListsCount() {
+  public long deletedManifestListsCount() {
     return deletedManifestListsCount;
   }
 
   @Override
-  public long otherRemovedFilesCount() {
+  public long deletedOtherFilesCount() {
     return deletedOtherFilesCount;
   }
 }

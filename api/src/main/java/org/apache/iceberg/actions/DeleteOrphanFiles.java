@@ -22,13 +22,13 @@ package org.apache.iceberg.actions;
 import java.util.function.Consumer;
 
 /**
- * An action that removes orphan files in a table.
+ * An action that deletes orphan files in a table.
  * <p>
  * A metadata or data file is considered orphan if it is not reachable by any valid snapshot.
  * The set of actual files is built by listing the underlying storage which makes this operation
  * expensive.
  */
-public interface RemoveOrphanFiles extends Action<RemoveOrphanFiles, RemoveOrphanFiles.Result> {
+public interface DeleteOrphanFiles extends Action<DeleteOrphanFiles, DeleteOrphanFiles.Result> {
   /**
    * Passes a location which should be scanned for orphan files.
    * <p>
@@ -38,7 +38,7 @@ public interface RemoveOrphanFiles extends Action<RemoveOrphanFiles, RemoveOrpha
    * @param location the location where to look for orphan files
    * @return this for method chaining
    */
-  RemoveOrphanFiles location(String location);
+  DeleteOrphanFiles location(String location);
 
   /**
    * Removes orphan files only if they are older than the given timestamp.
@@ -52,7 +52,7 @@ public interface RemoveOrphanFiles extends Action<RemoveOrphanFiles, RemoveOrpha
    * @param olderThanTimestamp a long timestamp, as returned by {@link System#currentTimeMillis()}
    * @return this for method chaining
    */
-  RemoveOrphanFiles olderThan(long olderThanTimestamp);
+  DeleteOrphanFiles olderThan(long olderThanTimestamp);
 
   /**
    * Passes an alternative delete implementation that will be used for orphan files.
@@ -65,7 +65,7 @@ public interface RemoveOrphanFiles extends Action<RemoveOrphanFiles, RemoveOrpha
    * @param deleteFunc a function that will be called to delete files
    * @return this for method chaining
    */
-  RemoveOrphanFiles deleteWith(Consumer<String> deleteFunc);
+  DeleteOrphanFiles deleteWith(Consumer<String> deleteFunc);
 
   /**
    * The action result that contains a summary of the execution.

@@ -22,8 +22,8 @@ package org.apache.iceberg.actions;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.spark.actions.BaseDeleteOrphanFilesSparkAction;
 import org.apache.iceberg.spark.actions.BaseExpireSnapshotsSparkAction;
-import org.apache.iceberg.spark.actions.BaseRemoveOrphanFilesSparkAction;
 import org.apache.iceberg.spark.actions.BaseRewriteManifestsSparkAction;
 import org.apache.spark.sql.SparkSession;
 
@@ -70,7 +70,7 @@ public class Actions {
   }
 
   public RemoveOrphanFilesAction removeOrphanFiles() {
-    BaseRemoveOrphanFilesSparkAction delegate = new BaseRemoveOrphanFilesSparkAction(spark, table);
+    BaseDeleteOrphanFilesSparkAction delegate = new BaseDeleteOrphanFilesSparkAction(spark, table);
     return new RemoveOrphanFilesAction(delegate);
   }
 
