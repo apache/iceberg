@@ -21,13 +21,10 @@ package org.apache.iceberg.spark.source;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.AbstractMap;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.FileFormat;
@@ -393,7 +390,6 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
           new ThreeColumnRecord(1, "b c", "data"),
           new ThreeColumnRecord(2, "ab", "data"));
 
-      File location = temp.newFolder("partitioned_table");
       String tableName = "external_table";
 
       spark.createDataFrame(records, ThreeColumnRecord.class)
@@ -403,26 +399,21 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
       TableIdentifier source = spark.sessionState().sqlParser()
           .parseTableIdentifier(tableName);
 
-      Map<String, String> partition1 = Stream.of(
-          new AbstractMap.SimpleImmutableEntry<>("c1", "1"),
-          new AbstractMap.SimpleImmutableEntry<>("c2", "ab"))
-          .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
-      Map<String, String> partition2 = Stream.of(
-          new AbstractMap.SimpleImmutableEntry<>("c1", "2"),
-          new AbstractMap.SimpleImmutableEntry<>("c2", "b c"))
-          .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
-
-      Map<String, String> partition3 = Stream.of(
-          new AbstractMap.SimpleImmutableEntry<>("c1", "1"),
-          new AbstractMap.SimpleImmutableEntry<>("c2", "b c"))
-          .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
-      Map<String, String> partition4 = Stream.of(
-          new AbstractMap.SimpleImmutableEntry<>("c1", "2"),
-          new AbstractMap.SimpleImmutableEntry<>("c2", "ab"))
-          .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
+      Map<String, String> partition1 = ImmutableMap.of(
+          "c1", "1",
+          "c2", "ab");
+      Map<String, String> partition2 = ImmutableMap.of(
+          "c1", "2",
+          "c2", "b c");
+      Map<String, String> partition3 = ImmutableMap.of(
+          "c1", "1",
+          "c2", "b c");
+      Map<String, String> partition4 = ImmutableMap.of(
+          "c1", "2",
+          "c2", "ab");
 
       List<SparkPartition> partitionsC11 =
-          SparkTableUtil.getPartitions(spark, source, Collections.singletonMap("c1", "1"));
+          SparkTableUtil.getPartitions(spark, source, ImmutableMap.of("c1", "1"));
       Set<Map<String, String>> expectedC11 =
           Sets.newHashSet(partition1, partition3);
       Set<Map<String, String>> actualC11 = partitionsC11.stream().map(
@@ -430,14 +421,14 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
       Assert.assertEquals("Wrong partitions fetched for c1=1", expectedC11, actualC11);
 
       List<SparkPartition> partitionsC12 =
-          SparkTableUtil.getPartitions(spark, source, Collections.singletonMap("c1", "2"));
+          SparkTableUtil.getPartitions(spark, source, ImmutableMap.of("c1", "2"));
       Set<Map<String, String>> expectedC12 = Sets.newHashSet(partition2, partition4);
       Set<Map<String, String>> actualC12 = partitionsC12.stream().map(
           p -> p.getValues()).collect(Collectors.toSet());
       Assert.assertEquals("Wrong partitions fetched for c1=2", expectedC12, actualC12);
 
       List<SparkPartition> partitionsC21 =
-          SparkTableUtil.getPartitions(spark, source, Collections.singletonMap("c2", "ab"));
+          SparkTableUtil.getPartitions(spark, source, ImmutableMap.of("c2", "ab"));
       Set<Map<String, String>> expectedC21 =
           Sets.newHashSet(partition1, partition4);
       Set<Map<String, String>> actualC21 = partitionsC21.stream().map(
@@ -445,7 +436,7 @@ public class TestSparkTableUtil extends HiveTableBaseTest {
       Assert.assertEquals("Wrong partitions fetched for c2=ab", expectedC21, actualC21);
 
       List<SparkPartition> partitionsC22 =
-          SparkTableUtil.getPartitions(spark, source, Collections.singletonMap("c2", "b c"));
+          SparkTableUtil.getPartitions(spark, source, ImmutableMap.of("c2", "b c"));
       Set<Map<String, String>> expectedC22 =
           Sets.newHashSet(partition2, partition3);
       Set<Map<String, String>> actualC22 = partitionsC22.stream().map(
