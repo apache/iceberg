@@ -40,7 +40,7 @@ public class RewriteDataFilesAction
 
   RewriteDataFilesAction(SparkSession spark, Table table) {
     super(table);
-    this.sparkContext = new JavaSparkContext(spark.sparkContext());
+    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
   }
 
   @Override

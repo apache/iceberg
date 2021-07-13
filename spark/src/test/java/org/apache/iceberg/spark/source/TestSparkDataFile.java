@@ -105,7 +105,7 @@ public abstract class TestSparkDataFile {
   @BeforeClass
   public static void startSpark() {
     TestSparkDataFile.spark = SparkSession.builder().master("local[2]").getOrCreate();
-    TestSparkDataFile.sparkContext = new JavaSparkContext(spark.sparkContext());
+    TestSparkDataFile.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
   }
 
   @AfterClass

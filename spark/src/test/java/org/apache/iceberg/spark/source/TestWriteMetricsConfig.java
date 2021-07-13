@@ -82,7 +82,7 @@ public abstract class TestWriteMetricsConfig {
   @BeforeClass
   public static void startSpark() {
     TestWriteMetricsConfig.spark = SparkSession.builder().master("local[2]").getOrCreate();
-    TestWriteMetricsConfig.sc = new JavaSparkContext(spark.sparkContext());
+    TestWriteMetricsConfig.sc = JavaSparkContext.fromSparkContext(spark.sparkContext());
   }
 
   @AfterClass
