@@ -80,7 +80,7 @@ Iceberg has four mailing lists:
 ### Configuring Code Formatter for IntelliJ IDEA
 
 In the **Settings/Preferences** dialog go to **Editor > Code Style > Java**. Click on the gear wheel and select **Import Scheme** to import IntelliJ IDEA XML code style settings.
-Point to [intellij-java-palantir-style.xml](../../.baseline/idea/intellij-java-palantir-style.xml) and hit **OK** (you might need to enable **Show Hidden Files and Directories** in the dialog). The code itself can then be formatted via **Code > Reformat Code**.
+Point to [intellij-java-palantir-style.xml](https://github.com/apache/iceberg/blob/master/.baseline/idea/intellij-java-palantir-style.xml) and hit **OK** (you might need to enable **Show Hidden Files and Directories** in the dialog). The code itself can then be formatted via **Code > Reformat Code**.
 
 See also the IntelliJ [Code Style docs](https://www.jetbrains.com/help/idea/copying-code-style-settings.html) and [Reformat Code docs](https://www.jetbrains.com/help/idea/reformat-and-rearrange-code.html) for additional details.
 
