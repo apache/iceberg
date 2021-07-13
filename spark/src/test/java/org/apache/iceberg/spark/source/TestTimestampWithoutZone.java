@@ -40,7 +40,9 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.data.GenericsHelpers;
 import org.apache.iceberg.types.Types;
@@ -62,7 +64,7 @@ import org.junit.runners.Parameterized;
 import static org.apache.iceberg.Files.localOutput;
 
 @RunWith(Parameterized.class)
-public abstract class TestTimestampWithoutZone {
+public abstract class TestTimestampWithoutZone extends SparkTestBase {
   private static final Configuration CONF = new Configuration();
   private static final HadoopTables TABLES = new HadoopTables(CONF);
 
@@ -210,18 +212,19 @@ public abstract class TestTimestampWithoutZone {
 
   @Test
   public void testUnpartitionedTimestampWithoutZoneSessionProperties() {
-    spark.conf().set(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true");
-    spark.read().format("iceberg")
-            .option("vectorization-enabled", String.valueOf(vectorized))
-            .load(unpartitioned.toString())
-            .write()
-            .format("iceberg")
-            .mode(SaveMode.Append)
-            .save(unpartitioned.toString());
+    withSQLConf(ImmutableMap.of(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"), () -> {
+      spark.read().format("iceberg")
+              .option("vectorization-enabled", String.valueOf(vectorized))
+              .load(unpartitioned.toString())
+              .write()
+              .format("iceberg")
+              .mode(SaveMode.Append)
+              .save(unpartitioned.toString());
 
-    assertEqualsSafe(SCHEMA.asStruct(),
-            Stream.concat(records.stream(), records.stream()).collect(Collectors.toList()),
-            read(unpartitioned.toString(), vectorized));
+      assertEqualsSafe(SCHEMA.asStruct(),
+              Stream.concat(records.stream(), records.stream()).collect(Collectors.toList()),
+              read(unpartitioned.toString(), vectorized));
+    });
   }
 
   private static Record projectFlat(Schema projection, Record record) {

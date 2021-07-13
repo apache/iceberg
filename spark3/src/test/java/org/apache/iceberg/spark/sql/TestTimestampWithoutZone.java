@@ -81,7 +81,6 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
 
   @Before
   public void createTables() {
-    spark.conf().set(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "false");
     validationCatalog.createTable(tableIdent, schema);
   }
 
@@ -94,76 +93,81 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
   @Test
   public void testWriteTimestampWithoutZoneError() {
     AssertHelpers.assertThrows(
-            String.format("Write operation performed on a timestamp without timezone field while " +
-                    "'%s' set to false should throw exception", SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE),
-            IllegalArgumentException.class,
-            SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR,
-            () -> sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values)));
+        String.format("Write operation performed on a timestamp without timezone field while " +
+            "'%s' set to false should throw exception", SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE),
+        IllegalArgumentException.class,
+        SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR,
+        () -> sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values)));
   }
 
   @Test
   public void testAppendTimestampWithoutZone() {
-    spark.conf().set(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true");
-    sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
+    withSQLConf(ImmutableMap.of(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"), () -> {
+      sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
 
-    Assert.assertEquals("Should have " + values.size() + " row",
-            (long) values.size(), scalarSql("SELECT count(*) FROM %s", tableName));
+      Assert.assertEquals("Should have " + values.size() + " row",
+              (long) values.size(), scalarSql("SELECT count(*) FROM %s", tableName));
 
-    assertEquals("Row data should match expected",
-            values, sql("SELECT * FROM %s ORDER BY id", tableName));
+      assertEquals("Row data should match expected",
+              values, sql("SELECT * FROM %s ORDER BY id", tableName));
+    });
   }
 
   @Test
   public void testCreateAsSelectWithTimestampWithoutZone() {
-    spark.conf().set(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true");
-    sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
+    withSQLConf(ImmutableMap.of(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"), () -> {
+      sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
 
-    sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", newTableName, tableName);
+      sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", newTableName, tableName);
 
-    Assert.assertEquals("Should have " + values.size() + " row", (long) values.size(),
-            scalarSql("SELECT count(*) FROM %s", newTableName));
+      Assert.assertEquals("Should have " + values.size() + " row", (long) values.size(),
+              scalarSql("SELECT count(*) FROM %s", newTableName));
 
-    assertEquals("Row data should match expected",
-            sql("SELECT * FROM %s ORDER BY id", tableName),
-            sql("SELECT * FROM %s ORDER BY id", newTableName));
+      assertEquals("Row data should match expected",
+              sql("SELECT * FROM %s ORDER BY id", tableName),
+              sql("SELECT * FROM %s ORDER BY id", newTableName));
+    });
   }
 
   @Test
   public void testCreateNewTableShouldHaveTimestampWithZoneIcebergType() {
-    spark.conf().set(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true");
-    sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
+    withSQLConf(ImmutableMap.of(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"), () -> {
+      sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
 
-    sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", newTableName, tableName);
+      sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", newTableName, tableName);
 
-    Assert.assertEquals("Should have " + values.size() + " row", (long) values.size(),
-            scalarSql("SELECT count(*) FROM %s", newTableName));
+      Assert.assertEquals("Should have " + values.size() + " row", (long) values.size(),
+              scalarSql("SELECT count(*) FROM %s", newTableName));
 
-    assertEquals("Data from created table should match data from base table",
-            sql("SELECT * FROM %s ORDER BY id", tableName),
-            sql("SELECT * FROM %s ORDER BY id", newTableName));
+      assertEquals("Data from created table should match data from base table",
+              sql("SELECT * FROM %s ORDER BY id", tableName),
+              sql("SELECT * FROM %s ORDER BY id", newTableName));
 
-    Table createdTable = validationCatalog.loadTable(TableIdentifier.of("default", newTableName));
-    assertFieldsType(createdTable.schema(), Types.TimestampType.withZone(), "ts", "tsz");
+      Table createdTable = validationCatalog.loadTable(TableIdentifier.of("default", newTableName));
+      assertFieldsType(createdTable.schema(), Types.TimestampType.withZone(), "ts", "tsz");
+    });
   }
 
   @Test
   public void testCreateNewTableShouldHaveTimestampWithoutZoneIcebergType() {
-    spark.conf().set(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true");
-    spark.conf().set(SparkUtil.USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES, "true");
-    spark.sessionState().catalogManager().currentCatalog()
-            .initialize(catalog.name(), new CaseInsensitiveStringMap(config));
-    sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
+    withSQLConf(ImmutableMap.of(
+            SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true",
+            SparkUtil.USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES, "true"), () -> {
+        spark.sessionState().catalogManager().currentCatalog()
+              .initialize(catalog.name(), new CaseInsensitiveStringMap(config));
+        sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
 
-    sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", newTableName, tableName);
+        sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", newTableName, tableName);
 
-    Assert.assertEquals("Should have " + values.size() + " row", (long) values.size(),
-            scalarSql("SELECT count(*) FROM %s", newTableName));
+        Assert.assertEquals("Should have " + values.size() + " row", (long) values.size(),
+              scalarSql("SELECT count(*) FROM %s", newTableName));
 
-    assertEquals("Row data should match expected",
-            sql("SELECT * FROM %s ORDER BY id", tableName),
-            sql("SELECT * FROM %s ORDER BY id", newTableName));
-    Table createdTable = validationCatalog.loadTable(TableIdentifier.of("default", newTableName));
-    assertFieldsType(createdTable.schema(), Types.TimestampType.withoutZone(), "ts", "tsz");
+        assertEquals("Row data should match expected",
+              sql("SELECT * FROM %s ORDER BY id", tableName),
+              sql("SELECT * FROM %s ORDER BY id", newTableName));
+        Table createdTable = validationCatalog.loadTable(TableIdentifier.of("default", newTableName));
+        assertFieldsType(createdTable.schema(), Types.TimestampType.withoutZone(), "ts", "tsz");
+      });
   }
 
   private Timestamp toTimestamp(String value) {
