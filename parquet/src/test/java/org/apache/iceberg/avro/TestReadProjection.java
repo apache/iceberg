@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -148,7 +149,7 @@ public abstract class TestReadProjection {
     );
 
     Record projected = writeAndRead("basic_projection_id", writeSchema, idOnly, record);
-    Assert.assertNull("Should not project data", projected.get("data"));
+    TestHelpers.assertEmptyAvroField(projected, "data");
     Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.get("id"));
 
     Schema dataOnly = new Schema(
@@ -157,10 +158,10 @@ public abstract class TestReadProjection {
 
     projected = writeAndRead("basic_projection_data", writeSchema, dataOnly, record);
 
-    Assert.assertNull("Should not project id", projected.get("id"));
+    TestHelpers.assertEmptyAvroField(projected, "id");
     int cmp = Comparators.charSequences()
         .compare("test", (CharSequence) projected.get("data"));
-    Assert.assertTrue("Should contain the correct data value", cmp == 0);
+    Assert.assertEquals("Should contain the correct data value", 0, cmp);
   }
 
   @Test
@@ -210,9 +211,8 @@ public abstract class TestReadProjection {
     );
 
     Record projected = writeAndRead("id_only", writeSchema, idOnly, record);
-    Record projectedLocation = (Record) projected.get("location");
+    TestHelpers.assertEmptyAvroField(projected, "location");
     Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.get("id"));
-    Assert.assertNull("Should not project location", projectedLocation);
 
     Schema latOnly = new Schema(
         Types.NestedField.optional(3, "location", Types.StructType.of(
@@ -221,10 +221,10 @@ public abstract class TestReadProjection {
     );
 
     projected = writeAndRead("latitude_only", writeSchema, latOnly, record);
-    projectedLocation = (Record) projected.get("location");
-    Assert.assertNull("Should not project id", projected.get("id"));
+    Record projectedLocation = (Record) projected.get("location");
+    TestHelpers.assertEmptyAvroField(projected, "id");
     Assert.assertNotNull("Should project location", projected.get("location"));
-    Assert.assertNull("Should not project longitude", projectedLocation.get("long"));
+    TestHelpers.assertEmptyAvroField(projectedLocation, "long");
     Assert.assertEquals("Should project latitude",
         52.995143f, (float) projectedLocation.get("lat"), 0.000001f);
 
@@ -236,16 +236,16 @@ public abstract class TestReadProjection {
 
     projected = writeAndRead("longitude_only", writeSchema, longOnly, record);
     projectedLocation = (Record) projected.get("location");
-    Assert.assertNull("Should not project id", projected.get("id"));
+    TestHelpers.assertEmptyAvroField(projected, "id");
     Assert.assertNotNull("Should project location", projected.get("location"));
-    Assert.assertNull("Should not project latitutde", projectedLocation.get("lat"));
+    TestHelpers.assertEmptyAvroField(projectedLocation, "lat");
     Assert.assertEquals("Should project longitude",
         -1.539054f, (float) projectedLocation.get("long"), 0.000001f);
 
     Schema locationOnly = writeSchema.select("location");
     projected = writeAndRead("location_only", writeSchema, locationOnly, record);
     projectedLocation = (Record) projected.get("location");
-    Assert.assertNull("Should not project id", projected.get("id"));
+    TestHelpers.assertEmptyAvroField(projected, "id");
     Assert.assertNotNull("Should project location", projected.get("location"));
     Assert.assertEquals("Should project latitude",
         52.995143f, (float) projectedLocation.get("lat"), 0.000001f);
@@ -273,23 +273,23 @@ public abstract class TestReadProjection {
 
     Record projected = writeAndRead("id_only", writeSchema, idOnly, record);
     Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.get("id"));
-    Assert.assertNull("Should not project properties map", projected.get("properties"));
+    TestHelpers.assertEmptyAvroField(projected, "properties");
 
     Schema keyOnly = writeSchema.select("properties.key");
     projected = writeAndRead("key_only", writeSchema, keyOnly, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    TestHelpers.assertEmptyAvroField(projected, "id");
     Assert.assertEquals("Should project entire map",
         properties, toStringMap((Map) projected.get("properties")));
 
     Schema valueOnly = writeSchema.select("properties.value");
     projected = writeAndRead("value_only", writeSchema, valueOnly, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    TestHelpers.assertEmptyAvroField(projected, "id");
     Assert.assertEquals("Should project entire map",
         properties, toStringMap((Map) projected.get("properties")));
 
     Schema mapOnly = writeSchema.select("properties");
     projected = writeAndRead("map_only", writeSchema, mapOnly, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    TestHelpers.assertEmptyAvroField(projected, "id");
     Assert.assertEquals("Should project entire map",
         properties, toStringMap((Map) projected.get("properties")));
   }
@@ -337,16 +337,16 @@ public abstract class TestReadProjection {
 
     Record projected = writeAndRead("id_only", writeSchema, idOnly, record);
     Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.get("id"));
-    Assert.assertNull("Should not project locations map", projected.get("locations"));
+    TestHelpers.assertEmptyAvroField(projected, "locations");
 
     projected = writeAndRead("all_locations", writeSchema, writeSchema.select("locations"), record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    TestHelpers.assertEmptyAvroField(projected, "id");
     Assert.assertEquals("Should project locations map",
         record.get("locations"), toStringMap((Map) projected.get("locations")));
 
     projected = writeAndRead("lat_only",
         writeSchema, writeSchema.select("locations.lat"), record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    TestHelpers.assertEmptyAvroField(projected, "id");
     Map<String, ?> locations = toStringMap((Map) projected.get("locations"));
     Assert.assertNotNull("Should project locations map", locations);
     Assert.assertEquals("Should contain L1 and L2",
@@ -355,28 +355,28 @@ public abstract class TestReadProjection {
     Assert.assertNotNull("L1 should not be null", projectedL1);
     Assert.assertEquals("L1 should contain lat",
         53.992811f, (float) projectedL1.get("lat"), 0.000001);
-    Assert.assertNull("L1 should not contain long", projectedL1.get("long"));
+    TestHelpers.assertEmptyAvroField(projectedL1, "long");
     Record projectedL2 = (Record) locations.get("L2");
     Assert.assertNotNull("L2 should not be null", projectedL2);
     Assert.assertEquals("L2 should contain lat",
         52.995143f, (float) projectedL2.get("lat"), 0.000001);
-    Assert.assertNull("L2 should not contain long", projectedL2.get("long"));
+    TestHelpers.assertEmptyAvroField(projectedL2, "long");
 
     projected = writeAndRead("long_only",
         writeSchema, writeSchema.select("locations.long"), record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    TestHelpers.assertEmptyAvroField(projected, "id");
     locations = toStringMap((Map) projected.get("locations"));
     Assert.assertNotNull("Should project locations map", locations);
     Assert.assertEquals("Should contain L1 and L2",
         Sets.newHashSet("L1", "L2"), locations.keySet());
     projectedL1 = (Record) locations.get("L1");
     Assert.assertNotNull("L1 should not be null", projectedL1);
-    Assert.assertNull("L1 should not contain lat", projectedL1.get("lat"));
+    TestHelpers.assertEmptyAvroField(projectedL1, "lat");
     Assert.assertEquals("L1 should contain long",
         -1.542616f, (float) projectedL1.get("long"), 0.000001);
     projectedL2 = (Record) locations.get("L2");
     Assert.assertNotNull("L2 should not be null", projectedL2);
-    Assert.assertNull("L2 should not contain lat", projectedL2.get("lat"));
+    TestHelpers.assertEmptyAvroField(projectedL2, "lat");
     Assert.assertEquals("L2 should contain long",
         -1.539054f, (float) projectedL2.get("long"), 0.000001);
 
@@ -390,7 +390,7 @@ public abstract class TestReadProjection {
     );
 
     projected = writeAndRead("latitude_renamed", writeSchema, latitiudeRenamed, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    TestHelpers.assertEmptyAvroField(projected, "id");
     locations = toStringMap((Map) projected.get("locations"));
     Assert.assertNotNull("Should project locations map", locations);
     Assert.assertEquals("Should contain L1 and L2",
@@ -399,14 +399,14 @@ public abstract class TestReadProjection {
     Assert.assertNotNull("L1 should not be null", projectedL1);
     Assert.assertEquals("L1 should contain latitude",
         53.992811f, (float) projectedL1.get("latitude"), 0.000001);
-    Assert.assertNull("L1 should not contain lat", projectedL1.get("lat"));
-    Assert.assertNull("L1 should not contain long", projectedL1.get("long"));
+    TestHelpers.assertEmptyAvroField(projectedL1, "lat");
+    TestHelpers.assertEmptyAvroField(projectedL1, "long");
     projectedL2 = (Record) locations.get("L2");
     Assert.assertNotNull("L2 should not be null", projectedL2);
     Assert.assertEquals("L2 should contain latitude",
         52.995143f, (float) projectedL2.get("latitude"), 0.000001);
-    Assert.assertNull("L2 should not contain lat", projectedL2.get("lat"));
-    Assert.assertNull("L2 should not contain long", projectedL2.get("long"));
+    TestHelpers.assertEmptyAvroField(projectedL2, "lat");
+    TestHelpers.assertEmptyAvroField(projectedL2, "long");
   }
 
   @Test
@@ -429,16 +429,16 @@ public abstract class TestReadProjection {
 
     Record projected = writeAndRead("id_only", writeSchema, idOnly, record);
     Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.get("id"));
-    Assert.assertNull("Should not project values list", projected.get("values"));
+    TestHelpers.assertEmptyAvroField(projected, "values");
 
     Schema elementOnly = writeSchema.select("values.element");
     projected = writeAndRead("element_only", writeSchema, elementOnly, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    TestHelpers.assertEmptyAvroField(projected, "id");
     Assert.assertEquals("Should project entire list", values, projected.get("values"));
 
     Schema listOnly = writeSchema.select("values");
     projected = writeAndRead("list_only", writeSchema, listOnly, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    TestHelpers.assertEmptyAvroField(projected, "id");
     Assert.assertEquals("Should project entire list", values, projected.get("values"));
   }
 
@@ -473,36 +473,36 @@ public abstract class TestReadProjection {
 
     Record projected = writeAndRead("id_only", writeSchema, idOnly, record);
     Assert.assertEquals("Should contain the correct id value", 34L, (long) projected.get("id"));
-    Assert.assertNull("Should not project points list", projected.get("points"));
+    TestHelpers.assertEmptyAvroField(projected, "points");
 
     projected = writeAndRead("all_points", writeSchema, writeSchema.select("points"), record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    TestHelpers.assertEmptyAvroField(projected, "id");
     Assert.assertEquals("Should project points list",
         record.get("points"), projected.get("points"));
 
     projected = writeAndRead("x_only", writeSchema, writeSchema.select("points.x"), record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    TestHelpers.assertEmptyAvroField(projected, "id");
     Assert.assertNotNull("Should project points list", projected.get("points"));
     List<Record> points = (List<Record>) projected.get("points");
     Assert.assertEquals("Should read 2 points", 2, points.size());
     Record projectedP1 = points.get(0);
     Assert.assertEquals("Should project x", 1, (int) projectedP1.get("x"));
-    Assert.assertNull("Should not project y", projectedP1.get("y"));
+    TestHelpers.assertEmptyAvroField(projectedP1, "y");
     Record projectedP2 = points.get(1);
     Assert.assertEquals("Should project x", 3, (int) projectedP2.get("x"));
-    Assert.assertNull("Should not project y", projectedP2.get("y"));
+    TestHelpers.assertEmptyAvroField(projectedP2, "y");
 
     projected = writeAndRead("y_only", writeSchema, writeSchema.select("points.y"), record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    TestHelpers.assertEmptyAvroField(projected, "id");
     Assert.assertNotNull("Should project points list", projected.get("points"));
     points = (List<Record>) projected.get("points");
     Assert.assertEquals("Should read 2 points", 2, points.size());
     projectedP1 = points.get(0);
-    Assert.assertNull("Should not project x", projectedP1.get("x"));
+    TestHelpers.assertEmptyAvroField(projectedP1, "x");
     Assert.assertEquals("Should project y", 2, (int) projectedP1.get("y"));
     projectedP2 = points.get(1);
-    Assert.assertNull("Should not project x", projectedP2.get("x"));
-    Assert.assertEquals("Should project null y", null, projectedP2.get("y"));
+    TestHelpers.assertEmptyAvroField(projectedP2, "x");
+    Assert.assertNull("Should project null y", projectedP2.get("y"));
 
     Schema yRenamed = new Schema(
         Types.NestedField.optional(22, "points",
@@ -513,17 +513,17 @@ public abstract class TestReadProjection {
     );
 
     projected = writeAndRead("y_renamed", writeSchema, yRenamed, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    TestHelpers.assertEmptyAvroField(projected, "id");
     Assert.assertNotNull("Should project points list", projected.get("points"));
     points = (List<Record>) projected.get("points");
     Assert.assertEquals("Should read 2 points", 2, points.size());
     projectedP1 = points.get(0);
-    Assert.assertNull("Should not project x", projectedP1.get("x"));
-    Assert.assertNull("Should not project y", projectedP1.get("y"));
+    TestHelpers.assertEmptyAvroField(projectedP1, "x");
+    TestHelpers.assertEmptyAvroField(projectedP1, "y");
     Assert.assertEquals("Should project z", 2, (int) projectedP1.get("z"));
     projectedP2 = points.get(1);
-    Assert.assertNull("Should not project x", projectedP2.get("x"));
-    Assert.assertNull("Should not project y", projectedP2.get("y"));
-    Assert.assertEquals("Should project null z", null, projectedP2.get("z"));
+    TestHelpers.assertEmptyAvroField(projectedP2, "x");
+    TestHelpers.assertEmptyAvroField(projectedP2, "y");
+    Assert.assertNull("Should project null z", projectedP2.get("z"));
   }
 }

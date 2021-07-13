@@ -20,8 +20,10 @@
 package org.apache.iceberg.parquet;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
+import java.util.WeakHashMap;
 import org.apache.avro.Conversion;
 import org.apache.avro.Conversions;
 import org.apache.avro.LogicalType;
@@ -30,6 +32,7 @@ import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericFixed;
 import org.apache.avro.specific.SpecificData;
+import org.apache.commons.math3.util.Pair;
 import org.apache.iceberg.avro.AvroSchemaVisitor;
 import org.apache.iceberg.avro.UUIDConversion;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
@@ -49,8 +52,8 @@ class ParquetAvro {
   static class ParquetDecimal extends LogicalType {
     private static final String NAME = "parquet-decimal";
 
-    private int precision;
-    private int scale;
+    private final int precision;
+    private final int scale;
 
     ParquetDecimal(int precision, int scale) {
       super(NAME);
@@ -155,12 +158,10 @@ class ParquetAvro {
   }
 
   private static class FixedDecimalConversion extends Conversions.DecimalConversion {
-    private final LogicalType[] decimalsByScale = new LogicalType[39];
+    private final WeakHashMap<Pair<Integer, Integer>, LogicalType> decimalsByScale;
 
     private FixedDecimalConversion() {
-      for (int i = 0; i < decimalsByScale.length; i += 1) {
-        decimalsByScale[i] = LogicalTypes.decimal(i, i);
-      }
+      this.decimalsByScale = new WeakHashMap<>();
     }
 
     @Override
@@ -170,12 +171,16 @@ class ParquetAvro {
 
     @Override
     public BigDecimal fromFixed(GenericFixed value, Schema schema, LogicalType type) {
-      return super.fromFixed(value, schema, decimalsByScale[((ParquetDecimal) type).scale()]);
+      ParquetDecimal dec = (ParquetDecimal) type;
+      return new BigDecimal(new BigInteger(value.bytes()), dec.scale());
     }
 
     @Override
     public GenericFixed toFixed(BigDecimal value, Schema schema, LogicalType type) {
-      return super.toFixed(value, schema, decimalsByScale[((ParquetDecimal) type).scale()]);
+      ParquetDecimal dec = (ParquetDecimal) type;
+      Pair<Integer, Integer> key = new Pair<>(dec.precision(), dec.scale());
+      return super.toFixed(value, schema,
+          decimalsByScale.computeIfAbsent(key, k -> LogicalTypes.decimal(k.getFirst(), k.getSecond())));
     }
   }
 
