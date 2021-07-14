@@ -399,7 +399,7 @@ project(':iceberg-flink-runtime') {
     compile(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
-    compile(project(':iceberg-dell-emc-ecs'))
+    compile(project(':iceberg-dell'))
   }
 
   shadowJar {
@@ -870,7 +870,7 @@ if (jdkVersion == '8') {
       compile(project(':iceberg-nessie')) {
         exclude group: 'com.google.code.findbugs', module: 'jsr305'
       }
-      compile(project(':iceberg-dell-emc-ecs'))
+      compile(project(':iceberg-dell'))
     }
 
     shadowJar {
@@ -1029,7 +1029,7 @@ project(':iceberg-spark3-runtime') {
     compile(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
-    compile(project(':iceberg-dell-emc-ecs'))
+    compile(project(':iceberg-dell'))
 
     integrationImplementation 'org.apache.spark:spark-hive_2.12'
     integrationImplementation 'junit:junit'
@@ -1135,7 +1135,7 @@ project(':iceberg-nessie') {
   }
 }
 
-project(':iceberg-dell-emc-ecs') {
+project(':iceberg-dell') {
 
   dependencies {
     compile project(':iceberg-core')
