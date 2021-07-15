@@ -24,6 +24,9 @@ public class TableProperties {
   private TableProperties() {
   }
 
+  private static final String WRITE_PREFIX = "write.";
+  private static final String DELETE_PREFIX = "write.delete.";
+
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";
   public static final int COMMIT_NUM_RETRIES_DEFAULT = 4;
 
@@ -57,25 +60,46 @@ public class TableProperties {
   public static final String MANIFEST_MERGE_ENABLED = "commit.manifest-merge.enabled";
   public static final boolean MANIFEST_MERGE_ENABLED_DEFAULT = true;
 
-  public static final String DEFAULT_FILE_FORMAT = "write.format.default";
+  private static final String DEFAULT_FILE_FORMAT_CONF = "format.default";
+
+  public static final String DEFAULT_FILE_FORMAT = WRITE_PREFIX + DEFAULT_FILE_FORMAT_CONF;
+  public static final String DELETE_DEFAULT_FILE_FORMAT = DELETE_PREFIX + DEFAULT_FILE_FORMAT_CONF;
   public static final String DEFAULT_FILE_FORMAT_DEFAULT = "parquet";
 
-  public static final String PARQUET_ROW_GROUP_SIZE_BYTES = "write.parquet.row-group-size-bytes";
+  private static final String PARQUET_ROW_GROUP_SIZE_BYTES_CONF = "parquet.row-group-size-bytes";
+
+  public static final String PARQUET_ROW_GROUP_SIZE_BYTES = WRITE_PREFIX + PARQUET_ROW_GROUP_SIZE_BYTES_CONF;
+  public static final String DELETE_PARQUET_ROW_GROUP_SIZE_BYTES = DELETE_PREFIX + PARQUET_ROW_GROUP_SIZE_BYTES_CONF;
   public static final String PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT = "134217728"; // 128 MB
 
-  public static final String PARQUET_PAGE_SIZE_BYTES = "write.parquet.page-size-bytes";
+  private static final String PARQUET_PAGE_SIZE_BYTES_CONF = "parquet.page-size-bytes";
+
+  public static final String PARQUET_PAGE_SIZE_BYTES = WRITE_PREFIX + PARQUET_PAGE_SIZE_BYTES_CONF;
+  public static final String DELETE_PARQUET_PAGE_SIZE_BYTES = DELETE_PREFIX + PARQUET_PAGE_SIZE_BYTES_CONF;
   public static final String PARQUET_PAGE_SIZE_BYTES_DEFAULT = "1048576"; // 1 MB
 
-  public static final String PARQUET_DICT_SIZE_BYTES = "write.parquet.dict-size-bytes";
+  private static final String PARQUET_DICT_SIZE_BYTES_CONF = "parquet.dict-size-bytes";
+
+  public static final String PARQUET_DICT_SIZE_BYTES = WRITE_PREFIX + PARQUET_DICT_SIZE_BYTES_CONF;
+  public static final String DELETE_PARQUET_DICT_SIZE_BYTES = DELETE_PREFIX + PARQUET_DICT_SIZE_BYTES_CONF;
   public static final String PARQUET_DICT_SIZE_BYTES_DEFAULT = "2097152"; // 2 MB
 
-  public static final String PARQUET_COMPRESSION = "write.parquet.compression-codec";
+  private static final String PARQUET_COMPRESSION_CONF = "parquet.compression-codec";
+
+  public static final String PARQUET_COMPRESSION = WRITE_PREFIX + PARQUET_COMPRESSION_CONF;
+  public static final String DELETE_PARQUET_COMPRESSION = DELETE_PREFIX + PARQUET_COMPRESSION_CONF;
   public static final String PARQUET_COMPRESSION_DEFAULT = "gzip";
 
-  public static final String PARQUET_COMPRESSION_LEVEL = "write.parquet.compression-level";
+  private static final String PARQUET_COMPRESSION_LEVEL_CONF = "parquet.compression-level";
+
+  public static final String PARQUET_COMPRESSION_LEVEL = WRITE_PREFIX + PARQUET_COMPRESSION_LEVEL_CONF;
+  public static final String DELETE_PARQUET_COMPRESSION_LEVEL = DELETE_PREFIX + PARQUET_COMPRESSION_LEVEL_CONF;
   public static final String PARQUET_COMPRESSION_LEVEL_DEFAULT = null;
 
-  public static final String AVRO_COMPRESSION = "write.avro.compression-codec";
+  public static final String AVRO_COMPRESSION_CONF = "avro.compression-codec";
+
+  public static final String AVRO_COMPRESSION = WRITE_PREFIX + AVRO_COMPRESSION_CONF;
+  public static final String DELETE_AVRO_COMPRESSION = DELETE_PREFIX + AVRO_COMPRESSION_CONF;
   public static final String AVRO_COMPRESSION_DEFAULT = "gzip";
 
   public static final String SPLIT_SIZE = "read.split.target-size";
@@ -141,7 +165,10 @@ public class TableProperties {
   public static final String WRITE_AUDIT_PUBLISH_ENABLED = "write.wap.enabled";
   public static final String WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT = "false";
 
-  public static final String WRITE_TARGET_FILE_SIZE_BYTES = "write.target-file-size-bytes";
+  private static final String TARGET_FILE_SIZE_BYTES_CONF = "target-file-size-bytes";
+
+  public static final String WRITE_TARGET_FILE_SIZE_BYTES = WRITE_PREFIX + TARGET_FILE_SIZE_BYTES_CONF;
+  public static final String DELETE_TARGET_FILE_SIZE_BYTES = DELETE_PREFIX + TARGET_FILE_SIZE_BYTES_CONF;
   public static final long WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT = 536870912; // 512 MB
 
   public static final String SPARK_WRITE_PARTITIONED_FANOUT_ENABLED = "write.spark.fanout.enabled";
