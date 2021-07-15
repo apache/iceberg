@@ -369,9 +369,7 @@ class StreamingReader extends Reader implements MicroBatchReader {
   }
 
   private static void assertNoOverwrite(Snapshot snapshot) {
-    if (snapshot.operation().equals(DataOperations.OVERWRITE) ||
-        snapshot.operation().equals(DataOperations.REPLACE) ||
-        snapshot.operation().equals(DataOperations.DELETE)) {
+    if (!snapshot.operation().equals(DataOperations.APPEND)) {
       throw new UnsupportedOperationException(String.format("Found %s operation, cannot support incremental data for " +
           "snapshot %d", snapshot.operation(), snapshot.snapshotId()));
     }
