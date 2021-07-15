@@ -22,7 +22,10 @@ package org.apache.iceberg.spark;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
@@ -87,7 +90,11 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
 
       // commit the rewrite
       FileRewriteCoordinator rewriteCoordinator = FileRewriteCoordinator.get();
-      rewriteCoordinator.commitRewrite(table, fileSetID);
+      Set<DataFile> rewrittenFiles = taskSetManager.fetchTasks(table, fileSetID).stream()
+          .map(FileScanTask::file)
+          .collect(Collectors.toSet());
+      Set<DataFile> addedFiles = rewriteCoordinator.fetchNewDataFiles(table, fileSetID);
+      table.newRewrite().rewriteFiles(rewrittenFiles, addedFiles).commit();
     }
 
     table.refresh();
@@ -145,7 +152,11 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
 
       // commit the rewrite
       FileRewriteCoordinator rewriteCoordinator = FileRewriteCoordinator.get();
-      rewriteCoordinator.commitRewrite(table, fileSetID);
+      Set<DataFile> rewrittenFiles = taskSetManager.fetchTasks(table, fileSetID).stream()
+          .map(FileScanTask::file)
+          .collect(Collectors.toSet());
+      Set<DataFile> addedFiles = rewriteCoordinator.fetchNewDataFiles(table, fileSetID);
+      table.newRewrite().rewriteFiles(rewrittenFiles, addedFiles).commit();
     }
 
     table.refresh();
@@ -210,7 +221,14 @@ public class TestFileRewriteCoordinator extends SparkCatalogTestBase {
 
     // commit both rewrites at the same time
     FileRewriteCoordinator rewriteCoordinator = FileRewriteCoordinator.get();
-    rewriteCoordinator.commitRewrite(table, fileSetIDs);
+    Set<DataFile> rewrittenFiles = fileSetIDs.stream().flatMap(fileSetID ->
+        taskSetManager.fetchTasks(table, fileSetID).stream())
+        .map(FileScanTask::file)
+        .collect(Collectors.toSet());
+    Set<DataFile> addedFiles = fileSetIDs.stream()
+        .flatMap(fileSetID -> rewriteCoordinator.fetchNewDataFiles(table, fileSetID).stream())
+        .collect(Collectors.toSet());
+    table.newRewrite().rewriteFiles(rewrittenFiles, addedFiles).commit();
 
     table.refresh();
 

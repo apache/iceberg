@@ -26,7 +26,6 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BinPackStrategy;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.FileScanTaskSetManager;
 import org.apache.iceberg.spark.SparkReadOptions;
@@ -76,7 +75,7 @@ public class Spark3BinPackStrategy extends BinPackStrategy {
           .mode("append")
           .save(table.name());
 
-      return rewriteCoordinator.fetchNewDataFiles(table, ImmutableSet.of(groupID));
+      return rewriteCoordinator.fetchNewDataFiles(table, groupID);
     } finally {
       manager.removeTasks(table, groupID);
       rewriteCoordinator.clearRewrite(table, groupID);
