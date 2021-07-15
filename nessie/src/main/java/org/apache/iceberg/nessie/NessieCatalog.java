@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.nessie;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,6 +36,7 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -46,11 +46,14 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.Tasks;
 import org.projectnessie.api.TreeApi;
+import org.projectnessie.api.params.EntriesParams;
 import org.projectnessie.client.NessieClient;
 import org.projectnessie.client.NessieConfigConstants;
+import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.BaseNessieClientServerException;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
+import org.projectnessie.model.Branch;
 import org.projectnessie.model.Contents;
 import org.projectnessie.model.IcebergTable;
 import org.projectnessie.model.ImmutableDelete;
@@ -182,8 +185,9 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
           .throwFailureWhenFinished()
           .onFailure((c, exception) -> refresh())
           .run(c -> {
-            client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(), reference.getHash(), c);
-            refresh(); // note: updated to reference.updateReference() with Nessie 0.6
+            Branch branch = client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(),
+                reference.getHash(), c);
+            reference.updateReference(branch);
           }, BaseNessieClientServerException.class);
       threw = false;
     } catch (NessieConflictException e) {
@@ -225,8 +229,9 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
           .throwFailureWhenFinished()
           .onFailure((c, exception) -> refresh())
           .run(c -> {
-            client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(), reference.getHash(), c);
-            refresh();
+            Branch branch = client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(),
+                reference.getHash(), c);
+            reference.updateReference(branch);
           }, BaseNessieClientServerException.class);
     } catch (NessieNotFoundException e) {
       // important note: the NotFoundException refers to the ref only. If a table was not found it would imply that the
@@ -236,6 +241,12 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
       throw new RuntimeException("Failed to drop table as ref is no longer valid.", e);
     } catch (BaseNessieClientServerException e) {
       throw new CommitFailedException(e, "Failed to rename table: the current reference is not up to date.");
+    } catch (HttpClientException ex) {
+      // Intentionally catch all nessie-client-exceptions here and not just the "timeout" variant
+      // to catch all kinds of network errors (e.g. connection reset). Network code implementation
+      // details and all kinds of network devices can induce unexpected behavior. So better be
+      // safe than sorry.
+      throw new CommitStateUnknownException(ex);
     }
     // Intentionally just "throw through" Nessie's HttpClientException here and do not "special case"
     // just the "timeout" variant to propagate all kinds of network errors (e.g. connection reset).
@@ -324,7 +335,8 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   private IcebergTable table(TableIdentifier tableIdentifier) {
     try {
-      Contents table = client.getContentsApi().getContents(NessieUtil.toKey(tableIdentifier), reference.getHash());
+      Contents table = client.getContentsApi()
+          .getContents(NessieUtil.toKey(tableIdentifier), reference.getName(), reference.getHash());
       return table.unwrap(IcebergTable.class).orElse(null);
     } catch (NessieNotFoundException e) {
       return null;
@@ -353,7 +365,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   private Stream<TableIdentifier> tableStream(Namespace namespace) {
     try {
       return client.getTreeApi()
-          .getEntries(reference.getHash(), null, null, Collections.emptyList())
+          .getEntries(reference.getName(), EntriesParams.builder().hashOnRef(reference.getHash()).build())
           .getEntries()
           .stream()
           .filter(NessieUtil.namespacePredicate(namespace))

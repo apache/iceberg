@@ -22,9 +22,9 @@ package org.apache.iceberg.nessie;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 
@@ -39,7 +39,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
     super("main");
   }
 
-  @Before
+  @BeforeEach
   public void before() throws NessieNotFoundException, NessieConflictException {
     createTable(tableIdentifier1, 1); // table 1
     createTable(tableIdentifier2, 1); // table 2
@@ -48,7 +48,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
     testCatalog = initCatalog("test");
   }
 
-  @After
+  @AfterEach
   public void after() throws NessieNotFoundException, NessieConflictException {
     catalog.dropTable(tableIdentifier1);
     catalog.dropTable(tableIdentifier2);
@@ -79,31 +79,34 @@ public class TestBranchVisibility extends BaseTestIceberg {
   }
 
   @Test
-  public void testCatalogOnReference() throws NessieNotFoundException {
+  public void testCatalogOnReference() {
     updateSchema(catalog, tableIdentifier1);
     updateSchema(testCatalog, tableIdentifier2);
-    String mainHash = tree.getReferenceByName("main").getHash();
 
     // catalog created with ref points to same catalog as above
     NessieCatalog refCatalog = initCatalog("test");
     testCatalogEquality(refCatalog, testCatalog, true, true);
 
     // catalog created with hash points to same catalog as above
-    NessieCatalog refHashCatalog = initCatalog(mainHash);
+    NessieCatalog refHashCatalog = initCatalog("main");
     testCatalogEquality(refHashCatalog, catalog, true, true);
   }
 
   @Test
-  public void testCatalogWithTableNames() throws NessieNotFoundException {
+  public void testCatalogWithTableNames() {
     updateSchema(testCatalog, tableIdentifier2);
-    String mainHash = tree.getReferenceByName("main").getHash();
+
+    String mainName = "main";
 
     // asking for table@branch gives expected regardless of catalog
     Assertions.assertThat(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@test")))
         .isEqualTo(metadataLocation(testCatalog, tableIdentifier1));
 
-    // asking for table@branch#hash gives expected regardless of catalog
-    Assertions.assertThat(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@" + mainHash)))
+    // Asking for table@branch gives expected regardless of catalog.
+    // Earlier versions used "table1@" + tree.getReferenceByName("main").getHash() before, but since
+    // Nessie 0.8.2 the branch name became mandatory and specifying a hash within a branch is not
+    // possible.
+    Assertions.assertThat(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@" + mainName)))
         .isEqualTo(metadataLocation(testCatalog, tableIdentifier1));
   }
 
