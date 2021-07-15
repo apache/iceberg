@@ -53,6 +53,7 @@ import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.BaseNessieClientServerException;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
+import org.projectnessie.model.Branch;
 import org.projectnessie.model.Contents;
 import org.projectnessie.model.IcebergTable;
 import org.projectnessie.model.ImmutableDelete;
@@ -184,8 +185,9 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
           .throwFailureWhenFinished()
           .onFailure((c, exception) -> refresh())
           .run(c -> {
-            client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(), reference.getHash(), c);
-            refresh(); // note: updated to reference.updateReference() with Nessie 0.6
+            Branch branch = client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(),
+                reference.getHash(), c);
+            reference.updateReference(branch);
           }, BaseNessieClientServerException.class);
       threw = false;
     } catch (NessieConflictException e) {
@@ -227,8 +229,9 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
           .throwFailureWhenFinished()
           .onFailure((c, exception) -> refresh())
           .run(c -> {
-            client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(), reference.getHash(), c);
-            refresh();
+            Branch branch = client.getTreeApi().commitMultipleOperations(reference.getAsBranch().getName(),
+                reference.getHash(), c);
+            reference.updateReference(branch);
           }, BaseNessieClientServerException.class);
     } catch (NessieNotFoundException e) {
       // important note: the NotFoundException refers to the ref only. If a table was not found it would imply that the

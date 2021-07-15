@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.nessie;
 
+import java.util.Objects;
 import org.projectnessie.api.TreeApi;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
@@ -42,6 +43,11 @@ class UpdateableReference {
     Reference oldReference = reference;
     reference = client.getReferenceByName(reference.getName());
     return !oldReference.equals(reference);
+  }
+
+  public void updateReference(Reference ref) {
+    Objects.requireNonNull(ref);
+    this.reference = ref;
   }
 
   public boolean isBranch() {
