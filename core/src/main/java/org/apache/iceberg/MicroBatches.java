@@ -113,14 +113,14 @@ public class MicroBatches {
       Preconditions.checkArgument(startFileIndex >= 0, "startFileIndex is unexpectedly smaller than 0");
       Preconditions.checkArgument(targetSizeInBytes > 0, "targetSizeInBytes should be larger than 0");
 
-      List<ManifestFile> manifests = scanAllFiles ? snapshot.dataManifests() :
+      List<ManifestFile> manifests = isStarting ? snapshot.dataManifests() :
           snapshot.dataManifests().stream().filter(m -> m.snapshotId().equals(snapshot.snapshotId()))
               .collect(Collectors.toList());
 
       List<Pair<ManifestFile, Integer>> manifestIndexes = indexManifests(manifests);
       List<Pair<ManifestFile, Integer>> skippedManifestIndexes = skipManifests(manifestIndexes, startFileIndex);
 
-      return generateMicroBatch(skippedManifestIndexes, startFileIndex, targetSizeInBytes, scanAllFiles);
+      return generateMicroBatch(skippedManifestIndexes, startFileIndex, targetSizeInBytes, isStarting);
     }
 
     /**
