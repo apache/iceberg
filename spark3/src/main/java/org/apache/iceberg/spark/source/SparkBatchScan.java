@@ -36,8 +36,10 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.iceberg.util.Tasks;
@@ -71,6 +73,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private final Schema expectedSchema;
   private final List<Expression> filterExpressions;
   private final int batchSize;
+  private final boolean readTimestampWithoutZone;
   private final CaseInsensitiveStringMap options;
 
   // lazy variables
@@ -86,6 +89,9 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     this.localityPreferred = Spark3Util.isLocalityEnabled(table.io(), table.location(), options);
     this.batchSize = Spark3Util.batchSize(table.properties(), options);
     this.options = options;
+
+    RuntimeConfig sessionConf = SparkSession.active().conf();
+    this.readTimestampWithoutZone = SparkUtil.canHandleTimestampWithoutZone(options, sessionConf);
   }
 
   protected Table table() {
@@ -120,6 +126,8 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   @Override
   public StructType readSchema() {
     if (readSchema == null) {
+      Preconditions.checkArgument(readTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(expectedSchema),
+              SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
       this.readSchema = SparkSchemaUtil.convert(expectedSchema);
     }
     return readSchema;

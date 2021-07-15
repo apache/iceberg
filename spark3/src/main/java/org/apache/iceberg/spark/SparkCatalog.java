@@ -87,6 +87,7 @@ public class SparkCatalog extends BaseCatalog {
   private SupportsNamespaces asNamespaceCatalog = null;
   private String[] defaultNamespace = null;
   private HadoopTables tables;
+  private boolean useTimestampsWithoutZone;
 
   /**
    * Build an Iceberg {@link Catalog} to be used by this Spark catalog adapter.
@@ -128,7 +129,7 @@ public class SparkCatalog extends BaseCatalog {
   public SparkTable createTable(Identifier ident, StructType schema,
                                 Transform[] transforms,
                                 Map<String, String> properties) throws TableAlreadyExistsException {
-    Schema icebergSchema = SparkSchemaUtil.convert(schema);
+    Schema icebergSchema = SparkSchemaUtil.convert(schema, useTimestampsWithoutZone);
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
       Table icebergTable = builder
@@ -145,7 +146,7 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public StagedTable stageCreate(Identifier ident, StructType schema, Transform[] transforms,
                                  Map<String, String> properties) throws TableAlreadyExistsException {
-    Schema icebergSchema = SparkSchemaUtil.convert(schema);
+    Schema icebergSchema = SparkSchemaUtil.convert(schema, useTimestampsWithoutZone);
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
       Transaction transaction = builder.withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
@@ -161,7 +162,7 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public StagedTable stageReplace(Identifier ident, StructType schema, Transform[] transforms,
                                   Map<String, String> properties) throws NoSuchTableException {
-    Schema icebergSchema = SparkSchemaUtil.convert(schema);
+    Schema icebergSchema = SparkSchemaUtil.convert(schema, useTimestampsWithoutZone);
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
       Transaction transaction = builder.withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
@@ -177,7 +178,7 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public StagedTable stageCreateOrReplace(Identifier ident, StructType schema, Transform[] transforms,
                                           Map<String, String> properties) {
-    Schema icebergSchema = SparkSchemaUtil.convert(schema);
+    Schema icebergSchema = SparkSchemaUtil.convert(schema, useTimestampsWithoutZone);
     Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
     Transaction transaction = builder.withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
         .withLocation(properties.get("location"))
@@ -387,7 +388,9 @@ public class SparkCatalog extends BaseCatalog {
     Catalog catalog = buildIcebergCatalog(name, options);
 
     this.catalogName = name;
-    this.tables = new HadoopTables(SparkSession.active().sessionState().newHadoopConf());
+    SparkSession sparkSession = SparkSession.active();
+    this.useTimestampsWithoutZone = SparkUtil.useTimestampWithoutZoneInNewTables(sparkSession.conf());
+    this.tables = new HadoopTables(sparkSession.sessionState().newHadoopConf());
     this.icebergCatalog = cacheEnabled ? CachingCatalog.wrap(catalog) : catalog;
     if (catalog instanceof SupportsNamespaces) {
       this.asNamespaceCatalog = (SupportsNamespaces) catalog;

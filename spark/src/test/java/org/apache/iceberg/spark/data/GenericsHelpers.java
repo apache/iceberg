@@ -24,7 +24,9 @@ import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
@@ -122,13 +124,19 @@ public class GenericsHelpers {
         Assert.assertEquals("ISO-8601 date should be equal", expected.toString(), actual.toString());
         break;
       case TIMESTAMP:
-        Assert.assertTrue("Should expect an OffsetDateTime", expected instanceof OffsetDateTime);
         Assert.assertTrue("Should be a Timestamp", actual instanceof Timestamp);
         Timestamp ts = (Timestamp) actual;
         // milliseconds from nanos has already been added by getTime
         OffsetDateTime actualTs = EPOCH.plusNanos(
             (ts.getTime() * 1_000_000) + (ts.getNanos() % 1_000_000));
-        Assert.assertEquals("Timestamp should be equal", expected, actualTs);
+        Types.TimestampType timestampType = (Types.TimestampType) type;
+        if (timestampType.shouldAdjustToUTC()) {
+          Assert.assertTrue("Should expect an OffsetDateTime", expected instanceof OffsetDateTime);
+          Assert.assertEquals("Timestamp should be equal", expected, actualTs);
+        } else {
+          Assert.assertTrue("Should expect an LocalDateTime", expected instanceof LocalDateTime);
+          Assert.assertEquals("Timestamp should be equal", expected, actualTs.toLocalDateTime());
+        }
         break;
       case STRING:
         Assert.assertTrue("Should be a String", actual instanceof String);
@@ -241,9 +249,16 @@ public class GenericsHelpers {
         Assert.assertEquals("Primitive value should be equal to expected", expectedDays, actual);
         break;
       case TIMESTAMP:
-        Assert.assertTrue("Should expect an OffsetDateTime", expected instanceof OffsetDateTime);
-        long expectedMicros = ChronoUnit.MICROS.between(EPOCH, (OffsetDateTime) expected);
-        Assert.assertEquals("Primitive value should be equal to expected", expectedMicros, actual);
+        Types.TimestampType timestampType = (Types.TimestampType) type;
+        if (timestampType.shouldAdjustToUTC()) {
+          Assert.assertTrue("Should expect an OffsetDateTime", expected instanceof OffsetDateTime);
+          long expectedMicros = ChronoUnit.MICROS.between(EPOCH, (OffsetDateTime) expected);
+          Assert.assertEquals("Primitive value should be equal to expected", expectedMicros, actual);
+        } else {
+          Assert.assertTrue("Should expect an LocalDateTime", expected instanceof LocalDateTime);
+          long expectedMicros = ChronoUnit.MICROS.between(EPOCH, ((LocalDateTime) expected).atZone(ZoneId.of("UTC")));
+          Assert.assertEquals("Primitive value should be equal to expected", expectedMicros, actual);
+        }
         break;
       case STRING:
         Assert.assertTrue("Should be a UTF8String", actual instanceof UTF8String);

@@ -20,15 +20,20 @@
 package org.apache.iceberg.spark.data;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.spark.sql.internal.SQLConf;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -184,5 +189,52 @@ public abstract class AvroDataTest {
         .asStructType().fields());
 
     writeAndValidate(schema);
+  }
+
+  @Test
+  public void testTimestampWithoutZone() throws IOException {
+    withSQLConf(ImmutableMap.of(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"), () -> {
+      Schema schema = TypeUtil.assignIncreasingFreshIds(new Schema(
+              required(0, "id", LongType.get()),
+              optional(1, "ts_without_zone", Types.TimestampType.withoutZone())));
+
+      writeAndValidate(schema);
+    });
+  }
+
+  protected void withSQLConf(Map<String, String> conf, Action action) throws IOException {
+    SQLConf sqlConf = SQLConf.get();
+
+    Map<String, String> currentConfValues = Maps.newHashMap();
+    conf.keySet().forEach(confKey -> {
+      if (sqlConf.contains(confKey)) {
+        String currentConfValue = sqlConf.getConfString(confKey);
+        currentConfValues.put(confKey, currentConfValue);
+      }
+    });
+
+    conf.forEach((confKey, confValue) -> {
+      if (SQLConf.staticConfKeys().contains(confKey)) {
+        throw new RuntimeException("Cannot modify the value of a static config: " + confKey);
+      }
+      sqlConf.setConfString(confKey, confValue);
+    });
+
+    try {
+      action.invoke();
+    } finally {
+      conf.forEach((confKey, confValue) -> {
+        if (currentConfValues.containsKey(confKey)) {
+          sqlConf.setConfString(confKey, currentConfValues.get(confKey));
+        } else {
+          sqlConf.unsetConf(confKey);
+        }
+      });
+    }
+  }
+
+  @FunctionalInterface
+  protected interface Action {
+    void invoke() throws IOException;
   }
 }

@@ -51,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.iceberg.util.Tasks;
@@ -98,6 +99,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   private Filter[] pushedFilters = NO_FILTERS;
   private final boolean localityPreferred;
   private final int batchSize;
+  private final boolean readTimestampWithoutZone;
 
   // lazy variables
   private Schema schema = null;
@@ -160,6 +162,8 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     this.batchSize = options.get(SparkReadOptions.VECTORIZATION_BATCH_SIZE).map(Integer::parseInt).orElseGet(() ->
         PropertyUtil.propertyAsInt(table.properties(),
           TableProperties.PARQUET_BATCH_SIZE, TableProperties.PARQUET_BATCH_SIZE_DEFAULT));
+    RuntimeConfig sessionConf = SparkSession.active().conf();
+    this.readTimestampWithoutZone = SparkUtil.canHandleTimestampWithoutZone(options.asMap(), sessionConf);
   }
 
   private Schema lazySchema() {
@@ -183,6 +187,8 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
   private StructType lazyType() {
     if (type == null) {
+      Preconditions.checkArgument(readTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(lazySchema()),
+              SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
       this.type = SparkSchemaUtil.convert(lazySchema());
     }
     return type;

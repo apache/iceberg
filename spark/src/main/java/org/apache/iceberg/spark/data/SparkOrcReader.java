@@ -105,6 +105,7 @@ public class SparkOrcReader implements OrcRowReader<InternalRow> {
         case DOUBLE:
           return OrcValueReaders.doubles();
         case TIMESTAMP_INSTANT:
+        case TIMESTAMP:
           return SparkOrcValueReaders.timestampTzs();
         case DECIMAL:
           return SparkOrcValueReaders.decimals(primitive.getPrecision(), primitive.getScale());

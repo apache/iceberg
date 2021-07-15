@@ -23,42 +23,35 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.FixupTypes;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 
 /**
- * Some types, like binary and fixed, are converted to the same Spark type. Conversion back
- * can produce only one, which may not be correct.
+ * By default Spark type {@link org.apache.iceberg.types.Types.TimestampType} should be converted to
+ * {@link Types.TimestampType#withZone()} iceberg type. But we also can convert
+ * {@link org.apache.iceberg.types.Types.TimestampType} to {@link Types.TimestampType#withoutZone()} iceberg type
+ * by setting {@link SparkUtil#USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES} to 'true'
  */
-class SparkFixupTypes extends FixupTypes {
+class SparkFixupTimestampType extends FixupTypes {
 
-  private SparkFixupTypes(Schema referenceSchema) {
+  private SparkFixupTimestampType(Schema referenceSchema) {
     super(referenceSchema);
   }
 
-  static Schema fixup(Schema schema, Schema referenceSchema) {
+  static Schema fixup(Schema schema) {
     return new Schema(TypeUtil.visit(schema,
-        new SparkFixupTypes(referenceSchema)).asStructType().fields());
+        new SparkFixupTimestampType(schema)).asStructType().fields());
+  }
+
+  @Override
+  public Type primitive(Type.PrimitiveType primitive) {
+    if (primitive.typeId() == Type.TypeID.TIMESTAMP) {
+      return Types.TimestampType.withoutZone();
+    }
+    return primitive;
   }
 
   @Override
   protected boolean fixupPrimitive(Type.PrimitiveType type, Type source) {
-    switch (type.typeId()) {
-      case STRING:
-        if (source.typeId() == Type.TypeID.UUID) {
-          return true;
-        }
-        break;
-      case BINARY:
-        if (source.typeId() == Type.TypeID.FIXED) {
-          return true;
-        }
-        break;
-      case TIMESTAMP:
-        if (source.typeId() == Type.TypeID.TIMESTAMP) {
-          return true;
-        }
-        break;
-      default:
-    }
-    return false;
+    return Type.TypeID.TIMESTAMP.equals(type.typeId());
   }
 }

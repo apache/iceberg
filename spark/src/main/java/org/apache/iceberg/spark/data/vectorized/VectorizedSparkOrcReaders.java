@@ -128,6 +128,7 @@ public class VectorizedSparkOrcReaders {
           primitiveValueReader = OrcValueReaders.doubles();
           break;
         case TIMESTAMP_INSTANT:
+        case TIMESTAMP:
           primitiveValueReader = SparkOrcValueReaders.timestampTzs();
           break;
         case DECIMAL:

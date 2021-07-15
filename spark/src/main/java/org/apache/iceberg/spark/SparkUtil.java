@@ -20,21 +20,38 @@
 package org.apache.iceberg.spark;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.UnknownTransform;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
+import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.util.SerializableConfiguration;
 
 public class SparkUtil {
+
+  public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =
+          "spark.sql.iceberg.handle-timestamp-without-timezone";
+  public static final String TIMESTAMP_WITHOUT_TIMEZONE_ERROR = String.format("Cannot handle timestamp without" +
+          " timezone fields in Spark. Spark does not natively support this type but if you would like to handle all" +
+          " timestamps as timestamp with timezone set '%s' to true. This will not change the underlying values stored" +
+          " but will change their displayed values in Spark. For more information please see" +
+          " https://docs.databricks.com/spark/latest/dataframes-datasets/dates-timestamps.html#ansi-sql-and" +
+          "-spark-sql-timestamps", HANDLE_TIMESTAMP_WITHOUT_TIMEZONE);
+  public static final String USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES =
+          "spark.sql.iceberg.use-timestamp-without-timezone-in-new-tables";
+
   private SparkUtil() {
   }
 
@@ -99,4 +116,58 @@ public class SparkUtil {
       }
     }
   }
+
+  /**
+   * Responsible for checking if the table schema has a timestamp without timezone column
+   * @param schema table schema to check if it contains a timestamp without timezone column
+   * @return boolean indicating if the schema passed in has a timestamp field without a timezone
+   */
+  public static boolean hasTimestampWithoutZone(Schema schema) {
+    return TypeUtil.find(schema, t -> Types.TimestampType.withoutZone().equals(t)) != null;
+  }
+
+  /**
+   * Allow reading/writing timestamp without time zone as timestamp with time zone. Generally,
+   * this is not safe as timestamp without time zone is supposed to represent wall clock time semantics,
+   * i.e. no matter the reader/writer timezone 3PM should always be read as 3PM,
+   * but timestamp with time zone represents instant semantics, i.e the timestamp
+   * is adjusted so that the corresponding time in the reader timezone is displayed.
+   * When set to false (default), we throw an exception at runtime
+   * "Spark does not support timestamp without time zone fields" if reading timestamp without time zone fields
+   *
+   * @param readerConfig table read options
+   * @param sessionConf spark session configurations
+   * @return boolean indicating if reading timestamps without timezone is allowed
+   */
+  public static boolean canHandleTimestampWithoutZone(Map<String, String> readerConfig, RuntimeConfig sessionConf) {
+    String readerOption = readerConfig.get(HANDLE_TIMESTAMP_WITHOUT_TIMEZONE);
+    if (readerOption != null) {
+      return Boolean.parseBoolean(readerOption);
+    }
+    String sessionConfValue = sessionConf.get(HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, null);
+    if (sessionConfValue != null) {
+      return Boolean.parseBoolean(sessionConfValue);
+    }
+    return false;
+  }
+
+  /**
+   * Check whether the spark session config contains a {@link SparkUtil#USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES}
+   * property.
+   * Default value - false
+   * If true in new table all timestamp fields will be stored as {@link Types.TimestampType#withoutZone()},
+   * otherwise {@link Types.TimestampType#withZone()} will be used
+   *
+   * @param sessionConf a spark runtime config
+   * @return true if the session config has {@link SparkUtil#USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES} property
+   * and this property is set to true
+   */
+  public static boolean useTimestampWithoutZoneInNewTables(RuntimeConfig sessionConf) {
+    String sessionConfValue = sessionConf.get(USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES, null);
+    if (sessionConfValue != null) {
+      return Boolean.parseBoolean(sessionConfValue);
+    }
+    return false;
+  }
+
 }
