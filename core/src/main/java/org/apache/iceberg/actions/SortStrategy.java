@@ -36,7 +36,7 @@ import org.slf4j.LoggerFactory;
  * this Strategy will attempt to rewrite those files into File A' (x: 0-20), File B' (x: 21 - 40),
  * File C' (x: 41 - 60).
  * <p>
- * Currently the there is no clustering detection and we will rewrite all files if {@link SortStrategy#REWRITE_ALL}
+ * Currently the there is no file overlap detection and we will rewrite all files if {@link SortStrategy#REWRITE_ALL}
  * is true (default: false). If this property is disabled any files that would be chosen by
  * {@link BinPackStrategy} will be rewrite candidates.
  * <p>
