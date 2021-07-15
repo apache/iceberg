@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.nessie;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,6 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.Tasks;
 import org.projectnessie.api.TreeApi;
+import org.projectnessie.api.params.EntriesParams;
 import org.projectnessie.client.NessieClient;
 import org.projectnessie.client.NessieConfigConstants;
 import org.projectnessie.error.BaseNessieClientServerException;
@@ -324,7 +324,8 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
 
   private IcebergTable table(TableIdentifier tableIdentifier) {
     try {
-      Contents table = client.getContentsApi().getContents(NessieUtil.toKey(tableIdentifier), reference.getHash());
+      Contents table = client.getContentsApi()
+          .getContents(NessieUtil.toKey(tableIdentifier), reference.getName(), reference.getHash());
       return table.unwrap(IcebergTable.class).orElse(null);
     } catch (NessieNotFoundException e) {
       return null;
@@ -353,7 +354,7 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   private Stream<TableIdentifier> tableStream(Namespace namespace) {
     try {
       return client.getTreeApi()
-          .getEntries(reference.getHash(), null, null, Collections.emptyList())
+          .getEntries(reference.getName(), EntriesParams.builder().hashOnRef(reference.getHash()).build())
           .getEntries()
           .stream()
           .filter(NessieUtil.namespacePredicate(namespace))

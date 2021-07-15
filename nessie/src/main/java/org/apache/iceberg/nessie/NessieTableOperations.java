@@ -80,7 +80,7 @@ public class NessieTableOperations extends BaseMetastoreTableOperations {
     }
     String metadataLocation = null;
     try {
-      Contents contents = client.getContentsApi().getContents(key, reference.getHash());
+      Contents contents = client.getContentsApi().getContents(key, reference.getName(), reference.getHash());
       this.table = contents.unwrap(IcebergTable.class)
           .orElseThrow(() ->
               new IllegalStateException("Cannot refresh iceberg table: " +
