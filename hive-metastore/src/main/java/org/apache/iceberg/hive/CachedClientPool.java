@@ -68,7 +68,6 @@ public class CachedClientPool implements ClientPool<HiveMetaStoreClient, TExcept
               .removalListener((key, value, cause) -> ((HiveClientPool) value).close())
               .build();
     }
-    
     Runtime.getRuntime().addShutdownHook(new Thread() {
       @Override
       public void run() {
