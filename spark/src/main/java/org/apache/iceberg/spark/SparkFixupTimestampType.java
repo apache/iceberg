@@ -39,7 +39,7 @@ class SparkFixupTimestampType extends FixupTypes {
 
   static Schema fixup(Schema schema) {
     return new Schema(TypeUtil.visit(schema,
-            new SparkFixupTimestampType(schema)).asStructType().fields());
+        new SparkFixupTimestampType(schema)).asStructType().fields());
   }
 
   @Override
