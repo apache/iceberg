@@ -19,6 +19,13 @@
 
 package org.apache.iceberg.spark.source;
 
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -33,7 +40,11 @@ import org.apache.iceberg.MicroBatches.MicroBatch;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -67,6 +78,7 @@ class StreamingReader extends Reader implements MicroBatchReader {
   private static final Logger LOG = LoggerFactory.getLogger(StreamingReader.class);
   private static final String MAX_SIZE_PER_BATCH = "max-size-per-batch";
   private static final String START_SNAPSHOT_ID = "start-snapshot-id";
+  private static final Joiner SLASH = Joiner.on("/");
 
   private StreamingOffset startOffset;
   private StreamingOffset endOffset;
@@ -84,7 +96,8 @@ class StreamingReader extends Reader implements MicroBatchReader {
    */
   private Pair<StreamingOffset, List<MicroBatch>> cachedPendingBatches = null;
 
-  StreamingReader(SparkSession spark, Table table, boolean caseSensitive, DataSourceOptions options) {
+  StreamingReader(SparkSession spark, Table table, String checkpointLocation, boolean caseSensitive,
+      DataSourceOptions options) {
     super(spark, table, caseSensitive, options);
 
     this.table = table;
@@ -114,6 +127,9 @@ class StreamingReader extends Reader implements MicroBatchReader {
     this.splitLookback = options.getInt(SparkReadOptions.LOOKBACK, tableSplitLookback);
     this.splitOpenFileCost = options
         .getLong(SparkReadOptions.FILE_OPEN_COST, tableSplitOpenFileCost);
+
+    InitialOffsetStore initialOffsetStore = new InitialOffsetStore(table, checkpointLocation);
+    this.startOffset = initialOffsetStore.initialOffset();
   }
 
   @Override
@@ -363,5 +379,54 @@ class StreamingReader extends Reader implements MicroBatchReader {
 
   private static boolean isAppend(Snapshot snapshot) {
     return snapshot.operation().equals(DataOperations.APPEND);
+  }
+
+  private static class InitialOffsetStore {
+    private final Table table;
+    private final FileIO io;
+    private final String initialOffsetLocation;
+
+    InitialOffsetStore(Table table, String checkpointLocation) {
+      this.table = table;
+      this.io = table.io();
+      this.initialOffsetLocation = SLASH.join(checkpointLocation, "offsets/0");
+    }
+
+    public StreamingOffset initialOffset() {
+      InputFile inputFile = io.newInputFile(initialOffsetLocation);
+      if (inputFile.exists()) {
+        return readOffset(inputFile);
+      }
+
+      table.refresh();
+      StreamingOffset offset = table.currentSnapshot() == null ?
+          StreamingOffset.START_OFFSET :
+          new StreamingOffset(SnapshotUtil.oldestSnapshot(table).snapshotId(), 0, false);
+
+      OutputFile outputFile = io.newOutputFile(initialOffsetLocation);
+      writeOffset(offset, outputFile);
+
+      return offset;
+    }
+
+    private void writeOffset(StreamingOffset offset, OutputFile file) {
+      try (OutputStream outputStream = file.create()) {
+        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
+        writer.write(offset.json());
+        writer.flush();
+      } catch (IOException ioException) {
+        throw new UncheckedIOException(
+            String.format("Failed writing offset to: %s", initialOffsetLocation), ioException);
+      }
+    }
+
+    private StreamingOffset readOffset(InputFile file) {
+      try (InputStream in = file.newStream()) {
+        return StreamingOffset.fromJson(in);
+      } catch (IOException ioException) {
+        throw new UncheckedIOException(
+            String.format("Failed reading offset from: %s", initialOffsetLocation), ioException);
+      }
+    }
   }
 }
