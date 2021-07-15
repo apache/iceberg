@@ -36,6 +36,7 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -48,6 +49,7 @@ import org.projectnessie.api.TreeApi;
 import org.projectnessie.api.params.EntriesParams;
 import org.projectnessie.client.NessieClient;
 import org.projectnessie.client.NessieConfigConstants;
+import org.projectnessie.client.http.HttpClientException;
 import org.projectnessie.error.BaseNessieClientServerException;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
@@ -236,6 +238,12 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
       throw new RuntimeException("Failed to drop table as ref is no longer valid.", e);
     } catch (BaseNessieClientServerException e) {
       throw new CommitFailedException(e, "Failed to rename table: the current reference is not up to date.");
+    } catch (HttpClientException ex) {
+      // Intentionally catch all nessie-client-exceptions here and not just the "timeout" variant
+      // to catch all kinds of network errors (e.g. connection reset). Network code implementation
+      // details and all kinds of network devices can induce unexpected behavior. So better be
+      // safe than sorry.
+      throw new CommitStateUnknownException(ex);
     }
     // Intentionally just "throw through" Nessie's HttpClientException here and do not "special case"
     // just the "timeout" variant to propagate all kinds of network errors (e.g. connection reset).
