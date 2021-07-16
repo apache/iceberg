@@ -15,6 +15,13 @@
  - limitations under the License.
  -->
 
-# Trino (formerly Presto SQL)
+# Presto
+
+## Trino (PrestoSQL)
 
 The Iceberg connector is available with Trino. It is feature complete and usage details can be found in the [documentation](https://trino.io/docs/current/connector/iceberg.html)
+
+## PrestoDB
+
+The Iceberg connector is available with PrestoDB. It is feature complete and usage details can be found in the [documentation](https://prestodb.io/docs/current/connector/iceberg.html)
+
