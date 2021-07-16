@@ -108,7 +108,7 @@ public abstract class BaseTestIceberg {
     newCatalog.setConf(hadoopConfig);
     newCatalog.initialize("nessie", ImmutableMap.of("ref", ref,
         CatalogProperties.URI, uri,
-        "auth_type", "NONE",
+        "auth-type", "NONE",
         CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString()
     ));
     return newCatalog;
