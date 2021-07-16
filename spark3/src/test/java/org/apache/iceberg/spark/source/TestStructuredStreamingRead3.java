@@ -315,32 +315,6 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
   @SuppressWarnings("unchecked")
   @Test
-  public void testReadStreamWithSnapshotTypeReplaceAndSkipReplaceOption() throws Exception {
-    // fill table with some data
-    List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
-    appendDataAsMultipleSnapshots(dataAcrossSnapshots, tableIdentifier);
-
-    table.refresh();
-
-    // this should create a snapshot with type Replace.
-    table.rewriteManifests()
-        .clusterBy(f -> 1)
-        .commit();
-
-    // check pre-condition
-    Assert.assertEquals(DataOperations.REPLACE, table.currentSnapshot().operation());
-
-    Dataset<Row> df = spark.readStream()
-        .format("iceberg")
-        .option(SparkReadOptions.READ_STREAM_SKIP_REPLACE, "true")
-        .load(tableIdentifier);
-
-    Assertions.assertThat(processAvailable(df))
-        .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
-  }
-
-  @SuppressWarnings("unchecked")
-  @Test
   public void testReadStreamWithSnapshotTypeDeleteErrorsOut() throws Exception {
     table.updateSpec()
         .removeField("id_bucket")
