@@ -33,16 +33,35 @@ the JDBC catalog allows arbitrary configurations through:
 | uri                  |                                   | the JDBC connection string |
 | jdbc.<property_key\> |                                   | any key value pairs to configure the JDBC connection | 
 
-For example, you can start a Spark session with a MySQL JDBC connection using the following configurations:
+### Examples
+
+
+#### Spark
+
+You can start a Spark session with a MySQL JDBC connection using the following configurations:
 
 ```shell
 spark-sql --packages org.apache.iceberg:iceberg-spark3-runtime:{{ versions.iceberg }} \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
     --conf spark.sql.catalog.my_catalog.catalog-impl=org.apache.iceberg.jdbc.JdbcCatalog \
-    --conf spark.sql.catalog.my_catalog.uri=mysql://test.1234567890.us-west-2.rds.amazonaws.com:3306/default \
+    --conf spark.sql.catalog.my_catalog.uri=jdbc:mysql://test.1234567890.us-west-2.rds.amazonaws.com:3306/default \
     --conf spark.sql.catalog.my_catalog.jdbc.verifyServerCertificate=true \
     --conf spark.sql.catalog.my_catalog.jdbc.useSSL=true \
     --conf spark.sql.catalog.my_catalog.jdbc.user=admin \
     --conf spark.sql.catalog.my_catalog.jdbc.password=pass
+```
+
+#### Java API
+
+```java
+Class.forName("com.mysql.cj.jdbc.Driver"); // ensure JDBC driver is at runtime classpath
+Map<String, String> properties = new HashMap<>();
+properties.put(CatalogProperties.CATALOG_IMPL, JdbcCatalog.class.getName());
+properties.put(CatalogProperties.URI, "jdbc:mysql://localhost:3306/test");
+properties.put(JdbcCatalog.PROPERTY_PREFIX + "user", "admin");
+properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "pass");
+properties.put(CatalogProperties.WAREHOUSE_LOCATION, "s3://warehouse/path");
+Configuration hadoopConf = new Configuration(); // configs if you use HadoopFileIO
+JdbcCatalog catalog = CatalogUtil.buildIcebergCatalog("test_jdbc_catalog", properties, hadoopConf);
 ```
