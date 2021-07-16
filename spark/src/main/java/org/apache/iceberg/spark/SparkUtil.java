@@ -55,6 +55,10 @@ public class SparkUtil {
           "spark.sql.iceberg.use-timestamp-without-timezone-in-new-tables";
 
   private static final String SPARK_CATALOG_CONF_PREFIX = "spark.sql.catalog";
+  // Format string used as the prefix for spark configuration keys to override hadoop configuration values
+  // for Iceberg tables from a given catalog. These keys can be specified as `spark.sql.catalog.$catalogName.hadoop.*`,
+  // similar to using `spark.hadoop.*` to override hadoop configurations globally for a given spark session.
+  private static final String SPARK_CATALOG_HADOOP_CONF_OVERRIDE_FMT_STR = SPARK_CATALOG_CONF_PREFIX + ".%s.hadoop.";
 
   private SparkUtil() {
   }
@@ -176,7 +180,9 @@ public class SparkUtil {
 
   /**
    * Pulls any Catalog specific overrides for the Hadoop conf from the current SparkSession, which can be
-   * set via spark.sql.catalog.$catalogName.hadoop.*
+   * set via `spark.sql.catalog.$catalogName.hadoop.*`
+   *
+   * Mirrors the override of hadoop configurations for a given spark session using `spark.hadoop.*`.
    *
    * The SparkCatalog allows for hadoop configurations to be overridden per catalog, by setting
    * them on the SQLConf, where the following will add the property "fs.default.name" with value
@@ -190,7 +196,7 @@ public class SparkUtil {
    */
   public static Configuration hadoopConfCatalogOverrides(SparkSession spark, String catalogName) {
     // Find keys for the catalog intended to be hadoop configurations
-    final String hadoopConfCatalogPrefix = String.format("%s.%s.%s", SPARK_CATALOG_CONF_PREFIX, catalogName, "hadoop.");
+    final String hadoopConfCatalogPrefix = hadoopConfPrefixForCatalog(catalogName);
     final Configuration conf = spark.sessionState().newHadoopConf();
     spark.sqlContext().conf().settings().forEach((k, v) -> {
       // These checks are copied from `spark.sessionState().newHadoopConfWithOptions()`, which we
@@ -200,5 +206,9 @@ public class SparkUtil {
       }
     });
     return conf;
+  }
+
+  private static String hadoopConfPrefixForCatalog(String catalogName) {
+    return String.format(SPARK_CATALOG_HADOOP_CONF_OVERRIDE_FMT_STR, catalogName);
   }
 }
