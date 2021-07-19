@@ -42,7 +42,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -133,19 +133,19 @@ public class TestDataFileSerialization {
     try (ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
       for (int i = 0; i < 2; i += 1) {
         Object obj = in.readObject();
-        Assert.assertTrue("Should be a DataFile", obj instanceof DataFile);
+        Assertions.assertThat(obj).as("Should be a DataFile").isInstanceOf(DataFile.class);
         TestHelpers.assertEquals(DATA_FILE, (DataFile) obj);
       }
 
       for (int i = 0; i < 2; i += 1) {
         Object obj = in.readObject();
-        Assert.assertTrue("Should be a position DeleteFile", obj instanceof DeleteFile);
+        Assertions.assertThat(obj).as("Should be a position DeleteFile").isInstanceOf(DeleteFile.class);
         TestHelpers.assertEquals(POS_DELETE_FILE, (DeleteFile) obj);
       }
 
       for (int i = 0; i < 2; i += 1) {
         Object obj = in.readObject();
-        Assert.assertTrue("Should be a equality DeleteFile", obj instanceof DeleteFile);
+        Assertions.assertThat(obj).as("Should be a equality DeleteFile").isInstanceOf(DeleteFile.class);
         TestHelpers.assertEquals(EQ_DELETE_FILE, (DeleteFile) obj);
       }
     }

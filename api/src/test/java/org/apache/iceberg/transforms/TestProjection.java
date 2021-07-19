@@ -31,6 +31,7 @@ import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -259,12 +260,12 @@ public class TestProjection {
 
     Expression projection = Projections.inclusive(spec).project(filter);
 
-    Assert.assertTrue(projection instanceof Or);
+    Assertions.assertThat(projection).isInstanceOf(Or.class);
     Or or1 = (Or) projection;
     UnboundPredicate<?> dateint1 = assertAndUnwrapUnbound(or1.left());
     Assert.assertEquals("Should be a dateint predicate", "dateint", dateint1.ref().name());
     Assert.assertEquals("Should be dateint=20180416", 20180416, dateint1.literal().value());
-    Assert.assertTrue(or1.right() instanceof Or);
+    Assertions.assertThat(or1.right()).isInstanceOf(Or.class);
     Or or2 = (Or) or1.right();
     UnboundPredicate<?> dateint2 = assertAndUnwrapUnbound(or2.left());
     Assert.assertEquals("Should be a dateint predicate", "dateint", dateint2.ref().name());
