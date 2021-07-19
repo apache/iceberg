@@ -68,7 +68,7 @@ public final class CustomCatalogs {
     SparkSession spark = sparkAndName.first();
     String name = sparkAndName.second();
     SparkConf sparkConf = spark.sparkContext().getConf();
-    Configuration conf = spark.sessionState().newHadoopConf();
+    Configuration conf = SparkUtil.hadoopConfCatalogOverrides(spark, name);
 
     String catalogPrefix = String.format("%s.%s", ICEBERG_CATALOG_PREFIX, name);
     if (!name.equals(ICEBERG_DEFAULT_CATALOG) &&

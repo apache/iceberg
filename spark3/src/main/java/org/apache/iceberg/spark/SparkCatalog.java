@@ -97,7 +97,7 @@ public class SparkCatalog extends BaseCatalog {
    * @return an Iceberg catalog
    */
   protected Catalog buildIcebergCatalog(String name, CaseInsensitiveStringMap options) {
-    Configuration conf = SparkSession.active().sessionState().newHadoopConf();
+    Configuration conf = SparkUtil.hadoopConfCatalogOverrides(SparkSession.active(), name);
     Map<String, String> optionsMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     optionsMap.putAll(options);
     optionsMap.put(CatalogProperties.APP_ID, SparkSession.active().sparkContext().applicationId());
@@ -390,7 +390,7 @@ public class SparkCatalog extends BaseCatalog {
     this.catalogName = name;
     SparkSession sparkSession = SparkSession.active();
     this.useTimestampsWithoutZone = SparkUtil.useTimestampWithoutZoneInNewTables(sparkSession.conf());
-    this.tables = new HadoopTables(sparkSession.sessionState().newHadoopConf());
+    this.tables = new HadoopTables(SparkUtil.hadoopConfCatalogOverrides(SparkSession.active(), name));
     this.icebergCatalog = cacheEnabled ? CachingCatalog.wrap(catalog) : catalog;
     if (catalog instanceof SupportsNamespaces) {
       this.asNamespaceCatalog = (SupportsNamespaces) catalog;
