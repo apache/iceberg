@@ -78,6 +78,7 @@ nav:
   - Integrations:
     - AWS: aws.md
     - Nessie: nessie.md
+    - JDBC: jdbc.md
   - API:
     - Javadoc: /javadoc/
     - Java API intro: api.md
