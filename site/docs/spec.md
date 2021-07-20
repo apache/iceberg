@@ -845,8 +845,8 @@ The 32-bit hash implementation is 32-bit Murmur3 hash, x86 variant, seeded with 
 | **`timestamptz`**  | `hashLong(microsecsFromUnixEpoch(v))`     | `2017-11-16T14:31:08-08:00`￫ `-2047944441` |
 | **`string`**       | `hashBytes(utf8Bytes(v))`                 | `iceberg` ￫ `1210000089`                   |
 | **`uuid`**         | `hashBytes(uuidBytes(v))`		[3]      | `f79c3e09-677c-4bbd-a479-3f349cb785e7` ￫ `1488055340`               |
-| **`fixed(L)`**     | `hashBytes(v)`                            | `00 01 02 03` ￫ `188683207`                |
-| **`binary`**       | `hashBytes(v)`                            | `00 01 02 03` ￫ `188683207`                |
+| **`fixed(L)`**     | `hashBytes(v)`                            | `00 01 02 03` ￫ `-188683207`               |
+| **`binary`**       | `hashBytes(v)`                            | `00 01 02 03` ￫ `-188683207`               |
 
 The types below are not currently valid for bucketing, and so are not hashed. However, if that changes and a hash value is needed, the following table shall apply:
 
