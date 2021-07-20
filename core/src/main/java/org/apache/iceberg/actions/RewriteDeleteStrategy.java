@@ -20,10 +20,16 @@
 package org.apache.iceberg.actions;
 
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Table;
 
 public interface RewriteDeleteStrategy {
+
+  /**
+   * Returns the name of this rewrite deletes strategy
+   */
+  String name();
 
   /**
    * Returns the table being modified by this rewrite strategy
@@ -48,4 +54,10 @@ public interface RewriteDeleteStrategy {
    * Sets options to be used with this strategy
    */
   RewriteDeleteStrategy options(Map<String, String> options);
+
+  /**
+   * Returns a set of options which this rewrite strategy can use. This is an allowed-list and any options not
+   * specified here will be rejected at runtime.
+   */
+  Set<String> validOptions();
 }
