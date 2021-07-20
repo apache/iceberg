@@ -29,6 +29,7 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.types.Types;
 import org.apache.thrift.TException;
+import org.apache.thrift.transport.TTransportException;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -108,6 +109,39 @@ public class TestHiveCommits extends HiveTableBaseTest {
     Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
     Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
     Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
+  }
+
+  @Test
+  public void testTTransportExceptionUnknownOnCommit() throws TException, InterruptedException {
+    Table table = catalog.loadTable(TABLE_IDENTIFIER);
+    HiveTableOperations ops = (HiveTableOperations) ((HasTableOperations) table).operations();
+
+    TableMetadata metadataV1 = ops.current();
+
+    table.updateSchema()
+        .addColumn("n", Types.IntegerType.get())
+        .commit();
+
+    ops.refresh();
+
+    TableMetadata metadataV2 = ops.current();
+
+    Assert.assertEquals(2, ops.current().schema().columns().size());
+
+    HiveTableOperations spyOps = spy(ops);
+
+    failCommitAndThrowUnknownException(spyOps);
+
+    AssertHelpers.assertThrows("We should rethrow generic runtime errors if the " +
+            "commit actually doesn't succeed", CommitStateUnknownException.class,
+        "Cannot determine whether the commit was successful or not",
+        () -> spyOps.commit(metadataV2, metadataV1));
+
+    ops.refresh();
+    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
+    Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
+    Assert.assertEquals("Client could not determine outcome so new metadata file should also exist",
+        3, metadataFileCount(ops.current()));
   }
 
   /**
@@ -302,6 +336,12 @@ public class TestHiveCommits extends HiveTableBaseTest {
 
   private void failCommitAndThrowException(HiveTableOperations spyOperations) throws TException, InterruptedException {
     doThrow(new TException("Datacenter on fire"))
+        .when(spyOperations)
+        .persistTable(any(), anyBoolean());
+  }
+
+  private void failCommitAndThrowUnknownException(HiveTableOperations spyOperations) throws TException, InterruptedException {
+    doThrow(new TTransportException("java.net.SocketTimeoutException: Read timed out"))
         .when(spyOperations)
         .persistTable(any(), anyBoolean());
   }
