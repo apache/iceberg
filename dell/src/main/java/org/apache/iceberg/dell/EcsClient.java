@@ -47,15 +47,6 @@ public interface EcsClient extends AutoCloseable {
   }
 
   /**
-   * get original properties.
-   * <p>
-   * when try to implement this interface, make this properties same as input of {@link EcsClient#create(Map)}
-   *
-   * @return properties of client
-   */
-  Map<String, String> getProperties();
-
-  /**
    * get object info of specific key. If object is absent, return {@link Optional#empty()}
    *
    * @param key object key

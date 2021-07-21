@@ -51,11 +51,6 @@ public class MemoryEcsClient implements EcsClient {
   }
 
   @Override
-  public Map<String, String> getProperties() {
-    return null;
-  }
-
-  @Override
   public Optional<ObjectHeadInfo> head(ObjectKey key) {
     return Optional.ofNullable(data.get(key)).map(EcsObject::getHeadInfo);
   }

@@ -50,17 +50,14 @@ import org.apache.iceberg.dell.PropertiesSerDes;
 public class EcsClientImpl implements EcsClient {
 
   private final AmazonS3 s3;
-  private final Map<String, String> properties;
   private final ObjectKeys keys;
   private final PropertiesSerDes propertiesSerDes;
 
   public EcsClientImpl(
       AmazonS3 s3,
-      Map<String, String> properties,
       ObjectKeys keys,
       PropertiesSerDes propertiesSerDes) {
     this.s3 = s3;
-    this.properties = Collections.unmodifiableMap(new LinkedHashMap<>(properties));
     this.keys = keys;
     this.propertiesSerDes = propertiesSerDes;
   }
@@ -73,11 +70,6 @@ public class EcsClientImpl implements EcsClient {
   @Override
   public PropertiesSerDes getPropertiesSerDes() {
     return propertiesSerDes;
-  }
-
-  @Override
-  public Map<String, String> getProperties() {
-    return properties;
   }
 
   @Override
