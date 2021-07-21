@@ -261,7 +261,7 @@ The DynamoDB table is designed with the following columns:
 
 | Column            | Key             | Type        | Description                                                          |
 | ----------------- | --------------- | ----------- |--------------------------------------------------------------------- |
-| identifier        | partition key   | string      | table identifier such as `db1.table1`, or `NAMESPACE` for namespaces |
+| identifier        | partition key   | string      | table identifier such as `db1.table1`, or string `NAMESPACE` for namespaces |
 | namespace         | sort key        | string      | namespace name. A [global secondary index (GSI)](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GSI.html) is created with namespace as partition key, identifier as sort key, no other projected columns |
 | v                 |                 | string      | row version, used for optimistic locking |
 | updated_at        |                 | number      | timestamp (millis) of the last update | 
@@ -270,7 +270,7 @@ The DynamoDB table is designed with the following columns:
 
 This design has the following benefits:
 
-1. table name is used directly as partition key to avoid any potential [hot partition issue](https://aws.amazon.com/premiumsupport/knowledge-center/dynamodb-table-throttled/), comparing to use namespace as partition key and table name as sort key
+1. it avoids potential [hot partition issue](https://aws.amazon.com/premiumsupport/knowledge-center/dynamodb-table-throttled/) if there are heavy write traffic to the tables within the same namespace, because the partition key is at the table level
 2. namespace operations are clustered in a single partition to avoid affecting table commit operations
 3. a sort key to partition key reverse GSI is used for list table operation, and all other operations are single row ops or single partition query. No full table scan is needed for any operation in the catalog.
 4. a string UUID version field `v` is used instead of `updated_at` to avoid 2 processes committing at the same millisecond
@@ -290,10 +290,11 @@ With all the available options, we offer the following guidance when choosing th
 
 1. if your organization has an existing Glue metastore or plans to use the AWS analytics ecosystem including Glue, [Athena](https://aws.amazon.com/athena), [EMR](https://aws.amazon.com/emr), [Redshift](https://aws.amazon.com/redshift) and [LakeFormation](https://aws.amazon.com/lake-formation), Glue catalog provides the easiest integration.
 2. if your application requires frequent updates to table or high read and write throughput (e.g. streaming write), DynamoDB catalog provides the best performance through optimistic locking.
-3. if you would like to enforce access control for tables in a catalog, Glue tables can be managed as an [IAM resource](https://docs.aws.amazon.com/service-authorization/latest/reference/list_awsglue.html), whereas DynamoDB catalog tables can only be managed through [item-level permission](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/specifying-conditions.html) which is much more complicated.
-4. if you would like to query tables based on table property information without the need to scan the entire catalog, DynamoDB catalog allows you to build secondary indexes for any arbitrary property field and provide efficient query performance.
-5. if you would like to have the benefit of DynamoDB catalog while also connect to Glue, you can enable [DynamoDB stream with Lambda trigger](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.Lambda.Tutorial.html) to asynchronously update your Glue metastore with table information in the DynamoDB catalog. 
-6. if your organization already maintains an existing relational database in RDS or uses [serverless Aurora](https://aws.amazon.com/rds/aurora/serverless/) to manage tables, JDBC catalog provides the easiest integration.
+3. if your application requires constant rewrites to many data files of the table, Glue catalog's DynamoDB locking is pessimistic locking and will result in fewer conflicts during the commit phase.
+4. if you would like to enforce access control for tables in a catalog, Glue tables can be managed as an [IAM resource](https://docs.aws.amazon.com/service-authorization/latest/reference/list_awsglue.html), whereas DynamoDB catalog tables can only be managed through [item-level permission](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/specifying-conditions.html) which is much more complicated.
+5. if you would like to query tables based on table property information without the need to scan the entire catalog, DynamoDB catalog allows you to build secondary indexes for any arbitrary property field and provide efficient query performance.
+6. if you would like to have the benefit of DynamoDB catalog while also connect to Glue, you can enable [DynamoDB stream with Lambda trigger](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.Lambda.Tutorial.html) to asynchronously update your Glue metastore with table information in the DynamoDB catalog. 
+7. if your organization already maintains an existing relational database in RDS or uses [serverless Aurora](https://aws.amazon.com/rds/aurora/serverless/) to manage tables, JDBC catalog provides the easiest integration.
 
 ## S3 FileIO
 
