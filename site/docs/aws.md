@@ -155,7 +155,11 @@ TBLPROPERTIES ('iceberg.catalog'='glue');
 
 You can also preload the catalog by setting the configurations above in `hive-site.xml`.
 
-## Glue Catalog
+## Catalogs
+
+There are multiple different options that users can choose to build an Iceberg catalog with AWS.
+
+### Glue Catalog
 
 Iceberg enables the use of [AWS Glue](https://aws.amazon.com/glue) as the `Catalog` implementation.
 When used, an Iceberg namespace is stored as a [Glue Database](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-catalog-databases.html), 
@@ -165,7 +169,7 @@ You can start using Glue catalog by specifying the `catalog-impl` as `org.apache
 just like what is shown in the [enabling AWS integration](#enabling-aws-integration) section above. 
 More details about loading the catalog can be found in individual engine pages, such as [Spark](../spark-configuration/#loading-a-custom-catalog) and [Flink](../flink/#creating-catalogs-and-using-catalogs).
 
-### Glue Catalog ID
+#### Glue Catalog ID
 There is a unique Glue metastore in each AWS account and each AWS region.
 By default, `GlueCatalog` chooses the Glue metastore to use based on the user's default AWS client credential and region setup.
 You can specify the Glue catalog ID through `glue.id` catalog property to point to a Glue catalog in a different AWS account.
@@ -173,14 +177,14 @@ The Glue catalog ID is your numeric AWS account ID.
 If the Glue catalog is in a different region, you should configure you AWS client to point to the correct region, 
 see more details in [AWS client customization](#aws-client-customization).
 
-### Skip Archive
+#### Skip Archive
 
 By default, Glue stores all the table versions created and user can rollback a table to any historical version if needed.
 However, if you are streaming data to Iceberg, this will easily create a lot of Glue table versions.
 Therefore, it is recommended to turn off the archive feature in Glue by setting `glue.skip-archive` to `true`.
 For more details, please read [Glue Quotas](https://docs.aws.amazon.com/general/latest/gr/glue.html) and the [UpdateTable API](https://docs.aws.amazon.com/glue/latest/webapi/API_UpdateTable.html).
 
-### DynamoDB for Commit Locking
+#### DynamoDB for Commit Locking
 
 Glue does not have a strong guarantee over concurrent updates to a table. 
 Although it throws `ConcurrentModificationException` when detecting two processes updating a table at the same time,
@@ -196,14 +200,14 @@ This feature requires the following lock related catalog properties:
 Other lock related catalog properties can also be used to adjust locking behaviors such as heartbeat interval.
 For more details, please refer to [Lock catalog properties](../configuration/#lock-catalog-properties). 
 
-### Warehouse Location
+#### Warehouse Location
 
 Similar to all other catalog implementations, `warehouse` is a required catalog property to determine the root path of the data warehouse in storage.
 By default, Glue only allows a warehouse location in S3 because of the use of `S3FileIO`.
 To store data in a different local or cloud store, Glue catalog can switch to use `HadoopFileIO` or any custom FileIO by setting the `io-impl` catalog property.
 Details about this feature can be found in the [custom FileIO](../custom-catalog/#custom-file-io-implementation) section.
 
-### Table Location
+#### Table Location
 
 By default, the root location for a table `my_table` of namespace `my_ns` is at `my-warehouse-location/my-ns.db/my-table`.
 This default root location can be changed at both namespace and table level.
@@ -237,6 +241,59 @@ USING iceberg
 LOCATION 's3://my-special-table-bucket'
 PARTITIONED BY (category);
 ```
+
+### DynamoDB Catalog
+
+Iceberg supports using a [DynamoDB](https://aws.amazon.com/dynamodb) table to record and manage database and table information.
+
+#### Configurations
+
+The DynamoDB catalog supports the following configurations:
+
+| Property                          | Default                                            | Description                                            |
+| --------------------------------- | -------------------------------------------------- | ------------------------------------------------------ |
+| dynamodb.table-name               | iceberg                                            | name of the DynamoDB table used by DynamoDbCatalog     |
+
+
+#### Internal Table Design
+
+The DynamoDB table is designed with the following columns:
+
+| Column            | Key             | Type        | Description                                                          |
+| ----------------- | --------------- | ----------- |--------------------------------------------------------------------- |
+| identifier        | partition key   | string      | table identifier such as `db1.table1`, or string `NAMESPACE` for namespaces |
+| namespace         | sort key        | string      | namespace name. A [global secondary index (GSI)](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GSI.html) is created with namespace as partition key, identifier as sort key, no other projected columns |
+| v                 |                 | string      | row version, used for optimistic locking |
+| updated_at        |                 | number      | timestamp (millis) of the last update | 
+| created_at        |                 | number      | timestamp (millis) of the table creation |
+| p.<property_key\> |                 | string      | Iceberg-defined table properties including `table_type`, `metadata_location` and `previous_metadata_location` or namespace properties
+
+This design has the following benefits:
+
+1. it avoids potential [hot partition issue](https://aws.amazon.com/premiumsupport/knowledge-center/dynamodb-table-throttled/) if there are heavy write traffic to the tables within the same namespace, because the partition key is at the table level
+2. namespace operations are clustered in a single partition to avoid affecting table commit operations
+3. a sort key to partition key reverse GSI is used for list table operation, and all other operations are single row ops or single partition query. No full table scan is needed for any operation in the catalog.
+4. a string UUID version field `v` is used instead of `updated_at` to avoid 2 processes committing at the same millisecond
+5. multi-row transaction is used for `catalog.renameTable` to ensure idempotency
+6. properties are flattened as top level columns so that user can add custom GSI on any property field to customize the catalog. For example, users can store owner information as table property `owner`, and search tables by owner by adding a GSI on the `p.owner` column.
+
+### RDS JDBC Catalog
+
+Iceberg also supports JDBC catalog which uses a table in a relational database to manage Iceberg tables.
+You can configure to use JDBC catalog with relational database services like [AWS RDS](https://aws.amazon.com/rds).
+Read [the JDBC integration page](../jdbc/#jdbc-catalog) for guides and examples about using the JDBC catalog.
+Read [this AWS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.Connecting.Java.html) for more details about configuring JDBC catalog with IAM authentication. 
+
+### Which catalog to choose?
+
+With all the available options, we offer the following guidance when choosing the right catalog to use for your application:
+
+1. if your organization has an existing Glue metastore or plans to use the AWS analytics ecosystem including Glue, [Athena](https://aws.amazon.com/athena), [EMR](https://aws.amazon.com/emr), [Redshift](https://aws.amazon.com/redshift) and [LakeFormation](https://aws.amazon.com/lake-formation), Glue catalog provides the easiest integration.
+2. if your application requires frequent updates to table or high read and write throughput (e.g. streaming write), DynamoDB catalog provides the best performance through optimistic locking.
+3. if you would like to enforce access control for tables in a catalog, Glue tables can be managed as an [IAM resource](https://docs.aws.amazon.com/service-authorization/latest/reference/list_awsglue.html), whereas DynamoDB catalog tables can only be managed through [item-level permission](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/specifying-conditions.html) which is much more complicated.
+4. if you would like to query tables based on table property information without the need to scan the entire catalog, DynamoDB catalog allows you to build secondary indexes for any arbitrary property field and provide efficient query performance.
+5. if you would like to have the benefit of DynamoDB catalog while also connect to Glue, you can enable [DynamoDB stream with Lambda trigger](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.Lambda.Tutorial.html) to asynchronously update your Glue metastore with table information in the DynamoDB catalog. 
+6. if your organization already maintains an existing relational database in RDS or uses [serverless Aurora](https://aws.amazon.com/rds/aurora/serverless/) to manage tables, JDBC catalog provides the easiest integration.
 
 ## S3 FileIO
 
