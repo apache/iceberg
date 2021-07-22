@@ -193,7 +193,11 @@ public class ManifestReader<F extends ContentFile<F>>
 
     List<Types.NestedField> fields = Lists.newArrayList();
     fields.addAll(projection.asStruct().fields());
-    fields.add(MetadataColumns.ROW_POSITION);
+
+    if (fields.size() != 0) {
+      // Empty Projection, don't add metadata columns
+      fields.add(MetadataColumns.ROW_POSITION);
+    }
 
     switch (format) {
       case AVRO:
