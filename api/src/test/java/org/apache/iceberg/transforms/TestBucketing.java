@@ -216,6 +216,25 @@ public class TestBucketing {
   }
 
   @Test
+  public void testStringWithSurrogatePair() {
+    String string = "string with a surrogate pair: 💰";
+    Assert.assertNotEquals("string has no surrogate pairs", string.length(), string.codePoints().count());
+    byte[] asBytes = string.getBytes(StandardCharsets.UTF_8);
+
+    Bucket<CharSequence> bucketFunc = Bucket.get(Types.StringType.get(), 100);
+
+    Assert.assertEquals("String hash should match hash of UTF-8 bytes",
+        hashBytes(asBytes), bucketFunc.hash(string));
+
+    Assert.assertNotEquals(
+        "It looks like Guava has been updated and now contains a fix for " +
+            "https://github.com/google/guava/issues/5648. Please resolve the TODO in BucketString.hash " +
+            "and remove this assertion",
+        hashBytes(asBytes),
+        MURMUR3.hashString(string, StandardCharsets.UTF_8).asInt());
+  }
+
+  @Test
   public void testUtf8() {
     Utf8 utf8 = new Utf8("string to test murmur3 hash");
     byte[] asBytes = utf8.toString().getBytes(StandardCharsets.UTF_8);
