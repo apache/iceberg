@@ -648,18 +648,24 @@ if (jdkVersion == '8') {
 
       // We really only need Iceberg and Orc classes, but with relocated references for storage-api classes (see above)
       // Unfortunately the include list feature of this shader plugin doesn't work as expected
-      exclude 'com/**/*'
-      exclude 'edu/**/*'
-      exclude 'io/**'
-      exclude 'javax/**'
-      exclude 'org/apache/avro/**/*'
-      exclude 'org/apache/commons/**/*'
-      exclude 'org/checkerframework/**/*'
-      exclude 'org/codehaus/**/*'
-      exclude 'org/intellij/**/*'
-      exclude 'org/jetbrains/**/*'
-      exclude 'org/slf4j/**/*'
-      exclude 'org/threeten/**/*'
+      dependencies {
+        exclude 'com/**/*'
+        exclude 'edu/**/*'
+        exclude 'io/**'
+        exclude 'javax/**'
+        exclude 'org/apache/avro/**/*'
+        exclude 'org/apache/commons/**/*'
+        exclude 'org/checkerframework/**/*'
+        exclude 'org/codehaus/**/*'
+        exclude 'org/intellij/**/*'
+        exclude 'org/jetbrains/**/*'
+        exclude 'org/slf4j/**/*'
+        exclude 'org/threeten/**/*'
+        exclude 'org/xerial/**/*'
+        exclude 'org/apache/parquet/**/*'
+        exclude 'org/apache/yetus/**/*'
+        exclude 'shaded/parquet/**/*'
+      }
 
       classifier null
     }
