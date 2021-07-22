@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.generic.GenericData.Record;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -550,12 +551,12 @@ public abstract class TestReadProjection {
     );
 
     Record projected = writeAndRead("empty_proj", writeSchema, emptyStruct, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    AssertHelpers.assertEmptyAvroField(projected, "id");
     Record result = (Record) projected.get("location");
     Assert.assertEquals("location should be in the 0th position", result, projected.get(0));
     Assert.assertNotNull("Should contain an empty record", result);
-    Assert.assertNull("Should not project lat", result.get("lat"));
-    Assert.assertNull("Should not project long", result.get("long"));
+    AssertHelpers.assertEmptyAvroField(result, "lat");
+    AssertHelpers.assertEmptyAvroField(result, "long");
   }
 
   @Test
@@ -580,12 +581,12 @@ public abstract class TestReadProjection {
     );
 
     Record projected = writeAndRead("empty_req_proj", writeSchema, emptyStruct, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    AssertHelpers.assertEmptyAvroField(projected, "id");
     Record result = (Record) projected.get("location");
     Assert.assertEquals("location should be in the 0th position", result, projected.get(0));
     Assert.assertNotNull("Should contain an empty record", result);
-    Assert.assertNull("Should not project lat", result.get("lat"));
-    Assert.assertNull("Should not project long", result.get("long"));
+    AssertHelpers.assertEmptyAvroField(result, "lat");
+    AssertHelpers.assertEmptyAvroField(result, "long");
   }
 
   @Test
@@ -618,8 +619,8 @@ public abstract class TestReadProjection {
     Record result = (Record) projected.get("location");
     Assert.assertEquals("location should be in the 1st position", result, projected.get(1));
     Assert.assertNotNull("Should contain an empty record", result);
-    Assert.assertNull("Should not project lat", result.get("lat"));
-    Assert.assertNull("Should not project long", result.get("long"));
+    AssertHelpers.assertEmptyAvroField(result, "lat");
+    AssertHelpers.assertEmptyAvroField(result, "long");
     Assert.assertNotNull("Should project empty", result.getSchema().getField("empty"));
     Assert.assertNotNull("Empty should not be null", result.get("empty"));
     Assert.assertEquals("Empty should be empty", 0,
@@ -655,15 +656,15 @@ public abstract class TestReadProjection {
         )));
 
     Record projected = writeAndRead("nested_empty_proj", writeSchema, emptyStruct, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    AssertHelpers.assertEmptyAvroField(projected, "id");
     Record outerResult = (Record) projected.get("outer");
     Assert.assertEquals("Outer should be in the 0th position", outerResult, projected.get(0));
     Assert.assertNotNull("Should contain the outer record", outerResult);
-    Assert.assertNull("Should not contain lat", outerResult.get("lat"));
+    AssertHelpers.assertEmptyAvroField(outerResult, "lat");
     Record innerResult = (Record) outerResult.get("inner");
     Assert.assertEquals("Inner should be in the 0th position", innerResult, outerResult.get(0));
     Assert.assertNotNull("Should contain the inner record", innerResult);
-    Assert.assertNull("Should not contain lon", innerResult.get("lon"));
+    AssertHelpers.assertEmptyAvroField(innerResult, "lon");
   }
 
   @Test
@@ -694,15 +695,15 @@ public abstract class TestReadProjection {
         )));
 
     Record projected = writeAndRead("nested_empty_req_proj", writeSchema, emptyStruct, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    AssertHelpers.assertEmptyAvroField(projected, "id");
     Record outerResult = (Record) projected.get("outer");
     Assert.assertEquals("Outer should be in the 0th position", outerResult, projected.get(0));
     Assert.assertNotNull("Should contain the outer record", outerResult);
-    Assert.assertNull("Should not contain lat", outerResult.get("lat"));
+    AssertHelpers.assertEmptyAvroField(outerResult, "lat");
     Record innerResult = (Record) outerResult.get("inner");
     Assert.assertEquals("Inner should be in the 0th position", innerResult, outerResult.get(0));
     Assert.assertNotNull("Should contain the inner record", innerResult);
-    Assert.assertNull("Should not contain lon", innerResult.get("lon"));
+    AssertHelpers.assertEmptyAvroField(innerResult, "lon");
   }
 
   @Test
@@ -738,12 +739,12 @@ public abstract class TestReadProjection {
     );
 
     Record projected = writeAndRead("non_existant_proj", writeSchema, emptyStruct, record);
-    Assert.assertNull("Should not project id", projected.get("id"));
+    AssertHelpers.assertEmptyAvroField(projected, "id");
     Record result = (Record) projected.get("location");
     Assert.assertEquals("location should be in the 0th position", result, projected.get(0));
     Assert.assertNotNull("Should contain an fake optional record", result);
-    Assert.assertNull("Should not project lat", result.get("lat"));
-    Assert.assertNull("Should not project long", result.get("long"));
+    AssertHelpers.assertEmptyAvroField(result, "lat");
+    AssertHelpers.assertEmptyAvroField(result, "long");
     Assert.assertNotNull("Schema should contain foo", result.getSchema().getField("foo"));
     Assert.assertNull("foo should be null since it is not present in the data", result.get("foo"));
     Assert.assertNotNull("Schema should contain foo.bar",

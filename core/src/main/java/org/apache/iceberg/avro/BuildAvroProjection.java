@@ -268,8 +268,6 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
     }
   }
 
-  private static final Set<Integer> VIRTUAL_FIELDS = ImmutableSet.of(MetadataColumns.ROW_POSITION.fieldId());
-
   /**
    * Given a field, determine if it or any of it's sub-field will actually be read from the file.
    * This checks to see if there are any fields which are not Optional, Metadata, or Empty Structs.
@@ -281,7 +279,7 @@ class BuildAvroProjection extends AvroCustomOrderSchemaVisitor<Schema, Schema.Fi
       return field.isOptional() ||
           field.type().asStructType().fields().stream().allMatch(BuildAvroProjection::fieldWillBeEmpty);
     } else {
-      return field.isOptional() || VIRTUAL_FIELDS.contains(field.fieldId());
+      return field.isOptional() || MetadataColumns.metadataFieldIds().contains(field.fieldId());
     }
   }
 }
