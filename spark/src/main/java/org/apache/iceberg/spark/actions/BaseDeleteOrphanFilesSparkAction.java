@@ -19,8 +19,8 @@
 
 package org.apache.iceberg.spark.actions;
 
-import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -77,14 +77,13 @@ public class BaseDeleteOrphanFilesSparkAction
     extends BaseSparkAction<DeleteOrphanFiles, DeleteOrphanFiles.Result> implements DeleteOrphanFiles {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseDeleteOrphanFilesSparkAction.class);
-  private static final UserDefinedFunction filenameUDF = functions.udf((String path) -> {
-    int lastIndex = path.lastIndexOf(File.separator);
-    if (lastIndex == -1) {
-      return path;
-    } else {
-      return path.substring(lastIndex + 1);
-    }
-  }, DataTypes.StringType);
+
+  private static final UserDefinedFunction pathEqualUDF = functions.udf((String actualPath, String validPath) -> {
+    // get the pure path from the full path url
+    String pureActualPath = URI.create(actualPath).getPath();
+    String pureValidPath = URI.create(validPath).getPath();
+    return pureActualPath.equals(pureValidPath);
+  }, DataTypes.BooleanType);
 
   private final SerializableConfiguration hadoopConf;
   private final int partitionDiscoveryParallelism;
@@ -150,17 +149,24 @@ public class BaseDeleteOrphanFilesSparkAction
     return String.format("Removing orphan files (%s) from %s", Joiner.on(',').join(options), table.name());
   }
 
+  private void warnShotInterval() {
+    boolean isTesting = Boolean.parseBoolean(spark().conf().get("spark.testing", "false"));
+    long intervalMillis = System.currentTimeMillis() - this.olderThanTimestamp;
+    if (!isTesting && intervalMillis < TimeUnit.DAYS.toMillis(1)) {
+      LOG.warn("Remove orphan files with an interval less than 24 hours is dangerous. Executing this action " +
+          "with a short interval may corrupt the table if other operations are happening at the same time.");
+    }
+  }
+
   private DeleteOrphanFiles.Result doExecute() {
+    warnShotInterval();
+
     Dataset<Row> validDataFileDF = buildValidDataFileDF(table);
     Dataset<Row> validMetadataFileDF = buildValidMetadataFileDF(table);
     Dataset<Row> validFileDF = validDataFileDF.union(validMetadataFileDF);
     Dataset<Row> actualFileDF = buildActualFileDF();
 
-    Column actualFileName = filenameUDF.apply(actualFileDF.col("file_path"));
-    Column validFileName = filenameUDF.apply(validFileDF.col("file_path"));
-    Column nameEqual = actualFileName.equalTo(validFileName);
-    Column actualContains = actualFileDF.col("file_path").contains(validFileDF.col("file_path"));
-    Column joinCond = nameEqual.and(actualContains);
+    Column joinCond = pathEqualUDF.apply(actualFileDF.col("file_path"), validFileDF.col("file_path"));
     List<String> orphanFiles = actualFileDF.join(validFileDF, joinCond, "leftanti")
         .as(Encoders.STRING())
         .collectAsList();
