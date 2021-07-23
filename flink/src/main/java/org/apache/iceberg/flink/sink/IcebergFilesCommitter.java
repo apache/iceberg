@@ -22,9 +22,12 @@ package org.apache.iceberg.flink.sink;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Set;
 import java.util.SortedMap;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
@@ -39,13 +42,18 @@ import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.actions.BaseRewriteDataFilesAction;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.actions.SyncRewriteDataFilesAction;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -54,10 +62,18 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
+import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_AUTO_COMPACT_FILES;
+import static org.apache.iceberg.TableProperties.WRITE_AUTO_COMPACT_FILES_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
 class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     implements OneInputStreamOperator<WriteResult, Void>, BoundedOneInput {
@@ -170,6 +186,31 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     jobIdState.clear();
     jobIdState.add(flinkJobId);
+
+    if (getAutoCompactFiles(table.properties())) {
+      boolean hasNewData = false;
+      Map<String, Set<Object>> partitions = new HashMap<>();
+      for (WriteResult ckpt: writeResultsOfCurrentCkpt) {
+        if (ckpt.dataFiles().length > 0 || ckpt.deleteFiles().length > 0) hasNewData = true;
+        Arrays.stream(ckpt.dataFiles()).forEach(e -> setPartitionData(e, partitions));
+        Arrays.stream(ckpt.deleteFiles()).forEach(e -> setPartitionData(e, partitions));
+      }
+      if (hasNewData) {
+        SyncRewriteDataFilesAction action = new SyncRewriteDataFilesAction(table, getRuntimeContext().getIndexOfThisSubtask(), getRuntimeContext().getAttemptNumber());
+        BaseRewriteDataFilesAction<SyncRewriteDataFilesAction> rewriteDataFilesAction = action
+                .targetSizeInBytes(getTargetFileSizeBytes(table.properties()))
+                .splitOpenFileCost(getSplitOpenFileCost(table.properties()));
+
+        for (Map.Entry<String, Set<Object>> p : partitions.entrySet()) {
+          for (Object pValue:p.getValue()) {
+            rewriteDataFilesAction
+                    .filter(Expressions.equal(p.getKey(), pValue));
+          }
+        }
+        rewriteDataFilesAction.execute();
+        if (action.getException() != null) throw action.getException();
+      }
+    }
 
     // Clear the local buffer for current checkpoint.
     writeResultsOfCurrentCkpt.clear();
@@ -375,5 +416,33 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     }
 
     return lastCommittedCheckpointId;
+  }
+
+
+  private static void setPartitionData(ContentFile file, Map<String, Set<Object>> partitions) {
+    for (int i = 0; i < file.partition().size(); i++) {
+      String partitionName = ((PartitionData) file.partition()).getPartitionType().fields().get(i).name();
+      Object partitionValue = Conversions.fromPartitionString(((PartitionData) file.partition()).getType(i),((PartitionData) file.partition()).get(i).toString());
+      if (!partitions.containsKey(partitionName)) partitions.put(partitionName, new HashSet<>());
+      partitions.get(partitionName).add(partitionValue);
+    }
+  }
+
+  private static long getTargetFileSizeBytes(Map<String, String> properties) {
+    return PropertyUtil.propertyAsLong(properties,
+            WRITE_TARGET_FILE_SIZE_BYTES,
+            WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+  }
+
+  private static boolean getAutoCompactFiles(Map<String, String> properties) {
+    return PropertyUtil.propertyAsBoolean(properties,
+            WRITE_AUTO_COMPACT_FILES,
+            WRITE_AUTO_COMPACT_FILES_DEFAULT);
+  }
+
+  private static long getSplitOpenFileCost(Map<String, String> properties) {
+    return PropertyUtil.propertyAsLong(properties,
+            SPLIT_OPEN_FILE_COST,
+            SPLIT_OPEN_FILE_COST_DEFAULT);
   }
 }
