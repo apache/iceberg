@@ -81,6 +81,9 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 public class SparkCatalog extends BaseCatalog {
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
 
+  public static final String PURGE_DATA_AND_METADATA = "purge-data-and-metadata";
+  public static final boolean PURGE_DATA_AND_METADATA_DEFAULT = true;
+
   private String catalogName = null;
   private Catalog icebergCatalog = null;
   private boolean cacheEnabled = true;
@@ -88,6 +91,7 @@ public class SparkCatalog extends BaseCatalog {
   private String[] defaultNamespace = null;
   private HadoopTables tables;
   private boolean useTimestampsWithoutZone;
+  private Boolean purgeDataAndMetadata;
 
   /**
    * Build an Iceberg {@link Catalog} to be used by this Spark catalog adapter.
@@ -233,8 +237,8 @@ public class SparkCatalog extends BaseCatalog {
   public boolean dropTable(Identifier ident) {
     try {
       return isPathIdentifier(ident) ?
-          tables.dropTable(((PathIdentifier) ident).location()) :
-          icebergCatalog.dropTable(buildIdentifier(ident));
+          tables.dropTable(((PathIdentifier) ident).location(), purgeDataAndMetadata) :
+          icebergCatalog.dropTable(buildIdentifier(ident), purgeDataAndMetadata);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       return false;
     }
@@ -400,6 +404,7 @@ public class SparkCatalog extends BaseCatalog {
             .toArray(new String[0]);
       }
     }
+    this.purgeDataAndMetadata = options.getBoolean(PURGE_DATA_AND_METADATA, PURGE_DATA_AND_METADATA_DEFAULT);
   }
 
   @Override
