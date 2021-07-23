@@ -43,96 +43,96 @@ import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
 
 public class SyncRewriteDataFilesAction extends BaseRewriteDataFilesAction<SyncRewriteDataFilesAction> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(RowDataRewriter.class);
+  private static final Logger LOG = LoggerFactory.getLogger(SyncRewriteDataFilesAction.class);
 
-    private final Schema schema;
-    private final FileFormat format;
-    private final String nameMapping;
-    private final FileIO io;
-    private final boolean caseSensitive;
-    private final EncryptionManager encryptionManager;
-    private final TaskWriterFactory<RowData> taskWriterFactory;
-    private TaskWriter<RowData> writer;
-    private int subTaskId;
-    private int attemptId;
-    private Exception exception;
+  private final Schema schema;
+  private final FileFormat format;
+  private final String nameMapping;
+  private final FileIO io;
+  private final boolean caseSensitive;
+  private final EncryptionManager encryptionManager;
+  private final TaskWriterFactory<RowData> taskWriterFactory;
+  private TaskWriter<RowData> writer;
+  private int subTaskId;
+  private int attemptId;
+  private Exception exception;
 
-    public SyncRewriteDataFilesAction(Table table, int subTaskId, int attemptId) {
-        super(table);
-        this.schema = table.schema();
-        this.caseSensitive = caseSensitive();
-        this.io = fileIO();
-        this.encryptionManager = encryptionManager();
-        this.nameMapping = PropertyUtil.propertyAsString(table.properties(), DEFAULT_NAME_MAPPING, null);
+  public SyncRewriteDataFilesAction(Table table, int subTaskId, int attemptId) {
+    super(table);
+    this.schema = table.schema();
+    this.caseSensitive = caseSensitive();
+    this.io = fileIO();
+    this.encryptionManager = encryptionManager();
+    this.nameMapping = PropertyUtil.propertyAsString(table.properties(), DEFAULT_NAME_MAPPING, null);
 
-        String formatString = PropertyUtil.propertyAsString(table.properties(), TableProperties.DEFAULT_FILE_FORMAT,
-                TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
-        this.format = FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
-        RowType flinkSchema = FlinkSchemaUtil.convert(table.schema());
-        this.taskWriterFactory = new RowDataTaskWriterFactory(
-                table.schema(),
-                flinkSchema,
-                table.spec(),
-                table.locationProvider(),
-                io,
-                encryptionManager,
-                Long.MAX_VALUE,
-                format,
-                table.properties(),
-                null);
+    String formatString = PropertyUtil.propertyAsString(table.properties(), TableProperties.DEFAULT_FILE_FORMAT,
+        TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
+    this.format = FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
+    RowType flinkSchema = FlinkSchemaUtil.convert(table.schema());
+    this.taskWriterFactory = new RowDataTaskWriterFactory(
+        table.schema(),
+        flinkSchema,
+        table.spec(),
+        table.locationProvider(),
+        io,
+        encryptionManager,
+        Long.MAX_VALUE,
+        format,
+        table.properties(),
+        null);
 
-        // Initialize the task writer factory.
-        this.taskWriterFactory.initialize(subTaskId, attemptId);
-        this.subTaskId = subTaskId;
-        this.attemptId = attemptId;
-    }
+    // Initialize the task writer factory.
+    this.taskWriterFactory.initialize(subTaskId, attemptId);
+    this.subTaskId = subTaskId;
+    this.attemptId = attemptId;
+  }
 
-    @Override
-    protected FileIO fileIO() {
-        return table().io();
-    }
+  @Override
+  protected FileIO fileIO() {
+    return table().io();
+  }
 
-    @Override
-    protected List<DataFile> rewriteDataForTasks(List<CombinedScanTask> combinedScanTask) {
-        List<DataFile> dataFiles = new ArrayList<>();
-        // Initialize the task writer.
-        this.writer = taskWriterFactory.create();
-        for (CombinedScanTask task:combinedScanTask) {
-            try (RowDataIterator iterator =
-                         new RowDataIterator(task, io, encryptionManager, schema, schema, nameMapping, caseSensitive)) {
-                while (iterator.hasNext()) {
-                    RowData rowData = iterator.next();
-                    writer.write(rowData);
-                }
-                dataFiles.addAll(Lists.newArrayList(writer.dataFiles()));
-            } catch (Throwable originalThrowable) {
-                try {
-                    LOG.error("Aborting commit for  (subTaskId {}, attemptId {})", subTaskId, attemptId);
-                    writer.abort();
-                    LOG.error("Aborted commit for  (subTaskId {}, attemptId {})", subTaskId, attemptId);
-                } catch (Throwable inner) {
-                    if (originalThrowable != inner) {
-                        originalThrowable.addSuppressed(inner);
-                        LOG.warn("Suppressing exception in catch: {}", inner.getMessage(), inner);
-                    }
-                }
-
-                if (originalThrowable instanceof Exception) {
-                    this.exception = (Exception) originalThrowable;
-                } else {
-                    this.exception = new RuntimeException(originalThrowable);
-                }
-            }
+  @Override
+  protected List<DataFile> rewriteDataForTasks(List<CombinedScanTask> combinedScanTask) {
+    List<DataFile> dataFiles = new ArrayList<>();
+    // Initialize the task writer.
+    this.writer = taskWriterFactory.create();
+    for (CombinedScanTask task : combinedScanTask) {
+      try (RowDataIterator iterator =
+          new RowDataIterator(task, io, encryptionManager, schema, schema, nameMapping, caseSensitive)) {
+        while (iterator.hasNext()) {
+          RowData rowData = iterator.next();
+          writer.write(rowData);
         }
-        return dataFiles;
-    }
+        dataFiles.addAll(Lists.newArrayList(writer.dataFiles()));
+      } catch (Throwable originalThrowable) {
+        try {
+          LOG.error("Aborting commit for  (subTaskId {}, attemptId {})", subTaskId, attemptId);
+          writer.abort();
+          LOG.error("Aborted commit for  (subTaskId {}, attemptId {})", subTaskId, attemptId);
+        } catch (Throwable inner) {
+          if (originalThrowable != inner) {
+            originalThrowable.addSuppressed(inner);
+            LOG.warn("Suppressing exception in catch: {}", inner.getMessage(), inner);
+          }
+        }
 
-    @Override
-    protected SyncRewriteDataFilesAction self() {
-        return this;
+        if (originalThrowable instanceof Exception) {
+          this.exception = (Exception) originalThrowable;
+        } else {
+          this.exception = new RuntimeException(originalThrowable);
+        }
+      }
     }
+    return dataFiles;
+  }
 
-    public Exception getException() {
-        return this.exception;
-    }
+  @Override
+  protected SyncRewriteDataFilesAction self() {
+    return this;
+  }
+
+  public Exception getException() {
+    return this.exception;
+  }
 }

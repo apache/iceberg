@@ -190,25 +190,31 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     if (getAutoCompactFiles(table.properties())) {
       boolean hasNewData = false;
       Map<String, Set<Object>> partitions = new HashMap<>();
-      for (WriteResult ckpt: writeResultsOfCurrentCkpt) {
-        if (ckpt.dataFiles().length > 0 || ckpt.deleteFiles().length > 0) hasNewData = true;
+      for (WriteResult ckpt : writeResultsOfCurrentCkpt) {
+        if (ckpt.dataFiles().length > 0 || ckpt.deleteFiles().length > 0) {
+          hasNewData = true;
+        }
         Arrays.stream(ckpt.dataFiles()).forEach(e -> setPartitionData(e, partitions));
         Arrays.stream(ckpt.deleteFiles()).forEach(e -> setPartitionData(e, partitions));
       }
       if (hasNewData) {
-        SyncRewriteDataFilesAction action = new SyncRewriteDataFilesAction(table, getRuntimeContext().getIndexOfThisSubtask(), getRuntimeContext().getAttemptNumber());
+        SyncRewriteDataFilesAction action = new SyncRewriteDataFilesAction(table,
+            getRuntimeContext().getIndexOfThisSubtask(),
+            getRuntimeContext().getAttemptNumber());
         BaseRewriteDataFilesAction<SyncRewriteDataFilesAction> rewriteDataFilesAction = action
-                .targetSizeInBytes(getTargetFileSizeBytes(table.properties()))
-                .splitOpenFileCost(getSplitOpenFileCost(table.properties()));
+            .targetSizeInBytes(getTargetFileSizeBytes(table.properties()))
+            .splitOpenFileCost(getSplitOpenFileCost(table.properties()));
 
         for (Map.Entry<String, Set<Object>> p : partitions.entrySet()) {
-          for (Object pValue:p.getValue()) {
+          for (Object pValue : p.getValue()) {
             rewriteDataFilesAction
-                    .filter(Expressions.equal(p.getKey(), pValue));
+                .filter(Expressions.equal(p.getKey(), pValue));
           }
         }
         rewriteDataFilesAction.execute();
-        if (action.getException() != null) throw action.getException();
+        if (action.getException() != null) {
+          throw action.getException();
+        }
       }
     }
 
@@ -338,8 +344,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     }
   }
 
-  private void commitOperation(SnapshotUpdate<?> operation, int numDataFiles, int numDeleteFiles, String description,
-                               String newFlinkJobId, long checkpointId) {
+  private void commitOperation(
+      SnapshotUpdate<?> operation, int numDataFiles, int numDeleteFiles, String description,
+      String newFlinkJobId, long checkpointId) {
     LOG.info("Committing {} with {} data files and {} delete files to table {}", description, numDataFiles,
         numDeleteFiles, table);
     operation.set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
@@ -418,31 +425,36 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     return lastCommittedCheckpointId;
   }
 
-
   private static void setPartitionData(ContentFile file, Map<String, Set<Object>> partitions) {
     for (int i = 0; i < file.partition().size(); i++) {
       String partitionName = ((PartitionData) file.partition()).getPartitionType().fields().get(i).name();
-      Object partitionValue = Conversions.fromPartitionString(((PartitionData) file.partition()).getType(i),((PartitionData) file.partition()).get(i).toString());
-      if (!partitions.containsKey(partitionName)) partitions.put(partitionName, new HashSet<>());
+      Object partitionValue = Conversions.fromPartitionString(((PartitionData) file.partition()).getType(i),
+          ((PartitionData) file.partition()).get(i).toString());
+      if (!partitions.containsKey(partitionName)) {
+        partitions.put(partitionName, new HashSet<>());
+      }
       partitions.get(partitionName).add(partitionValue);
     }
   }
 
   private static long getTargetFileSizeBytes(Map<String, String> properties) {
-    return PropertyUtil.propertyAsLong(properties,
-            WRITE_TARGET_FILE_SIZE_BYTES,
-            WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+    return PropertyUtil.propertyAsLong(
+        properties,
+        WRITE_TARGET_FILE_SIZE_BYTES,
+        WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
   }
 
   private static boolean getAutoCompactFiles(Map<String, String> properties) {
-    return PropertyUtil.propertyAsBoolean(properties,
-            WRITE_AUTO_COMPACT_FILES,
-            WRITE_AUTO_COMPACT_FILES_DEFAULT);
+    return PropertyUtil.propertyAsBoolean(
+        properties,
+        WRITE_AUTO_COMPACT_FILES,
+        WRITE_AUTO_COMPACT_FILES_DEFAULT);
   }
 
   private static long getSplitOpenFileCost(Map<String, String> properties) {
-    return PropertyUtil.propertyAsLong(properties,
-            SPLIT_OPEN_FILE_COST,
-            SPLIT_OPEN_FILE_COST_DEFAULT);
+    return PropertyUtil.propertyAsLong(
+        properties,
+        SPLIT_OPEN_FILE_COST,
+        SPLIT_OPEN_FILE_COST_DEFAULT);
   }
 }
