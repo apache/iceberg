@@ -159,7 +159,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     // Return a supplier that mimics the current default warehouse location behavior
     // and preserves the current location for existing replace behavior
     return new TableLocationSupplier() {
-      String currentLocation;
+      private String currentLocation;
 
       @Override
       public TableLocationSupplier location(String currentLocation) {
