@@ -203,14 +203,14 @@ public class Avro {
         this.codec = codec;
       }
 
-      public static Context dataContext(Map<String, String> config) {
+      static Context dataContext(Map<String, String> config) {
         String codecAsString = config.getOrDefault(AVRO_COMPRESSION, AVRO_COMPRESSION_DEFAULT);
         CodecFactory codec = toCodec(codecAsString);
 
         return new Context(codec);
       }
 
-      public static Context deleteContext(Map<String, String> config) {
+      static Context deleteContext(Map<String, String> config) {
         // default delete config using data config
         Context dataContext = dataContext(config);
 
@@ -228,7 +228,7 @@ public class Avro {
         }
       }
 
-      public CodecFactory codec() {
+      CodecFactory codec() {
         return codec;
       }
     }

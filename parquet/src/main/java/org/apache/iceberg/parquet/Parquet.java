@@ -300,7 +300,7 @@ public class Parquet {
         this.compressionLevel = compressionLevel;
       }
 
-      public static Context dataContext(Map<String, String> config) {
+      static Context dataContext(Map<String, String> config) {
         int rowGroupSize = Integer.parseInt(config.getOrDefault(
             PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT));
 
@@ -318,7 +318,7 @@ public class Parquet {
         return new Context(rowGroupSize, pageSize, dictionaryPageSize, codec, compressionLevel);
       }
 
-      public static Context deleteContext(Map<String, String> config) {
+      static Context deleteContext(Map<String, String> config) {
         // default delete config using data config
         Context dataContext = dataContext(config);
 
@@ -347,23 +347,23 @@ public class Parquet {
         }
       }
 
-      public int rowGroupSize() {
+      int rowGroupSize() {
         return rowGroupSize;
       }
 
-      public int pageSize() {
+      int pageSize() {
         return pageSize;
       }
 
-      public int dictionaryPageSize() {
+      int dictionaryPageSize() {
         return dictionaryPageSize;
       }
 
-      public CompressionCodecName codec() {
+      CompressionCodecName codec() {
         return codec;
       }
 
-      public String compressionLevel() {
+      String compressionLevel() {
         return compressionLevel;
       }
     }
