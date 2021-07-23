@@ -83,7 +83,7 @@ public class TestOrcDataWriter {
         .overwrite()
         .withSpec(PartitionSpec.unpartitioned())
         .withSortOrder(sortOrder)
-        .buildDataWriter();
+        .build();
 
     try {
       for (Record record : records) {

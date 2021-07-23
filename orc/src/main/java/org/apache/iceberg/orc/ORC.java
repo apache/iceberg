@@ -213,7 +213,7 @@ public class ORC {
       return this;
     }
 
-    public <T> DataWriter<T> buildDataWriter() {
+    public <T> DataWriter<T> build() {
       Preconditions.checkArgument(spec != null, "Cannot create data writer without spec");
 
       FileAppender<T> fileAppender = appenderBuilder.build();

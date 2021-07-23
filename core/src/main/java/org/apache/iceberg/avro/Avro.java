@@ -319,7 +319,7 @@ public class Avro {
       return this;
     }
 
-    public <T> DataWriter<T> buildDataWriter() throws IOException {
+    public <T> DataWriter<T> build() throws IOException {
       Preconditions.checkArgument(spec != null, "Cannot create data writer without spec");
 
       FileAppender<T> fileAppender = appenderBuilder.build();
