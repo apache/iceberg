@@ -21,10 +21,18 @@ import pytest
 
 
 @pytest.mark.parametrize("expression,expected", [
+    (Expressions.starts_with("all_nulls", "a"), False),
+    (Expressions.starts_with("some_nulls", "a"), True),
+    (Expressions.starts_with("no_nulls", "a"), True)])
+def test_starts_with(inc_man_spec, inc_man_file, expression, expected):
+    assert InclusiveManifestEvaluator(inc_man_spec, expression).eval(inc_man_file) == expected
+
+
+@pytest.mark.parametrize("expression,expected", [
     (Expressions.not_null("all_nulls"), False),
     (Expressions.not_null("some_nulls"), True),
     (Expressions.not_null("no_nulls"), True)])
-def test_all_nulls(inc_man_spec, inc_man_file, expression, expected):
+def test_not_nulls(inc_man_spec, inc_man_file, expression, expected):
     assert InclusiveManifestEvaluator(inc_man_spec, expression).eval(inc_man_file) == expected
 
 
@@ -32,7 +40,7 @@ def test_all_nulls(inc_man_spec, inc_man_file, expression, expected):
     (Expressions.is_null("all_nulls"), True),
     (Expressions.is_null("some_nulls"), True),
     (Expressions.is_null("no_nulls"), False)])
-def test_no_nulls(inc_man_spec, inc_man_file, expression, expected):
+def test_is_nulls(inc_man_spec, inc_man_file, expression, expected):
     assert InclusiveManifestEvaluator(inc_man_spec, expression).eval(inc_man_file) == expected
 
 

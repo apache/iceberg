@@ -21,13 +21,19 @@ from iceberg.exceptions import ValidationException
 from pytest import raises
 
 
-def test_all_nulls(strict_schema, strict_file):
+def test_starts_with(strict_schema, strict_file):
+    assert not StrictMetricsEvaluator(strict_schema, Expressions.starts_with("all_nulls", "a")).eval(strict_file)
+    assert not StrictMetricsEvaluator(strict_schema, Expressions.starts_with("some_nulls", "a")).eval(strict_file)
+    assert not StrictMetricsEvaluator(strict_schema, Expressions.starts_with("no_nulls", "a")).eval(strict_file)
+
+
+def test_not_nulls(strict_schema, strict_file):
     assert not StrictMetricsEvaluator(strict_schema, Expressions.not_null("all_nulls")).eval(strict_file)
     assert not StrictMetricsEvaluator(strict_schema, Expressions.not_null("some_nulls")).eval(strict_file)
     assert StrictMetricsEvaluator(strict_schema, Expressions.not_null("no_nulls")).eval(strict_file)
 
 
-def test_no_nulls(strict_schema, strict_file):
+def test_is_nulls(strict_schema, strict_file):
     assert StrictMetricsEvaluator(strict_schema, Expressions.is_null("all_nulls")).eval(strict_file)
     assert not StrictMetricsEvaluator(strict_schema, Expressions.is_null("some_nulls")).eval(strict_file)
     assert not StrictMetricsEvaluator(strict_schema, Expressions.is_null("no_nulls")).eval(strict_file)

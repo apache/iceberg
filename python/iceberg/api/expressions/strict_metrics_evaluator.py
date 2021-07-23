@@ -219,3 +219,6 @@ class StrictMetricsEvaluator(object):
 
         def not_in(self, ref, lit):
             return StrictMetricsEvaluator.MetricsEvalVisitor.ROWS_MIGHT_NOT_MATCH
+
+        def starts_with(self, ref, lit):
+            return StrictMetricsEvaluator.MetricsEvalVisitor.ROWS_MIGHT_NOT_MATCH

@@ -159,3 +159,7 @@ class ManifestEvalVisitor(ExpressionVisitors.BoundExpressionVisitor):
 
     def not_in(self, ref, lit):
         return ROWS_MIGHT_MATCH
+
+    def starts_with(self, ref, lit):
+        # if it's all null then we can't match :)
+        return self.not_null(ref)

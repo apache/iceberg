@@ -186,3 +186,7 @@ class MetricsEvalVisitor(ExpressionVisitors.BoundExpressionVisitor):
 
     def not_in(self, ref, lit):
         return MetricsEvalVisitor.ROWS_MIGHT_MATCH
+
+    def starts_with(self, ref, lit):
+        # If it's all null we can't match :)
+        return self.not_null(ref)

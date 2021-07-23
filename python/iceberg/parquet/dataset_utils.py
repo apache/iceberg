@@ -104,6 +104,8 @@ def predicate(pred: Predicate, field_map: dict) -> ds.Expression:  # noqa: ignor
         return ds.field(col_name).isin(pred.lit.value)
     elif pred.op == Operation.NOT_IN:
         return ds.field(col_name).isin(pred.lit.value)
+    elif pred.op == Operation.STARTS_WITH:
+        return ds.field(col_name).startswith(pred.lit.value)
 
 
 def and_(left: ds.Expression, right: ds.Expression) -> ds.Expression:
