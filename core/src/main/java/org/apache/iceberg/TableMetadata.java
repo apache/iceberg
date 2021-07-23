@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.TableLocationSupplier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -66,7 +67,8 @@ public class TableMetadata implements Serializable {
                                                PartitionSpec spec,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+    return newTableMetadata(schema, spec, SortOrder.unsorted(), () -> location, properties,
+        DEFAULT_TABLE_FORMAT_VERSION);
   }
 
   public static TableMetadata newTableMetadata(Schema schema,
@@ -74,22 +76,33 @@ public class TableMetadata implements Serializable {
                                                SortOrder sortOrder,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, sortOrder, location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+    return newTableMetadata(schema, spec, sortOrder, () -> location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+  }
+
+  public static TableMetadata newTableMetadata(Schema schema,
+                                               PartitionSpec spec,
+                                               SortOrder sortOrder,
+                                               TableLocationSupplier tableLocationSupplier,
+                                               Map<String, String> properties) {
+    return newTableMetadata(schema, spec, sortOrder, tableLocationSupplier, properties, DEFAULT_TABLE_FORMAT_VERSION);
   }
 
   public static TableMetadata newTableMetadata(Schema schema,
                                                PartitionSpec spec,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+    return newTableMetadata(schema, spec, SortOrder.unsorted(), () -> location, properties,
+        DEFAULT_TABLE_FORMAT_VERSION);
   }
 
   static TableMetadata newTableMetadata(Schema schema,
                                         PartitionSpec spec,
                                         SortOrder sortOrder,
-                                        String location,
+                                        TableLocationSupplier tableLocationSupplier,
                                         Map<String, String> properties,
                                         int formatVersion) {
+    String uuid = UUID.randomUUID().toString();
+
     // reassign all column ids to ensure consistency
     AtomicInteger lastColumnId = new AtomicInteger(0);
     Schema freshSchema = TypeUtil.assignFreshIds(INITIAL_SCHEMA_ID, schema, lastColumnId::incrementAndGet);
@@ -116,7 +129,15 @@ public class TableMetadata implements Serializable {
     // break existing tables.
     MetricsConfig.fromProperties(properties).validateReferencedColumns(schema);
 
-    return new TableMetadata(null, formatVersion, UUID.randomUUID().toString(), location,
+    // Seed all relevant information to the table location supplier
+    tableLocationSupplier
+        .uuid(uuid)
+        .schema(schema)
+        .partitionSpec(spec)
+        .sortOrder(sortOrder)
+        .properties(properties);
+
+    return new TableMetadata(null, formatVersion, uuid, tableLocationSupplier.get(),
         INITIAL_SEQUENCE_NUMBER, System.currentTimeMillis(),
         lastColumnId.get(), freshSchema.schemaId(), ImmutableList.of(freshSchema),
         freshSpec.specId(), ImmutableList.of(freshSpec), freshSpec.lastAssignedFieldId(),

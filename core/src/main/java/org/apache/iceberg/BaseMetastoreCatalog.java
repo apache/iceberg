@@ -25,6 +25,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.io.TableLocationSupplier;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -154,6 +155,25 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
   protected abstract String defaultWarehouseLocation(TableIdentifier tableIdentifier);
 
+  protected TableLocationSupplier tableLocationSupplier(TableIdentifier tableIdentifier) {
+    // Return a supplier that mimics the current default warehouse location behavior
+    // and preserves the current location for existing replace behavior
+    return new TableLocationSupplier() {
+      String currentLocation;
+
+      @Override
+      public TableLocationSupplier location(String currentLocation) {
+        this.currentLocation = currentLocation;
+        return this;
+      }
+
+      @Override
+      public String get() {
+        return currentLocation != null ? currentLocation : defaultWarehouseLocation(tableIdentifier);
+      }
+    };
+  }
+
   protected class BaseMetastoreCatalogTableBuilder implements TableBuilder {
     private final TableIdentifier identifier;
     private final Schema schema;
@@ -208,7 +228,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         throw new AlreadyExistsException("Table already exists: %s", identifier);
       }
 
-      String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
+      TableLocationSupplier baseLocation = location != null ? () -> location : tableLocationSupplier(identifier);
       Map<String, String> properties = propertiesBuilder.build();
       TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, properties);
 
@@ -228,7 +248,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
         throw new AlreadyExistsException("Table already exists: %s", identifier);
       }
 
-      String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
+      TableLocationSupplier baseLocation = location != null ? () -> location : tableLocationSupplier(identifier);
       Map<String, String> properties = propertiesBuilder.build();
       TableMetadata metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, properties);
       return Transactions.createTableTransaction(identifier.toString(), ops, metadata);
@@ -252,10 +272,19 @@ public abstract class BaseMetastoreCatalog implements Catalog {
 
       TableMetadata metadata;
       if (ops.current() != null) {
-        String baseLocation = location != null ? location : ops.current().location();
-        metadata = ops.current().buildReplacement(schema, spec, sortOrder, baseLocation, propertiesBuilder.build());
+        TableLocationSupplier baseLocation = location != null ? () -> location :
+            tableLocationSupplier(identifier)
+              .schema(schema)
+              .partitionSpec(spec)
+              .uuid(ops.current().uuid())
+              .sortOrder(ops.current().sortOrder())
+              .properties(ops.current().properties())
+              .location(ops.current().location());
+
+        metadata = ops.current().buildReplacement(schema, spec, sortOrder, baseLocation.get(),
+            propertiesBuilder.build());
       } else {
-        String baseLocation = location != null ? location : defaultWarehouseLocation(identifier);
+        TableLocationSupplier baseLocation = location != null ? () -> location : tableLocationSupplier(identifier);
         metadata = TableMetadata.newTableMetadata(schema, spec, sortOrder, baseLocation, propertiesBuilder.build());
       }
 

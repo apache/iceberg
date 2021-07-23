@@ -58,7 +58,8 @@ public class TestTables {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
 
-    ops.commit(null, newTableMetadata(schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), formatVersion));
+    ops.commit(null, newTableMetadata(schema, spec, sortOrder, () -> temp.toString(), ImmutableMap.of(),
+        formatVersion));
 
     return new TestTable(ops, name);
   }
@@ -74,7 +75,7 @@ public class TestTables {
       throw new AlreadyExistsException("Table %s already exists at location: %s", name, temp);
     }
 
-    TableMetadata metadata = newTableMetadata(schema, spec, sortOrder, temp.toString(), ImmutableMap.of(), 1);
+    TableMetadata metadata = newTableMetadata(schema, spec, sortOrder, () -> temp.toString(), ImmutableMap.of(), 1);
 
     return Transactions.createTableTransaction(name, ops, metadata);
   }

@@ -621,7 +621,7 @@ public class TestTableMetadata {
     SortOrder order = SortOrder.builderFor(schema).asc("x").build();
 
     TableMetadata sortedByX = TableMetadata.newTableMetadata(
-        schema, PartitionSpec.unpartitioned(), order, null, ImmutableMap.of());
+        schema, PartitionSpec.unpartitioned(), order, () -> null, ImmutableMap.of());
     Assert.assertEquals("Should have 1 sort order", 1, sortedByX.sortOrders().size());
     Assert.assertEquals("Should use orderId 1", 1, sortedByX.sortOrder().orderId());
     Assert.assertEquals("Should be sorted by one field", 1, sortedByX.sortOrder().fields().size());
