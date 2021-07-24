@@ -205,6 +205,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
         case PARQUET:
           return Parquet.writeDeletes(file.encryptingOutputFile())
               .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(lazyEqDeleteSparkType(), msgType))
+              .setAll(properties)
               .overwrite()
               .rowSchema(eqDeleteRowSchema)
               .withSpec(spec)
@@ -216,6 +217,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
         case AVRO:
           return Avro.writeDeletes(file.encryptingOutputFile())
               .createWriterFunc(ignored -> new SparkAvroWriter(lazyEqDeleteSparkType()))
+              .setAll(properties)
               .overwrite()
               .rowSchema(eqDeleteRowSchema)
               .withSpec(spec)
@@ -243,6 +245,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
               SparkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(posDeleteRowSchema));
           return Parquet.writeDeletes(file.encryptingOutputFile())
               .createWriterFunc(msgType -> SparkParquetWriters.buildWriter(sparkPosDeleteSchema, msgType))
+              .setAll(properties)
               .overwrite()
               .rowSchema(posDeleteRowSchema)
               .withSpec(spec)
@@ -254,6 +257,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
         case AVRO:
           return Avro.writeDeletes(file.encryptingOutputFile())
               .createWriterFunc(ignored -> new SparkAvroWriter(lazyPosDeleteSparkType()))
+              .setAll(properties)
               .overwrite()
               .rowSchema(posDeleteRowSchema)
               .withSpec(spec)
