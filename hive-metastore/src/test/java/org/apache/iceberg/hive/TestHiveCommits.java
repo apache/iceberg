@@ -340,7 +340,8 @@ public class TestHiveCommits extends HiveTableBaseTest {
         .persistTable(any(), anyBoolean());
   }
 
-  private void failCommitAndThrowUnknownException(HiveTableOperations spyOperations) throws TException, InterruptedException {
+  private void failCommitAndThrowUnknownException(HiveTableOperations spyOperations) throws TException,
+      InterruptedException {
     doThrow(new TTransportException("java.net.SocketTimeoutException: Read timed out"))
         .when(spyOperations)
         .persistTable(any(), anyBoolean());
