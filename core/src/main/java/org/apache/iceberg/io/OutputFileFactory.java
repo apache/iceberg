@@ -32,7 +32,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
  * Factory responsible for generating unique but recognizable data file names.
  */
 public class OutputFileFactory {
-  private final PartitionSpec spec;
+  private final PartitionSpec defaultSpec;
   private final FileFormat format;
   private final LocationProvider locations;
   private final FileIO io;
@@ -45,12 +45,13 @@ public class OutputFileFactory {
   private final String operationId;
   private final AtomicInteger fileCount = new AtomicInteger(0);
 
-  // TODO: expose a builder like OutputFileFactory.forTable()
+  @Deprecated
   public OutputFileFactory(Table table, FileFormat format, int partitionId, long taskId) {
     this(table.spec(), format, table.locationProvider(), table.io(), table.encryption(),
         partitionId, taskId, UUID.randomUUID().toString());
   }
 
+  @Deprecated
   public OutputFileFactory(Table table, PartitionSpec spec, FileFormat format, int partitionId, long taskId) {
     this(spec, format, table.locationProvider(), table.io(), table.encryption(),
         partitionId, taskId, UUID.randomUUID().toString());
@@ -65,7 +66,9 @@ public class OutputFileFactory {
    * @param encryptionManager Encryption manager used for encrypting the files
    * @param partitionId First part of the file name
    * @param taskId Second part of the file name
+   * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link #builderFor(Table, FileFormat, int, long)} instead.
    */
+  @Deprecated
   public OutputFileFactory(PartitionSpec spec, FileFormat format, LocationProvider locations, FileIO io,
                            EncryptionManager encryptionManager, int partitionId, long taskId) {
     this(spec, format, locations, io, encryptionManager, partitionId, taskId, UUID.randomUUID().toString());
@@ -82,10 +85,12 @@ public class OutputFileFactory {
    * @param partitionId First part of the file name
    * @param taskId Second part of the file name
    * @param operationId Third part of the file name
+   * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link #builderFor(Table, FileFormat, int, long)} instead.
    */
+  @Deprecated
   public OutputFileFactory(PartitionSpec spec, FileFormat format, LocationProvider locations, FileIO io,
                            EncryptionManager encryptionManager, int partitionId, long taskId, String operationId) {
-    this.spec = spec;
+    this.defaultSpec = spec;
     this.format = format;
     this.locations = locations;
     this.io = io;
@@ -95,13 +100,17 @@ public class OutputFileFactory {
     this.operationId = operationId;
   }
 
+  public static Builder builderFor(Table table, FileFormat format, int partitionId, long taskId) {
+    return new Builder(table, format, partitionId, taskId);
+  }
+
   private String generateFilename() {
     return format.addExtension(
         String.format("%05d-%d-%s-%05d", partitionId, taskId, operationId, fileCount.incrementAndGet()));
   }
 
   /**
-   * Generates EncryptedOutputFile for UnpartitionedWriter.
+   * Generates an {@link EncryptedOutputFile} for unpartitioned writes.
    */
   public EncryptedOutputFile newOutputFile() {
     OutputFile file = io.newOutputFile(locations.newDataLocation(generateFilename()));
@@ -109,11 +118,53 @@ public class OutputFileFactory {
   }
 
   /**
-   * Generates EncryptedOutputFile for PartitionedWriter.
+   * Generates an {@link EncryptedOutputFile} for partitioned writes in the default spec.
    */
   public EncryptedOutputFile newOutputFile(StructLike partition) {
+    return newOutputFile(defaultSpec, partition);
+  }
+
+  /**
+   * Generates an {@link EncryptedOutputFile} for partitioned writes in a given spec.
+   */
+  public EncryptedOutputFile newOutputFile(PartitionSpec spec, StructLike partition) {
     String newDataLocation = locations.newDataLocation(spec, partition, generateFilename());
     OutputFile rawOutputFile = io.newOutputFile(newDataLocation);
     return encryptionManager.encrypt(rawOutputFile);
+  }
+
+  public static class Builder {
+    private final Table table;
+    private final FileFormat format;
+    private final int partitionId;
+    private final long taskId;
+    private PartitionSpec defaultSpec;
+    private String operationId;
+
+    private Builder(Table table, FileFormat format, int partitionId, long taskId) {
+      this.table = table;
+      this.format = format;
+      this.partitionId = partitionId;
+      this.taskId = taskId;
+      this.defaultSpec = table.spec();
+      this.operationId = UUID.randomUUID().toString();
+    }
+
+    public Builder defaultSpec(PartitionSpec newDefaultSpec) {
+      this.defaultSpec = newDefaultSpec;
+      return this;
+    }
+
+    public Builder operationId(String newOperationId) {
+      this.operationId = newOperationId;
+      return this;
+    }
+
+    public OutputFileFactory build() {
+      LocationProvider locations = table.locationProvider();
+      FileIO io = table.io();
+      EncryptionManager encryption = table.encryption();
+      return new OutputFileFactory(defaultSpec, format, locations, io, encryption, partitionId, taskId, operationId);
+    }
   }
 }

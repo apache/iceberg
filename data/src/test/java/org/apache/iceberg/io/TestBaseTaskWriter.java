@@ -75,8 +75,7 @@ public class TestBaseTaskWriter extends TableTestBase {
     this.metadataDir = new File(tableDir, "metadata");
 
     this.table = create(SCHEMA, PartitionSpec.unpartitioned());
-    this.fileFactory = new OutputFileFactory(table.spec(), format, table.locationProvider(), table.io(),
-        table.encryption(), 1, 1);
+    this.fileFactory = OutputFileFactory.builderFor(table, format, 1, 1).build();
 
     int firstFieldId = table.schema().findField("id").fieldId();
     int secondFieldId = table.schema().findField("data").fieldId();
