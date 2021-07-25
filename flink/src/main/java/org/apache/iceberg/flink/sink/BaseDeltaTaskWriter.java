@@ -72,10 +72,10 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
 
     switch (row.getRowKind()) {
       case INSERT:
-      case UPDATE_AFTER:
         if (upsert) {
           writer.delete(row);
         }
+      case UPDATE_AFTER:
         writer.write(row);
         break;
 
