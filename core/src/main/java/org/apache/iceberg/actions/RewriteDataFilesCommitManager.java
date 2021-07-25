@@ -28,6 +28,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -46,9 +47,16 @@ public class RewriteDataFilesCommitManager {
   private static final Logger LOG = LoggerFactory.getLogger(RewriteDataFilesCommitManager.class);
 
   private final Table table;
+  private final long startingSnapshotId;
 
+  // constructor used for testing
   public RewriteDataFilesCommitManager(Table table) {
+    this(table, table.currentSnapshot().snapshotId());
+  }
+
+  public RewriteDataFilesCommitManager(Table table, long startingSnapshotId) {
     this.table = table;
+    this.startingSnapshotId = startingSnapshotId;
   }
 
   /**
@@ -64,9 +72,10 @@ public class RewriteDataFilesCommitManager {
       addedDataFiles = Sets.union(addedDataFiles, group.addedFiles());
     }
 
-    table.newRewrite()
-        .rewriteFiles(rewrittenDataFiles, addedDataFiles)
-        .commit();
+    RewriteFiles rewrite = table.newRewrite()
+        .validateFromSnapshot(startingSnapshotId)
+        .rewriteFiles(rewrittenDataFiles, addedDataFiles);
+    rewrite.commit();
   }
 
   /**
