@@ -82,7 +82,8 @@ public class RowDataRewriter {
         Long.MAX_VALUE,
         format,
         table.properties(),
-        null);
+        null,
+        false);
   }
 
   public List<DataFile> rewriteDataForTasks(DataStream<CombinedScanTask> dataStream, int parallelism) throws Exception {

@@ -41,6 +41,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -124,6 +125,7 @@ public class FlinkSink {
     private boolean overwrite = false;
     private DistributionMode distributionMode = null;
     private Integer writeParallelism = null;
+    private boolean upsert = false;
     private List<String> equalityFieldColumns = null;
     private String uidPrefix = null;
 
@@ -197,6 +199,20 @@ public class FlinkSink {
     }
 
     /**
+     * All INSERT/UPDATE_AFTER events from input stream will be transformed to UPSERT events, which means it will
+     * DELETE the old records and then INSERT the new records. In partitioned table, the partition fields should be
+     * a subset of equality fields, otherwise the old row that located in partition-A could not be deleted by the
+     * new row that located in partition-B.
+     *
+     * @param enable indicate whether it should transform all INSERT/UPDATE_AFTER events to UPSERT.
+     * @return {@link Builder} to connect the iceberg table.
+     */
+    public Builder upsert(boolean enable) {
+      this.upsert = enable;
+      return this;
+    }
+
+    /**
      * Configuring the equality field columns for iceberg table that accept CDC or UPSERT events.
      *
      * @param columns defines the iceberg table's key.
@@ -263,8 +279,20 @@ public class FlinkSink {
       // Distribute the records from input data stream based on the write.distribution-mode.
       rowDataInput = distributeDataStream(rowDataInput, table.properties(), table.spec(), table.schema(), flinkRowType);
 
+      // Convert the INSERT stream to be an UPSERT stream if needed.
+      if (upsert) {
+        Preconditions.checkState(!equalityFieldIds.isEmpty(),
+                "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
+        if (!table.spec().isUnpartitioned()) {
+          for (PartitionField partitionField : table.spec().fields()) {
+            Preconditions.checkState(equalityFieldIds.contains(partitionField.sourceId()),
+                    "Partition field '%s' is not included in equality fields: '%s'", partitionField, equalityFieldColumns);
+          }
+        }
+      }
+
       // Chain the iceberg stream writer and committer operator.
-      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds);
+      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds, upsert);
       IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
 
       this.writeParallelism = writeParallelism == null ? rowDataInput.getParallelism() : writeParallelism;
@@ -351,14 +379,16 @@ public class FlinkSink {
 
   static IcebergStreamWriter<RowData> createStreamWriter(Table table,
                                                          RowType flinkRowType,
-                                                         List<Integer> equalityFieldIds) {
+                                                         List<Integer> equalityFieldIds,
+                                                         boolean upsert) {
+    Preconditions.checkArgument(table != null, "Iceberg table should't be null");
     Map<String, String> props = table.properties();
     long targetFileSize = getTargetFileSizeBytes(props);
     FileFormat fileFormat = getFileFormat(props);
 
     TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(), flinkRowType,
         table.spec(), table.locationProvider(), table.io(), table.encryption(), targetFileSize, fileFormat, props,
-        equalityFieldIds);
+        equalityFieldIds, upsert);
 
     return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
   }
