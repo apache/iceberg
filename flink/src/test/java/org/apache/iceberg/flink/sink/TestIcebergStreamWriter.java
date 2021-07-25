@@ -339,13 +339,8 @@ public class TestIcebergStreamWriter {
 
   private OneInputStreamOperatorTestHarness<RowData, WriteResult> createIcebergStreamWriter(
       Table icebergTable, TableSchema flinkSchema) throws Exception {
-<<<<<<< HEAD
     RowType flinkRowType = FlinkSink.toFlinkRowType(icebergTable.schema(), flinkSchema);
-    IcebergStreamWriter<RowData> streamWriter = FlinkSink.createStreamWriter(icebergTable, flinkRowType, null);
-=======
-    RowType rowType = (RowType) flinkSchema.toRowDataType().getLogicalType();
-    IcebergStreamWriter<RowData> streamWriter = FlinkSink.createStreamWriter(icebergTable, rowType, null, false);
->>>>>>> openinx/flink-upsert
+    IcebergStreamWriter<RowData> streamWriter = FlinkSink.createStreamWriter(icebergTable, flinkRowType, null, false);
     OneInputStreamOperatorTestHarness<RowData, WriteResult> harness = new OneInputStreamOperatorTestHarness<>(
         streamWriter, 1, 1, 0);
 
