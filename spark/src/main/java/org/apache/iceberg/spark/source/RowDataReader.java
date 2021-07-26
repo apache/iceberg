@@ -54,6 +54,7 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.AttributeReference;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
+import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import scala.collection.JavaConverters;
 
@@ -194,26 +195,69 @@ class RowDataReader extends BaseDataReader<InternalRow> {
   }
 
   private static UnsafeProjection projection(Schema finalSchema, Schema readSchema) {
-    StructType struct = SparkSchemaUtil.convert(readSchema);
+    StructType readStruct = SparkSchemaUtil.convert(readSchema);
 
-    List<AttributeReference> refs = JavaConverters.seqAsJavaListConverter(struct.toAttributes()).asJava();
-    List<Attribute> attrs = Lists.newArrayListWithExpectedSize(struct.fields().length);
+    List<AttributeReference> readReferences = JavaConverters.seqAsJavaListConverter(readStruct.toAttributes()).asJava();
+    List<Attribute> attrs = Lists.newArrayListWithExpectedSize(readStruct.fields().length);
     List<org.apache.spark.sql.catalyst.expressions.Expression> exprs =
-        Lists.newArrayListWithExpectedSize(struct.fields().length);
+        Lists.newArrayListWithExpectedSize(readStruct.fields().length);
 
-    for (AttributeReference ref : refs) {
+    for (AttributeReference ref : readReferences) {
       attrs.add(ref.toAttribute());
     }
 
     for (Types.NestedField field : finalSchema.columns()) {
-      int indexInReadSchema = struct.fieldIndex(field.name());
-      exprs.add(refs.get(indexInReadSchema));
+      int indexInReadSchema = readStruct.fieldIndex(field.name());
+      if (field.type().isStructType()) {
+        StructField nestedType = readStruct.fields()[indexInReadSchema];
+        AttributeReference ref = readReferences.get(indexInReadSchema);
+        exprs.add(ref.copy(
+            ref.name(),
+            projectInner(field.type().asStructType(), nestedType),
+            ref.nullable(),
+            ref.metadata(),
+            ref.exprId(),
+            ref.qualifier()));
+      } else {
+        exprs.add(readReferences.get(indexInReadSchema));
+      }
     }
 
     return UnsafeProjection.create(
         JavaConverters.asScalaBufferConverter(exprs).asScala().toSeq(),
         JavaConverters.asScalaBufferConverter(attrs).asScala().toSeq());
   }
+
+  private static StructType projectInner(Types.StructType structField, StructField nestedStructField) {
+    Preconditions.checkState(nestedStructField.dataType() instanceof StructType);
+    StructType nestedType = (StructType) nestedStructField.dataType();
+    List<AttributeReference> readReferences = JavaConverters.seqAsJavaListConverter(nestedType.toAttributes()).asJava();
+    List<Attribute> attrs = Lists.newArrayListWithExpectedSize(nestedType.fields().length);
+    List<StructField> fields = Lists.newArrayListWithExpectedSize(nestedType.fields().length);
+
+    for (AttributeReference ref : readReferences) {
+      attrs.add(ref.toAttribute());
+    }
+
+    for (Types.NestedField field : structField.fields()) {
+      int indexInReadSchema = nestedType.fieldIndex(field.name());
+      if (field.type().isStructType()) {
+        StructField innerInner = nestedType.fields()[indexInReadSchema];
+        fields.add(
+            new StructField(
+                innerInner.name(),
+                projectInner(field.type().asStructType(), innerInner),
+                innerInner.nullable(),
+                innerInner.metadata())
+        );
+      } else {
+        fields.add(nestedType.fields()[indexInReadSchema]);
+      }
+    }
+
+    return new StructType(fields.stream().toArray(StructField[]::new));
+  }
+
 
   protected class SparkDeleteFilter extends DeleteFilter<InternalRow> {
     private final InternalRowWrapper asStructLike;
