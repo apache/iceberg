@@ -284,7 +284,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   /**
-   * Validates that no new delete files have been added to the table since a starting snapshot.
+   * Validates that no new delete files that must be applied to the given data files have been added to the table since
+   * a starting snapshot.
    *
    * @param base table metadata to validate
    * @param startingSnapshotId id of the snapshot current at the start of the operation

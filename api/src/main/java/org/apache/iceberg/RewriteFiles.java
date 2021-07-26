@@ -66,8 +66,8 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
   /**
    * Set the snapshot ID used in any reads for this operation.
    * <p>
-   * Validations will check changes after this snapshot ID. If the from snapshot is not set, all ancestor snapshots
-   * through the table's initial snapshot are validated.
+   * Validations will check changes after this snapshot ID. If this is not called, all ancestor snapshots through the
+   * table's initial snapshot are validated.
    *
    * @param snapshotId a snapshot ID
    * @return this for method chaining
