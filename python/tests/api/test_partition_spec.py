@@ -30,9 +30,9 @@ from iceberg.api.types import (BinaryType,
 from tests.api.test_helpers import TestHelpers
 
 
-class TestConversions(unittest.TestCase):
+class TestPartitionSpec(unittest.TestCase):
 
-    def test_transforms(self):
+    def test_partition_spec(self):
         schema = Schema(NestedField.required(1, "i", IntegerType.get()),
                         NestedField.required(2, "l", LongType.get()),
                         NestedField.required(3, "d", DateType.get()),
