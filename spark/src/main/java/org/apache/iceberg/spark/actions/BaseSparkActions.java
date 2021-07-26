@@ -24,6 +24,7 @@ import org.apache.iceberg.actions.ActionsProvider;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
 import org.apache.iceberg.actions.DeleteReachableFiles;
 import org.apache.iceberg.actions.ExpireSnapshots;
+import org.apache.iceberg.actions.RewriteDeletes;
 import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.spark.sql.SparkSession;
 
@@ -57,5 +58,10 @@ abstract class BaseSparkActions implements ActionsProvider {
   @Override
   public DeleteReachableFiles deleteReachableFiles(String metadataLocation) {
     return new BaseDeleteReachableFilesSparkAction(spark, metadataLocation);
+  }
+
+  @Override
+  public RewriteDeletes rewriteDeletes(Table table) {
+    return new BaseRewriteDeletesSparkAction(spark, table);
   }
 }

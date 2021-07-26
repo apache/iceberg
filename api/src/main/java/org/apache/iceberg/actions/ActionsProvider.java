@@ -74,4 +74,11 @@ public interface ActionsProvider {
   default DeleteReachableFiles deleteReachableFiles(String metadataLocation) {
     throw new UnsupportedOperationException(this.getClass().getName() + " does not implement deleteReachableFiles");
   }
+
+  /**
+   * Instantiates an action to rewrite deletes.
+   */
+  default RewriteDeletes rewriteDeletes(Table table) {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement rewriteDeletes");
+  }
 }
