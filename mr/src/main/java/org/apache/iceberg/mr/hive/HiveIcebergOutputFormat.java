@@ -79,7 +79,8 @@ public class HiveIcebergOutputFormat<T> implements OutputFormat<NullWritable, Co
     int partitionId = taskAttemptID.getTaskID().getId();
     int taskId = taskAttemptID.getId();
     String operationId = jc.get(HiveConf.ConfVars.HIVEQUERYID.varname) + "-" + taskAttemptID.getJobID();
-    OutputFileFactory outputFileFactory = OutputFileFactory.builderFor(table, fileFormat, partitionId, taskId)
+    OutputFileFactory outputFileFactory = OutputFileFactory.builderFor(table, partitionId, taskId)
+        .format(fileFormat)
         .operationId(operationId)
         .build();
     String tableName = jc.get(Catalogs.NAME);

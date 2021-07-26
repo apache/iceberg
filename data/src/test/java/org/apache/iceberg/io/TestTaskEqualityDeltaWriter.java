@@ -88,7 +88,7 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     this.metadataDir = new File(tableDir, "metadata");
 
     this.table = create(SCHEMA, PartitionSpec.unpartitioned());
-    this.fileFactory = OutputFileFactory.builderFor(table, format, 1, 1).build();
+    this.fileFactory = OutputFileFactory.builderFor(table, 1, 1).format(format).build();
 
     this.idFieldId = table.schema().findField("id").fieldId();
     this.dataFieldId = table.schema().findField("data").fieldId();

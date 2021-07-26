@@ -273,7 +273,8 @@ public class TestHiveIcebergOutputCommitter {
       int partitionId = taskId.getTaskID().getId();
       String operationId = QUERY_ID + "-" + JOB_ID;
       FileFormat fileFormat = FileFormat.PARQUET;
-      OutputFileFactory outputFileFactory = OutputFileFactory.builderFor(table, fileFormat, partitionId, attemptNum)
+      OutputFileFactory outputFileFactory = OutputFileFactory.builderFor(table, partitionId, attemptNum)
+          .format(fileFormat)
           .operationId(operationId)
           .build();
       HiveIcebergRecordWriter testWriter = new HiveIcebergRecordWriter(schema, spec, fileFormat,
