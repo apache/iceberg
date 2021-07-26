@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from collections import deque
 import math
 from typing import List
 
@@ -24,6 +25,7 @@ from .types import (ListType,
                     MapType,
                     NestedField,
                     StructType)
+from ...exceptions import ValidationException
 
 MAX_PRECISION = list()
 REQUIRED_LENGTH = [-1 for item in range(40)]
@@ -117,15 +119,17 @@ def visit(arg, visitor): # noqa: ignore=C901
             results = list()
             for field in struct.fields:
                 visitor.field_ids.append(field.field_id)
-                visitor.field_names.append(field.name)
+                visitor.field_names.appendleft(field.name)
                 result = None
                 try:
                     result = visit(field.type, visitor)
+                except ValidationException as ve:
+                    raise ve
                 except RuntimeError:
                     pass
                 finally:
                     visitor.field_ids.pop()
-                    visitor.field_names.pop()
+                    visitor.field_names.popleft()
                 results.append(visitor.field(field, result))
             return visitor.struct(struct, results)
         elif type_var.type_id == TypeID.LIST:
@@ -174,7 +178,7 @@ def visit_custom_order(arg, visitor):
 class SchemaVisitor(object):
 
     def __init__(self):
-        self.field_names = list()
+        self.field_names = deque()
         self.field_ids = list()
 
     def schema(self, schema, struct_result):
@@ -352,8 +356,12 @@ class IndexByName(SchemaVisitor):
 
     def add_field(self, name, field_id):
         full_name = name
-        if not self.field_names and len(self.field_names) > 0:
+        if self.field_names is not None and len(self.field_names) > 0:
             full_name = IndexByName.DOT.join([IndexByName.DOT.join(reversed(self.field_names)), name])
+
+        existing_field_id = self.name_to_id.get(full_name)
+        ValidationException.check(existing_field_id is None, "Invalid schema: multiple fields for name %s: %s and %s",
+                                  (full_name, existing_field_id, field_id))
 
         self.name_to_id[full_name] = field_id
 

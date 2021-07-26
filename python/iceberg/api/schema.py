@@ -49,6 +49,8 @@ class Schema(object):
         self._lowercase_name_to_id = None
         self._id_to_name = None
 
+        self.lazy_id_to_name()
+
     def as_struct(self):
         return self.struct
 
@@ -79,6 +81,15 @@ class Schema(object):
             self._lowercase_name_to_id = {k.lower(): v for k, v in self._name_to_id.items()}
 
         return self._lowercase_name_to_id
+
+    def lazy_id_to_name(self):
+        from .types import index_by_name
+        if self._id_to_name is None:
+            self._name_to_id = index_by_name(self.struct)
+            self._id_to_name = {v: k for k, v in self._name_to_id.items()}
+            self._lowercase_name_to_id = {k.lower(): v for k, v in self._name_to_id.items()}
+
+        return self._id_to_name
 
     def columns(self):
         return self.struct.fields
