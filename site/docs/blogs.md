@@ -19,6 +19,11 @@
 
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
+### [Apache Iceberg: An Architectural Look Under the Covers](https://www.dremio.com/apache-iceberg-an-architectural-look-under-the-covers/)
+**Date**: July 6th, 2021, **Company**: Dremio
+
+**Author**: [Jason Hughes](https://www.linkedin.com/in/jasonhhughes/)
+
 ### [Migrating to Apache Iceberg at Adobe Experience Platform](https://medium.com/adobetech/migrating-to-apache-iceberg-at-adobe-experience-platform-40fa80f8b8de)
 **Date**: Jun 17th, 2021, **Company**: Adobe
 
