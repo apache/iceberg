@@ -144,6 +144,30 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   }
 
   @Test
+  public void testEntriesTableDataFilePrune() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_test");
+    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
+
+    List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "1"));
+
+    Dataset<Row> inputDf = spark.createDataFrame(records, SimpleRecord.class);
+    inputDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+
+    List<Row> actual = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "entries"))
+        .select("data_file.file_path")
+        .collectAsList();
+
+    Assert.assertEquals("Should have a single entry", 1,  actual.size());
+    Assert.assertEquals("Should only have file_path", 0, actual.get(0).fieldIndex("file_path"));
+  }
+
   public void testAllEntriesTable() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());

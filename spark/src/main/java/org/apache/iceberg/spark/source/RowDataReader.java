@@ -209,11 +209,11 @@ class RowDataReader extends BaseDataReader<InternalRow> {
     for (Types.NestedField field : finalSchema.columns()) {
       int indexInReadSchema = readStruct.fieldIndex(field.name());
       if (field.type().isStructType()) {
-        StructField nestedType = readStruct.fields()[indexInReadSchema];
+        // We may need to prune this attribute to only refer to our expected schema
         AttributeReference ref = readReferences.get(indexInReadSchema);
         exprs.add(ref.copy(
             ref.name(),
-            projectInner(field.type().asStructType(), nestedType),
+            SparkSchemaUtil.convert(field.type().asStructType()),
             ref.nullable(),
             ref.metadata(),
             ref.exprId(),
@@ -227,37 +227,6 @@ class RowDataReader extends BaseDataReader<InternalRow> {
         JavaConverters.asScalaBufferConverter(exprs).asScala().toSeq(),
         JavaConverters.asScalaBufferConverter(attrs).asScala().toSeq());
   }
-
-  private static StructType projectInner(Types.StructType structField, StructField nestedStructField) {
-    Preconditions.checkState(nestedStructField.dataType() instanceof StructType);
-    StructType nestedType = (StructType) nestedStructField.dataType();
-    List<AttributeReference> readReferences = JavaConverters.seqAsJavaListConverter(nestedType.toAttributes()).asJava();
-    List<Attribute> attrs = Lists.newArrayListWithExpectedSize(nestedType.fields().length);
-    List<StructField> fields = Lists.newArrayListWithExpectedSize(nestedType.fields().length);
-
-    for (AttributeReference ref : readReferences) {
-      attrs.add(ref.toAttribute());
-    }
-
-    for (Types.NestedField field : structField.fields()) {
-      int indexInReadSchema = nestedType.fieldIndex(field.name());
-      if (field.type().isStructType()) {
-        StructField innerInner = nestedType.fields()[indexInReadSchema];
-        fields.add(
-            new StructField(
-                innerInner.name(),
-                projectInner(field.type().asStructType(), innerInner),
-                innerInner.nullable(),
-                innerInner.metadata())
-        );
-      } else {
-        fields.add(nestedType.fields()[indexInReadSchema]);
-      }
-    }
-
-    return new StructType(fields.stream().toArray(StructField[]::new));
-  }
-
 
   protected class SparkDeleteFilter extends DeleteFilter<InternalRow> {
     private final InternalRowWrapper asStructLike;
