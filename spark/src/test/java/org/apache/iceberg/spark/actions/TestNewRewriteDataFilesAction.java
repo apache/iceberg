@@ -395,7 +395,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
 
     doReturn(util)
         .when(spyRewrite)
-        .commitManager();
+        .commitManager(table.currentSnapshot().snapshotId());
 
     AssertHelpers.assertThrows("Should fail entire rewrite if commit fails", RuntimeException.class,
         () -> spyRewrite.execute());
@@ -548,7 +548,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
 
     doReturn(util)
         .when(spyRewrite)
-        .commitManager();
+        .commitManager(table.currentSnapshot().snapshotId());
 
     RewriteDataFiles.Result result = spyRewrite.execute();
 
@@ -608,7 +608,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
 
     doReturn(util)
         .when(spyAction)
-        .commitManager();
+        .commitManager(table.currentSnapshot().snapshotId());
 
     AssertHelpers.assertThrows("Should propagate CommitStateUnknown Exception",
         CommitStateUnknownException.class, () -> spyAction.execute());

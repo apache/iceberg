@@ -41,6 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,6 +63,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       ImmutableSet.of(DataOperations.OVERWRITE, DataOperations.REPLACE, DataOperations.DELETE);
   private static final Set<String> VALIDATE_DATA_FILES_EXIST_SKIP_DELETE_OPERATIONS =
       ImmutableSet.of(DataOperations.OVERWRITE, DataOperations.REPLACE);
+  // delete files can be added in "overwrite" or "delete" operations
+  private static final Set<String> VALIDATE_REPLACED_DATA_FILES_OPERATIONS =
+      ImmutableSet.of(DataOperations.OVERWRITE, DataOperations.DELETE);
 
   private final String tableName;
   private final TableOperations ops;
@@ -253,28 +257,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       return;
     }
 
-    List<ManifestFile> manifests = Lists.newArrayList();
-    Set<Long> newSnapshots = Sets.newHashSet();
-
-    Long currentSnapshotId = base.currentSnapshot().snapshotId();
-    while (currentSnapshotId != null && !currentSnapshotId.equals(startingSnapshotId)) {
-      Snapshot currentSnapshot = ops.current().snapshot(currentSnapshotId);
-
-      ValidationException.check(currentSnapshot != null,
-          "Cannot determine history between starting snapshot %s and current %s",
-          startingSnapshotId, currentSnapshotId);
-
-      if (VALIDATE_ADDED_FILES_OPERATIONS.contains(currentSnapshot.operation())) {
-        newSnapshots.add(currentSnapshotId);
-        for (ManifestFile manifest : currentSnapshot.dataManifests()) {
-          if (manifest.snapshotId() == (long) currentSnapshotId) {
-            manifests.add(manifest);
-          }
-        }
-      }
-
-      currentSnapshotId = currentSnapshot.parentId();
-    }
+    Pair<List<ManifestFile>, Set<Long>> history =
+        validationHistory(base, startingSnapshotId, VALIDATE_ADDED_FILES_OPERATIONS, ManifestContent.DATA);
+    List<ManifestFile> manifests = history.first();
+    Set<Long> newSnapshots = history.second();
 
     ManifestGroup conflictGroup = new ManifestGroup(ops.io(), manifests, ImmutableList.of())
         .caseSensitive(caseSensitive)
@@ -297,6 +283,39 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
   }
 
+  /**
+   * Validates that no new delete files that must be applied to the given data files have been added to the table since
+   * a starting snapshot.
+   *
+   * @param base table metadata to validate
+   * @param startingSnapshotId id of the snapshot current at the start of the operation
+   * @param dataFiles data files to validate have no new row deletes
+   */
+  protected void validateNoNewDeletesForDataFiles(TableMetadata base, Long startingSnapshotId,
+                                                  Iterable<DataFile> dataFiles) {
+    // if there is no current table state, no files have been added
+    if (base.currentSnapshot() == null) {
+      return;
+    }
+
+    Pair<List<ManifestFile>, Set<Long>> history =
+        validationHistory(base, startingSnapshotId, VALIDATE_REPLACED_DATA_FILES_OPERATIONS, ManifestContent.DELETES);
+    List<ManifestFile> deleteManifests = history.first();
+
+    long startingSequenceNumber = startingSnapshotId == null ? 0 : base.snapshot(startingSnapshotId).sequenceNumber();
+    DeleteFileIndex deletes = DeleteFileIndex.builderFor(ops.io(), deleteManifests)
+        .afterSequenceNumber(startingSequenceNumber)
+        .specsById(ops.current().specsById())
+        .build();
+
+    for (DataFile dataFile : dataFiles) {
+      // if any delete is found that applies to files written in or before the starting snapshot, fail
+      if (deletes.forDataFile(startingSequenceNumber, dataFile).length > 0) {
+        throw new ValidationException("Cannot commit, found new delete for replaced data file: %s", dataFile);
+      }
+    }
+  }
+
   @SuppressWarnings("CollectionUndefinedEquality")
   protected void validateDataFilesExist(TableMetadata base, Long startingSnapshotId,
                                         CharSequenceSet requiredDataFiles, boolean skipDeletes) {
@@ -309,28 +328,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         VALIDATE_DATA_FILES_EXIST_SKIP_DELETE_OPERATIONS :
         VALIDATE_DATA_FILES_EXIST_OPERATIONS;
 
-    List<ManifestFile> manifests = Lists.newArrayList();
-    Set<Long> newSnapshots = Sets.newHashSet();
-
-    Long currentSnapshotId = base.currentSnapshot().snapshotId();
-    while (currentSnapshotId != null && !currentSnapshotId.equals(startingSnapshotId)) {
-      Snapshot currentSnapshot = ops.current().snapshot(currentSnapshotId);
-
-      ValidationException.check(currentSnapshot != null,
-          "Cannot determine history between starting snapshot %s and current %s",
-          startingSnapshotId, currentSnapshotId);
-
-      if (matchingOperations.contains(currentSnapshot.operation())) {
-        newSnapshots.add(currentSnapshotId);
-        for (ManifestFile manifest : currentSnapshot.dataManifests()) {
-          if (manifest.snapshotId() == (long) currentSnapshotId) {
-            manifests.add(manifest);
-          }
-        }
-      }
-
-      currentSnapshotId = currentSnapshot.parentId();
-    }
+    Pair<List<ManifestFile>, Set<Long>> history =
+        validationHistory(base, startingSnapshotId, matchingOperations, ManifestContent.DATA);
+    List<ManifestFile> manifests = history.first();
+    Set<Long> newSnapshots = history.second();
 
     ManifestGroup matchingDeletesGroup = new ManifestGroup(ops.io(), manifests, ImmutableList.of())
         .filterManifestEntries(entry -> entry.status() != ManifestEntry.Status.ADDED &&
@@ -347,6 +348,43 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to validate required files exist", e);
     }
+  }
+
+  private Pair<List<ManifestFile>, Set<Long>> validationHistory(TableMetadata base, Long startingSnapshotId,
+                                                                Set<String> matchingOperations,
+                                                                ManifestContent content) {
+    List<ManifestFile> manifests = Lists.newArrayList();
+    Set<Long> newSnapshots = Sets.newHashSet();
+
+    Long currentSnapshotId = base.currentSnapshot().snapshotId();
+    while (currentSnapshotId != null && !currentSnapshotId.equals(startingSnapshotId)) {
+      Snapshot currentSnapshot = ops.current().snapshot(currentSnapshotId);
+
+      ValidationException.check(currentSnapshot != null,
+          "Cannot determine history between starting snapshot %s and current %s",
+          startingSnapshotId, currentSnapshotId);
+
+      if (matchingOperations.contains(currentSnapshot.operation())) {
+        newSnapshots.add(currentSnapshotId);
+        if (content == ManifestContent.DATA) {
+          for (ManifestFile manifest : currentSnapshot.dataManifests()) {
+            if (manifest.snapshotId() == (long) currentSnapshotId) {
+              manifests.add(manifest);
+            }
+          }
+        } else {
+          for (ManifestFile manifest : currentSnapshot.deleteManifests()) {
+            if (manifest.snapshotId() == (long) currentSnapshotId) {
+              manifests.add(manifest);
+            }
+          }
+        }
+      }
+
+      currentSnapshotId = currentSnapshot.parentId();
+    }
+
+    return Pair.of(manifests, newSnapshots);
   }
 
   @Override
