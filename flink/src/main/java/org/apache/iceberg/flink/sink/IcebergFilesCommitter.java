@@ -125,6 +125,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // All pending checkpoints states for this function.
   private static final ListStateDescriptor<SortedMap<Long, byte[]>> STATE_DESCRIPTOR = buildStateDescriptor();
   private transient ListState<SortedMap<Long, byte[]>> checkpointsState;
+  private transient SyncRewriteDataFilesAction action;
+  private transient BaseRewriteDataFilesAction<SyncRewriteDataFilesAction> rewriteDataFilesAction;
 
   IcebergFilesCommitter(TableLoader tableLoader, boolean replacePartitions) {
     this.tableLoader = tableLoader;
@@ -198,10 +200,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         Arrays.stream(ckpt.deleteFiles()).forEach(e -> setPartitionData(e, partitions));
       }
       if (hasNewData) {
-        SyncRewriteDataFilesAction action = new SyncRewriteDataFilesAction(table,
+        action = new SyncRewriteDataFilesAction(table,
             getRuntimeContext().getIndexOfThisSubtask(),
             getRuntimeContext().getAttemptNumber());
-        BaseRewriteDataFilesAction<SyncRewriteDataFilesAction> rewriteDataFilesAction = action
+        rewriteDataFilesAction = action
             .targetSizeInBytes(getTargetFileSizeBytes(table.properties()))
             .splitOpenFileCost(getSplitOpenFileCost(table.properties()));
 
@@ -210,10 +212,6 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
             rewriteDataFilesAction
                 .filter(Expressions.equal(p.getKey(), pValue));
           }
-        }
-        rewriteDataFilesAction.execute();
-        if (action.getException() != null) {
-          throw action.getException();
         }
       }
     }
@@ -235,6 +233,13 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     if (checkpointId > maxCommittedCheckpointId) {
       commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, checkpointId);
       this.maxCommittedCheckpointId = checkpointId;
+    }
+
+    if (rewriteDataFilesAction != null) {
+      rewriteDataFilesAction.execute();
+      if (action.getException() != null) {
+        throw action.getException();
+      }
     }
   }
 
