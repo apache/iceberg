@@ -63,9 +63,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       ImmutableSet.of(DataOperations.OVERWRITE, DataOperations.REPLACE, DataOperations.DELETE);
   private static final Set<String> VALIDATE_DATA_FILES_EXIST_SKIP_DELETE_OPERATIONS =
       ImmutableSet.of(DataOperations.OVERWRITE, DataOperations.REPLACE);
-  // delete files are only added in "overwrite" operations
+  // delete files can be added in "overwrite" or "delete" operations
   private static final Set<String> VALIDATE_REPLACED_DATA_FILES_OPERATIONS =
-      ImmutableSet.of(DataOperations.OVERWRITE);
+      ImmutableSet.of(DataOperations.OVERWRITE, DataOperations.DELETE);
 
   private final String tableName;
   private final TableOperations ops;
