@@ -22,10 +22,13 @@ package org.apache.iceberg;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.CharSequenceSet;
 
 class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements RewriteFiles {
   private final Set<DataFile> replacedDataFiles = Sets.newHashSet();
   private Long startingSnapshotId = null;
+  private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
+  private boolean validateDeletes = false;
 
   BaseRewriteFiles(String tableName, TableOperations ops) {
     super(tableName, ops);
@@ -98,10 +101,20 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
   }
 
   @Override
+  public RewriteFiles validateDataFilesNotRewritten(Iterable<? extends CharSequence> referencedFiles) {
+    referencedFiles.forEach(referencedDataFiles::add);
+    return this;
+  }
+
+  @Override
   protected void validate(TableMetadata base) {
-    if (replacedDataFiles.size() > 0) {
+    if (!replacedDataFiles.isEmpty()) {
       // if there are replaced data files, there cannot be any new row-level deletes for those data files
       validateNoNewDeletesForDataFiles(base, startingSnapshotId, replacedDataFiles);
+    }
+
+    if (!referencedDataFiles.isEmpty()) {
+      validateDataFilesNotRewritten(base, startingSnapshotId, referencedDataFiles);
     }
   }
 }

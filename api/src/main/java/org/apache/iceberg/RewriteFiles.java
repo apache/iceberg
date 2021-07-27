@@ -73,4 +73,16 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
    * @return this for method chaining
    */
   RewriteFiles validateFromSnapshot(long snapshotId);
+
+  /**
+   * Add data file paths that must not be rewritten by conflicting commits for this operation to succeed.
+   * <p>
+   * If any path has been rewritten in a replace by a conflicting commit in the table since the snapshot passed to
+   * {@link #validateFromSnapshot(long)}, the operation will fail with a
+   * {@link org.apache.iceberg.exceptions.ValidationException}.
+   *
+   * @param referencedFiles file paths that are referenced by a position delete file
+   * @return this for method chaining
+   */
+  RewriteFiles validateDataFilesNotRewritten(Iterable<? extends CharSequence> referencedFiles);
 }

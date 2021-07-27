@@ -641,4 +641,115 @@ public class TestRewriteFiles extends TableTestBase {
         .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_A2))
         .apply();
   }
+
+  @Test
+  public void testRewriteReferencedDataFile() {
+    Assume.assumeTrue("Delete files are only supported in v2", formatVersion > 1);
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .commit();
+
+    long snapshotBeforeDeleteRewrite = table.currentSnapshot().snapshotId();
+
+    // simulate rewrite deletes in FILE_A_DELETES to FILE_B_DELETES
+    table.newRewrite()
+        .validateFromSnapshot(snapshotBeforeDeleteRewrite)
+        .validateDataFilesNotRewritten(Sets.newSet(FILE_A.path()))
+        .rewriteFiles(Sets.newSet(), Sets.newSet(FILE_A_DELETES), Sets.newSet(), Sets.newSet(FILE_B_DELETES))
+        .commit();
+
+    long snapshotBeforeRewriteFileA = table.currentSnapshot().snapshotId();
+
+    // rewrite FILE_A as FILE_A2
+    table.newRewrite()
+        .validateFromSnapshot(table.currentSnapshot().snapshotId())
+        .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_A2))
+        .commit();
+
+    AssertHelpers.assertThrows("Should fail because a referenced file was rewritten",
+        ValidationException.class, "Cannot commit, missing data files",
+        () -> table.newRewrite()
+            .validateFromSnapshot(snapshotBeforeRewriteFileA)
+            .validateDataFilesNotRewritten(Sets.newSet(FILE_A.path()))
+            .rewriteFiles(Sets.newSet(), Sets.newSet(FILE_B_DELETES), Sets.newSet(), Sets.newSet(FILE_A_DELETES))
+            .apply());
+  }
+
+  @Test
+  public void testOverwriteReferencedDataFile() {
+    Assume.assumeTrue("Delete files are only supported in v2", formatVersion > 1);
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .commit();
+
+    long snapshotBeforeDeleteRewrite = table.currentSnapshot().snapshotId();
+
+    // simulate rewrite deletes in FILE_A_DELETES to FILE_B_DELETES
+    table.newRewrite()
+        .validateFromSnapshot(snapshotBeforeDeleteRewrite)
+        .validateDataFilesNotRewritten(Sets.newSet(FILE_A.path()))
+        .rewriteFiles(Sets.newSet(), Sets.newSet(FILE_A_DELETES), Sets.newSet(), Sets.newSet(FILE_B_DELETES))
+        .commit();
+
+    long snapshotBeforeOverwriteFileA = table.currentSnapshot().snapshotId();
+
+    // overwrite FILE_A with FILE_A2
+    table.newOverwrite()
+        .deleteFile(FILE_A)
+        .addFile(FILE_A2)
+        .commit();
+
+    // the rewrite succeeds because the overwrite is required to read FILE_A correctly
+    table.newRewrite()
+        .validateFromSnapshot(snapshotBeforeOverwriteFileA)
+        .validateDataFilesNotRewritten(Sets.newSet(FILE_A.path()))
+        .rewriteFiles(Sets.newSet(), Sets.newSet(FILE_B_DELETES), Sets.newSet(), Sets.newSet(FILE_A_DELETES))
+        .apply();
+  }
+
+  @Test
+  public void testDeleteReferencedDataFile() {
+    Assume.assumeTrue("Delete files are only supported in v2", formatVersion > 1);
+
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .commit();
+
+    long snapshotBeforeDeleteRewrite = table.currentSnapshot().snapshotId();
+
+    // simulate rewrite deletes in FILE_A_DELETES to FILE_B_DELETES
+    table.newRewrite()
+        .validateFromSnapshot(snapshotBeforeDeleteRewrite)
+        .validateDataFilesNotRewritten(Sets.newSet(FILE_A.path()))
+        .rewriteFiles(Sets.newSet(), Sets.newSet(FILE_A_DELETES), Sets.newSet(), Sets.newSet(FILE_B_DELETES))
+        .commit();
+
+    long snapshotBeforeDeleteFileA = table.currentSnapshot().snapshotId();
+
+    // delete FILE_A
+    table.newDelete()
+        .deleteFile(FILE_A)
+        .commit();
+
+    // rewrite deletes, but ignore that FILE_A was removed
+    table.newRewrite()
+        .validateFromSnapshot(snapshotBeforeDeleteFileA)
+        .validateDataFilesNotRewritten(Sets.newSet(FILE_A.path()))
+        .rewriteFiles(Sets.newSet(), Sets.newSet(FILE_B_DELETES), Sets.newSet(), Sets.newSet(FILE_A_DELETES))
+        .apply();
+  }
 }

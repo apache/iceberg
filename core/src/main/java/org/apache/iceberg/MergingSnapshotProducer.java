@@ -66,6 +66,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   // delete files can be added in "overwrite" or "delete" operations
   private static final Set<String> VALIDATE_REPLACED_DATA_FILES_OPERATIONS =
       ImmutableSet.of(DataOperations.OVERWRITE, DataOperations.DELETE);
+  private static final Set<String> VALIDATE_DATA_FILES_NOT_REWRITTEN_OPERATIONS =
+      ImmutableSet.of(DataOperations.REPLACE);
 
   private final String tableName;
   private final TableOperations ops;
@@ -316,17 +318,25 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
   }
 
-  @SuppressWarnings("CollectionUndefinedEquality")
+  protected void validateDataFilesNotRewritten(TableMetadata base, Long startingSnapshotId,
+                                               CharSequenceSet requiredDataFiles) {
+    validateDataFilesExist(base, startingSnapshotId, requiredDataFiles, VALIDATE_DATA_FILES_NOT_REWRITTEN_OPERATIONS);
+  }
+
   protected void validateDataFilesExist(TableMetadata base, Long startingSnapshotId,
                                         CharSequenceSet requiredDataFiles, boolean skipDeletes) {
+    validateDataFilesExist(base, startingSnapshotId, requiredDataFiles, skipDeletes ?
+        VALIDATE_DATA_FILES_EXIST_SKIP_DELETE_OPERATIONS :
+        VALIDATE_DATA_FILES_EXIST_OPERATIONS);
+  }
+
+  @SuppressWarnings("CollectionUndefinedEquality")
+  private void validateDataFilesExist(TableMetadata base, Long startingSnapshotId,
+                                      CharSequenceSet requiredDataFiles, Set<String> matchingOperations) {
     // if there is no current table state, no files have been removed
     if (base.currentSnapshot() == null) {
       return;
     }
-
-    Set<String> matchingOperations = skipDeletes ?
-        VALIDATE_DATA_FILES_EXIST_SKIP_DELETE_OPERATIONS :
-        VALIDATE_DATA_FILES_EXIST_OPERATIONS;
 
     Pair<List<ManifestFile>, Set<Long>> history =
         validationHistory(base, startingSnapshotId, matchingOperations, ManifestContent.DATA);
