@@ -36,7 +36,7 @@ setup(
                       'requests',
                       'retrying',
                       'pandas',
-                      'pyarrow>=3.0.0<4.0.0'
+                      'pyarrow>=3.0.0,<=4.0.1'
                       ],
     extras_require={
         "dev": [
