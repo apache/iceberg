@@ -14,6 +14,7 @@
 
 package org.apache.iceberg.flink.actions;
 
+import com.twitter.chill.java.ClosureSerializer;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -30,6 +31,8 @@ public class FlinkActions implements ActionsProvider {
   private final StreamExecutionEnvironment env;
 
   private FlinkActions(StreamExecutionEnvironment env) {
+    // register ClosureSerializer to prevent NPE when Kryo serialize lambda expr(e.g. HadoopFileIO.hadoopConf)
+    env.getConfig().registerTypeWithKryoSerializer(ClosureSerializer.Closure.class, ClosureSerializer.class);
     this.env = env;
   }
 
