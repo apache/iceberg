@@ -49,11 +49,8 @@ Issues are tracked in GitHub:
 
 ## Slack
 
-We use the [#iceberg](https://the-asf.slack.com/archives/CF01LKV9S) channel on
-the ASF's Slack workspace. You get can an invitation to join this workspace at
-<https://s.apache.org/slack-invite>. Please note that this link occasionally
-breaks when Slack does an upgrade. If you encounter problems using it, please
-let us know by sending an email to <dev@iceberg.apache.org>.
+You can join the community via the [apache-iceberg](https://apache-iceberg.slack.com/) Slack workspace.
+If you encounter problems using it, please let us know by sending an email to <dev@iceberg.apache.org>.
 
 ## Mailing Lists
 
