@@ -269,24 +269,27 @@ public class FlinkSink {
 
       this.writeParallelism = writeParallelism == null ? rowDataInput.getParallelism() : writeParallelism;
 
+      final String writerOpName = uidPrefix != null ? uidPrefix + "-" + ICEBERG_STREAM_WRITER_NAME : ICEBERG_STREAM_WRITER_NAME;
       SingleOutputStreamOperator<WriteResult> writerStream = rowDataInput
-          .transform(ICEBERG_STREAM_WRITER_NAME, TypeInformation.of(WriteResult.class), streamWriter)
+          .transform(writerOpName, TypeInformation.of(WriteResult.class), streamWriter)
           .setParallelism(writeParallelism);
       if (uidPrefix != null) {
         writerStream = writerStream.uid(uidPrefix + "-writer");
       }
 
+      final String committerOpName = uidPrefix != null ? uidPrefix + "-" + ICEBERG_FILES_COMMITTER_NAME : ICEBERG_FILES_COMMITTER_NAME;
       SingleOutputStreamOperator<Void> committerStream = writerStream
-          .transform(ICEBERG_FILES_COMMITTER_NAME, Types.VOID, filesCommitter)
+          .transform(committerOpName, Types.VOID, filesCommitter)
           .setParallelism(1)
           .setMaxParallelism(1);
       if (uidPrefix != null) {
         committerStream = committerStream.uid(uidPrefix + "-committer");
       }
 
+      final String dummySinkOpName = uidPrefix != null ? uidPrefix + "-IcebergDummySink" : "IcebergDummySink";
       DataStreamSink<RowData> resultStream = committerStream
           .addSink(new DiscardingSink())
-          .name(String.format("IcebergSink %s", table.name()))
+          .name(dummySinkOpName)
           .setParallelism(1);
       if (uidPrefix != null) {
         resultStream = resultStream.uid(uidPrefix + "-dummysink");
