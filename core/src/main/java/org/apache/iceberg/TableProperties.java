@@ -196,4 +196,7 @@ public class TableProperties {
 
   public static final String MERGE_CARDINALITY_CHECK_ENABLED = "write.merge.cardinality-check.enabled";
   public static final boolean MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT = true;
+
+  public static final String UPSERT_MODE_ENABLED = "write.upsert.enable";
+  public static final boolean UPSERT_MODE_ENABLED_DEFAULT = false;
 }

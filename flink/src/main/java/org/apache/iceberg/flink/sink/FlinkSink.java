@@ -40,8 +40,8 @@ import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -279,14 +279,14 @@ public class FlinkSink {
       // Distribute the records from input data stream based on the write.distribution-mode.
       rowDataInput = distributeDataStream(rowDataInput, table.properties(), table.spec(), table.schema(), flinkRowType);
 
-      // Convert the INSERT stream to be an UPSERT stream if needed.
+      // Validate the equality fields and partition fields if we enable the upsert stream.
       if (upsert) {
         Preconditions.checkState(!equalityFieldIds.isEmpty(),
                 "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
         if (!table.spec().isUnpartitioned()) {
           for (PartitionField partitionField : table.spec().fields()) {
             Preconditions.checkState(equalityFieldIds.contains(partitionField.sourceId()),
-                    "Partition field '%s' is not included in equality fields: '%s'", partitionField, equalityFieldColumns);
+                "Partition field '%s' is not included in equality fields: '%s'", partitionField, equalityFieldColumns);
           }
         }
       }
