@@ -21,14 +21,21 @@ from decimal import Decimal
 from tempfile import NamedTemporaryFile
 
 from iceberg.api import Schema
-from iceberg.api.types import (DateType,
+from iceberg.api.types import (BinaryType,
+                               DateType,
                                DecimalType,
+                               DoubleType,
+                               FixedType,
                                FloatType,
                                IntegerType,
+                               ListType,
                                LongType,
+                               MapType,
                                NestedField,
                                StringType,
-                               TimestampType)
+                               StructType,
+                               TimestampType,
+                               TimeType)
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
@@ -224,3 +231,55 @@ def parquet_schema(type_test_parquet_file):
 @pytest.fixture(scope="session")
 def arrow_schema(type_test_parquet_file):
     return type_test_parquet_file.schema_arrow
+
+
+@pytest.fixture(scope="session")
+def iceberg_primitive_schema():
+    return Schema([NestedField.required(1, "int_col", IntegerType.get()),
+                   NestedField.required(2, "long_col", LongType.get()),
+                   NestedField.required(3, "float_col", FloatType.get()),
+                   NestedField.required(4, "double_col", DoubleType.get()),
+                   NestedField.required(5, "decimal_col", DecimalType.of(38, 5)),
+                   NestedField.required(6, "date_col", DateType.get()),
+                   NestedField.required(7, "string_col", StringType.get()),
+                   NestedField.required(8, "time_col", TimeType.get()),
+                   NestedField.required(9, "ts_col", TimestampType.without_timezone()),
+                   NestedField.required(10, "ts_w_tz_col", TimestampType.with_timezone()),
+                   NestedField.required(11, "bin_col", BinaryType.get()),
+                   NestedField.required(12, "fixed_bin_col", FixedType.of_length(10))
+                   ])
+
+
+@pytest.fixture(scope="session")
+def iceberg_struct_schema():
+    struct_type = StructType.of([NestedField.required(2, "a", IntegerType.get()),
+                                 NestedField.required(3, "b", IntegerType.get())])
+    return Schema([NestedField.required(1, "struct_col", struct_type)])
+
+
+@pytest.fixture(scope="session")
+def iceberg_map_schema():
+    map_type = MapType.of_required(2, 3, IntegerType.get(), StringType.get())
+    return Schema([NestedField.required(1, "map_col", map_type)])
+
+
+@pytest.fixture(scope="session")
+def iceberg_simple_nullability_schema():
+    return Schema([NestedField.required(1, "int_col", IntegerType.get()),
+                   NestedField.optional(2, "long_col", LongType.get())])
+
+
+@pytest.fixture(scope="session")
+def iceberg_nested_nullability_schema():
+    struct_type = StructType.of([NestedField.required(3, "a", IntegerType.get()),
+                                 NestedField.optional(4, "b", IntegerType.get())])
+    list_type = ListType.of_optional(5, IntegerType.get())
+    return Schema([NestedField.optional(1, "struct_col", struct_type),
+                   NestedField.required(2, "list_col", list_type)])
+
+
+@pytest.fixture(scope="session")
+def iceberg_list_schema():
+    return Schema([NestedField.required(1,
+                                        "list_col",
+                                        ListType.of_required("2", IntegerType.get()))])
