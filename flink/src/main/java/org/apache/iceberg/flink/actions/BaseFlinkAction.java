@@ -19,6 +19,7 @@ import java.util.Map;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.data.RowData;
@@ -88,17 +89,17 @@ abstract class BaseFlinkAction<ThisT, R> implements Action<ThisT, R> {
   protected org.apache.flink.table.api.Table buildValidDataFileTable(BaseTable table) {
     DataStream<RowData> allManifests = loadMetadataTable(table, MetadataTableType.ALL_MANIFESTS);
     DataStream<String> dataFilePaths = allManifests.flatMap(new ReadManifest(table.schema(), table.io()));
-    return tEnv.fromDataStream(dataFilePaths);
+    return tEnv.fromDataStream(dataFilePaths, $("file_path"));
   }
 
   protected org.apache.flink.table.api.Table buildManifestFileTable(BaseTable table) {
     DataStream<RowData> allManifests = loadMetadataTable(table, MetadataTableType.ALL_MANIFESTS);
-    return tEnv.fromDataStream(allManifests).select($("path as file_path"));
+    return tEnv.fromDataStream(allManifests).select($("f0").cast(DataTypes.STRING()).as("file_path"));
   }
 
   protected org.apache.flink.table.api.Table buildManifestListTable(BaseTable table) {
     List<String> manifestLists = ReachableFileUtil.manifestListLocations(table);
-    return tEnv.fromValues(manifestLists).select($("path as file_path"));
+    return tEnv.fromValues(manifestLists).as("file_path");
   }
 
   private DataStream<RowData> loadMetadataTable(BaseTable table, MetadataTableType type) {
@@ -136,5 +137,4 @@ abstract class BaseFlinkAction<ThisT, R> implements Action<ThisT, R> {
       }
     }
   }
-
 }

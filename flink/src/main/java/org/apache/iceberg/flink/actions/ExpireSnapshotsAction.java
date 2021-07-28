@@ -38,6 +38,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.apache.flink.table.api.Expressions.$;
+import static org.apache.flink.table.api.Expressions.and;
 import static org.apache.flink.table.api.Expressions.lit;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
@@ -121,8 +122,8 @@ public class ExpireSnapshotsAction
   private org.apache.flink.table.api.Table buildValidFileTable(TableMetadata metadata) {
     BaseTable staticTable = newStaticTable(metadata, this.table.io());
     return buildValidDataFileTable(staticTable).select($("file_path"), lit(DATA_FILE).as("file_type"))
-        .union(buildManifestFileTable(staticTable).select($("file_path"), lit(MANIFEST).as("file_type")))
-        .union(buildManifestListTable(staticTable).select($("file_path"), lit(MANIFEST_LIST).as("file_type")));
+        .unionAll(buildManifestFileTable(staticTable).select($("file_path"), lit(MANIFEST).as("file_type")))
+        .unionAll(buildManifestListTable(staticTable).select($("file_path"), lit(MANIFEST_LIST).as("file_type")));
   }
 
   /**
@@ -159,7 +160,22 @@ public class ExpireSnapshotsAction
       org.apache.flink.table.api.Table validFiles = buildValidFileTable(ops.refresh());
 
       // determine expired files
-      this.expiredFiles = originalFiles.minus(validFiles).execute().collect();
+      org.apache.flink.table.api.Table left = originalFiles.select(
+          $("file_path").as("origin_file_path"), $("file_type").as("origin_file_type")
+      );
+
+      org.apache.flink.table.api.Table right = validFiles.select(
+          $("file_path").as("valid_file_path"), $("file_type").as("valid_file_type")
+      );
+
+      this.expiredFiles = left.leftOuterJoin(right, and(
+          $("origin_file_path").isEqual($("valid_file_path")),
+          $("origin_file_type").isEqual($("valid_file_type"))
+      ))
+          .where($("valid_file_path").isNull())
+          .select($("origin_file_path").as("file_path"), $("origin_file_type").as("file_type"))
+          .execute()
+          .collect();
     }
 
     return expiredFiles;

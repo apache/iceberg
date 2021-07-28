@@ -79,7 +79,6 @@ public class MetadataTableSource {
 
       Table metadataTable = MetadataTableUtils.createMetadataTableInstance(ops, tableName, type.name(), type);
 
-
       Schema schema = metadataTable.schema();
       FileIO io = metadataTable.io();
       EncryptionManager encryptionManager = metadataTable.encryption();
@@ -103,7 +102,13 @@ public class MetadataTableSource {
     private final String nameMapping;
     private final boolean caseSensitive;
 
-    private MetadataTableMap(String name, Schema schema, FileIO io, EncryptionManager encryptionManager, String nameMapping, boolean caseSensitive) {
+    private MetadataTableMap(
+        String name,
+        Schema schema,
+        FileIO io,
+        EncryptionManager encryptionManager,
+        String nameMapping,
+        boolean caseSensitive) {
       this.name = name;
       this.schema = schema;
       this.io = io;
@@ -115,7 +120,8 @@ public class MetadataTableSource {
     @Override
     public void flatMap(CombinedScanTask task, Collector<RowData> out) throws Exception {
 
-      try (RowDataIterator iterator = new RowDataIterator(task, io, encryptionManager, schema, schema, nameMapping, caseSensitive)) {
+      try (RowDataIterator iterator =
+               new RowDataIterator(task, io, encryptionManager, schema, schema, nameMapping, caseSensitive)) {
         while (iterator.hasNext()) {
           RowData rowData = iterator.next();
           out.collect(rowData);
