@@ -20,7 +20,6 @@
 package org.apache.iceberg.aws.dynamodb;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -130,6 +129,11 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
     this.warehousePath = cleanWarehousePath(path);
     this.dynamo = client;
     this.fileIO = io;
+
+    addCloseable(dynamo);
+    addCloseable(fileIO);
+    setSuppressCloseFailure(true);
+
     ensureCatalogTableExistsOrCreate();
   }
 
@@ -425,11 +429,6 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
   @Override
   public Configuration getConf() {
     return hadoopConf;
-  }
-
-  @Override
-  public void close() throws IOException {
-    dynamo.close();
   }
 
   /**

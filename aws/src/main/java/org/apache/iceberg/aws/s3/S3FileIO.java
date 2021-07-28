@@ -105,4 +105,9 @@ public class S3FileIO implements FileIO {
     this.awsClientFactory = AwsClientFactories.from(properties);
     this.s3 = awsClientFactory::s3;
   }
+
+  @Override
+  public void close() {
+    client().close();
+  }
 }

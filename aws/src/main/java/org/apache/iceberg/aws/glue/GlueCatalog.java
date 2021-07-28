@@ -20,7 +20,6 @@
 package org.apache.iceberg.aws.glue;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -119,6 +118,11 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     this.glue = client;
     this.lockManager = lock;
     this.fileIO = io;
+
+    addCloseable(glue);
+    addCloseable(lockManager);
+    addCloseable(fileIO);
+    setSuppressCloseFailure(true);
   }
 
   private String cleanWarehousePath(String path) {
@@ -411,11 +415,6 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   @Override
   public String name() {
     return catalogName;
-  }
-
-  @Override
-  public void close() throws IOException {
-    glue.close();
   }
 
   @Override

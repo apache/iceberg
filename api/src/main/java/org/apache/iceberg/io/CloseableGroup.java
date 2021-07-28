@@ -23,20 +23,47 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Deque;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public abstract class CloseableGroup implements Closeable {
-  private final Deque<Closeable> closeables = Lists.newLinkedList();
+  private static final Logger LOG = LoggerFactory.getLogger(CloseableGroup.class);
 
-  protected void addCloseable(Closeable closeable) {
+  private final Deque<AutoCloseable> closeables = Lists.newLinkedList();
+  private boolean suppressCloseFailure = false;
+
+  protected void addCloseable(AutoCloseable closeable) {
     closeables.add(closeable);
+  }
+
+  protected void setSuppressCloseFailure(boolean shouldSuppress) {
+    this.suppressCloseFailure = shouldSuppress;
   }
 
   @Override
   public void close() throws IOException {
     while (!closeables.isEmpty()) {
-      Closeable toClose = closeables.removeFirst();
+      AutoCloseable toClose = closeables.removeFirst();
       if (toClose != null) {
-        toClose.close();
+        if (suppressCloseFailure) {
+          try {
+            toClose.close();
+          } catch (Exception e) {
+            LOG.error("Exception suppressed when attempting to close resources", e);
+          }
+        } else {
+          try {
+            toClose.close();
+          } catch (Exception e) {
+            if (e instanceof IOException) {
+              throw (IOException) e;
+            } else if (e instanceof RuntimeException) {
+              throw (RuntimeException) e;
+            } else {
+              throw new IOException("Exception occurs when closing AutoCloseable", e);
+            }
+          }
+        }
       }
     }
   }
