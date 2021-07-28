@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -106,9 +107,10 @@ public abstract class TestRewriteDeletesAction extends SparkTestBase {
     writeRecords(records2);
     table.refresh();
 
-    RewriteDeletes.Result result = actionsProvider().rewriteDeletes(table).rewriteEqDeletes().execute();
-    Assert.assertTrue("Shouldn't contain equality deletes", result.deletedFiles().isEmpty());
-    Assert.assertTrue("Shouldn't generate position deletes", result.addedFiles().isEmpty());
+    AssertHelpers.assertThrows("should fail execute",
+        IllegalArgumentException.class, "Files to delete cannot be null or empty",
+        () -> actionsProvider().rewriteDeletes(table).rewriteEqDeletes().execute()
+    );
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
     expectedRecords.addAll(records1);
@@ -170,9 +172,10 @@ public abstract class TestRewriteDeletesAction extends SparkTestBase {
 
     table.newRowDelta().addDeletes(eqDeleteWriter.toDeleteFile()).commit();
 
-    RewriteDeletes.Result result = actionsProvider().rewriteDeletes(table).rewriteEqDeletes().execute();
-    Assert.assertTrue("Shouldn't contain equality deletes", result.deletedFiles().isEmpty());
-    Assert.assertTrue("Shouldn't generate position deletes", result.addedFiles().isEmpty());
+    AssertHelpers.assertThrows("should fail execute",
+        IllegalArgumentException.class, "Files to delete cannot be null or empty",
+        () -> actionsProvider().rewriteDeletes(table).rewriteEqDeletes().execute()
+    );
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
     expectedRecords.addAll(records1);

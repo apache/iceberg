@@ -37,6 +37,7 @@ import org.apache.iceberg.actions.RewriteDeleteStrategy;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.source.EqualityDeleteRewriter;
@@ -55,20 +56,27 @@ public class ConvertEqDeletesStrategy implements RewriteDeleteStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(ConvertEqDeletesStrategy.class);
 
   private final Table table;
-  private final long targetSizeInBytes;
-  private final int splitLookback;
-  private final long splitOpenFileCost;
+  private long deleteTargetSizeInBytes;
+  private int splitLookback;
+  private long splitOpenFileCost;
 
   private CloseableIterable<FileScanTask> tasksWithEqDelete;
   private Iterable<DeleteFile> deletesToReplace;
   private final JavaSparkContext sparkContext;
 
+  /**
+   * Defines whether to split out the result position deletes by data file names.
+   *
+   * This should be used in EqualityDeleteRewriter.
+   */
+  public static final String SPLIT_POSITION_DELETE = "split-position-delete";
+
   public ConvertEqDeletesStrategy(SparkSession spark, Table table) {
     this.table = table;
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
-    this.targetSizeInBytes = PropertyUtil.propertyAsLong(
+    this.deleteTargetSizeInBytes = PropertyUtil.propertyAsLong(
         table.properties(),
-        TableProperties.WRITE_TARGET_FILE_SIZE_BYTES,
+        TableProperties.DELETE_TARGET_FILE_SIZE_BYTES,
         TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
     this.splitLookback = PropertyUtil.propertyAsInt(
         table.properties(),
@@ -132,9 +140,9 @@ public class ConvertEqDeletesStrategy implements RewriteDeleteStrategy {
     List<Pair<StructLike, CombinedScanTask>> combinedScanTasks = groupedTasks.entrySet().stream()
         .map(entry -> {
           CloseableIterable<FileScanTask> splitTasks = TableScanUtil.splitFiles(
-              CloseableIterable.withNoopClose(entry.getValue()), targetSizeInBytes);
+              CloseableIterable.withNoopClose(entry.getValue()), deleteTargetSizeInBytes);
           return Pair.of(entry.getKey().get(),
-              TableScanUtil.planTasks(splitTasks, targetSizeInBytes, splitLookback, splitOpenFileCost));
+              TableScanUtil.planTasks(splitTasks, deleteTargetSizeInBytes, splitLookback, splitOpenFileCost));
         })
         .flatMap(pair -> StreamSupport.stream(CloseableIterable
             .transform(pair.second(), task -> Pair.of(pair.first(), task)).spliterator(), false)
@@ -156,10 +164,13 @@ public class ConvertEqDeletesStrategy implements RewriteDeleteStrategy {
   }
 
   public RewriteDeleteStrategy options(Map<String, String> options) {
-    return null;
+    // TODO: parse the options
+    return this;
   }
 
   public Set<String> validOptions() {
-    return null;
+    return ImmutableSet.of(
+        SPLIT_POSITION_DELETE
+    );
   }
 }

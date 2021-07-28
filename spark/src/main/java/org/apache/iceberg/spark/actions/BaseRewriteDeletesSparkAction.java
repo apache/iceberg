@@ -55,6 +55,15 @@ public class BaseRewriteDeletesSparkAction
     this.strategy = new ConvertEqDeletesStrategy(spark, table);
   }
 
+  /**
+   * Set the rewrite delete strategy.
+   *
+   * @param newStrategy the strategy for rewrite deletes.
+   */
+  public void setStrategy(RewriteDeleteStrategy newStrategy) {
+    this.strategy = newStrategy;
+  }
+
   @Override
   public Result execute() {
     if (isRewriteEqDelete) {
