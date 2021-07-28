@@ -19,42 +19,21 @@
 
 package org.apache.iceberg.spark.actions;
 
-import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
-import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
-import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteFiles;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.BaseRewriteDeletesResult;
+import org.apache.iceberg.actions.RewriteDeleteStrategy;
 import org.apache.iceberg.actions.RewriteDeletes;
-import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.spark.source.EqualityDeleteRewriter;
-import org.apache.iceberg.util.Pair;
-import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.StructLikeWrapper;
-import org.apache.iceberg.util.TableScanUtil;
 import org.apache.iceberg.util.Tasks;
-import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,106 +43,26 @@ public class BaseRewriteDeletesSparkAction
     implements RewriteDeletes {
   private static final Logger LOG = LoggerFactory.getLogger(BaseRewriteDeletesSparkAction.class);
   private final Table table;
-  private final JavaSparkContext sparkContext;
   private final FileIO fileIO;
-  private final boolean caseSensitive;
-  private final PartitionSpec spec;
-  private final long targetSizeInBytes;
-  private final int splitLookback;
-  private final long splitOpenFileCost;
   private boolean isRewriteEqDelete;
   private boolean isRewritePosDelete;
+  private RewriteDeleteStrategy strategy;
 
   protected BaseRewriteDeletesSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
-    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.fileIO = table.io();
-    this.caseSensitive = false;
-    this.spec = table.spec();
-
-    long splitSize = PropertyUtil.propertyAsLong(
-        table.properties(),
-        TableProperties.SPLIT_SIZE,
-        TableProperties.SPLIT_SIZE_DEFAULT);
-    long targetFileSize = PropertyUtil.propertyAsLong(
-        table.properties(),
-        TableProperties.WRITE_TARGET_FILE_SIZE_BYTES,
-        TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
-    this.targetSizeInBytes = Math.min(splitSize, targetFileSize);
-
-    this.splitLookback = PropertyUtil.propertyAsInt(
-        table.properties(),
-        TableProperties.SPLIT_LOOKBACK,
-        TableProperties.SPLIT_LOOKBACK_DEFAULT);
-    this.splitOpenFileCost = PropertyUtil.propertyAsLong(
-        table.properties(),
-        TableProperties.SPLIT_OPEN_FILE_COST,
-        TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT);
+    this.strategy = new ConvertEqDeletesStrategy(spark, table);
   }
 
   @Override
   public Result execute() {
-    CloseableIterable<FileScanTask> fileScanTasks = null;
-    try {
-      fileScanTasks = table.newScan()
-          .caseSensitive(caseSensitive)
-          .ignoreResiduals()
-          .planFiles();
-    } finally {
-      try {
-        if (fileScanTasks != null) {
-          fileScanTasks.close();
-        }
-      } catch (IOException ioe) {
-        LOG.warn("Failed to close task iterable", ioe);
-      }
-    }
-    if (!isRewriteEqDelete) {
-      LOG.warn("Only supports rewrite equality deletes currently");
-      return new BaseRewriteDeletesResult(Collections.emptySet(), Collections.emptySet());
-    }
+    if (isRewriteEqDelete) {
+      Iterable<DeleteFile> deletesToReplace = strategy.selectDeletes();
+      Iterable<DeleteFile> deletesToAdd = strategy.rewriteDeletes();
+      rewriteEqualityDeletes(Sets.newHashSet(deletesToReplace), Sets.newHashSet(deletesToAdd));
 
-    CloseableIterable<FileScanTask> tasksWithEqDelete = CloseableIterable.filter(fileScanTasks, scan ->
-        scan.deletes().stream().anyMatch(delete -> delete.content().equals(FileContent.EQUALITY_DELETES))
-    );
-
-    Set<DeleteFile> eqDeletes = Sets.newHashSet();
-    tasksWithEqDelete.forEach(task -> {
-      eqDeletes.addAll(task.deletes().stream()
-          .filter(deleteFile -> deleteFile.content().equals(FileContent.EQUALITY_DELETES))
-          .collect(Collectors.toList()));
-    });
-
-    Map<StructLikeWrapper, Collection<FileScanTask>> groupedTasks =
-        TableScanUtil.groupTasksByPartition(spec, tasksWithEqDelete.iterator());
-
-    // Split and combine tasks under each partition
-    List<Pair<StructLike, CombinedScanTask>> combinedScanTasks = groupedTasks.entrySet().stream()
-        .map(entry -> {
-          CloseableIterable<FileScanTask> splitTasks = TableScanUtil.splitFiles(
-              CloseableIterable.withNoopClose(entry.getValue()), targetSizeInBytes);
-          return Pair.of(entry.getKey().get(),
-              TableScanUtil.planTasks(splitTasks, targetSizeInBytes, splitLookback, splitOpenFileCost));
-        })
-        .flatMap(pair -> StreamSupport.stream(CloseableIterable
-            .transform(pair.second(), task -> Pair.of(pair.first(), task)).spliterator(), false)
-        )
-        .collect(Collectors.toList());
-
-    if (!combinedScanTasks.isEmpty()) {
-      JavaRDD<Pair<StructLike, CombinedScanTask>> taskRDD = sparkContext.parallelize(combinedScanTasks,
-          combinedScanTasks.size());
-      Broadcast<FileIO> io = sparkContext.broadcast(table.io());
-      Broadcast<EncryptionManager> encryption = sparkContext.broadcast(table.encryption());
-
-      EqualityDeleteRewriter deleteRewriter = new EqualityDeleteRewriter(table, caseSensitive, io, encryption);
-      List<DeleteFile> posDeletes = deleteRewriter.toPosDeletes(taskRDD);
-
-      if (!eqDeletes.isEmpty()) {
-        rewriteEqualityDeletes(Lists.newArrayList(eqDeletes), posDeletes);
-        return new BaseRewriteDeletesResult(eqDeletes, Sets.newHashSet(posDeletes));
-      }
+      return new BaseRewriteDeletesResult(Sets.newHashSet(deletesToReplace), Sets.newHashSet(deletesToAdd));
     }
 
     return new BaseRewriteDeletesResult(Collections.emptySet(), Collections.emptySet());
@@ -186,7 +85,7 @@ public class BaseRewriteDeletesSparkAction
     return this;
   }
 
-  private void rewriteEqualityDeletes(List<DeleteFile> eqDeletes, List<DeleteFile> posDeletes) {
+  private void rewriteEqualityDeletes(Set<DeleteFile> eqDeletes, Set<DeleteFile> posDeletes) {
     Preconditions.checkArgument(eqDeletes.stream().allMatch(f -> f.content().equals(FileContent.EQUALITY_DELETES)),
         "The deletes to be converted should be equality deletes");
     Preconditions.checkArgument(posDeletes.stream().allMatch(f -> f.content().equals(FileContent.POSITION_DELETES)),
