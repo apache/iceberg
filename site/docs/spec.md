@@ -21,7 +21,7 @@ This is a specification for the Iceberg table format that is designed to manage 
 
 #### Version 1: Analytic Data Tables
 
-**Iceberg format version 1 is the current version**. It defines how to manage large analytic tables using immutable file formats, like Parquet, Avro, and ORC.
+**Iceberg format version 1 is the current version**. It defines how to manage large analytic tables using immutable file formats: Parquet, Avro, and ORC.
 
 #### Version 2: Row-level Deletes
 
