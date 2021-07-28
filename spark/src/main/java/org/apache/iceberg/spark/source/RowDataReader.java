@@ -186,11 +186,12 @@ class RowDataReader extends BaseDataReader<InternalRow> {
   }
 
   private CloseableIterable<InternalRow> newDataIterable(DataTask task, Schema readSchema) {
-    StructInternalRow row = new StructInternalRow(tableSchema.asStruct());
+    Schema taskSchema = task.schema() == null ? tableSchema : task.schema();
+    StructInternalRow row = new StructInternalRow(taskSchema.asStruct());
     CloseableIterable<InternalRow> asSparkRows = CloseableIterable.transform(
         task.asDataTask().rows(), row::setStruct);
     return CloseableIterable.transform(
-        asSparkRows, APPLY_PROJECTION.bind(projection(readSchema, tableSchema))::invoke);
+        asSparkRows, APPLY_PROJECTION.bind(projection(readSchema, taskSchema))::invoke);
   }
 
   private static UnsafeProjection projection(Schema finalSchema, Schema readSchema) {
@@ -207,19 +208,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
 
     for (Types.NestedField field : finalSchema.columns()) {
       int indexInReadSchema = readStruct.fieldIndex(field.name());
-      if (field.type().isStructType()) {
-        // We may need to prune this attribute to only refer to our expected schema
-        AttributeReference ref = readReferences.get(indexInReadSchema);
-        exprs.add(ref.copy(
-            ref.name(),
-            SparkSchemaUtil.convert(field.type().asStructType()),
-            ref.nullable(),
-            ref.metadata(),
-            ref.exprId(),
-            ref.qualifier()));
-      } else {
-        exprs.add(readReferences.get(indexInReadSchema));
-      }
+      exprs.add(readReferences.get(indexInReadSchema));
     }
 
     return UnsafeProjection.create(

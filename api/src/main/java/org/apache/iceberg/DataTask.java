@@ -36,6 +36,15 @@ public interface DataTask extends FileScanTask {
   }
 
   /**
+   * Optionally return a schema which this task will produce rows with, this may be null if
+   * the task should inherit the schema from the parent table. Scans which can prune columns can
+   * use this to correctly report their pruned schema if it differs from the default table schema.
+   */
+  default Schema schema() {
+    return null;
+  }
+
+  /**
    * Returns an iterable of {@link StructLike} rows.
    */
   CloseableIterable<StructLike> rows();

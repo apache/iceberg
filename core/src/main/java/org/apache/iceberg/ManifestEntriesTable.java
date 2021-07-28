@@ -136,6 +136,11 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     }
 
     @Override
+    public Schema schema() {
+      return ManifestEntry.wrapFileSchema(fileSchema.asStruct());
+    }
+
+    @Override
     public CloseableIterable<StructLike> rows() {
       if (manifest.content() == ManifestContent.DATA) {
         return CloseableIterable.transform(ManifestFiles.read(manifest, io).project(fileSchema).entries(),

@@ -38,6 +38,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -157,17 +158,76 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .save(loadLocation(tableIdentifier));
 
     table.refresh();
+    DataFile file = table.currentSnapshot().addedFiles().iterator().next();
 
-    List<Row> actual = spark.read()
+    List<Object[]> singleActual = rowsToJava(spark.read()
         .format("iceberg")
         .load(loadLocation(tableIdentifier, "entries"))
         .select("data_file.file_path")
-        .collectAsList();
+        .collectAsList());
 
-    Assert.assertEquals("Should have a single entry", 1,  actual.size());
-    Assert.assertEquals("Should only have file_path", 0, actual.get(0).fieldIndex("file_path"));
+    List<Object[]> singleExpected = ImmutableList.of(row(file.path()));
+
+    assertEquals("Should prune a single element from a nested struct", singleExpected, singleActual);
   }
 
+  @Test
+  public void testEntriesTableDataFilePruneMulti() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_test");
+    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
+
+    List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "1"));
+
+    Dataset<Row> inputDf = spark.createDataFrame(records, SimpleRecord.class);
+    inputDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+    DataFile file = table.currentSnapshot().addedFiles().iterator().next();
+
+    List<Object[]> multiActual = rowsToJava(spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "entries"))
+        .select("data_file.file_path", "data_file.value_counts", "data_file.record_count", "data_file.column_sizes")
+        .collectAsList());
+
+    List<Object[]> multiExpected = ImmutableList.of(
+        row(file.path(), file.valueCounts(), file.recordCount(), file.columnSizes()));
+
+    assertEquals("Should prune a single element from a nested struct", multiExpected, multiActual);
+  }
+
+  @Test
+  public void testFilesSelectMap() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_test");
+    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
+
+    List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "1"));
+
+    Dataset<Row> inputDf = spark.createDataFrame(records, SimpleRecord.class);
+    inputDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+    DataFile file = table.currentSnapshot().addedFiles().iterator().next();
+
+    List<Object[]> multiActual = rowsToJava(spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "files"))
+        .select("file_path", "value_counts", "record_count", "column_sizes")
+        .collectAsList());
+
+    List<Object[]> multiExpected = ImmutableList.of(
+        row(file.path(), file.valueCounts(), file.recordCount(), file.columnSizes()));
+
+    assertEquals("Should prune a single element from a row", multiExpected, multiActual);
+  }
+
+  @Test
   public void testAllEntriesTable() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_test");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
