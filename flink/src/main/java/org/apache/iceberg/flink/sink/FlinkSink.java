@@ -246,6 +246,50 @@ public class FlinkSink {
         }
       }
 
+      // Convert the requested flink table schema to flink row type.
+      RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
+
+      // Distribute the records from input data stream based on the write.distribution-mode.
+      rowDataInput = distributeDataStream(rowDataInput, table.properties(), table.spec(), table.schema(), flinkRowType);
+
+      // Add parallel writers that append rows to files
+      SingleOutputStreamOperator<WriteResult> writerStream = appendWriter(rowDataInput, flinkRowType);
+
+      // Add single-parallelism committer that commits files
+      // after successful checkpoint or end of input
+      SingleOutputStreamOperator<Void> committerStream = appendCommitter(writerStream);
+
+      // Add dummy discard sink
+      return appendDummySink(committerStream);
+    }
+
+    private DataStreamSink<RowData> appendDummySink(SingleOutputStreamOperator<Void> committerStream) {
+      final String dummySinkOpName = uidPrefix != null ? uidPrefix + "-IcebergDummySink" : "IcebergDummySink";
+      DataStreamSink<RowData> resultStream = committerStream
+          .addSink(new DiscardingSink())
+          .name(dummySinkOpName)
+          .setParallelism(1);
+      if (uidPrefix != null) {
+        resultStream = resultStream.uid(uidPrefix + "-dummysink");
+      }
+      return resultStream;
+    }
+
+    private SingleOutputStreamOperator<Void> appendCommitter(SingleOutputStreamOperator<WriteResult> writerStream) {
+      final IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
+      final String committerOpName = uidPrefix != null ?
+          uidPrefix + "-" + ICEBERG_FILES_COMMITTER_NAME : ICEBERG_FILES_COMMITTER_NAME;
+      SingleOutputStreamOperator<Void> committerStream = writerStream
+          .transform(committerOpName, Types.VOID, filesCommitter)
+          .setParallelism(1)
+          .setMaxParallelism(1);
+      if (uidPrefix != null) {
+        committerStream = committerStream.uid(uidPrefix + "-committer");
+      }
+      return committerStream;
+    }
+
+    private SingleOutputStreamOperator<WriteResult> appendWriter(DataStream<RowData> input, RowType flinkRowType) {
       // Find out the equality field id list based on the user-provided equality field column names.
       List<Integer> equalityFieldIds = Lists.newArrayList();
       if (equalityFieldColumns != null && equalityFieldColumns.size() > 0) {
@@ -256,45 +300,19 @@ public class FlinkSink {
           equalityFieldIds.add(field.fieldId());
         }
       }
-
-      // Convert the requested flink table schema to flink row type.
-      RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
-
-      // Distribute the records from input data stream based on the write.distribution-mode.
-      rowDataInput = distributeDataStream(rowDataInput, table.properties(), table.spec(), table.schema(), flinkRowType);
-
-      // Chain the iceberg stream writer and committer operator.
       IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds);
-      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
 
       this.writeParallelism = writeParallelism == null ? rowDataInput.getParallelism() : writeParallelism;
 
-      final String writerOpName = uidPrefix != null ? uidPrefix + "-" + ICEBERG_STREAM_WRITER_NAME : ICEBERG_STREAM_WRITER_NAME;
+      final String writerOpName = uidPrefix != null ?
+          uidPrefix + "-" + ICEBERG_STREAM_WRITER_NAME : ICEBERG_STREAM_WRITER_NAME;
       SingleOutputStreamOperator<WriteResult> writerStream = rowDataInput
           .transform(writerOpName, TypeInformation.of(WriteResult.class), streamWriter)
           .setParallelism(writeParallelism);
       if (uidPrefix != null) {
         writerStream = writerStream.uid(uidPrefix + "-writer");
       }
-
-      final String committerOpName = uidPrefix != null ? uidPrefix + "-" + ICEBERG_FILES_COMMITTER_NAME : ICEBERG_FILES_COMMITTER_NAME;
-      SingleOutputStreamOperator<Void> committerStream = writerStream
-          .transform(committerOpName, Types.VOID, filesCommitter)
-          .setParallelism(1)
-          .setMaxParallelism(1);
-      if (uidPrefix != null) {
-        committerStream = committerStream.uid(uidPrefix + "-committer");
-      }
-
-      final String dummySinkOpName = uidPrefix != null ? uidPrefix + "-IcebergDummySink" : "IcebergDummySink";
-      DataStreamSink<RowData> resultStream = committerStream
-          .addSink(new DiscardingSink())
-          .name(dummySinkOpName)
-          .setParallelism(1);
-      if (uidPrefix != null) {
-        resultStream = resultStream.uid(uidPrefix + "-dummysink");
-      }
-      return resultStream;
+      return writerStream;
     }
 
     private DataStream<RowData> distributeDataStream(DataStream<RowData> input,
