@@ -254,6 +254,189 @@ public class TestReplacePartitions extends TableTestBase {
   }
 
   @Test
+  public void testReplaceConflictPartitionedTable() {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .appendFile(FILE_B)
+        .commit();
+
+    TableMetadata base = readMetadata();
+    long baseId = base.currentSnapshot().snapshotId();
+
+    // Concurrent Replace
+    table.newReplacePartitions()
+        .addFile(FILE_A)
+        .commit();
+
+    ReplacePartitions replace = table.newReplacePartitions()
+        .validateFromSnapshot(baseId)
+        .validateNoConflictingAppends()
+        .addFile(FILE_A)
+        .addFile(FILE_B);
+
+    AssertHelpers.assertThrows("Should reject commit with file matching partitions replaced",
+        ValidationException.class,
+        "Found conflicting files that can contain records matching true: [/path/to/data-a.parquet]",
+        replace::commit);
+  }
+
+  @Test
+  public void testAppendConflictPartitionedTable() {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    TableMetadata base = readMetadata();
+    long baseId = base.currentSnapshot().snapshotId();
+
+    // Concurrent Insert
+    table.newFastAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    ReplacePartitions replace = table.newReplacePartitions()
+        .validateFromSnapshot(baseId)
+        .validateNoConflictingAppends()
+        .addFile(FILE_A)
+        .addFile(FILE_B);
+
+    AssertHelpers.assertThrows("Should reject commit with file matching partitions replaced",
+        ValidationException.class,
+        "Found conflicting files that can contain records matching true: [/path/to/data-b.parquet]",
+        replace::commit);
+  }
+
+  @Test
+  public void testNoReplaceConflictPartitionedTable() {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    TableMetadata base = readMetadata();
+    long baseId = base.currentSnapshot().snapshotId();
+
+    // Concurrent Insert
+    table.newReplacePartitions()
+        .addFile(FILE_E)
+        .commit();
+
+    table.newReplacePartitions()
+        .validateFromSnapshot(baseId)
+        .addFile(FILE_A)
+        .addFile(FILE_B)
+        .commit();
+
+    long replaceId = readMetadata().currentSnapshot().snapshotId();
+    Assert.assertEquals("Table should have 2 manifest",
+        2, table.currentSnapshot().allManifests().size());
+    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
+        ids(replaceId, replaceId),
+        files(FILE_A, FILE_B),
+        statuses(Status.ADDED, Status.ADDED));
+
+    validateManifestEntries(table.currentSnapshot().allManifests().get(1),
+        ids(replaceId),
+        files(FILE_E),
+        statuses(Status.DELETED));
+  }
+
+  @Test
+  public void testNoAppendConflictPartitionedTable() {
+    table.newFastAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    TableMetadata base = readMetadata();
+    long baseId = base.currentSnapshot().snapshotId();
+
+    // Concurrent Insert
+    table.newFastAppend()
+        .appendFile(FILE_B)
+        .commit();
+
+    table.newReplacePartitions()
+        .validateFromSnapshot(baseId)
+        .addFile(FILE_E)
+        .addFile(FILE_F)
+        .commit();
+
+    long replaceId = readMetadata().currentSnapshot().snapshotId();
+    Assert.assertEquals("Table should have 3 manifest",
+        3, table.currentSnapshot().allManifests().size());
+
+    validateManifestEntries(table.currentSnapshot().allManifests().get(0),
+        ids(replaceId, replaceId),
+        files(FILE_E, FILE_F),
+        statuses(Status.ADDED, Status.ADDED));
+
+    validateManifestEntries(table.currentSnapshot().allManifests().get(1),
+        ids(replaceId),
+        files(FILE_B),
+        statuses(Status.DELETED));
+
+    validateManifestEntries(table.currentSnapshot().allManifests().get(2),
+        ids(replaceId),
+        files(FILE_A),
+        statuses(Status.DELETED));
+  }
+
+  @Test
+  public void testReplaceConflictNonPartitionedTable() {
+    Table unpartitioned = TestTables.create(
+        tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
+    unpartitioned.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    TableMetadata replaceMetadata = TestTables.readMetadata("unpartitioned");
+    long replaceBaseId = replaceMetadata.currentSnapshot().snapshotId();
+
+    // Intermediate commit
+    unpartitioned.newReplacePartitions()
+        .addFile(FILE_A)
+        .commit();
+
+    ReplacePartitions replace = unpartitioned.newReplacePartitions()
+        .validateFromSnapshot(replaceBaseId)
+        .validateNoConflictingAppends()
+        .addFile(FILE_A)
+        .addFile(FILE_B);
+
+    AssertHelpers.assertThrows("Should reject commit with file matching partitions replaced",
+        ValidationException.class,
+        "Found conflicting files that can contain records matching true: [/path/to/data-a.parquet]",
+        replace::commit);
+  }
+
+  @Test
+  public void testAppendConflictNonPartitionedTable() {
+    Table unpartitioned = TestTables.create(
+        tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
+    unpartitioned.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    TableMetadata replaceMetadata = TestTables.readMetadata("unpartitioned");
+    long replaceBaseId = replaceMetadata.currentSnapshot().snapshotId();
+
+    // Intermediate commit
+    unpartitioned.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    ReplacePartitions replace = unpartitioned.newReplacePartitions()
+        .validateFromSnapshot(replaceBaseId)
+        .validateNoConflictingAppends()
+        .addFile(FILE_A)
+        .addFile(FILE_B);
+
+    AssertHelpers.assertThrows("Should reject commit with file matching partitions replaced",
+        ValidationException.class,
+        "Found conflicting files that can contain records matching true: [/path/to/data-a.parquet]",
+        replace::commit);
+  }
+
+  @Test
   public void testEmptyPartitionPathWithUnpartitionedTable() {
     DataFiles.builder(PartitionSpec.unpartitioned())
         .withPartitionPath("");

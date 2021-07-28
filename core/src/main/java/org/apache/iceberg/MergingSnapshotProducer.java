@@ -46,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -285,7 +286,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     ManifestGroup conflictGroup = new ManifestGroup(ops.io(), manifests, ImmutableList.of())
         .caseSensitive(caseSensitive)
         .filterManifestEntries(entry -> newSnapshots.contains(entry.snapshotId()))
-        .filterData(conflictDetectionFilter)
+        .filterData(dataFilter)
+        .filterPartitions(partitionFilter)
         .specsById(base.specsById())
         .ignoreDeleted()
         .ignoreExisting();
@@ -293,13 +295,50 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictGroup.entries().iterator()) {
       if (conflicts.hasNext()) {
         throw new ValidationException("Found conflicting files that can contain records matching %s: %s",
-            conflictDetectionFilter,
+            dataFilter,
             Iterators.toString(Iterators.transform(conflicts, entry -> entry.file().path().toString())));
       }
 
     } catch (IOException e) {
       throw new UncheckedIOException(
-          String.format("Failed to validate no appends matching %s", conflictDetectionFilter), e);
+          String.format("Failed to validate no appends matching %s", dataFilter), e);
+    }
+  }
+
+  /**
+   * Validates that no files matching given partitions have been added to the table since a starting snapshot.
+   *
+   * @param base table metadata to validate
+   * @param startingSnapshotId id of the snapshot current at the start of the operation
+   * @param partitionSet a set of partitions to check against
+   */
+  protected void validateAddedDataFiles(TableMetadata base, Long startingSnapshotId, PartitionSet partitionSet) {
+    // if there is no current table state, no files have been added
+    if (base.currentSnapshot() == null) {
+      return;
+    }
+
+    Pair<List<ManifestFile>, Set<Long>> history =
+        validationHistory(base, startingSnapshotId, VALIDATE_ADDED_FILES_OPERATIONS, ManifestContent.DATA);
+    List<ManifestFile> manifests = history.first();
+    Set<Long> newSnapshots = history.second();
+
+    ManifestGroup conflictGroup = new ManifestGroup(ops.io(), manifests, ImmutableList.of())
+        .filterManifestEntries(entry -> newSnapshots.contains(entry.snapshotId()))
+        .specsById(base.specsById())
+        .ignoreDeleted()
+        .ignoreExisting();
+
+    try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictGroup.entries().iterator()) {
+      CloseableIterable<ManifestEntry<DataFile>> filtered = CloseableIterable.filter(conflictGroup.entries(),
+          f -> partitionSet.contains(f.file().specId(), f.file().partition()));
+      if (filtered.iterator().hasNext()) {
+        throw new ValidationException("Found conflicting files that can contain records matching partitions %s: %s",
+            partitionSet,
+            Iterators.toString(Iterators.transform(conflicts, entry -> entry.file().path().toString())));
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(String.format("Failed to validate no appends matching %s", partitionSet), e);
     }
   }
 
@@ -611,6 +650,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     deleteMergeManager.cleanUncommitted(committed);
     deleteFilterManager.cleanUncommitted(committed);
     cleanUncommittedAppends(committed);
+  }
+
+  protected Map<Integer, PartitionSpec> getSpecsById() {
+    return ops.current().specsById();
   }
 
   private Iterable<ManifestFile> prepareNewManifests() {

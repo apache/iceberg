@@ -21,13 +21,21 @@ package org.apache.iceberg;
 
 import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.util.PartitionSet;
 
 public class BaseReplacePartitions
     extends MergingSnapshotProducer<ReplacePartitions> implements ReplacePartitions {
+
+  private final PartitionSet deletedPartitions = PartitionSet.create(super.getSpecsById());
+  private long startingSnapshotId;
+  private boolean validateNoConflictingAppends = false;
+
   BaseReplacePartitions(String tableName, TableOperations ops) {
     super(tableName, ops);
     set(SnapshotSummary.REPLACE_PARTITIONS_PROP, "true");
+    startingSnapshotId = ops.current().currentSnapshot().snapshotId();
   }
 
   @Override
@@ -43,6 +51,7 @@ public class BaseReplacePartitions
   @Override
   public ReplacePartitions addFile(DataFile file) {
     dropPartition(file.specId(), file.partition());
+    deletedPartitions.add(file.specId(), file.partition());
     add(file);
     return this;
   }
@@ -51,6 +60,45 @@ public class BaseReplacePartitions
   public ReplacePartitions validateAppendOnly() {
     failAnyDelete();
     return this;
+  }
+
+  @Override
+  public ReplacePartitions validateFromSnapshot(long snapshotId) {
+    this.startingSnapshotId = snapshotId;
+    return this;
+  }
+
+  @Override
+  public ReplacePartitions validateNoConflictingAppends() {
+    this.validateNoConflictingAppends = true;
+    return this;
+  }
+
+  @Override
+  public void validate(TableMetadata currentMetadata) {
+    if (validateNoConflictingAppends) {
+      Expression conflictDetectionFilter;
+      if (writeSpec().fields().size() <= 0) {
+        // Unpartitioned table, check against all files
+        conflictDetectionFilter = Expressions.alwaysTrue();
+      } else {
+        conflictDetectionFilter = deletedPartitions.stream().map(p -> {
+          int partSpecId = p.first();
+          StructLike partition = p.second();
+          Expression partialFilter = Expressions.alwaysTrue();
+
+          PartitionSpec partSpec = super.getSpecsById().get(partSpecId);
+          for (int i = 0; i < partSpec.fields().size(); i += 1) {
+            PartitionField field = partSpec.fields().get(i);
+            partialFilter = Expressions.and(
+                partialFilter,
+                Expressions.equal(field.name(), partition.get(i, Object.class)));
+          }
+          return partialFilter;
+        }).reduce(Expressions.alwaysFalse(), Expressions::or);
+      }
+      validateAddedFilesWithPartFilter(currentMetadata, startingSnapshotId, conflictDetectionFilter, true);
+    }
   }
 
   @Override

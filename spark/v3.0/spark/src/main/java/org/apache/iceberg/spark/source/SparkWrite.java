@@ -90,6 +90,14 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
+import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL_DEFAULT;
+import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
+import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
 class SparkWrite {
   private static final Logger LOG = LoggerFactory.getLogger(SparkWrite.class);
@@ -127,7 +135,10 @@ class SparkWrite {
   }
 
   BatchWrite asDynamicOverwrite() {
-    return new DynamicOverwrite();
+    String isolationLevelAsString = table.properties().getOrDefault(DELETE_ISOLATION_LEVEL,
+        DELETE_ISOLATION_LEVEL_DEFAULT);
+    IsolationLevel level = IsolationLevel.valueOf(isolationLevelAsString.toUpperCase(Locale.ROOT));
+    return new DynamicOverwrite(level, table.currentSnapshot().snapshotId());
   }
 
   BatchWrite asOverwriteByFilter(Expression overwriteExpr) {
@@ -242,6 +253,15 @@ class SparkWrite {
   }
 
   private class DynamicOverwrite extends BaseBatchWrite {
+
+    private final IsolationLevel isolationLevel;
+    private final long startingSnapshotId;
+
+    private DynamicOverwrite(IsolationLevel isolationLevel, long startingSnapshotId) {
+      this.isolationLevel = isolationLevel;
+      this.startingSnapshotId = startingSnapshotId;
+    }
+
     @Override
     public void commit(WriterCommitMessage[] messages) {
       Iterable<DataFile> files = files(messages);
@@ -252,6 +272,7 @@ class SparkWrite {
       }
 
       ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
+      dynamicOverwrite.validateFromSnapshot(startingSnapshotId);
 
       int numFiles = 0;
       for (DataFile file : files) {
@@ -259,6 +280,9 @@ class SparkWrite {
         dynamicOverwrite.addFile(file);
       }
 
+      if (isolationLevel == SERIALIZABLE) {
+        dynamicOverwrite.validateNoConflictingAppends();
+      }
       commitOperation(dynamicOverwrite, String.format("dynamic partition overwrite with %d new data files", numFiles));
     }
   }
