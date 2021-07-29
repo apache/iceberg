@@ -97,6 +97,14 @@ public class TestHiveMetastore {
   }
 
   /**
+   * Starts a TestHiveMetastore with the default connection pool size (5) and with the provided Configuration.
+   * @param hadoopConf The hadoop configuration to use
+   */
+  public void start(Configuration hadoopConf) {
+    start(new HiveConf(hadoopConf, TestHiveMetastore.class), DEFAULT_POOL_SIZE);
+  }
+
+  /**
    * Starts a TestHiveMetastore with the default connection pool size (5) with the provided HiveConf.
    * @param hiveConf The hive configuration to use
    */
