@@ -121,7 +121,7 @@ public class DataFiles {
     private FileFormat format = null;
     private long recordCount = -1L;
     private long fileSizeInBytes = -1L;
-    private int sortOrderId = SortOrder.unsorted().orderId();
+    private Integer sortOrderId = SortOrder.unsorted().orderId();
 
     // optional fields
     private Map<Integer, Long> columnSizes = null;
