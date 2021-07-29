@@ -263,11 +263,14 @@ public class FlinkSink {
       return appendDummySink(committerStream);
     }
 
+    private String getOperatorName(String suffix) {
+      return uidPrefix != null ? uidPrefix + "-" + suffix : suffix;
+    }
+
     private DataStreamSink<RowData> appendDummySink(SingleOutputStreamOperator<Void> committerStream) {
-      final String dummySinkOpName = uidPrefix != null ? uidPrefix + "-IcebergDummySink" : "IcebergDummySink";
       DataStreamSink<RowData> resultStream = committerStream
           .addSink(new DiscardingSink())
-          .name(dummySinkOpName)
+          .name(getOperatorName(String.format("IcebergSink %s", this.table.name())))
           .setParallelism(1);
       if (uidPrefix != null) {
         resultStream = resultStream.uid(uidPrefix + "-dummysink");
@@ -277,10 +280,8 @@ public class FlinkSink {
 
     private SingleOutputStreamOperator<Void> appendCommitter(SingleOutputStreamOperator<WriteResult> writerStream) {
       final IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
-      final String committerOpName = uidPrefix != null ?
-          uidPrefix + "-" + ICEBERG_FILES_COMMITTER_NAME : ICEBERG_FILES_COMMITTER_NAME;
       SingleOutputStreamOperator<Void> committerStream = writerStream
-          .transform(committerOpName, Types.VOID, filesCommitter)
+          .transform(getOperatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
           .setParallelism(1)
           .setMaxParallelism(1);
       if (uidPrefix != null) {
@@ -303,11 +304,8 @@ public class FlinkSink {
       IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds);
 
       this.writeParallelism = writeParallelism == null ? rowDataInput.getParallelism() : writeParallelism;
-
-      final String writerOpName = uidPrefix != null ?
-          uidPrefix + "-" + ICEBERG_STREAM_WRITER_NAME : ICEBERG_STREAM_WRITER_NAME;
       SingleOutputStreamOperator<WriteResult> writerStream = rowDataInput
-          .transform(writerOpName, TypeInformation.of(WriteResult.class), streamWriter)
+          .transform(getOperatorName(ICEBERG_STREAM_WRITER_NAME), TypeInformation.of(WriteResult.class), streamWriter)
           .setParallelism(writeParallelism);
       if (uidPrefix != null) {
         writerStream = writerStream.uid(uidPrefix + "-writer");
