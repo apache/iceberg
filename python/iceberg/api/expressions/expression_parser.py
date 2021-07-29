@@ -44,7 +44,7 @@ NOT_NULL = NOT + NULL
 ident = Word(alphas, alphanums + "_$").setName("identifier")
 columnName = delimitedList(ident, ".", combine=True).setName("column name")
 
-binop = oneOf("= == != < > >= <= eq ne lt le gt ge <> startsWith", caseless=False)
+binop = oneOf("= == != < > >= <= eq ne lt le gt ge <> startsWith starts_with", caseless=False)
 realNum = ppc.real()
 intNum = ppc.signed_integer()
 
@@ -91,7 +91,8 @@ op_map = {"=": "eq",
           "in": "in",
           "between": "between",
           "is": "is",
-          "startsWith": "startsWith"}
+          "startsWith": "startsWith",
+          "starts_with": "startsWith"}
 
 
 def get_expr_tree(tokens):
