@@ -84,8 +84,7 @@ public class FlinkSink {
   public static <T> Builder builderFor(DataStream<T> input,
                                        MapFunction<T, RowData> mapper,
                                        TypeInformation<RowData> outputType) {
-    DataStream<RowData> dataStream = input.map(mapper, outputType);
-    return forRowData(dataStream);
+    return new Builder().forMapperOutputType(input, mapper, outputType);
   }
 
   /**
@@ -118,6 +117,7 @@ public class FlinkSink {
 
   public static class Builder {
     private DataStream<RowData> rowDataInput = null;
+    private SingleOutputStreamOperator<RowData> mappedRowDataInput = null;
     private TableLoader tableLoader;
     private Table table;
     private TableSchema tableSchema;
@@ -132,6 +132,13 @@ public class FlinkSink {
 
     private Builder forRowData(DataStream<RowData> newRowDataInput) {
       this.rowDataInput = newRowDataInput;
+      return this;
+    }
+
+    private <T> Builder forMapperOutputType(DataStream<T> input,
+                                        MapFunction<T, RowData> mapper,
+                                        TypeInformation<RowData> outputType) {
+      this.mappedRowDataInput = input.map(mapper, outputType);
       return this;
     }
 
@@ -218,7 +225,7 @@ public class FlinkSink {
      * best-practice to set uid for all operators</a> before deploying to production. Flink has an option to {@code
      * pipeline.auto-generate-uids=false} to disable auto-generation and force explicit setting of all operator uids.
      * <br><br>
-     * Be careful with setting this for an existing job, because now we are changing the opeartor uid from an
+     * Be careful with setting this for an existing job, because now we are changing the operator uid from an
      * auto-generated one to this new value. When deploying the change with a checkpoint, Flink won't be able to restore
      * the previous Flink sink operator state (more specifically the committer operator state). You need to use {@code
      * --allowNonRestoredState} to ignore the previous sink state. During restore Flink sink state is used to check if
@@ -233,10 +240,9 @@ public class FlinkSink {
       return this;
     }
 
-    @SuppressWarnings("unchecked")
     public DataStreamSink<RowData> build() {
-      Preconditions.checkArgument(rowDataInput != null,
-          "Please use forRowData() to initialize the input DataStream.");
+      Preconditions.checkArgument(rowDataInput != null || mappedRowDataInput != null,
+          "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
       Preconditions.checkNotNull(tableLoader, "Table loader shouldn't be null");
 
       if (table == null) {
@@ -248,14 +254,26 @@ public class FlinkSink {
         }
       }
 
+      // set name and uid for mappedRowDataInput if needed
+      if (mappedRowDataInput != null) {
+        if (uidPrefix != null) {
+          rowDataInput = mappedRowDataInput
+              .name(operatorName(uidPrefix))
+              .uid(uidPrefix + "-mapper");
+        } else {
+          rowDataInput = mappedRowDataInput;
+        }
+      }
+
       // Convert the requested flink table schema to flink row type.
       RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
 
       // Distribute the records from input data stream based on the write.distribution-mode.
-      rowDataInput = distributeDataStream(rowDataInput, table.properties(), table.spec(), table.schema(), flinkRowType);
+      DataStream<RowData> distributeStream = distributeDataStream(
+          rowDataInput, table.properties(), table.spec(), table.schema(), flinkRowType);
 
       // Add parallel writers that append rows to files
-      SingleOutputStreamOperator<WriteResult> writerStream = appendWriter(rowDataInput, flinkRowType);
+      SingleOutputStreamOperator<WriteResult> writerStream = appendWriter(distributeStream, flinkRowType);
 
       // Add single-parallelism committer that commits files
       // after successful checkpoint or end of input
@@ -265,14 +283,14 @@ public class FlinkSink {
       return appendDummySink(committerStream);
     }
 
-    private String getOperatorName(String suffix) {
+    private String operatorName(String suffix) {
       return uidPrefix != null ? uidPrefix + "-" + suffix : suffix;
     }
 
     private DataStreamSink<RowData> appendDummySink(SingleOutputStreamOperator<Void> committerStream) {
       DataStreamSink<RowData> resultStream = committerStream
           .addSink(new DiscardingSink())
-          .name(getOperatorName(String.format("IcebergSink %s", this.table.name())))
+          .name(operatorName(String.format("IcebergSink %s", this.table.name())))
           .setParallelism(1);
       if (uidPrefix != null) {
         resultStream = resultStream.uid(uidPrefix + "-dummysink");
@@ -283,7 +301,7 @@ public class FlinkSink {
     private SingleOutputStreamOperator<Void> appendCommitter(SingleOutputStreamOperator<WriteResult> writerStream) {
       final IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
       SingleOutputStreamOperator<Void> committerStream = writerStream
-          .transform(getOperatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
+          .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
           .setParallelism(1)
           .setMaxParallelism(1);
       if (uidPrefix != null) {
@@ -305,10 +323,10 @@ public class FlinkSink {
       }
       IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds);
 
-      this.writeParallelism = writeParallelism == null ? rowDataInput.getParallelism() : writeParallelism;
-      SingleOutputStreamOperator<WriteResult> writerStream = rowDataInput
-          .transform(getOperatorName(ICEBERG_STREAM_WRITER_NAME), TypeInformation.of(WriteResult.class), streamWriter)
-          .setParallelism(writeParallelism);
+      final int parallelism = writeParallelism == null ? input.getParallelism() : writeParallelism;
+      SingleOutputStreamOperator<WriteResult> writerStream = input
+          .transform(operatorName(ICEBERG_STREAM_WRITER_NAME), TypeInformation.of(WriteResult.class), streamWriter)
+          .setParallelism(parallelism);
       if (uidPrefix != null) {
         writerStream = writerStream.uid(uidPrefix + "-writer");
       }
