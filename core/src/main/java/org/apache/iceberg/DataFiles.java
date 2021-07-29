@@ -176,7 +176,7 @@ public class DataFiles {
       this.keyMetadata = toCopy.keyMetadata() == null ? null
           : ByteBuffers.copy(toCopy.keyMetadata());
       this.splitOffsets = toCopy.splitOffsets() == null ? null : copyList(toCopy.splitOffsets());
-      this.sortOrderId = toCopy.sortOrderId() == null ? SortOrder.unsorted().orderId() : toCopy.sortOrderId();
+      this.sortOrderId = toCopy.sortOrderId();
       return this;
     }
 
