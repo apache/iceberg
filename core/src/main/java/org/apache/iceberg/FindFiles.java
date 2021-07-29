@@ -44,6 +44,7 @@ public class FindFiles {
     private final Table table;
     private final TableOperations ops;
     private boolean caseSensitive = true;
+    private boolean includeColumnStats = false;
     private Long snapshotId = null;
     private Expression rowFilter = Expressions.alwaysTrue();
     private Expression fileFilter = Expressions.alwaysTrue();
@@ -61,6 +62,11 @@ public class FindFiles {
 
     public Builder caseSensitive(boolean findCaseSensitive) {
       this.caseSensitive = findCaseSensitive;
+      return this;
+    }
+
+    public Builder includeColumnStats() {
+      this.includeColumnStats = true;
       return this;
     }
 
@@ -206,7 +212,8 @@ public class FindFiles {
           .caseSensitive(caseSensitive)
           .entries();
 
-      return CloseableIterable.transform(entries, entry -> entry.file().copyWithoutStats());
+      return CloseableIterable.transform(entries,
+          entry -> includeColumnStats ? entry.file().copy() : entry.file().copyWithoutStats());
     }
   }
 }
