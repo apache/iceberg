@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DeleteFile;
@@ -41,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.source.EqualityDeleteRewriter;
+import org.apache.iceberg.util.BinPacking;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.StructLikeWrapper;
@@ -51,6 +53,7 @@ import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.spark_project.guava.collect.Iterables;
 
 public class ConvertEqDeletesStrategy implements RewriteDeleteStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(ConvertEqDeletesStrategy.class);
@@ -99,40 +102,16 @@ public class ConvertEqDeletesStrategy implements RewriteDeleteStrategy {
   }
 
   @Override
-  public Iterable<DeleteFile> selectDeletes() {
-    CloseableIterable<FileScanTask> fileScanTasks = null;
-    try {
-      fileScanTasks = table.newScan()
-          .ignoreResiduals()
-          .planFiles();
-    } finally {
-      try {
-        if (fileScanTasks != null) {
-          fileScanTasks.close();
-        }
-      } catch (IOException ioe) {
-        LOG.warn("Failed to close task iterable", ioe);
-      }
-    }
-
-    tasksWithEqDelete = CloseableIterable.filter(fileScanTasks, scan ->
+  public Iterable<DeleteFile> selectDeletesToRewrite(Iterable<FileScanTask> dataFiles) {
+    Iterable<FileScanTask> filteredScan = Iterables.filter(dataFiles, scan ->
         scan.deletes().stream().anyMatch(delete -> delete.content().equals(FileContent.EQUALITY_DELETES))
     );
 
-    Set<DeleteFile> eqDeletes = Sets.newHashSet();
-    tasksWithEqDelete.forEach(task -> {
-      eqDeletes.addAll(task.deletes().stream()
-          .filter(deleteFile -> deleteFile.content().equals(FileContent.EQUALITY_DELETES))
-          .collect(Collectors.toList()));
-    });
-
-    deletesToReplace = eqDeletes;
-
-    return deletesToReplace;
+    return Iterables.concat(Iterables.transform(filteredScan, scan -> scan.deletes()));
   }
 
   @Override
-  public Iterable<DeleteFile> rewriteDeletes() {
+  public Set<DeleteFile> rewriteDeletes(List<DeleteFile> deleteFilesToRewrite) {
     Map<StructLikeWrapper, Collection<FileScanTask>> groupedTasks =
         TableScanUtil.groupTasksByPartition(table.spec(), tasksWithEqDelete.iterator());
 
@@ -161,6 +140,15 @@ public class ConvertEqDeletesStrategy implements RewriteDeleteStrategy {
     }
 
     return Lists.newArrayList();
+  }
+
+  @Override
+  Iterable<List<FileScanTask>> planDeleteGroups(Iterable<DeleteFile> deleteFiles) {
+    BinPacking.ListPacker<FileScanTask> packer = new BinPacking.ListPacker<>(maxGroupSize, 1, false);
+    List<List<FileScanTask>> potentialGroups = packer.pack(dataFiles, FileScanTask::length);
+    return potentialGroups.stream().filter(group ->
+        group.size() >= minInputFiles || sizeOfInputFiles(group) > targetFileSize
+    ).collect(Collectors.toList());
   }
 
   public RewriteDeleteStrategy options(Map<String, String> options) {
