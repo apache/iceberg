@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.actions;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.DeleteFile;
@@ -52,7 +51,7 @@ public interface RewriteDeleteStrategy {
    * @param deleteFilesToRewrite a group of files to be rewritten together
    * @return iterable of delete files used to replace the original delete files.
    */
-  Set<DeleteFile> rewriteDeletes(List<DeleteFile> deleteFilesToRewrite);
+  Set<DeleteFile> rewriteDeletes(Set<DeleteFile> deleteFilesToRewrite);
 
   /**
    * Groups file scans into lists which will be processed in a single executable unit. Each group will end up being
@@ -62,7 +61,7 @@ public interface RewriteDeleteStrategy {
    * @param deleteFiles iterable of DeleteFile to be rewritten
    * @return iterable of lists of FileScanTasks which will be processed together
    */
-  Iterable<List<FileScanTask>> planDeleteGroups(Iterable<DeleteFile> deleteFiles);
+  Iterable<Set<DeleteFile>> planDeleteGroups(Iterable<DeleteFile> deleteFiles);
 
   /**
    * Sets options to be used with this strategy

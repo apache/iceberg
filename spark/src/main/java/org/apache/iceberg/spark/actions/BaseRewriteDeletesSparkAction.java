@@ -21,15 +21,11 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.RewriteFiles;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BaseRewriteDeletesResult;
 import org.apache.iceberg.actions.RewriteDeleteStrategy;
@@ -37,12 +33,9 @@ import org.apache.iceberg.actions.RewriteDeletes;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
@@ -76,12 +69,29 @@ public class BaseRewriteDeletesSparkAction
 
   @Override
   public Result execute() {
-    if (isRewriteEqDelete) {
-      planFileGroups();
-      Iterable<DeleteFile> deletesToAdd = strategy.rewriteDeletes();
-      rewriteEqualityDeletes(Sets.newHashSet(deletesToReplace), Sets.newHashSet(deletesToAdd));
+    CloseableIterable<FileScanTask> fileScanTasks = table.newScan()
+            .ignoreResiduals()
+            .planFiles();
 
-      return new BaseRewriteDeletesResult(Sets.newHashSet(deletesToReplace), Sets.newHashSet(deletesToAdd));
+    if (isRewriteEqDelete) {
+      try {
+        Iterable<DeleteFile> filteredDeletes = strategy.selectDeletesToRewrite(fileScanTasks);
+        Iterable<Set<DeleteFile>> groupedDeletes = strategy.planDeleteGroups(filteredDeletes);
+        Set<DeleteFile> deletesToAdd = Sets.newHashSet();
+        for (Set<DeleteFile> deletesInGroup : groupedDeletes) {
+          deletesToAdd.addAll(strategy.rewriteDeletes(deletesInGroup));
+        }
+
+        rewriteEqualityDeletes(Sets.newHashSet(filteredDeletes), deletesToAdd);
+
+        return new BaseRewriteDeletesResult(Sets.newHashSet(filteredDeletes), Sets.newHashSet(deletesToAdd));
+      } finally {
+        try {
+          fileScanTasks.close();
+        } catch (IOException io) {
+          LOG.error("Cannot properly close file iterable while planning for rewrite", io);
+        }
+      }
     }
 
     return new BaseRewriteDeletesResult(Collections.emptySet(), Collections.emptySet());
@@ -102,36 +112,6 @@ public class BaseRewriteDeletesSparkAction
   @Override
   protected RewriteDeletes self() {
     return this;
-  }
-
-  private Map<StructLike, List<List<FileScanTask>>> planFileGroups() {
-    CloseableIterable<FileScanTask> fileScanTasks = table.newScan()
-        .ignoreResiduals()
-        .planFiles();
-
-    try {
-      Map<StructLike, List<FileScanTask>> filesByPartition = Streams.stream(fileScanTasks)
-          .collect(Collectors.groupingBy(task -> task.file().partition()));
-
-      Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition = Maps.newHashMap();
-
-      filesByPartition.forEach((partition, tasks) -> {
-        Iterable<DeleteFile> filtered = strategy.selectDeletesToRewrite(tasks);
-        Iterable<List<FileScanTask>> groupedTasks = strategy.planDeleteGroups(filtered);
-        List<List<FileScanTask>> fileGroups = ImmutableList.copyOf(groupedTasks);
-        if (fileGroups.size() > 0) {
-          fileGroupsByPartition.put(partition, fileGroups);
-        }
-      });
-
-      return fileGroupsByPartition;
-    } finally {
-      try {
-        fileScanTasks.close();
-      } catch (IOException io) {
-        LOG.error("Cannot properly close file iterable while planning for rewrite", io);
-      }
-    }
   }
 
   private void rewriteEqualityDeletes(Set<DeleteFile> eqDeletes, Set<DeleteFile> posDeletes) {

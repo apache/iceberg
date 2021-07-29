@@ -19,11 +19,11 @@
 
 package org.apache.iceberg.spark.actions;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DeleteFile;
@@ -38,8 +38,10 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.source.EqualityDeleteRewriter;
-import org.apache.iceberg.util.BinPacking;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.TableScanUtil;
@@ -49,8 +51,6 @@ import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.spark_project.guava.collect.Iterables;
-import org.spark_project.guava.collect.Maps;
 
 public class ConvertEqDeletesStrategy implements RewriteDeleteStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(ConvertEqDeletesStrategy.class);
@@ -60,8 +60,6 @@ public class ConvertEqDeletesStrategy implements RewriteDeleteStrategy {
   private int splitLookback;
   private long splitOpenFileCost;
 
-  private CloseableIterable<FileScanTask> tasksWithEqDelete;
-  private Iterable<DeleteFile> deletesToReplace;
   private Map<DeleteFile, FileScanTask> deleteToFileMap;
   private final JavaSparkContext sparkContext;
 
@@ -103,37 +101,41 @@ public class ConvertEqDeletesStrategy implements RewriteDeleteStrategy {
   public Iterable<DeleteFile> selectDeletesToRewrite(Iterable<FileScanTask> dataFiles) {
     deleteToFileMap = Maps.newHashMap();
 
-    StreamSupport.stream(dataFiles.spliterator(), false).map(scan -> {
+    StreamSupport.stream(dataFiles.spliterator(), false).forEach(scan -> {
       scan.deletes().stream()
           .filter(delete -> delete.content().equals(FileContent.EQUALITY_DELETES))
-          .map(delete -> deleteToFileMap.put(delete, scan));
-      return null;
+          .forEach(delete -> deleteToFileMap.put(delete, scan));
       });
 
     return deleteToFileMap.keySet();
   }
 
   @Override
-  public Set<DeleteFile> rewriteDeletes(List<DeleteFile> deleteFilesToRewrite) {
-
-    List<FileScanTask> tasksContainsEqDeletes = deleteFilesToRewrite.stream()
+  public Set<DeleteFile> rewriteDeletes(Set<DeleteFile> deleteFilesToRewrite) {
+    List<FileScanTask> refDataFiles = deleteFilesToRewrite.stream()
         .map(deleteFile -> deleteToFileMap.get(deleteFile))
         .distinct()
         .collect(Collectors.toList());
 
-    // TODO: should consider delete as well.
-    CloseableIterable<FileScanTask> splitTasks = TableScanUtil.splitFiles(
-        CloseableIterable.withNoopClose(tasksContainsEqDeletes), deleteTargetSizeInBytes);
+    Map<StructLike, List<FileScanTask>> filesByPartition = Streams.stream(refDataFiles.listIterator())
+            .collect(Collectors.groupingBy(task -> task.file().partition()));
 
-    CloseableIterable<CombinedScanTask> combinedScanTasks = TableScanUtil.planTasks(splitTasks, deleteTargetSizeInBytes,
-        splitLookback, splitOpenFileCost);
+    // Split and combine tasks under each partition
+    List<Pair<StructLike, CombinedScanTask>> combinedScanTasks = filesByPartition.entrySet().stream()
+            .map(entry -> {
+              CloseableIterable<FileScanTask> splitTasks = TableScanUtil.splitFiles(
+                      CloseableIterable.withNoopClose(entry.getValue()), deleteTargetSizeInBytes);
+              return Pair.of(entry.getKey(),
+                      TableScanUtil.planTasks(splitTasks, deleteTargetSizeInBytes, splitLookback, splitOpenFileCost));
+            })
+            .flatMap(pair -> StreamSupport.stream(CloseableIterable
+                    .transform(pair.second(), task -> Pair.of(pair.first(), task)).spliterator(), false)
+            )
+            .collect(Collectors.toList());
 
-
-    combinedScanTasks.iterator()
-
-    if (!tasksContainsEqDeletes.isEmpty()) {
+    if (!refDataFiles.isEmpty()) {
       JavaRDD<Pair<StructLike, CombinedScanTask>> taskRDD = sparkContext.parallelize(combinedScanTasks,
-          tasksContainsEqDeletes.size());
+          refDataFiles.size());
       Broadcast<FileIO> io = sparkContext.broadcast(table.io());
       Broadcast<EncryptionManager> encryption = sparkContext.broadcast(table.encryption());
 
@@ -142,16 +144,15 @@ public class ConvertEqDeletesStrategy implements RewriteDeleteStrategy {
       return deleteRewriter.toPosDeletes(taskRDD);
     }
 
-    return Lists.newArrayList();
+    return Collections.emptySet();
   }
 
   @Override
-  Iterable<List<FileScanTask>> planDeleteGroups(Iterable<DeleteFile> deleteFiles) {
-    BinPacking.ListPacker<FileScanTask> packer = new BinPacking.ListPacker<>(maxGroupSize, 1, false);
-    List<List<FileScanTask>> potentialGroups = packer.pack(dataFiles, FileScanTask::length);
-    return potentialGroups.stream().filter(group ->
-        group.size() >= minInputFiles || sizeOfInputFiles(group) > targetFileSize
-    ).collect(Collectors.toList());
+  public Iterable<Set<DeleteFile>> planDeleteGroups(Iterable<DeleteFile> deleteFiles) {
+    List<Set<DeleteFile>> deletesGroups = Lists.newArrayList();
+    deletesGroups.add(Sets.newHashSet(deleteFiles));
+
+    return deletesGroups;
   }
 
   public RewriteDeleteStrategy options(Map<String, String> options) {

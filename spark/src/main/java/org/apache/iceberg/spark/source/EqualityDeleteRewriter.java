@@ -21,8 +21,8 @@ package org.apache.iceberg.spark.source;
 
 import java.io.Serializable;
 import java.util.Collection;
-import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DeleteFile;
@@ -40,7 +40,7 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.SortedPosDeleteWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.Pair;
@@ -79,15 +79,15 @@ public class EqualityDeleteRewriter implements Serializable {
     this.format = FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
   }
 
-  public List<DeleteFile> toPosDeletes(JavaRDD<Pair<StructLike, CombinedScanTask>> taskRDD) {
-    JavaRDD<List<DeleteFile>> dataFilesRDD = taskRDD.map(this::toPosDeletes);
+  public Set<DeleteFile> toPosDeletes(JavaRDD<Pair<StructLike, CombinedScanTask>> taskRDD) {
+    JavaRDD<Set<DeleteFile>> dataFilesRDD = taskRDD.map(this::toPosDeletes);
 
     return dataFilesRDD.collect().stream()
         .flatMap(Collection::stream)
-        .collect(Collectors.toList());
+        .collect(Collectors.toSet());
   }
 
-  public List<DeleteFile> toPosDeletes(Pair<StructLike, CombinedScanTask> task) throws Exception {
+  public Set<DeleteFile> toPosDeletes(Pair<StructLike, CombinedScanTask> task) throws Exception {
     TaskContext context = TaskContext.get();
     int partitionId = context.partitionId();
     long taskId = context.taskAttemptId();
@@ -118,7 +118,7 @@ public class EqualityDeleteRewriter implements Serializable {
       deleteRowReader.close();
       deleteRowReader = null;
 
-      return Lists.newArrayList(posDeleteWriter.complete());
+      return Sets.newHashSet(posDeleteWriter.complete());
 
     } catch (Throwable originalThrowable) {
       try {
