@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.spark.actions;
 
-import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,12 +38,10 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.source.EqualityDeleteRewriter;
 import org.apache.iceberg.util.BinPacking;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.StructLikeWrapper;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -54,6 +50,7 @@ import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spark_project.guava.collect.Iterables;
+import org.spark_project.guava.collect.Maps;
 
 public class ConvertEqDeletesStrategy implements RewriteDeleteStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(ConvertEqDeletesStrategy.class);
@@ -65,6 +62,7 @@ public class ConvertEqDeletesStrategy implements RewriteDeleteStrategy {
 
   private CloseableIterable<FileScanTask> tasksWithEqDelete;
   private Iterable<DeleteFile> deletesToReplace;
+  private Map<DeleteFile, FileScanTask> deleteToFileMap;
   private final JavaSparkContext sparkContext;
 
   /**
@@ -103,34 +101,39 @@ public class ConvertEqDeletesStrategy implements RewriteDeleteStrategy {
 
   @Override
   public Iterable<DeleteFile> selectDeletesToRewrite(Iterable<FileScanTask> dataFiles) {
-    Iterable<FileScanTask> filteredScan = Iterables.filter(dataFiles, scan ->
-        scan.deletes().stream().anyMatch(delete -> delete.content().equals(FileContent.EQUALITY_DELETES))
-    );
+    deleteToFileMap = Maps.newHashMap();
 
-    return Iterables.concat(Iterables.transform(filteredScan, scan -> scan.deletes()));
+    StreamSupport.stream(dataFiles.spliterator(), false).map(scan -> {
+      scan.deletes().stream()
+          .filter(delete -> delete.content().equals(FileContent.EQUALITY_DELETES))
+          .map(delete -> deleteToFileMap.put(delete, scan));
+      return null;
+      });
+
+    return deleteToFileMap.keySet();
   }
 
   @Override
   public Set<DeleteFile> rewriteDeletes(List<DeleteFile> deleteFilesToRewrite) {
-    Map<StructLikeWrapper, Collection<FileScanTask>> groupedTasks =
-        TableScanUtil.groupTasksByPartition(table.spec(), tasksWithEqDelete.iterator());
 
-    // Split and combine tasks under each partition
-    List<Pair<StructLike, CombinedScanTask>> combinedScanTasks = groupedTasks.entrySet().stream()
-        .map(entry -> {
-          CloseableIterable<FileScanTask> splitTasks = TableScanUtil.splitFiles(
-              CloseableIterable.withNoopClose(entry.getValue()), deleteTargetSizeInBytes);
-          return Pair.of(entry.getKey().get(),
-              TableScanUtil.planTasks(splitTasks, deleteTargetSizeInBytes, splitLookback, splitOpenFileCost));
-        })
-        .flatMap(pair -> StreamSupport.stream(CloseableIterable
-            .transform(pair.second(), task -> Pair.of(pair.first(), task)).spliterator(), false)
-        )
+    List<FileScanTask> tasksContainsEqDeletes = deleteFilesToRewrite.stream()
+        .map(deleteFile -> deleteToFileMap.get(deleteFile))
+        .distinct()
         .collect(Collectors.toList());
 
-    if (!combinedScanTasks.isEmpty()) {
+    // TODO: should consider delete as well.
+    CloseableIterable<FileScanTask> splitTasks = TableScanUtil.splitFiles(
+        CloseableIterable.withNoopClose(tasksContainsEqDeletes), deleteTargetSizeInBytes);
+
+    CloseableIterable<CombinedScanTask> combinedScanTasks = TableScanUtil.planTasks(splitTasks, deleteTargetSizeInBytes,
+        splitLookback, splitOpenFileCost);
+
+
+    combinedScanTasks.iterator()
+
+    if (!tasksContainsEqDeletes.isEmpty()) {
       JavaRDD<Pair<StructLike, CombinedScanTask>> taskRDD = sparkContext.parallelize(combinedScanTasks,
-          combinedScanTasks.size());
+          tasksContainsEqDeletes.size());
       Broadcast<FileIO> io = sparkContext.broadcast(table.io());
       Broadcast<EncryptionManager> encryption = sparkContext.broadcast(table.encryption());
 
