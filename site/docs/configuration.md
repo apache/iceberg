@@ -64,7 +64,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | commit.status-check.num-retries    | 3                | Number of times to check whether a commit succeeded after a connection is lost before failing due to an unknown commit state |
 | commit.status-check.min-wait-ms    | 1000 (1s)        | Minimum time in milliseconds to wait before retrying a status-check |
 | commit.status-check.max-wait-ms    | 60000 (1 min)    | Maximum time in milliseconds to wait before retrying a status-check |
-| commit.status-check.total-timeout-ms| 1800000 (30 min) | Maximum time in milliseconds to wait before retrying a status-check |
+| commit.status-check.total-timeout-ms| 1800000 (30 min) | Total timeout in milliseconds when retrying a status-check |
 | commit.manifest.target-size-bytes  | 8388608 (8 MB)   | Target size when merging manifest files                       |
 | commit.manifest.min-count-to-merge | 100              | Minimum number of manifests to accumulate before merging      |
 | commit.manifest-merge.enabled      | true             | Controls whether to automatically merge manifests on writes   |
