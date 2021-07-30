@@ -159,7 +159,7 @@ public abstract class DeleteFilter<T> {
     if (eqDeletes.isEmpty()) {
       return null;
     }
-    Predicate<T> isDeleted = null;
+    Predicate<T> isDeleted = t -> false;
 
     Multimap<Set<Integer>, DeleteFile> filesByDeleteIds = Multimaps.newMultimap(Maps.newHashMap(), Lists::newArrayList);
     for (DeleteFile delete : eqDeletes) {
@@ -187,25 +187,24 @@ public abstract class DeleteFilter<T> {
               records, record -> new InternalRecordWrapper(deleteSchema.asStruct()).wrap(record)),
           deleteSchema.asStruct());
 
-      isDeleted = isDeleted == null ? record -> deleteSet.contains(projectRow.wrap(asStructLike(record))) :
-              isDeleted.or(record -> deleteSet.contains(projectRow.wrap(asStructLike(record))));
+      isDeleted = isDeleted.or(record -> deleteSet.contains(projectRow.wrap(asStructLike(record))));
     }
 
     return isDeleted;
   }
 
   private Predicate<T> buildPosDeletePredicate() {
-    if (posDeletes.isEmpty()) {
-      return null;
+    Predicate<T> pred = r -> false;
+
+    for (DeleteFile posDelete : posDeletes) {
+      CloseableIterable<Record> deleteRecords = openPosDeletes(posDelete);
+      Set<Long> deleteRecordSet = Deletes.toPositionSet(dataFile.path(), deleteRecords);
+      if (!deleteRecordSet.isEmpty()) {
+        pred = pred.or(r -> deleteRecordSet.contains(pos(r)));
+      }
     }
 
-    List<CloseableIterable<Record>> deletes = Lists.transform(posDeletes, this::openPosDeletes);
-    Set<Long> deleteSet = Deletes.toPositionSet(dataFile.path(), CloseableIterable.concat(deletes));
-    if (deleteSet.isEmpty()) {
-      return null;
-    }
-
-    return record -> deleteSet.contains(pos(record));
+    return pred;
   }
 
   public CloseableIterable<T> keepRowsFromDeletes(CloseableIterable<T> records) {

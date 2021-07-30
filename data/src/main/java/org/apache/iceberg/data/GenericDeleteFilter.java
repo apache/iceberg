@@ -60,4 +60,5 @@ public class GenericDeleteFilter extends DeleteFilter<Record> {
   protected InputFile getInputFile(String location) {
     return io.newInputFile(location);
   }
+
 }
