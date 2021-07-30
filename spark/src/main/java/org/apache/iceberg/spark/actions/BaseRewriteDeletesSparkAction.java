@@ -20,19 +20,16 @@
 package org.apache.iceberg.spark.actions;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Set;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BaseRewriteDeletesResult;
 import org.apache.iceberg.actions.RewriteDeleteStrategy;
 import org.apache.iceberg.actions.RewriteDeletes;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -44,93 +41,88 @@ import org.slf4j.LoggerFactory;
 public class BaseRewriteDeletesSparkAction
     extends BaseSnapshotUpdateSparkAction<RewriteDeletes, RewriteDeletes.Result>
     implements RewriteDeletes {
+
   private static final Logger LOG = LoggerFactory.getLogger(BaseRewriteDeletesSparkAction.class);
+
   private final Table table;
   private final FileIO fileIO;
-  private boolean isRewriteEqDelete;
-  private boolean isRewritePosDelete;
+  private final SparkSession spark;
+
   private RewriteDeleteStrategy strategy;
 
   protected BaseRewriteDeletesSparkAction(SparkSession spark, Table table) {
     super(spark);
+    this.spark = spark;
     this.table = table;
     this.fileIO = table.io();
-    this.strategy = new ConvertEqDeletesStrategy(spark, table);
   }
 
-  /**
-   * Set the rewrite delete strategy.
-   *
-   * @param newStrategy the strategy for rewrite deletes.
-   */
-  public void setStrategy(RewriteDeleteStrategy newStrategy) {
-    this.strategy = newStrategy;
+  @Override
+  public RewriteDeletes strategy(String strategyImpl) {
+    DynConstructors.Ctor<RewriteDeleteStrategy> ctor;
+    try {
+      ctor = DynConstructors.builder(RewriteDeleteStrategy.class)
+          .impl(strategyImpl, SparkSession.class, Table.class)
+          .buildChecked();
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(String.format(
+          "Cannot initialize RewriteDeleteStrategy implementation %s: %s", strategyImpl, e.getMessage()), e);
+    }
+
+    try {
+      strategy = ctor.newInstance(spark, table);
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+          String.format("Cannot initialize RewriteDeleteStrategy, %s does not implement RewriteDeleteStrategy",
+              strategyImpl), e);
+    }
+
+    return this;
   }
 
   @Override
   public Result execute() {
+    if (strategy == null) {
+      // use ConvertEqDeletesStrategy for default right now.
+      strategy = new ConvertEqDeletesStrategy(spark, table);
+    }
     CloseableIterable<FileScanTask> fileScanTasks = table.newScan()
             .ignoreResiduals()
             .planFiles();
 
-    if (isRewriteEqDelete) {
-      try {
-        Iterable<DeleteFile> filteredDeletes = strategy.selectDeletesToRewrite(fileScanTasks);
-        Iterable<Set<DeleteFile>> groupedDeletes = strategy.planDeleteGroups(filteredDeletes);
-        Set<DeleteFile> deletesToAdd = Sets.newHashSet();
-        for (Set<DeleteFile> deletesInGroup : groupedDeletes) {
-          deletesToAdd.addAll(strategy.rewriteDeletes(deletesInGroup));
-        }
+    Set<DeleteFile> deletesToAdd = Sets.newHashSet();
 
-        rewriteEqualityDeletes(Sets.newHashSet(filteredDeletes), deletesToAdd);
-
-        return new BaseRewriteDeletesResult(Sets.newHashSet(filteredDeletes), Sets.newHashSet(deletesToAdd));
-      } finally {
-        try {
-          fileScanTasks.close();
-        } catch (IOException io) {
-          LOG.error("Cannot properly close file iterable while planning for rewrite", io);
-        }
-      }
-    }
-
-    return new BaseRewriteDeletesResult(Collections.emptySet(), Collections.emptySet());
-  }
-
-  @Override
-  public RewriteDeletes rewriteEqDeletes() {
-    this.isRewriteEqDelete = true;
-    return this;
-  }
-
-  @Override
-  public RewriteDeletes rewritePosDeletes() {
-    this.isRewritePosDelete = true;
-    return null;
-  }
-
-  @Override
-  protected RewriteDeletes self() {
-    return this;
-  }
-
-  private void rewriteEqualityDeletes(Set<DeleteFile> eqDeletes, Set<DeleteFile> posDeletes) {
-    Preconditions.checkArgument(eqDeletes.stream().allMatch(f -> f.content().equals(FileContent.EQUALITY_DELETES)),
-        "The deletes to be converted should be equality deletes");
-    Preconditions.checkArgument(posDeletes.stream().allMatch(f -> f.content().equals(FileContent.POSITION_DELETES)),
-        "The converted deletes should be position deletes");
     try {
-      RewriteFiles rewriteFiles = table.newRewrite();
-      rewriteFiles.rewriteFiles(ImmutableSet.of(), Sets.newHashSet(eqDeletes), ImmutableSet.of(),
-          Sets.newHashSet(posDeletes));
-      rewriteFiles.commit();
+      Iterable<DeleteFile> deletesToReplace = strategy.selectDeletesToRewrite(fileScanTasks);
+      Iterable<Set<DeleteFile>> groupedDeletes = strategy.planDeleteGroups(deletesToReplace);
+      for (Set<DeleteFile> deletesInGroup : groupedDeletes) {
+        deletesToAdd.addAll(strategy.rewriteDeletes(deletesInGroup));
+      }
+
+      table.newRewrite()
+          .rewriteFiles(ImmutableSet.of(), Sets.newHashSet(deletesToReplace),
+              ImmutableSet.of(), Sets.newHashSet(deletesToAdd))
+          .commit();
+
+      return new BaseRewriteDeletesResult(Sets.newHashSet(deletesToReplace), Sets.newHashSet(deletesToAdd));
     } catch (Exception e) {
-      Tasks.foreach(Iterables.transform(posDeletes, f -> f.path().toString()))
+      Tasks.foreach(Iterables.transform(deletesToAdd, f -> f.path().toString()))
           .noRetry()
           .suppressFailureWhenFinished()
           .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
           .run(fileIO::deleteFile);
       throw e;
+    } finally {
+      try {
+        fileScanTasks.close();
+      } catch (IOException io) {
+        LOG.error("Cannot properly close file iterable while planning for rewrite", io);
+      }
     }
+  }
+
+  @Override
+  protected RewriteDeletes self() {
+    return this;
   }
 }

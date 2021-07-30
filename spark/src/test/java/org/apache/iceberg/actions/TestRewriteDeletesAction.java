@@ -49,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.actions.ConvertEqDeletesStrategy;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
@@ -109,7 +110,7 @@ public abstract class TestRewriteDeletesAction extends SparkTestBase {
 
     AssertHelpers.assertThrows("should fail execute",
         IllegalArgumentException.class, "Files to delete cannot be null or empty",
-        () -> actionsProvider().rewriteDeletes(table).rewriteEqDeletes().execute()
+        () -> actionsProvider().rewriteDeletes(table).execute()
     );
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
@@ -174,7 +175,7 @@ public abstract class TestRewriteDeletesAction extends SparkTestBase {
 
     AssertHelpers.assertThrows("should fail execute",
         IllegalArgumentException.class, "Files to delete cannot be null or empty",
-        () -> actionsProvider().rewriteDeletes(table).rewriteEqDeletes().execute()
+        () -> actionsProvider().rewriteDeletes(table).strategy(ConvertEqDeletesStrategy.class.getName()).execute()
     );
 
     List<ThreeColumnRecord> expectedRecords = Lists.newArrayList();
@@ -233,7 +234,7 @@ public abstract class TestRewriteDeletesAction extends SparkTestBase {
 
     table.newRowDelta().addDeletes(eqDeleteWriter.toDeleteFile()).commit();
 
-    actionsProvider().rewriteDeletes(table).rewriteEqDeletes().execute();
+    actionsProvider().rewriteDeletes(table).strategy(ConvertEqDeletesStrategy.class.getName()).execute();
 
     CloseableIterable<FileScanTask> tasks = CloseableIterable.filter(
         table.newScan().planFiles(), task -> task.deletes().stream()
@@ -300,7 +301,7 @@ public abstract class TestRewriteDeletesAction extends SparkTestBase {
 
     table.newRowDelta().addDeletes(eqDeleteWriter.toDeleteFile()).commit();
 
-    actionsProvider().rewriteDeletes(table).rewriteEqDeletes().execute();
+    actionsProvider().rewriteDeletes(table).strategy(ConvertEqDeletesStrategy.class.getName()).execute();
 
     CloseableIterable<FileScanTask> tasks = CloseableIterable.filter(
         table.newScan().planFiles(), task -> task.deletes().stream()
@@ -386,7 +387,7 @@ public abstract class TestRewriteDeletesAction extends SparkTestBase {
     posDeleteWriter.close();
     table.newRowDelta().addDeletes(posDeleteWriter.toDeleteFile()).commit();
 
-    RewriteDeletes.Result result = actionsProvider().rewriteDeletes(table).rewriteEqDeletes().execute();
+    RewriteDeletes.Result result = actionsProvider().rewriteDeletes(table).execute();
     Assert.assertEquals("Should contain one equality delete to delete", 1, result.deletedFiles().size());
     Assert.assertEquals("Should contain one position delete to add", 1, result.addedFiles().size());
 
