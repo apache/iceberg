@@ -41,6 +41,7 @@ import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
@@ -265,15 +266,38 @@ public class FlinkSink {
         }
       }
 
+      // Find out the equality field id list based on the user-provided equality field column names.
+      List<Integer> equalityFieldIds = Lists.newArrayList();
+      if (equalityFieldColumns != null && equalityFieldColumns.size() > 0) {
+        for (String column : equalityFieldColumns) {
+          org.apache.iceberg.types.Types.NestedField field = table.schema().findField(column);
+          Preconditions.checkNotNull(field, "Missing required equality field column '%s' in table schema %s",
+              column, table.schema());
+          equalityFieldIds.add(field.fieldId());
+        }
+      }
+
+      // Validate the partition fields if equality fields are not empty.
+      if (!equalityFieldIds.isEmpty() && !table.spec().isUnpartitioned()) {
+        for (PartitionField partitionField : table.spec().fields()) {
+          Preconditions.checkState(equalityFieldIds.contains(partitionField.sourceId()),
+              "Partition field '%s' is not included in equality fields: '%s'", partitionField, equalityFieldColumns);
+        }
+      }
+
       // Convert the requested flink table schema to flink row type.
       RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
 
-      // Distribute the records from input data stream based on the write.distribution-mode.
-      DataStream<RowData> distributeStream = distributeDataStream(
-          rowDataInput, table.properties(), table.spec(), table.schema(), flinkRowType);
+      // Distribute the records from input data stream by equality fields or fallback to write.distribution-mode.
+      if (!equalityFieldIds.isEmpty()) {
+        rowDataInput = rowDataInput.keyBy(new EqualityFieldKeySelector(equalityFieldIds, table.schema(), flinkRowType));
+      } else {
+        rowDataInput = distributeDataStream(rowDataInput, table.properties(), table.spec(), table.schema(),
+            flinkRowType);
+      }
 
       // Add parallel writers that append rows to files
-      SingleOutputStreamOperator<WriteResult> writerStream = appendWriter(distributeStream, flinkRowType);
+      SingleOutputStreamOperator<WriteResult> writerStream = appendWriter(rowDataInput, flinkRowType, equalityFieldIds);
 
       // Add single-parallelism committer that commits files
       // after successful checkpoint or end of input
@@ -310,17 +334,8 @@ public class FlinkSink {
       return committerStream;
     }
 
-    private SingleOutputStreamOperator<WriteResult> appendWriter(DataStream<RowData> input, RowType flinkRowType) {
-      // Find out the equality field id list based on the user-provided equality field column names.
-      List<Integer> equalityFieldIds = Lists.newArrayList();
-      if (equalityFieldColumns != null && equalityFieldColumns.size() > 0) {
-        for (String column : equalityFieldColumns) {
-          org.apache.iceberg.types.Types.NestedField field = table.schema().findField(column);
-          Preconditions.checkNotNull(field, "Missing required equality field column '%s' in table schema %s",
-              column, table.schema());
-          equalityFieldIds.add(field.fieldId());
-        }
-      }
+    private SingleOutputStreamOperator<WriteResult> appendWriter(DataStream<RowData> input, RowType flinkRowType,
+        List<Integer> equalityFieldIds) {
       IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds);
 
       int parallelism = writeParallelism == null ? input.getParallelism() : writeParallelism;
