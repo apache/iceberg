@@ -136,8 +136,8 @@ public class FlinkSink {
     }
 
     private <T> Builder forMapperOutputType(DataStream<T> input,
-                                        MapFunction<T, RowData> mapper,
-                                        TypeInformation<RowData> outputType) {
+                                            MapFunction<T, RowData> mapper,
+                                            ExpressionsTypeInformation<RowData> outputType) {
       this.mappedRowDataInput = input.map(mapper, outputType);
       return this;
     }
