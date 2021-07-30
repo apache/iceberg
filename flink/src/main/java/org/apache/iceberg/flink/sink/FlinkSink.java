@@ -40,6 +40,7 @@ import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -257,11 +258,24 @@ public class FlinkSink {
         }
       }
 
+      // Validate the partition fields if equality fields are not empty.
+      if (!equalityFieldIds.isEmpty() && !table.spec().isUnpartitioned()) {
+        for (PartitionField partitionField : table.spec().fields()) {
+          Preconditions.checkState(equalityFieldIds.contains(partitionField.sourceId()),
+              "Partition field '%s' is not included in equality fields: '%s'", partitionField, equalityFieldColumns);
+        }
+      }
+
       // Convert the requested flink table schema to flink row type.
       RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
 
-      // Distribute the records from input data stream based on the write.distribution-mode.
-      rowDataInput = distributeDataStream(rowDataInput, table.properties(), table.spec(), table.schema(), flinkRowType);
+      // Distribute the records from input data stream by equality fields or fallback to write.distribution-mode.
+      if (!equalityFieldIds.isEmpty()) {
+        rowDataInput = rowDataInput.keyBy(new EqualityFieldKeySelector(equalityFieldIds, table.schema(), flinkRowType));
+      } else {
+        rowDataInput = distributeDataStream(rowDataInput, table.properties(), table.spec(), table.schema(),
+            flinkRowType);
+      }
 
       // Chain the iceberg stream writer and committer operator.
       IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds);
