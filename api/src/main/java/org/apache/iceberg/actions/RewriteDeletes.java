@@ -25,18 +25,11 @@ import org.apache.iceberg.DeleteFile;
 public interface RewriteDeletes extends SnapshotUpdate<RewriteDeletes, RewriteDeletes.Result> {
 
   /**
-   * rewrite the equality deletes.
+   * Set the implementation class name for rewrite strategy.
    *
    * @return this for method chaining
    */
-  RewriteDeletes rewriteEqDeletes();
-
-  /**
-   * rewrite the position deletes.
-   *
-   * @return this for method chaining
-   */
-  RewriteDeletes rewritePosDeletes();
+  RewriteDeletes strategy(String strategyImpl);
 
   /**
    * The action result that contains a summary of the execution.
