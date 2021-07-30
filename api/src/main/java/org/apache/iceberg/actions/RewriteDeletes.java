@@ -45,11 +45,11 @@ public interface RewriteDeletes extends SnapshotUpdate<RewriteDeletes, RewriteDe
     /**
      * Returns the delete files to rewrite.
      */
-    Set<DeleteFile> deletedFiles();
+    Set<DeleteFile> deleteFilesToReplace();
 
     /**
      * Returns the added delete files.
      */
-    Set<DeleteFile> addedFiles();
+    Set<DeleteFile> deleteFilesToAdd();
   }
 }
