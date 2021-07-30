@@ -68,7 +68,8 @@ public class ConvertEqDeletesStrategy implements RewriteDeleteStrategy {
    *
    * This should be used in EqualityDeleteRewriter.
    */
-  public static final String SPLIT_POSITION_DELETE = "split-position-delete";
+  public static final String SPLIT_POSITION_DELETE = "split-position-delete.enabled";
+  public static final String PARTIAL_COMMIT_ENABLED = "partial-commit.enabled";
 
   public ConvertEqDeletesStrategy(SparkSession spark, Table table) {
     this.table = table;
@@ -105,7 +106,7 @@ public class ConvertEqDeletesStrategy implements RewriteDeleteStrategy {
       scan.deletes().stream()
           .filter(delete -> delete.content().equals(FileContent.EQUALITY_DELETES))
           .forEach(delete -> deleteToFileMap.put(delete, scan));
-      });
+    });
 
     return deleteToFileMap.keySet();
   }
@@ -117,34 +118,32 @@ public class ConvertEqDeletesStrategy implements RewriteDeleteStrategy {
         .distinct()
         .collect(Collectors.toList());
 
+    if (refDataFiles.isEmpty()) {
+      return Collections.emptySet();
+    }
+
     Map<StructLike, List<FileScanTask>> filesByPartition = Streams.stream(refDataFiles.listIterator())
-            .collect(Collectors.groupingBy(task -> task.file().partition()));
+        .collect(Collectors.groupingBy(task -> task.file().partition()));
 
     // Split and combine tasks under each partition
     List<Pair<StructLike, CombinedScanTask>> combinedScanTasks = filesByPartition.entrySet().stream()
-            .map(entry -> {
-              CloseableIterable<FileScanTask> splitTasks = TableScanUtil.splitFiles(
-                      CloseableIterable.withNoopClose(entry.getValue()), deleteTargetSizeInBytes);
-              return Pair.of(entry.getKey(),
-                      TableScanUtil.planTasks(splitTasks, deleteTargetSizeInBytes, splitLookback, splitOpenFileCost));
-            })
-            .flatMap(pair -> StreamSupport.stream(CloseableIterable
-                    .transform(pair.second(), task -> Pair.of(pair.first(), task)).spliterator(), false)
-            )
-            .collect(Collectors.toList());
+        .map(entry -> {
+          CloseableIterable<FileScanTask> splitTasks = TableScanUtil.splitFiles(
+              CloseableIterable.withNoopClose(entry.getValue()), deleteTargetSizeInBytes);
+          return Pair.of(entry.getKey(),
+              TableScanUtil.planTasks(splitTasks, deleteTargetSizeInBytes, splitLookback, splitOpenFileCost));
+        }).flatMap(pair -> StreamSupport.stream(CloseableIterable
+            .transform(pair.second(), task -> Pair.of(pair.first(), task)).spliterator(), false)
+        ).collect(Collectors.toList());
 
-    if (!refDataFiles.isEmpty()) {
-      JavaRDD<Pair<StructLike, CombinedScanTask>> taskRDD = sparkContext.parallelize(combinedScanTasks,
-          refDataFiles.size());
-      Broadcast<FileIO> io = sparkContext.broadcast(table.io());
-      Broadcast<EncryptionManager> encryption = sparkContext.broadcast(table.encryption());
+    JavaRDD<Pair<StructLike, CombinedScanTask>> taskRDD =
+          sparkContext.parallelize(combinedScanTasks, refDataFiles.size());
+    Broadcast<FileIO> io = sparkContext.broadcast(table.io());
+    Broadcast<EncryptionManager> encryption = sparkContext.broadcast(table.encryption());
 
-      EqualityDeleteRewriter deleteRewriter = new EqualityDeleteRewriter(table, true, io, encryption);
+    EqualityDeleteRewriter deleteRewriter = new EqualityDeleteRewriter(table, true, io, encryption);
 
-      return deleteRewriter.toPosDeletes(taskRDD);
-    }
-
-    return Collections.emptySet();
+    return deleteRewriter.toPosDeletes(taskRDD);
   }
 
   @Override
@@ -162,7 +161,8 @@ public class ConvertEqDeletesStrategy implements RewriteDeleteStrategy {
 
   public Set<String> validOptions() {
     return ImmutableSet.of(
-        SPLIT_POSITION_DELETE
+        SPLIT_POSITION_DELETE,
+        PARTIAL_COMMIT_ENABLED
     );
   }
 }
