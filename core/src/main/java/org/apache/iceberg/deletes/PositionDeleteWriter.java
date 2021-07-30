@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.deletes;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.DeleteFile;
@@ -28,11 +27,13 @@ import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.io.DeleteWriteResult;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.Writer;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.CharSequenceSet;
 
-public class PositionDeleteWriter<T> implements Closeable {
+public class PositionDeleteWriter<T> implements Writer<PositionDelete<T>, DeleteWriteResult> {
   private final FileAppender<StructLike> appender;
   private final FileFormat format;
   private final String location;
@@ -55,13 +56,25 @@ public class PositionDeleteWriter<T> implements Closeable {
     this.pathSet = CharSequenceSet.empty();
   }
 
+  @Override
+  public void write(PositionDelete<T> positionDelete) throws IOException {
+    pathSet.add(positionDelete.path());
+    appender.add(positionDelete);
+  }
+
+  @Deprecated
   public void delete(CharSequence path, long pos) {
     delete(path, pos, null);
   }
 
+  @Deprecated
   public void delete(CharSequence path, long pos, T row) {
     pathSet.add(path);
     appender.add(delete.set(path, pos, row));
+  }
+
+  public long length() {
+    return appender.length();
   }
 
   @Override
@@ -87,5 +100,10 @@ public class PositionDeleteWriter<T> implements Closeable {
   public DeleteFile toDeleteFile() {
     Preconditions.checkState(deleteFile != null, "Cannot create delete file from unclosed writer");
     return deleteFile;
+  }
+
+  @Override
+  public DeleteWriteResult result() {
+    return new DeleteWriteResult(toDeleteFile(), referencedDataFiles());
   }
 }

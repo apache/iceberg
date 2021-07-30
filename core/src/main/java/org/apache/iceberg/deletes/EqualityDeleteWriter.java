@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.deletes;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.DeleteFile;
@@ -29,10 +28,12 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.io.DeleteWriteResult;
 import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.Writer;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public class EqualityDeleteWriter<T> implements Closeable {
+public class EqualityDeleteWriter<T> implements Writer<T, DeleteWriteResult> {
   private final FileAppender<T> appender;
   private final FileFormat format;
   private final String location;
@@ -56,10 +57,17 @@ public class EqualityDeleteWriter<T> implements Closeable {
     this.equalityFieldIds = equalityFieldIds;
   }
 
+  @Override
+  public void write(T row) throws IOException {
+    appender.add(row);
+  }
+
+  @Deprecated
   public void deleteAll(Iterable<T> rows) {
     appender.addAll(rows);
   }
 
+  @Deprecated
   public void delete(T row) {
     appender.add(row);
   }
@@ -88,5 +96,10 @@ public class EqualityDeleteWriter<T> implements Closeable {
   public DeleteFile toDeleteFile() {
     Preconditions.checkState(deleteFile != null, "Cannot create delete file from unclosed writer");
     return deleteFile;
+  }
+
+  @Override
+  public DeleteWriteResult result() {
+    return new DeleteWriteResult(toDeleteFile());
   }
 }

@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.io;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.DataFile;
@@ -31,7 +30,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public class DataWriter<T> implements Closeable {
+public class DataWriter<T> implements Writer<T, DataWriteResult> {
   private final FileAppender<T> appender;
   private final FileFormat format;
   private final String location;
@@ -57,6 +56,12 @@ public class DataWriter<T> implements Closeable {
     this.sortOrder = sortOrder;
   }
 
+  @Override
+  public void write(T row) throws IOException {
+    appender.add(row);
+  }
+
+  @Deprecated
   public void add(T row) {
     appender.add(row);
   }
@@ -85,5 +90,10 @@ public class DataWriter<T> implements Closeable {
   public DataFile toDataFile() {
     Preconditions.checkState(dataFile != null, "Cannot create data file from unclosed writer");
     return dataFile;
+  }
+
+  @Override
+  public DataWriteResult result() {
+    return new DataWriteResult(toDataFile());
   }
 }

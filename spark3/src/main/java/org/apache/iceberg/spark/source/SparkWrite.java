@@ -34,6 +34,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.OverwriteFiles;
+import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.Schema;
@@ -45,9 +46,13 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.ClusteredDataWriter;
+import org.apache.iceberg.io.FanoutDataWriter;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
-import org.apache.iceberg.io.UnpartitionedWriter;
+import org.apache.iceberg.io.V2BaseTaskWriter;
+import org.apache.iceberg.io.V2TaskWriter;
+import org.apache.iceberg.io.V2TaskWriter.Result;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -531,68 +536,111 @@ class SparkWrite {
     @Override
     public DataWriter<InternalRow> createWriter(int partitionId, long taskId, long epochId) {
       Table table = tableBroadcast.value();
-
-      OutputFileFactory fileFactory = OutputFileFactory.builderFor(table, partitionId, taskId).format(format).build();
-      SparkAppenderFactory appenderFactory = SparkAppenderFactory.builderFor(table, writeSchema, dsSchema).build();
-
       PartitionSpec spec = table.spec();
       FileIO io = table.io();
 
+      OutputFileFactory fileFactory = OutputFileFactory.builderFor(table, partitionId, taskId)
+          .format(format)
+          .build();
+      SparkWriterFactory writerFactory = SparkWriterFactory.builderFor(table)
+          .dataFileFormat(format)
+          .dataSchema(writeSchema)
+          .dataSparkType(dsSchema)
+          .build();
+
       if (spec.isUnpartitioned()) {
-        return new Unpartitioned3Writer(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+        ClusteredDataWriter<InternalRow> dataWriter = new ClusteredDataWriter<>(
+            writerFactory, fileFactory, io,
+            format, targetFileSize);
+        V2TaskWriter<InternalRow> taskWriter = new V2BaseTaskWriter<>(dataWriter, io);
+        return new UnpartitionedDataWriter(taskWriter, spec);
+
       } else if (partitionedFanoutEnabled) {
-        return new PartitionedFanout3Writer(
-            spec, format, appenderFactory, fileFactory, io, targetFileSize, writeSchema, dsSchema);
+        FanoutDataWriter<InternalRow> dataWriter = new FanoutDataWriter<>(
+            writerFactory, fileFactory, io,
+            format, targetFileSize);
+        V2TaskWriter<InternalRow> taskWriter = new V2BaseTaskWriter<>(dataWriter, io);
+        return new PartitionedDataWriter(taskWriter, spec, writeSchema, dsSchema);
+
       } else {
-        return new Partitioned3Writer(
-            spec, format, appenderFactory, fileFactory, io, targetFileSize, writeSchema, dsSchema);
+        ClusteredDataWriter<InternalRow> dataWriter = new ClusteredDataWriter<>(
+            writerFactory, fileFactory, io,
+            format, targetFileSize);
+        V2TaskWriter<InternalRow> taskWriter = new V2BaseTaskWriter<>(dataWriter, io);
+        return new PartitionedDataWriter(taskWriter, spec, writeSchema, dsSchema);
       }
     }
   }
 
-  private static class Unpartitioned3Writer extends UnpartitionedWriter<InternalRow>
-      implements DataWriter<InternalRow> {
-    Unpartitioned3Writer(PartitionSpec spec, FileFormat format, SparkAppenderFactory appenderFactory,
-                         OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
-      super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+  private static class UnpartitionedDataWriter implements DataWriter<InternalRow> {
+    private final V2TaskWriter<InternalRow> delegate;
+    private final PartitionSpec spec;
+
+    private UnpartitionedDataWriter(V2TaskWriter<InternalRow> delegate, PartitionSpec spec) {
+      this.delegate = delegate;
+      this.spec = spec;
+    }
+
+    @Override
+    public void write(InternalRow record) throws IOException {
+      delegate.insert(record, spec, null);
     }
 
     @Override
     public WriterCommitMessage commit() throws IOException {
-      this.close();
+      close();
+      Result result = delegate.result();
+      return new TaskCommit(result.dataFiles());
+    }
 
-      return new TaskCommit(dataFiles());
+    @Override
+    public void abort() throws IOException {
+      close();
+      delegate.abort();
+    }
+
+    @Override
+    public void close() throws IOException {
+      delegate.close();
     }
   }
 
-  private static class Partitioned3Writer extends SparkPartitionedWriter implements DataWriter<InternalRow> {
-    Partitioned3Writer(PartitionSpec spec, FileFormat format, SparkAppenderFactory appenderFactory,
-                       OutputFileFactory fileFactory, FileIO io, long targetFileSize,
-                       Schema schema, StructType sparkSchema) {
-      super(spec, format, appenderFactory, fileFactory, io, targetFileSize, schema, sparkSchema);
+  private static class PartitionedDataWriter implements DataWriter<InternalRow> {
+    private final V2TaskWriter<InternalRow> delegate;
+    private final PartitionSpec spec;
+    private final PartitionKey partitionKey;
+    private final InternalRowWrapper internalRowWrapper;
+
+    private PartitionedDataWriter(V2TaskWriter<InternalRow> delegate, PartitionSpec spec,
+                                  Schema dataSchema, StructType dataSparkType) {
+      this.delegate = delegate;
+      this.spec = spec;
+      this.partitionKey = new PartitionKey(spec, dataSchema);
+      this.internalRowWrapper = new InternalRowWrapper(dataSparkType);
+    }
+
+    @Override
+    public void write(InternalRow row) throws IOException {
+      partitionKey.partition(internalRowWrapper.wrap(row));
+      delegate.insert(row, spec, partitionKey);
     }
 
     @Override
     public WriterCommitMessage commit() throws IOException {
-      this.close();
-
-      return new TaskCommit(dataFiles());
-    }
-  }
-
-  private static class PartitionedFanout3Writer extends SparkPartitionedFanoutWriter
-      implements DataWriter<InternalRow> {
-    PartitionedFanout3Writer(PartitionSpec spec, FileFormat format, SparkAppenderFactory appenderFactory,
-                             OutputFileFactory fileFactory, FileIO io, long targetFileSize,
-                             Schema schema, StructType sparkSchema) {
-      super(spec, format, appenderFactory, fileFactory, io, targetFileSize, schema, sparkSchema);
+      close();
+      Result result = delegate.result();
+      return new TaskCommit(result.dataFiles());
     }
 
     @Override
-    public WriterCommitMessage commit() throws IOException {
-      this.close();
+    public void abort() throws IOException {
+      close();
+      delegate.abort();
+    }
 
-      return new TaskCommit(dataFiles());
+    @Override
+    public void close() throws IOException {
+      delegate.close();
     }
   }
 }
