@@ -53,13 +53,11 @@ public abstract class BaseWriterFactory<T> implements WriterFactory<T> {
   private final Schema equalityDeleteRowSchema;
   private final SortOrder equalityDeleteSortOrder;
   private final Schema positionDeleteRowSchema;
-  private final SortOrder positionDeleteSortOrder;
 
   protected BaseWriterFactory(Table table, FileFormat dataFileFormat, Schema dataSchema,
                               SortOrder dataSortOrder, FileFormat deleteFileFormat,
                               int[] equalityFieldIds, Schema equalityDeleteRowSchema,
-                              SortOrder equalityDeleteSortOrder, Schema positionDeleteRowSchema,
-                              SortOrder positionDeleteSortOrder) {
+                              SortOrder equalityDeleteSortOrder, Schema positionDeleteRowSchema) {
     this.table = table;
     this.dataFileFormat = dataFileFormat;
     this.dataSchema = dataSchema;
@@ -69,7 +67,6 @@ public abstract class BaseWriterFactory<T> implements WriterFactory<T> {
     this.equalityDeleteRowSchema = equalityDeleteRowSchema;
     this.equalityDeleteSortOrder = equalityDeleteSortOrder;
     this.positionDeleteRowSchema = positionDeleteRowSchema;
-    this.positionDeleteSortOrder = positionDeleteSortOrder;
   }
 
   protected abstract void configureDataWrite(Avro.DataWriteBuilder builder);
@@ -80,6 +77,7 @@ public abstract class BaseWriterFactory<T> implements WriterFactory<T> {
   protected abstract void configureEqualityDelete(Parquet.DeleteWriteBuilder builder);
   protected abstract void configurePositionDelete(Parquet.DeleteWriteBuilder builder);
 
+  // TODO: provide ways to configure ORC delete writers once we support them
   protected abstract void configureDataWrite(ORC.DataWriteBuilder builder);
 
   @Override
@@ -213,7 +211,6 @@ public abstract class BaseWriterFactory<T> implements WriterFactory<T> {
               .withSpec(spec)
               .withPartition(partition)
               .withKeyMetadata(keyMetadata)
-              .withSortOrder(positionDeleteSortOrder)
               .overwrite();
 
           configurePositionDelete(avroBuilder);
@@ -227,7 +224,6 @@ public abstract class BaseWriterFactory<T> implements WriterFactory<T> {
               .withSpec(spec)
               .withPartition(partition)
               .withKeyMetadata(keyMetadata)
-              .withSortOrder(positionDeleteSortOrder)
               .overwrite();
 
           configurePositionDelete(parquetBuilder);

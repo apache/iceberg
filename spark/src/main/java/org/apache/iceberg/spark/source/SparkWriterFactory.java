@@ -54,10 +54,10 @@ class SparkWriterFactory extends BaseWriterFactory<InternalRow> {
                      SortOrder dataSortOrder, FileFormat deleteFileFormat,
                      int[] equalityFieldIds, Schema equalityDeleteRowSchema, StructType equalityDeleteSparkType,
                      SortOrder equalityDeleteSortOrder, Schema positionDeleteRowSchema,
-                     StructType positionDeleteSparkType, SortOrder positionDeleteSortOrder) {
+                     StructType positionDeleteSparkType) {
 
-    super(table, dataFileFormat, dataSchema, dataSortOrder, deleteFileFormat, equalityFieldIds, equalityDeleteRowSchema,
-        equalityDeleteSortOrder, positionDeleteRowSchema, positionDeleteSortOrder);
+    super(table, dataFileFormat, dataSchema, dataSortOrder, deleteFileFormat, equalityFieldIds,
+        equalityDeleteRowSchema, equalityDeleteSortOrder, positionDeleteRowSchema);
 
     this.dataSparkType = dataSparkType;
     this.equalityDeleteSparkType = equalityDeleteSparkType;
@@ -151,7 +151,6 @@ class SparkWriterFactory extends BaseWriterFactory<InternalRow> {
     private SortOrder equalityDeleteSortOrder;
     private Schema positionDeleteRowSchema;
     private StructType positionDeleteSparkType;
-    private SortOrder positionDeleteSortOrder;
 
     Builder(Table table) {
       this.table = table;
@@ -220,11 +219,6 @@ class SparkWriterFactory extends BaseWriterFactory<InternalRow> {
       return this;
     }
 
-    Builder positionDeleteSortOrder(SortOrder newPositionDeleteSortOrder) {
-      this.positionDeleteSortOrder = newPositionDeleteSortOrder;
-      return this;
-    }
-
     SparkWriterFactory build() {
       boolean noEqualityDeleteConf = equalityFieldIds == null && equalityDeleteRowSchema == null;
       boolean fullEqualityDeleteConf = equalityFieldIds != null && equalityDeleteRowSchema != null;
@@ -234,7 +228,7 @@ class SparkWriterFactory extends BaseWriterFactory<InternalRow> {
       return new SparkWriterFactory(
           table, dataFileFormat, dataSchema, dataSparkType, dataSortOrder, deleteFileFormat,
           equalityFieldIds, equalityDeleteRowSchema, equalityDeleteSparkType, equalityDeleteSortOrder,
-          positionDeleteRowSchema, positionDeleteSparkType, positionDeleteSortOrder);
+          positionDeleteRowSchema, positionDeleteSparkType);
     }
   }
 }
