@@ -32,6 +32,7 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -79,8 +80,18 @@ public class TestReplaceTransaction extends TableTestBase {
     Assert.assertNull("Table should not have a current snapshot", table.currentSnapshot());
     Assert.assertEquals("Schema should match previous schema",
         schema.asStruct(), table.schema().asStruct());
-    Assert.assertEquals("Partition spec should have no fields",
-        0, table.spec().fields().size());
+
+    PartitionSpec v2Expected = PartitionSpec.builderFor(table.schema()).withSpecId(1).build();
+    V2Assert.assertEquals("Table should have an unpartitioned spec",
+        v2Expected, table.spec());
+
+    PartitionSpec v1Expected = PartitionSpec.builderFor(table.schema())
+        .alwaysNull("data", "data_bucket")
+        .withSpecId(1)
+        .build();
+    V1Assert.assertEquals("Table should have a spec with one void field",
+        v1Expected, table.spec());
+
     Assert.assertEquals("Table should have 2 orders", 2, table.sortOrders().size());
     SortOrder sortOrder = table.sortOrder();
     Assert.assertEquals("Order ID must match", 1, sortOrder.orderId());
@@ -117,8 +128,18 @@ public class TestReplaceTransaction extends TableTestBase {
     Assert.assertNull("Table should not have a current snapshot", table.currentSnapshot());
     Assert.assertEquals("Schema should match previous schema",
         schema.asStruct(), table.schema().asStruct());
-    Assert.assertEquals("Partition spec should have no fields",
-        0, table.spec().fields().size());
+
+    PartitionSpec v2Expected = PartitionSpec.builderFor(table.schema()).withSpecId(1).build();
+    V2Assert.assertEquals("Table should have an unpartitioned spec",
+        v2Expected, table.spec());
+
+    PartitionSpec v1Expected = PartitionSpec.builderFor(table.schema())
+        .alwaysNull("data", "data_bucket")
+        .withSpecId(1)
+        .build();
+    V1Assert.assertEquals("Table should have a spec with one void field",
+        v1Expected, table.spec());
+
     Assert.assertEquals("Table should have 1 order", 1, table.sortOrders().size());
     Assert.assertEquals("Table order ID should match", 0, table.sortOrder().orderId());
     Assert.assertTrue("Table should be unsorted", table.sortOrder().isUnsorted());
@@ -126,6 +147,8 @@ public class TestReplaceTransaction extends TableTestBase {
 
   @Test
   public void testReplaceWithIncompatibleSchemaUpdate() {
+    Assume.assumeTrue("Fails early for v1 tables because partition spec cannot drop a field", formatVersion == 2);
+
     Schema newSchema = new Schema(
         required(4, "obj_id", Types.IntegerType.get()));
 
@@ -175,8 +198,17 @@ public class TestReplaceTransaction extends TableTestBase {
     Assert.assertNull("Table should not have a current snapshot", table.currentSnapshot());
     Assert.assertEquals("Schema should use new schema, not compatible with previous",
         schema.asStruct(), table.schema().asStruct());
-    Assert.assertEquals("Table should have new unpartitioned spec",
-        0, table.spec().fields().size());
+
+    PartitionSpec v2Expected = PartitionSpec.builderFor(table.schema()).withSpecId(1).build();
+    V2Assert.assertEquals("Table should have an unpartitioned spec",
+        v2Expected, table.spec());
+
+    PartitionSpec v1Expected = PartitionSpec.builderFor(table.schema())
+        .alwaysNull("data", "data_bucket")
+        .withSpecId(1)
+        .build();
+    V1Assert.assertEquals("Table should have a spec with one void field",
+        v1Expected, table.spec());
   }
 
   @Test
