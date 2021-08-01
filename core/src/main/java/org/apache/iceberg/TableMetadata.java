@@ -41,6 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
@@ -707,32 +708,54 @@ public class TableMetadata implements Serializable {
   }
 
   private PartitionSpec reassignPartitionIds(PartitionSpec partitionSpec, TypeUtil.NextID nextID) {
+    PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(partitionSpec.schema())
+        .withSpecId(partitionSpec.specId());
+
     if (formatVersion > 1) {
+      // for v2 and later, reuse any existing field IDs, but reproduce the same spec
       Map<Pair<Integer, String>, Integer> transformToFieldId = specs.stream()
           .flatMap(spec -> spec.fields().stream())
           .collect(Collectors.toMap(
               field -> Pair.of(field.sourceId(), field.transform().toString()),
               PartitionField::fieldId,
-              (n1, n2) -> n2));
-
-      PartitionSpec.Builder specBuilder = PartitionSpec.builderFor(partitionSpec.schema())
-          .withSpecId(partitionSpec.specId());
+              Math::max));
 
       for (PartitionField field : partitionSpec.fields()) {
         // reassign the partition field ids
-        int fieldId = transformToFieldId.computeIfAbsent(
+        int partitionFieldId = transformToFieldId.computeIfAbsent(
             Pair.of(field.sourceId(), field.transform().toString()), k -> nextID.get());
         specBuilder.add(
             field.sourceId(),
-            fieldId,
+            partitionFieldId,
             field.name(),
             field.transform());
       }
-      return specBuilder.build();
+
     } else {
-      // noop for v1 table
-      return partitionSpec;
+      // for v1, preserve the existing spec and carry forward all fields, replacing missing fields with void
+      Map<Pair<Integer, String>, PartitionField> newFields = Maps.newLinkedHashMap();
+      for (PartitionField newField : partitionSpec.fields()) {
+        newFields.put(Pair.of(newField.sourceId(), newField.transform().toString()), newField);
+      }
+
+      for (PartitionField field : spec().fields()) {
+        // ensure each field is either carried forward or replaced with void
+        PartitionField newField = newFields.remove(Pair.of(field.sourceId(), field.transform().toString()));
+        if (newField != null) {
+          // copy the new field with the existing field ID
+          specBuilder.add(newField.sourceId(), field.fieldId(), newField.name(), newField.transform());
+        } else {
+          specBuilder.add(field.sourceId(), field.fieldId(), field.name(), Transforms.alwaysNull());
+        }
+      }
+
+      // add any remaining new fields at the end and assign new partition field IDs
+      for (PartitionField newField : newFields.values()) {
+        specBuilder.add(newField.sourceId(), nextID.get(), newField.name(), newField.transform());
+      }
     }
+
+    return specBuilder.build();
   }
 
   // The caller is responsible to pass a updatedPartitionSpec with correct partition field IDs
@@ -750,22 +773,22 @@ public class TableMetadata implements Serializable {
     int nextSpecId = maxSpecId.orElse(TableMetadata.INITIAL_SPEC_ID) + 1;
 
     // rebuild the partition spec using the new column ids
-    PartitionSpec newSpec = freshSpec(nextSpecId, freshSchema, updatedPartitionSpec);
+    PartitionSpec freshSpec = freshSpec(nextSpecId, freshSchema, updatedPartitionSpec);
 
     // reassign partition field ids with existing partition specs in the table
     AtomicInteger lastPartitionId = new AtomicInteger(lastAssignedPartitionId);
-    PartitionSpec freshSpec = reassignPartitionIds(newSpec, lastPartitionId::incrementAndGet);
+    PartitionSpec newSpec = reassignPartitionIds(freshSpec, lastPartitionId::incrementAndGet);
 
     // if the spec already exists, use the same ID. otherwise, use 1 more than the highest ID.
     int specId = specs.stream()
-        .filter(freshSpec::compatibleWith)
+        .filter(newSpec::compatibleWith)
         .findFirst()
         .map(PartitionSpec::specId)
         .orElse(nextSpecId);
 
     ImmutableList.Builder<PartitionSpec> specListBuilder = ImmutableList.<PartitionSpec>builder().addAll(specs);
     if (!specsById.containsKey(specId)) {
-      specListBuilder.add(freshSpec);
+      specListBuilder.add(newSpec);
     }
 
     // determine the next order id
@@ -801,7 +824,7 @@ public class TableMetadata implements Serializable {
 
     return new TableMetadata(null, formatVersion, uuid, newLocation,
         lastSequenceNumber, System.currentTimeMillis(), newLastColumnId.get(), freshSchemaId, schemasBuilder.build(),
-        specId, specListBuilder.build(), Math.max(lastAssignedPartitionId, freshSpec.lastAssignedFieldId()),
+        specId, specListBuilder.build(), Math.max(lastAssignedPartitionId, newSpec.lastAssignedFieldId()),
         orderId, sortOrdersBuilder.build(), ImmutableMap.copyOf(newProperties),
         -1, snapshots, ImmutableList.of(), addPreviousFile(file, lastUpdatedMillis, newProperties));
   }
@@ -861,7 +884,7 @@ public class TableMetadata implements Serializable {
 
     // add all of the fields to the builder. IDs should not change.
     for (PartitionField field : partitionSpec.fields()) {
-      specBuilder.add(field.sourceId(), field.fieldId(), field.name(), field.transform().toString());
+      specBuilder.add(field.sourceId(), field.fieldId(), field.name(), field.transform());
     }
 
     return specBuilder.build();

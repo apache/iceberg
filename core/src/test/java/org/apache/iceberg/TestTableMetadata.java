@@ -617,7 +617,8 @@ public class TestTableMetadata {
 
     Schema updatedSchema = new Schema(
         Types.NestedField.required(1, "x", Types.LongType.get()),
-        Types.NestedField.required(2, "z", Types.StringType.get())
+        Types.NestedField.required(2, "z", Types.StringType.get()),
+        Types.NestedField.required(3, "y", Types.LongType.get())
     );
     PartitionSpec updatedSpec = PartitionSpec.builderFor(updatedSchema).withSpecId(0)
         .bucket("z", 8)
@@ -626,8 +627,9 @@ public class TestTableMetadata {
     TableMetadata updated = metadata.buildReplacement(
         updatedSchema, updatedSpec, SortOrder.unsorted(), location, ImmutableMap.of());
     PartitionSpec expected = PartitionSpec.builderFor(updated.schema()).withSpecId(1)
-        .add(3, 1000, "z_bucket", "bucket[8]")
-        .add(1, 1001, "x", "identity")
+        .add(1, 1000, "x", "identity")
+        .add(2, 1001, "y", "void")
+        .add(3, 1002, "z_bucket", "bucket[8]")
         .build();
     Assert.assertEquals(
         "Should reassign the partition field IDs and reuse any existing IDs for equivalent fields",
