@@ -174,7 +174,7 @@ If the delte filter matches entire partitions of the table, Iceberg will perform
 
 ### `UPDATE`
 
-Spark 3 added support for `UPDATE` queries to remove data from tables.
+Spark 3.1 added support for `UPDATE` queries that update matching rows in tables.
 
 Update queries accept a filter to match rows to update.
 
