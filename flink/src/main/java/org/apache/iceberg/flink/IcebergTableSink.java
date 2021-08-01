@@ -62,7 +62,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
 
     return (DataStreamSinkProvider) dataStream ->  {
       // For CDC case in FlinkSQL, change log will be rebalanced(default partition strategy) distributed to Filter opr
-      // when set job default parallelism greater than 1. That will make change log lost order and produce a wrong
+      // when set job default parallelism greater than 1. That will make change log data disorder and produce a wrong
       // result for iceberg(e.g. +U comes before -U). Here try to specific the Filter opr parallelism same as it's
       // input to keep Filter chaining it's input and avoid rebalance.
       Transformation<?> forwardOpr = dataStream.getTransformation();

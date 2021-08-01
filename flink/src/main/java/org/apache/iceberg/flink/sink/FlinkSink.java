@@ -141,13 +141,14 @@ public class FlinkSink {
                                             MapFunction<T, RowData> mapper,
                                             TypeInformation<RowData> outputType) {
       this.inputCreator = newUidPrefix -> {
+        // Input stream order is crucial for some situation(e.g. in cdc case), So we need to set the map opr
+        // parallelism as it's input to keep map opr chain to input, and ensure input stream will not be rebalanced.
+        SingleOutputStreamOperator<RowData> inputStream = input.map(mapper, outputType)
+            .setParallelism(input.getParallelism());
         if (newUidPrefix != null) {
-          return input.map(mapper, outputType)
-              .name(operatorName(newUidPrefix))
-              .uid(newUidPrefix + "-mapper");
-        } else {
-          return input.map(mapper, outputType);
+          inputStream.name(operatorName(newUidPrefix)).uid(newUidPrefix + "-mapper");
         }
+        return inputStream;
       };
       return this;
     }
@@ -277,24 +278,12 @@ public class FlinkSink {
         }
       }
 
-      // Validate the partition fields if equality fields are not empty.
-      if (!equalityFieldIds.isEmpty() && !table.spec().isUnpartitioned()) {
-        for (PartitionField partitionField : table.spec().fields()) {
-          Preconditions.checkState(equalityFieldIds.contains(partitionField.sourceId()),
-              "Partition field '%s' is not included in equality fields: '%s'", partitionField, equalityFieldColumns);
-        }
-      }
-
       // Convert the requested flink table schema to flink row type.
       RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
 
-      // Distribute the records from input data stream by equality fields or fallback to write.distribution-mode.
-      if (!equalityFieldIds.isEmpty()) {
-        rowDataInput = rowDataInput.keyBy(new EqualityFieldKeySelector(equalityFieldIds, table.schema(), flinkRowType));
-      } else {
-        rowDataInput = distributeDataStream(rowDataInput, table.properties(), table.spec(), table.schema(),
-            flinkRowType);
-      }
+      // Distribute the records from input data stream based on the write.distribution-mode and equality fields.
+      rowDataInput = distributeDataStream(rowDataInput, table.properties(), equalityFieldIds, table.spec(),
+          table.schema(), flinkRowType);
 
       // Add parallel writers that append rows to files
       SingleOutputStreamOperator<WriteResult> writerStream = appendWriter(rowDataInput, flinkRowType, equalityFieldIds);
@@ -350,6 +339,7 @@ public class FlinkSink {
 
     private DataStream<RowData> distributeDataStream(DataStream<RowData> input,
                                                      Map<String, String> properties,
+                                                     List<Integer> equalityFieldIds,
                                                      PartitionSpec partitionSpec,
                                                      Schema iSchema,
                                                      RowType flinkRowType) {
@@ -367,13 +357,21 @@ public class FlinkSink {
 
       switch (writeMode) {
         case NONE:
-          return input;
+          if (!equalityFieldIds.isEmpty()) {
+            return input.keyBy(new EqualityFieldKeySelector(equalityFieldIds, table.schema(), flinkRowType));
+          } else {
+            return input;
+          }
 
         case HASH:
-          if (partitionSpec.isUnpartitioned()) {
-            return input;
-          } else {
+          if (!partitionSpec.isUnpartitioned() && !equalityFieldIds.isEmpty()) {
+            return input.keyBy(new HybridKeySelector(partitionSpec, equalityFieldIds, iSchema, flinkRowType));
+          } else if (!partitionSpec.isUnpartitioned() && equalityFieldIds.isEmpty()) {
             return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+          } else if (partitionSpec.isUnpartitioned() && !equalityFieldIds.isEmpty()) {
+            return input.keyBy(new EqualityFieldKeySelector(equalityFieldIds, table.schema(), flinkRowType));
+          } else {
+            return input;
           }
 
         case RANGE:
