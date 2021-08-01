@@ -21,7 +21,7 @@
 
 Apache Iceberg tracks issues in GitHub and prefers to receive contributions as pull requests.
 
-Community discussions happen primarily on the dev mailing list, on the #iceberg channel on the ASF's Slack workspace, and on specific Github issues.
+Community discussions happen primarily on the dev mailing list, on apache-iceberg Slack workspace, and on specific GitHub issues.
 
 
 ## Contributing
