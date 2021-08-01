@@ -83,29 +83,39 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
   private final FileFormat format;
   private final int parallelism;
   private final boolean partitioned;
+  private final String distributionMode;
 
   private StreamExecutionEnvironment env;
   private TestTableLoader tableLoader;
 
-  @Parameterized.Parameters(name = "FileFormat = {0}, Parallelism = {1}, Partitioned={2}")
+  @Parameterized.Parameters(name = "FileFormat = {0}, Parallelism = {1}, Partitioned={2}, Distribution={3}")
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] {"avro", 1, true},
-        new Object[] {"avro", 1, false},
-        new Object[] {"avro", 2, true},
-        new Object[] {"avro", 2, false},
-        new Object[] {"parquet", 1, true},
-        new Object[] {"parquet", 1, false},
-        new Object[] {"parquet", 2, true},
-        new Object[] {"parquet", 2, false}
+        new Object[] {"avro", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+        new Object[] {"avro", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+        new Object[] {"avro", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+        new Object[] {"avro", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+        new Object[] {"parquet", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+        new Object[] {"parquet", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+        new Object[] {"parquet", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+        new Object[] {"parquet", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+        new Object[] {"avro", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+        new Object[] {"avro", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+        new Object[] {"avro", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+        new Object[] {"avro", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+        new Object[] {"parquet", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+        new Object[] {"parquet", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+        new Object[] {"parquet", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+        new Object[] {"parquet", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH}
     };
   }
 
-  public TestFlinkIcebergSinkV2(String format, int parallelism, boolean partitioned) {
+  public TestFlinkIcebergSinkV2(String format, int parallelism, boolean partitioned, String distributionMode) {
     super(FORMAT_V2);
     this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
     this.parallelism = parallelism;
     this.partitioned = partitioned;
+    this.distributionMode = distributionMode;
   }
 
   @Before
@@ -122,6 +132,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
 
     table.updateProperties()
         .set(TableProperties.DEFAULT_FILE_FORMAT, format.name())
+        .set(TableProperties.WRITE_DISTRIBUTION_MODE, distributionMode)
         .commit();
 
     env = StreamExecutionEnvironment.getExecutionEnvironment(MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG)
@@ -147,10 +158,6 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
                               List<List<Row>> elementsPerCheckpoint,
                               List<List<Record>> expectedRecordsPerCheckpoint) throws Exception {
     DataStream<Row> dataStream = env.addSource(new BoundedTestSource<>(elementsPerCheckpoint), ROW_TYPE_INFO);
-
-    // Shuffle by the equality key, so that different operations of the same key could be wrote in order when
-    // executing tasks in parallel.
-    dataStream = dataStream.keyBy(keySelector);
 
     FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .tableLoader(tableLoader)
