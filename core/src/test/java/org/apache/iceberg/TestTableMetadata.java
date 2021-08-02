@@ -756,4 +756,54 @@ public class TestTableMetadata {
     Assert.assertEquals("Should return expected last column id",
         6, threeSchemaTable.lastColumnId());
   }
+
+  @Test
+  public void testCreateV2MetadataThroughTableProperty() {
+    Schema schema = new Schema(
+        Types.NestedField.required(10, "x", Types.StringType.get())
+    );
+
+    TableMetadata meta = TableMetadata.newTableMetadata(schema, PartitionSpec.unpartitioned(), null,
+        ImmutableMap.of(TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, "2", "key", "val"));
+
+    Assert.assertEquals("format version should be configured based on the format-version key",
+        2, meta.formatVersion());
+    Assert.assertEquals("should not contain format-version in properties",
+        ImmutableMap.of("key", "val"), meta.properties());
+  }
+
+  @Test
+  public void testReplaceV1MetadataToV2ThroughTableProperty() {
+    Schema schema = new Schema(
+        Types.NestedField.required(10, "x", Types.StringType.get())
+    );
+
+    TableMetadata meta = TableMetadata.newTableMetadata(schema, PartitionSpec.unpartitioned(), null,
+        ImmutableMap.of(TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, "1", "key", "val"));
+
+    meta = meta.buildReplacement(meta.schema(), meta.spec(), meta.sortOrder(), meta.location(),
+        ImmutableMap.of(TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, "2", "key2", "val2"));
+
+    Assert.assertEquals("format version should be configured based on the format-version key",
+        2, meta.formatVersion());
+    Assert.assertEquals("should not contain format-version but should contain old and new properties",
+        ImmutableMap.of("key", "val", "key2", "val2"), meta.properties());
+  }
+
+  @Test
+  public void testUpgradeV1MetadataToV2ThroughTableProperty() {
+    Schema schema = new Schema(
+        Types.NestedField.required(10, "x", Types.StringType.get())
+    );
+
+    TableMetadata meta = TableMetadata.newTableMetadata(schema, PartitionSpec.unpartitioned(), null,
+        ImmutableMap.of(TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, "1", "key", "val"));
+
+    meta = meta.replaceProperties(ImmutableMap.of(TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, "2", "key2", "val2"));
+
+    Assert.assertEquals("format version should be configured based on the format-version key",
+        2, meta.formatVersion());
+    Assert.assertEquals("should not contain format-version but should contain new properties",
+        ImmutableMap.of("key2", "val2"), meta.properties());
+  }
 }

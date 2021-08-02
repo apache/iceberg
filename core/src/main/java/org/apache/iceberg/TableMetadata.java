@@ -29,6 +29,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -47,6 +48,9 @@ import org.apache.iceberg.util.PropertyUtil;
  * Metadata for a table.
  */
 public class TableMetadata implements Serializable {
+
+
+
   static final long INITIAL_SEQUENCE_NUMBER = 0;
   static final long INVALID_SEQUENCE_NUMBER = -1;
   static final int DEFAULT_TABLE_FORMAT_VERSION = 1;
@@ -57,31 +61,29 @@ public class TableMetadata implements Serializable {
 
   private static final long ONE_MINUTE = TimeUnit.MINUTES.toMillis(1);
 
-  /**
-   * @deprecated will be removed in 0.9.0; use newTableMetadata(Schema, PartitionSpec, String, Map) instead.
-   */
-  @Deprecated
-  public static TableMetadata newTableMetadata(TableOperations ops,
-                                               Schema schema,
-                                               PartitionSpec spec,
-                                               String location,
-                                               Map<String, String> properties) {
-    return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties, DEFAULT_TABLE_FORMAT_VERSION);
-  }
-
   public static TableMetadata newTableMetadata(Schema schema,
                                                PartitionSpec spec,
                                                SortOrder sortOrder,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, sortOrder, location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+    return newTableMetadata(schema, spec, sortOrder, location, unreservedProperties(properties),
+        PropertyUtil.propertyAsInt(properties, TableProperties.RESERVED_PROPERTY_FORMAT_VERSION,
+            DEFAULT_TABLE_FORMAT_VERSION));
   }
 
   public static TableMetadata newTableMetadata(Schema schema,
                                                PartitionSpec spec,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+    return newTableMetadata(schema, spec, SortOrder.unsorted(), location, unreservedProperties(properties),
+        PropertyUtil.propertyAsInt(properties, TableProperties.RESERVED_PROPERTY_FORMAT_VERSION,
+            DEFAULT_TABLE_FORMAT_VERSION));
+  }
+
+  private static Map<String, String> unreservedProperties(Map<String, String> rawProperties) {
+    return rawProperties.entrySet().stream()
+        .filter(e -> !TableProperties.RESERVED_PROPERTIES.contains(e.getKey()))
+        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
   }
 
   static TableMetadata newTableMetadata(Schema schema,
@@ -677,12 +679,20 @@ public class TableMetadata implements Serializable {
         newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
-  public TableMetadata replaceProperties(Map<String, String> newProperties) {
-    ValidationException.check(newProperties != null, "Cannot set properties to null");
-    return new TableMetadata(null, formatVersion, uuid, location,
+  public TableMetadata replaceProperties(Map<String, String> rawProperties) {
+    ValidationException.check(rawProperties != null, "Cannot set properties to null");
+    Map<String, String> newProperties = unreservedProperties(rawProperties);
+    TableMetadata metadata = new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, newProperties, currentSnapshotId, snapshots,
         snapshotLog, addPreviousFile(file, lastUpdatedMillis, newProperties));
+
+    int newFormatVersion = PropertyUtil.propertyAsInt(rawProperties, TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, formatVersion);
+    if (formatVersion != newFormatVersion) {
+      metadata = metadata.upgradeToFormatVersion(newFormatVersion);
+    }
+
+    return metadata;
   }
 
   public TableMetadata removeSnapshotLogEntries(Set<Long> snapshotIds) {
@@ -752,9 +762,14 @@ public class TableMetadata implements Serializable {
       sortOrdersBuilder.add(freshSortOrder);
     }
 
-    Map<String, String> newProperties = Maps.newHashMap();
-    newProperties.putAll(this.properties);
-    newProperties.putAll(updatedProperties);
+    // prepare new table properties
+    Map<String, String> newRawProperties = Maps.newHashMap();
+    newRawProperties.putAll(this.properties);
+    newRawProperties.putAll(updatedProperties);
+    Map<String, String> newProperties = unreservedProperties(newRawProperties);
+
+    // check if there is format version override
+    int newFormatVersion = PropertyUtil.propertyAsInt(newRawProperties, TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, formatVersion);
 
     // determine the next schema id
     int freshSchemaId = reuseOrCreateNewSchemaId(freshSchema);
@@ -764,7 +779,7 @@ public class TableMetadata implements Serializable {
       schemasBuilder.add(new Schema(freshSchemaId, freshSchema.columns(), freshSchema.identifierFieldIds()));
     }
 
-    return new TableMetadata(null, formatVersion, uuid, newLocation,
+    return new TableMetadata(null, newFormatVersion, uuid, newLocation,
         lastSequenceNumber, System.currentTimeMillis(), newLastColumnId.get(), freshSchemaId, schemasBuilder.build(),
         specId, specListBuilder.build(), Math.max(lastAssignedPartitionId, freshSpec.lastAssignedFieldId()),
         orderId, sortOrdersBuilder.build(), ImmutableMap.copyOf(newProperties),
