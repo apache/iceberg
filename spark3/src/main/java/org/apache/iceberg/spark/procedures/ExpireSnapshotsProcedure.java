@@ -19,8 +19,11 @@
 
 package org.apache.iceberg.spark.procedures;
 
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.actions.Actions;
 import org.apache.iceberg.actions.ExpireSnapshots;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -42,7 +45,8 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
   private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[] {
       ProcedureParameter.required("table", DataTypes.StringType),
       ProcedureParameter.optional("older_than", DataTypes.TimestampType),
-      ProcedureParameter.optional("retain_last", DataTypes.IntegerType)
+      ProcedureParameter.optional("retain_last", DataTypes.IntegerType),
+      ProcedureParameter.optional("num_parallelism", DataTypes.IntegerType)
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
@@ -50,6 +54,8 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
       new StructField("deleted_manifest_files_count", DataTypes.LongType, true, Metadata.empty()),
       new StructField("deleted_manifest_lists_count", DataTypes.LongType, true, Metadata.empty())
   });
+
+  private AtomicInteger deleteThreadsIndex = new AtomicInteger(0);
 
   public static ProcedureBuilder builder() {
     return new BaseProcedure.Builder<ExpireSnapshotsProcedure>() {
@@ -79,6 +85,7 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtil.microsToMillis(args.getLong(1));
     Integer retainLastNum = args.isNullAt(2) ? null : args.getInt(2);
+    Integer numThreads = args.isNullAt(3) ? null : args.getInt(3);
 
     return modifyIcebergTable(tableIdent, table -> {
       ExpireSnapshots action = actions().expireSnapshots(table);
@@ -90,7 +97,14 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
       if (retainLastNum != null) {
         action.retainLast(retainLastNum);
       }
-
+      if (numThreads != null && numThreads > 0) {
+        action.executeDeleteWith(Executors.newFixedThreadPool(numThreads, runnable -> {
+          Thread thread = new Thread(runnable);
+          thread.setName("expire-snapshot-" + deleteThreadsIndex.getAndIncrement());
+          thread.setDaemon(true); // daemon threads will be terminated abruptly when the JVM exits
+          return thread;
+        }));
+      }
       ExpireSnapshots.Result result = action.execute();
 
       return toOutputRows(result);
