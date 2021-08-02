@@ -96,7 +96,7 @@ This configuration can use same Hive Metastore for both Iceberg and non-Iceberg 
 
 ### Using catalog specific Hadoop configuration values
 
-Similar to configuring Hadoop properties by using `spark.hadoop.*`, it is possible to set per-catalog Hadoop configuration values by adding the priperty for the catalog with the prefix `spark.sql.catalog.(catalog-name).hadoop.*`. These properties will take precedence over values configured globally using `spark.hadoop.*` and will only affect Iceberg tables.
+Similar to configuring Hadoop properties by using `spark.hadoop.*`, it's possible to set per-catalog Hadoop configuration values when using Spark by adding the property for the catalog with the prefix `spark.sql.catalog.(catalog-name).hadoop.*`. These properties will take precedence over values configured globally using `spark.hadoop.*` and will only affect Iceberg tables.
 
 ```plain
 spark.sql.catalog.hadoop_prod.hadoop.fs.s3a.endpoint = http://aws-local:9000
