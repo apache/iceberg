@@ -186,12 +186,10 @@ class RowDataReader extends BaseDataReader<InternalRow> {
   }
 
   private CloseableIterable<InternalRow> newDataIterable(DataTask task, Schema readSchema) {
-    Schema taskSchema = task.schema() == null ? tableSchema : task.schema();
-    StructInternalRow row = new StructInternalRow(taskSchema.asStruct());
+    StructInternalRow row = new StructInternalRow(readSchema.asStruct());
     CloseableIterable<InternalRow> asSparkRows = CloseableIterable.transform(
         task.asDataTask().rows(), row::setStruct);
-    return CloseableIterable.transform(
-        asSparkRows, APPLY_PROJECTION.bind(projection(readSchema, taskSchema))::invoke);
+    return asSparkRows;
   }
 
   private static UnsafeProjection projection(Schema finalSchema, Schema readSchema) {

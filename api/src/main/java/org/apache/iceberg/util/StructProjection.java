@@ -83,7 +83,7 @@ public class StructProjection implements StructLike {
               break;
             case MAP:
             case LIST:
-              throw new IllegalArgumentException(String.format("Cannot project list or map field: %s", projectedField));
+              // TODO Figure this out
             default:
               nestedProjections[pos] = null;
           }
