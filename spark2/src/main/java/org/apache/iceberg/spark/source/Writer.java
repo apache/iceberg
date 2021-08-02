@@ -268,15 +268,16 @@ class Writer implements DataSourceWriter {
 
       PartitionSpec spec = table.spec();
       FileIO io = table.io();
+      Map<String, String> properties = table.properties();
 
       if (spec.isUnpartitioned()) {
-        return new Unpartitioned24Writer(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+        return new Unpartitioned24Writer(spec, format, appenderFactory, fileFactory, io, targetFileSize, properties);
       } else if (partitionedFanoutEnabled) {
         return new PartitionedFanout24Writer(spec, format, appenderFactory, fileFactory, io, targetFileSize,
-            writeSchema, dsSchema);
+            properties, writeSchema, dsSchema);
       } else {
         return new Partitioned24Writer(spec, format, appenderFactory, fileFactory, io, targetFileSize,
-            writeSchema, dsSchema);
+            properties, writeSchema, dsSchema);
       }
     }
   }
@@ -284,8 +285,9 @@ class Writer implements DataSourceWriter {
   private static class Unpartitioned24Writer extends UnpartitionedWriter<InternalRow>
       implements DataWriter<InternalRow> {
     Unpartitioned24Writer(PartitionSpec spec, FileFormat format, SparkAppenderFactory appenderFactory,
-                          OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize) {
-      super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize);
+        OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize,
+        Map<String, String> properties) {
+      super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize, properties);
     }
 
     @Override
@@ -299,9 +301,9 @@ class Writer implements DataSourceWriter {
   private static class Partitioned24Writer extends SparkPartitionedWriter implements DataWriter<InternalRow> {
 
     Partitioned24Writer(PartitionSpec spec, FileFormat format, SparkAppenderFactory appenderFactory,
-                        OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize,
-                        Schema schema, StructType sparkSchema) {
-      super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize, schema, sparkSchema);
+        OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize,
+        Map<String, String> properties, Schema schema, StructType sparkSchema) {
+      super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize, properties, schema, sparkSchema);
     }
 
     @Override
@@ -316,11 +318,10 @@ class Writer implements DataSourceWriter {
       implements DataWriter<InternalRow> {
 
     PartitionedFanout24Writer(PartitionSpec spec, FileFormat format,
-                              SparkAppenderFactory appenderFactory,
-                              OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize,
-                              Schema schema, StructType sparkSchema) {
-      super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize, schema,
-          sparkSchema);
+        SparkAppenderFactory appenderFactory,
+        OutputFileFactory fileFactory, FileIO fileIo, long targetFileSize,
+        Map<String, String> properties, Schema schema, StructType sparkSchema) {
+      super(spec, format, appenderFactory, fileFactory, fileIo, targetFileSize, properties, schema, sparkSchema);
     }
 
     @Override

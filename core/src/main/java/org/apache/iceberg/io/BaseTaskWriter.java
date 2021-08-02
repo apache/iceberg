@@ -36,9 +36,13 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.Tasks;
+
+import static org.apache.iceberg.TableProperties.WRITE_RECORDS_NUM_THRESHOLD;
+import static org.apache.iceberg.TableProperties.WRITE_RECORDS_NUM_THRESHOLD_DEFAULT;
 
 public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   private final List<DataFile> completedDataFiles = Lists.newArrayList();
@@ -51,15 +55,18 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   private final OutputFileFactory fileFactory;
   private final FileIO io;
   private final long targetFileSize;
+  private final Map<String, String> properties;
 
   protected BaseTaskWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                           OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
+                           OutputFileFactory fileFactory, FileIO io, long targetFileSize, Map<String, String> properties) {
     this.spec = spec;
     this.format = format;
     this.appenderFactory = appenderFactory;
     this.fileFactory = fileFactory;
     this.io = io;
     this.targetFileSize = targetFileSize;
+    this.properties = properties;
+
   }
 
   protected PartitionSpec spec() {
@@ -105,7 +112,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
       this.dataWriter = new RollingFileWriter(partition);
       this.eqDeleteWriter = new RollingEqDeleteWriter(partition);
-      this.posDeleteWriter = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition);
+      this.posDeleteWriter = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition, getRecordsNumThreshold(properties));
       this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
     }
 
@@ -348,5 +355,11 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     void complete(EqualityDeleteWriter<T> closedWriter) {
       completedDeleteFiles.add(closedWriter.toDeleteFile());
     }
+  }
+
+  private static long getRecordsNumThreshold(Map<String, String> properties) {
+    return PropertyUtil.propertyAsLong(properties,
+            WRITE_RECORDS_NUM_THRESHOLD,
+            WRITE_RECORDS_NUM_THRESHOLD_DEFAULT);
   }
 }

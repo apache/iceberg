@@ -97,16 +97,17 @@ public class RowDataRewriter implements Serializable {
     TaskWriter<InternalRow> writer;
     if (spec.isUnpartitioned()) {
       writer = new UnpartitionedWriter<>(spec, format, appenderFactory, fileFactory, table.io(),
-          Long.MAX_VALUE);
-    } else if (PropertyUtil.propertyAsBoolean(properties,
+          Long.MAX_VALUE, properties);
+    } else if (PropertyUtil.propertyAsBoolean(
+        properties,
         TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED,
         TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT)) {
       writer = new SparkPartitionedFanoutWriter(
-          spec, format, appenderFactory, fileFactory, table.io(), Long.MAX_VALUE, schema,
+          spec, format, appenderFactory, fileFactory, table.io(), Long.MAX_VALUE, properties, schema,
           structType);
     } else {
       writer = new SparkPartitionedWriter(
-          spec, format, appenderFactory, fileFactory, table.io(), Long.MAX_VALUE, schema,
+          spec, format, appenderFactory, fileFactory, table.io(), Long.MAX_VALUE, properties, schema,
           structType);
     }
 
@@ -121,7 +122,6 @@ public class RowDataRewriter implements Serializable {
 
       writer.close();
       return Lists.newArrayList(writer.dataFiles());
-
     } catch (Throwable originalThrowable) {
       try {
         LOG.error("Aborting task", originalThrowable);
@@ -135,7 +135,6 @@ public class RowDataRewriter implements Serializable {
         writer.abort();
         LOG.error("Aborted commit for partition {} (task {}, attempt {}, stage {}.{})",
             partitionId, taskId, context.taskAttemptId(), context.stageId(), context.stageAttemptNumber());
-
       } catch (Throwable inner) {
         if (originalThrowable != inner) {
           originalThrowable.addSuppressed(inner);

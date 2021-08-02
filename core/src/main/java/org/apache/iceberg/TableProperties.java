@@ -196,4 +196,7 @@ public class TableProperties {
 
   public static final String MERGE_CARDINALITY_CHECK_ENABLED = "write.merge.cardinality-check.enabled";
   public static final boolean MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT = true;
+
+  public static final String WRITE_RECORDS_NUM_THRESHOLD = "write.records-num-threshold";
+  public static final long WRITE_RECORDS_NUM_THRESHOLD_DEFAULT = 100_000L;
 }
