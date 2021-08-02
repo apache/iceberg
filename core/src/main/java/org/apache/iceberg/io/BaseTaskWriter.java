@@ -57,8 +57,9 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   private final long targetFileSize;
   private final Map<String, String> properties;
 
-  protected BaseTaskWriter(PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
-                           OutputFileFactory fileFactory, FileIO io, long targetFileSize, Map<String, String> properties) {
+  protected BaseTaskWriter(
+      PartitionSpec spec, FileFormat format, FileAppenderFactory<T> appenderFactory,
+      OutputFileFactory fileFactory, FileIO io, long targetFileSize, Map<String, String> properties) {
     this.spec = spec;
     this.format = format;
     this.appenderFactory = appenderFactory;
@@ -66,7 +67,6 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     this.io = io;
     this.targetFileSize = targetFileSize;
     this.properties = properties;
-
   }
 
   protected PartitionSpec spec() {
@@ -112,7 +112,11 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
 
       this.dataWriter = new RollingFileWriter(partition);
       this.eqDeleteWriter = new RollingEqDeleteWriter(partition);
-      this.posDeleteWriter = new SortedPosDeleteWriter<>(appenderFactory, fileFactory, format, partition, getRecordsNumThreshold(properties));
+      this.posDeleteWriter = new SortedPosDeleteWriter<>(appenderFactory,
+          fileFactory,
+          format,
+          partition,
+          getRecordsNumThreshold(properties));
       this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
     }
 
@@ -358,8 +362,9 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   }
 
   private static long getRecordsNumThreshold(Map<String, String> properties) {
-    return PropertyUtil.propertyAsLong(properties,
-            WRITE_RECORDS_NUM_THRESHOLD,
-            WRITE_RECORDS_NUM_THRESHOLD_DEFAULT);
+    return PropertyUtil.propertyAsLong(
+        properties,
+        WRITE_RECORDS_NUM_THRESHOLD,
+        WRITE_RECORDS_NUM_THRESHOLD_DEFAULT);
   }
 }
