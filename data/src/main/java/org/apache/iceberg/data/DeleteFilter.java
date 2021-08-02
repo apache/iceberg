@@ -159,7 +159,7 @@ public abstract class DeleteFilter<T> {
     if (eqDeletes.isEmpty()) {
       return null;
     }
-    Predicate<T> isDeleted = t -> false;
+    Predicate<T> isDeleted = null;
 
     Multimap<Set<Integer>, DeleteFile> filesByDeleteIds = Multimaps.newMultimap(Maps.newHashMap(), Lists::newArrayList);
     for (DeleteFile delete : eqDeletes) {
@@ -177,6 +177,9 @@ public abstract class DeleteFilter<T> {
 
       Iterable<CloseableIterable<Record>> deleteRecords = Iterables.transform(deletes,
           delete -> openDeletes(delete, deleteSchema));
+      StructLikeSet deleteSet = Deletes.toEqualitySet(
+          // copy the deleted records because they will be held in a set
+          CloseableIterable.transform(CloseableIterable.concat(deleteRecords), Record::copy),
 
       // copy the delete records because they will be held in a set
       CloseableIterable<Record> records = CloseableIterable.transform(
@@ -187,20 +190,25 @@ public abstract class DeleteFilter<T> {
               records, record -> new InternalRecordWrapper(deleteSchema.asStruct()).wrap(record)),
           deleteSchema.asStruct());
 
-      isDeleted = isDeleted.or(record -> deleteSet.contains(projectRow.wrap(asStructLike(record))));
+      isDeleted = isDeleted == null ? record -> deleteSet.contains(projectRow.wrap(asStructLike(record))) :
+          isDeleted.or(record -> deleteSet.contains(projectRow.wrap(asStructLike(record))));
     }
 
     return isDeleted;
   }
 
   private Predicate<T> buildPosDeletePredicate() {
-    Predicate<T> pred = r -> false;
+    if (posDeletes.isEmpty()) {
+      return null;
+    }
+
+    Predicate<T> pred = null;
 
     for (DeleteFile posDelete : posDeletes) {
       CloseableIterable<Record> deleteRecords = openPosDeletes(posDelete);
       Set<Long> deleteRecordSet = Deletes.toPositionSet(dataFile.path(), deleteRecords);
       if (!deleteRecordSet.isEmpty()) {
-        pred = pred.or(r -> deleteRecordSet.contains(pos(r)));
+        pred = pred == null ? r -> deleteRecordSet.contains(pos(r)) : pred.or(r -> deleteRecordSet.contains(pos(r)));
       }
     }
 
