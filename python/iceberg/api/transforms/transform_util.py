@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import base64
 from datetime import datetime, timedelta
 
 import pytz
@@ -59,7 +60,7 @@ class TransformUtil(object):
 
     @staticmethod
     def base_64_encode(buffer):
-        raise NotImplementedError()
+        return base64.b64encode(buffer).decode('utf-8')
 
     @staticmethod
     def diff_hour(date1, date2):

@@ -62,13 +62,12 @@ class Identity(Transform):
             else:
                 return TransformUtil.human_timestamp_without_timezone(value)
         elif self.type_var.type_id in (TypeID.BINARY, TypeID.FIXED):
-            raise NotImplementedError()
-            # if isinstance(value, bytearray):
-            #     return base64.b64encode(value)
-            # elif isinstance(value, bytes):
-            #     return base64.b64encode(bytes(value))
-            # else:
-            #     raise RuntimeError("Unsupported binary type: %s" % value.__class__.__name__)
+            if isinstance(value, bytearray):
+                return TransformUtil.base_64_encode(value)
+            elif isinstance(value, bytes):
+                return TransformUtil.base_64_encode(value)
+            else:
+                raise RuntimeError("Unsupported binary type: %s" % value.__class__.__name__)
         else:
             return str(value)
 

@@ -20,8 +20,10 @@ from decimal import Decimal
 from iceberg.api.expressions import Literal
 from iceberg.api.transforms import (Identity,
                                     Transforms)
-from iceberg.api.types import (DateType,
+from iceberg.api.types import (BinaryType,
+                               DateType,
                                DecimalType,
+                               FixedType,
                                LongType,
                                StringType,
                                TimestampType,
@@ -76,7 +78,7 @@ def test_long_to_human_string():
 
 
 def test_string_to_human_string():
-    str_type = StringType
+    str_type = StringType.get()
     identity = Transforms.identity(str_type)
 
     with_slash = "a/b/c=d"
@@ -91,3 +93,21 @@ def test_big_decimal_to_human_string():
     dec_var = Decimal(dec_str)
 
     assert identity.to_human_string(dec_var) == dec_str
+
+
+def test_binary_to_human_string():
+    binary_type = BinaryType.get()
+    identity = Transforms.identity(binary_type)
+
+    binary_str = "AQID"
+    binary_val = bytearray(b'\x01\x02\x03')
+    assert identity.to_human_string(binary_val) == binary_str
+
+
+def test_fixed_to_human_string():
+    fixed_type = FixedType.of_length(3)
+    identity = Transforms.identity(fixed_type)
+
+    fixed_str = "AQID"
+    fixed_val = bytes(b'\x01\x02\x03')
+    assert identity.to_human_string(fixed_val) == fixed_str
