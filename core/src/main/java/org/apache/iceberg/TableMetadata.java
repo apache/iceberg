@@ -49,8 +49,6 @@ import org.apache.iceberg.util.PropertyUtil;
  */
 public class TableMetadata implements Serializable {
 
-
-
   static final long INITIAL_SEQUENCE_NUMBER = 0;
   static final long INVALID_SEQUENCE_NUMBER = -1;
   static final int DEFAULT_TABLE_FORMAT_VERSION = 1;
@@ -687,7 +685,8 @@ public class TableMetadata implements Serializable {
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, newProperties, currentSnapshotId, snapshots,
         snapshotLog, addPreviousFile(file, lastUpdatedMillis, newProperties));
 
-    int newFormatVersion = PropertyUtil.propertyAsInt(rawProperties, TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, formatVersion);
+    int newFormatVersion = PropertyUtil.propertyAsInt(rawProperties,
+        TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, formatVersion);
     if (formatVersion != newFormatVersion) {
       metadata = metadata.upgradeToFormatVersion(newFormatVersion);
     }
@@ -769,7 +768,8 @@ public class TableMetadata implements Serializable {
     Map<String, String> newProperties = unreservedProperties(newRawProperties);
 
     // check if there is format version override
-    int newFormatVersion = PropertyUtil.propertyAsInt(newRawProperties, TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, formatVersion);
+    int newFormatVersion = PropertyUtil.propertyAsInt(newRawProperties,
+        TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, formatVersion);
 
     // determine the next schema id
     int freshSchemaId = reuseOrCreateNewSchemaId(freshSchema);

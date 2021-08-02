@@ -799,7 +799,8 @@ public class TestTableMetadata {
     TableMetadata meta = TableMetadata.newTableMetadata(schema, PartitionSpec.unpartitioned(), null,
         ImmutableMap.of(TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, "1", "key", "val"));
 
-    meta = meta.replaceProperties(ImmutableMap.of(TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, "2", "key2", "val2"));
+    meta = meta.replaceProperties(ImmutableMap.of(TableProperties.RESERVED_PROPERTY_FORMAT_VERSION,
+        "2", "key2", "val2"));
 
     Assert.assertEquals("format version should be configured based on the format-version key",
         2, meta.formatVersion());
