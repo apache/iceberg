@@ -35,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
  * deserialization.
  */
 abstract class BaseMetadataTable implements Table, HasTableOperations, Serializable {
+  private static final String PARTITION_FIELD_PREFIX = "partition.";
   private final PartitionSpec spec = PartitionSpec.unpartitioned();
   private final SortOrder sortOrder = SortOrder.unsorted();
   private final TableOperations ops;
@@ -45,6 +46,25 @@ abstract class BaseMetadataTable implements Table, HasTableOperations, Serializa
     this.ops = ops;
     this.table = table;
     this.name = name;
+  }
+
+
+  /**
+   * This method transforms the table's partition spec to a spec that is used to rewrite the user-provided filter
+   * expression against the partitions table.
+   * <p>
+   * The resulting partition spec maps partition.X fields to partition X using an identity partition transform. When
+   * this spec is used to project an expression for the partitions table, the projection will remove predicates for
+   * non-partition fields (not in the spec) and will remove the "partition." prefix from fields.
+   *
+   * @param partitionTableSchema schema of the partition table
+   * @param spec spec on which the partition table schema is based
+   * @return a spec used to rewrite partition table filters to partition filters using an inclusive projection
+   */
+  static PartitionSpec transformSpec(Schema partitionTableSchema, PartitionSpec spec) {
+    PartitionSpec.Builder identitySpecBuilder = PartitionSpec.builderFor(partitionTableSchema);
+    spec.fields().forEach(pf -> identitySpecBuilder.identity(PARTITION_FIELD_PREFIX + pf.name(), pf.name()));
+    return identitySpecBuilder.build();
   }
 
   abstract MetadataTableType metadataTableType();
