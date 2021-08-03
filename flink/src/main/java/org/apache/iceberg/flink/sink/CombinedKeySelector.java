@@ -21,12 +21,12 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 
-public class HybridKeySelector implements KeySelector<RowData, String> {
+public class CombinedKeySelector implements KeySelector<RowData, String> {
 
   private final PartitionKeySelector partitionKeySelector;
   private final EqualityFieldKeySelector equalityFieldKeySelector;
 
-  HybridKeySelector(PartitionSpec spec, List<Integer> equalityFieldIds,  Schema schema, RowType flinkSchema) {
+  CombinedKeySelector(PartitionSpec spec, List<Integer> equalityFieldIds,  Schema schema, RowType flinkSchema) {
     partitionKeySelector = new PartitionKeySelector(spec, schema, flinkSchema);
     equalityFieldKeySelector = new EqualityFieldKeySelector(equalityFieldIds, schema, flinkSchema);
   }
