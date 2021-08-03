@@ -288,6 +288,75 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     );
   }
 
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testReadStreamWithSnapshotTypeOverwriteResendTableV1() throws Exception {
+
+    // fill table with some initial data
+    List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(dataAcrossSnapshots, tableIdentifier);
+    spark.read().format("iceberg").load(tableIdentifier).filter("id = 1").write().mode("overwrite")
+            .format("iceberg").option("write-format", "parquet").save(tableIdentifier);
+    List<SimpleRecord> actual = spark.read().format("iceberg").load(tableIdentifier)
+            .as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    Assert.assertEquals(Lists.newArrayList(new SimpleRecord(1, "one")), actual);
+    Dataset<Row> df = spark.readStream()
+            .format("iceberg")
+            .option(SparkReadOptions.STREAMING_RESEND_OVERWRITE_SNAPSHOTS, "true")
+            .load(tableIdentifier);
+
+    List<SimpleRecord> stream = processAvailable(df);
+    Assert.assertEquals(8, stream.size());
+    Assert.assertEquals(new SimpleRecord(1, "one"), stream.get(7));
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testReadStreamWithSnapshotTypeOverwriteResendTableV2() throws Exception {
+    // upgrade table to version 2 - to facilitate creation of Snapshot of type OVERWRITE.
+    TableOperations ops = ((BaseTable) table).operations();
+    TableMetadata meta = ops.current();
+    ops.commit(meta, meta.upgradeToFormatVersion(2));
+
+    // fill table with some initial data
+    List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(dataAcrossSnapshots, tableIdentifier);
+
+    Schema deleteRowSchema = table.schema().select("data");
+    Record dataDelete = GenericRecord.create(deleteRowSchema);
+    List<Record> dataDeletes = Lists.newArrayList(
+            dataDelete.copy("data", "one") // id = 1
+    );
+
+    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
+            table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, deleteRowSchema);
+
+    table.newRowDelta()
+            .addDeletes(eqDeletes)
+            .commit();
+
+    // check pre-condition - that the above Delete file write - actually resulted in snapshot of type OVERWRITE
+    Assert.assertEquals(DataOperations.OVERWRITE, table.currentSnapshot().operation());
+
+    Dataset<Row> df = spark.readStream()
+            .format("iceberg")
+            .option(SparkReadOptions.STREAMING_RESEND_OVERWRITE_SNAPSHOTS, "true")
+            .load(tableIdentifier);
+    StreamingQuery streamingQuery = df.writeStream()
+            .format("memory")
+            .queryName("testtablewithoverwrites")
+            .outputMode(OutputMode.Append())
+            .start();
+
+    AssertHelpers.assertThrowsCause(
+        "Streaming should fail with IllegalStateException, as the snapshot is not of type APPEND",
+        IllegalStateException.class,
+        "Cannot process overwrite snapshot",
+        () -> streamingQuery.processAllAvailable()
+    );
+  }
+
   @SuppressWarnings("unchecked")
   @Test
   public void testReadStreamWithSnapshotTypeReplaceIgnoresReplace() throws Exception {

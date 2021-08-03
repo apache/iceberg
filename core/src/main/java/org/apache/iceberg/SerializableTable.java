@@ -50,6 +50,7 @@ import org.apache.iceberg.util.SerializableMap;
 public class SerializableTable implements Table, Serializable {
 
   private final String name;
+  private final Integer formatVersion;
   private final String location;
   private final String metadataFileLocation;
   private final Map<String, String> properties;
@@ -67,6 +68,7 @@ public class SerializableTable implements Table, Serializable {
 
   private SerializableTable(Table table) {
     this.name = table.name();
+    this.formatVersion = table.formatVersion();
     this.location = table.location();
     this.metadataFileLocation = metadataFileLocation(table);
     this.properties = SerializableMap.copyOf(table.properties());
@@ -133,6 +135,11 @@ public class SerializableTable implements Table, Serializable {
   @Override
   public String name() {
     return name;
+  }
+
+  @Override
+  public int formatVersion() {
+    return formatVersion;
   }
 
   @Override

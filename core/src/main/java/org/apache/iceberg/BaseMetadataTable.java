@@ -64,6 +64,11 @@ abstract class BaseMetadataTable implements Table, HasTableOperations, Serializa
   }
 
   @Override
+  public int formatVersion() {
+    return ops.current().formatVersion();
+  }
+
+  @Override
   public FileIO io() {
     return table().io();
   }

@@ -513,6 +513,11 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
+    public int formatVersion() {
+      return current.formatVersion();
+    }
+
+    @Override
     public void refresh() {
     }
 
