@@ -56,7 +56,7 @@ Community discussions happen primarily on the [dev mailing list][dev-list] or on
 Iceberg is built using Gradle 5.4.1 with Java 1.8 or Java 11.
 
 * To invoke a build and run tests: `./gradlew build`
-* To skip tests: `./gradlew build -x test`
+* To invoke a build without tests: `./gradlew jar testClasses`
 
 Iceberg table support is organized in library modules:
 
