@@ -173,6 +173,11 @@ class FlinkWriterFactory extends BaseWriterFactory<RowData> implements Serializa
       return this;
     }
 
+    /**
+     * Sets a Flink type for data.
+     * <p>
+     * If not set, the value is derived from the provided Iceberg schema.
+     */
     Builder dataFlinkType(RowType newDataFlinkType) {
       this.dataFlinkType = newDataFlinkType;
       return this;
@@ -198,7 +203,12 @@ class FlinkWriterFactory extends BaseWriterFactory<RowData> implements Serializa
       return this;
     }
 
-    Builder equalityDeleteSparkType(RowType newEqualityDeleteFlinkType) {
+    /**
+     * Sets a Flink type for equality deletes.
+     * <p>
+     * If not set, the value is derived from the provided Iceberg schema.
+     */
+    Builder equalityDeleteFlinkType(RowType newEqualityDeleteFlinkType) {
       this.equalityDeleteFlinkType = newEqualityDeleteFlinkType;
       return this;
     }
@@ -213,6 +223,11 @@ class FlinkWriterFactory extends BaseWriterFactory<RowData> implements Serializa
       return this;
     }
 
+    /**
+     * Sets a Flink type for position deletes.
+     * <p>
+     * If not set, the value is derived from the provided Iceberg schema.
+     */
     Builder positionDeleteFlinkType(RowType newPositionDeleteFlinkType) {
       this.positionDeleteFlinkType = newPositionDeleteFlinkType;
       return this;
