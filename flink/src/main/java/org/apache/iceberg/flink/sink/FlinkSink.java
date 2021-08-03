@@ -28,6 +28,7 @@ import java.util.function.Function;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
+import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -41,7 +42,6 @@ import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
@@ -355,24 +355,15 @@ public class FlinkSink {
         writeMode = distributionMode;
       }
 
+      KeySelector<RowData, String> keySelector;
       switch (writeMode) {
         case NONE:
-          if (!equalityFieldIds.isEmpty()) {
-            return input.keyBy(new EqualityFieldKeySelector(equalityFieldIds, table.schema(), flinkRowType));
-          } else {
-            return input;
-          }
+          keySelector = getKeySelector(equalityFieldIds, null, iSchema, flinkRowType);
+          break;
 
         case HASH:
-          if (!partitionSpec.isUnpartitioned() && !equalityFieldIds.isEmpty()) {
-            return input.keyBy(new HybridKeySelector(partitionSpec, equalityFieldIds, iSchema, flinkRowType));
-          } else if (!partitionSpec.isUnpartitioned() && equalityFieldIds.isEmpty()) {
-            return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
-          } else if (partitionSpec.isUnpartitioned() && !equalityFieldIds.isEmpty()) {
-            return input.keyBy(new EqualityFieldKeySelector(equalityFieldIds, table.schema(), flinkRowType));
-          } else {
-            return input;
-          }
+          keySelector = getKeySelector(equalityFieldIds, partitionSpec, iSchema, flinkRowType);
+          break;
 
         case RANGE:
           LOG.warn("Fallback to use 'none' distribution mode, because {}={} is not supported in flink now",
@@ -381,6 +372,27 @@ public class FlinkSink {
 
         default:
           throw new RuntimeException("Unrecognized write.distribution-mode: " + writeMode);
+      }
+
+      if (keySelector != null) {
+        return input.keyBy(keySelector);
+      }
+      return input;
+    }
+
+    private KeySelector<RowData, String> getKeySelector(List<Integer> equalityFieldIds, PartitionSpec partitionSpec,
+        Schema schema, RowType rowType) {
+      boolean hasPrimaryKey = equalityFieldIds != null && !equalityFieldIds.isEmpty();
+      boolean hasPartitionKey = partitionSpec != null && !partitionSpec.isUnpartitioned();
+
+      if (hasPrimaryKey && hasPartitionKey) {
+        return new CombinedKeySelector(partitionSpec, equalityFieldIds, schema, rowType);
+      } else if (hasPartitionKey) {
+        return new PartitionKeySelector(partitionSpec, schema, rowType);
+      } else if (hasPrimaryKey) {
+        return new EqualityFieldKeySelector(equalityFieldIds, schema, rowType);
+      } else {
+        return null;
       }
     }
   }
