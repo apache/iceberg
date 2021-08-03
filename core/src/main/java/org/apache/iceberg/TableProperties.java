@@ -35,7 +35,6 @@ public class TableProperties {
    * <p>
    * If this table property exists when creating a table, the table will use the specified format version.
    * If a table updates this property, it will try to upgrade to the specified format version.
-   * This helps developers to try out new features in an unreleased version or migrate existing tables to a new version.
    * <p>
    * Note: incomplete or unstable versions cannot be selected using this property.
    */
@@ -44,7 +43,7 @@ public class TableProperties {
   /**
    * Reserved Iceberg table properties list.
    * <p>
-   * Reserved table properties are only used to control behaviors during the construction of table metadata.
+   * Reserved table properties are only used to control behaviors when creating or updating a table.
    * The value of these properties are not persisted as a part of the table metadata.
    */
   public static final Set<String> RESERVED_PROPERTIES = ImmutableSet.of(
