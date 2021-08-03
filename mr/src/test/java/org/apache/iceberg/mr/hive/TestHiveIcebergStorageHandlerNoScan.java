@@ -285,7 +285,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
         "'" + InputFormatConfig.PARTITION_SPEC + "'='" +
         PartitionSpecParser.toJson(PartitionSpec.unpartitioned()) + "', " +
         "'" + InputFormatConfig.CATALOG_NAME + "'='" + testTables.catalogName() + "', " +
-        "'" + TableProperties.RESERVED_PROPERTY_FORMAT_VERSION + "'='" + 2 + "')");
+        "'" + TableProperties.FORMAT_VERSION + "'='" + 2 + "')");
 
     // Check the Iceberg table partition data
     org.apache.iceberg.Table icebergTable = testTables.loadTable(identifier);

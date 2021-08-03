@@ -63,7 +63,7 @@ public class TableMetadata implements Serializable {
                                                SortOrder sortOrder,
                                                String location,
                                                Map<String, String> properties) {
-    int formatVersion = PropertyUtil.propertyAsInt(properties, TableProperties.RESERVED_PROPERTY_FORMAT_VERSION,
+    int formatVersion = PropertyUtil.propertyAsInt(properties, TableProperties.FORMAT_VERSION,
         DEFAULT_TABLE_FORMAT_VERSION);
     return newTableMetadata(schema, spec, sortOrder, location, unreservedProperties(properties), formatVersion);
   }
@@ -73,7 +73,7 @@ public class TableMetadata implements Serializable {
                                                String location,
                                                Map<String, String> properties) {
     SortOrder sortOrder = SortOrder.unsorted();
-    int formatVersion = PropertyUtil.propertyAsInt(properties, TableProperties.RESERVED_PROPERTY_FORMAT_VERSION,
+    int formatVersion = PropertyUtil.propertyAsInt(properties, TableProperties.FORMAT_VERSION,
         DEFAULT_TABLE_FORMAT_VERSION);
     return newTableMetadata(schema, spec, sortOrder, location, unreservedProperties(properties), formatVersion);
   }
@@ -688,8 +688,7 @@ public class TableMetadata implements Serializable {
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, newProperties, currentSnapshotId, snapshots,
         snapshotLog, addPreviousFile(file, lastUpdatedMillis, newProperties));
 
-    int newFormatVersion = PropertyUtil.propertyAsInt(rawProperties,
-        TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, formatVersion);
+    int newFormatVersion = PropertyUtil.propertyAsInt(rawProperties, TableProperties.FORMAT_VERSION, formatVersion);
     if (formatVersion != newFormatVersion) {
       metadata = metadata.upgradeToFormatVersion(newFormatVersion);
     }
@@ -769,8 +768,7 @@ public class TableMetadata implements Serializable {
     newProperties.putAll(unreservedProperties(updatedProperties));
 
     // check if there is format version override
-    int newFormatVersion = PropertyUtil.propertyAsInt(updatedProperties,
-        TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, formatVersion);
+    int newFormatVersion = PropertyUtil.propertyAsInt(updatedProperties, TableProperties.FORMAT_VERSION, formatVersion);
 
     // determine the next schema id
     int freshSchemaId = reuseOrCreateNewSchemaId(freshSchema);

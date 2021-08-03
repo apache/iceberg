@@ -39,7 +39,7 @@ public class TableProperties {
    * <p>
    * Note: incomplete or unstable versions cannot be selected using this property.
    */
-  public static final String RESERVED_PROPERTY_FORMAT_VERSION = "format-version";
+  public static final String FORMAT_VERSION = "format-version";
 
   /**
    * Reserved Iceberg table properties list.
@@ -48,7 +48,7 @@ public class TableProperties {
    * The value of these properties are not persisted as a part of the table metadata.
    */
   public static final Set<String> RESERVED_PROPERTIES = ImmutableSet.of(
-      RESERVED_PROPERTY_FORMAT_VERSION
+      FORMAT_VERSION
   );
 
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";

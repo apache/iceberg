@@ -764,7 +764,7 @@ public class TestTableMetadata {
     );
 
     TableMetadata meta = TableMetadata.newTableMetadata(schema, PartitionSpec.unpartitioned(), null,
-        ImmutableMap.of(TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, "2", "key", "val"));
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, "2", "key", "val"));
 
     Assert.assertEquals("format version should be configured based on the format-version key",
         2, meta.formatVersion());
@@ -779,10 +779,10 @@ public class TestTableMetadata {
     );
 
     TableMetadata meta = TableMetadata.newTableMetadata(schema, PartitionSpec.unpartitioned(), null,
-        ImmutableMap.of(TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, "1", "key", "val"));
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, "1", "key", "val"));
 
     meta = meta.buildReplacement(meta.schema(), meta.spec(), meta.sortOrder(), meta.location(),
-        ImmutableMap.of(TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, "2", "key2", "val2"));
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, "2", "key2", "val2"));
 
     Assert.assertEquals("format version should be configured based on the format-version key",
         2, meta.formatVersion());
@@ -797,9 +797,9 @@ public class TestTableMetadata {
     );
 
     TableMetadata meta = TableMetadata.newTableMetadata(schema, PartitionSpec.unpartitioned(), null,
-        ImmutableMap.of(TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, "1", "key", "val"));
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, "1", "key", "val"));
 
-    meta = meta.replaceProperties(ImmutableMap.of(TableProperties.RESERVED_PROPERTY_FORMAT_VERSION,
+    meta = meta.replaceProperties(ImmutableMap.of(TableProperties.FORMAT_VERSION,
         "2", "key2", "val2"));
 
     Assert.assertEquals("format version should be configured based on the format-version key",
@@ -818,6 +818,6 @@ public class TestTableMetadata {
         IllegalArgumentException.class,
         "Table properties should not contain reserved properties, but got {format-version=1}",
         () -> TableMetadata.newTableMetadata(schema, PartitionSpec.unpartitioned(), null, "/tmp",
-            ImmutableMap.of(TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, "1"), 1));
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, "1"), 1));
   }
 }
