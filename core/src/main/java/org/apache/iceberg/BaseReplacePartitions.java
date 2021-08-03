@@ -29,13 +29,12 @@ public class BaseReplacePartitions
     extends MergingSnapshotProducer<ReplacePartitions> implements ReplacePartitions {
 
   private final PartitionSet deletedPartitions = PartitionSet.create(super.getSpecsById());
-  private long startingSnapshotId;
+  private Long startingSnapshotId = null;
   private boolean validateNoConflictingAppends = false;
 
   BaseReplacePartitions(String tableName, TableOperations ops) {
     super(tableName, ops);
     set(SnapshotSummary.REPLACE_PARTITIONS_PROP, "true");
-    startingSnapshotId = ops.current().currentSnapshot().snapshotId();
   }
 
   @Override
