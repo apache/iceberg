@@ -84,9 +84,9 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   @Parameterized.Parameters
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] { false, false},
-        new Object[] { true, false},
-        new Object[] { true, true}
+        new Object[] {false, false},
+        new Object[] {true, false},
+        new Object[] {true, true}
     };
   }
 
