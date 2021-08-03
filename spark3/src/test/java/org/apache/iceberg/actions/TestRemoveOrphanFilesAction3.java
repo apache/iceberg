@@ -22,7 +22,6 @@ package org.apache.iceberg.actions;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import junitparams.Parameters;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -36,16 +35,16 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
+
+  public TestRemoveOrphanFilesAction3(boolean mockSchema, boolean mockAuthority) {
+    super(mockSchema, mockAuthority);
+  }
+
   @Test
-  @Parameters({
-      "false, false",
-      "true, false",
-      "true, true"
-  })
-  public void testSparkCatalogTable(boolean mockSchema, boolean mockAuthority) throws Exception {
+  public void testSparkCatalogTable() throws Exception {
     // Hadoop catalog can't reset warehouse location, so we use new SparkSession
     SparkSession newSession = spark.newSession();
-    String tableLocation = getTableLocation(mockSchema, mockAuthority, false);
+    String tableLocation = getTableLocation(false);
     newSession.conf().set("spark.sql.catalog.mycat", "org.apache.iceberg.spark.SparkCatalog");
     newSession.conf().set("spark.sql.catalog.mycat.type", "hadoop");
     newSession.conf().set("spark.sql.catalog.mycat.warehouse", tableLocation);
@@ -72,15 +71,10 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
   }
 
   @Test
-  @Parameters({
-      "false, false",
-      "true, false",
-      "true, true"
-  })
-  public void testSparkCatalogNamedHadoopTable(boolean mockSchema, boolean mockAuthority) throws Exception {
+  public void testSparkCatalogNamedHadoopTable() throws Exception {
     // Hadoop catalog can't reset warehouse location, so we use new SparkSession
     SparkSession newSession = spark.newSession();
-    String tableLocation = getTableLocation(mockSchema, mockAuthority, false);
+    String tableLocation = getTableLocation(false);
     newSession.conf().set("spark.sql.catalog.hadoop", "org.apache.iceberg.spark.SparkCatalog");
     newSession.conf().set("spark.sql.catalog.hadoop.type", "hadoop");
     newSession.conf().set("spark.sql.catalog.hadoop.warehouse", tableLocation);
@@ -107,15 +101,10 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
   }
 
   @Test
-  @Parameters({
-      "false, false",
-      "true, false",
-      "true, true"
-  })
-  public void testSparkCatalogNamedHiveTable(boolean mockSchema, boolean mockAuthority) throws Exception {
+  public void testSparkCatalogNamedHiveTable() throws Exception {
     // Hadoop catalog can't reset warehouse location, so we use new SparkSession
     SparkSession newSession = spark.newSession();
-    String tableLocation = getTableLocation(mockSchema, mockAuthority, false);
+    String tableLocation = getTableLocation(false);
     newSession.conf().set("spark.sql.catalog.hive", "org.apache.iceberg.spark.SparkCatalog");
     newSession.conf().set("spark.sql.catalog.hive.type", "hadoop");
     newSession.conf().set("spark.sql.catalog.hive.warehouse", tableLocation);
@@ -142,15 +131,10 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
   }
 
   @Test
-  @Parameters({
-      "false, false",
-      "true, false",
-      "true, true"
-  })
-  public void testSparkSessionCatalogHadoopTable(boolean mockSchema, boolean mockAuthority) throws Exception {
+  public void testSparkSessionCatalogHadoopTable() throws Exception {
     // Hadoop catalog can't reset warehouse location, so we use new SparkSession
     SparkSession newSession = spark.newSession();
-    String tableLocation = getTableLocation(mockSchema, mockAuthority, false);
+    String tableLocation = getTableLocation(false);
     newSession.conf().set("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog");
     newSession.conf().set("spark.sql.catalog.spark_catalog.type", "hadoop");
     newSession.conf().set("spark.sql.catalog.spark_catalog.warehouse", tableLocation);
@@ -177,13 +161,8 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
   }
 
   @Test
-  @Parameters({
-      "false, false",
-      "true, false",
-      "true, true"
-  })
-  public void testSparkSessionCatalogHiveTable(boolean mockSchema, boolean mockAuthority) throws Exception {
-    String tableLocation = getTableLocation(mockSchema, mockAuthority, false);
+  public void testSparkSessionCatalogHiveTable() throws Exception {
+    String tableLocation = getTableLocation(false);
     spark.conf().set("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog");
     spark.conf().set("spark.sql.catalog.spark_catalog.type", "hive");
     spark.conf().set("spark.sql.catalog.spark_catalog.warehouse", tableLocation);

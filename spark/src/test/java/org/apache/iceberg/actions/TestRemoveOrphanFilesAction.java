@@ -25,8 +25,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -65,19 +63,31 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-@RunWith(JUnitParamsRunner.class)
+@RunWith(Parameterized.class)
 public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
   private static final HadoopTables TABLES;
+  private boolean mockSchema;
+  private boolean mockAuthority;
 
   static {
     Configuration conf = new Configuration();
     conf.setClass("fs.mock.impl", MockFileSystem.class, FileSystem.class);
     TABLES = new HadoopTables(conf);
+  }
+
+  @Parameterized.Parameters
+  public static Object[][] parameters() {
+    return new Object[][] {
+        new Object[] { false, false},
+        new Object[] { true, false},
+        new Object[] { true, true}
+    };
   }
 
   protected static final Schema SCHEMA = new Schema(
@@ -127,7 +137,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     this.tmpLocation = tmpDir.toURI().toString();
   }
 
-  protected String getTableLocation(boolean mockSchema, boolean mockAuthority, boolean absolutePath) {
+  protected String getTableLocation(boolean absolutePath) {
     if (!mockSchema) {
       if (absolutePath) {
         return tmpDir.getAbsolutePath();
@@ -165,14 +175,14 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
     }
   }
 
+  public TestRemoveOrphanFilesAction(boolean mockSchema, boolean mockAuthority) {
+    this.mockSchema = mockSchema;
+    this.mockAuthority = mockAuthority;
+  }
+
   @Test
-  @Parameters({
-      "false, false",
-      "true, false",
-      "true, true"
-  })
-  public void testDryRun(boolean mockSchema, boolean mockAuthority) throws IOException, InterruptedException {
-    String tableLocation = getTableLocation(mockSchema, mockAuthority, false);
+  public void testDryRun() throws IOException, InterruptedException {
+    String tableLocation = getTableLocation(false);
     Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
 
     List<ThreeColumnRecord> records = Lists.newArrayList(
@@ -251,14 +261,8 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   }
 
   @Test
-  @Parameters({
-      "false, false",
-      "true, false",
-      "true, true"
-  })
-  public void testAllValidFilesAreKept(
-      boolean mockSchema, boolean mockAuthority) throws IOException, InterruptedException {
-    String tableLocation = getTableLocation(mockSchema, mockAuthority, false);
+  public void testAllValidFilesAreKept() throws IOException, InterruptedException {
+    String tableLocation = getTableLocation(false);
     Table table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
 
     List<ThreeColumnRecord> records1 = Lists.newArrayList(
@@ -336,13 +340,8 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   }
 
   @Test
-  @Parameters({
-      "false, false",
-      "true, false",
-      "true, true"
-  })
-  public void testWapFilesAreKept(boolean mockSchema, boolean mockAuthority) throws InterruptedException {
-    String tableLocation = getTableLocation(mockSchema, mockAuthority, false);
+  public void testWapFilesAreKept() throws InterruptedException {
+    String tableLocation = getTableLocation(false);
     Map<String, String> props = Maps.newHashMap();
     props.put(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, "true");
     Table table = TABLES.create(SCHEMA, SPEC, props, tableLocation);
@@ -388,13 +387,8 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   }
 
   @Test
-  @Parameters({
-      "false, false",
-      "true, false",
-      "true, true"
-  })
-  public void testMetadataFolderIsIntact(boolean mockSchema, boolean mockAuthority) throws InterruptedException {
-    String tableLocation = getTableLocation(mockSchema, mockAuthority, false);
+  public void testMetadataFolderIsIntact() throws InterruptedException {
+    String tableLocation = getTableLocation(false);
     // write data directly to the table location
     Map<String, String> props = Maps.newHashMap();
     props.put(TableProperties.WRITE_NEW_DATA_LOCATION, tableLocation);
@@ -432,13 +426,8 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   }
 
   @Test
-  @Parameters({
-      "false, false",
-      "true, false",
-      "true, true"
-  })
-  public void testOlderThanTimestamp(boolean mockSchema, boolean mockAuthority) throws InterruptedException {
-    String tableLocation = getTableLocation(mockSchema, mockAuthority, false);
+  public void testOlderThanTimestamp() throws InterruptedException {
+    String tableLocation = getTableLocation(false);
     Table table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
 
     List<ThreeColumnRecord> records = Lists.newArrayList(
@@ -473,14 +462,8 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   }
 
   @Test
-  @Parameters({
-      "false, false",
-      "true, false",
-      "true, true"
-  })
-  public void testRemoveUnreachableMetadataVersionFiles(
-      boolean mockSchema, boolean mockAuthority) throws InterruptedException {
-    String tableLocation = getTableLocation(mockSchema, mockAuthority, false);
+  public void testRemoveUnreachableMetadataVersionFiles() throws InterruptedException {
+    String tableLocation = getTableLocation(false);
     Map<String, String> props = Maps.newHashMap();
     props.put(TableProperties.WRITE_NEW_DATA_LOCATION, tableLocation);
     props.put(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "1");
@@ -527,13 +510,8 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   }
 
   @Test
-  @Parameters({
-      "false, false",
-      "true, false",
-      "true, true"
-  })
-  public void testManyTopLevelPartitions(boolean mockSchema, boolean mockAuthority) throws InterruptedException {
-    String tableLocation = getTableLocation(mockSchema, mockAuthority, false);
+  public void testManyTopLevelPartitions() throws InterruptedException {
+    String tableLocation = getTableLocation(false);
     Table table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
 
     List<ThreeColumnRecord> records = Lists.newArrayList();
@@ -568,13 +546,8 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   }
 
   @Test
-  @Parameters({
-      "false, false",
-      "true, false",
-      "true, true"
-  })
-  public void testManyLeafPartitions(boolean mockSchema, boolean mockAuthority) throws InterruptedException {
-    String tableLocation = getTableLocation(mockSchema, mockAuthority, false);
+  public void testManyLeafPartitions() throws InterruptedException {
+    String tableLocation = getTableLocation(false);
     Table table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
 
     List<ThreeColumnRecord> records = Lists.newArrayList();
@@ -618,14 +591,8 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   }
 
   @Test
-  @Parameters({
-      "false, false",
-      "true, false",
-      "true, true"
-  })
-  public void testRemoveOrphanFilesWithRelativeFilePath(
-      boolean mockSchema, boolean mockAuthority) throws IOException, InterruptedException {
-    String tableLocation = getTableLocation(mockSchema, mockAuthority, true);
+  public void testRemoveOrphanFilesWithRelativeFilePath() throws IOException, InterruptedException {
+    String tableLocation = getTableLocation(true);
     Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
 
     List<ThreeColumnRecord> records = Lists.newArrayList(
@@ -675,14 +642,8 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   }
 
   @Test
-  @Parameters({
-      "false, false",
-      "true, false",
-      "true, true"
-  })
-  public void testRemoveOrphanFilesWithHadoopCatalog(
-      boolean mockSchema, boolean mockAuthority) throws InterruptedException {
-    String tableLocation = getTableLocation(mockSchema, mockAuthority, false);
+  public void testRemoveOrphanFilesWithHadoopCatalog() throws InterruptedException {
+    String tableLocation = getTableLocation(false);
     HadoopCatalog catalog = new HadoopCatalog(spark.sessionState().newHadoopConf(), tableLocation);
     String namespaceName = "testDb";
     String tableName = "testTb";
@@ -724,13 +685,8 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   }
 
   @Test
-  @Parameters({
-      "false, false",
-      "true, false",
-      "true, true"
-  })
-  public void testHiveCatalogTable(boolean mockSchema, boolean mockAuthority) throws IOException {
-    String tableLocation = getTableLocation(mockSchema, mockAuthority, false);
+  public void testHiveCatalogTable() throws IOException {
+    String tableLocation = getTableLocation(false);
     TableIdentifier id = TableIdentifier.of("default", "hivetestorphan");
     Table table = catalog.createTable(id, SCHEMA, SPEC, tableLocation,
         Maps.newHashMap());
@@ -759,13 +715,8 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   }
 
   @Test
-  @Parameters({
-      "false, false",
-      "true, false",
-      "true, true"
-  })
-  public void testGarbageCollectionDisabled(boolean mockSchema, boolean mockAuthority) {
-    String tableLocation = getTableLocation(mockSchema, mockAuthority, false);
+  public void testGarbageCollectionDisabled() {
+    String tableLocation = getTableLocation(false);
     Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap(), tableLocation);
 
     List<ThreeColumnRecord> records = Lists.newArrayList(

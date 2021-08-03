@@ -20,4 +20,7 @@
 package org.apache.iceberg.actions;
 
 public class TestRemoveOrphanFilesAction24 extends TestRemoveOrphanFilesAction {
+  public TestRemoveOrphanFilesAction24(boolean mockSchema, boolean mockAuthority) {
+    super(mockSchema, mockAuthority);
+  }
 }
