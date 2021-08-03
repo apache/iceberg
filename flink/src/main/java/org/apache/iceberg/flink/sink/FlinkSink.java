@@ -42,6 +42,7 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
@@ -356,9 +357,10 @@ public class FlinkSink {
     long targetFileSize = getTargetFileSizeBytes(props);
     FileFormat fileFormat = getFileFormat(props);
 
-    TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(table.schema(), flinkRowType,
-        table.spec(), table.locationProvider(), table.io(), table.encryption(), targetFileSize, fileFormat, props,
-        equalityFieldIds);
+    Table serializableTable = SerializableTable.copyOf(table);
+    TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(
+        serializableTable, flinkRowType, targetFileSize,
+        fileFormat, equalityFieldIds);
 
     return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
   }

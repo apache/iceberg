@@ -32,6 +32,7 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -52,7 +53,6 @@ public class RowDataRewriter {
   private static final Logger LOG = LoggerFactory.getLogger(RowDataRewriter.class);
 
   private final Schema schema;
-  private final FileFormat format;
   private final String nameMapping;
   private final FileIO io;
   private final boolean caseSensitive;
@@ -70,18 +70,13 @@ public class RowDataRewriter {
 
     String formatString = PropertyUtil.propertyAsString(table.properties(), TableProperties.DEFAULT_FILE_FORMAT,
         TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
-    this.format = FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
+    FileFormat format = FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
     RowType flinkSchema = FlinkSchemaUtil.convert(table.schema());
     this.taskWriterFactory = new RowDataTaskWriterFactory(
-        table.schema(),
+        SerializableTable.copyOf(table),
         flinkSchema,
-        table.spec(),
-        table.locationProvider(),
-        io,
-        encryptionManager,
         Long.MAX_VALUE,
         format,
-        table.properties(),
         null);
   }
 
