@@ -60,31 +60,30 @@ public class TableMetadata implements Serializable {
 
   private static final long ONE_MINUTE = TimeUnit.MINUTES.toMillis(1);
 
-  /**
-   * @deprecated will be removed in 0.9.0; use newTableMetadata(Schema, PartitionSpec, String, Map) instead.
-   */
-  @Deprecated
-  public static TableMetadata newTableMetadata(TableOperations ops,
-                                               Schema schema,
-                                               PartitionSpec spec,
-                                               String location,
-                                               Map<String, String> properties) {
-    return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties, DEFAULT_TABLE_FORMAT_VERSION);
-  }
-
   public static TableMetadata newTableMetadata(Schema schema,
                                                PartitionSpec spec,
                                                SortOrder sortOrder,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, sortOrder, location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+    int formatVersion = PropertyUtil.propertyAsInt(properties, TableProperties.FORMAT_VERSION,
+        DEFAULT_TABLE_FORMAT_VERSION);
+    return newTableMetadata(schema, spec, sortOrder, location, unreservedProperties(properties), formatVersion);
   }
 
   public static TableMetadata newTableMetadata(Schema schema,
                                                PartitionSpec spec,
                                                String location,
                                                Map<String, String> properties) {
-    return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties, DEFAULT_TABLE_FORMAT_VERSION);
+    SortOrder sortOrder = SortOrder.unsorted();
+    int formatVersion = PropertyUtil.propertyAsInt(properties, TableProperties.FORMAT_VERSION,
+        DEFAULT_TABLE_FORMAT_VERSION);
+    return newTableMetadata(schema, spec, sortOrder, location, unreservedProperties(properties), formatVersion);
+  }
+
+  private static Map<String, String> unreservedProperties(Map<String, String> rawProperties) {
+    return rawProperties.entrySet().stream()
+        .filter(e -> !TableProperties.RESERVED_PROPERTIES.contains(e.getKey()))
+        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
   }
 
   static TableMetadata newTableMetadata(Schema schema,
@@ -93,6 +92,9 @@ public class TableMetadata implements Serializable {
                                         String location,
                                         Map<String, String> properties,
                                         int formatVersion) {
+    Preconditions.checkArgument(properties.keySet().stream().noneMatch(TableProperties.RESERVED_PROPERTIES::contains),
+        "Table properties should not contain reserved properties, but got %s", properties);
+
     // reassign all column ids to ensure consistency
     AtomicInteger lastColumnId = new AtomicInteger(0);
     Schema freshSchema = TypeUtil.assignFreshIds(INITIAL_SCHEMA_ID, schema, lastColumnId::incrementAndGet);
@@ -680,12 +682,20 @@ public class TableMetadata implements Serializable {
         newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
   }
 
-  public TableMetadata replaceProperties(Map<String, String> newProperties) {
-    ValidationException.check(newProperties != null, "Cannot set properties to null");
-    return new TableMetadata(null, formatVersion, uuid, location,
+  public TableMetadata replaceProperties(Map<String, String> rawProperties) {
+    ValidationException.check(rawProperties != null, "Cannot set properties to null");
+    Map<String, String> newProperties = unreservedProperties(rawProperties);
+    TableMetadata metadata = new TableMetadata(null, formatVersion, uuid, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, newProperties, currentSnapshotId, snapshots,
         snapshotLog, addPreviousFile(file, lastUpdatedMillis, newProperties));
+
+    int newFormatVersion = PropertyUtil.propertyAsInt(rawProperties, TableProperties.FORMAT_VERSION, formatVersion);
+    if (formatVersion != newFormatVersion) {
+      metadata = metadata.upgradeToFormatVersion(newFormatVersion);
+    }
+
+    return metadata;
   }
 
   public TableMetadata removeSnapshotLogEntries(Set<Long> snapshotIds) {
@@ -812,7 +822,10 @@ public class TableMetadata implements Serializable {
 
     Map<String, String> newProperties = Maps.newHashMap();
     newProperties.putAll(this.properties);
-    newProperties.putAll(updatedProperties);
+    newProperties.putAll(unreservedProperties(updatedProperties));
+
+    // check if there is format version override
+    int newFormatVersion = PropertyUtil.propertyAsInt(updatedProperties, TableProperties.FORMAT_VERSION, formatVersion);
 
     // determine the next schema id
     int freshSchemaId = reuseOrCreateNewSchemaId(freshSchema);
@@ -822,11 +835,17 @@ public class TableMetadata implements Serializable {
       schemasBuilder.add(new Schema(freshSchemaId, freshSchema.columns(), freshSchema.identifierFieldIds()));
     }
 
-    return new TableMetadata(null, formatVersion, uuid, newLocation,
+    TableMetadata metadata = new TableMetadata(null, formatVersion, uuid, newLocation,
         lastSequenceNumber, System.currentTimeMillis(), newLastColumnId.get(), freshSchemaId, schemasBuilder.build(),
         specId, specListBuilder.build(), Math.max(lastAssignedPartitionId, newSpec.lastAssignedFieldId()),
         orderId, sortOrdersBuilder.build(), ImmutableMap.copyOf(newProperties),
         -1, snapshots, ImmutableList.of(), addPreviousFile(file, lastUpdatedMillis, newProperties));
+
+    if (formatVersion != newFormatVersion) {
+      metadata = metadata.upgradeToFormatVersion(newFormatVersion);
+    }
+
+    return metadata;
   }
 
   public TableMetadata updateLocation(String newLocation) {
