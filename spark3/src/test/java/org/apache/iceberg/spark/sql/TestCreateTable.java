@@ -258,4 +258,25 @@ public class TestCreateTable extends SparkCatalogTestBase {
     Assert.assertEquals("should update table to use format v2",
         2, ops.refresh().formatVersion());
   }
+
+  @Test
+  public void testDowngradeTableToFormatV1ThroughTablePropertyFails() {
+    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
+
+    sql("CREATE TABLE %s " +
+            "(id BIGINT NOT NULL, data STRING) " +
+            "USING iceberg " +
+            "TBLPROPERTIES ('format-version'='2')",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    TableOperations ops = ((BaseTable) table).operations();
+    Assert.assertEquals("should create table using format v2",
+        2, ops.refresh().formatVersion());
+
+    AssertHelpers.assertThrowsCause("should fail to downgrade to v1",
+        IllegalArgumentException.class,
+        "Cannot downgrade v2 table to v1",
+        () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='1')", tableName));
+  }
 }

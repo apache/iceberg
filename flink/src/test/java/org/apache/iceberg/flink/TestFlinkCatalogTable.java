@@ -28,6 +28,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.flink.table.api.DataTypes;
+import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.api.constraints.UniqueConstraint;
@@ -262,6 +263,21 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
     sql("ALTER TABLE tl SET('format-version'='2')");
     Assert.assertEquals("should update table to use format v2",
         2, ops.refresh().formatVersion());
+  }
+
+  @Test
+  public void testDowngradeTableToFormatV1ThroughTablePropertyFails() throws Exception {
+    sql("CREATE TABLE tl(id BIGINT) WITH ('format-version'='2')");
+
+    Table table = table("tl");
+    TableOperations ops = ((BaseTable) table).operations();
+    Assert.assertEquals("should create table using format v2",
+        2, ops.refresh().formatVersion());
+
+    AssertHelpers.assertThrowsCause("should fail to downgrade to v1",
+        IllegalArgumentException.class,
+        "Cannot downgrade v2 table to v1",
+        () -> sql("ALTER TABLE tl SET('format-version'='1')"));
   }
 
   @Test

@@ -807,4 +807,17 @@ public class TestTableMetadata {
     Assert.assertEquals("should not contain format-version but should contain new properties",
         ImmutableMap.of("key2", "val2"), meta.properties());
   }
+
+  @Test
+  public void testNoReservedPropertyForTableMetadataCreation() {
+    Schema schema = new Schema(
+        Types.NestedField.required(10, "x", Types.StringType.get())
+    );
+
+    AssertHelpers.assertThrows("should not allow reserved table property when creating table metadata",
+        IllegalArgumentException.class,
+        "Table properties should not contain reserved properties, but got {format-version=1}",
+        () -> TableMetadata.newTableMetadata(schema, PartitionSpec.unpartitioned(), null, "/tmp",
+            ImmutableMap.of(TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, "1"), 1));
+  }
 }

@@ -19,8 +19,8 @@
 
 package org.apache.iceberg;
 
-import java.util.List;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 public class TableProperties {
 
@@ -47,7 +47,7 @@ public class TableProperties {
    * Reserved table properties are only used to control behaviors during the construction of table metadata.
    * The value of these properties are not persisted as a part of the table metadata.
    */
-  public static final List<String> RESERVED_PROPERTIES = ImmutableList.of(
+  public static final Set<String> RESERVED_PROPERTIES = ImmutableSet.of(
       RESERVED_PROPERTY_FORMAT_VERSION
   );
 

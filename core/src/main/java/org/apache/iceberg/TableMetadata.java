@@ -89,6 +89,9 @@ public class TableMetadata implements Serializable {
                                         String location,
                                         Map<String, String> properties,
                                         int formatVersion) {
+    Preconditions.checkArgument(properties.keySet().stream().noneMatch(TableProperties.RESERVED_PROPERTIES::contains),
+        "Table properties should not contain reserved properties, but got %s", properties);
+
     // reassign all column ids to ensure consistency
     AtomicInteger lastColumnId = new AtomicInteger(0);
     Schema freshSchema = TypeUtil.assignFreshIds(INITIAL_SCHEMA_ID, schema, lastColumnId::incrementAndGet);
@@ -760,14 +763,12 @@ public class TableMetadata implements Serializable {
       sortOrdersBuilder.add(freshSortOrder);
     }
 
-    // prepare new table properties
-    Map<String, String> newRawProperties = Maps.newHashMap();
-    newRawProperties.putAll(this.properties);
-    newRawProperties.putAll(updatedProperties);
-    Map<String, String> newProperties = unreservedProperties(newRawProperties);
+    Map<String, String> newProperties = Maps.newHashMap();
+    newProperties.putAll(this.properties);
+    newProperties.putAll(unreservedProperties(updatedProperties));
 
     // check if there is format version override
-    int newFormatVersion = PropertyUtil.propertyAsInt(newRawProperties,
+    int newFormatVersion = PropertyUtil.propertyAsInt(updatedProperties,
         TableProperties.RESERVED_PROPERTY_FORMAT_VERSION, formatVersion);
 
     // determine the next schema id
@@ -778,11 +779,17 @@ public class TableMetadata implements Serializable {
       schemasBuilder.add(new Schema(freshSchemaId, freshSchema.columns(), freshSchema.identifierFieldIds()));
     }
 
-    return new TableMetadata(null, newFormatVersion, uuid, newLocation,
+    TableMetadata metadata = new TableMetadata(null, formatVersion, uuid, newLocation,
         lastSequenceNumber, System.currentTimeMillis(), newLastColumnId.get(), freshSchemaId, schemasBuilder.build(),
         specId, specListBuilder.build(), Math.max(lastAssignedPartitionId, freshSpec.lastAssignedFieldId()),
         orderId, sortOrdersBuilder.build(), ImmutableMap.copyOf(newProperties),
         -1, snapshots, ImmutableList.of(), addPreviousFile(file, lastUpdatedMillis, newProperties));
+
+    if (formatVersion != newFormatVersion) {
+      metadata = metadata.upgradeToFormatVersion(newFormatVersion);
+    }
+
+    return metadata;
   }
 
   public TableMetadata updateLocation(String newLocation) {
