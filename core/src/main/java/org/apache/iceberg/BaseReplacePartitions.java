@@ -77,7 +77,7 @@ public class BaseReplacePartitions
   public void validate(TableMetadata currentMetadata) {
     if (validateNoConflictingAppends) {
       Expression conflictDetectionFilter;
-      if (writeSpec().fields().size() <= 0) {
+      if (writeSpec().isUnpartitioned()) {
         // Unpartitioned table, check against all files
         conflictDetectionFilter = Expressions.alwaysTrue();
       } else {
