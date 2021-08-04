@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.aws.dynamodb;
 
-import java.io.Closeable;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,6 +42,7 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.CloseGroupUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -84,7 +84,7 @@ import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 /**
  * DynamoDB implementation of Iceberg catalog
  */
-public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces, Configurable {
+public class DynamoDbCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces, Configurable {
 
   private static final Logger LOG = LoggerFactory.getLogger(DynamoDbCatalog.class);
   private static final int CATALOG_TABLE_CREATION_WAIT_ATTEMPTS_MAX = 5;
@@ -129,11 +129,6 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
     this.warehousePath = cleanWarehousePath(path);
     this.dynamo = client;
     this.fileIO = io;
-
-    addCloseable(dynamo);
-    addCloseable(fileIO);
-    setSuppressCloseFailure(true);
-
     ensureCatalogTableExistsOrCreate();
   }
 
@@ -429,6 +424,11 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
   @Override
   public Configuration getConf() {
     return hadoopConf;
+  }
+
+  @Override
+  public void close() throws Exception {
+    CloseGroupUtil.closeAutoCloseables(true, dynamo, fileIO);
   }
 
   /**

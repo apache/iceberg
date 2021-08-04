@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.aws.glue;
 
-import java.io.Closeable;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,6 +41,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.io.CloseGroupUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -68,7 +68,7 @@ import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateDatabaseRequest;
 
-public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces, Configurable {
+public class GlueCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces, Configurable {
 
   private static final Logger LOG = LoggerFactory.getLogger(GlueCatalog.class);
 
@@ -118,11 +118,6 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     this.glue = client;
     this.lockManager = lock;
     this.fileIO = io;
-
-    addCloseable(glue);
-    addCloseable(lockManager);
-    addCloseable(fileIO);
-    setSuppressCloseFailure(true);
   }
 
   private String cleanWarehousePath(String path) {
@@ -415,6 +410,11 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   @Override
   public String name() {
     return catalogName;
+  }
+
+  @Override
+  public void close() throws Exception {
+    CloseGroupUtil.closeAutoCloseables(true, glue, lockManager, fileIO);
   }
 
   @Override

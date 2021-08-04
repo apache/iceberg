@@ -19,24 +19,28 @@
 
 package org.apache.iceberg.io;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.Deque;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-public abstract class CloseableGroup implements Closeable {
-  private final Deque<Closeable> closeables = Lists.newLinkedList();
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-  protected void addCloseable(Closeable closeable) {
-    closeables.add(closeable);
+public class CloseGroupUtil {
+  private static final Logger LOG = LoggerFactory.getLogger(CloseGroupUtil.class);
+
+  private CloseGroupUtil() {
   }
 
-  @Override
-  public void close() throws IOException {
-    while (!closeables.isEmpty()) {
-      Closeable toClose = closeables.removeFirst();
+  public static void closeAutoCloseables(boolean suppressCloseFailure, AutoCloseable... closeables) throws Exception {
+    for (AutoCloseable toClose : closeables) {
       if (toClose != null) {
-        toClose.close();
+        if (suppressCloseFailure) {
+          try {
+            toClose.close();
+          } catch (Exception e) {
+            LOG.error("Exception suppressed when attempting to close resources", e);
+          }
+        } else {
+          toClose.close();
+        }
       }
     }
   }
