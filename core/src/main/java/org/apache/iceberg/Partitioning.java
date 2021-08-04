@@ -19,9 +19,16 @@
 
 package org.apache.iceberg;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
+import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.types.Types.StructType;
 
 public class Partitioning {
   private Partitioning() {
@@ -176,5 +183,43 @@ public class Partitioning {
       // do nothing for alwaysNull, it doesn't need to be added to the sort
       return null;
     }
+  }
+
+  /**
+   * Builds a common partition type for all specs in a table.
+   * <p>
+   * Whenever a table has multiple specs, the partition type is a struct containing
+   * all columns that have ever been a part of any spec in the table.
+   *
+   * @param table a table with one or many specs
+   * @return the constructed common partition type
+   */
+  public static StructType partitionType(Table table) {
+    if (table.specs().size() == 1) {
+      return table.spec().partitionType();
+    }
+
+    Map<Integer, NestedField> commonFields = Maps.newHashMap();
+
+    for (PartitionSpec spec : table.specs().values()) {
+      List<NestedField> fields = spec.partitionType().fields();
+
+      for (NestedField field : fields) {
+        int fieldId = field.fieldId();
+        NestedField existingField = commonFields.get(fieldId);
+
+        // partition fields may conflict in v1 tables
+        ValidationException.check(existingField == null || existingField.equals(field),
+            "Conflicting partition fields: ['%s', '%s']",
+            field, existingField);
+
+        commonFields.put(fieldId, field);
+      }
+    }
+
+    List<NestedField> sortedCommonFields = commonFields.values().stream()
+        .sorted(Comparator.comparingInt(NestedField::fieldId))
+        .collect(Collectors.toList());
+    return StructType.of(sortedCommonFields);
   }
 }
