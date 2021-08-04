@@ -137,7 +137,7 @@ public class FlinkSink {
 
     private <T> Builder forMapperOutputType(DataStream<T> input,
                                             MapFunction<T, RowData> mapper,
-                                            ExpressionsTypeInformation<RowData> outputType) {
+                                            TypeInformation<RowData> outputType) {
       this.mappedRowDataInput = input.map(mapper, outputType);
       return this;
     }
@@ -299,7 +299,7 @@ public class FlinkSink {
     }
 
     private SingleOutputStreamOperator<Void> appendCommitter(SingleOutputStreamOperator<WriteResult> writerStream) {
-      final IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
+      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
       SingleOutputStreamOperator<Void> committerStream = writerStream
           .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
           .setParallelism(1)
@@ -323,7 +323,7 @@ public class FlinkSink {
       }
       IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds);
 
-      final int parallelism = writeParallelism == null ? input.getParallelism() : writeParallelism;
+      int parallelism = writeParallelism == null ? input.getParallelism() : writeParallelism;
       SingleOutputStreamOperator<WriteResult> writerStream = input
           .transform(operatorName(ICEBERG_STREAM_WRITER_NAME), TypeInformation.of(WriteResult.class), streamWriter)
           .setParallelism(parallelism);
