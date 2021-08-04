@@ -199,4 +199,7 @@ public class TableProperties {
 
   public static final String WRITE_RECORDS_NUM_THRESHOLD = "write.records-num-threshold";
   public static final long WRITE_RECORDS_NUM_THRESHOLD_DEFAULT = 100_000L;
+
+  public static final String WRITE_POSITION_DELETE_FLUSH_THRESHOLD = "write.position.delete.flush.threshold";
+  public static final long WRITE_POSITION_DELETE_FLUSH_THRESHOLD_DEFAULT = 100_000L;
 }

@@ -41,8 +41,8 @@ import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.Tasks;
 
-import static org.apache.iceberg.TableProperties.WRITE_RECORDS_NUM_THRESHOLD;
-import static org.apache.iceberg.TableProperties.WRITE_RECORDS_NUM_THRESHOLD_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_POSITION_DELETE_FLUSH_THRESHOLD;
+import static org.apache.iceberg.TableProperties.WRITE_POSITION_DELETE_FLUSH_THRESHOLD_DEFAULT;
 
 public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   private final List<DataFile> completedDataFiles = Lists.newArrayList();
@@ -364,7 +364,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
   private static long getRecordsNumThreshold(Map<String, String> properties) {
     return PropertyUtil.propertyAsLong(
         properties,
-        WRITE_RECORDS_NUM_THRESHOLD,
-        WRITE_RECORDS_NUM_THRESHOLD_DEFAULT);
+        WRITE_POSITION_DELETE_FLUSH_THRESHOLD,
+        WRITE_POSITION_DELETE_FLUSH_THRESHOLD_DEFAULT);
   }
 }
