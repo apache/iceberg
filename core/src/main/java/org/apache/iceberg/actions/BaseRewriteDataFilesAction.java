@@ -32,6 +32,7 @@ import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -271,18 +272,28 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
   private void replaceDataFiles(Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles,
                                 long startingSnapshotId) {
     try {
-      RewriteFiles rewriteFiles = table.newRewrite()
-          .validateFromSnapshot(startingSnapshotId)
-          .rewriteFiles(Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles));
-      commit(rewriteFiles);
+      doReplace(deletedDataFiles, addedDataFiles, startingSnapshotId);
     } catch (Exception e) {
-      Tasks.foreach(Iterables.transform(addedDataFiles, f -> f.path().toString()))
-          .noRetry()
-          .suppressFailureWhenFinished()
-          .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
-          .run(fileIO::deleteFile);
+      if (!(e instanceof CommitStateUnknownException)) {
+        LOG.warn("for unknown commiting state ,we should not delete file ");
+      } else {
+        LOG.warn("rewrite fail, delete file {}", Lists.newArrayList(addedDataFiles));
+        Tasks.foreach(Iterables.transform(addedDataFiles, f -> f.path().toString()))
+            .noRetry()
+            .suppressFailureWhenFinished()
+            .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
+            .run(fileIO::deleteFile);
+      }
       throw e;
     }
+  }
+
+  protected void doReplace(Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles,
+                           long startingSnapshotId) {
+    RewriteFiles rewriteFiles = table.newRewrite()
+        .validateFromSnapshot(startingSnapshotId)
+        .rewriteFiles(Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles));
+    commit(rewriteFiles);
   }
 
   private boolean isPartialFileScan(CombinedScanTask task) {
