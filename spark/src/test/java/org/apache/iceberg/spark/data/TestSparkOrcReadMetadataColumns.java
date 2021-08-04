@@ -121,9 +121,9 @@ public class TestSparkOrcReadMetadataColumns {
         .createWriterFunc(SparkOrcWriter::new)
         .schema(DATA_SCHEMA)
         // write in such a way that the file contains 10 stripes each with 100 rows
-        .config("iceberg.orc.vectorbatch.size", "100")
-        .config(OrcConf.ROWS_BETWEEN_CHECKS.getAttribute(), "100")
-        .config(OrcConf.STRIPE_SIZE.getAttribute(), "1")
+        .set("iceberg.orc.vectorbatch.size", "100")
+        .set(OrcConf.ROWS_BETWEEN_CHECKS.getAttribute(), "100")
+        .set(OrcConf.STRIPE_SIZE.getAttribute(), "1")
         .build()) {
       writer.addAll(DATA_ROWS);
     }
