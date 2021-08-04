@@ -29,7 +29,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.StructProjection;
 
 /**
