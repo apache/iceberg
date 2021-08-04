@@ -34,6 +34,11 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 
 **Author** [Shu (Simon Su) Su](https://www.linkedin.com/in/shu-su-62944994/)
 
+### [Apache Iceberg: A Different Table Design for Big Data](https://thenewstack.io/apache-iceberg-a-different-table-design-for-big-data/)
+**Date**: Feb 1st, 2021, **Company**: thenewstack.io
+
+**Author**: [Susan Hall](https://thenewstack.io/author/susanhall/)
+
 ### [A Short Introduction to Apache Iceberg](https://medium.com/expedia-group-tech/a-short-introduction-to-apache-iceberg-d34f628b6799)
 **Date**: Jan 26th, 2021, **Company**: Expedia
 
