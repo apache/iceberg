@@ -23,8 +23,11 @@ import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.ListType;
+import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StructType;
 
 public class StructProjection implements StructLike {
@@ -82,8 +85,31 @@ public class StructProjection implements StructLike {
                   dataField.type().asStructType(), projectedField.type().asStructType());
               break;
             case MAP:
+              MapType projectedMap = projectedField.type().asMapType();
+              MapType originalMap = dataField.type().asMapType();
+
+              boolean keyProjectable = !projectedMap.keyType().isStructType() ||
+                  projectedMap.keyType().equals(originalMap.keyType());
+              boolean valueProjectable = !projectedMap.valueType().isStructType() ||
+                  projectedMap.valueType().equals(originalMap.valueType());
+
+              Preconditions.checkArgument(keyProjectable && valueProjectable,
+                  "Cannot perform a projection of a map unless key and value types are primitive or a " +
+                      "struct which is fully projected. Trying to project %s out of %s", projectedField, dataField);
+              nestedProjections[pos] = null;
+              break;
             case LIST:
-              // TODO Figure this out
+              ListType projectedList = projectedField.type().asListType();
+              ListType originalList = dataField.type().asListType();
+
+              boolean elementProjectable = !projectedList.elementType().isStructType() ||
+                  projectedList.elementType().equals(originalList.elementType());
+
+              Preconditions.checkArgument(elementProjectable,
+                  "Cannot perform a projection of a list unless it's element is a primitive or a struct which is " +
+                      "fully projected. Trying to project %s out of %s", projectedField, dataField);
+              nestedProjections[pos] = null;
+              break;
             default:
               nestedProjections[pos] = null;
           }
