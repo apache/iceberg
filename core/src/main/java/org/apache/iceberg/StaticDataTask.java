@@ -34,21 +34,21 @@ import org.apache.iceberg.util.StructProjection;
 
 class StaticDataTask implements DataTask {
 
-  static <T> DataTask of(InputFile metadata, Iterable<T> values, Function<T, Row> transform,
-      Schema original, Schema projected) {
+  static <T> DataTask of(InputFile metadata, Schema tableSchema, Schema projectedSchema, Iterable<T> values,
+      Function<T, Row> transform) {
     return new StaticDataTask(metadata,
-        Lists.newArrayList(Iterables.transform(values, transform::apply)).toArray(new Row[0]),
-        original,
-        projected);
+        tableSchema,
+        projectedSchema,
+        Lists.newArrayList(Iterables.transform(values, transform::apply)).toArray(new Row[0]));
   }
 
   private final DataFile metadataFile;
   private final StructLike[] rows;
-  private final Schema original;
+  private final Schema tableSchema;
   private final Schema projectedSchema;
 
-  private StaticDataTask(InputFile metadata, StructLike[] rows, Schema original, Schema projectedSchema) {
-    this.original = original;
+  private StaticDataTask(InputFile metadata, Schema tableSchema, Schema projectedSchema, StructLike[] rows) {
+    this.tableSchema = tableSchema;
     this.projectedSchema = projectedSchema;
     this.metadataFile = DataFiles.builder(PartitionSpec.unpartitioned())
         .withInputFile(metadata)
@@ -65,7 +65,7 @@ class StaticDataTask implements DataTask {
 
   @Override
   public CloseableIterable<StructLike> rows() {
-    StructProjection projection = StructProjection.create(original, projectedSchema);
+    StructProjection projection = StructProjection.create(tableSchema, projectedSchema);
     Iterable<StructLike> projectedRows = Iterables.transform(Arrays.asList(rows), projection::wrap);
     return CloseableIterable.withNoopClose(projectedRows);
   }

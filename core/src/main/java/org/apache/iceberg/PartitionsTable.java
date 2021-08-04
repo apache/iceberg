@@ -78,17 +78,15 @@ public class PartitionsTable extends BaseMetadataTable {
       // the table is unpartitioned, partitions contains only the root partition
       return StaticDataTask.of(
           io().newInputFile(ops.current().metadataFileLocation()),
-          partitions,
-          root -> StaticDataTask.Row.of(root.recordCount, root.fileCount),
-          schema(),
-          scan.schema());
+          schema(), scan.schema(), partitions,
+          root -> StaticDataTask.Row.of(root.recordCount, root.fileCount)
+      );
     } else {
       return StaticDataTask.of(
           io().newInputFile(ops.current().metadataFileLocation()),
-          partitions,
-          PartitionsTable::convertPartition,
-          schema(),
-          scan.schema());
+          schema(), scan.schema(), partitions,
+          PartitionsTable::convertPartition
+      );
     }
   }
 

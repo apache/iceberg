@@ -140,10 +140,9 @@ public class AllManifestsTable extends BaseMetadataTable {
         } else {
           return StaticDataTask.of(
               ops.io().newInputFile(ops.current().metadataFileLocation()),
-              snap.allManifests(),
-              manifest -> ManifestsTable.manifestFileToRow(table().spec(), manifest),
-              MANIFEST_FILE_SCHEMA,
-              schema());
+              MANIFEST_FILE_SCHEMA, schema(), snap.allManifests(),
+              manifest -> ManifestsTable.manifestFileToRow(table().spec(), manifest)
+          );
         }
       }));
     }
