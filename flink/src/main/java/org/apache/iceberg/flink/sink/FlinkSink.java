@@ -24,6 +24,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
@@ -116,8 +117,7 @@ public class FlinkSink {
   }
 
   public static class Builder {
-    private DataStream<RowData> rowDataInput = null;
-    private SingleOutputStreamOperator<RowData> mappedRowDataInput = null;
+    private Function<String, DataStream<RowData>> inputCreator = null;
     private TableLoader tableLoader;
     private Table table;
     private TableSchema tableSchema;
@@ -131,14 +131,22 @@ public class FlinkSink {
     }
 
     private Builder forRowData(DataStream<RowData> newRowDataInput) {
-      this.rowDataInput = newRowDataInput;
+      this.inputCreator = ignored -> newRowDataInput;
       return this;
     }
 
     private <T> Builder forMapperOutputType(DataStream<T> input,
                                             MapFunction<T, RowData> mapper,
                                             TypeInformation<RowData> outputType) {
-      this.mappedRowDataInput = input.map(mapper, outputType);
+      this.inputCreator = newUidPrefix -> {
+        if (newUidPrefix != null) {
+          return input.map(mapper, outputType)
+              .name(operatorName(newUidPrefix))
+              .uid(newUidPrefix + "-mapper");
+        } else {
+          return input.map(mapper, outputType);
+        }
+      };
       return this;
     }
 
@@ -241,9 +249,11 @@ public class FlinkSink {
     }
 
     public DataStreamSink<RowData> build() {
-      Preconditions.checkArgument(rowDataInput != null || mappedRowDataInput != null,
+      Preconditions.checkArgument(inputCreator != null,
           "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
       Preconditions.checkNotNull(tableLoader, "Table loader shouldn't be null");
+
+      DataStream<RowData> rowDataInput = inputCreator.apply(uidPrefix);
 
       if (table == null) {
         tableLoader.open();
@@ -251,17 +261,6 @@ public class FlinkSink {
           this.table = loader.loadTable();
         } catch (IOException e) {
           throw new UncheckedIOException("Failed to load iceberg table from table loader: " + tableLoader, e);
-        }
-      }
-
-      // set name and uid for mappedRowDataInput if needed
-      if (mappedRowDataInput != null) {
-        if (uidPrefix != null) {
-          rowDataInput = mappedRowDataInput
-              .name(operatorName(uidPrefix))
-              .uid(uidPrefix + "-mapper");
-        } else {
-          rowDataInput = mappedRowDataInput;
         }
       }
 
