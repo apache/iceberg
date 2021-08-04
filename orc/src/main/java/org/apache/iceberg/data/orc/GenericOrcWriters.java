@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.data.orc;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -36,6 +37,12 @@ import java.util.stream.Stream;
 import org.apache.iceberg.DoubleFieldMetrics;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FloatFieldMetrics;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.orc.ORCSchemaUtil;
+import org.apache.iceberg.orc.OrcRowWriter;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -49,6 +56,7 @@ import org.apache.orc.storage.ql.exec.vector.ListColumnVector;
 import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
+import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 public class GenericOrcWriters {
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
@@ -133,6 +141,10 @@ public class GenericOrcWriters {
 
   public static <K, V> OrcValueWriter<Map<K, V>> map(OrcValueWriter<K> key, OrcValueWriter<V> value) {
     return new MapWriter<>(key, value);
+  }
+
+  public static DeleteWriter delete(Schema schema, OrcRowWriter writer) {
+    return new DeleteWriter(schema, writer);
   }
 
   private static class BooleanWriter implements OrcValueWriter<Boolean> {
@@ -528,6 +540,34 @@ public class GenericOrcWriters {
     @Override
     public Stream<FieldMetrics<?>> metrics() {
       return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
+    }
+  }
+
+  private static class DeleteWriter implements OrcRowWriter<PositionDelete<Record>> {
+    private final OrcRowWriter<Record> rowWriter;
+    private final Schema deleteSchema;
+    private final GenericRecord record;
+
+    DeleteWriter(Schema deleteSchema, OrcRowWriter rowWriter) {
+      this.deleteSchema = deleteSchema;
+      this.rowWriter = rowWriter != null ?
+          rowWriter : GenericOrcWriter.buildWriter(deleteSchema, ORCSchemaUtil.convert(deleteSchema));
+      this.record = GenericRecord.create(deleteSchema);
+    }
+
+    @Override
+    public void write(PositionDelete<Record> row, VectorizedRowBatch output) throws IOException {
+      record.set(0, row.path());
+      record.set(1, row.pos());
+      if (record.size() > 2) {
+        record.set(2, row.row());
+      }
+      rowWriter.write(record, output);
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      return rowWriter.metrics();
     }
   }
 
