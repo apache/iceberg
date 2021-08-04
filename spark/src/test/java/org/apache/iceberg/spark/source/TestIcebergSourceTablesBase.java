@@ -932,7 +932,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     TestHelpers.assertEqualsSafe(projectedSchema.asStruct(), expected.get(0), actual.get(0));
   }
 
-
   @Test
   public void testAllManifestsTable() {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "manifests_test");
