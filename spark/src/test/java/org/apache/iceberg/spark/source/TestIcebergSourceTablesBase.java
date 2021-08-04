@@ -888,13 +888,16 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .mode("append")
         .save(loadLocation(tableIdentifier));
 
-    AssertHelpers.assertThrows("Can't prune struct inside list", SparkException.class,
-        "Cannot project a partial list element struct",
-        () -> spark.read()
-            .format("iceberg")
-            .load(loadLocation(tableIdentifier, "manifests"))
-            .select("partition_spec_id", "path", "partition_summaries.contains_null")
-            .collectAsList());
+    if (!spark.version().startsWith("2")) {
+      // Spark 2 isn't able to actually push down nested struct projections so this will not break
+      AssertHelpers.assertThrows("Can't prune struct inside list", SparkException.class,
+          "Cannot project a partial list element struct",
+          () -> spark.read()
+              .format("iceberg")
+              .load(loadLocation(tableIdentifier, "manifests"))
+              .select("partition_spec_id", "path", "partition_summaries.contains_null")
+              .collectAsList());
+    }
 
     Dataset<Row> actualDf = spark.read()
         .format("iceberg")
