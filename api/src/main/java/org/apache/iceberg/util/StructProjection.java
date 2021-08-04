@@ -88,26 +88,26 @@ public class StructProjection implements StructLike {
               MapType projectedMap = projectedField.type().asMapType();
               MapType originalMap = dataField.type().asMapType();
 
-              boolean keyProjectable = !projectedMap.keyType().isStructType() ||
+              boolean keyProjectable = !projectedMap.keyType().isNestedType() ||
                   projectedMap.keyType().equals(originalMap.keyType());
-              boolean valueProjectable = !projectedMap.valueType().isStructType() ||
+              boolean valueProjectable = !projectedMap.valueType().isNestedType() ||
                   projectedMap.valueType().equals(originalMap.valueType());
-
               Preconditions.checkArgument(keyProjectable && valueProjectable,
-                  "Cannot perform a projection of a map unless key and value types are primitive or a " +
-                      "struct which is fully projected. Trying to project %s out of %s", projectedField, dataField);
+                  "Cannot project a partial map key or value struct. Trying to project %s out of %s",
+                  projectedField, dataField);
+
               nestedProjections[pos] = null;
               break;
             case LIST:
               ListType projectedList = projectedField.type().asListType();
               ListType originalList = dataField.type().asListType();
 
-              boolean elementProjectable = !projectedList.elementType().isStructType() ||
+              boolean elementProjectable = !projectedList.elementType().isNestedType() ||
                   projectedList.elementType().equals(originalList.elementType());
-
               Preconditions.checkArgument(elementProjectable,
-                  "Cannot perform a projection of a list unless it's element is a primitive or a struct which is " +
-                      "fully projected. Trying to project %s out of %s", projectedField, dataField);
+                  "Cannot project a partial list element struct. Trying to project %s out of %s",
+                  projectedField, dataField);
+
               nestedProjections[pos] = null;
               break;
             default:

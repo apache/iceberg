@@ -889,7 +889,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .save(loadLocation(tableIdentifier));
 
     AssertHelpers.assertThrows("Can't prune struct inside list", SparkException.class,
-        "Cannot perform a projection of a list",
+        "Cannot project a partial list element struct",
         () -> spark.read()
             .format("iceberg")
             .load(loadLocation(tableIdentifier, "manifests"))
