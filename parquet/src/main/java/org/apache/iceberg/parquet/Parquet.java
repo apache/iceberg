@@ -518,7 +518,6 @@ public class Parquet {
     }
 
     public DeleteWriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
-      // TODO: keep full metrics for position delete file columns
       appenderBuilder.metricsConfig(newMetricsConfig);
       return this;
     }
