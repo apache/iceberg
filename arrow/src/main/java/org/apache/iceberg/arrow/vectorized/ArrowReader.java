@@ -52,8 +52,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ExceptionUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.parquet.schema.MessageType;
 import org.slf4j.Logger;
@@ -100,17 +102,17 @@ public class ArrowReader extends CloseableGroup {
   private static final Logger LOG = LoggerFactory.getLogger(ArrowReader.class);
 
   private static final Set<TypeID> SUPPORTED_TYPES = ImmutableSet.of(
-          TypeID.BOOLEAN,
-          TypeID.INTEGER,
-          TypeID.LONG,
-          TypeID.FLOAT,
-          TypeID.DOUBLE,
-          TypeID.STRING,
-          TypeID.TIMESTAMP,
-          TypeID.BINARY,
-          TypeID.DATE,
-          TypeID.UUID,
-          TypeID.TIME
+      TypeID.BOOLEAN,
+      TypeID.INTEGER,
+      TypeID.LONG,
+      TypeID.FLOAT,
+      TypeID.DOUBLE,
+      TypeID.STRING,
+      TypeID.TIMESTAMP,
+      TypeID.BINARY,
+      TypeID.DATE,
+      TypeID.UUID,
+      TypeID.TIME
   );
 
   private final Schema schema;
@@ -159,8 +161,8 @@ public class ArrowReader extends CloseableGroup {
    * previous {@link ColumnarBatch} may be reused for the next {@link ColumnarBatch}.
    * This implies that the caller should either use the {@link ColumnarBatch} or deep copy the
    * {@link ColumnarBatch} before getting the next {@link ColumnarBatch}.
-   *
-   * <p>This method works for only when the following conditions are true:
+   * <p>
+   * This method works for only when the following conditions are true:
    * <ol>
    *     <li>At least one column is queried,</li>
    *     <li>There are no delete files, and</li>
@@ -227,41 +229,39 @@ public class ArrowReader extends CloseableGroup {
      *                          in the previous {@link Iterator#next()} call are closed before creating
      *                          new instances if the current {@link Iterator#next()}.
      */
-    VectorizedCombinedScanIterator(CloseableIterable<CombinedScanTask> tasks,
-                                   Schema expectedSchema,
-                                   String nameMapping,
-                                   FileIO io,
-                                   EncryptionManager encryptionManager,
-                                   boolean caseSensitive,
-                                   int batchSize,
-                                   boolean reuseContainers) {
+    VectorizedCombinedScanIterator(
+        CloseableIterable<CombinedScanTask> tasks,
+        Schema expectedSchema,
+        String nameMapping,
+        FileIO io,
+        EncryptionManager encryptionManager,
+        boolean caseSensitive,
+        int batchSize,
+        boolean reuseContainers) {
       List<FileScanTask> fileTasks = StreamSupport.stream(tasks.spliterator(), false)
-              .map(CombinedScanTask::files)
-              .flatMap(Collection::stream)
-              .collect(Collectors.toList());
+          .map(CombinedScanTask::files)
+          .flatMap(Collection::stream)
+          .collect(Collectors.toList());
       this.fileItr = fileTasks.iterator();
 
-      boolean atLeastOneColumn = expectedSchema.columns().size() > 0;
-      boolean hasNoDeleteFiles = fileTasks.stream().noneMatch(TableScanUtil::hasDeletes);
-      boolean hasSupportedTypes = expectedSchema.columns().stream()
-              .map(c -> c.type().typeId())
-              .allMatch(SUPPORTED_TYPES::contains);
-      if (!atLeastOneColumn || !hasNoDeleteFiles || !hasSupportedTypes) {
-        throw new UnsupportedOperationException(
-                "ArrowReader is supported for the query schema with at least one column," +
-                        " with no delete files and for supported data types" +
-                        ", but found that atLeastOneColumn=" + atLeastOneColumn +
-                        ", hasNoDeleteFiles=" + hasNoDeleteFiles +
-                        ", hasSupportedTypes=" + hasSupportedTypes +
-                        ", supported types=" + SUPPORTED_TYPES +
-                        ", expected columns=" + expectedSchema.columns()
-        );
+      if (fileTasks.stream().anyMatch(TableScanUtil::hasDeletes)) {
+        throw new UnsupportedOperationException("Cannot read files that require applying delete files");
+      }
+      if (expectedSchema.columns().isEmpty()) {
+        throw new UnsupportedOperationException("Cannot read without at least one projected column");
+      }
+      Set<TypeID> unsupportedTypes = Sets.difference(
+          expectedSchema.columns().stream().map(c -> c.type().typeId()).collect(Collectors.toSet()),
+          SUPPORTED_TYPES);
+      if (!unsupportedTypes.isEmpty()) {
+        throw new UnsupportedOperationException("Cannot read unsupported column types: " + unsupportedTypes);
       }
 
       Map<String, ByteBuffer> keyMetadata = Maps.newHashMap();
       fileTasks.stream()
           .map(FileScanTask::file)
           .forEach(file -> keyMetadata.put(file.path().toString(), file.keyMetadata()));
+
       Stream<EncryptedInputFile> encrypted = keyMetadata.entrySet().stream()
           .map(entry -> EncryptedFiles.encryptedInput(io.newInputFile(entry.getKey()), entry.getValue()));
 
@@ -299,9 +299,8 @@ public class ArrowReader extends CloseableGroup {
         if (currentTask != null && !currentTask.isDataTask()) {
           LOG.error("Error reading file: {}", getInputFile(currentTask).location(), e);
         }
-        // Wrap and throw a Runtime exception because Iterator::hasNext()
-        // cannot throw a checked exception.
-        throw new RuntimeException(e);
+        ExceptionUtil.castAndThrow(e, RuntimeException.class);
+        return false;
       }
     }
 
@@ -362,9 +361,10 @@ public class ArrowReader extends CloseableGroup {
      * @param fileSchema             Schema of the data file.
      * @param setArrowValidityVector Indicates whether to set the validity vector in Arrow vectors.
      */
-    private static ArrowBatchReader buildReader(Schema expectedSchema,
-                                                MessageType fileSchema,
-                                                boolean setArrowValidityVector) {
+    private static ArrowBatchReader buildReader(
+        Schema expectedSchema,
+        MessageType fileSchema,
+        boolean setArrowValidityVector) {
       return (ArrowBatchReader)
           TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
               new VectorizedReaderBuilder(
