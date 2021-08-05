@@ -97,8 +97,7 @@ public class Schema implements Serializable {
     // validate IdentifierField
     if (identifierFieldIds != null) {
       Map<Integer, Integer> idToParent = TypeUtil.indexParents(this.struct);
-      Map<Integer, Types.NestedField> idToField = TypeUtil.indexById(this.struct);
-      identifierFieldIds.forEach(id -> validateIdentifierField(id, idToField, idToParent));
+      identifierFieldIds.forEach(id -> validateIdentifierField(id, this.lazyIdToField(), idToParent));
     }
 
     this.identifierFieldIds = identifierFieldIds != null ? Ints.toArray(identifierFieldIds) : new int[0];
