@@ -246,7 +246,6 @@ public class ORC {
     private EncryptionKeyMetadata keyMetadata = null;
     private int[] equalityFieldIds = null;
     private SortOrder sortOrder;
-    private Function<CharSequence, ?> pathTransformFunc = Function.identity();
 
     private DeleteWriteBuilder(OutputFile file) {
       this.appenderBuilder = write(file);
@@ -326,17 +325,12 @@ public class ORC {
       return this;
     }
 
-    public DeleteWriteBuilder transformPaths(Function<CharSequence, ?> newPathTransformFunc) {
-      this.pathTransformFunc = newPathTransformFunc;
-      return this;
-    }
-
     public DeleteWriteBuilder withSortOrder(SortOrder newSortOrder) {
       this.sortOrder = newSortOrder;
       return this;
     }
 
-    public <T> EqualityDeleteWriter<T> buildEqualityWriter() throws IOException {
+    public <T> EqualityDeleteWriter<T> buildEqualityWriter() {
       Preconditions.checkState(rowSchema != null, "Cannot create equality delete file without a schema`");
       Preconditions.checkState(equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
       Preconditions.checkState(createWriterFunc != null,
@@ -360,7 +354,7 @@ public class ORC {
           sortOrder, equalityFieldIds);
     }
 
-    public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {
+    public <T> PositionDeleteWriter<T> buildPositionWriter() {
       Preconditions.checkState(equalityFieldIds == null, "Cannot create position delete file using delete field ids");
       Preconditions.checkArgument(spec != null,
           "Spec must not be null when creating position delete writer");
@@ -369,17 +363,16 @@ public class ORC {
 
       meta("delete-type", "position");
 
-      Schema deleteSchema =
-          rowSchema == null ? DeleteSchemaUtil.pathPosSchema() : DeleteSchemaUtil.posDeleteSchema(rowSchema);
+      Schema deleteSchema = DeleteSchemaUtil.posDeleteSchema(rowSchema);
       appenderBuilder.schema(deleteSchema);
 
       if (createWriterFunc != null) {
         appenderBuilder.createWriterFunc((schema, typeDescription) -> {
           OrcRowWriter<?> writer = createWriterFunc.apply(deleteSchema, typeDescription);
-          return GenericOrcWriters.delete(deleteSchema, writer);
+          return GenericOrcWriters.positionDelete(deleteSchema, writer);
         });
       } else {
-        appenderBuilder.createWriterFunc((schema, typeDescription) -> GenericOrcWriters.delete(deleteSchema, null));
+        appenderBuilder.createWriterFunc((schema, type) -> GenericOrcWriters.positionDelete(deleteSchema, null));
       }
 
       return new PositionDeleteWriter<>(

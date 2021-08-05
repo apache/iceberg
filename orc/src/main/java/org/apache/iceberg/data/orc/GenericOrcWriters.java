@@ -143,8 +143,8 @@ public class GenericOrcWriters {
     return new MapWriter<>(key, value);
   }
 
-  public static DeleteWriter delete(Schema schema, OrcRowWriter writer) {
-    return new DeleteWriter(schema, writer);
+  public static PositionDeleteWriter positionDelete(Schema schema, OrcRowWriter writer) {
+    return new PositionDeleteWriter(schema, writer);
   }
 
   private static class BooleanWriter implements OrcValueWriter<Boolean> {
@@ -543,13 +543,11 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class DeleteWriter implements OrcRowWriter<PositionDelete<Record>> {
+  private static class PositionDeleteWriter implements OrcRowWriter<PositionDelete<Record>> {
     private final OrcRowWriter<Record> rowWriter;
-    private final Schema deleteSchema;
     private final GenericRecord record;
 
-    DeleteWriter(Schema deleteSchema, OrcRowWriter rowWriter) {
-      this.deleteSchema = deleteSchema;
+    PositionDeleteWriter(Schema deleteSchema, OrcRowWriter rowWriter) {
       this.rowWriter = rowWriter != null ?
           rowWriter : GenericOrcWriter.buildWriter(deleteSchema, ORCSchemaUtil.convert(deleteSchema));
       this.record = GenericRecord.create(deleteSchema);
