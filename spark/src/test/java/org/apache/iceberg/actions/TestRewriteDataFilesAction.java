@@ -201,11 +201,6 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
   }
 
   @Test
-  public void testEncounterUnknowStatus() {
-
-  }
-
-  @Test
   public void testRewriteDataFilesPartitionedTable() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA)
         .identity("c1")
