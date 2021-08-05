@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
@@ -132,10 +131,13 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
     table.refresh();
     MockRewriteDataFilesAction mockRewriteDataFilesAction =
         new MockRewriteDataFilesAction(SparkSession.active(), table);
+    boolean unknowStateException =false;
     try {
       mockRewriteDataFilesAction.execute();
     } catch (CommitStateUnknownException exception) {
+       unknowStateException =true;
     }
+    Assert.assertTrue("should throw CommitStateUnknownException", unknowStateException);
     List<DataFile> dataFiles = mockRewriteDataFilesAction.getDataFiles();
     FileIO io = table.io();
     for (DataFile dataFile : dataFiles) {
@@ -143,7 +145,7 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
     }
     table.refresh();
     Set<String> currentDataFilePathStr = Lists.newArrayList(table.newScan().planFiles()).stream()
-        .map(fileScanTask -> (String.valueOf(fileScanTask.file().path()))).collect(Collectors.toSet());
+        .map(fileScanTask -> String.valueOf(fileScanTask.file().path())).collect(Collectors.toSet());
     Set<String> mergedFilePathStr =
         dataFiles.stream().map(dataFile -> String.valueOf(dataFile.path())).collect(Collectors.toSet());
     Assert.assertEquals("rewrited Files should be current datafile of the table", currentDataFilePathStr,
