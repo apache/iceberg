@@ -19,12 +19,6 @@
 
 package org.apache.iceberg.actions;
 
-import java.io.File;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
@@ -32,9 +26,11 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTestBase;
@@ -44,11 +40,22 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
@@ -85,6 +92,57 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
     actions.rewriteDataFiles().execute();
 
     Assert.assertNull("Table must stay empty", table.currentSnapshot());
+  }
+
+  static class MockRewriteDataFilesAction extends RewriteDataFilesAction{
+    public List<DataFile> dataFiles =new ArrayList<>();
+    MockRewriteDataFilesAction(SparkSession spark, Table table) {
+      super(spark, table);
+    }
+
+    @Override
+    protected void doReplace(Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles, long startingSnapshotId) {
+      super.doReplace(deletedDataFiles, addedDataFiles, startingSnapshotId);
+      this.dataFiles.addAll(Lists.newArrayList(addedDataFiles));
+      throw new CommitStateUnknownException(new RuntimeException());
+    }
+
+    public List<DataFile> getDataFiles() {
+      return dataFiles;
+    }
+  }
+
+  @Test
+  public void testEncounterUnknowState() {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> options = Maps.newHashMap();
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+    List<ThreeColumnRecord> records1 = Lists.newArrayList(
+            new ThreeColumnRecord(1, null, "AAAA"),
+            new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB")
+    );
+    List<ThreeColumnRecord> records2 = Lists.newArrayList(
+            new ThreeColumnRecord(2, "CCCCCCCCCC", "CCCC"),
+            new ThreeColumnRecord(2, "DDDDDDDDDD", "DDDD")
+    );
+    writeRecords(records1);
+    writeRecords(records2);
+    table.refresh();
+    MockRewriteDataFilesAction mockRewriteDataFilesAction = new MockRewriteDataFilesAction(SparkSession.active(), table);
+    try {
+      mockRewriteDataFilesAction.execute();
+    } catch (CommitStateUnknownException exception) {
+    }
+    List<DataFile> dataFiles = mockRewriteDataFilesAction.getDataFiles();
+    FileIO io = table.io();
+    for (DataFile dataFile : dataFiles) {
+      Assert.assertTrue("datafile should be not delete", io.newInputFile(String.valueOf(dataFile.path())).exists());
+    }
+    table.refresh();
+    Set<String> currentDataFilePathStr = Lists.newArrayList(table.newScan().planFiles()).stream()
+            .map(fileScanTask -> (String.valueOf(fileScanTask.file().path()))).collect(Collectors.toSet());
+    Set<String> mergedFilePathStr = dataFiles.stream().map(dataFile -> String.valueOf(dataFile.path())).collect(Collectors.toSet());
+    Assert.assertEquals("rewrited Files should be current datafile of the table", currentDataFilePathStr, mergedFilePathStr);
   }
 
   @Test
@@ -134,6 +192,12 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
 
     Assert.assertEquals("Rows must match", expectedRecords, actualRecords);
   }
+
+  @Test
+  public void testEncounterUnknowStatus(){
+
+  }
+
 
   @Test
   public void testRewriteDataFilesPartitionedTable() {

@@ -274,15 +274,15 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     try {
       doReplace(deletedDataFiles, addedDataFiles, startingSnapshotId);
     } catch (Exception e) {
-      if (!(e instanceof CommitStateUnknownException)) {
+      if (e instanceof CommitStateUnknownException) {
         LOG.warn("for unknown commiting state ,we should not delete file ");
       } else {
         LOG.warn("rewrite fail, delete file {}", Lists.newArrayList(addedDataFiles));
         Tasks.foreach(Iterables.transform(addedDataFiles, f -> f.path().toString()))
-            .noRetry()
-            .suppressFailureWhenFinished()
-            .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
-            .run(fileIO::deleteFile);
+                .noRetry()
+                .suppressFailureWhenFinished()
+                .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
+                .run(fileIO::deleteFile);
       }
       throw e;
     }
