@@ -95,9 +95,11 @@ public class Schema implements Serializable {
     this.aliasToId = aliases != null ? ImmutableBiMap.copyOf(aliases) : null;
 
     // validate IdentifierField
-    Map<Integer, Integer> idToParent = TypeUtil.indexParents(this.struct);
-    Map<Integer, Types.NestedField> idToField = TypeUtil.indexById(this.struct);
-    identifierFieldIds.forEach(id -> validateIdentifierField(id, idToField, idToParent));
+    if (identifierFieldIds != null) {
+      Map<Integer, Integer> idToParent = TypeUtil.indexParents(this.struct);
+      Map<Integer, Types.NestedField> idToField = TypeUtil.indexById(this.struct);
+      identifierFieldIds.forEach(id -> validateIdentifierField(id, idToField, idToParent));
+    }
 
     this.identifierFieldIds = identifierFieldIds != null ? Ints.toArray(identifierFieldIds) : new int[0];
 
