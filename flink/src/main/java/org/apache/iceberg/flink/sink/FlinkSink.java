@@ -228,16 +228,16 @@ public class FlinkSink {
      * <br><br>
      * If provided, this prefix is also applied to operator names.
      * <br><br>
-     * Flink auto generates operator uids if not set explicitly. It is a recommended
+     * Flink auto generates operator uid if not set explicitly. It is a recommended
      * <a href="https://ci.apache.org/projects/flink/flink-docs-master/docs/ops/production_ready/">
      * best-practice to set uid for all operators</a> before deploying to production. Flink has an option to {@code
-     * pipeline.auto-generate-uids=false} to disable auto-generation and force explicit setting of all operator uids.
+     * pipeline.auto-generate-uid=false} to disable auto-generation and force explicit setting of all operator uid.
      * <br><br>
      * Be careful with setting this for an existing job, because now we are changing the operator uid from an
      * auto-generated one to this new value. When deploying the change with a checkpoint, Flink won't be able to restore
      * the previous Flink sink operator state (more specifically the committer operator state). You need to use {@code
      * --allowNonRestoredState} to ignore the previous sink state. During restore Flink sink state is used to check if
-     * checkpointed files were actually committed or not. {@code --allowNonRestoredState} can lead to data loss if the
+     * last commit was actually successful or not. {@code --allowNonRestoredState} can lead to data loss if the
      * Iceberg commit failed in the last completed checkpoint.
      *
      * @param newPrefix prefix for Flink sink operator uid and name
