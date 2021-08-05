@@ -41,7 +41,6 @@ import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
-import org.junit.jupiter.api.Disabled;
 
 public class TestFlinkSchemaUtil {
 
