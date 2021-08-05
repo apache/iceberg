@@ -253,7 +253,6 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     return new RewriteDataFilesActionResult(currentDataFiles, addedDataFiles);
   }
 
-
   private Map<StructLikeWrapper, Collection<FileScanTask>> groupTasksByPartition(
       CloseableIterator<FileScanTask> tasksIter) {
     ListMultimap<StructLikeWrapper, FileScanTask> tasksGroupedByPartition = Multimaps.newListMultimap(
@@ -269,8 +268,9 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     return tasksGroupedByPartition.asMap();
   }
 
-  private void replaceDataFiles(Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles,
-                                long startingSnapshotId) {
+  private void replaceDataFiles(
+      Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles,
+      long startingSnapshotId) {
     try {
       doReplace(deletedDataFiles, addedDataFiles, startingSnapshotId);
     } catch (Exception e) {
@@ -279,17 +279,18 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
       } else {
         LOG.warn("rewrite fail, delete file {}", Lists.newArrayList(addedDataFiles));
         Tasks.foreach(Iterables.transform(addedDataFiles, f -> f.path().toString()))
-                .noRetry()
-                .suppressFailureWhenFinished()
-                .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
-                .run(fileIO::deleteFile);
+            .noRetry()
+            .suppressFailureWhenFinished()
+            .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
+            .run(fileIO::deleteFile);
       }
       throw e;
     }
   }
 
-  protected void doReplace(Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles,
-                           long startingSnapshotId) {
+  protected void doReplace(
+      Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles,
+      long startingSnapshotId) {
     RewriteFiles rewriteFiles = table.newRewrite()
         .validateFromSnapshot(startingSnapshotId)
         .rewriteFiles(Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles));
