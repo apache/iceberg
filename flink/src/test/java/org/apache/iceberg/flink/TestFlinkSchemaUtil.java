@@ -39,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.jupiter.api.Disabled;
 
@@ -314,7 +315,7 @@ public class TestFlinkSchemaUtil {
   }
 
   @Test
-  @Disabled
+  @Ignore
   public void testConvertFlinkSchemaWithNestedColumnInPrimaryKeys() {
     Schema icebergSchema = new Schema(
         Lists.newArrayList(Types.NestedField.required(1, "struct",
