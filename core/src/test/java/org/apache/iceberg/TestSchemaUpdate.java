@@ -1336,9 +1336,9 @@ public class TestSchemaUpdate {
   public void testSetIdentifierFieldsFails() {
 
     AssertHelpers.assertThrows("adding optional identifier field should fail",
-      IllegalArgumentException.class,
-          "Cannot add field data as an identifier field: not a required field",
-          () -> new Schema(SCHEMA.asStruct().fields(), ImmutableSet.of(1,2)));
+        IllegalArgumentException.class,
+        "Cannot add field data as an identifier field: not a required field",
+        () -> new Schema(SCHEMA.asStruct().fields(), ImmutableSet.of(1, 2)));
 
     AssertHelpers.assertThrows("add a field with name not exist should fail",
         IllegalArgumentException.class,
