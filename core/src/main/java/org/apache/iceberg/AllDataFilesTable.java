@@ -120,12 +120,8 @@ public class AllDataFilesTable extends BaseMetadataTable {
       Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
-      // Data tasks produce the table schema, not the projection schema and projection is done by processing engines.
-      // This data task needs to use the table schema, which may not include a partition schema to avoid having an
-      // empty struct in the schema for unpartitioned tables. Some engines, like Spark, can't handle empty structs in
-      // all cases.
       return CloseableIterable.transform(manifests, manifest ->
-          new DataFilesTable.ManifestReadTask(ops.io(), manifest, fileSchema, schemaString, specString, residuals));
+          new DataFilesTable.ManifestReadTask(ops.io(), manifest, schema(), schemaString, specString, residuals));
     }
   }
 
