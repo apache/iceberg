@@ -131,11 +131,11 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
     table.refresh();
     MockRewriteDataFilesAction mockRewriteDataFilesAction =
         new MockRewriteDataFilesAction(SparkSession.active(), table);
-    boolean unknowStateException =false;
+    boolean unknowStateException = false;
     try {
       mockRewriteDataFilesAction.execute();
     } catch (CommitStateUnknownException exception) {
-       unknowStateException =true;
+      unknowStateException = true;
     }
     Assert.assertTrue("should throw CommitStateUnknownException", unknowStateException);
     List<DataFile> dataFiles = mockRewriteDataFilesAction.getDataFiles();
