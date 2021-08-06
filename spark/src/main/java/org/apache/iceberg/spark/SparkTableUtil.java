@@ -470,11 +470,10 @@ public class SparkTableUtil {
             Lists.transform(files, f -> f.path().toString()), Encoders.STRING()).toDF("file_path");
         Dataset<Row> existingFiles = loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES);
         Column joinCond = existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
-        Dataset<Row> duplicates = importedFiles.join(existingFiles, joinCond);
-        List<String> duplicateList = duplicates.takeAsList(10)
-            .stream().map(p -> p.getString(0)).collect(Collectors.toList());
-        Preconditions.checkState(duplicateList.isEmpty(),
-            String.format(duplicateFileMessage, Joiner.on(",").join(duplicateList)));
+        Dataset<String> duplicates = importedFiles.join(existingFiles, joinCond)
+            .select("file_path").as(Encoders.STRING());
+        Preconditions.checkState(duplicates.isEmpty(),
+            String.format(duplicateFileMessage, Joiner.on(",").join((String[]) duplicates.take(10))));
       }
 
       AppendFiles append = targetTable.newAppend();
@@ -525,11 +524,10 @@ public class SparkTableUtil {
       Dataset<Row> importedFiles = filesToImport.map(f -> f.path().toString(), Encoders.STRING()).toDF("file_path");
       Dataset<Row> existingFiles = loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES);
       Column joinCond = existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
-      Dataset<Row> duplicates = importedFiles.join(existingFiles, joinCond);
-      List<String> duplicateList = duplicates.takeAsList(10)
-          .stream().map(p -> p.getString(0)).collect(Collectors.toList());
-      Preconditions.checkState(duplicateList.isEmpty(),
-          String.format(duplicateFileMessage, Joiner.on(",").join(duplicateList)));
+      Dataset<String> duplicates = importedFiles.join(existingFiles, joinCond)
+          .select("file_path").as(Encoders.STRING());
+      Preconditions.checkState(duplicates.isEmpty(),
+          String.format(duplicateFileMessage, Joiner.on(",").join((String[]) duplicates.take(10))));
     }
 
     List<ManifestFile> manifests = filesToImport
