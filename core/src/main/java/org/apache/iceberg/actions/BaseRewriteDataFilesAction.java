@@ -38,6 +38,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.ListMultimap;
@@ -288,7 +289,8 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     }
   }
 
-  protected void doReplace(
+  @VisibleForTesting
+  void doReplace(
       Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles,
       long startingSnapshotId) {
     RewriteFiles rewriteFiles = table.newRewrite()
