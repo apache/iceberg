@@ -114,11 +114,13 @@ public class DataFilesTable extends BaseMetadataTable {
 
       // use an inclusive projection to remove the partition name prefix and filter out any non-partition expressions
       Expression partitionFilter = Projections
-          .inclusive(transformSpec(fileSchema, table().spec()), caseSensitive)
+          .inclusive(
+              transformSpec(fileSchema, table().spec(), PARTITION_FIELD_PREFIX),
+              caseSensitive)
           .project(rowFilter);
 
-      ManifestEvaluator manifestEval = ManifestEvaluator.forPartitionFilter(partitionFilter, table().spec(),
-          caseSensitive);
+      ManifestEvaluator manifestEval = ManifestEvaluator.forPartitionFilter(
+          partitionFilter, table().spec(), caseSensitive);
       CloseableIterable<ManifestFile> filtered = CloseableIterable.filter(manifests, manifestEval::eval);
 
       // Data tasks produce the table schema, not the projection schema and projection is done by processing engines.
@@ -156,7 +158,7 @@ public class DataFilesTable extends BaseMetadataTable {
     }
 
     @VisibleForTesting
-    ManifestFile getManifest() {
+    ManifestFile manifest() {
       return manifest;
     }
   }

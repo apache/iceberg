@@ -20,8 +20,6 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -48,6 +46,21 @@ public class TestMetadataTableScans extends TableTestBase {
 
   public TestMetadataTableScans(int formatVersion) {
     super(formatVersion);
+  }
+
+  private void preparePartitionedTable() {
+    table.newFastAppend()
+        .appendFile(FILE_PARTITION_0)
+        .commit();
+    table.newFastAppend()
+        .appendFile(FILE_PARTITION_1)
+        .commit();
+    table.newFastAppend()
+        .appendFile(FILE_PARTITION_2)
+        .commit();
+    table.newFastAppend()
+        .appendFile(FILE_PARTITION_3)
+        .commit();
   }
 
   @Test
@@ -167,18 +180,7 @@ public class TestMetadataTableScans extends TableTestBase {
 
   @Test
   public void testPartitionsTableScanNoFilter() {
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_0)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_1)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_2)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_3)
-        .commit();
+    preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table.ops(), table);
     Types.StructType expected = new Schema(
@@ -197,18 +199,7 @@ public class TestMetadataTableScans extends TableTestBase {
 
   @Test
   public void testPartitionsTableScanAndFilter() {
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_0)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_1)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_2)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_3)
-        .commit();
+    preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table.ops(), table);
 
@@ -223,18 +214,7 @@ public class TestMetadataTableScans extends TableTestBase {
 
   @Test
   public void testPartitionsTableScanLtFilter() {
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_0)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_1)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_2)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_3)
-        .commit();
+    preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table.ops(), table);
 
@@ -250,18 +230,7 @@ public class TestMetadataTableScans extends TableTestBase {
 
   @Test
   public void testPartitionsTableScanOrFilter() {
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_0)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_1)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_2)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_3)
-        .commit();
+    preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table.ops(), table);
 
@@ -280,18 +249,7 @@ public class TestMetadataTableScans extends TableTestBase {
 
   @Test
   public void testPartitionsScanNotFilter() {
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_0)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_1)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_2)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_3)
-        .commit();
+    preparePartitionedTable();
     Table partitionsTable = new PartitionsTable(table.ops(), table);
 
     Expression not = Expressions.not(Expressions.lessThan("partition.data_bucket", 2));
@@ -304,18 +262,7 @@ public class TestMetadataTableScans extends TableTestBase {
 
   @Test
   public void testPartitionsTableScanInFilter() {
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_0)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_1)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_2)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_3)
-        .commit();
+    preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table.ops(), table);
 
@@ -329,18 +276,7 @@ public class TestMetadataTableScans extends TableTestBase {
 
   @Test
   public void testPartitionsTableScanNotNullFilter() {
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_0)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_1)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_2)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_3)
-        .commit();
+    preparePartitionedTable();
 
     Table partitionsTable = new PartitionsTable(table.ops(), table);
 
@@ -356,18 +292,7 @@ public class TestMetadataTableScans extends TableTestBase {
 
   @Test
   public void testFilesTableScanNoFilter() {
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_0)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_1)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_2)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_3)
-        .commit();
+    preparePartitionedTable();
 
     Table dataFilesTable = new DataFilesTable(table.ops(), table);
     Types.StructType expected = new Schema(
@@ -377,32 +302,33 @@ public class TestMetadataTableScans extends TableTestBase {
 
     TableScan scanNoFilter = dataFilesTable.newScan().select("partition.data_bucket");
     Assert.assertEquals(expected, scanNoFilter.schema().asStruct());
-    CloseableIterable<CombinedScanTask> tasksNoFilter = scanNoFilter.planTasks();
-    List<ManifestFile> manifests = StreamSupport.stream(tasksNoFilter.spliterator(), false)
-        .flatMap(c -> c.files().stream().map(t -> ((DataFilesTable.ManifestReadTask) t).getManifest()))
-        .collect(Collectors.toList());
+    CloseableIterable<FileScanTask> tasksAndEq = scanNoFilter.planFiles();
 
-    Assert.assertEquals(4, manifests.size());
-    validateIncludesManifestFile(manifests, 0);
-    validateIncludesManifestFile(manifests, 1);
-    validateIncludesManifestFile(manifests, 2);
-    validateIncludesManifestFile(manifests, 3);
+    Assert.assertEquals(4, Iterables.size(tasksAndEq));
+    validateFileScanTasks(tasksAndEq, 0);
+    validateFileScanTasks(tasksAndEq, 1);
+    validateFileScanTasks(tasksAndEq, 2);
+    validateFileScanTasks(tasksAndEq, 3);
   }
 
   @Test
   public void testFilesTableScanAndFilter() {
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_0)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_1)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_2)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_3)
-        .commit();
+    preparePartitionedTable();
+
+    Table dataFilesTable = new DataFilesTable(table.ops(), table);
+
+    Expression andEquals = Expressions.and(
+        Expressions.equal("partition.data_bucket", 0),
+        Expressions.greaterThan("record_count", 0));
+    TableScan scanAndEq = dataFilesTable.newScan().filter(andEquals);
+    CloseableIterable<FileScanTask> tasksAndEq = scanAndEq.planFiles();
+    Assert.assertEquals(1, Iterables.size(tasksAndEq));
+    validateFileScanTasks(tasksAndEq, 0);
+  }
+
+  @Test
+  public void testFilesTableScanAndFilterWithPlanTasks() {
+    preparePartitionedTable();
 
     Table dataFilesTable = new DataFilesTable(table.ops(), table);
 
@@ -411,58 +337,27 @@ public class TestMetadataTableScans extends TableTestBase {
         Expressions.greaterThan("record_count", 0));
     TableScan scanAndEq = dataFilesTable.newScan().filter(andEquals);
     CloseableIterable<CombinedScanTask> tasksAndEq = scanAndEq.planTasks();
-    List<ManifestFile> manifests = StreamSupport.stream(tasksAndEq.spliterator(), false)
-        .flatMap(c -> c.files().stream().map(t -> ((DataFilesTable.ManifestReadTask) t).getManifest()))
-        .collect(Collectors.toList());
-    Assert.assertEquals(1, manifests.size());
-    validateIncludesManifestFile(manifests, 0);
+    Assert.assertEquals(1, Iterables.size(tasksAndEq));
+    validateCombinedScanTasks(tasksAndEq, 0);
   }
 
   @Test
   public void testFilesTableScanLtFilter() {
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_0)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_1)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_2)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_3)
-        .commit();
+    preparePartitionedTable();
 
     Table dataFilesTable = new DataFilesTable(table.ops(), table);
 
-    Expression ltAnd = Expressions.and(
-        Expressions.lessThan("partition.data_bucket", 2),
-        Expressions.greaterThan("record_count", 0));
-    TableScan scan = dataFilesTable.newScan()
-        .filter(ltAnd);
-    CloseableIterable<CombinedScanTask> tasksLt = scan.planTasks();
-    List<ManifestFile> manifests = StreamSupport.stream(tasksLt.spliterator(), false)
-        .flatMap(c -> c.files().stream().map(t -> ((DataFilesTable.ManifestReadTask) t).getManifest()))
-        .collect(Collectors.toList());
-    Assert.assertEquals(2, manifests.size());
-    validateIncludesManifestFile(manifests, 0);
-    validateIncludesManifestFile(manifests, 1);
+    Expression lt = Expressions.lessThan("partition.data_bucket", 2);
+    TableScan scan = dataFilesTable.newScan().filter(lt);
+    CloseableIterable<FileScanTask> tasksLt = scan.planFiles();
+    Assert.assertEquals(2, Iterables.size(tasksLt));
+    validateFileScanTasks(tasksLt, 0);
+    validateFileScanTasks(tasksLt, 1);
   }
 
   @Test
   public void testFilesTableScanOrFilter() {
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_0)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_1)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_2)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_3)
-        .commit();
+    preparePartitionedTable();
 
     Table dataFilesTable = new DataFilesTable(table.ops(), table);
 
@@ -471,105 +366,59 @@ public class TestMetadataTableScans extends TableTestBase {
         Expressions.greaterThan("record_count", 0));
     TableScan scan = dataFilesTable.newScan()
         .filter(or);
-    CloseableIterable<CombinedScanTask> tasksOr = scan.planTasks();
-    List<ManifestFile> manifests = StreamSupport.stream(tasksOr.spliterator(), false)
-        .flatMap(c -> c.files().stream().map(t -> ((DataFilesTable.ManifestReadTask) t).getManifest()))
-        .collect(Collectors.toList());
-    Assert.assertEquals(4, manifests.size());
-    validateIncludesManifestFile(manifests, 0);
-    validateIncludesManifestFile(manifests, 1);
-    validateIncludesManifestFile(manifests, 2);
-    validateIncludesManifestFile(manifests, 3);
+    CloseableIterable<FileScanTask> tasksOr = scan.planFiles();
+    Assert.assertEquals(4, Iterables.size(tasksOr));
+    validateFileScanTasks(tasksOr, 0);
+    validateFileScanTasks(tasksOr, 1);
+    validateFileScanTasks(tasksOr, 2);
+    validateFileScanTasks(tasksOr, 3);
   }
 
   @Test
   public void testFilesScanNotFilter() {
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_0)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_1)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_2)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_3)
-        .commit();
+    preparePartitionedTable();
     Table dataFilesTable = new DataFilesTable(table.ops(), table);
 
     Expression not = Expressions.not(Expressions.lessThan("partition.data_bucket", 2));
     TableScan scan = dataFilesTable.newScan()
         .filter(not);
-    CloseableIterable<CombinedScanTask> tasksNot = scan.planTasks();
-    List<ManifestFile> manifests = StreamSupport.stream(tasksNot.spliterator(), false)
-        .flatMap(c -> c.files().stream().map(t -> ((DataFilesTable.ManifestReadTask) t).getManifest()))
-        .collect(Collectors.toList());
-    Assert.assertEquals(2, manifests.size());
-    validateIncludesManifestFile(manifests, 2);
-    validateIncludesManifestFile(manifests, 3);
+    CloseableIterable<FileScanTask> tasksNot = scan.planFiles();
+    Assert.assertEquals(2, Iterables.size(tasksNot));
+    validateFileScanTasks(tasksNot, 2);
+    validateFileScanTasks(tasksNot, 3);
   }
-
 
   @Test
   public void testFilesTableScanInFilter() {
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_0)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_1)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_2)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_3)
-        .commit();
+    preparePartitionedTable();
 
     Table dataFilesTable = new DataFilesTable(table.ops(), table);
 
     Expression set = Expressions.in("partition.data_bucket", 2, 3);
     TableScan scan = dataFilesTable.newScan()
           .filter(set);
-    CloseableIterable<CombinedScanTask> tasksSet = scan.planTasks();
-    List<ManifestFile> manifests = StreamSupport.stream(tasksSet.spliterator(), false)
-        .flatMap(c -> c.files().stream().map(t -> ((DataFilesTable.ManifestReadTask) t).getManifest()))
-        .collect(Collectors.toList());
-    Assert.assertEquals(2, manifests.size());
+    CloseableIterable<FileScanTask> tasksNot = scan.planFiles();
+    Assert.assertEquals(2, Iterables.size(tasksNot));
 
-    validateIncludesManifestFile(manifests, 2);
-    validateIncludesManifestFile(manifests, 3);
+    validateFileScanTasks(tasksNot, 2);
+    validateFileScanTasks(tasksNot, 3);
   }
 
   @Test
   public void testFilesTableScanNotNullFilter() {
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_0)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_1)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_2)
-        .commit();
-    table.newFastAppend()
-        .appendFile(FILE_PARTITION_3)
-        .commit();
+    preparePartitionedTable();
 
     Table dataFilesTable = new DataFilesTable(table.ops(), table);
     Expression unary = Expressions.notNull("partition.data_bucket");
     TableScan scan = dataFilesTable.newScan()
         .filter(unary);
-    CloseableIterable<CombinedScanTask> tasksUnary = scan.planTasks();
-    List<ManifestFile> manifests = StreamSupport.stream(tasksUnary.spliterator(), false)
-        .flatMap(c -> c.files().stream().map(t -> ((DataFilesTable.ManifestReadTask) t).getManifest()))
-        .collect(Collectors.toList());
-    Assert.assertEquals(4, manifests.size());
+    CloseableIterable<FileScanTask> tasksUnary = scan.planFiles();
+    Assert.assertEquals(4, Iterables.size(tasksUnary));
 
-    validateIncludesManifestFile(manifests, 0);
-    validateIncludesManifestFile(manifests, 1);
-    validateIncludesManifestFile(manifests, 2);
-    validateIncludesManifestFile(manifests, 3);
+    validateFileScanTasks(tasksUnary, 0);
+    validateFileScanTasks(tasksUnary, 1);
+    validateFileScanTasks(tasksUnary, 2);
+    validateFileScanTasks(tasksUnary, 3);
   }
 
   @Test
@@ -614,13 +463,23 @@ public class TestMetadataTableScans extends TableTestBase {
             a -> a.file().partition().get(0, Object.class).equals(partValue)));
   }
 
-  private void validateIncludesManifestFile(List<ManifestFile> manifests, int partValue) {
+  private void validateFileScanTasks(CloseableIterable<FileScanTask> fileScanTasks, int partValue) {
     Assert.assertTrue("File scan tasks do not include correct file",
-        manifests.stream().anyMatch(m -> {
-          Assert.assertEquals("Table should be partitioned by one field", 1, m.partitions().size());
-          int lower = Conversions.fromByteBuffer(Types.IntegerType.get(), m.partitions().get(0).lowerBound());
-          int upper = Conversions.fromByteBuffer(Types.IntegerType.get(), m.partitions().get(0).upperBound());
-          return (lower <= partValue) && (upper >= partValue);
+        StreamSupport.stream(fileScanTasks.spliterator(), false).anyMatch(t -> {
+          ManifestFile mf = ((DataFilesTable.ManifestReadTask) t).manifest();
+          return manifestHasPartition(mf, partValue);
         }));
+  }
+
+  private void validateCombinedScanTasks(CloseableIterable<CombinedScanTask> tasks, int partValue) {
+    StreamSupport.stream(tasks.spliterator(), false)
+        .flatMap(c -> c.files().stream().map(t -> ((DataFilesTable.ManifestReadTask) t).manifest()))
+        .anyMatch(m -> manifestHasPartition(m, partValue));
+  }
+
+  private boolean manifestHasPartition(ManifestFile mf, int partValue) {
+    int lower = Conversions.fromByteBuffer(Types.IntegerType.get(), mf.partitions().get(0).lowerBound());
+    int upper = Conversions.fromByteBuffer(Types.IntegerType.get(), mf.partitions().get(0).upperBound());
+    return (lower <= partValue) && (upper >= partValue);
   }
 }
