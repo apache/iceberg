@@ -114,12 +114,14 @@ public class AssertHelpers {
   }
 
   /**
-   * A convenience method to assert the cause of thrown exception.
+   * A convenience method to assert both the thrown exception and the cause of thrown exception.
    * @param message A String message to describe this assertion
    * @param expected  An Exception class that the Runnable should throw
-   * @param expectedContainedInMessage A String that should be contained by the thrown exception's message
+   * @param expectedContainedInMessage A String that should be contained by the thrown exception's message,
+   *                                   will be skipped if null.
    * @param cause An Exception class that the cause of the Runnable should throw
-   * @param causeContainedInMessage A String that should be contained by the cause of the thrown exception's message
+   * @param causeContainedInMessage A String that should be contained by the cause of the thrown exception's message,
+   *                                will be skipped if null.
    * @param runnable A Runnable that is expected to throw the runtime exception
    */
   public static void assertThrowsWithCause(String message,
