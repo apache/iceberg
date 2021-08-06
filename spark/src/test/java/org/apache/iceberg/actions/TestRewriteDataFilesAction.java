@@ -19,8 +19,23 @@
 
 package org.apache.iceberg.actions;
 
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.*;
+import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
@@ -31,17 +46,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
-import org.apache.spark.sql.*;
+import org.apache.spark.sql.AnalysisException;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-
-import java.io.File;
-import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.mockito.ArgumentMatchers.any;
@@ -90,12 +104,12 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
     Map<String, String> options = Maps.newHashMap();
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
     List<ThreeColumnRecord> records1 = Lists.newArrayList(
-            new ThreeColumnRecord(1, null, "AAAA"),
-            new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB")
+        new ThreeColumnRecord(1, null, "AAAA"),
+        new ThreeColumnRecord(1, "BBBBBBBBBB", "BBBB")
     );
     List<ThreeColumnRecord> records2 = Lists.newArrayList(
-            new ThreeColumnRecord(2, "CCCCCCCCCC", "CCCC"),
-            new ThreeColumnRecord(2, "DDDDDDDDDD", "DDDD")
+        new ThreeColumnRecord(2, "CCCCCCCCCC", "CCCC"),
+        new ThreeColumnRecord(2, "DDDDDDDDDD", "DDDD")
     );
     writeRecords(records1);
     writeRecords(records2);
@@ -103,7 +117,7 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
 
     RewriteDataFilesAction rewriteDataFilesAction = new RewriteDataFilesAction(SparkSession.active(), table);
     RewriteDataFilesAction spyAction = spy(rewriteDataFilesAction);
-    //the rewrited dataFile
+    // the rewrited dataFile
     List<DataFile> dataFiles = new ArrayList<>();
     doAnswer(invocationOnMock -> {
       List<DataFile> argument = invocationOnMock.getArgument(1);
@@ -113,7 +127,7 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
     }).when(spyAction).doReplace(any(), any(), anyLong());
 
     AssertHelpers.assertThrows("Should throw CommitStateUnknown Exception",
-            CommitStateUnknownException.class, spyAction::execute);
+        CommitStateUnknownException.class, spyAction::execute);
 
     FileIO io = table.io();
     for (DataFile dataFile : dataFiles) {
@@ -122,12 +136,13 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
 
     table.refresh();
     Set<String> currentDataFilePathStr = Lists.newArrayList(table.newScan().planFiles()).stream()
-            .map(fileScanTask -> String.valueOf(fileScanTask.file().path())).collect(Collectors.toSet());
+        .map(fileScanTask -> String.valueOf(fileScanTask.file().path())).collect(Collectors.toSet());
     Set<String> mergedFilePathStr =
-            dataFiles.stream().map(dataFile -> String.valueOf(dataFile.path())).collect(Collectors.toSet());
+        dataFiles.stream().map(dataFile -> String.valueOf(dataFile.path())).collect(Collectors.toSet());
     Assert.assertEquals("rewrited datafiles should be commited", currentDataFilePathStr,
-            mergedFilePathStr);
+        mergedFilePathStr);
   }
+
   @Test
   public void testRewriteDataFilesUnpartitionedTable() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
