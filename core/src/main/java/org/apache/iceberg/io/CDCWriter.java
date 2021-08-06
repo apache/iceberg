@@ -29,22 +29,20 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.StructProjection;
 
-public class CDCTaskWriter<T> extends BaseDeltaTaskWriter<T> {
+public class CDCWriter<T> extends BaseDeltaWriter<T> {
 
-  private final PartitionAwareWriter<T, DataWriteResult> dataWriter;
-  private final PartitionAwareWriter<T, DeleteWriteResult> equalityDeleteWriter;
-  private final PartitionAwareWriter<PositionDelete<T>, DeleteWriteResult> positionDeleteWriter;
+  private final FanoutDataWriter<T> dataWriter;
+  private final PartitionAwareFileWriter<T, DeleteWriteResult> equalityDeleteWriter;
+  private final PartitionAwareFileWriter<PositionDelete<T>, DeleteWriteResult> positionDeleteWriter;
   private final StructProjection keyProjection;
   private final Map<StructLike, PartitionAwarePathOffset> insertedRows;
   private final PositionDelete<T> positionDelete;
   private final Function<T, StructLike> toStructLike;
 
-  public CDCTaskWriter(PartitionAwareWriter<T, DataWriteResult> dataWriter,
-                       PartitionAwareWriter<T, DeleteWriteResult> equalityDeleteWriter,
-                       PartitionAwareWriter<PositionDelete<T>, DeleteWriteResult> positionDeleteWriter,
-                       FileIO io, Schema schema, Schema deleteSchema,
-                       Function<T, StructLike> toStructLike) {
-    super(io);
+  public CDCWriter(FanoutDataWriter<T> dataWriter,
+                   PartitionAwareFileWriter<T, DeleteWriteResult> equalityDeleteWriter,
+                   PartitionAwareFileWriter<PositionDelete<T>, DeleteWriteResult> positionDeleteWriter,
+                   Schema schema, Schema deleteSchema, Function<T, StructLike> toStructLike) {
     this.dataWriter = dataWriter;
     this.equalityDeleteWriter = equalityDeleteWriter;
     this.positionDeleteWriter = positionDeleteWriter;

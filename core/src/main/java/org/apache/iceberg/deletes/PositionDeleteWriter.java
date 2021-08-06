@@ -29,11 +29,11 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DeleteWriteResult;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.io.Writer;
+import org.apache.iceberg.io.FileWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.CharSequenceSet;
 
-public class PositionDeleteWriter<T> implements Writer<PositionDelete<T>, DeleteWriteResult> {
+public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWriteResult> {
   private final FileAppender<StructLike> appender;
   private final FileFormat format;
   private final String location;

@@ -27,10 +27,10 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
- * A data writer capable of writing to multiple specs and partitions ensuring the incoming
- * data records are properly clustered.
+ * A data writer capable of writing to multiple specs and partitions that requires the incoming records
+ * to be clustered by partition spec and partition.
  */
-public class ClusteredDataWriter<T> extends ClusteredWriter<T, DataWriteResult> {
+public class ClusteredDataWriter<T> extends ClusteredFileWriter<T, DataWriteResult> {
 
   private final WriterFactory<T> writerFactory;
   private final OutputFileFactory fileFactory;
@@ -50,12 +50,12 @@ public class ClusteredDataWriter<T> extends ClusteredWriter<T, DataWriteResult> 
   }
 
   @Override
-  protected Writer<T, DataWriteResult> newWriter(PartitionSpec spec, StructLike partition) {
+  protected FileWriter<T, DataWriteResult> newWriter(PartitionSpec spec, StructLike partition) {
     return new RollingDataWriter<>(writerFactory, fileFactory, io, fileFormat, targetFileSizeInBytes, spec, partition);
   }
 
   @Override
-  protected void add(DataWriteResult result) {
+  protected void addResult(DataWriteResult result) {
     dataFiles.addAll(result.dataFiles());
   }
 

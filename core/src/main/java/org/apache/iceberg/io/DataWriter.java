@@ -30,7 +30,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public class DataWriter<T> implements Writer<T, DataWriteResult> {
+public class DataWriter<T> implements FileWriter<T, DataWriteResult> {
   private final FileAppender<T> appender;
   private final FileFormat format;
   private final String location;

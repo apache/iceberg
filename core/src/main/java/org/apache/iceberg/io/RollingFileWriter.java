@@ -29,7 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 /**
  * A rolling writer capable of splitting incoming data/deletes into multiple files within one spec/partition.
  */
-public abstract class RollingWriter<T, W extends Writer<T, R>, R> implements Writer<T, R> {
+abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements FileWriter<T, R> {
   private static final int ROWS_DIVISOR = 1000;
 
   private final OutputFileFactory fileFactory;
@@ -45,8 +45,8 @@ public abstract class RollingWriter<T, W extends Writer<T, R>, R> implements Wri
 
   private boolean closed = false;
 
-  protected RollingWriter(OutputFileFactory fileFactory, FileIO io, FileFormat fileFormat,
-                          long targetFileSizeInBytes, PartitionSpec spec, StructLike partition) {
+  protected RollingFileWriter(OutputFileFactory fileFactory, FileIO io, FileFormat fileFormat,
+                              long targetFileSizeInBytes, PartitionSpec spec, StructLike partition) {
     this.fileFactory = fileFactory;
     this.io = io;
     this.fileFormat = fileFormat;
@@ -59,7 +59,7 @@ public abstract class RollingWriter<T, W extends Writer<T, R>, R> implements Wri
 
   protected abstract long length(W writer);
 
-  protected abstract void add(R result);
+  protected abstract void addResult(R result);
 
   protected abstract R aggregatedResult();
 
@@ -74,7 +74,7 @@ public abstract class RollingWriter<T, W extends Writer<T, R>, R> implements Wri
   @Override
   public void write(T row) throws IOException {
     currentWriter.write(row);
-    this.currentRows++;
+    currentRows++;
 
     if (shouldRollToNewFile()) {
       closeCurrent();
@@ -116,7 +116,7 @@ public abstract class RollingWriter<T, W extends Writer<T, R>, R> implements Wri
       if (currentRows == 0L) {
         io.deleteFile(currentFile.encryptingOutputFile());
       } else {
-        add(result);
+        addResult(result);
       }
 
       this.currentFile = null;

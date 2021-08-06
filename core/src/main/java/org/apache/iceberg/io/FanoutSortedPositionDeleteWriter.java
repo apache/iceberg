@@ -24,7 +24,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.PositionDelete;
 
-public class FanoutSortedPositionDeleteWriter<T> extends FanoutDeleteWriter<PositionDelete<T>> {
+public class FanoutSortedPositionDeleteWriter<T> extends FanoutDeleteFileWriter<PositionDelete<T>> {
   private final FileAppenderFactory<T> appenderFactory;
   private final OutputFileFactory fileFactory;
   private final FileFormat fileFormat;
@@ -37,7 +37,7 @@ public class FanoutSortedPositionDeleteWriter<T> extends FanoutDeleteWriter<Posi
   }
 
   @Override
-  protected Writer<PositionDelete<T>, DeleteWriteResult> newWriter(PartitionSpec spec, StructLike partition) {
+  protected FileWriter<PositionDelete<T>, DeleteWriteResult> newWriter(PartitionSpec spec, StructLike partition) {
     return new SortedPosDeleteWriter<>(appenderFactory, fileFactory, fileFormat, partition);
   }
 }

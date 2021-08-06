@@ -25,10 +25,10 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.PositionDelete;
 
 /**
- * A position delete writer capable of writing to multiple specs and partitions ensuring the incoming
- * delete records are properly clustered.
+ * A position delete writer capable of writing to multiple specs and partitions that requires
+ * the incoming delete records to be properly clustered by partition spec and partition.
  */
-public class ClusteredPositionDeleteWriter<T> extends ClusteredDeleteWriter<PositionDelete<T>> {
+public class ClusteredPositionDeleteWriter<T> extends ClusteredDeleteFileWriter<PositionDelete<T>> {
 
   private final WriterFactory<T> writerFactory;
   private final OutputFileFactory fileFactory;
@@ -46,7 +46,7 @@ public class ClusteredPositionDeleteWriter<T> extends ClusteredDeleteWriter<Posi
   }
 
   @Override
-  protected Writer<PositionDelete<T>, DeleteWriteResult> newWriter(PartitionSpec spec, StructLike partition) {
+  protected FileWriter<PositionDelete<T>, DeleteWriteResult> newWriter(PartitionSpec spec, StructLike partition) {
     return new RollingPositionDeleteWriter<>(
         writerFactory, fileFactory, io, fileFormat, targetFileSizeInBytes, spec, partition);
   }

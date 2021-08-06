@@ -37,7 +37,7 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.CharSequenceWrapper;
 
-class SortedPosDeleteWriter<T> implements Writer<PositionDelete<T>, DeleteWriteResult> {
+class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWriteResult> {
   private static final long DEFAULT_RECORDS_NUM_THRESHOLD = 100_000L;
 
   private final Map<CharSequenceWrapper, List<PosRow<T>>> posDeletes = Maps.newHashMap();

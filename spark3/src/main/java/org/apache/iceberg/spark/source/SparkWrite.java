@@ -29,6 +29,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
@@ -47,12 +48,11 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.ClusteredDataWriter;
+import org.apache.iceberg.io.DataWriteResult;
 import org.apache.iceberg.io.FanoutDataWriter;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
-import org.apache.iceberg.io.V2BaseTaskWriter;
-import org.apache.iceberg.io.V2TaskWriter;
-import org.apache.iceberg.io.V2TaskWriter.Result;
+import org.apache.iceberg.io.PartitionAwareFileWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -552,51 +552,61 @@ class SparkWrite {
         ClusteredDataWriter<InternalRow> dataWriter = new ClusteredDataWriter<>(
             writerFactory, fileFactory, io,
             format, targetFileSize);
-        V2TaskWriter<InternalRow> taskWriter = new V2BaseTaskWriter<>(dataWriter, io);
-        return new UnpartitionedDataWriter(taskWriter, spec);
+        return new UnpartitionedDataWriter(dataWriter, io, spec);
 
       } else if (partitionedFanoutEnabled) {
         FanoutDataWriter<InternalRow> dataWriter = new FanoutDataWriter<>(
             writerFactory, fileFactory, io,
             format, targetFileSize);
-        V2TaskWriter<InternalRow> taskWriter = new V2BaseTaskWriter<>(dataWriter, io);
-        return new PartitionedDataWriter(taskWriter, spec, writeSchema, dsSchema);
+        return new PartitionedDataWriter(dataWriter, io, spec, writeSchema, dsSchema);
 
       } else {
         ClusteredDataWriter<InternalRow> dataWriter = new ClusteredDataWriter<>(
             writerFactory, fileFactory, io,
             format, targetFileSize);
-        V2TaskWriter<InternalRow> taskWriter = new V2BaseTaskWriter<>(dataWriter, io);
-        return new PartitionedDataWriter(taskWriter, spec, writeSchema, dsSchema);
+        return new PartitionedDataWriter(dataWriter, io, spec, writeSchema, dsSchema);
       }
     }
   }
 
+  private static <T extends ContentFile<T>> void cleanFiles(FileIO io, List<T> files) {
+    Tasks.foreach(files)
+        .suppressFailureWhenFinished()
+        .noRetry()
+        .run(file -> io.deleteFile(file.path().toString()));
+  }
+
   private static class UnpartitionedDataWriter implements DataWriter<InternalRow> {
-    private final V2TaskWriter<InternalRow> delegate;
+    private final PartitionAwareFileWriter<InternalRow, DataWriteResult> delegate;
+    private final FileIO io;
     private final PartitionSpec spec;
 
-    private UnpartitionedDataWriter(V2TaskWriter<InternalRow> delegate, PartitionSpec spec) {
+    private UnpartitionedDataWriter(PartitionAwareFileWriter<InternalRow, DataWriteResult> delegate,
+                                    FileIO io, PartitionSpec spec) {
       this.delegate = delegate;
+      this.io = io;
       this.spec = spec;
     }
 
     @Override
     public void write(InternalRow record) throws IOException {
-      delegate.insert(record, spec, null);
+      delegate.write(record, spec, null);
     }
 
     @Override
     public WriterCommitMessage commit() throws IOException {
       close();
-      Result result = delegate.result();
-      return new TaskCommit(result.dataFiles());
+
+      DataWriteResult result = delegate.result();
+      return new TaskCommit(result.dataFiles().toArray(new DataFile[0]));
     }
 
     @Override
     public void abort() throws IOException {
       close();
-      delegate.abort();
+
+      DataWriteResult result = delegate.result();
+      cleanFiles(io, result.dataFiles());
     }
 
     @Override
@@ -606,14 +616,16 @@ class SparkWrite {
   }
 
   private static class PartitionedDataWriter implements DataWriter<InternalRow> {
-    private final V2TaskWriter<InternalRow> delegate;
+    private final PartitionAwareFileWriter<InternalRow, DataWriteResult> delegate;
+    private final FileIO io;
     private final PartitionSpec spec;
     private final PartitionKey partitionKey;
     private final InternalRowWrapper internalRowWrapper;
 
-    private PartitionedDataWriter(V2TaskWriter<InternalRow> delegate, PartitionSpec spec,
-                                  Schema dataSchema, StructType dataSparkType) {
+    private PartitionedDataWriter(PartitionAwareFileWriter<InternalRow, DataWriteResult> delegate,
+                                  FileIO io, PartitionSpec spec, Schema dataSchema, StructType dataSparkType) {
       this.delegate = delegate;
+      this.io = io;
       this.spec = spec;
       this.partitionKey = new PartitionKey(spec, dataSchema);
       this.internalRowWrapper = new InternalRowWrapper(dataSparkType);
@@ -622,20 +634,23 @@ class SparkWrite {
     @Override
     public void write(InternalRow row) throws IOException {
       partitionKey.partition(internalRowWrapper.wrap(row));
-      delegate.insert(row, spec, partitionKey);
+      delegate.write(row, spec, partitionKey);
     }
 
     @Override
     public WriterCommitMessage commit() throws IOException {
       close();
-      Result result = delegate.result();
-      return new TaskCommit(result.dataFiles());
+
+      DataWriteResult result = delegate.result();
+      return new TaskCommit(result.dataFiles().toArray(new DataFile[0]));
     }
 
     @Override
     public void abort() throws IOException {
       close();
-      delegate.abort();
+
+      DataWriteResult result = delegate.result();
+      cleanFiles(io, result.dataFiles());
     }
 
     @Override

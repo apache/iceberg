@@ -24,18 +24,16 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.PositionDelete;
 
-public class MixedDeltaTaskWriter<T> extends BaseDeltaTaskWriter<T> {
+public class MixedDeltaWriter<T> extends BaseDeltaWriter<T> {
 
-  private final PartitionAwareWriter<T, DataWriteResult> dataWriter;
-  private final PartitionAwareWriter<T, DeleteWriteResult> equalityDeleteWriter;
-  private final PartitionAwareWriter<PositionDelete<T>, DeleteWriteResult> positionDeleteWriter;
+  private final PartitionAwareFileWriter<T, DataWriteResult> dataWriter;
+  private final PartitionAwareFileWriter<T, DeleteWriteResult> equalityDeleteWriter;
+  private final PartitionAwareFileWriter<PositionDelete<T>, DeleteWriteResult> positionDeleteWriter;
   private final PositionDelete<T> positionDelete;
 
-  public MixedDeltaTaskWriter(PartitionAwareWriter<T, DataWriteResult> dataWriter,
-                              PartitionAwareWriter<T, DeleteWriteResult> equalityDeleteWriter,
-                              PartitionAwareWriter<PositionDelete<T>, DeleteWriteResult> positionDeleteWriter,
-                              FileIO io) {
-    super(io);
+  public MixedDeltaWriter(PartitionAwareFileWriter<T, DataWriteResult> dataWriter,
+                          PartitionAwareFileWriter<T, DeleteWriteResult> equalityDeleteWriter,
+                          PartitionAwareFileWriter<PositionDelete<T>, DeleteWriteResult> positionDeleteWriter) {
     this.dataWriter = dataWriter;
     this.equalityDeleteWriter = equalityDeleteWriter;
     this.positionDeleteWriter = positionDeleteWriter;

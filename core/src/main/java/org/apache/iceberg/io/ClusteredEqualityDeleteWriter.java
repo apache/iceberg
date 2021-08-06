@@ -24,10 +24,10 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 
 /**
- * An equality delete writer capable of writing to multiple specs and partitions ensuring the incoming
- * delete records are properly clustered.
+ * An equality delete writer capable of writing to multiple specs and partitions that requires
+ * the incoming delete records to be properly clustered by partition spec and partition.
  */
-public class ClusteredEqualityDeleteWriter<T> extends ClusteredDeleteWriter<T> {
+public class ClusteredEqualityDeleteWriter<T> extends ClusteredDeleteFileWriter<T> {
 
   private final WriterFactory<T> writerFactory;
   private final OutputFileFactory fileFactory;
@@ -45,7 +45,7 @@ public class ClusteredEqualityDeleteWriter<T> extends ClusteredDeleteWriter<T> {
   }
 
   @Override
-  protected Writer<T, DeleteWriteResult> newWriter(PartitionSpec spec, StructLike partition) {
+  protected FileWriter<T, DeleteWriteResult> newWriter(PartitionSpec spec, StructLike partition) {
     return new RollingEqualityDeleteWriter<>(
         writerFactory, fileFactory, io, fileFormat, targetFileSizeInBytes, spec, partition);
   }

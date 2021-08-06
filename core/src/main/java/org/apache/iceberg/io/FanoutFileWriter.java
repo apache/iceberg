@@ -28,41 +28,43 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.StructLikeMap;
 
 /**
- * A writer capable of writing to multiple specs and partitions that keeps writers for each
+ * A writer capable of writing to multiple specs and partitions that keeps files for each
  * seen spec/partition pair open until this writer is closed.
+ * <p>
+ * As opposed to {@link ClusteredFileWriter}, this writer does not requite the incoming records
+ * to be clustered by partition spec and partition. The downside is potentially larger memory
+ * consumption.
  */
-public abstract class FanoutWriter<T, R> implements PartitionAwareWriter<T, R> {
+abstract class FanoutFileWriter<T, R> implements PartitionAwareFileWriter<T, R> {
 
-  private final Map<Integer, Map<StructLike, Writer<T, R>>> writers = Maps.newHashMap();
+  private final Map<Integer, Map<StructLike, FileWriter<T, R>>> writers = Maps.newHashMap();
   private boolean closed = false;
 
-  protected abstract Writer<T, R> newWriter(PartitionSpec spec, StructLike partition);
+  protected abstract FileWriter<T, R> newWriter(PartitionSpec spec, StructLike partition);
 
-  protected abstract void add(R result);
+  protected abstract void addResult(R result);
 
   protected abstract R aggregatedResult();
 
-  @Override
   public CharSequence currentPath(PartitionSpec spec, StructLike partition) {
-    return ((RollingWriter<?, ?, ?>) writer(spec, partition)).currentPath();
+    return ((RollingFileWriter<?, ?, ?>) writer(spec, partition)).currentPath();
   }
 
-  @Override
   public long currentPosition(PartitionSpec spec, StructLike partition) {
-    return ((RollingWriter<?, ?, ?>) writer(spec, partition)).currentRows();
+    return ((RollingFileWriter<?, ?, ?>) writer(spec, partition)).currentRows();
   }
 
   @Override
   public void write(T row, PartitionSpec spec, StructLike partition) throws IOException {
-    Writer<T, R> writer = writer(spec, partition);
+    FileWriter<T, R> writer = writer(spec, partition);
     writer.write(row);
   }
 
-  private Writer<T, R> writer(PartitionSpec spec, StructLike partition) {
-    Map<StructLike, Writer<T, R>> specWriters = writers.computeIfAbsent(
+  private FileWriter<T, R> writer(PartitionSpec spec, StructLike partition) {
+    Map<StructLike, FileWriter<T, R>> specWriters = writers.computeIfAbsent(
         spec.specId(),
         id -> StructLikeMap.create(spec.partitionType()));
-    Writer<T, R> writer = specWriters.get(partition);
+    FileWriter<T, R> writer = specWriters.get(partition);
 
     if (writer == null) {
       // copy the partition key as the key object is reused
@@ -83,12 +85,12 @@ public abstract class FanoutWriter<T, R> implements PartitionAwareWriter<T, R> {
   }
 
   private void closeWriters() throws IOException {
-    for (Map<StructLike, Writer<T, R>> specWriters : writers.values()) {
-      for (Writer<T, R> writer : specWriters.values()) {
+    for (Map<StructLike, FileWriter<T, R>> specWriters : writers.values()) {
+      for (FileWriter<T, R> writer : specWriters.values()) {
         writer.close();
 
         R result = writer.result();
-        add(result);
+        addResult(result);
       }
 
       specWriters.clear();

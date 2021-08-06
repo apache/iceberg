@@ -24,37 +24,16 @@ import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceSet;
-import org.apache.iceberg.util.Tasks;
 
-public abstract class BaseDeltaTaskWriter<T> implements DeltaTaskWriter<T> {
+abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
 
   private final List<DataFile> dataFiles = Lists.newArrayList();
   private final List<DeleteFile> deleteFiles = Lists.newArrayList();
   private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
-  private final FileIO io;
 
   private boolean closed = false;
-
-  public BaseDeltaTaskWriter(FileIO io) {
-    this.io = io;
-  }
-
-  protected FileIO io() {
-    return io;
-  }
-
-  @Override
-  public void abort() throws IOException {
-    Preconditions.checkState(closed, "Cannot abort unclosed task writer");
-
-    Tasks.foreach(Iterables.concat(dataFiles, deleteFiles))
-        .suppressFailureWhenFinished()
-        .noRetry()
-        .run(file -> io.deleteFile(file.path().toString()));
-  }
 
   @Override
   public Result result() {
@@ -72,14 +51,14 @@ public abstract class BaseDeltaTaskWriter<T> implements DeltaTaskWriter<T> {
 
   protected abstract void closeWriters() throws IOException;
 
-  protected void closeDataWriter(PartitionAwareWriter<?, DataWriteResult> writer) throws IOException {
+  protected void closeDataWriter(PartitionAwareFileWriter<?, DataWriteResult> writer) throws IOException {
     writer.close();
 
     DataWriteResult result = writer.result();
     dataFiles.addAll(result.dataFiles());
   }
 
-  protected void closeDeleteWriter(PartitionAwareWriter<?, DeleteWriteResult> deleteWriter) throws IOException {
+  protected void closeDeleteWriter(PartitionAwareFileWriter<?, DeleteWriteResult> deleteWriter) throws IOException {
     deleteWriter.close();
 
     DeleteWriteResult result = deleteWriter.result();

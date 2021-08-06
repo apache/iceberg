@@ -30,7 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
  * A data writer capable of writing to multiple specs and partitions that keeps data writers for each
  * seen spec/partition pair open until this writer is closed.
  */
-public class FanoutDataWriter<T> extends FanoutWriter<T, DataWriteResult> {
+public class FanoutDataWriter<T> extends FanoutFileWriter<T, DataWriteResult> {
 
   private final WriterFactory<T> writerFactory;
   private final OutputFileFactory fileFactory;
@@ -50,12 +50,12 @@ public class FanoutDataWriter<T> extends FanoutWriter<T, DataWriteResult> {
   }
 
   @Override
-  protected Writer<T, DataWriteResult> newWriter(PartitionSpec spec, StructLike partition) {
+  protected FileWriter<T, DataWriteResult> newWriter(PartitionSpec spec, StructLike partition) {
     return new RollingDataWriter<>(writerFactory, fileFactory, io, fileFormat, targetFileSizeInBytes, spec, partition);
   }
 
   @Override
-  protected void add(DataWriteResult result) {
+  protected void addResult(DataWriteResult result) {
     dataFiles.addAll(result.dataFiles());
   }
 

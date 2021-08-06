@@ -24,26 +24,26 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.util.CharSequenceSet;
 
-public class BaseDeltaTaskWriteResult implements DeltaTaskWriter.Result {
+public class BaseDeltaTaskWriteResult implements DeltaWriter.Result {
 
-  private final DataFile[] dataFiles;
-  private final DeleteFile[] deleteFiles;
+  private final List<DataFile> dataFiles;
+  private final List<DeleteFile> deleteFiles;
   private final CharSequenceSet referencedDataFiles;
 
   public BaseDeltaTaskWriteResult(List<DataFile> dataFiles, List<DeleteFile> deleteFiles,
                                   CharSequenceSet referencedDataFiles) {
-    this.dataFiles = dataFiles.toArray(new DataFile[0]);
-    this.deleteFiles = deleteFiles.toArray(new DeleteFile[0]);
+    this.dataFiles = dataFiles;
+    this.deleteFiles = deleteFiles;
     this.referencedDataFiles = referencedDataFiles;
   }
 
   @Override
-  public DataFile[] dataFiles() {
+  public List<DataFile> dataFiles() {
     return dataFiles;
   }
 
   @Override
-  public DeleteFile[] deleteFiles() {
+  public List<DeleteFile> deleteFiles() {
     return deleteFiles;
   }
 

@@ -31,9 +31,13 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
 
 /**
- * A writer capable of writing to multiple specs and partitions ensuring the incoming records are properly clustered.
+ * A writer capable of writing to multiple specs and partitions that requires the incoming records
+ * to be clustered by partition spec and partition.
+ * <p>
+ * As opposed to {@link FanoutFileWriter}, this writer keeps at most one file open to reduce
+ * the memory consumption.
  */
-public abstract class ClusteredWriter<T, R> implements PartitionAwareWriter<T, R> {
+abstract class ClusteredFileWriter<T, R> implements PartitionAwareFileWriter<T, R> {
 
   private final Set<Integer> completedSpecs = Sets.newHashSet();
 
@@ -41,13 +45,13 @@ public abstract class ClusteredWriter<T, R> implements PartitionAwareWriter<T, R
   private Comparator<StructLike> partitionComparator = null;
   private Set<StructLike> completedPartitions = null;
   private StructLike currentPartition = null;
-  private Writer<T, R> currentWriter = null;
+  private FileWriter<T, R> currentWriter = null;
 
   private boolean closed = false;
 
-  protected abstract Writer<T, R> newWriter(PartitionSpec spec, StructLike partition);
+  protected abstract FileWriter<T, R> newWriter(PartitionSpec spec, StructLike partition);
 
-  protected abstract void add(R result);
+  protected abstract void addResult(R result);
 
   protected abstract R aggregatedResult();
 
@@ -103,7 +107,7 @@ public abstract class ClusteredWriter<T, R> implements PartitionAwareWriter<T, R
       currentWriter.close();
 
       R result = currentWriter.result();
-      add(result);
+      addResult(result);
 
       this.currentWriter = null;
     }

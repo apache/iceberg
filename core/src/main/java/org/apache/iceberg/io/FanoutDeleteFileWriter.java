@@ -19,21 +19,24 @@
 
 package org.apache.iceberg.io;
 
-import java.io.Closeable;
-import java.io.IOException;
+import java.util.List;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.CharSequenceSet;
 
-/**
- * A writer capable of writing files of a single type (i.e. data/delete) within one spec/partition.
- */
-public interface Writer<T, R> extends Closeable {
+abstract class FanoutDeleteFileWriter<T> extends FanoutFileWriter<T, DeleteWriteResult> {
 
-  default void write(Iterable<T> rows) throws IOException {
-    for (T row : rows) {
-      write(row);
-    }
+  private final List<DeleteFile> deleteFiles = Lists.newArrayList();
+  private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
+
+  @Override
+  protected void addResult(DeleteWriteResult result) {
+    deleteFiles.addAll(result.deleteFiles());
+    referencedDataFiles.addAll(result.referencedDataFiles());
   }
 
-  void write(T row) throws IOException;
-
-  R result();
+  @Override
+  protected DeleteWriteResult aggregatedResult() {
+    return new DeleteWriteResult(deleteFiles, referencedDataFiles);
+  }
 }

@@ -19,30 +19,24 @@
 
 package org.apache.iceberg.io;
 
-import java.io.IOException;
+import java.util.List;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceSet;
 
-public interface DeltaTaskWriter<T> extends V2TaskWriter<T> {
+abstract class ClusteredDeleteFileWriter<T> extends ClusteredFileWriter<T, DeleteWriteResult> {
 
-  // equality delete
-  void delete(T row, PartitionSpec spec, StructLike partition) throws IOException;
+  private final List<DeleteFile> deleteFiles = Lists.newArrayList();
+  private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
 
-  // position delete with persisting row
-  void delete(CharSequence path, long pos, T row, PartitionSpec spec, StructLike partition) throws IOException;
-
-  // position delete without persisting row
-  default void delete(CharSequence path, long pos, PartitionSpec spec, StructLike partition) throws IOException {
-    delete(path, pos, null, spec, partition);
+  @Override
+  protected void addResult(DeleteWriteResult result) {
+    deleteFiles.addAll(result.deleteFiles());
+    referencedDataFiles.addAll(result.referencedDataFiles());
   }
 
   @Override
-  Result result();
-
-  interface Result extends V2TaskWriter.Result {
-    DeleteFile[] deleteFiles();
-    CharSequenceSet referencedDataFiles();
+  protected DeleteWriteResult aggregatedResult() {
+    return new DeleteWriteResult(deleteFiles, referencedDataFiles);
   }
 }

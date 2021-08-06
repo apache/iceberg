@@ -27,21 +27,21 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceSet;
 
-public abstract class RollingDeleteWriter<T, W extends Writer<T, DeleteWriteResult>>
-    extends RollingWriter<T, W, DeleteWriteResult> {
+abstract class RollingDeleteWriter<T, W extends FileWriter<T, DeleteWriteResult>>
+    extends RollingFileWriter<T, W, DeleteWriteResult> {
 
   private final List<DeleteFile> deleteFiles;
   private final CharSequenceSet referencedDataFiles;
 
-  public RollingDeleteWriter(OutputFileFactory fileFactory, FileIO io, FileFormat fileFormat,
-                             long targetFileSizeInBytes, PartitionSpec spec, StructLike partition) {
+  protected RollingDeleteWriter(OutputFileFactory fileFactory, FileIO io, FileFormat fileFormat,
+                                long targetFileSizeInBytes, PartitionSpec spec, StructLike partition) {
     super(fileFactory, io, fileFormat, targetFileSizeInBytes, spec, partition);
     this.deleteFiles = Lists.newArrayList();
     this.referencedDataFiles = CharSequenceSet.empty();
   }
 
   @Override
-  protected void add(DeleteWriteResult result) {
+  protected void addResult(DeleteWriteResult result) {
     deleteFiles.addAll(result.deleteFiles());
     referencedDataFiles.addAll(result.referencedDataFiles());
   }
