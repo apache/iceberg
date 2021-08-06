@@ -27,10 +27,23 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   private final Set<Integer> selected;
+  private final boolean onlySelected;
+
+  /**
+   * Visits a schema and returns only those element's whose id's have been passed as selected
+   * @param selected ids of elements to return
+   * @param onlySelected whether to return only elements which have been selected, no sub elements
+   */
+  PruneColumns(Set<Integer> selected, boolean onlySelected) {
+    Preconditions.checkNotNull(selected, "Selected field ids cannot be null");
+    this.selected = selected;
+    this.onlySelected = onlySelected;
+  }
 
   PruneColumns(Set<Integer> selected) {
     Preconditions.checkNotNull(selected, "Selected field ids cannot be null");
     this.selected = selected;
+    this.onlySelected = false;
   }
 
   @Override
@@ -47,18 +60,21 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
     for (int i = 0; i < fieldResults.size(); i += 1) {
       Types.NestedField field = fields.get(i);
       Type projectedType = fieldResults.get(i);
-      if (field.type() == projectedType) {
-        // uses identity because there is no need to check structure. if identity doesn't match
-        // then structure should not either.
-        selectedFields.add(field);
-      } else if (projectedType != null) {
-        sameTypes = false; // signal that some types were altered
-        if (field.isOptional()) {
-          selectedFields.add(
-              Types.NestedField.optional(field.fieldId(), field.name(), projectedType, field.doc()));
-        } else {
-          selectedFields.add(
-              Types.NestedField.required(field.fieldId(), field.name(), projectedType, field.doc()));
+      boolean includeField = !onlySelected || selected.contains(field.fieldId());
+      if (includeField) {
+        if (field.type() == projectedType) {
+          // uses identity because there is no need to check structure. if identity doesn't match
+          // then structure should not either.
+          selectedFields.add(field);
+        } else if (projectedType != null) {
+          sameTypes = false; // signal that some types were altered
+          if (field.isOptional()) {
+            selectedFields.add(
+                Types.NestedField.optional(field.fieldId(), field.name(), projectedType, field.doc()));
+          } else {
+            selectedFields.add(
+                Types.NestedField.required(field.fieldId(), field.name(), projectedType, field.doc()));
+          }
         }
       }
     }
@@ -69,6 +85,8 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
       } else {
         return Types.StructType.of(selectedFields);
       }
+    } else if (onlySelected) {
+      return Types.StructType.of();
     }
 
     return null;
@@ -77,7 +95,12 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   @Override
   public Type field(Types.NestedField field, Type fieldResult) {
     if (selected.contains(field.fieldId())) {
-      return field.type();
+      if (onlySelected) {
+        // This may be an empty struct, if it is use the fieldResult which will be an emptyStruct
+        return fieldResult == null ? field.type() : fieldResult;
+      } else {
+        return field.type();
+      }
     } else if (fieldResult != null) {
       // this isn't necessarily the same as field.type() because a struct may not have all
       // fields selected.

@@ -103,6 +103,78 @@ public class TestTypeUtil {
         Sets.newHashSet(sourceSchema.findField("a").fieldId()), actualSchema.identifierFieldIds());
   }
 
+  @Test
+  public void testProject() {
+    Schema schema = new Schema(
+        Lists.newArrayList(
+            required(10, "a", Types.IntegerType.get()),
+            required(11, "A", Types.IntegerType.get()),
+            required(12, "someStruct", Types.StructType.of(
+                required(13, "b", Types.IntegerType.get()),
+                required(14, "B", Types.IntegerType.get()),
+                required(15, "anotherStruct", Types.StructType.of(
+                    required(16, "c", Types.IntegerType.get()),
+                    required(17, "C", Types.IntegerType.get()))
+                )))));
+
+    Schema expectedTop = new Schema(
+        Lists.newArrayList(
+            required(11, "A", Types.IntegerType.get())));
+
+    Schema actualTop = TypeUtil.project(schema, Sets.newHashSet(11));
+    Assert.assertEquals(expectedTop.asStruct(), actualTop.asStruct());
+
+    Schema expectedDepthOne = new Schema(
+        Lists.newArrayList(
+            required(10, "a", Types.IntegerType.get()),
+            required(12, "someStruct", Types.StructType.of(
+                required(13, "b", Types.IntegerType.get())))));
+
+    Schema actualDepthOne = TypeUtil.project(schema, Sets.newHashSet(10, 12, 13));
+    Assert.assertEquals(expectedDepthOne.asStruct(), actualDepthOne.asStruct());
+
+    Schema expectedDepthTwo = new Schema(
+        Lists.newArrayList(
+            required(11, "A", Types.IntegerType.get()),
+            required(12, "someStruct", Types.StructType.of(
+                required(15, "anotherStruct", Types.StructType.of(
+                    required(17, "C", Types.IntegerType.get()))
+                )))));
+
+    Schema actualDepthTwo = TypeUtil.project(schema, Sets.newHashSet(11, 12, 15, 17));
+    Assert.assertEquals(expectedDepthTwo.asStruct(), actualDepthTwo.asStruct());
+  }
+
+  @Test
+  public void testProjectEmpty() {
+    Schema schema = new Schema(
+        Lists.newArrayList(
+            required(10, "a", Types.IntegerType.get()),
+            required(11, "A", Types.IntegerType.get()),
+            required(12, "someStruct", Types.StructType.of(
+                required(13, "b", Types.IntegerType.get()),
+                required(14, "B", Types.IntegerType.get()),
+                required(15, "anotherStruct", Types.StructType.of(
+                    required(16, "c", Types.IntegerType.get()),
+                    required(17, "C", Types.IntegerType.get()))
+            )))));
+
+    Schema expectedDepthOne = new Schema(
+        Lists.newArrayList(
+            required(12, "someStruct", Types.StructType.of())));
+
+    Schema actualDepthOne = TypeUtil.project(schema, Sets.newHashSet(12));
+    Assert.assertEquals(expectedDepthOne.asStruct(), actualDepthOne.asStruct());
+
+    Schema expectedDepthTwo = new Schema(
+        Lists.newArrayList(
+            required(12, "someStruct", Types.StructType.of(
+                required(15, "anotherStruct", Types.StructType.of())))));
+
+    Schema actualDepthTwo = TypeUtil.project(schema, Sets.newHashSet(12, 15));
+    Assert.assertEquals(expectedDepthTwo.asStruct(), actualDepthTwo.asStruct());
+  }
+
   @Test(expected = IllegalArgumentException.class)
   public void testReassignIdsIllegalArgumentException() {
     Schema schema = new Schema(

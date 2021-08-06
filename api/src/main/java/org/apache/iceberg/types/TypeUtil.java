@@ -42,6 +42,45 @@ public class TypeUtil {
   private TypeUtil() {
   }
 
+  /**
+   * Project extracts particular fields from a schema. Unlike
+   * {@link TypeUtil#select(Schema, Set)}, project will pick out only
+   * the fields enumerated, this means no sub fields will be selected
+   * unless they are explicitly requested.
+   * @param schema to project fields from
+   * @param fieldIds list of explicit fields to extract
+   * @return the schema with all fields fields not selected removed
+   */
+  public static Schema project(Schema schema, Set<Integer> fieldIds) {
+    Preconditions.checkNotNull(schema, "Schema cannot be null");
+
+    Types.StructType result = project(schema.asStruct(), fieldIds);
+    if (Objects.equals(schema.asStruct(), result)) {
+      return schema;
+    } else if (result != null) {
+      if (schema.getAliases() != null) {
+        return new Schema(result.fields(), schema.getAliases());
+      } else {
+        return new Schema(result.fields());
+      }
+    }
+    return new Schema();
+  }
+
+  public static Types.StructType project(Types.StructType struct, Set<Integer> fieldIds) {
+    Preconditions.checkNotNull(struct, "Struct cannot be null");
+    Preconditions.checkNotNull(fieldIds, "Field ids cannot be null");
+
+    Type result = visit(struct, new PruneColumns(fieldIds, true));
+    if (struct == result) {
+      return struct;
+    } else if (result != null) {
+      return result.asStructType();
+    }
+
+    return Types.StructType.of();
+  }
+
   public static Schema select(Schema schema, Set<Integer> fieldIds) {
     Preconditions.checkNotNull(schema, "Schema cannot be null");
 
