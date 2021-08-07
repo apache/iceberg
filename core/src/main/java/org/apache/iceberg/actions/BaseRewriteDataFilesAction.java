@@ -254,6 +254,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     return new RewriteDataFilesActionResult(currentDataFiles, addedDataFiles);
   }
 
+
   private Map<StructLikeWrapper, Collection<FileScanTask>> groupTasksByPartition(
       CloseableIterator<FileScanTask> tasksIter) {
     ListMultimap<StructLikeWrapper, FileScanTask> tasksGroupedByPartition = Multimaps.newListMultimap(
