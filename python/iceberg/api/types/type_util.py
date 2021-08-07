@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from collections import deque
 import math
 from typing import List
 
@@ -119,7 +118,7 @@ def visit(arg, visitor): # noqa: ignore=C901
             results = list()
             for field in struct.fields:
                 visitor.field_ids.append(field.field_id)
-                visitor.field_names.appendleft(field.name)
+                visitor.field_names.append(field.name)
                 result = None
                 try:
                     result = visit(field.type, visitor)
@@ -129,7 +128,7 @@ def visit(arg, visitor): # noqa: ignore=C901
                     pass
                 finally:
                     visitor.field_ids.pop()
-                    visitor.field_names.popleft()
+                    visitor.field_names.pop()
                 results.append(visitor.field(field, result))
             return visitor.struct(struct, results)
         elif type_var.type_id == TypeID.LIST:
@@ -178,7 +177,7 @@ def visit_custom_order(arg, visitor):
 class SchemaVisitor(object):
 
     def __init__(self):
-        self.field_names = deque()
+        self.field_names = list()
         self.field_ids = list()
 
     def schema(self, schema, struct_result):
@@ -357,7 +356,7 @@ class IndexByName(SchemaVisitor):
     def add_field(self, name, field_id):
         full_name = name
         if self.field_names is not None and len(self.field_names) > 0:
-            full_name = IndexByName.DOT.join([IndexByName.DOT.join(reversed(self.field_names)), name])
+            full_name = IndexByName.DOT.join([IndexByName.DOT.join(self.field_names), name])
 
         existing_field_id = self.name_to_id.get(full_name)
         ValidationException.check(existing_field_id is None, "Invalid schema: multiple fields for name %s: %s and %s",
