@@ -60,7 +60,7 @@ import org.apache.spark.sql.types.IntegerType
 
 object DistributionAndOrderingUtils {
 
-  private val repartitionByExpressionCtor: DynConstructors.Ctor[RepartitionByExpression] =
+  private[catalyst] val repartitionByExpressionCtor: DynConstructors.Ctor[RepartitionByExpression] =
     DynConstructors.builder()
       .impl(classOf[RepartitionByExpression],
         classOf[Seq[catalyst.expressions.Expression]],

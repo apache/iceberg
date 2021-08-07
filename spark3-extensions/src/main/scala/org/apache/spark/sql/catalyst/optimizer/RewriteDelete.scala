@@ -21,6 +21,7 @@ package org.apache.spark.sql.catalyst.optimizer
 
 import org.apache.iceberg.DistributionMode
 import org.apache.iceberg.spark.Spark3Util
+import org.apache.iceberg.spark.Spark3VersionUtil
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.Ascending
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
@@ -95,7 +96,12 @@ case class RewriteDelete(spark: SparkSession) extends Rule[LogicalPlan] with Rew
       case _ =>
         // apply hash partitioning by file if the distribution mode is hash or range
         val numShufflePartitions = conf.numShufflePartitions
-        RepartitionByExpression(Seq(fileNameCol), remainingRowsPlan, numShufflePartitions)
+        val rbeCtor = DistributionAndOrderingUtils.repartitionByExpressionCtor
+        if (Spark3VersionUtil.isSpark30) {
+          rbeCtor.newInstance(Seq(fileNameCol), remainingRowsPlan, Integer.valueOf(numShufflePartitions))
+        } else {
+          rbeCtor.newInstance(Seq(fileNameCol), remainingRowsPlan, Some(numShufflePartitions))
+        }
     }
 
     val order = Seq(createSortOrder(fileNameCol, Ascending), createSortOrder(rowPosCol, Ascending))
