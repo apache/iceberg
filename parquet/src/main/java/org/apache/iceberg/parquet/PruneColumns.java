@@ -49,7 +49,12 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
       Type field = fields.get(i);
       Integer fieldId = getId(originalField);
       if (fieldId != null && selectedIds.contains(fieldId)) {
-        builder.addField(originalField);
+        if (field != null) {
+          hasChange = true;
+          builder.addField(field);
+        } else {
+          builder.addField(originalField);
+        }
         fieldCount += 1;
       } else if (field != null) {
         builder.addField(field);

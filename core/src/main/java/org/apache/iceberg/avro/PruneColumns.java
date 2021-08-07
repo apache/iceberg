@@ -25,6 +25,7 @@ import java.util.Objects;
 import java.util.Set;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
+import org.apache.avro.Schema.Type;
 import org.apache.avro.SchemaNormalization;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -81,13 +82,21 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
 
       Schema fieldSchema = fields.get(field.pos());
       // All primitives are selected by selecting the field, but map and list
-      // types can be selected by projecting the keys, values, or elements.
+      // types can be selected by projecting the keys, values, or elements. Empty
+      // Structs can be selected by selecting the record itself instead of it's children.
       // This creates two conditions where the field should be selected: if the
       // id is selected or if the result of the field is non-null. The only
       // case where the converted field is non-null is when a map or list is
       // selected by lower IDs.
       if (selectedIds.contains(fieldId)) {
-        filteredFields.add(copyField(field, field.schema(), fieldId));
+        if (isNestedRecord(field) &&
+            (fieldSchema == null || isEmptySchema(field.schema()) || isEmptySchema(fieldSchema))) {
+          filteredFields.add(copyEmptyField(field, record.getNamespace(), fieldId));
+        } else if (fieldSchema != null) {
+          filteredFields.add(copyField(field, fieldSchema, fieldId));
+        } else {
+          filteredFields.add(copyField(field, field.schema(), fieldId));
+        }
       } else if (fieldSchema != null) {
         hasChange = true;
         filteredFields.add(copyField(field, fieldSchema, fieldId));
@@ -103,6 +112,40 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
     }
 
     return null;
+  }
+
+  private boolean isNestedRecord(Schema.Field field) {
+    if (AvroSchemaUtil.isOptionSchema(field.schema())) {
+      Schema optionSchema = AvroSchemaUtil.fromOption(field.schema());
+      return optionSchema.getType() == Type.RECORD;
+    } else {
+      return field.schema().getType() == Type.RECORD;
+    }
+  }
+
+  private boolean isEmptySchema(Schema schema) {
+    if (AvroSchemaUtil.isOptionSchema(schema)) {
+      Schema optionSchema = AvroSchemaUtil.fromOption(schema);
+      if (optionSchema.getType() == Type.RECORD) {
+        return optionSchema.getFields().isEmpty();
+      }
+    } else if (schema.getType() == Type.RECORD) {
+      return schema.getFields().isEmpty();
+    }
+    return false;
+  }
+
+  private Schema.Field copyEmptyField(Schema.Field field, String namespace, Integer fieldId) {
+    Schema emptyRecordSchema =
+        Schema.createRecord("r" + fieldId, null, null, false, ImmutableList.of());
+
+    if (field.schema().isUnion()) {
+      return copyField(field, AvroSchemaUtil.toOption(emptyRecordSchema), fieldId);
+    } else if (field.schema().getType() == Type.RECORD) {
+      return copyField(field, emptyRecordSchema, fieldId);
+    } else {
+      throw new IllegalArgumentException(String.format("Cannot make an empty copy of a non Struct type, %s", field));
+    }
   }
 
   @Override

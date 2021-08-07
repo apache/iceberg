@@ -39,9 +39,7 @@ class GetProjectedIds extends TypeUtil.SchemaVisitor<Set<Integer>> {
 
   @Override
   public Set<Integer> field(Types.NestedField field, Set<Integer> fieldResult) {
-    if (fieldResult == null) {
-      fieldIds.add(field.fieldId());
-    }
+    fieldIds.add(field.fieldId());
     return fieldIds;
   }
 
