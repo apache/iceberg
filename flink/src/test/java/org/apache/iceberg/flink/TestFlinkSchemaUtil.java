@@ -39,7 +39,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestFlinkSchemaUtil {
@@ -314,13 +313,12 @@ public class TestFlinkSchemaUtil {
   }
 
   @Test
-  @Ignore
   public void testConvertFlinkSchemaWithNestedColumnInPrimaryKeys() {
     Schema icebergSchema = new Schema(
         Lists.newArrayList(Types.NestedField.required(1, "struct",
-            Types.StructType.of(Types.NestedField.required(2, "inner", Types.LongType.get())))
+            Types.StructType.of(Types.NestedField.required(2, "inner", Types.IntegerType.get())))
         ),
-        Sets.newHashSet(1, 2)
+        Sets.newHashSet(2)
     );
     AssertHelpers.assertThrows("Does not support the nested columns in flink schema's primary keys",
         ValidationException.class,
