@@ -17,7 +17,7 @@
 
 import datetime
 
-from .projection_util import ProjectionUtil
+from . import projection_util
 from .transform import Transform
 from .transform_util import TransformUtil
 from ..expressions import (Expressions,
@@ -61,7 +61,7 @@ class Dates(Transform):
         if predicate.op == Operation.NOT_NULL or predicate.op == Operation.IS_NULL:
             return Expressions.predicate(predicate.op, name)
 
-        return ProjectionUtil.truncate_integer(name, predicate, self)
+        return projection_util.truncate_integer(name, predicate, self)
 
     def project_strict(self, name, predicate):
         return None

@@ -17,7 +17,7 @@
 
 from decimal import Decimal
 
-from .projection_util import ProjectionUtil
+from . import projection_util
 from .transform import Transform
 from .transform_util import TransformUtil
 from ..expressions import (Expressions,
@@ -72,7 +72,7 @@ class TruncateInteger(Truncate):
         if predicate.op == Operation.NOT_NULL or predicate.op == Operation.IS_NULL:
             return Expressions.predicate(predicate.op, name)
 
-        return ProjectionUtil.truncate_integer(name, predicate, self)
+        return projection_util.truncate_integer(name, predicate, self)
 
     def project_strict(self, name, predicate):
         if predicate.op == Operation.LT:
@@ -128,7 +128,7 @@ class TruncateLong(Truncate):
         if predicate.op == Operation.NOT_NULL or predicate.op == Operation.IS_NULL:
             return Expressions.predicate(predicate.op, name)
 
-        return ProjectionUtil.truncate_long(name, predicate, self)
+        return projection_util.truncate_long(name, predicate, self)
 
     def project_strict(self, name, predicate):
         return None
@@ -169,7 +169,7 @@ class TruncateDecimal(Truncate):
         if predicate.op == Operation.NOT_NULL or predicate.op == Operation.IS_NULL:
             return Expressions.predicate(predicate.op, name)
 
-        return ProjectionUtil.truncate_decimal(name, predicate, self)
+        return projection_util.truncate_decimal(name, predicate, self)
 
     def project_strict(self, name, predicate):
         return None
@@ -207,7 +207,7 @@ class TruncateString(Truncate):
         if predicate.op == Operation.NOT_NULL or predicate.op == Operation.IS_NULL:
             return Expressions.predicate(predicate.op, name)
 
-        return ProjectionUtil.truncate_array(name, predicate, self)
+        return projection_util.truncate_array(name, predicate, self)
 
     def project_strict(self, name, predicate):
         return None
