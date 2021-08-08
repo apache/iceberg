@@ -31,6 +31,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -54,6 +55,7 @@ import org.junit.Test;
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.spark.sql.functions.lit;
 
 public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
@@ -721,9 +723,25 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
   // TODO: multiple stripes for ORC
 
+  protected void setDistributionModeOnTable() {
+    DistributionMode distMode = DistributionMode.NONE;
+    switch (fileFormat) {
+      case "parquet":
+        distMode = DistributionMode.HASH;
+        break;
+      case "orc":
+        break;
+      case "avro":
+        distMode = DistributionMode.RANGE;
+        break;
+    }
+    sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName, WRITE_DISTRIBUTION_MODE, distMode);
+  }
+
   protected void createAndInitPartitionedTable() {
     sql("CREATE TABLE %s (id INT, dep STRING) USING iceberg PARTITIONED BY (dep)", tableName);
     initTable();
+    setDistributionModeOnTable();
   }
 
   protected void createAndInitUnpartitionedTable() {
