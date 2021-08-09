@@ -338,8 +338,7 @@ public class TestTypeUtil {
                     required(17, "C", Types.IntegerType.get()))
                 )))));
 
-    // Should select everything except 12 and 15 since they are structs with selected elements
-    Set<Integer> expectedIds = Sets.newHashSet(10, 11, 35, 13, 14, 16, 17);
+    Set<Integer> expectedIds = Sets.newHashSet(10, 11, 35, 12, 13, 14, 15, 16, 17);
     Set<Integer> actualIds = TypeUtil.getProjectedIds(schema);
 
     Assert.assertEquals(expectedIds, actualIds);
