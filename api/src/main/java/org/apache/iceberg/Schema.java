@@ -96,8 +96,8 @@ public class Schema implements Serializable {
 
     // validate IdentifierField
     if (identifierFieldIds != null) {
-      Map<Integer, Integer> idToParent = TypeUtil.indexParents(this.struct);
-      identifierFieldIds.forEach(id -> validateIdentifierField(id, this.lazyIdToField(), idToParent));
+      Map<Integer, Integer> idToParent = TypeUtil.indexParents(struct);
+      identifierFieldIds.forEach(id -> validateIdentifierField(id, lazyIdToField(), idToParent));
     }
 
     this.identifierFieldIds = identifierFieldIds != null ? Ints.toArray(identifierFieldIds) : new int[0];
@@ -105,7 +105,7 @@ public class Schema implements Serializable {
     lazyIdToName();
   }
 
-  protected static void validateIdentifierField(int fieldId, Map<Integer, Types.NestedField> idToField,
+  static void validateIdentifierField(int fieldId, Map<Integer, Types.NestedField> idToField,
                                               Map<Integer, Integer> idToParent) {
     Types.NestedField field = idToField.get(fieldId);
     Preconditions.checkArgument(field.type().isPrimitiveType(),
