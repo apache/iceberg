@@ -21,9 +21,12 @@ package org.apache.iceberg;
 
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.ManifestEvaluator;
+import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
@@ -109,7 +112,22 @@ public class DataFilesTable extends BaseMetadataTable {
       Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
-      return CloseableIterable.transform(manifests, manifest ->
+      // use an inclusive projection to remove the partition name prefix and filter out any non-partition expressions
+      Expression partitionFilter = Projections
+          .inclusive(
+              transformSpec(fileSchema, table().spec(), PARTITION_FIELD_PREFIX),
+              caseSensitive)
+          .project(rowFilter);
+
+      ManifestEvaluator manifestEval = ManifestEvaluator.forPartitionFilter(
+          partitionFilter, table().spec(), caseSensitive);
+      CloseableIterable<ManifestFile> filtered = CloseableIterable.filter(manifests, manifestEval::eval);
+
+      // Data tasks produce the table schema, not the projection schema and projection is done by processing engines.
+      // This data task needs to use the table schema, which may not include a partition schema to avoid having an
+      // empty struct in the schema for unpartitioned tables. Some engines, like Spark, can't handle empty structs in
+      // all cases.
+      return CloseableIterable.transform(filtered, manifest ->
           new ManifestReadTask(ops.io(), manifest, schema(), schemaString, specString, residuals));
     }
   }
@@ -137,6 +155,11 @@ public class DataFilesTable extends BaseMetadataTable {
     @Override
     public Iterable<FileScanTask> split(long splitSize) {
       return ImmutableList.of(this); // don't split
+    }
+
+    @VisibleForTesting
+    ManifestFile manifest() {
+      return manifest;
     }
   }
 }
