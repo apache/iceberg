@@ -128,7 +128,7 @@ public class DataFilesTable extends BaseMetadataTable {
       // empty struct in the schema for unpartitioned tables. Some engines, like Spark, can't handle empty structs in
       // all cases.
       return CloseableIterable.transform(filtered, manifest ->
-          new ManifestReadTask(ops.io(), manifest, fileSchema, schemaString, specString, residuals));
+          new ManifestReadTask(ops.io(), manifest, schema(), schemaString, specString, residuals));
     }
   }
 
