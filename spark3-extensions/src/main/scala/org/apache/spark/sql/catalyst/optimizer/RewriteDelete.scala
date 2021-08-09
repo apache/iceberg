@@ -21,7 +21,6 @@ package org.apache.spark.sql.catalyst.optimizer
 
 import org.apache.iceberg.DistributionMode
 import org.apache.iceberg.spark.Spark3Util
-import org.apache.iceberg.spark.Spark3VersionUtil
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.expressions.Ascending
 import org.apache.spark.sql.catalyst.expressions.AttributeReference
