@@ -283,7 +283,7 @@ public class TestFlinkSchemaUtil {
             Types.NestedField.required(101, "int", Types.IntegerType.get()),
             Types.NestedField.optional(102, "string", Types.StringType.get())
         ),
-        Sets.newHashSet(101, 102)
+        Sets.newHashSet(101)
     );
 
     TableSchema flinkSchema = TableSchema.builder()
@@ -316,9 +316,9 @@ public class TestFlinkSchemaUtil {
   public void testConvertFlinkSchemaWithNestedColumnInPrimaryKeys() {
     Schema icebergSchema = new Schema(
         Lists.newArrayList(Types.NestedField.required(1, "struct",
-            Types.StructType.of(Types.NestedField.required(2, "inner", Types.LongType.get())))
+            Types.StructType.of(Types.NestedField.required(2, "inner", Types.IntegerType.get())))
         ),
-        Sets.newHashSet(1, 2)
+        Sets.newHashSet(2)
     );
     AssertHelpers.assertThrows("Does not support the nested columns in flink schema's primary keys",
         ValidationException.class,
