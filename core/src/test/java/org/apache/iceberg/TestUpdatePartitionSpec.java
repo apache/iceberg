@@ -425,6 +425,38 @@ public class TestUpdatePartitionSpec extends TableTestBase {
   }
 
   @Test
+  public void testAddDeletedPartitionBack() {
+    PartitionSpec initialExpectedSpec = PartitionSpec.builderFor(table.schema())
+        .withSpecId(TableMetadata.INITIAL_SPEC_ID)
+        .bucket("data", 16)
+        .build();
+
+    Assert.assertEquals("Initial spec must match", initialExpectedSpec, table.spec());
+
+    // remove an existing partition column
+    table.updateSpec()
+        .removeField(bucket("data", 16))
+        .commit();
+
+    // add the same partition column back
+    table.updateSpec()
+        .addField("data_bucket", bucket("data", 16))
+        .commit();
+
+    // in v1, the spec will contain 2 fields as we replace fields with void transforms
+    PartitionSpec v1Expected = PartitionSpec.builderFor(table.schema())
+        .withSpecId(2)
+        .alwaysNull("data", "data_bucket_1000")
+        .bucket("data", 16, "data_bucket")
+        .build();
+
+    V1Assert.assertEquals("Should match expected spec", v1Expected, table.spec());
+
+    // in v2, the spec will be reused as we already have an equivalent spec
+    V2Assert.assertEquals("Should match expected spec", initialExpectedSpec, table.spec());
+  }
+
+  @Test
   public void testRemoveNewlyAddedFieldByName() {
     AssertHelpers.assertThrows("Should fail trying to remove unknown field",
         IllegalArgumentException.class, "Cannot delete newly added field",
