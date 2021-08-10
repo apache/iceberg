@@ -132,13 +132,13 @@ public class TypeUtil {
   public static Types.StructType selectNot(Types.StructType struct, Set<Integer> fieldIds) {
     Set<Integer> projectedIds = getIdsInternal(struct);
     projectedIds.removeAll(fieldIds);
-    return select(struct, projectedIds);
+    return project(struct, projectedIds);
   }
 
   public static Schema selectNot(Schema schema, Set<Integer> fieldIds) {
     Set<Integer> projectedIds = getIdsInternal(schema.asStruct());
     projectedIds.removeAll(fieldIds);
-    return select(schema, projectedIds);
+    return project(schema, projectedIds);
   }
 
   public static Schema join(Schema left, Schema right) {
