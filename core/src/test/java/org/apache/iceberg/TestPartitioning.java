@@ -103,6 +103,76 @@ public class TestPartitioning {
   }
 
   @Test
+  public void testPartitionTypeWithRenamesInV1Table() {
+    PartitionSpec initialSpec = PartitionSpec.builderFor(SCHEMA)
+        .identity("data", "p1")
+        .build();
+    TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, initialSpec, V1_FORMAT_VERSION);
+
+    table.updateSpec()
+        .addField("category")
+        .commit();
+
+    table.updateSpec()
+        .renameField("p1", "p2")
+        .commit();
+
+    StructType expectedType = StructType.of(
+        NestedField.optional(1000, "p2", Types.StringType.get()),
+        NestedField.optional(1001, "category", Types.StringType.get())
+    );
+    StructType actualType = Partitioning.partitionType(table);
+    Assert.assertEquals("Types must match", expectedType, actualType);
+  }
+
+  @Test
+  public void testPartitionTypeWithAddingBackSamePartitionFieldInV1Table() {
+    PartitionSpec initialSpec = PartitionSpec.builderFor(SCHEMA)
+        .identity("data")
+        .build();
+    TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, initialSpec, V1_FORMAT_VERSION);
+
+    table.updateSpec()
+        .removeField("data")
+        .commit();
+
+    table.updateSpec()
+        .addField("data")
+        .commit();
+
+    // in v1, we use void transforms instead of dropping partition fields
+    StructType expectedType = StructType.of(
+        NestedField.optional(1000, "data_1000", Types.StringType.get()),
+        NestedField.optional(1001, "data", Types.StringType.get())
+    );
+    StructType actualType = Partitioning.partitionType(table);
+    Assert.assertEquals("Types must match", expectedType, actualType);
+  }
+
+  @Test
+  public void testPartitionTypeWithAddingBackSamePartitionFieldInV2Table() {
+    PartitionSpec initialSpec = PartitionSpec.builderFor(SCHEMA)
+        .identity("data")
+        .build();
+    TestTables.TestTable table = TestTables.create(tableDir, "test", SCHEMA, initialSpec, V2_FORMAT_VERSION);
+
+    table.updateSpec()
+        .removeField("data")
+        .commit();
+
+    table.updateSpec()
+        .addField("data")
+        .commit();
+
+    // in v2, we should be able to reuse the original partition spec
+    StructType expectedType = StructType.of(
+        NestedField.optional(1000, "data", Types.StringType.get())
+    );
+    StructType actualType = Partitioning.partitionType(table);
+    Assert.assertEquals("Types must match", expectedType, actualType);
+  }
+
+  @Test
   public void testPartitionTypeWithIncompatibleSpecEvolution() {
     PartitionSpec initialSpec = PartitionSpec.builderFor(SCHEMA)
         .identity("data")

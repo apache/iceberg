@@ -19,12 +19,14 @@
 
 package org.apache.iceberg;
 
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
 import org.apache.iceberg.types.Types.NestedField;
@@ -199,27 +201,37 @@ public class Partitioning {
       return table.spec().partitionType();
     }
 
-    Map<Integer, NestedField> commonFields = Maps.newHashMap();
+    Map<Integer, PartitionField> fieldMap = Maps.newHashMap();
+    List<NestedField> structFields = Lists.newArrayList();
 
-    for (PartitionSpec spec : table.specs().values()) {
-      List<NestedField> fields = spec.partitionType().fields();
+    // sort the spec IDs in descending order to pick up the most recent field names
+    List<Integer> specIds = table.specs().keySet().stream()
+        .sorted(Collections.reverseOrder())
+        .collect(Collectors.toList());
 
-      for (NestedField field : fields) {
+    for (Integer specId : specIds) {
+      PartitionSpec spec = table.specs().get(specId);
+
+      for (PartitionField field : spec.fields()) {
         int fieldId = field.fieldId();
-        NestedField existingField = commonFields.get(fieldId);
+        PartitionField existingField = fieldMap.get(fieldId);
 
-        // partition fields may conflict in v1 tables
-        ValidationException.check(existingField == null || existingField.equals(field),
-            "Conflicting partition fields: ['%s', '%s']",
-            field, existingField);
-
-        commonFields.put(fieldId, field);
+        if (existingField == null) {
+          fieldMap.put(fieldId, field);
+          NestedField structField = spec.partitionType().field(fieldId);
+          structFields.add(structField);
+        } else {
+          // verify the fields are compatible as they may conflict in v1 tables
+          ValidationException.check(field.compatibleWith(existingField),
+              "Conflicting partition fields: ['%s', '%s']",
+              field, existingField);
+        }
       }
     }
 
-    List<NestedField> sortedCommonFields = commonFields.values().stream()
+    List<NestedField> sortedStructFields = structFields.stream()
         .sorted(Comparator.comparingInt(NestedField::fieldId))
         .collect(Collectors.toList());
-    return StructType.of(sortedCommonFields);
+    return StructType.of(sortedStructFields);
   }
 }
