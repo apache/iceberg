@@ -271,7 +271,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
   }
 
   private void replaceDataFiles(Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles,
-      long startingSnapshotId) {
+                                long startingSnapshotId) {
     try {
       doReplace(deletedDataFiles, addedDataFiles, startingSnapshotId);
     } catch (CommitStateUnknownException e) {
