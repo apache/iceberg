@@ -177,7 +177,7 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
     for (MetadataTableType tableType : Arrays.asList(FILES, ALL_DATA_FILES)) {
       assertPartitions(
           ImmutableList.of(row(null, null), row(null, 2), row("b1", null), row("b1", 2)),
-          "STRUCT<data:STRING,category_bucket_8:INT>",
+          "STRUCT<data:STRING,category_bucket_8_another_name:INT>",
           tableType);
     }
   }
