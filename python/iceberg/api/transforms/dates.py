@@ -17,9 +17,10 @@
 
 import datetime
 
+from . import transform_util
 from .projection_util import ProjectionUtil
 from .transform import Transform
-from .transform_util import TransformUtil
+from .transform_util import human_day, human_month, human_year
 from ..expressions import (Expressions,
                            Operation)
 from ..types.types import (IntegerType,
@@ -34,9 +35,9 @@ class Dates(Transform):
     EPOCH = datetime.datetime.utcfromtimestamp(0)
     SECONDS_IN_DAY = 86400
 
-    HUMAN_FUNCS = {"year": lambda x: TransformUtil.human_year(x),
-                   "month": lambda x: TransformUtil.human_month(x),
-                   "day": lambda x: TransformUtil.human_day(x)}
+    HUMAN_FUNCS = {"year": lambda x: human_year(x),
+                   "month": lambda x: human_month(x),
+                   "day": lambda x: human_day(x)}
 
     def __init__(self, granularity, name):
         if granularity not in (Dates.YEAR, Dates.MONTH, Dates.DAY):
@@ -48,7 +49,7 @@ class Dates(Transform):
         if self.granularity == Dates.DAY:
             return days
         else:
-            apply_func = getattr(TransformUtil, "diff_{}".format(self.granularity))
+            apply_func = getattr(transform_util, "diff_{}".format(self.granularity))
             return apply_func(datetime.datetime.utcfromtimestamp(days * Dates.SECONDS_IN_DAY), Dates.EPOCH)
 
     def can_transform(self, type):

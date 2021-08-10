@@ -19,7 +19,7 @@ from decimal import Decimal
 
 from .projection_util import ProjectionUtil
 from .transform import Transform
-from .transform_util import TransformUtil
+from .transform_util import unscale_decimal
 from ..expressions import (Expressions,
                            Operation)
 from ..types import TypeID
@@ -158,7 +158,7 @@ class TruncateDecimal(Truncate):
         self.unscaled_width = unscaled_width
 
     def apply(self, value):
-        unscaled_value = TransformUtil.unscale_decimal(value)
+        unscaled_value = unscale_decimal(value)
         applied_value = unscaled_value - (((unscaled_value % self.unscaled_width) + self.unscaled_width) % self.unscaled_width)
         return Decimal("{}e{}".format(applied_value, value.as_tuple().exponent))
 

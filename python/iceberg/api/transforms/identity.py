@@ -16,7 +16,11 @@
 # under the License.
 
 from .transform import Transform
-from .transform_util import TransformUtil
+from .transform_util import (base_64_encode,
+                             human_day,
+                             human_time,
+                             human_timestamp_with_timezone,
+                             human_timestamp_without_timezone)
 from ..expressions import Expressions
 from ..types import TypeID
 
@@ -53,19 +57,17 @@ class Identity(Transform):
             return "null"
 
         if self.type_var.type_id == TypeID.DATE:
-            return TransformUtil.human_day(value)
+            return human_day(value)
         elif self.type_var.type_id == TypeID.TIME:
-            return TransformUtil.human_time(value)
+            return human_time(value)
         elif self.type_var.type_id == TypeID.TIMESTAMP:
             if self.type_var.adjust_to_utc:
-                return TransformUtil.human_timestamp_with_timezone(value)
+                return human_timestamp_with_timezone(value)
             else:
-                return TransformUtil.human_timestamp_without_timezone(value)
+                return human_timestamp_without_timezone(value)
         elif self.type_var.type_id in (TypeID.BINARY, TypeID.FIXED):
-            if isinstance(value, bytearray):
-                return TransformUtil.base_64_encode(value)
-            elif isinstance(value, bytes):
-                return TransformUtil.base_64_encode(value)
+            if isinstance(value, bytearray) or isinstance(value, bytes):
+                return base_64_encode(value)
             else:
                 raise RuntimeError("Unsupported binary type: %s" % value.__class__.__name__)
         else:

@@ -22,7 +22,7 @@ import sys
 import mmh3
 
 from .transform import Transform
-from .transform_util import TransformUtil
+from .transform_util import unscale_decimal
 from ..expressions import (Expressions,
                            JAVA_MAX_INT,
                            Operation)
@@ -147,7 +147,7 @@ class BucketDecimal(Bucket):
 
     def hash(self, value):
         # to-do: unwrap to_bytes func since python2 support is being removed
-        unscaled_value = TransformUtil.unscale_decimal(value)
+        unscaled_value = unscale_decimal(value)
         number_of_bytes = int(math.ceil(unscaled_value.bit_length() / 8))
         return Bucket.MURMUR3.hash(to_bytes(unscaled_value, number_of_bytes, byteorder='big'))
 
