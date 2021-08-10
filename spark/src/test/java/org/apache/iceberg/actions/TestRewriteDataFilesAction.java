@@ -126,12 +126,12 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
       throw new CommitStateUnknownException(new RuntimeException("Unknown State"));
     }).when(spyAction).doReplace(any(), any(), anyLong());
 
-    AssertHelpers.assertThrows("Should throw CommitStateUnknown Exception",
+    AssertHelpers.assertThrows("Should throw CommitStateUnknownException",
         CommitStateUnknownException.class, spyAction::execute);
 
     FileIO io = table.io();
     for (DataFile dataFile : dataFiles) {
-      Assert.assertTrue("datafile should be not delete", io.newInputFile(String.valueOf(dataFile.path())).exists());
+      Assert.assertTrue("Datafile should be not deleted", io.newInputFile(String.valueOf(dataFile.path())).exists());
     }
 
     table.refresh();
@@ -139,7 +139,7 @@ public abstract class TestRewriteDataFilesAction extends SparkTestBase {
         .map(fileScanTask -> String.valueOf(fileScanTask.file().path())).collect(Collectors.toSet());
     Set<String> mergedFilePathStr =
         dataFiles.stream().map(dataFile -> String.valueOf(dataFile.path())).collect(Collectors.toSet());
-    Assert.assertEquals("rewrited datafiles should be commited", currentDataFilePathStr,
+    Assert.assertEquals("Rewrited datafiles should be commited", currentDataFilePathStr,
         mergedFilePathStr);
   }
 

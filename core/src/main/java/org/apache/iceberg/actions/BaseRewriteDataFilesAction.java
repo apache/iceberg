@@ -270,29 +270,27 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     return tasksGroupedByPartition.asMap();
   }
 
-  private void replaceDataFiles(
-      Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles,
+  private void replaceDataFiles(Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles,
       long startingSnapshotId) {
     try {
       doReplace(deletedDataFiles, addedDataFiles, startingSnapshotId);
+    } catch (CommitStateUnknownException e) {
+      LOG.warn("Commit state unknown for files: {}, cannot clean up files because they may have been committed " +
+          "successfully.", Lists.newArrayList(addedDataFiles), e);
+      throw e;
     } catch (Exception e) {
-      if (e instanceof CommitStateUnknownException) {
-        LOG.warn("for unknown commiting state ,we should not delete file ");
-      } else {
-        LOG.warn("rewrite fail, delete file {}", Lists.newArrayList(addedDataFiles));
-        Tasks.foreach(Iterables.transform(addedDataFiles, f -> f.path().toString()))
-            .noRetry()
-            .suppressFailureWhenFinished()
-            .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
-            .run(fileIO::deleteFile);
-      }
+      LOG.warn("Failed to rewrite, files {} will be delete", Lists.newArrayList(addedDataFiles));
+      Tasks.foreach(Iterables.transform(addedDataFiles, f -> f.path().toString()))
+          .noRetry()
+          .suppressFailureWhenFinished()
+          .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
+          .run(fileIO::deleteFile);
       throw e;
     }
   }
 
   @VisibleForTesting
-  void doReplace(
-      Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles,
+  void doReplace(Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles,
       long startingSnapshotId) {
     RewriteFiles rewriteFiles = table.newRewrite()
         .validateFromSnapshot(startingSnapshotId)
