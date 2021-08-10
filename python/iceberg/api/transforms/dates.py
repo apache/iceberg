@@ -17,13 +17,17 @@
 
 import datetime
 
-from . import projection_util
+from .projection_util import (fix_inclusive_time_projection,
+                              fix_strict_time_projection,
+                              project_transform_predicate,
+                              truncate_integer,
+                              truncate_integer_strict)
 from .transform import Transform
 from .transform_util import TransformUtil
-from ..expressions import (Expressions,
-                           Operation)
-from ..types.types import (IntegerType,
-                           TypeID)
+from ..expressions import (Expressions, Operation)
+from ..expressions.predicate import BoundPredicate
+from ..types.type import (Type, TypeID)
+from ..types.types import (DateType, IntegerType)
 
 
 class Dates(Transform):
@@ -38,42 +42,83 @@ class Dates(Transform):
                    "month": lambda x: TransformUtil.human_month(x),
                    "day": lambda x: TransformUtil.human_day(x)}
 
-    def __init__(self, granularity, name):
+    def __init__(self, granularity, name: str):
+        super().__init__()
         if granularity not in (Dates.YEAR, Dates.MONTH, Dates.DAY):
             raise RuntimeError("Invalid Granularity: %s" % granularity)
-        self.granularity = granularity
-        self.name = name
+        self._granularity = granularity
+        self._name = name
 
     def apply(self, days):
-        if self.granularity == Dates.DAY:
-            return days
-        else:
-            apply_func = getattr(TransformUtil, "diff_{}".format(self.granularity))
-            return apply_func(datetime.datetime.utcfromtimestamp(days * Dates.SECONDS_IN_DAY), Dates.EPOCH)
+        if days is None:
+            return None
 
-    def can_transform(self, type):
-        return type.type_id == TypeID.DATE
+        if self._granularity == Dates.DAY:
+            return days
+
+        apply_func = getattr(TransformUtil, "diff_{}".format(self._granularity))
+        if days >= 0:
+            return apply_func(datetime.datetime.utcfromtimestamp(days * Dates.SECONDS_IN_DAY), Dates.EPOCH)
+        else:
+            return apply_func(datetime.datetime.utcfromtimestamp((days + 1) * Dates.SECONDS_IN_DAY), Dates.EPOCH) - 1
+
+    def can_transform(self, another: Type):
+        return another.type_id == TypeID.DATE
 
     def get_result_type(self, source_type):
+        if self._granularity == Dates.DAY:
+            return DateType.get()
+
         return IntegerType.get()
 
-    def project(self, name, predicate):
-        if predicate.op == Operation.NOT_NULL or predicate.op == Operation.IS_NULL:
-            return Expressions.predicate(predicate.op, name)
+    # todo support preservesOrder and satisfiesOrderOf
 
-        return projection_util.truncate_integer(name, predicate, self)
+    def project(self, name, predicate: BoundPredicate):
+        from ..expressions.transform import BoundTransform
+        if isinstance(predicate.term, BoundTransform):
+            return project_transform_predicate(self, name, predicate)
+
+        if predicate.is_unary_predicate:
+            return Expressions.predicate(predicate.op, name)
+        elif predicate.is_literal_predicate:
+            projected = truncate_integer(name, predicate, self)
+            if self._granularity != Dates.DAY:
+                return fix_inclusive_time_projection(projected)
+            return projected
+        elif predicate.is_set_predicate and predicate.op == Operation.IN:
+            raise NotImplementedError
+
+        return None
 
     def project_strict(self, name, predicate):
+        from ..expressions.transform import BoundTransform
+        if isinstance(predicate.term, BoundTransform):
+            return project_transform_predicate(self, name, predicate)
+
+        if predicate.is_unary_predicate:
+            return Expressions.predicate(predicate.op, name)
+        elif predicate.is_literal_predicate:
+            projected = truncate_integer_strict(name, predicate, self)
+            if self._granularity != Dates.DAY:
+                return fix_strict_time_projection(projected)
+            return projected
+        elif predicate.is_set_predicate and predicate.op == Operation.NOT_IN:
+            raise NotImplementedError
+
         return None
 
     def to_human_string(self, value):
         if value is None:
             return "null"
 
-        return Dates.HUMAN_FUNCS[self.granularity](value)
+        apply_func = Dates.HUMAN_FUNCS.get(self._granularity)
+        if apply_func is not None:
+            return apply_func(value)
+        else:
+            raise ValueError(f"Unsupported time unit: {self._granularity}")
 
     def __str__(self):
-        return self.name
+        return self._name
 
     def dedup_name(self):
         return "time"
@@ -84,4 +129,4 @@ class Dates(Transform):
         if other is None or not isinstance(other, Dates):
             return False
 
-        return self.granularity == other.granularity and self.name == other.name
+        return self._granularity == other._granularity and self._name == other._name

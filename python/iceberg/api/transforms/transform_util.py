@@ -30,7 +30,8 @@ class TransformUtil(object):
 
     @staticmethod
     def human_month(month_ordinal):
-        return "{0:0=4d}-{1:0=2d}".format(TransformUtil.EPOCH_YEAR + int(month_ordinal / 12), 1 + int(month_ordinal % 12))
+        return "{0:0=4d}-{1:0=2d}".format(
+            TransformUtil.EPOCH_YEAR + int(month_ordinal // 12), 1 + int(month_ordinal % 12))
 
     @staticmethod
     def human_day(day_ordinal):
@@ -71,10 +72,16 @@ class TransformUtil(object):
 
     @staticmethod
     def diff_month(date1, date2):
+        if date1 < date2:
+            return (date1.year - date2.year) * 12 + (date1.month - date2.month) - (0 if date1.day < date2.day else -1)
+
         return (date1.year - date2.year) * 12 + (date1.month - date2.month) - (1 if date1.day < date2.day else 0)
 
     @staticmethod
     def diff_year(date1, date2):
+        if date1 < date2:
+            return (date1.year - date2.year) - \
+                   (0 if date1.month < date2.month or (date1.month == date2.month and date1.day < date2.day) else -1)
         return (date1.year - date2.year) - \
                (1 if date1.month < date2.month or (date1.month == date2.month and date1.day < date2.day) else 0)
 
