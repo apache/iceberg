@@ -167,6 +167,19 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
           "STRUCT<data:STRING,category_bucket_8:INT>",
           tableType);
     }
+
+    table.updateSpec()
+        .renameField("category_bucket_8", "category_bucket_8_another_name")
+        .commit();
+    sql("REFRESH TABLE %s", tableName);
+
+    // verify the metadata tables after renaming the second partition column
+    for (MetadataTableType tableType : Arrays.asList(FILES, ALL_DATA_FILES)) {
+      assertPartitions(
+          ImmutableList.of(row(null, null), row(null, 2), row("b1", null), row("b1", 2)),
+          "STRUCT<data:STRING,category_bucket_8:INT>",
+          tableType);
+    }
   }
 
   @Test
@@ -224,6 +237,19 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
       assertPartitions(
           ImmutableList.of(row(null, null), row(null, 2), row("b1", null), row("b1", 2)),
           "STRUCT<data:STRING,category_bucket_8:INT>",
+          tableType);
+    }
+
+    table.updateSpec()
+        .renameField("category_bucket_8", "category_bucket_8_another_name")
+        .commit();
+    sql("REFRESH TABLE %s", tableName);
+
+    // verify the metadata tables after renaming the second partition column
+    for (MetadataTableType tableType : Arrays.asList(ENTRIES, ALL_ENTRIES)) {
+      assertPartitions(
+          ImmutableList.of(row(null, null), row(null, 2), row("b1", null), row("b1", 2)),
+          "STRUCT<data:STRING,category_bucket_8_another_name:INT>",
           tableType);
     }
   }
