@@ -90,16 +90,6 @@ Inserts also support additional conditions:
 WHEN NOT MATCHED AND s.event_time > still_valid_threshold THEN INSERT (id, count) VALUES (s.id, 1)
 ```
 
-Source rows can also come from the target table or a subset of it.
-
-```sql
-MERGE INTO prod.db.target t
-USING (SELECT * from prod.db.target where op = 'increment') s
-ON t.id = s.id
-WHEN MATCHED AND t.count <> 0 THEN UPDATE SET t.count = 0, t.op = 'delete'
-WHEN MATCHED AND t.count = 0 THEN UPDATE SET t.count = s.count + 1
-```
-
 Only one record in the source data can update any given row of the target table, or else an error will be thrown.
 
 
@@ -193,6 +183,8 @@ UPDATE prod.db.table
 SET c1 = 'update_c1', c2 = 'update_c2'
 WHERE ts >= '2020-05-01 00:00:00' and ts < '2020-06-01 00:00:00'
 ```
+
+For more complex row-level updates based on incoming data, see the section on `MERGE INTO`.
 
 ## Writing with DataFrames
 
