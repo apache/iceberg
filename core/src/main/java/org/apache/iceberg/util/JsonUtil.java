@@ -124,6 +124,16 @@ public class JsonUtil {
         .build();
   }
 
+  public static List<String> getStringListOrNull(String property, JsonNode node) {
+    if (!node.has(property)) {
+      return null;
+    }
+
+    return ImmutableList.<String>builder()
+        .addAll(new JsonStringArrayIterator(property, node))
+        .build();
+  }
+
   public static Set<Integer> getIntegerSetOrNull(String property, JsonNode node) {
     if (!node.has(property)) {
       return null;

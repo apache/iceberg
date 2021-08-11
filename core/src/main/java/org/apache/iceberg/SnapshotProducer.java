@@ -188,12 +188,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
       return new BaseSnapshot(ops.io(),
           sequenceNumber, snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
-          base.currentSchemaId(), manifestList.location());
+          base.currentSchemaId(), null, manifestList.location());
 
     } else {
       return new BaseSnapshot(ops.io(),
           snapshotId(), parentSnapshotId, System.currentTimeMillis(), operation(), summary(base),
-          base.currentSchemaId(), manifests);
+          base.currentSchemaId(), null, manifests);
     }
   }
 

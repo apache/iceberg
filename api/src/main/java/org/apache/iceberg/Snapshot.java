@@ -135,4 +135,12 @@ public interface Snapshot extends Serializable {
   default Integer schemaId() {
     return null;
   }
+
+  /**
+   * Return the tags associated with the snapshot, or null if no tag is associated with the snapshot.
+   * @return tags associated with the snapshot, or null if no tag is associated with the snapshot.
+   */
+  default List<String> tags() {
+    return null;
+  }
 }

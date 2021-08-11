@@ -238,6 +238,7 @@ public class TableMetadata implements Serializable {
   private final long currentSnapshotId;
   private final List<Snapshot> snapshots;
   private final Map<Long, Snapshot> snapshotsById;
+  private final Map<String, Long> snapshotTags;
   private final Map<Integer, Schema> schemasById;
   private final Map<Integer, PartitionSpec> specsById;
   private final Map<Integer, SortOrder> sortOrdersById;
@@ -295,6 +296,7 @@ public class TableMetadata implements Serializable {
     this.previousFiles = previousFiles;
 
     this.snapshotsById = indexAndValidateSnapshots(snapshots, lastSequenceNumber);
+    this.snapshotTags = indexAndValidateSnapshotTags(snapshots);
     this.schemasById = indexSchemas();
     this.specsById = indexSpecs(specs);
     this.sortOrdersById = indexSortOrders(sortOrders);
@@ -453,6 +455,10 @@ public class TableMetadata implements Serializable {
 
   public Snapshot snapshot(long snapshotId) {
     return snapshotsById.get(snapshotId);
+  }
+
+  public Snapshot snapshot(String snapshotTag) {
+    return snapshotsById.get(snapshotTags.get(snapshotTag));
   }
 
   public Snapshot currentSnapshot() {
@@ -964,6 +970,22 @@ public class TableMetadata implements Serializable {
       builder.put(snap.snapshotId(), snap);
     }
     return builder.build();
+  }
+
+  private static Map<String, Long> indexAndValidateSnapshotTags(List<Snapshot> snapshots) {
+    Map<String, Long> snapshotTags = Maps.newHashMap();
+    for (Snapshot snap : snapshots) {
+      if (snap.tags() != null) {
+        for (String tag : snap.tags()) {
+          ValidationException.check(!snapshotTags.containsKey(tag),
+              "Tag is must be assigned to only 1 snapshot, but found tag %s in snapshots %s and %s",
+              tag, snap.snapshotId(), snapshotTags.get(tag));
+          snapshotTags.put(tag, snap.snapshotId());
+        }
+      }
+    }
+
+    return ImmutableMap.copyOf(snapshotTags);
   }
 
   private Map<Integer, Schema> indexSchemas() {

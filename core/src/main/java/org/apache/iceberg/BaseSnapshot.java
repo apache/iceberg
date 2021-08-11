@@ -44,6 +44,7 @@ class BaseSnapshot implements Snapshot {
   private final String operation;
   private final Map<String, String> summary;
   private final Integer schemaId;
+  private final List<String> tags;
 
   // lazily initialized
   private transient List<ManifestFile> allManifests = null;
@@ -60,7 +61,7 @@ class BaseSnapshot implements Snapshot {
                Integer schemaId,
                String... manifestFiles) {
     this(io, snapshotId, null, System.currentTimeMillis(), null, null,
-        schemaId, Lists.transform(Arrays.asList(manifestFiles),
+        schemaId, null, Lists.transform(Arrays.asList(manifestFiles),
             path -> new GenericManifestFile(io.newInputFile(path), 0)));
   }
 
@@ -72,6 +73,7 @@ class BaseSnapshot implements Snapshot {
                String operation,
                Map<String, String> summary,
                Integer schemaId,
+               List<String> tags,
                String manifestList) {
     this.io = io;
     this.sequenceNumber = sequenceNumber;
@@ -81,6 +83,7 @@ class BaseSnapshot implements Snapshot {
     this.operation = operation;
     this.summary = summary;
     this.schemaId = schemaId;
+    this.tags = tags;
     this.manifestListLocation = manifestList;
   }
 
@@ -91,8 +94,9 @@ class BaseSnapshot implements Snapshot {
                String operation,
                Map<String, String> summary,
                Integer schemaId,
+               List<String> tags,
                List<ManifestFile> dataManifests) {
-    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, schemaId, null);
+    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, schemaId, tags, null);
     this.allManifests = dataManifests;
   }
 
@@ -129,6 +133,11 @@ class BaseSnapshot implements Snapshot {
   @Override
   public Integer schemaId() {
     return schemaId;
+  }
+
+  @Override
+  public List<String> tags() {
+    return tags;
   }
 
   private void cacheManifests() {
@@ -233,7 +242,8 @@ class BaseSnapshot implements Snapshot {
           Objects.equal(this.parentId, other.parentId()) &&
           this.sequenceNumber == other.sequenceNumber() &&
           this.timestampMillis == other.timestampMillis() &&
-          Objects.equal(this.schemaId, other.schemaId());
+          Objects.equal(this.schemaId, other.schemaId()) &&
+          Objects.equal(this.tags, other.tags());
     }
 
     return false;
@@ -246,7 +256,8 @@ class BaseSnapshot implements Snapshot {
       this.parentId,
       this.sequenceNumber,
       this.timestampMillis,
-      this.schemaId
+      this.schemaId,
+      this.tags
     );
   }
 
@@ -259,6 +270,7 @@ class BaseSnapshot implements Snapshot {
         .add("summary", summary)
         .add("manifest-list", manifestListLocation)
         .add("schema-id", schemaId)
+        .add("tags", tags)
         .toString();
   }
 }

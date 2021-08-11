@@ -47,6 +47,7 @@ public class SnapshotParser {
   private static final String MANIFESTS = "manifests";
   private static final String MANIFEST_LIST = "manifest-list";
   private static final String SCHEMA_ID = "schema-id";
+  private static final String TAGS = "tags";
 
   static void toJson(Snapshot snapshot, JsonGenerator generator)
       throws IOException {
@@ -147,18 +148,20 @@ public class SnapshotParser {
 
     Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, node);
 
+    List<String> tags = JsonUtil.getStringListOrNull(TAGS, node);
+
     if (node.has(MANIFEST_LIST)) {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
       return new BaseSnapshot(
-          io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary, schemaId, manifestList);
+          io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary, schemaId, tags, manifestList);
 
     } else {
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be
       // loaded lazily, if it is needed
       List<ManifestFile> manifests = Lists.transform(JsonUtil.getStringList(MANIFESTS, node),
           location -> new GenericManifestFile(io.newInputFile(location), 0));
-      return new BaseSnapshot(io, snapshotId, parentId, timestamp, operation, summary, schemaId, manifests);
+      return new BaseSnapshot(io, snapshotId, parentId, timestamp, operation, summary, schemaId, tags, manifests);
     }
   }
 
