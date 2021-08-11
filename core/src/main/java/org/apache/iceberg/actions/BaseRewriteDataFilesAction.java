@@ -275,11 +275,10 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     try {
       doReplace(deletedDataFiles, addedDataFiles, startingSnapshotId);
     } catch (CommitStateUnknownException e) {
-      LOG.warn("Commit state unknown for files: {}, cannot clean up files because they may have been committed " +
-          "successfully.", Lists.newArrayList(addedDataFiles), e);
+      LOG.warn("Commit state unknown, cannot clean up files that may have been committed", e);
       throw e;
     } catch (Exception e) {
-      LOG.warn("Failed to rewrite, files {} will be delete", Lists.newArrayList(addedDataFiles));
+      LOG.warn("Failed to commit rewrite, cleaning up rewritten files",e);
       Tasks.foreach(Iterables.transform(addedDataFiles, f -> f.path().toString()))
           .noRetry()
           .suppressFailureWhenFinished()
