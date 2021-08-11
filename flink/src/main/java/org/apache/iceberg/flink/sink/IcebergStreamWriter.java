@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
@@ -40,6 +41,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
   private transient TaskWriter<T> writer;
   private transient int subTaskId;
   private transient int attemptId;
+  private transient IcebergStreamWriterMetrics writerMetrics;
 
   IcebergStreamWriter(String fullTableName, TaskWriterFactory<T> taskWriterFactory) {
     this.fullTableName = fullTableName;
@@ -51,6 +53,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
   public void open() {
     this.subTaskId = getRuntimeContext().getIndexOfThisSubtask();
     this.attemptId = getRuntimeContext().getAttemptNumber();
+    this.writerMetrics = new IcebergStreamWriterMetrics(super.metrics, fullTableName);
 
     // Initialize the task writer factory.
     this.taskWriterFactory.initialize(subTaskId, attemptId);
@@ -61,8 +64,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
 
   @Override
   public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
-    // close all open files and emit files to downstream committer operator
-    emit(writer.complete());
+    flush();
 
     this.writer = taskWriterFactory.create();
   }
@@ -70,6 +72,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
   @Override
   public void processElement(StreamRecord<T> element) throws Exception {
     writer.write(element.getValue());
+    writerMetrics.incrementProcessedCount();
   }
 
   @Override
@@ -85,7 +88,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
   public void endInput() throws IOException {
     // For bounded stream, it may don't enable the checkpoint mechanism so we'd better to emit the remaining
     // completed files to downstream before closing the writer so that we won't miss any of them.
-    emit(writer.complete());
+    flush();
   }
 
   @Override
@@ -97,7 +100,14 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
         .toString();
   }
 
-  private void emit(WriteResult result) {
+  /**
+   * close all open files and emit files to downstream committer operator
+   */
+  private void flush() throws IOException {
+    long startNano = System.nanoTime();
+    WriteResult result = writer.complete();
+    writerMetrics.updateFlushResult(result);
     output.collect(new StreamRecord<>(result));
+    writerMetrics.flushDuration(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano));
   }
 }

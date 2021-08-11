@@ -127,6 +127,7 @@ public class FlinkSink {
     private Integer writeParallelism = null;
     private List<String> equalityFieldColumns = null;
     private String uidPrefix = null;
+    private int fileSizeHistogramReservoirSize = 128;
 
     private Builder() {
     }
@@ -249,6 +250,19 @@ public class FlinkSink {
       return this;
     }
 
+    /**
+     * Set the {@link com.codahale.metrics.SlidingWindowReservoir} size (number of measurements stored)
+     * for the two histogram metrics of data files and delete file size distribution.
+     *
+     * @param newReservoirSize
+     * default is 128, which  only add small memory overhead at a fixed cost of1 KB (128 x 8B) per histogram. For large
+     * use cases with a lot of files, a larger reservoir size can produce more accurate histogram distribution.
+     */
+    public Builder fileSizeHistogramReservoirSize(int newReservoirSize) {
+      this.fileSizeHistogramReservoirSize = newReservoirSize;
+      return this;
+    }
+
     public DataStreamSink<RowData> build() {
       Preconditions.checkArgument(inputCreator != null,
           "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
@@ -299,7 +313,8 @@ public class FlinkSink {
     }
 
     private SingleOutputStreamOperator<Void> appendCommitter(SingleOutputStreamOperator<WriteResult> writerStream) {
-      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
+      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(
+          tableLoader, overwrite, fileSizeHistogramReservoirSize);
       SingleOutputStreamOperator<Void> committerStream = writerStream
           .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
           .setParallelism(1)

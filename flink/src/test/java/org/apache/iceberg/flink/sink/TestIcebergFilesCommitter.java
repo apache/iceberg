@@ -876,7 +876,8 @@ public class TestIcebergFilesCommitter extends TableTestBase {
     @Override
     @SuppressWarnings("unchecked")
     public <T extends StreamOperator<Void>> T createStreamOperator(StreamOperatorParameters<Void> param) {
-      IcebergFilesCommitter committer = new IcebergFilesCommitter(new TestTableLoader(tablePath), false);
+      IcebergFilesCommitter committer = new IcebergFilesCommitter(
+          new TestTableLoader(tablePath), false, 128);
       committer.setup(param.getContainingTask(), param.getStreamConfig(), param.getOutput());
       return (T) committer;
     }
