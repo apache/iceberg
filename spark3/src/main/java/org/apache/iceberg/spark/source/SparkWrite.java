@@ -263,7 +263,8 @@ class SparkWrite {
     @Override
     public void commit(WriterCommitMessage[] messages) {
       Iterable<DataFile> files = files(messages);
-      if (Iterables.size(files) == 0) {
+
+      if (!files.iterator().hasNext()) {
         LOG.info("Dynamic overwrite is empty, skipping commit");
         return;
       }
