@@ -278,7 +278,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
       LOG.warn("Commit state unknown, cannot clean up files that may have been committed", e);
       throw e;
     } catch (Exception e) {
-      LOG.warn("Failed to commit rewrite, cleaning up rewritten files",e);
+      LOG.warn("Failed to commit rewrite, cleaning up rewritten files", e);
       Tasks.foreach(Iterables.transform(addedDataFiles, f -> f.path().toString()))
           .noRetry()
           .suppressFailureWhenFinished()
