@@ -222,13 +222,20 @@ public class TestLocationProvider extends TableTestBase {
     Assert.assertTrue("default data location should be used when object storage path not set",
         table.locationProvider().newDataLocation("file").contains(table.location() + "/data"));
 
-    String storagePath = "s3://random/location";
+    String folderPath = "s3://random/folder/location";
     table.updateProperties()
-        .set(TableProperties.OBJECT_STORE_ENABLED, "true")
+        .set(TableProperties.WRITE_NEW_DATA_LOCATION, folderPath)
+        .commit();
+
+    Assert.assertTrue("folder storage path should be used when set",
+        table.locationProvider().newDataLocation("file").contains(folderPath));
+
+    String storagePath = "s3://random/object/location";
+    table.updateProperties()
         .set(TableProperties.OBJECT_STORE_PATH, storagePath)
         .commit();
 
-    Assert.assertTrue("storage path should be used when set",
+    Assert.assertTrue("object storage path should be used when set",
         table.locationProvider().newDataLocation("file").contains(storagePath));
   }
 }
