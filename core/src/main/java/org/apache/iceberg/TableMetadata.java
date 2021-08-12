@@ -238,7 +238,7 @@ public class TableMetadata implements Serializable {
   private final long currentSnapshotId;
   private final List<Snapshot> snapshots;
   private final Map<Long, Snapshot> snapshotsById;
-  private final Map<String, Long> snapshotTags;
+  private final Map<String, Snapshot> snapshotTags;
   private final Map<Integer, Schema> schemasById;
   private final Map<Integer, PartitionSpec> specsById;
   private final Map<Integer, SortOrder> sortOrdersById;
@@ -295,8 +295,11 @@ public class TableMetadata implements Serializable {
     this.snapshotLog = snapshotLog;
     this.previousFiles = previousFiles;
 
-    this.snapshotsById = indexAndValidateSnapshots(snapshots, lastSequenceNumber);
-    this.snapshotTags = indexAndValidateSnapshotTags(snapshots);
+    ImmutableMap.Builder<Long, Snapshot> snapshotIdBuilder = ImmutableMap.builder();
+    ImmutableMap.Builder<String, Snapshot> snapshotTagBuilder = ImmutableMap.builder();
+    indexAndValidateSnapshots(snapshots, lastSequenceNumber, snapshotIdBuilder, snapshotTagBuilder);
+    this.snapshotsById = snapshotIdBuilder.build();
+    this.snapshotTags = snapshotTagBuilder.build();
     this.schemasById = indexSchemas();
     this.specsById = indexSpecs(specs);
     this.sortOrdersById = indexSortOrders(sortOrders);
@@ -458,7 +461,7 @@ public class TableMetadata implements Serializable {
   }
 
   public Snapshot snapshot(String snapshotTag) {
-    return snapshotsById.get(snapshotTags.get(snapshotTag));
+    return snapshotTags.get(snapshotTag);
   }
 
   public Snapshot currentSnapshot() {
@@ -961,31 +964,26 @@ public class TableMetadata implements Serializable {
     return builder.build();
   }
 
-  private static Map<Long, Snapshot> indexAndValidateSnapshots(List<Snapshot> snapshots, long lastSequenceNumber) {
-    ImmutableMap.Builder<Long, Snapshot> builder = ImmutableMap.builder();
+  private static void indexAndValidateSnapshots(List<Snapshot> snapshots, long lastSequenceNumber,
+                                                               ImmutableMap.Builder<Long, Snapshot> idBuilder,
+                                                               ImmutableMap.Builder<String, Snapshot> tagsBuilder) {
+    Map<String, Snapshot> snapshotTags = Maps.newHashMap();
     for (Snapshot snap : snapshots) {
       ValidationException.check(snap.sequenceNumber() <= lastSequenceNumber,
           "Invalid snapshot with sequence number %s greater than last sequence number %s",
           snap.sequenceNumber(), lastSequenceNumber);
-      builder.put(snap.snapshotId(), snap);
-    }
-    return builder.build();
-  }
-
-  private static Map<String, Long> indexAndValidateSnapshotTags(List<Snapshot> snapshots) {
-    Map<String, Long> snapshotTags = Maps.newHashMap();
-    for (Snapshot snap : snapshots) {
+      idBuilder.put(snap.snapshotId(), snap);
       if (snap.tags() != null) {
         for (String tag : snap.tags()) {
           ValidationException.check(!snapshotTags.containsKey(tag),
-              "Tag is must be assigned to only 1 snapshot, but found tag %s in snapshots %s and %s",
+              "Tag must be assigned to only 1 snapshot, but found tag %s in snapshots %s and %s",
               tag, snap.snapshotId(), snapshotTags.get(tag));
-          snapshotTags.put(tag, snap.snapshotId());
+          snapshotTags.put(tag, snap);
         }
       }
     }
 
-    return ImmutableMap.copyOf(snapshotTags);
+    tagsBuilder.putAll(snapshotTags);
   }
 
   private Map<Integer, Schema> indexSchemas() {
