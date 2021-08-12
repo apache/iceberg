@@ -39,8 +39,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
 
 /**
  * Test Metrics for ORC.
@@ -56,9 +54,6 @@ public class TestOrcMetrics extends TestMetrics {
     String filename = UUID.randomUUID().toString();
     return Files.localOutput(new File(tmpFolder, FileFormat.ORC.addExtension(filename)));
   }
-
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
 
   @Override
   public FileFormat fileFormat() {

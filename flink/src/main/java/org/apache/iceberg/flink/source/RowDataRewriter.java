@@ -73,11 +73,8 @@ public class RowDataRewriter {
     FileFormat format = FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
     RowType flinkSchema = FlinkSchemaUtil.convert(table.schema());
     this.taskWriterFactory = new RowDataTaskWriterFactory(
-        table,
+        SerializableTable.copyOf(table),
         flinkSchema,
-        table.locationProvider(),
-        io,
-        encryptionManager,
         Long.MAX_VALUE,
         format,
         null,

@@ -84,7 +84,8 @@ public class HiveIcebergOutputFormat<T> implements OutputFormat<NullWritable, Co
         .operationId(operationId)
         .build();
     String tableName = jc.get(Catalogs.NAME);
+
     return new HiveIcebergRecordWriter(schema, spec, fileFormat,
-        new GenericAppenderFactory(table), outputFileFactory, io, targetFileSize, taskAttemptID, tableName);
+        new GenericAppenderFactory(schema, spec), outputFileFactory, io, targetFileSize, taskAttemptID, tableName);
   }
 }

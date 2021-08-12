@@ -38,8 +38,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.hadoop.ParquetFileReader;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
 
 /**
  * Test Metrics for Parquet.
@@ -47,9 +45,6 @@ import org.junit.rules.TemporaryFolder;
 public class TestParquetMetrics extends TestMetrics {
   private static final Map<String, String> SMALL_ROW_GROUP_CONFIG = ImmutableMap.of(
       TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, "1600");
-
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
 
   @Override
   public FileFormat fileFormat() {

@@ -86,4 +86,8 @@ public class DataWriter<T> implements Closeable {
     Preconditions.checkState(dataFile != null, "Cannot create data file from unclosed writer");
     return dataFile;
   }
+
+  public FileAppender<T> appender() {
+    return appender;
+  }
 }

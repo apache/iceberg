@@ -51,7 +51,6 @@ import org.apache.spark.unsafe.types.UTF8String;
 
 class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   private final Map<String, String> properties;
-  private final Table table;
   private final Schema writeSchema;
   private final StructType dsSchema;
   private final PartitionSpec spec;
@@ -62,14 +61,12 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   private StructType eqDeleteSparkType = null;
   private StructType posDeleteSparkType = null;
 
-  SparkAppenderFactory(Table table, PartitionSpec spec, Map<String, String> properties, Schema writeSchema,
-                       StructType dsSchema, int[] equalityFieldIds, Schema eqDeleteRowSchema,
-                       Schema posDeleteRowSchema) {
-    this.table = table;
-    this.spec = spec;
+  SparkAppenderFactory(Map<String, String> properties, Schema writeSchema, StructType dsSchema, PartitionSpec spec,
+                       int[] equalityFieldIds, Schema eqDeleteRowSchema, Schema posDeleteRowSchema) {
     this.properties = properties;
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
+    this.spec = spec;
     this.equalityFieldIds = equalityFieldIds;
     this.eqDeleteRowSchema = eqDeleteRowSchema;
     this.posDeleteRowSchema = posDeleteRowSchema;
@@ -129,7 +126,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
             " must be set together");
       }
 
-      return new SparkAppenderFactory(table, spec, table.properties(), writeSchema, dsSchema, equalityFieldIds,
+      return new SparkAppenderFactory(table.properties(), writeSchema, dsSchema, spec, equalityFieldIds,
           eqDeleteRowSchema, posDeleteRowSchema);
     }
   }
@@ -152,7 +149,7 @@ class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
 
   @Override
   public FileAppender<InternalRow> newAppender(OutputFile file, FileFormat fileFormat) {
-    MetricsConfig metricsConfig = MetricsConfig.fromTable(table);
+    MetricsConfig metricsConfig = MetricsConfig.fromProperties(properties);
     try {
       switch (fileFormat) {
         case PARQUET:

@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -53,9 +54,12 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Conversions.fromByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -65,6 +69,9 @@ import static org.apache.iceberg.types.Types.NestedField.required;
  * Tests for Metrics.
  */
 public abstract class TestMetrics {
+
+  @Rule
+  public TemporaryFolder temp = new TemporaryFolder();
 
   private static final StructType LEAF_STRUCT_TYPE = StructType.of(
       optional(5, "leafLongCol", LongType.get()),
@@ -106,8 +113,13 @@ public abstract class TestMetrics {
   private static final Record FLOAT_DOUBLE_RECORD_1 = createRecordWithFloatAndDouble(1.2F, 3.4D);
   private static final Record FLOAT_DOUBLE_RECORD_2 = createRecordWithFloatAndDouble(5.6F, 7.8D);
   private static final Record NAN_ONLY_RECORD = createRecordWithFloatAndDouble(Float.NaN, Double.NaN);
-
+  private static final int FORMAT_V2 = 2;
   private final byte[] fixed = "abcd".getBytes(StandardCharsets.UTF_8);
+
+  @After
+  public void after() {
+    TestTables.clearTables();
+  }
 
   private static Record createRecordWithFloatAndDouble(float floatValue, double doubleValue) {
     Record record = GenericRecord.create(FLOAT_DOUBLE_ONLY_SCHEMA);
@@ -615,6 +627,21 @@ public abstract class TestMetrics {
 
   @Test
   public void testSortedColumnMetrics() throws IOException {
+    File tableDir = temp.newFolder();
+    tableDir.delete(); // created by table create
+
+    SortOrder sortOrder = SortOrder.builderFor(SIMPLE_SCHEMA)
+        .asc("booleanCol")
+        .asc("intCol")
+        .asc("longCol")
+        .asc("decimalCol")
+        .asc("stringCol")
+        .asc("dateCol").build();
+
+    Table table =
+        TestTables.create(tableDir, "test", SIMPLE_SCHEMA, PartitionSpec.unpartitioned(), sortOrder, FORMAT_V2);
+    table.updateProperties().set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none").commit();
+
     Record firstRecord = GenericRecord.create(SIMPLE_SCHEMA);
     firstRecord.setField("booleanCol", true);
     firstRecord.setField("intCol", Integer.MIN_VALUE);
@@ -646,22 +673,10 @@ public abstract class TestMetrics {
     secondRecord.setField("binaryCol", ByteBuffer.wrap("S".getBytes()));
     secondRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(0L));
 
-    SortOrder sortOrder = SortOrder.builderFor(SIMPLE_SCHEMA)
-        .asc("booleanCol")
-        .asc("intCol")
-        .asc("longCol")
-        .asc("decimalCol")
-        .asc("stringCol")
-        .asc("dateCol").build();
-
-    Table table = TestMetricUtil.createTestTable(ImmutableMap.of(
-        TableProperties.DEFAULT_WRITE_METRICS_MODE, "none"),
-        sortOrder,
-        SIMPLE_SCHEMA);
 
     Metrics metrics = getMetrics(
         SIMPLE_SCHEMA,
-        MetricsConfig.fromTable(table),
+        MetricsConfig.forTable(table),
         firstRecord, secondRecord);
 
     Assert.assertEquals(2L, (long) metrics.recordCount());
@@ -677,6 +692,14 @@ public abstract class TestMetrics {
 
   @Test
   public void testMetricsForSortedNestedStructFields() throws IOException {
+    File tableDir = temp.newFolder();
+    tableDir.delete(); // created by table create
+
+    SortOrder sortOrder = SortOrder.builderFor(NESTED_SCHEMA)
+        .asc("nestedStructCol.longCol")
+        .asc("nestedStructCol.leafStructCol.leafLongCol").build();
+    Table table = TestTables.create(tableDir, "nested", NESTED_SCHEMA, PartitionSpec.unpartitioned(),
+        sortOrder, FORMAT_V2);
 
     Record leafStruct = GenericRecord.create(LEAF_STRUCT_TYPE);
     leafStruct.setField("leafLongCol", Long.MAX_VALUE);
@@ -689,14 +712,8 @@ public abstract class TestMetrics {
     record.setField("intCol", Integer.MAX_VALUE);
     record.setField("nestedStructCol", nestedStruct);
 
-    SortOrder sortOrder = SortOrder.builderFor(NESTED_SCHEMA)
-        .asc("nestedStructCol.longCol")
-        .asc("nestedStructCol.leafStructCol.leafLongCol").build();
-
-    Table testTable = TestMetricUtil.createTestTable(null, sortOrder, NESTED_SCHEMA);
-
     Metrics metrics = getMetrics(NESTED_SCHEMA,
-        MetricsConfig.fromTable(testTable),
+        MetricsConfig.forTable(table),
         record);
 
     assertBounds(3, LongType.get(), Long.MAX_VALUE, Long.MAX_VALUE, metrics);

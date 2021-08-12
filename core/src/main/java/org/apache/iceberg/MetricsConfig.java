@@ -83,7 +83,7 @@ public class MetricsConfig implements Serializable {
     return from(props, null);
   }
 
-  public static MetricsConfig fromTable(Table table) {
+  public static MetricsConfig forTable(Table table) {
     return from(table.properties(), table.sortOrder());
   }
 
@@ -99,15 +99,11 @@ public class MetricsConfig implements Serializable {
     }
 
     // First set sorted column with sorted column default (can be overridden by user)
-    final Set<String> sortedCols = new HashSet<>();
-    MetricsMode sortedColDefaultMode = promoteSortedColumnDefault(spec.defaultMode);
+    Set<String> sortedCols = new HashSet<>();
+    MetricsMode sortedColDefaultMode = sortColumnDefaultMode(spec.defaultMode);
     if (order != null) {
       sortedCols.addAll(SortOrderUtil.getSortedColumns(order));
-      sortedCols.stream().forEach(sc -> {
-        if (!props.containsKey(METRICS_MODE_COLUMN_CONF_PREFIX + sc)) {
-          spec.columnModes.put(sc, sortedColDefaultMode);
-        }
-      });
+      sortedCols.stream().forEach(sc -> spec.columnModes.put(sc, sortedColDefaultMode));
     }
 
     props.keySet().stream()
@@ -118,13 +114,9 @@ public class MetricsConfig implements Serializable {
           try {
             mode = MetricsModes.fromString(props.get(key));
           } catch (IllegalArgumentException err) {
-            // Mode was invalid, log the error and use the default (or default for sorted columns)
+            // Mode was invalid, log the error and use the default
             LOG.warn("Ignoring invalid metrics mode for column {}: {}", columnAlias, props.get(key), err);
-            if (sortedCols.contains(columnAlias)) {
-              mode = sortedColDefaultMode;
-            } else {
-              mode = spec.defaultMode;
-            }
+            mode = spec.defaultMode;
           }
           spec.columnModes.put(columnAlias, mode);
         });
@@ -136,7 +128,7 @@ public class MetricsConfig implements Serializable {
    * @param defaultMode default mode
    * @return mode to use
    */
-  private static MetricsMode promoteSortedColumnDefault(MetricsMode defaultMode) {
+  private static MetricsMode sortColumnDefaultMode(MetricsMode defaultMode) {
     if (defaultMode == MetricsModes.None.get() || defaultMode == MetricsModes.Counts.get()) {
       return MetricsModes.Truncate.withLength(16);
     } else {
