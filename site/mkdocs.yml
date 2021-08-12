@@ -31,7 +31,7 @@ extra_css:
   - css/extra.css
 extra:
   versions:
-    iceberg: 0.11.1
+    iceberg: 0.12.0
 plugins:
   - redirects:
       redirect_maps:
