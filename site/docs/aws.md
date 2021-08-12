@@ -340,10 +340,9 @@ For more details, please read [S3 ACL Documentation](https://docs.aws.amazon.com
 ### Object Store File Layout
 
 S3 and many other cloud storage services [throttle requests based on object prefix](https://aws.amazon.com/premiumsupport/knowledge-center/s3-request-limit-avoid-throttling/). 
-This means data stored in a traditional Hive storage layout has bad read and write throughput since data files of the same partition are placed under the same prefix.
-Iceberg by default uses the Hive storage layout, but can be switched to use a different `ObjectStoreLocationProvider`.
-In this mode, a hash string is added to the beginning of each file path, so that files are equally distributed across all prefixes in an S3 bucket.
-This results in minimized throttling and maximized throughput for S3-related IO operations.
+Data stored in a traditional Hive storage layout can face bad read and write throughput as single table is stored under the same filepath prefix.
+Iceberg by default uses the Hive storage layout, but can be switched to use the `ObjectStoreLocationProvider`.
+With `ObjectStoreLocationProvider`, a determenistic hash is generated for each stored file and is added after the `write.object-storage.path`. This ensures written files are equally distributed across multiple prefixes in an S3 bucket. This results in minimized throttling and maximized throughput for S3-related IO operations.
 Here is an example Spark SQL command to create a table with this feature enabled:
 
 ```sql
