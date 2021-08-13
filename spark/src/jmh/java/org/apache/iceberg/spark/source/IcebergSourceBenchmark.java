@@ -44,8 +44,6 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
-import static org.apache.iceberg.TableProperties.WRITE_NEW_DATA_LOCATION;
-
 @Fork(1)
 @State(Scope.Benchmark)
 @Warmup(iterations = 3)
@@ -81,7 +79,8 @@ public abstract class IcebergSourceBenchmark {
 
   protected String dataLocation() {
     Map<String, String> properties = table.properties();
-    return properties.getOrDefault(WRITE_NEW_DATA_LOCATION, String.format("%s/data", table.location()));
+    return properties.getOrDefault(TableProperties.WRITE_FOLDER_STORAGE_LOCATION,
+        String.format("%s/data", table.location()));
   }
 
   protected void cleanupFiles() throws IOException {

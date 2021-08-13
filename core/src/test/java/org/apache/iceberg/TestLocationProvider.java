@@ -114,7 +114,7 @@ public class TestLocationProvider extends TableTestBase {
   @Test
   public void testDefaultLocationProviderWithCustomDataLocation() {
     this.table.updateProperties()
-        .set(TableProperties.WRITE_NEW_DATA_LOCATION, "new_location")
+        .set(TableProperties.WRITE_FOLDER_STORAGE_LOCATION, "new_location")
         .commit();
 
     this.table.locationProvider().newDataLocation("my_file");
