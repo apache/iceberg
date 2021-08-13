@@ -339,12 +339,16 @@ For more details, please read [S3 ACL Documentation](https://docs.aws.amazon.com
 
 ### Object Store File Layout
 
-S3 and many other cloud storage services [throttle requests based on object prefix](https://aws.amazon.com/premiumsupport/knowledge-center/s3-request-limit-avoid-throttling/). 
-Data stored in a traditional Hive storage layout can face bad read and write throughput as single table is stored under the same filepath prefix.
-Iceberg by default uses the Hive storage layout, but can be switched to use the `ObjectStoreLocationProvider`.
-With `ObjectStoreLocationProvider`, a determenistic hash is generated for each stored file and is added after the `write.object-storage.path`. This ensures written files are equally distributed across multiple prefixes in an S3 bucket. This results in minimized throttling and maximized throughput for S3-related IO operations.
-Here is an example Spark SQL command to create a table with this feature enabled:
+S3 and many other cloud storage services [throttle requests based on object prefix](https://aws.amazon.com/premiumsupport/knowledge-center/s3-request-limit-avoid-throttling/).
+Data stored on S3 in a traditional Hive storage layout can face S3 API request throttling as objects are stored under the same filepath prefix.
 
+Iceberg by default uses the Hive storage layout, but can be switched to use the `ObjectStoreLocationProvider`. 
+With `ObjectStoreLocationProvider`, a determenistic hash is generated for each stored file, with the hash appended 
+directly after the `write.object-storage.path`. This ensures files written to s3 are equally distributed across multiple prefixes in the S3 bucket.
+This results in minimized throttling and maximized throughput for S3-related IO operations.
+
+To use the `ObjectStorageLocationProvider` you just need to add `'write.object-storage.enabled'=true` in the table's `OPTIONS`. 
+Below is an example Spark SQL command to create a table with this feature enabled:
 ```sql
 CREATE TABLE my_catalog.my_ns.my_table (
     id bigint,
@@ -355,6 +359,16 @@ OPTIONS (
     'write.object-storage.enabled'=true, 
     'write.object-storage.path'='s3://my-table-data-bucket')
 PARTITIONED BY (category);
+```
+
+We can then insert a single row into this new table
+```SQL
+INSERT INTO my_catalog.my_ns.my_table VALUES (1, "Pizza", "orders");
+```
+
+Which will cause the following object to be written to S3:
+```
+s3://my-table-data-bucket/2d3905f8/my_ns.db/my_table/category=orders/00000-0-5affc076-96a4-48f2-9cd2-d5efbc9f0c94-00001.parquet
 ```
 
 For more details, please refer to the [LocationProvider Configuration](../custom-catalog/#custom-location-provider-implementation) section.  
