@@ -326,7 +326,7 @@ public class TestSortOrder {
         .asc("s.id")
         .desc(truncate("data", 10))
         .build();
-    Set<String> sortedCols = SortOrderUtil.getSortedColumns(order);
+    Set<String> sortedCols = SortOrderUtil.sortedColumns(order);
     Assert.assertEquals(ImmutableSet.of("s.id", "data"), sortedCols);
   }
 }

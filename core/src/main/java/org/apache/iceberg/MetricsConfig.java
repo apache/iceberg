@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -99,12 +98,9 @@ public class MetricsConfig implements Serializable {
     }
 
     // First set sorted column with sorted column default (can be overridden by user)
-    Set<String> sortedCols = new HashSet<>();
     MetricsMode sortedColDefaultMode = sortColumnDefaultMode(spec.defaultMode);
-    if (order != null) {
-      sortedCols.addAll(SortOrderUtil.getSortedColumns(order));
-      sortedCols.stream().forEach(sc -> spec.columnModes.put(sc, sortedColDefaultMode));
-    }
+    Set<String> sortedCols = SortOrderUtil.sortedColumns(order);
+    sortedCols.stream().forEach(sc -> spec.columnModes.put(sc, sortedColDefaultMode));
 
     props.keySet().stream()
         .filter(key -> key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX))

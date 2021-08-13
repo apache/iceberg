@@ -69,7 +69,7 @@ public class SortOrderUtil {
     return builder.build();
   }
 
-  public static Set<String> getSortedColumns(SortOrder sortOrder) {
+  public static Set<String> sortedColumns(SortOrder sortOrder) {
     if (sortOrder == null) {
       return Collections.emptySet();
     } else {
