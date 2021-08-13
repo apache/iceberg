@@ -755,6 +755,27 @@ public class Spark3Util {
     return null;
   }
 
+  /**
+   * Returns an Iceberg Table by its name from a Spark V2 Catalog
+   *
+   * @param spark SparkSession used for looking up catalog references and tables
+   * @param name  The multipart identifier of the Iceberg table
+   * @return an Iceberg table
+   */
+  public static org.apache.iceberg.Table loadIcebergTable(SparkSession spark, String name)
+      throws ParseException, NoSuchTableException {
+    CatalogAndIdentifier catalogAndIdentifier = catalogAndIdentifier(spark, name);
+
+    CatalogPlugin catalog = catalogAndIdentifier.catalog;
+    Preconditions.checkArgument(catalog instanceof BaseCatalog, "Catalog %s(%s) cannot be used " +
+        "to load Iceberg tables", catalog.name(), catalog.getClass().toString());
+    BaseCatalog baseCatalog = (BaseCatalog) catalogAndIdentifier.catalog;
+    Table table = baseCatalog.loadTable(catalogAndIdentifier.identifier);
+
+    Preconditions.checkArgument(table instanceof SparkTable, "%s isn't a valid Iceberg table", name);
+    return ((SparkTable) table).table();
+  }
+
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, String name) throws ParseException {
     return catalogAndIdentifier(spark, name, spark.sessionState().catalogManager().currentCatalog());
   }
