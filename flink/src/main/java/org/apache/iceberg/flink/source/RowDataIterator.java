@@ -125,8 +125,7 @@ class RowDataIterator extends DataIterator<RowData> {
         .project(schema)
         .createReaderFunc(fileSchema -> FlinkParquetReaders.buildReader(schema, fileSchema, idToConstant))
         .filter(task.residual())
-        .caseSensitive(caseSensitive)
-        .reuseContainers();
+        .caseSensitive(caseSensitive);
 
     if (nameMapping != null) {
       builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
