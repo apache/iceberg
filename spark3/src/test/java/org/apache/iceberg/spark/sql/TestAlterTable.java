@@ -21,9 +21,12 @@ package org.apache.iceberg.spark.sql;
 
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -224,5 +227,46 @@ public class TestAlterTable extends SparkCatalogTestBase {
     AssertHelpers.assertThrows("Cannot specify the 'sort-order' because it's a reserved table property",
         UnsupportedOperationException.class,
         () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('sort-order'='value')", tableName));
+  }
+
+  @Test
+  public void testUpdateDataStoragePath() {
+    String objectStoragePath = "/folder/storage/path";
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('%s'='true', '%s'='%s')",
+        tableName, TableProperties.OBJECT_STORE_ENABLED, TableProperties.OBJECT_STORE_PATH, objectStoragePath);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    LocationProvider locationProvider = table.locationProvider();
+    Assert.assertEquals("should use object storage location provider",
+        "org.apache.iceberg.LocationProviders$ObjectStoreLocationProvider",
+        locationProvider.getClass().getName());
+    Assert.assertTrue("should use table object storage path",
+        locationProvider.newDataLocation("file").contains(objectStoragePath));
+
+    String folderStoragePath = "/folder/storage/path";
+    sql("ALTER TABLE %s UNSET TBLPROPERTIES ('%s')",
+        tableName, TableProperties.OBJECT_STORE_PATH);
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('%s'='%s')",
+        tableName, TableProperties.WRITE_NEW_DATA_LOCATION, folderStoragePath);
+
+    table.refresh();
+    locationProvider = table.locationProvider();
+    Assert.assertEquals("should use object storage location provider",
+        "org.apache.iceberg.LocationProviders$ObjectStoreLocationProvider",
+        locationProvider.getClass().getName());
+    Assert.assertTrue("should use table folder storage path",
+        locationProvider.newDataLocation("file").contains(folderStoragePath));
+
+
+    sql("ALTER TABLE %s UNSET TBLPROPERTIES ('%s')",
+        tableName, TableProperties.WRITE_NEW_DATA_LOCATION, folderStoragePath);
+
+    table.refresh();
+    locationProvider = table.locationProvider();
+    Assert.assertEquals("should use object storage location provider",
+        "org.apache.iceberg.LocationProviders$ObjectStoreLocationProvider",
+        locationProvider.getClass().getName());
+    Assert.assertTrue("should use table default data path",
+        locationProvider.newDataLocation("file").contains(table.location() + "/data/"));
   }
 }

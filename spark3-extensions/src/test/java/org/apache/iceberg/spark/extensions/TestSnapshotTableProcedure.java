@@ -97,6 +97,40 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testSnapshotWithPathOverrides() throws IOException {
+    String location = temp.newFolder().toString();
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'" +
+            " TBLPROPERTIES ('%s'='true', '%s'='%s', '%s'='%s', '%s'='%s')",
+        sourceName, location,
+        TableProperties.OBJECT_STORE_ENABLED,
+        TableProperties.WRITE_METADATA_LOCATION, location + "/metadata-folder",
+        TableProperties.WRITE_NEW_DATA_LOCATION, location + "/folder-location",
+        TableProperties.OBJECT_STORE_PATH, location + "/object-location");
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+    Object result = scalarSql(
+        "CALL %s.system.snapshot(source_table => '%s', table => '%s')",
+        catalogName, sourceName, tableName);
+
+    Assert.assertEquals("Should have added one file", 1L, result);
+
+    Table createdTable = validationCatalog.loadTable(tableIdent);
+
+    String tableLocation = createdTable.location();
+    Assert.assertNotEquals("Table should not have the original location", location, tableLocation);
+
+    Map<String, String> props = createdTable.properties();
+    Assert.assertFalse("Table should not have metadata path override",
+        props.containsKey(TableProperties.WRITE_METADATA_LOCATION));
+    Assert.assertFalse("Table should not have folder storage path override",
+        props.containsKey(TableProperties.WRITE_NEW_DATA_LOCATION));
+    Assert.assertFalse("Table should not have object storage path override",
+        props.containsKey(TableProperties.OBJECT_STORE_PATH));
+    Assert.assertEquals("Table should still have object storage mode enabled",
+        "true", props.get(TableProperties.OBJECT_STORE_ENABLED));
+  }
+
+  @Test
   public void testSnapshotWithAlternateLocation() throws IOException {
     Assume.assumeTrue("No Snapshoting with Alternate locations with Hadoop Catalogs", !catalogName.contains("hadoop"));
     String location = temp.newFolder().toString();

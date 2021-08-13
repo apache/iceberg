@@ -29,6 +29,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -278,5 +279,64 @@ public class TestCreateTable extends SparkCatalogTestBase {
         IllegalArgumentException.class,
         "Cannot downgrade v2 table to v1",
         () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='1')", tableName));
+  }
+
+  @Test
+  public void testCreateTableWithObjectStorageModeDefault() {
+    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
+
+    sql("CREATE TABLE %s " +
+            "(id BIGINT NOT NULL, data STRING) " +
+            "USING iceberg " +
+            "TBLPROPERTIES ('%s'='true')",
+        tableName, TableProperties.OBJECT_STORE_ENABLED);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    LocationProvider locationProvider = table.locationProvider();
+    Assert.assertEquals("should use object storage location provider",
+        "org.apache.iceberg.LocationProviders$ObjectStoreLocationProvider",
+        locationProvider.getClass().getName());
+    Assert.assertTrue("should use table default data location",
+        locationProvider.newDataLocation("file").contains(table.location() + "/data/"));
+  }
+
+  @Test
+  public void testCreateTableWithObjectStorageModeFolderStoragePath() {
+    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
+
+    String folderStoragePath = "/folder/storage/path";
+    sql("CREATE TABLE %s " +
+            "(id BIGINT NOT NULL, data STRING) " +
+            "USING iceberg " +
+            "TBLPROPERTIES ('%s'='true', '%s'='%s')",
+        tableName, TableProperties.OBJECT_STORE_ENABLED, TableProperties.WRITE_NEW_DATA_LOCATION, folderStoragePath);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    LocationProvider locationProvider = table.locationProvider();
+    Assert.assertEquals("should use object storage location provider",
+        "org.apache.iceberg.LocationProviders$ObjectStoreLocationProvider",
+        locationProvider.getClass().getName());
+    Assert.assertTrue("should use table folder storage path",
+        locationProvider.newDataLocation("file").contains(folderStoragePath));
+  }
+
+  @Test
+  public void testCreateTableWithObjectStorageModeObjectStoragePath() {
+    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
+
+    String objectStoragePath = "/object/storage/path";
+    sql("CREATE TABLE %s " +
+            "(id BIGINT NOT NULL, data STRING) " +
+            "USING iceberg " +
+            "TBLPROPERTIES ('%s'='true', '%s'='%s')",
+        tableName, TableProperties.OBJECT_STORE_ENABLED, TableProperties.OBJECT_STORE_PATH, objectStoragePath);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    LocationProvider locationProvider = table.locationProvider();
+    Assert.assertEquals("should use object storage location provider",
+        "org.apache.iceberg.LocationProviders$ObjectStoreLocationProvider",
+        locationProvider.getClass().getName());
+    Assert.assertTrue("should use table object storage path",
+        locationProvider.newDataLocation("file").contains(objectStoragePath));
   }
 }
