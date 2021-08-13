@@ -45,15 +45,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
 
-public class RowDataIteratorReader implements IteratorReader<RowData> {
+public class RowDataFileReader implements FileReader<RowData> {
 
   private final Schema tableSchema;
   private final Schema projectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
 
-  public RowDataIteratorReader(Schema tableSchema, Schema projectedSchema,
-                               String nameMapping, boolean caseSensitive) {
+  public RowDataFileReader(Schema tableSchema, Schema projectedSchema,
+                           String nameMapping, boolean caseSensitive) {
     this.tableSchema = tableSchema;
     this.projectedSchema = projectedSchema;
     this.nameMapping = nameMapping;

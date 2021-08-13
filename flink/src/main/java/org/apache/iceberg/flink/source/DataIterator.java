@@ -36,15 +36,15 @@ import org.apache.iceberg.io.FileIO;
  */
 public class DataIterator<T> implements CloseableIterator<T> {
 
-  private final IteratorReader<T> iteratorReader;
+  private final FileReader<T> fileReader;
 
   private final InputFilesDecryptor inputFilesDecryptor;
   private Iterator<FileScanTask> tasks;
   private CloseableIterator<T> currentIterator;
 
-  public DataIterator(IteratorReader<T> iteratorReader, CombinedScanTask task,
-               FileIO io, EncryptionManager encryption) {
-    this.iteratorReader = iteratorReader;
+  public DataIterator(FileReader<T> fileReader, CombinedScanTask task,
+                      FileIO io, EncryptionManager encryption) {
+    this.fileReader = fileReader;
 
     this.inputFilesDecryptor = new InputFilesDecryptor(task, io, encryption);
     this.tasks = task.files().iterator();
@@ -79,7 +79,7 @@ public class DataIterator<T> implements CloseableIterator<T> {
   }
 
   private CloseableIterator<T> openTaskIterator(FileScanTask scanTask) throws IOException {
-    return iteratorReader.open(scanTask, inputFilesDecryptor);
+    return fileReader.open(scanTask, inputFilesDecryptor);
   }
 
   @Override

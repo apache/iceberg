@@ -27,7 +27,7 @@ import org.apache.iceberg.io.CloseableIterator;
 /**
  * Read a {@link FileScanTask} into a {@link CloseableIterator}
  */
-public interface IteratorReader<T> extends Serializable {
+public interface FileReader<T> extends Serializable {
 
   CloseableIterator<T> open(FileScanTask fileScanTask, InputFilesDecryptor inputFilesDecryptor);
 
