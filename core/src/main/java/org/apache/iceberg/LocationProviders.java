@@ -132,7 +132,7 @@ public class LocationProviders {
 
   private static String stripTrailingSlash(String path) {
     String result = path;
-    while (result.endsWith("/")) {
+    while (result != null && result.endsWith("/")) {
       result = result.substring(0, result.length() - 1);
     }
     return result;
