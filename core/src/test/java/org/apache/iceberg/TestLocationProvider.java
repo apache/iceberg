@@ -224,7 +224,7 @@ public class TestLocationProvider extends TableTestBase {
 
     String folderPath = "s3://random/folder/location";
     table.updateProperties()
-        .set(TableProperties.WRITE_NEW_DATA_LOCATION, folderPath)
+        .set(TableProperties.WRITE_FOLDER_STORAGE_LOCATION, folderPath)
         .commit();
 
     Assert.assertTrue("folder storage path should be used when set",

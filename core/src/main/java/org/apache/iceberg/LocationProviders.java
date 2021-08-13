@@ -69,7 +69,7 @@ public class LocationProviders {
   }
 
   private static String defaultDataLocation(String tableLocation, Map<String, String> properties) {
-    return properties.getOrDefault(TableProperties.WRITE_LOCATION_PROVIDER_IMPL,
+    return properties.getOrDefault(TableProperties.WRITE_FOLDER_STORAGE_LOCATION,
         String.format("%s/data", tableLocation));
   }
 
