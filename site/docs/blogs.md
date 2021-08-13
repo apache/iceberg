@@ -34,6 +34,21 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 
 **Author** [Shu (Simon Su) Su](https://www.linkedin.com/in/shu-su-62944994/)
 
+### [Trino on Ice III: Iceberg Concurrency Model, Snapshots, and the Iceberg Spec](https://blog.starburst.io/trino-on-ice-iii-iceberg-concurrency-model-snapshots-and-the-iceberg-spec)
+**Date**: May 25th, 2021, **Company**: Starburst
+
+**Author**: [Brian Olsen](https://www.linkedin.com/in/bitsondatadev)
+
+### [Trino on Ice II: In-Place Table Evolution and Cloud Compatibility with Iceberg](https://blog.starburst.io/trino-on-ice-ii-in-place-table-evolution-and-cloud-compatibility-with-iceberg)
+**Date**: May 11th, 2021, **Company**: Starburst
+
+**Author**: [Brian Olsen](https://www.linkedin.com/in/bitsondatadev)
+
+### [Trino On Ice I: A Gentle Introduction To Iceberg](https://blog.starburst.io/trino-on-ice-i-a-gentle-introduction-to-iceberg)
+**Date**: Apr 27th, 2021, **Company**: Starburst
+
+**Author**: [Brian Olsen](https://www.linkedin.com/in/bitsondatadev)
+
 ### [Apache Iceberg: A Different Table Design for Big Data](https://thenewstack.io/apache-iceberg-a-different-table-design-for-big-data/)
 **Date**: Feb 1st, 2021, **Company**: thenewstack.io
 
