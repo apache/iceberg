@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source;
 
 import java.io.Serializable;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.io.CloseableIterator;
 
 /**
@@ -28,6 +29,6 @@ import org.apache.iceberg.io.CloseableIterator;
  */
 public interface IteratorReader<T> extends Serializable {
 
-  CloseableIterator<T> open(FileScanTask fileScanTask, DecryptedInputFiles decryptedInputFiles);
+  CloseableIterator<T> open(FileScanTask fileScanTask, InputFilesDecryptor inputFilesDecryptor);
 
 }

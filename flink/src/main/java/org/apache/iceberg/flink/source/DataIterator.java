@@ -25,6 +25,7 @@ import java.util.Iterator;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 
@@ -37,7 +38,7 @@ public class DataIterator<T> implements CloseableIterator<T> {
 
   private final IteratorReader<T> iteratorReader;
 
-  private final DecryptedInputFiles decryptedInputFiles;
+  private final InputFilesDecryptor inputFilesDecryptor;
   private Iterator<FileScanTask> tasks;
   private CloseableIterator<T> currentIterator;
 
@@ -45,7 +46,7 @@ public class DataIterator<T> implements CloseableIterator<T> {
                FileIO io, EncryptionManager encryption) {
     this.iteratorReader = iteratorReader;
 
-    this.decryptedInputFiles = new DecryptedInputFiles(task, io, encryption);
+    this.inputFilesDecryptor = new InputFilesDecryptor(task, io, encryption);
     this.tasks = task.files().iterator();
     this.currentIterator = CloseableIterator.empty();
   }
@@ -78,7 +79,7 @@ public class DataIterator<T> implements CloseableIterator<T> {
   }
 
   private CloseableIterator<T> openTaskIterator(FileScanTask scanTask) throws IOException {
-    return iteratorReader.open(scanTask, decryptedInputFiles);
+    return iteratorReader.open(scanTask, inputFilesDecryptor);
   }
 
   @Override
@@ -87,5 +88,4 @@ public class DataIterator<T> implements CloseableIterator<T> {
     currentIterator.close();
     tasks = null;
   }
-
 }
