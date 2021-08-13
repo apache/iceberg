@@ -311,6 +311,9 @@ project(':iceberg-aws') {
 }
 
 project(':iceberg-flink') {
+  apply plugin: 'java'
+  apply plugin: 'scala'
+
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-common')
@@ -320,6 +323,7 @@ project(':iceberg-flink') {
     compile project(':iceberg-parquet')
     compile project(':iceberg-hive-metastore')
 
+    compileOnly "org.scala-lang:scala-library"
     compileOnly "org.apache.flink:flink-streaming-java_2.12"
     compileOnly "org.apache.flink:flink-streaming-java_2.12::tests"
     compileOnly "org.apache.flink:flink-table-api-java-bridge_2.12"
