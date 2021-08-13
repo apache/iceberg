@@ -20,8 +20,9 @@
 package org.apache.iceberg.flink.scala.source
 
 import org.apache.flink.streaming.api.datastream.{DataStream => JavaStream}
-import org.apache.flink.streaming.api.scala.{DataStream, StreamExecutionEnvironment}
-import org.apache.iceberg.flink.source.{FlinkInputFormat, FlinkSource => JavaFlinkSource}
+import org.apache.flink.streaming.api.scala.DataStream
+import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
+import org.apache.iceberg.flink.source.{FlinkSource => JavaFlinkSource}
 import scala.collection.JavaConverters.mapAsJavaMapConverter
 import scala.language.implicitConversions
 
