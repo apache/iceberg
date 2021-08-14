@@ -29,6 +29,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.ThreadPools;
 
@@ -56,8 +57,9 @@ public class AllDataFilesTable extends BaseMetadataTable {
 
   @Override
   public Schema schema() {
-    Schema schema = new Schema(DataFile.getType(table().spec().partitionType()).fields());
-    if (table().spec().fields().size() < 1) {
+    StructType partitionType = Partitioning.partitionType(table());
+    Schema schema = new Schema(DataFile.getType(partitionType).fields());
+    if (partitionType.fields().size() < 1) {
       // avoid returning an empty struct, which is not always supported. instead, drop the partition field (id 102)
       return TypeUtil.selectNot(schema, Sets.newHashSet(102));
     } else {

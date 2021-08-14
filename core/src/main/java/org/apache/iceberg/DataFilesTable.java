@@ -30,6 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types.StructType;
 
 /**
  * A {@link Table} implementation that exposes a table's data files as rows.
@@ -51,8 +52,9 @@ public class DataFilesTable extends BaseMetadataTable {
 
   @Override
   public Schema schema() {
-    Schema schema = new Schema(DataFile.getType(table().spec().partitionType()).fields());
-    if (table().spec().fields().size() < 1) {
+    StructType partitionType = Partitioning.partitionType(table());
+    Schema schema = new Schema(DataFile.getType(partitionType).fields());
+    if (partitionType.fields().size() < 1) {
       // avoid returning an empty struct, which is not always supported. instead, drop the partition field
       return TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));
     } else {
