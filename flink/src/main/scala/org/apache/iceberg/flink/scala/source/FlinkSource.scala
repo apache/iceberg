@@ -43,7 +43,7 @@ object FlinkSource {
    *
    * @return {@link Builder} to connect the iceberg table.
    */
-  def forRowData: JavaFlinkSource.Builder = new JavaFlinkSource.Builder
+  def forRowData(): JavaFlinkSource.Builder = new JavaFlinkSource.Builder
 
   def isBounded(properties: Map[String, String]): Boolean = JavaFlinkSource.isBounded(properties.asJava)
 
