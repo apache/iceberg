@@ -29,6 +29,8 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 
@@ -222,7 +224,7 @@ public class Partitioning {
           structFields.add(structField);
         } else {
           // verify the fields are compatible as they may conflict in v1 tables
-          ValidationException.check(field.compatibleWith(existingField),
+          ValidationException.check(equivalentIgnoringNames(field, existingField),
               "Conflicting partition fields: ['%s', '%s']",
               field, existingField);
         }
@@ -233,5 +235,15 @@ public class Partitioning {
         .sorted(Comparator.comparingInt(NestedField::fieldId))
         .collect(Collectors.toList());
     return StructType.of(sortedStructFields);
+  }
+
+  private static boolean equivalentIgnoringNames(PartitionField field, PartitionField anotherField) {
+    return field.fieldId() == anotherField.fieldId() &&
+        field.sourceId() == anotherField.sourceId() &&
+        compatibleTransforms(field.transform(), anotherField.transform());
+  }
+
+  private static boolean compatibleTransforms(Transform<?, ?> t1, Transform<?, ?> t2) {
+    return t1.equals(t2) || t1.equals(Transforms.alwaysNull()) || t2.equals(Transforms.alwaysNull());
   }
 }

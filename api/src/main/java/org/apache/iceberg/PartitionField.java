@@ -22,7 +22,6 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.transforms.Transform;
-import org.apache.iceberg.transforms.Transforms;
 
 /**
  * Represents a single field in a {@link PartitionSpec}.
@@ -66,20 +65,6 @@ public class PartitionField implements Serializable {
    */
   public Transform<?, ?> transform() {
     return transform;
-  }
-
-  /**
-   * Returns true if this partition field is compatible with another partition field.
-   * <p>
-   * Partition fields are considered compatible if they have the same source ID, field ID and their
-   * transforms are equivalent or one of them is always producing nulls.
-   */
-  boolean compatibleWith(PartitionField other) {
-    return sourceId == other.sourceId && fieldId == other.fieldId && compatibleTransforms(transform, other.transform);
-  }
-
-  private boolean compatibleTransforms(Transform<?, ?> t1, Transform<?, ?> t2) {
-    return t1.equals(t2) || t1.equals(Transforms.alwaysNull()) || t2.equals(Transforms.alwaysNull());
   }
 
   @Override
