@@ -277,6 +277,22 @@ public abstract class TestMetrics {
     assertBounds(7, DoubleType.get(), null, null, metrics);
   }
 
+  @Test
+  public void testMetricsModeForNestedStructFields() throws IOException {
+    Map<String, String> properties = ImmutableMap.of(
+        TableProperties.DEFAULT_WRITE_METRICS_MODE,
+        MetricsModes.None.get().toString(),
+        TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "nestedStructCol.longCol",
+        MetricsModes.Full.get().toString());
+    MetricsConfig config = MetricsConfig.fromProperties(properties);
+
+    Metrics metrics = getMetrics(NESTED_SCHEMA, config, buildNestedTestRecord());
+    Assert.assertEquals(1L, (long) metrics.recordCount());
+    Assert.assertEquals(1, metrics.lowerBounds().size());
+    Assert.assertEquals(1, metrics.upperBounds().size());
+    assertBounds(3, LongType.get(), 100L, 100L, metrics);
+  }
+
   private Record buildNestedTestRecord() {
     Record leafStruct = GenericRecord.create(LEAF_STRUCT_TYPE);
     leafStruct.setField("leafLongCol", 20L);
