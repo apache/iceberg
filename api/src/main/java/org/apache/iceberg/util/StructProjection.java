@@ -58,12 +58,32 @@ public class StructProjection implements StructLike {
     return new StructProjection(dataSchema.asStruct(), projectedSchema.asStruct());
   }
 
+  /**
+   * Creates a projecting wrapper for {@link StructLike} rows.
+   * <p>
+   * This projection does not work with repeated types like lists and maps.
+   *
+   * @param structType type of rows wrapped by this projection
+   * @param projectedStructType result type of the projected rows
+   * @param projectMissingFieldsAsNulls a flag whether to project missing fields as nulls
+   * @return a wrapper to project rows
+   */
+  public static StructProjection create(StructType structType, StructType projectedStructType,
+                                        boolean projectMissingFieldsAsNulls) {
+    return new StructProjection(structType, projectedStructType, projectMissingFieldsAsNulls);
+  }
+
   private final StructType type;
   private final int[] positionMap;
   private final StructProjection[] nestedProjections;
   private StructLike struct;
 
   private StructProjection(StructType structType, StructType projection) {
+    this(structType, projection, false);
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  private StructProjection(StructType structType, StructType projection, boolean projectMissingFieldsAsNulls) {
     this.type = projection;
     this.positionMap = new int[projection.fields().size()];
     this.nestedProjections = new StructProjection[projection.fields().size()];
@@ -116,7 +136,9 @@ public class StructProjection implements StructLike {
         }
       }
 
-      if (!found) {
+      if (!found && projectedField.isOptional() && projectMissingFieldsAsNulls) {
+        positionMap[pos] = -1;
+      } else if (!found) {
         throw new IllegalArgumentException(String.format("Cannot find field %s in %s", projectedField, structType));
       }
     }
@@ -134,11 +156,17 @@ public class StructProjection implements StructLike {
 
   @Override
   public <T> T get(int pos, Class<T> javaClass) {
+    int structPos = positionMap[pos];
+
     if (nestedProjections[pos] != null) {
-      return javaClass.cast(nestedProjections[pos].wrap(struct.get(positionMap[pos], StructLike.class)));
+      return javaClass.cast(nestedProjections[pos].wrap(struct.get(structPos, StructLike.class)));
     }
 
-    return struct.get(positionMap[pos], javaClass);
+    if (structPos != -1) {
+      return struct.get(structPos, javaClass);
+    } else {
+      return null;
+    }
   }
 
   @Override

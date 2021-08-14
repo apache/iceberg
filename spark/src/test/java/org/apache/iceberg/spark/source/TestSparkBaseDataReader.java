@@ -30,7 +30,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 import org.apache.avro.generic.GenericData;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.DataFile;
@@ -39,8 +38,6 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.encryption.PlaintextEncryptionManager;
-import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
@@ -59,7 +56,7 @@ public abstract class TestSparkBaseDataReader {
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
-  private static final Configuration CONFD = new Configuration();
+  private Table table;
 
   // Simulates the closeable iterator of data to be read
   private static class CloseableIntegerRange implements CloseableIterator<Integer> {
@@ -92,10 +89,8 @@ public abstract class TestSparkBaseDataReader {
   private static class ClosureTrackingReader extends BaseDataReader<Integer> {
     private Map<String, CloseableIntegerRange> tracker = new HashMap<>();
 
-    ClosureTrackingReader(List<FileScanTask> tasks) {
-      super(new BaseCombinedScanTask(tasks),
-          new HadoopFileIO(CONFD),
-          new PlaintextEncryptionManager());
+    ClosureTrackingReader(Table table, List<FileScanTask> tasks) {
+      super(table, new BaseCombinedScanTask(tasks));
     }
 
     @Override
@@ -124,7 +119,7 @@ public abstract class TestSparkBaseDataReader {
     Integer recordPerTask = 10;
     List<FileScanTask> tasks = createFileScanTasks(totalTasks, recordPerTask);
 
-    ClosureTrackingReader reader = new ClosureTrackingReader(tasks);
+    ClosureTrackingReader reader = new ClosureTrackingReader(table, tasks);
 
     int countRecords = 0;
     while (reader.next()) {
@@ -151,7 +146,7 @@ public abstract class TestSparkBaseDataReader {
     FileScanTask firstTask = tasks.get(0);
     FileScanTask secondTask = tasks.get(1);
 
-    ClosureTrackingReader reader = new ClosureTrackingReader(tasks);
+    ClosureTrackingReader reader = new ClosureTrackingReader(table, tasks);
 
     // Total of 2 elements
     Assert.assertTrue(reader.next());
@@ -175,7 +170,7 @@ public abstract class TestSparkBaseDataReader {
     Integer recordPerTask = 10;
     List<FileScanTask> tasks = createFileScanTasks(totalTasks, recordPerTask);
 
-    ClosureTrackingReader reader = new ClosureTrackingReader(tasks);
+    ClosureTrackingReader reader = new ClosureTrackingReader(table, tasks);
 
     reader.close();
 
@@ -191,7 +186,7 @@ public abstract class TestSparkBaseDataReader {
     Integer recordPerTask = 10;
     List<FileScanTask> tasks = createFileScanTasks(totalTasks, recordPerTask);
 
-    ClosureTrackingReader reader = new ClosureTrackingReader(tasks);
+    ClosureTrackingReader reader = new ClosureTrackingReader(table, tasks);
 
     Integer halfDataSize = (totalTasks * recordPerTask) / 2;
     for (int i = 0; i < halfDataSize; i++) {
@@ -217,7 +212,7 @@ public abstract class TestSparkBaseDataReader {
     Integer recordPerTask = 10;
     List<FileScanTask> tasks = createFileScanTasks(totalTasks, recordPerTask);
 
-    ClosureTrackingReader reader = new ClosureTrackingReader(tasks);
+    ClosureTrackingReader reader = new ClosureTrackingReader(table, tasks);
 
     // Total 100 elements, only 5 iterators have been created
     for (int i = 0; i < 45; i++) {
@@ -250,7 +245,7 @@ public abstract class TestSparkBaseDataReader {
     );
 
     try {
-      Table table = TestTables.create(location, desc, schema, PartitionSpec.unpartitioned());
+      this.table = TestTables.create(location, desc, schema, PartitionSpec.unpartitioned());
       // Important: use the table's schema for the rest of the test
       // When tables are created, the column ids are reassigned.
       Schema tableSchema = table.schema();
