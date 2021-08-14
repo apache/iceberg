@@ -181,11 +181,11 @@ public class SerializableTable implements Table, Serializable {
       synchronized (this) {
         if (lazySpecs == null && lazyTable == null) {
           // prefer parsing JSON as opposed to loading the metadata
-          Map<Integer, PartitionSpec> parsedSpecs = Maps.newHashMap();
+          Map<Integer, PartitionSpec> specs = Maps.newHashMapWithExpectedSize(specAsJsonMap.size());
           specAsJsonMap.forEach((specId, specAsJson) -> {
-            parsedSpecs.put(specId, PartitionSpecParser.fromJson(schema(), specAsJson));
+            specs.put(specId, PartitionSpecParser.fromJson(schema(), specAsJson));
           });
-          this.lazySpecs = parsedSpecs;
+          this.lazySpecs = specs;
         } else if (lazySpecs == null) {
           this.lazySpecs = lazyTable.specs();
         }
