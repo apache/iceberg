@@ -339,13 +339,17 @@ For more details, please read [S3 ACL Documentation](https://docs.aws.amazon.com
 
 ### Object Store File Layout
 
-S3 and many other cloud storage services [throttle requests based on object prefix](https://aws.amazon.com/premiumsupport/knowledge-center/s3-request-limit-avoid-throttling/). 
-This means data stored in a traditional Hive storage layout has bad read and write throughput since data files of the same partition are placed under the same prefix.
-Iceberg by default uses the Hive storage layout, but can be switched to use a different `ObjectStoreLocationProvider`.
-In this mode, a hash string is added to the beginning of each file path, so that files are equally distributed across all prefixes in an S3 bucket.
-This results in minimized throttling and maximized throughput for S3-related IO operations.
-Here is an example Spark SQL command to create a table with this feature enabled:
+S3 and many other cloud storage services [throttle requests based on object prefix](https://aws.amazon.com/premiumsupport/knowledge-center/s3-request-limit-avoid-throttling/).
+Data stored in S3 with a traditional Hive storage layout can face S3 request throttling as objects are stored under the same filepath prefix.
 
+Iceberg by default uses the Hive storage layout, but can be switched to use the `ObjectStoreLocationProvider`. 
+With `ObjectStoreLocationProvider`, a determenistic hash is generated for each stored file, with the hash appended 
+directly after the `write.object-storage.path`. This ensures files written to s3 are equally distributed across multiple [prefixes](https://aws.amazon.com/premiumsupport/knowledge-center/s3-object-key-naming-pattern/) in the S3 bucket. Resulting in minimized throttling and maximized throughput for S3-related IO operations. When using `ObjectStoreLocationProvider` having a shared and short `write.object-storage.path` across your Iceberg tables will improve performance.
+
+For more information on how S3 scales API QPS, checkout the 2018 re:Invent session on [Best Practices for Amazon S3 and Amazon S3 Glacier]( https://youtu.be/rHeTn9pHNKo?t=3219). At [53:39](https://youtu.be/rHeTn9pHNKo?t=3219) it covers how S3 scales/partitions & at [54:50](https://youtu.be/rHeTn9pHNKo?t=3290) it discusses the 30-60 minute wait time before new partitions are created.
+
+To use the `ObjectStorageLocationProvider` add `'write.object-storage.enabled'=true` in the table's properties. 
+Below is an example Spark SQL command to create a table using the `ObjectStorageLocationProvider`:
 ```sql
 CREATE TABLE my_catalog.my_ns.my_table (
     id bigint,
@@ -357,6 +361,21 @@ OPTIONS (
     'write.object-storage.path'='s3://my-table-data-bucket')
 PARTITIONED BY (category);
 ```
+
+We can then insert a single row into this new table
+```SQL
+INSERT INTO my_catalog.my_ns.my_table VALUES (1, "Pizza", "orders");
+```
+
+Which will write the data to S3 with a hash (`2d3905f8`) appended directly after the `write.object-storage.path`, ensuring reads to the table are spread evenly  across [S3 bucket prefixes](https://docs.aws.amazon.com/AmazonS3/latest/userguide/optimizing-performance.html), and improving performance.
+```
+s3://my-table-data-bucket/2d3905f8/my_ns.db/my_table/category=orders/00000-0-5affc076-96a4-48f2-9cd2-d5efbc9f0c94-00001.parquet
+```
+
+Note, the path resolution logic for `ObjectStoreLocationProvider` is as follows:
+- if `write.object-storage.path` is set, use it
+- if not found, fallback to `write.folder-storage.path`
+- if not found, use `<tableLocation>/data`
 
 For more details, please refer to the [LocationProvider Configuration](../custom-catalog/#custom-location-provider-implementation) section.  
 
