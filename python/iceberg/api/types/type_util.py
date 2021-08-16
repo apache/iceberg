@@ -122,9 +122,8 @@ def visit(arg, visitor): # noqa: ignore=C901
                 result = None
                 try:
                     result = visit(field.type, visitor)
-                except ValidationException as ve:
-                    raise ve
-                except RuntimeError:
+                except NotImplementedError:
+                    # will remove it after missing functions are implemented.
                     pass
                 finally:
                     visitor.field_ids.pop()
@@ -136,7 +135,8 @@ def visit(arg, visitor): # noqa: ignore=C901
             visitor.field_ids.append(list_var.element_id)
             try:
                 element_result = visit(list_var.element_type, visitor)
-            except RuntimeError:
+            except NotImplementedError:
+                # will remove it after missing functions are implemented.
                 pass
             finally:
                 visitor.field_ids.pop()
