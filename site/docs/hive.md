@@ -56,7 +56,7 @@ To enable Hive support globally for an application, set `iceberg.engine.hive.ena
 For example, setting this in the `hive-site.xml` loaded by Spark will enable the storage handler for all tables created by Spark.
 
 !!! Warning
-    When using Hive with Tez in `0.11.x` releases, you also have to disable vectorization (`hive.vectorized.execution.enabled=false`)
+    Starting with Apache Iceberg `0.11.0`, when using Hive with Tez you also have to disable vectorization (`hive.vectorized.execution.enabled=false`).
 
 #### Table property configuration
 

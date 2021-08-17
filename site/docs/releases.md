@@ -25,9 +25,9 @@ The latest version of Iceberg is [{{ versions.iceberg }}](https://github.com/apa
 * [{{ versions.iceberg }} Flink runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime/{{ versions.iceberg }}/iceberg-flink-runtime-{{ versions.iceberg }}.jar)
 * [{{ versions.iceberg }} Hive runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime/{{ versions.iceberg }}/iceberg-hive-runtime-{{ versions.iceberg }}.jar)
 
-To use Iceberg in Spark, download the runtime Jar and add it to the jars folder of your Spark install. Use iceberg-spark3-runtime for Spark 3, and iceberg-spark-runtime for Spark 2.4.
+To use Iceberg in Spark, download the runtime JAR and add it to the jars folder of your Spark install. Use iceberg-spark3-runtime for Spark 3, and iceberg-spark-runtime for Spark 2.4.
 
-To use Iceberg in Hive, download the iceberg-hive-runtime Jar and add it to Hive using `ADD JAR`.
+To use Iceberg in Hive, download the iceberg-hive-runtime JAR and add it to Hive using `ADD JAR`.
 
 ### Gradle
 
@@ -56,8 +56,59 @@ To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:
   ...
 </dependencies>
 ```
+## 0.12.0 Release Notes
 
-## 0.11.1 release notes
+Apache Iceberg 0.12.0 was released on August 15, 2021. It consists of 395 commits authored by 74 contributors over a 139 day period.
+
+High-level features:
+
+* **Core**
+  * Allow Iceberg schemas to specify one or more columns as row identifers [[\#2465](https://github.com/apache/iceberg/pull/2465)]. Note that this is a prerequisite for supporting upserts in Flink.
+  * Added JDBC [[\#1870](https://github.com/apache/iceberg/pull/1870)] and DynamoDB [[\#2688](https://github.com/apache/iceberg/pull/2688)] Iceberg catalog implementations.
+  * Added predicate pushdown for partitions and files metadata tables [[\#2358](https://github.com/apache/iceberg/pull/2358), [\#2926](https://github.com/apache/iceberg/pull/2926)].
+  * Added a new, more flexible compaction action for Spark that can support different strategies such as bin packing and sorting. [[\#2501](https://github.com/apache/iceberg/pull/2501), [\#2609](https://github.com/apache/iceberg/pull/2609)].
+  * Added the ability to upgrade to v2 or create a v2 table using the table property format-version=2  [[\#2887](https://github.com/apache/iceberg/pull/2887)].
+* **Spark**
+  * [[\#2560](https://github.com/apache/iceberg/pull/2560)] added extensions DDL to set identifier fields.
+  * [[\#2365](https://github.com/apache/iceberg/pull/2365)] added support for `ALTER TABLE table CHANGE PARTITION FIELD transform TO transform` DDL.
+  * [[\#2660](https://github.com/apache/iceberg/pull/2660)] added support for micro-batch streaming reads for structured streaming in Spark3.
+  * [[\#2777](https://github.com/apache/iceberg/pull/2777)] improves the performance of importing a Hive table by not loading all partitions from Hive and instead pushing the partition filter to the Metastore.
+  * [[\#2193](https://github.com/apache/iceberg/pull/2193), [\#2206](https://github.com/apache/iceberg/pull/2206)] added support for UPDATE statements in Spark.
+* **Flink** now support SQL primary keys [[\#2410](https://github.com/apache/iceberg/pull/2410)].
+
+Important bug fixes:
+
+* **Core**
+  * [\#2849](https://github.com/apache/iceberg/pull/2849) fixes string bucketing with non-BMP characters
+  * [\#2551](https://github.com/apache/iceberg/pull/2551) fixes Parquet dictionary filter not handling fixed length byte arrays.
+  * [\#2550](https://github.com/apache/iceberg/pull/2550) fixes a problem with the configuration of HiveCatalog.
+* **Spark**
+  * [\#2584](https://github.com/apache/iceberg/pull/2584) fixes MERGE INTO in Spark when used with SinglePartition partitioning.
+  * [\#2877](https://github.com/apache/iceberg/pull/2877) fixes nested struct pruning in Spark
+  * [\#2757](https://github.com/apache/iceberg/pull/2757) fixes Timestamp without Timezone type support in Spark
+
+Other notable changes:
+
+* The Iceberg Community [voted to approve](https://mail-archives.apache.org/mod_mbox/iceberg-dev/202107.mbox/%3cCAMwmD1-k1gnShK=wQ0PD88it6cg9mY7Y1hKHjDZ7L-jcDzpyZA@mail.gmail.com%3e) version 2 of the Apache Iceberg Format Specification. The differences between version 1 and 2 of the specification are documented [here](https://iceberg.apache.org/spec/#version-2).
+* Bugfixes and stability improvements for NessieCatalog
+* Improvements and fixes for Iceberg's Python library
+* Added a vectorized reader for Apache Arrow [[\#2286](https://github.com/apache/iceberg/pull/2286)] and modified Iceberg's Hive integration so that Hive can leverage its vectorized ORC reader when accessing Iceberg tables [[\#2613](https://github.com/apache/iceberg/pull/2613)].
+* The following Iceberg dependencies were upgraded:
+  * Hive 2.3.8 [[\#2110](https://github.com/apache/iceberg/pull/2110)].
+  * Avro 1.10.1 [[\#1648](https://github.com/apache/iceberg/pull/1648)].
+  * Parquet 1.12.0 [[\#2441](https://github.com/apache/iceberg/pull/2441)].
+
+
+## Past releases
+
+### 0.11.1
+
+* Git tag: [0.11.1](https://github.com/apache/iceberg/releases/tag/apache-iceberg-0.11.1)
+* [0.11.1 source tar.gz](https://www.apache.org/dyn/closer.cgi/iceberg/apache-iceberg-0.11.1/apache-iceberg-0.11.1.tar.gz) -- [signature](https://downloads.apache.org/iceberg/apache-iceberg-0.11.1/apache-iceberg-0.11.1.tar.gz.asc) -- [sha512](https://downloads.apache.org/iceberg/apache-iceberg-0.11.1/apache-iceberg-0.11.1.tar.gz.sha512)
+* [0.11.1 Spark 3.0 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark3-runtime/0.11.1/iceberg-spark3-runtime-0.11.1.jar)
+* [0.11.1 Spark 2.4 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime/0.11.1/iceberg-spark-runtime-0.11.1.jar)
+* [0.11.1 Flink runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime/0.11.1/iceberg-flink-runtime-0.11.1.jar)
+* [0.11.1 Hive runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime/0.11.1/iceberg-hive-runtime-0.11.1.jar)
 
 Important bug fixes:
 
@@ -70,7 +121,14 @@ Important bug fixes:
 * [\#2241](https://github.com/apache/iceberg/pull/2241) fixes vectorized ORC reads with metadata columns in Spark.
 * [\#2154](https://github.com/apache/iceberg/pull/2154) refreshes the relation cache in DELETE and MERGE operations in Spark.
 
-## 0.11.0 release notes
+### 0.11.0
+
+* Git tag: [0.11.0](https://github.com/apache/iceberg/releases/tag/apache-iceberg-0.11.0)
+* [0.11.0 source tar.gz](https://www.apache.org/dyn/closer.cgi/iceberg/apache-iceberg-0.11.0/apache-iceberg-0.11.0.tar.gz) -- [signature](https://downloads.apache.org/iceberg/apache-iceberg-0.11.0/apache-iceberg-0.11.0.tar.gz.asc) -- [sha512](https://downloads.apache.org/iceberg/apache-iceberg-0.11.0/apache-iceberg-0.11.0.tar.gz.sha512)
+* [0.11.0 Spark 3.0 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark3-runtime/0.11.0/iceberg-spark3-runtime-0.11.0.jar)
+* [0.11.0 Spark 2.4 runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime/0.11.0/iceberg-spark-runtime-0.11.0.jar)
+* [0.11.0 Flink runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-flink-runtime/0.11.0/iceberg-flink-runtime-0.11.0.jar)
+* [0.11.0 Hive runtime Jar](https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-hive-runtime/0.11.0/iceberg-hive-runtime-0.11.0.jar)
 
 High-level features:
 
@@ -107,7 +165,7 @@ Other notable changes:
 * ORC now supports reading tinyint, smallint, char, varchar types
 * Avro to Iceberg schema conversion now preserves field docs
 
-## Past releases
+
 
 ### 0.10.0
 
