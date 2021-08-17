@@ -17,4 +17,11 @@
 
 # Trino (formerly Presto SQL)
 
-The Iceberg connector is available with Trino. It is feature complete and usage details can be found in the [documentation](https://trino.io/docs/current/connector/iceberg.html)
+The Iceberg connector is available with PrestoSQL, which is rebranded as Trino since January 2021.
+This page is kept for backwards compatibility only.
+The documentation for Iceberg's Trino connector has moved to the Trino website. Please consult the [Iceberg section](https://trino.io/docs/current/connector/iceberg.html) of the Trino docs for more information.
+
+# PrestoDB
+
+The Presto trademark is now exclusively reserved for PrestoDB.
+The documentation for Iceberg's PrestoDB connector is in the PrestoDB website. Please consult the [Iceberg section](https://prestodb.io/docs/current/connector/iceberg.html) of the PrestoDB docs for more information.
