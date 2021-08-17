@@ -68,26 +68,31 @@ High-level features:
   * Added predicate pushdown for partitions and files metadata tables [[\#2358](https://github.com/apache/iceberg/pull/2358), [\#2926](https://github.com/apache/iceberg/pull/2926)].
   * Added a new, more flexible compaction action for Spark that can support different strategies such as bin packing and sorting. [[\#2501](https://github.com/apache/iceberg/pull/2501), [\#2609](https://github.com/apache/iceberg/pull/2609)].
   * Added the ability to upgrade to v2 or create a v2 table using the table property format-version=2  [[\#2887](https://github.com/apache/iceberg/pull/2887)].
+* **Flink**
+  * Added support for SQL primary keys [[\#2410](https://github.com/apache/iceberg/pull/2410)].
 * **Hive**
   * Added the ability to set the catalog at the table level in the Hive Metastore. This makes it possible to write queries that reference tables from multiple catalogs [[\#2129](https://github.com/apache/iceberg/pull/2129)].
+  * Deprecated the configuration property `iceberg.mr.catalog` is now deprecated [[\#2565](https://github.com/apache/iceberg/pull/2565)].
+  * Enabled dropping HMS tables despite metadata problems [[\#2583](https://github.com/apache/iceberg/pull/2583)].
+  * Added table-level JVM lock on commits[[\#2547](https://github.com/apache/iceberg/pull/2547)].
 * **Spark**
-  * [[\#2560](https://github.com/apache/iceberg/pull/2560)] added extensions DDL to set identifier fields.
-  * [[\#2365](https://github.com/apache/iceberg/pull/2365)] added support for `ALTER TABLE table CHANGE PARTITION FIELD transform TO transform` DDL.
-  * [[\#2660](https://github.com/apache/iceberg/pull/2660)] added support for micro-batch streaming reads for structured streaming in Spark3.
-  * [[\#2777](https://github.com/apache/iceberg/pull/2777)] improves the performance of importing a Hive table by not loading all partitions from Hive and instead pushing the partition filter to the Metastore.
-  * [[\#2193](https://github.com/apache/iceberg/pull/2193), [\#2206](https://github.com/apache/iceberg/pull/2206)] added support for UPDATE statements in Spark.
-* **Flink** now support SQL primary keys [[\#2410](https://github.com/apache/iceberg/pull/2410)].
+  * Added extensions DDL to set identifier fields [[\#2560](https://github.com/apache/iceberg/pull/2560)].
+  * Added support for `ALTER TABLE table CHANGE PARTITION FIELD transform TO transform` DDL [[\#2365](https://github.com/apache/iceberg/pull/2365)].
+  * Added support for micro-batch streaming reads for structured streaming in Spark3 [[\#2660](https://github.com/apache/iceberg/pull/2660)].
+  * Improved the performance of importing a Hive table by not loading all partitions from Hive and instead pushing the partition filter to the Metastore [[\#2777](https://github.com/apache/iceberg/pull/2777)].
+  * Added support for UPDATE statements in Spark [[\#2193](https://github.com/apache/iceberg/pull/2193), [\#2206](https://github.com/apache/iceberg/pull/2206)].
+
 
 Important bug fixes:
 
 * **Core**
-  * [\#2849](https://github.com/apache/iceberg/pull/2849) fixes string bucketing with non-BMP characters
-  * [\#2551](https://github.com/apache/iceberg/pull/2551) fixes Parquet dictionary filter not handling fixed length byte arrays.
-  * [\#2550](https://github.com/apache/iceberg/pull/2550) fixes a problem with the configuration of HiveCatalog.
+  * Fixed string bucketing with non-BMP characters [[\#2849](https://github.com/apache/iceberg/pull/2849)].
+  * Fixed Parquet dictionary filter not handling fixed length byte arrays [[\#2551](https://github.com/apache/iceberg/pull/2551)].
+  * Fixed a problem with the configuration of HiveCatalog [[\#2550](https://github.com/apache/iceberg/pull/2550)].
 * **Spark**
-  * [\#2584](https://github.com/apache/iceberg/pull/2584) fixes MERGE INTO in Spark when used with SinglePartition partitioning.
-  * [\#2877](https://github.com/apache/iceberg/pull/2877) fixes nested struct pruning in Spark
-  * [\#2757](https://github.com/apache/iceberg/pull/2757) fixes Timestamp without Timezone type support in Spark
+  * Fixed `MERGE INTO` in Spark when used with SinglePartition partitioning [[\#2584](https://github.com/apache/iceberg/pull/2584)].
+  * Fixed nested struct pruning in Spar [[\#2877](https://github.com/apache/iceberg/pull/2877)].
+  * Fixed Timestamp without Timezone type support in Spark [[\#2757](https://github.com/apache/iceberg/pull/2757)].
 
 Other notable changes:
 
