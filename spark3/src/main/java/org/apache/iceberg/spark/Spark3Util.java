@@ -770,10 +770,9 @@ public class Spark3Util {
     Preconditions.checkArgument(catalog instanceof BaseCatalog, "Catalog %s(%s) is not an Iceberg Catalog",
         catalog.name(), catalog.getClass().toString());
     BaseCatalog baseCatalog = (BaseCatalog) catalogAndIdentifier.catalog;
-    Table sparkTable = baseCatalog.loadTable(catalogAndIdentifier.identifier);
 
-    Preconditions.checkArgument(sparkTable instanceof SparkTable, "%s isn't a valid Iceberg table", name);
-    return ((SparkTable) sparkTable).table();
+    Table sparkTable = baseCatalog.loadTable(catalogAndIdentifier.identifier);
+    return toIcebergTable(sparkTable);
   }
 
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, String name) throws ParseException {
