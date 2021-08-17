@@ -24,9 +24,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -251,6 +258,32 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
           ImmutableList.of(row(null, null), row(null, 2), row("b1", null), row("b1", 2)),
           "STRUCT<data:STRING,category_bucket_8_another_name:INT>",
           tableType);
+    }
+  }
+
+  @Test
+  public void testMetadataTablesWithUnknownTransforms() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, category string, data string) USING iceberg", tableName);
+    initTable();
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a1', 'b1')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    PartitionSpec unknownSpec = PartitionSpecParser.fromJson(table.schema(),
+        "{ \"spec-id\": 1, \"fields\": [ { \"name\": \"id_zero\", \"transform\": \"zero\", \"source-id\": 1 } ] }");
+
+    // replace the table spec to include an unknown transform
+    TableOperations ops = ((HasTableOperations) table).operations();
+    TableMetadata base = ops.current();
+    ops.commit(base, base.updatePartitionSpec(unknownSpec));
+
+    sql("REFRESH TABLE %s", tableName);
+
+    for (MetadataTableType tableType : Arrays.asList(FILES, ALL_DATA_FILES, ENTRIES, ALL_ENTRIES)) {
+      AssertHelpers.assertThrows("Should complain about the partition type",
+          ValidationException.class, "Cannot build table partition type, unknown transforms",
+          () -> loadMetadataTable(tableType));
     }
   }
 

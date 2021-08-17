@@ -31,6 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.PartitionSpecVisitor;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 
@@ -199,6 +200,11 @@ public class Partitioning {
    * @return the constructed common partition type
    */
   public static StructType partitionType(Table table) {
+    // we currently don't know the output type of unknown transforms
+    List<Transform<?, ?>> unknownTransforms = collectUnknownTransforms(table);
+    ValidationException.check(unknownTransforms.isEmpty(),
+        "Cannot build table partition type, unknown transforms: %s", unknownTransforms);
+
     if (table.specs().size() == 1) {
       return table.spec().partitionType();
     }
@@ -235,6 +241,19 @@ public class Partitioning {
         .sorted(Comparator.comparingInt(NestedField::fieldId))
         .collect(Collectors.toList());
     return StructType.of(sortedStructFields);
+  }
+
+  private static List<Transform<?, ?>> collectUnknownTransforms(Table table) {
+    List<Transform<?, ?>> unknownTransforms = Lists.newArrayList();
+
+    table.specs().values().forEach(spec -> {
+      spec.fields().stream()
+          .map(PartitionField::transform)
+          .filter(transform -> transform instanceof UnknownTransform)
+          .forEach(unknownTransforms::add);
+    });
+
+    return unknownTransforms;
   }
 
   private static boolean equivalentIgnoringNames(PartitionField field, PartitionField anotherField) {
