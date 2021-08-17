@@ -147,6 +147,9 @@ public class TestFlinkScanSql extends TestFlinkSource {
     long maxFileLen = Math.max(dataFile1.fileSizeInBytes(), dataFile2.fileSizeInBytes());
     sql("ALTER TABLE t SET ('read.split.open-file-cost'='1', 'read.split.target-size'='%s')", maxFileLen);
 
+    table.refresh();
+    flinkInputFormat = FlinkSource.forRowData().tableLoader(tableLoader).table(table).buildFormat();
+
     // 2 splits (max infer is the default value 100 , max > splits num), the parallelism is splits num : 2
     parallelism = FlinkSource.forRowData().inferParallelism(flinkInputFormat, scanContext);
     Assert.assertEquals("Should produce the expected parallelism.", 2, parallelism);

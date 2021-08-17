@@ -26,9 +26,9 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.DeleteFilter;
-import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.data.FlinkAvroReader;
@@ -37,7 +37,6 @@ import org.apache.iceberg.flink.data.FlinkParquetReaders;
 import org.apache.iceberg.flink.data.RowDataUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.ORC;
@@ -47,6 +46,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
 
+import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
+
 class RowDataIterator extends DataIterator<RowData> {
 
   private final Schema tableSchema;
@@ -54,12 +55,11 @@ class RowDataIterator extends DataIterator<RowData> {
   private final String nameMapping;
   private final boolean caseSensitive;
 
-  RowDataIterator(CombinedScanTask task, FileIO io, EncryptionManager encryption, Schema tableSchema,
-                  Schema projectedSchema, String nameMapping, boolean caseSensitive) {
-    super(task, io, encryption);
-    this.tableSchema = tableSchema;
+  RowDataIterator(Table table, CombinedScanTask task, Schema projectedSchema, boolean caseSensitive) {
+    super(task, table.io(), table.encryption());
+    this.tableSchema = table.schema();
     this.projectedSchema = projectedSchema;
-    this.nameMapping = nameMapping;
+    this.nameMapping = table.properties().get(DEFAULT_NAME_MAPPING);
     this.caseSensitive = caseSensitive;
   }
 

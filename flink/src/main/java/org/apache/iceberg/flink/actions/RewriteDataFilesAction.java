@@ -24,6 +24,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BaseRewriteDataFilesAction;
 import org.apache.iceberg.flink.source.RowDataRewriter;
@@ -51,7 +52,7 @@ public class RewriteDataFilesAction extends BaseRewriteDataFilesAction<RewriteDa
     int size = combinedScanTasks.size();
     int parallelism = Math.min(size, maxParallelism);
     DataStream<CombinedScanTask> dataStream = env.fromCollection(combinedScanTasks);
-    RowDataRewriter rowDataRewriter = new RowDataRewriter(table(), caseSensitive(), fileIO(), encryptionManager());
+    RowDataRewriter rowDataRewriter = new RowDataRewriter(SerializableTable.copyOf(table()), caseSensitive());
     try {
       return rowDataRewriter.rewriteDataForTasks(dataStream, parallelism);
     } catch (Exception e) {

@@ -29,8 +29,6 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expression;
 
-import static org.apache.iceberg.TableProperties.DEFAULT_NAME_MAPPING;
-
 /**
  * Context object with optional arguments for a Flink Scan.
  */
@@ -79,14 +77,13 @@ class ScanContext implements Serializable {
   private final boolean isStreaming;
   private final Duration monitorInterval;
 
-  private final String nameMapping;
   private final Schema schema;
   private final List<Expression> filters;
   private final long limit;
 
   private ScanContext(boolean caseSensitive, Long snapshotId, Long startSnapshotId, Long endSnapshotId,
                       Long asOfTimestamp, Long splitSize, Integer splitLookback, Long splitOpenFileCost,
-                      boolean isStreaming, Duration monitorInterval, String nameMapping,
+                      boolean isStreaming, Duration monitorInterval,
                       Schema schema, List<Expression> filters, long limit) {
     this.caseSensitive = caseSensitive;
     this.snapshotId = snapshotId;
@@ -99,7 +96,6 @@ class ScanContext implements Serializable {
     this.isStreaming = isStreaming;
     this.monitorInterval = monitorInterval;
 
-    this.nameMapping = nameMapping;
     this.schema = schema;
     this.filters = filters;
     this.limit = limit;
@@ -145,10 +141,6 @@ class ScanContext implements Serializable {
     return monitorInterval;
   }
 
-  String nameMapping() {
-    return nameMapping;
-  }
-
   Schema project() {
     return schema;
   }
@@ -173,7 +165,6 @@ class ScanContext implements Serializable {
         .splitOpenFileCost(splitOpenFileCost)
         .streaming(isStreaming)
         .monitorInterval(monitorInterval)
-        .nameMapping(nameMapping)
         .project(schema)
         .filters(filters)
         .limit(limit)
@@ -192,7 +183,6 @@ class ScanContext implements Serializable {
         .splitOpenFileCost(splitOpenFileCost)
         .streaming(isStreaming)
         .monitorInterval(monitorInterval)
-        .nameMapping(nameMapping)
         .project(schema)
         .filters(filters)
         .limit(limit)
@@ -214,7 +204,6 @@ class ScanContext implements Serializable {
     private Long splitOpenFileCost = SPLIT_FILE_OPEN_COST.defaultValue();
     private boolean isStreaming = STREAMING.defaultValue();
     private Duration monitorInterval = MONITOR_INTERVAL.defaultValue();
-    private String nameMapping;
     private Schema projectedSchema;
     private List<Expression> filters;
     private long limit = -1L;
@@ -272,11 +261,6 @@ class ScanContext implements Serializable {
       return this;
     }
 
-    Builder nameMapping(String newNameMapping) {
-      this.nameMapping = newNameMapping;
-      return this;
-    }
-
     Builder project(Schema newProjectedSchema) {
       this.projectedSchema = newProjectedSchema;
       return this;
@@ -305,14 +289,13 @@ class ScanContext implements Serializable {
           .splitLookback(config.get(SPLIT_LOOKBACK))
           .splitOpenFileCost(config.get(SPLIT_FILE_OPEN_COST))
           .streaming(config.get(STREAMING))
-          .monitorInterval(config.get(MONITOR_INTERVAL))
-          .nameMapping(properties.get(DEFAULT_NAME_MAPPING));
+          .monitorInterval(config.get(MONITOR_INTERVAL));
     }
 
     public ScanContext build() {
       return new ScanContext(caseSensitive, snapshotId, startSnapshotId,
           endSnapshotId, asOfTimestamp, splitSize, splitLookback,
-          splitOpenFileCost, isStreaming, monitorInterval, nameMapping, projectedSchema,
+          splitOpenFileCost, isStreaming, monitorInterval, projectedSchema,
           filters, limit);
     }
   }

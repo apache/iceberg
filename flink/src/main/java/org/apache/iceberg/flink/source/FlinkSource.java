@@ -32,15 +32,14 @@ import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.config.ExecutionConfigOptions;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class FlinkSource {
@@ -157,11 +156,6 @@ public class FlinkSource {
       return this;
     }
 
-    public Builder nameMapping(String nameMapping) {
-      contextBuilder.nameMapping(nameMapping);
-      return this;
-    }
-
     public Builder flinkConf(ReadableConfig config) {
       this.readableConfig = config;
       return this;
@@ -170,25 +164,16 @@ public class FlinkSource {
     public FlinkInputFormat buildFormat() {
       Preconditions.checkNotNull(tableLoader, "TableLoader should not be null");
 
-      Schema icebergSchema;
-      FileIO io;
-      EncryptionManager encryption;
       if (table == null) {
         // load required fields by table loader.
         tableLoader.open();
         try (TableLoader loader = tableLoader) {
           table = loader.loadTable();
-          icebergSchema = table.schema();
-          io = table.io();
-          encryption = table.encryption();
         } catch (IOException e) {
           throw new UncheckedIOException(e);
         }
-      } else {
-        icebergSchema = table.schema();
-        io = table.io();
-        encryption = table.encryption();
       }
+      Schema icebergSchema = table.schema();
 
       if (projectedSchema == null) {
         contextBuilder.project(icebergSchema);
@@ -196,7 +181,8 @@ public class FlinkSource {
         contextBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
       }
 
-      return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, contextBuilder.build());
+      // we pass a read-only serializable copy of the current table state to FlinkInputFormat
+      return new FlinkInputFormat(SerializableTable.copyOf(table), contextBuilder.build());
     }
 
     public DataStream<RowData> build() {

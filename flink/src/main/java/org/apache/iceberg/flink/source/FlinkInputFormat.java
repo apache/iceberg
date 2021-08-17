@@ -29,9 +29,6 @@ import org.apache.flink.core.io.InputSplitAssigner;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 
 /**
@@ -41,21 +38,14 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
 
   private static final long serialVersionUID = 1L;
 
-  private final TableLoader tableLoader;
-  private final Schema tableSchema;
-  private final FileIO io;
-  private final EncryptionManager encryption;
+  private final Table table;
   private final ScanContext context;
 
   private transient RowDataIterator iterator;
   private transient long currentReadCount = 0L;
 
-  FlinkInputFormat(TableLoader tableLoader, Schema tableSchema, FileIO io, EncryptionManager encryption,
-                   ScanContext context) {
-    this.tableLoader = tableLoader;
-    this.tableSchema = tableSchema;
-    this.io = io;
-    this.encryption = encryption;
+  FlinkInputFormat(Table table, ScanContext context) {
+    this.table = table;
     this.context = context;
   }
 
@@ -72,12 +62,7 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
 
   @Override
   public FlinkInputSplit[] createInputSplits(int minNumSplits) throws IOException {
-    // Called in Job manager, so it is OK to load table from catalog.
-    tableLoader.open();
-    try (TableLoader loader = tableLoader) {
-      Table table = loader.loadTable();
-      return FlinkSplitGenerator.createInputSplits(table, context);
-    }
+    return FlinkSplitGenerator.createInputSplits(table, context);
   }
 
   @Override
@@ -91,9 +76,7 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
 
   @Override
   public void open(FlinkInputSplit split) {
-    this.iterator = new RowDataIterator(
-        split.getTask(), io, encryption, tableSchema, context.project(), context.nameMapping(),
-        context.caseSensitive());
+    this.iterator = new RowDataIterator(table, split.getTask(), context.project(), context.caseSensitive());
   }
 
   @Override
