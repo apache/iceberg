@@ -72,13 +72,13 @@ High-level features:
   * Added support for SQL primary keys [[\#2410](https://github.com/apache/iceberg/pull/2410)].
 * **Hive**
   * Added the ability to set the catalog at the table level in the Hive Metastore. This makes it possible to write queries that reference tables from multiple catalogs [[\#2129](https://github.com/apache/iceberg/pull/2129)].
-  * Deprecated the configuration property `iceberg.mr.catalog` is now deprecated [[\#2565](https://github.com/apache/iceberg/pull/2565)].
+  * Deprecated the configuration property `iceberg.mr.catalog` which was previously used to configure the Iceberg catalog in MapReduce and Hive [[\#2565](https://github.com/apache/iceberg/pull/2565)].
   * Enabled dropping HMS tables despite metadata problems [[\#2583](https://github.com/apache/iceberg/pull/2583)].
   * Added table-level JVM lock on commits[[\#2547](https://github.com/apache/iceberg/pull/2547)].
   * Use Hive's vectorized ORC reader [[\#2613](https://github.com/apache/iceberg/pull/2613)].
 * **Spark**
   * Added extensions DDL to set identifier fields [[\#2560](https://github.com/apache/iceberg/pull/2560)].
-  * Added support for `ALTER TABLE table CHANGE PARTITION FIELD transform TO transform` DDL [[\#2365](https://github.com/apache/iceberg/pull/2365)].
+  * Added support for `ALTER TABLE REPLACE PARTITION FIELD` DDL [[\#2365](https://github.com/apache/iceberg/pull/2365)].
   * Added support for micro-batch streaming reads for structured streaming in Spark3 [[\#2660](https://github.com/apache/iceberg/pull/2660)].
   * Improved the performance of importing a Hive table by not loading all partitions from Hive and instead pushing the partition filter to the Metastore [[\#2777](https://github.com/apache/iceberg/pull/2777)].
   * Added support for UPDATE statements in Spark [[\#2193](https://github.com/apache/iceberg/pull/2193), [\#2206](https://github.com/apache/iceberg/pull/2206)].
