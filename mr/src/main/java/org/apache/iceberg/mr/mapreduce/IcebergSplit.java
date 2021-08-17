@@ -26,9 +26,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.hadoop.Util;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.util.SerializationUtil;
 
@@ -38,9 +37,8 @@ public class IcebergSplit extends InputSplit implements org.apache.hadoop.mapred
 
   public static final String[] ANYWHERE = new String[]{"*"};
 
+  private Table table;
   private CombinedScanTask task;
-  private FileIO io;
-  private EncryptionManager encryptionManager;
 
   private transient String[] locations;
   private transient Configuration conf;
@@ -49,11 +47,10 @@ public class IcebergSplit extends InputSplit implements org.apache.hadoop.mapred
   public IcebergSplit() {
   }
 
-  IcebergSplit(Configuration conf, CombinedScanTask task, FileIO io, EncryptionManager encryptionManager) {
+  IcebergSplit(Table table, Configuration conf, CombinedScanTask task) {
+    this.table = table;
     this.task = task;
     this.conf = conf;
-    this.io = io;
-    this.encryptionManager = encryptionManager;
   }
 
   public CombinedScanTask task() {
@@ -86,39 +83,27 @@ public class IcebergSplit extends InputSplit implements org.apache.hadoop.mapred
 
   @Override
   public void write(DataOutput out) throws IOException {
+    byte[] tableData = SerializationUtil.serializeToBytes(table);
+    out.writeInt(tableData.length);
+    out.write(tableData);
+
     byte[] data = SerializationUtil.serializeToBytes(this.task);
     out.writeInt(data.length);
     out.write(data);
-
-    byte[] ioData = SerializationUtil.serializeToBytes(io);
-    out.writeInt(ioData.length);
-    out.write(ioData);
-
-    byte[] encryptionManagerData = SerializationUtil.serializeToBytes(encryptionManager);
-    out.writeInt(encryptionManagerData.length);
-    out.write(encryptionManagerData);
   }
 
   @Override
   public void readFields(DataInput in) throws IOException {
+    byte[] tableData = new byte[in.readInt()];
+    in.readFully(tableData);
+    this.table = SerializationUtil.deserializeFromBytes(tableData);
+
     byte[] data = new byte[in.readInt()];
     in.readFully(data);
     this.task = SerializationUtil.deserializeFromBytes(data);
-
-    byte[] ioData = new byte[in.readInt()];
-    in.readFully(ioData);
-    this.io = SerializationUtil.deserializeFromBytes(ioData);
-
-    byte[] encryptionManagerData = new byte[in.readInt()];
-    in.readFully(encryptionManagerData);
-    this.encryptionManager = SerializationUtil.deserializeFromBytes(encryptionManagerData);
   }
 
-  public FileIO io() {
-    return io;
-  }
-
-  public EncryptionManager encryptionManager() {
-    return encryptionManager;
+  public Table table() {
+    return table;
   }
 }
