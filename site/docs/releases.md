@@ -64,7 +64,7 @@ High-level features:
 
 * **Core**
   * Allow Iceberg schemas to specify one or more columns as row identifers [[\#2465](https://github.com/apache/iceberg/pull/2465)]. Note that this is a prerequisite for supporting upserts in Flink.
-  * Added JDBC [[\#1870](https://github.com/apache/iceberg/pull/1870)] and DynamoDB [[\#2688](https://github.com/apache/iceberg/pull/2688)] Iceberg catalog implementations.
+  * Added JDBC [[\#1870](https://github.com/apache/iceberg/pull/1870)] and DynamoDB [[\#2688](https://github.com/apache/iceberg/pull/2688)] catalog implementations.
   * Added predicate pushdown for partitions and files metadata tables [[\#2358](https://github.com/apache/iceberg/pull/2358), [\#2926](https://github.com/apache/iceberg/pull/2926)].
   * Added a new, more flexible compaction action for Spark that can support different strategies such as bin packing and sorting. [[\#2501](https://github.com/apache/iceberg/pull/2501), [\#2609](https://github.com/apache/iceberg/pull/2609)].
   * Added the ability to upgrade to v2 or create a v2 table using the table property format-version=2  [[\#2887](https://github.com/apache/iceberg/pull/2887)].
@@ -75,6 +75,7 @@ High-level features:
   * Deprecated the configuration property `iceberg.mr.catalog` is now deprecated [[\#2565](https://github.com/apache/iceberg/pull/2565)].
   * Enabled dropping HMS tables despite metadata problems [[\#2583](https://github.com/apache/iceberg/pull/2583)].
   * Added table-level JVM lock on commits[[\#2547](https://github.com/apache/iceberg/pull/2547)].
+  * Use Hive's vectorized ORC reader [[\#2613](https://github.com/apache/iceberg/pull/2613)].
 * **Spark**
   * Added extensions DDL to set identifier fields [[\#2560](https://github.com/apache/iceberg/pull/2560)].
   * Added support for `ALTER TABLE table CHANGE PARTITION FIELD transform TO transform` DDL [[\#2365](https://github.com/apache/iceberg/pull/2365)].
