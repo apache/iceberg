@@ -42,6 +42,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -135,13 +136,14 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     InputFormatConfig.InMemoryDataModel model = conf.getEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL,
         InputFormatConfig.InMemoryDataModel.GENERIC);
     try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
+      Table serializableTable = SerializableTable.copyOf(table);
       tasksIterable.forEach(task -> {
         if (applyResidual && (model == InputFormatConfig.InMemoryDataModel.HIVE ||
             model == InputFormatConfig.InMemoryDataModel.PIG)) {
           // TODO: We do not support residual evaluation for HIVE and PIG in memory data model yet
           checkResiduals(task);
         }
-        splits.add(new IcebergSplit(conf, task, table.io(), table.encryption()));
+        splits.add(new IcebergSplit(serializableTable, conf, task));
       });
     } catch (IOException e) {
       throw new UncheckedIOException(String.format("Failed to close table scan: %s", scan), e);
@@ -204,8 +206,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       // For now IcebergInputFormat does its own split planning and does not accept FileSplit instances
       CombinedScanTask task = ((IcebergSplit) split).task();
       this.context = newContext;
-      this.io = ((IcebergSplit) split).io();
-      this.encryptionManager = ((IcebergSplit) split).encryptionManager();
+      Table table = ((IcebergSplit) split).table();
+      this.io = table.io();
+      this.encryptionManager = table.encryption();
       this.tasks = task.files().iterator();
       this.tableSchema = InputFormatConfig.tableSchema(conf);
       this.caseSensitive = conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, InputFormatConfig.CASE_SENSITIVE_DEFAULT);
