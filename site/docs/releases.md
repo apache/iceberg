@@ -69,11 +69,12 @@ High-level features:
   * Added a new, more flexible compaction action for Spark that can support different strategies such as bin packing and sorting. [[\#2501](https://github.com/apache/iceberg/pull/2501), [\#2609](https://github.com/apache/iceberg/pull/2609)].
   * Added the ability to upgrade to v2 or create a v2 table using the table property format-version=2  [[\#2887](https://github.com/apache/iceberg/pull/2887)].
   * Added support for nulls in StructLike collections [[\#2929](https://github.com/apache/iceberg/pull/2929)].
+  * Added `key_metadata` field to manifest lists for encryption [[\#2675](https://github.com/apache/iceberg/pull/2675)].
 * **Flink**
   * Added support for SQL primary keys [[\#2410](https://github.com/apache/iceberg/pull/2410)].
 * **Hive**
   * Added the ability to set the catalog at the table level in the Hive Metastore. This makes it possible to write queries that reference tables from multiple catalogs [[\#2129](https://github.com/apache/iceberg/pull/2129)].
-  * Deprecated the configuration property `iceberg.mr.catalog` which was previously used to configure the Iceberg catalog in MapReduce and Hive [[\#2565](https://github.com/apache/iceberg/pull/2565)].
+  * As a result of [[\#2129](https://github.com/apache/iceberg/pull/2129)], deprecated the configuration property `iceberg.mr.catalog` which was previously used to configure the Iceberg catalog in MapReduce and Hive [[\#2565](https://github.com/apache/iceberg/pull/2565)].
   * Added table-level JVM lock on commits[[\#2547](https://github.com/apache/iceberg/pull/2547)].
   * Added support for Hive's vectorized ORC reader [[\#2613](https://github.com/apache/iceberg/pull/2613)].
 * **Spark**
@@ -87,6 +88,7 @@ High-level features:
   * Added `add_files` stored procedure [[\#2210](https://github.com/apache/iceberg/pull/2210)].
   * Refactored Actions API and added a new entry point (need to find the ref)
   * Added support for Hadoop configuration overrides [[\#2922](https://github.com/apache/iceberg/pull/2922)].
+  * Added support for the Timestamp without Timezone type in Spark [[\#2757](https://github.com/apache/iceberg/pull/2757)].
 
 
 Important bug fixes:
@@ -101,7 +103,6 @@ Important bug fixes:
 * **Spark**
   * Fixed `MERGE INTO` in Spark when used with `SinglePartition` partitioning [[\#2584](https://github.com/apache/iceberg/pull/2584)].
   * Fixed nested struct pruning in Spark [[\#2877](https://github.com/apache/iceberg/pull/2877)].
-  * Fixed Timestamp without Timezone type support in Spark [[\#2757](https://github.com/apache/iceberg/pull/2757)].
   * Fixed NaN handling for float and double metrics [[\#2464](https://github.com/apache/iceberg/pull/2464)].
   * Fixed Kryo serialization for data and delete files [[\#2343](https://github.com/apache/iceberg/pull/2343)].
 
