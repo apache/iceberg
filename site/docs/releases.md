@@ -100,6 +100,8 @@ Important bug fixes:
   * Fixed partition field IDs in table replacement [[\#2906](https://github.com/apache/iceberg/pull/2906)].
 * **Hive**
   * Enabled dropping HMS tables despite metadata problems [[\#2583](https://github.com/apache/iceberg/pull/2583)].
+* **Parquet**
+  * Fixed Parquet row group filters when types are promoted from `int` to `long` or from `float` to `double` [[\#2232](https://github.com/apache/iceberg/pull/2232)]
 * **Spark**
   * Fixed `MERGE INTO` in Spark when used with `SinglePartition` partitioning [[\#2584](https://github.com/apache/iceberg/pull/2584)].
   * Fixed nested struct pruning in Spark [[\#2877](https://github.com/apache/iceberg/pull/2877)].
