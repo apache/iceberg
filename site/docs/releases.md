@@ -68,6 +68,8 @@ High-level features:
   * Added predicate pushdown for partitions and files metadata tables [[\#2358](https://github.com/apache/iceberg/pull/2358), [\#2926](https://github.com/apache/iceberg/pull/2926)].
   * Added a new, more flexible compaction action for Spark that can support different strategies such as bin packing and sorting. [[\#2501](https://github.com/apache/iceberg/pull/2501), [\#2609](https://github.com/apache/iceberg/pull/2609)].
   * Added the ability to upgrade to v2 or create a v2 table using the table property format-version=2  [[\#2887](https://github.com/apache/iceberg/pull/2887)].
+* **Hive**
+  * Added the ability to set the catalog at the table level in the Hive Metastore. This makes it possible to write queries that reference tables from multiple catalogs [[\#2129](https://github.com/apache/iceberg/pull/2129)].
 * **Spark**
   * [[\#2560](https://github.com/apache/iceberg/pull/2560)] added extensions DDL to set identifier fields.
   * [[\#2365](https://github.com/apache/iceberg/pull/2365)] added support for `ALTER TABLE table CHANGE PARTITION FIELD transform TO transform` DDL.
