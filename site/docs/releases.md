@@ -68,39 +68,49 @@ High-level features:
   * Added predicate pushdown for partitions and files metadata tables [[\#2358](https://github.com/apache/iceberg/pull/2358), [\#2926](https://github.com/apache/iceberg/pull/2926)].
   * Added a new, more flexible compaction action for Spark that can support different strategies such as bin packing and sorting. [[\#2501](https://github.com/apache/iceberg/pull/2501), [\#2609](https://github.com/apache/iceberg/pull/2609)].
   * Added the ability to upgrade to v2 or create a v2 table using the table property format-version=2  [[\#2887](https://github.com/apache/iceberg/pull/2887)].
+  * Added support for nulls in StructLike collections [[\#2929](https://github.com/apache/iceberg/pull/2929)].
 * **Flink**
   * Added support for SQL primary keys [[\#2410](https://github.com/apache/iceberg/pull/2410)].
 * **Hive**
   * Added the ability to set the catalog at the table level in the Hive Metastore. This makes it possible to write queries that reference tables from multiple catalogs [[\#2129](https://github.com/apache/iceberg/pull/2129)].
   * Deprecated the configuration property `iceberg.mr.catalog` which was previously used to configure the Iceberg catalog in MapReduce and Hive [[\#2565](https://github.com/apache/iceberg/pull/2565)].
-  * Enabled dropping HMS tables despite metadata problems [[\#2583](https://github.com/apache/iceberg/pull/2583)].
   * Added table-level JVM lock on commits[[\#2547](https://github.com/apache/iceberg/pull/2547)].
-  * Use Hive's vectorized ORC reader [[\#2613](https://github.com/apache/iceberg/pull/2613)].
+  * Added support for Hive's vectorized ORC reader [[\#2613](https://github.com/apache/iceberg/pull/2613)].
 * **Spark**
-  * Added extensions DDL to set identifier fields [[\#2560](https://github.com/apache/iceberg/pull/2560)].
+  * Added SET and DROP IDENTIFIER FIELDS to ALTER TABLE" so people don't have to look up the DDL [[\#2560](https://github.com/apache/iceberg/pull/2560)].
   * Added support for `ALTER TABLE REPLACE PARTITION FIELD` DDL [[\#2365](https://github.com/apache/iceberg/pull/2365)].
   * Added support for micro-batch streaming reads for structured streaming in Spark3 [[\#2660](https://github.com/apache/iceberg/pull/2660)].
   * Improved the performance of importing a Hive table by not loading all partitions from Hive and instead pushing the partition filter to the Metastore [[\#2777](https://github.com/apache/iceberg/pull/2777)].
   * Added support for UPDATE statements in Spark [[\#2193](https://github.com/apache/iceberg/pull/2193), [\#2206](https://github.com/apache/iceberg/pull/2206)].
+  * Added support for Spark 3.1 [[\#2512]()].
+  * Added `RemoveReachableFiles action` [[\#2415](https://github.com/apache/iceberg/pull/2415].
+  * Added `add_files` stored procedure [[\#2210](https://github.com/apache/iceberg/pull/2210)].
+  * Refactored Actions API and added a new entry point (need to find the ref)
+  * Added support for Hadoop configuration overrides [[\#2922](https://github.com/apache/iceberg/pull/2922)].
 
 
 Important bug fixes:
 
 * **Core**
   * Fixed string bucketing with non-BMP characters [[\#2849](https://github.com/apache/iceberg/pull/2849)].
-  * Fixed Parquet dictionary filter not handling fixed length byte arrays [[\#2551](https://github.com/apache/iceberg/pull/2551)].
+  * Fixed Parquet dictionary filtering with fixed-length byte arrays and decimals [[\#2551](https://github.com/apache/iceberg/pull/2551)].
   * Fixed a problem with the configuration of HiveCatalog [[\#2550](https://github.com/apache/iceberg/pull/2550)].
+  * Fixed partition field IDs in table replacement [[\#2906](https://github.com/apache/iceberg/pull/2906)].
+* **Hive**
+  * Enabled dropping HMS tables despite metadata problems [[\#2583](https://github.com/apache/iceberg/pull/2583)].
 * **Spark**
-  * Fixed `MERGE INTO` in Spark when used with SinglePartition partitioning [[\#2584](https://github.com/apache/iceberg/pull/2584)].
-  * Fixed nested struct pruning in Spar [[\#2877](https://github.com/apache/iceberg/pull/2877)].
+  * Fixed `MERGE INTO` in Spark when used with `SinglePartition` partitioning [[\#2584](https://github.com/apache/iceberg/pull/2584)].
+  * Fixed nested struct pruning in Spark [[\#2877](https://github.com/apache/iceberg/pull/2877)].
   * Fixed Timestamp without Timezone type support in Spark [[\#2757](https://github.com/apache/iceberg/pull/2757)].
+  * Fixed NaN handling for float and double metrics [[\#2464](https://github.com/apache/iceberg/pull/2464)].
+  * Fixed Kryo serialization for data and delete files [[\#2343](https://github.com/apache/iceberg/pull/2343)].
 
 Other notable changes:
 
 * The Iceberg Community [voted to approve](https://mail-archives.apache.org/mod_mbox/iceberg-dev/202107.mbox/%3cCAMwmD1-k1gnShK=wQ0PD88it6cg9mY7Y1hKHjDZ7L-jcDzpyZA@mail.gmail.com%3e) version 2 of the Apache Iceberg Format Specification. The differences between version 1 and 2 of the specification are documented [here](https://iceberg.apache.org/spec/#version-2).
 * Bugfixes and stability improvements for NessieCatalog
 * Improvements and fixes for Iceberg's Python library
-* Added a vectorized reader for Apache Arrow [[\#2286](https://github.com/apache/iceberg/pull/2286)] and modified Iceberg's Hive integration so that Hive can leverage its vectorized ORC reader when accessing Iceberg tables [[\#2613](https://github.com/apache/iceberg/pull/2613)].
+* Added a vectorized reader for Apache Arrow [[\#2286](https://github.com/apache/iceberg/pull/2286)].
 * The following Iceberg dependencies were upgraded:
   * Hive 2.3.8 [[\#2110](https://github.com/apache/iceberg/pull/2110)].
   * Avro 1.10.1 [[\#1648](https://github.com/apache/iceberg/pull/1648)].
