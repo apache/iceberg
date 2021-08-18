@@ -18,74 +18,150 @@
 # under the License.
 #
 
+#
+# Generate a release-candidate and a text file containing the release
+# announcement email.
+#
+
 set -e
 
-if [ -z "$1" ]; then
-  echo "Usage: $0 <version-num> <rc-num>"
-  exit
+usage () {
+    echo "usage: $0 [-k <key_id>] [-g <git_remote>] -v <version_num> -r <rc_num>"
+    echo "  -v      Version number of release"
+    echo "  -r      Release candidate number"
+    echo "  -k      Specify signing key. Defaults to \"GPG default key\""
+    echo "  -g      Specify Git remote name. Defaults to \"origin\""
+    echo "  -d      Turn on DEBUG output"
+    exit 1
+}
+
+# Default repository remote name
+remote="apache"
+
+while getopts "v:r:k:r:d" opt; do
+  case "${opt}" in
+    v)
+      version="${OPTARG}"
+      ;;
+    r)
+      rc="${OPTARG}"
+      ;;
+    k)
+      keyid="${OPTARG}"
+      ;;
+    g)
+      remote="${OPTARG}"
+      ;;
+    d)
+      set -x
+      ;;
+    *)
+      usage
+      ;;
+  esac
+done
+
+shift $((OPTIND-1))
+
+if [ -z "$version" ] || [ -z "$rc" ]; then
+  echo "You must specify the version and RC numbers using the -v and -r switches"
+  usage
 fi
 
-if [ -z "$2" ]; then
-  echo "Usage: $0 <version-num> <rc-num>"
-  exit
+scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+projectdir="$(dirname "$scriptdir")"
+tmpdir=$projectdir/tmp
+
+if [ -d $tmpdir ]; then
+  echo "Cannot run: $tmpdir already exists"
+  exit 1
 fi
 
-version=$1
-rc=$2
-
-if [ -d tmp/ ]; then
-  echo "Cannot run: tmp/ exists"
-  exit
-fi
-
-tag=apache-iceberg-$version
-tagrc=${tag}-rc${rc}
+tag="apache-iceberg-$version"
+tagrc="${tag}-rc${rc}"
 
 echo "Preparing source for $tagrc"
 
-# create version.txt for this release
-echo $version > version.txt
-git add version.txt
-git commit -m "Add version.txt for release $version" version.txt
+echo "Adding version.txt and tagging release..."
+echo $version > $projectdir/version.txt
+git add $projectdir/version.txt
+git commit -m "Add version.txt for release $version" $projectdir/version.txt
 
 set_version_hash=`git rev-list HEAD 2> /dev/null | head -n 1 `
-
 git tag -am "Apache Iceberg $version" $tagrc $set_version_hash
-git push apache $tagrc
+
+echo "Pushing $tagrc to $remote..."
+git push $remote $tagrc
 
 release_hash=`git rev-list $tagrc 2> /dev/null | head -n 1 `
 
 if [ -z "$release_hash" ]; then
-  echo "Cannot continue: unknown git tag: $tag"
+  echo "Cannot continue: unknown Git tag: $tag"
   exit
 fi
 
-echo "Using commit $release_hash"
-
-tarball=$tag.tar.gz
-
 # be conservative and use the release hash, even though git produces the same
 # archive (identical hashes) using the scm tag
-git archive $release_hash --worktree-attributes --prefix $tag/ -o $tarball
+echo "Creating tarball ${tarball} using commit $release_hash"
+tarball=$tag.tar.gz
+git archive $release_hash --worktree-attributes --prefix $tag/ -o $projectdir/$tarball
 
-# sign the archive
-gpg --armor --output ${tarball}.asc --detach-sig $tarball
-sha512sum $tarball > ${tarball}.sha512
+echo "Signing the tarball..."
+[[ -z "$keyid" ]] && keyopt="-u $keyid"
+gpg --detach-sig $keyopt --armor --output ${projectdir}/${tarball}.asc ${projectdir}/$tarball
+sha512sum ${projectdir}/$tarball > ${projectdir}/${tarball}.sha512
 
-# check out the Iceberg RC folder
-svn co --depth=empty https://dist.apache.org/repos/dist/dev/iceberg tmp
 
-# add the release candidate for the tag
-mkdir -p tmp/$tagrc
-cp ${tarball}* tmp/$tagrc
-svn add tmp/$tagrc
-svn ci -m "Apache Iceberg $version RC${rc}" tmp/$tagrc
+echo "Checking out Iceberg RC subversion repo..."
+svn co --depth=empty https://dist.apache.org/repos/dist/dev/iceberg $tmpdir
 
-# clean up
-rm -rf tmp
+echo "Adding tarball to the Iceberg distribution Subversion repo..."
+mkdir -p $tmpdir/$tagrc
+cp $projectdir/${tarball}* $tmpdir/$tagrc
+svn add $tmpdir/$tagrc
+svn ci -m "Apache Iceberg $version RC${rc}" $tmpdir/$tagrc
+
+echo "Creating release-announcement-email.txt..."
+cat << EOF > $projectdir/release-announcement-email.txt
+To: dev@iceberg.apache.org
+Subject: [VOTE] Release Apache Iceberg ${version} RC${rc}
+
+Hi Everyone,
+
+I propose that we release the following RC as the official Apache Iceberg ${version} release.
+
+The commit ID is ${release_hash}
+* This corresponds to the tag: apache-iceberg-${version}-rc${rc}
+* https://github.com/apache/iceberg/commits/apache-iceberg-${version}-rc${rc}
+* https://github.com/apache/iceberg/tree/${release_hash}
+
+The release tarball, signature, and checksums are here:
+* https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-${version}-rc${rc}
+
+You can find the KEYS file here:
+* https://dist.apache.org/repos/dist/dev/iceberg/KEYS
+
+Convenience binary artifacts are staged on Nexus. The Maven repository URL is:
+* https://repository.apache.org/content/repositories/orgapacheiceberg-<ID>/
+
+Please download, verify, and test.
+
+Please vote in the next 72 hours.
+
+[ ] +1 Release this as Apache Iceberg <VERSION>
+[ ] +0
+[ ] -1 Do not release this because...
+EOF
 
 echo "Success! The release candidate is available here:"
 echo "  https://dist.apache.org/repos/dist/dev/iceberg/$tagrc"
 echo ""
 echo "Commit SHA1: $release_hash"
+echo ""
+echo "We have generated a release announcement email for you here:"
+echo "$projectdir/release_announcement_email.txt"
+echo ""
+echo "Please note that you must update the Nexus repository URL"
+echo "contained in the mail before sending it out."
 
+rm -rf $tmpdir
