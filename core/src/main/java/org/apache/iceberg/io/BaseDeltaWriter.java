@@ -65,4 +65,33 @@ abstract class BaseDeltaWriter<T> implements DeltaWriter<T> {
     deleteFiles.addAll(result.deleteFiles());
     referencedDataFiles.addAll(result.referencedDataFiles());
   }
+
+  protected static class BaseDeltaTaskWriteResult implements DeltaWriter.Result {
+
+    private final List<DataFile> dataFiles;
+    private final List<DeleteFile> deleteFiles;
+    private final CharSequenceSet referencedDataFiles;
+
+    public BaseDeltaTaskWriteResult(List<DataFile> dataFiles, List<DeleteFile> deleteFiles,
+        CharSequenceSet referencedDataFiles) {
+      this.dataFiles = dataFiles;
+      this.deleteFiles = deleteFiles;
+      this.referencedDataFiles = referencedDataFiles;
+    }
+
+    @Override
+    public List<DataFile> dataFiles() {
+      return dataFiles;
+    }
+
+    @Override
+    public List<DeleteFile> deleteFiles() {
+      return deleteFiles;
+    }
+
+    @Override
+    public CharSequenceSet referencedDataFiles() {
+      return referencedDataFiles;
+    }
+  }
 }
