@@ -19,6 +19,8 @@
 
 package org.apache.iceberg.aws.glue;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,7 +43,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.io.CloseGroupUtil;
+import org.apache.iceberg.io.CloseGroupHelper;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -68,7 +70,7 @@ import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateDatabaseRequest;
 
-public class GlueCatalog extends BaseMetastoreCatalog implements AutoCloseable, SupportsNamespaces, Configurable {
+public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces, Configurable {
 
   private static final Logger LOG = LoggerFactory.getLogger(GlueCatalog.class);
 
@@ -79,6 +81,7 @@ public class GlueCatalog extends BaseMetastoreCatalog implements AutoCloseable, 
   private AwsProperties awsProperties;
   private FileIO fileIO;
   private LockManager lockManager;
+  private CloseGroupHelper closeGroupHelper;
 
   /**
    * No-arg constructor to load the catalog dynamically.
@@ -118,6 +121,7 @@ public class GlueCatalog extends BaseMetastoreCatalog implements AutoCloseable, 
     this.glue = client;
     this.lockManager = lock;
     this.fileIO = io;
+    this.closeGroupHelper = new CloseGroupHelper(glue, lockManager, fileIO);
   }
 
   private String cleanWarehousePath(String path) {
@@ -413,8 +417,8 @@ public class GlueCatalog extends BaseMetastoreCatalog implements AutoCloseable, 
   }
 
   @Override
-  public void close() throws Exception {
-    CloseGroupUtil.closeAutoCloseables(true, glue, lockManager, fileIO);
+  public void close() throws IOException {
+    closeGroupHelper.closeAsCloseable(true);
   }
 
   @Override
