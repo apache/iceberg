@@ -98,9 +98,9 @@ public class MetricsConfig implements Serializable {
     }
 
     // First set sorted column with sorted column default (can be overridden by user)
-    MetricsMode sortedColDefaultMode = sortColumnDefaultMode(spec.defaultMode);
+    MetricsMode sortedColDefaultMode = sortedColumnDefaultMode(spec.defaultMode);
     Set<String> sortedCols = SortOrderUtil.sortedColumns(order);
-    sortedCols.stream().forEach(sc -> spec.columnModes.put(sc, sortedColDefaultMode));
+    sortedCols.forEach(sc -> spec.columnModes.put(sc, sortedColDefaultMode));
 
     props.keySet().stream()
         .filter(key -> key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX))
@@ -116,6 +116,7 @@ public class MetricsConfig implements Serializable {
           }
           spec.columnModes.put(columnAlias, mode);
         });
+
     return spec;
   }
 
@@ -124,7 +125,7 @@ public class MetricsConfig implements Serializable {
    * @param defaultMode default mode
    * @return mode to use
    */
-  private static MetricsMode sortColumnDefaultMode(MetricsMode defaultMode) {
+  private static MetricsMode sortedColumnDefaultMode(MetricsMode defaultMode) {
     if (defaultMode == MetricsModes.None.get() || defaultMode == MetricsModes.Counts.get()) {
       return MetricsModes.Truncate.withLength(16);
     } else {

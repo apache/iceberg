@@ -27,7 +27,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.TestWriterMetrics;
 import org.apache.iceberg.io.WriterFactory;
 
-public class TestFlinkWriterMetrics extends TestWriterMetrics {
+public class TestFlinkWriterMetrics extends TestWriterMetrics<RowData> {
 
   public TestFlinkWriterMetrics(FileFormat fileFormat) {
     super(fileFormat);

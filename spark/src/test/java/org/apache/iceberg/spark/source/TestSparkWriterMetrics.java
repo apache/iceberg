@@ -27,7 +27,7 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.unsafe.types.UTF8String;
 
-public class TestSparkWriterMetrics extends TestWriterMetrics {
+public class TestSparkWriterMetrics extends TestWriterMetrics<InternalRow> {
 
   public TestSparkWriterMetrics(FileFormat fileFormat) {
     super(fileFormat);

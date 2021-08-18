@@ -22,6 +22,7 @@ package org.apache.iceberg.io;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.Map;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -39,7 +40,6 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -92,8 +92,7 @@ public abstract class TestWriterMetrics<T> {
     this.fileFormat = fileFormat;
   }
 
-  protected abstract WriterFactory newWriterFactory(Schema dataSchema);
-
+  protected abstract WriterFactory<T> newWriterFactory(Schema dataSchema);
 
   protected abstract T toRow(Integer id, String data, boolean boolValue, Long longValue);
 
@@ -124,23 +123,24 @@ public abstract class TestWriterMetrics<T> {
   @Test
   public void verifySortedColMetric() throws Exception {
     T row = toRow(3, "3", true, 3L);
-    FileAppender<T> appender = newWriterFactory(SCHEMA).newDataWriter(
+    DataWriter dataWriter = newWriterFactory(SCHEMA).newDataWriter(
         fileFactory.newOutputFile(),
         PartitionSpec.unpartitioned(),
         null
-    ).appender();
-    appender.add(row);
-    appender.close();
+    );
+    dataWriter.add(row);
+    dataWriter.close();
+    DataFile dataFile = dataWriter.toDataFile();
 
     // Only two sorted fields (id, structField.longValue) will have metrics
-    Map<Integer, ByteBuffer> lowerBounds = appender.metrics().lowerBounds();
+    Map<Integer, ByteBuffer> lowerBounds = dataFile.lowerBounds();
     Assert.assertEquals(3, (int) Conversions.fromByteBuffer(Types.IntegerType.get(), lowerBounds.get(1)));
     Assert.assertFalse(lowerBounds.containsKey(2));
     Assert.assertFalse(lowerBounds.containsKey(3));
     Assert.assertFalse(lowerBounds.containsKey(4));
     Assert.assertEquals(3L, (long) Conversions.fromByteBuffer(Types.LongType.get(), lowerBounds.get(5)));
 
-    Map<Integer, ByteBuffer> upperBounds = appender.metrics().upperBounds();
+    Map<Integer, ByteBuffer> upperBounds = dataFile.upperBounds();
     Assert.assertEquals(3, (int) Conversions.fromByteBuffer(Types.IntegerType.get(), upperBounds.get(1)));
     Assert.assertFalse(upperBounds.containsKey(2));
     Assert.assertFalse(upperBounds.containsKey(3));
