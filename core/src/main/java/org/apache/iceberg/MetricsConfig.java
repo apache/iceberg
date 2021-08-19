@@ -99,7 +99,7 @@ public class MetricsConfig implements Serializable {
 
     // First set sorted column with sorted column default (can be overridden by user)
     MetricsMode sortedColDefaultMode = sortedColumnDefaultMode(spec.defaultMode);
-    Set<String> sortedCols = SortOrderUtil.sortedColumns(order);
+    Set<String> sortedCols = SortOrderUtil.orderPreservingSortedColumns(order);
     sortedCols.forEach(sc -> spec.columnModes.put(sc, sortedColDefaultMode));
 
     props.keySet().stream()

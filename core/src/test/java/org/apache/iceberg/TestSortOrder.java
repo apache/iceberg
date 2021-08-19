@@ -38,6 +38,7 @@ import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.NullOrder.NULLS_LAST;
+import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -320,13 +321,24 @@ public class TestSortOrder {
   }
 
   @Test
-  public void testSortOrderColumnNames() {
+  public void testSortedColumnNames() {
     SortOrder order = SortOrder.builderFor(SCHEMA)
         .withOrderId(10)
         .asc("s.id")
         .desc(truncate("data", 10))
         .build();
-    Set<String> sortedCols = SortOrderUtil.sortedColumns(order);
+    Set<String> sortedCols = SortOrderUtil.orderPreservingSortedColumns(order);
     Assert.assertEquals(ImmutableSet.of("s.id", "data"), sortedCols);
+  }
+
+  @Test
+  public void testPreservingOrderSortedColumnNames() {
+    SortOrder order = SortOrder.builderFor(SCHEMA)
+        .withOrderId(10)
+        .asc(bucket("s.id", 5))
+        .desc(truncate("data", 10))
+        .build();
+    Set<String> sortedCols = SortOrderUtil.orderPreservingSortedColumns(order);
+    Assert.assertEquals(ImmutableSet.of("data"), sortedCols);
   }
 }

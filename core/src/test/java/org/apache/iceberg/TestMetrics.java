@@ -114,6 +114,7 @@ public abstract class TestMetrics {
   private static final Record FLOAT_DOUBLE_RECORD_2 = createRecordWithFloatAndDouble(5.6F, 7.8D);
   private static final Record NAN_ONLY_RECORD = createRecordWithFloatAndDouble(Float.NaN, Double.NaN);
   private static final int FORMAT_V2 = 2;
+
   private final byte[] fixed = "abcd".getBytes(StandardCharsets.UTF_8);
 
   @After
@@ -637,9 +638,8 @@ public abstract class TestMetrics {
         .asc("decimalCol")
         .asc("stringCol")
         .asc("dateCol").build();
-
-    Table table =
-        TestTables.create(tableDir, "test", SIMPLE_SCHEMA, PartitionSpec.unpartitioned(), sortOrder, FORMAT_V2);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = TestTables.create(tableDir, "test", SIMPLE_SCHEMA, spec, sortOrder, FORMAT_V2);
     table.updateProperties().set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none").commit();
 
     Record firstRecord = GenericRecord.create(SIMPLE_SCHEMA);
@@ -673,7 +673,6 @@ public abstract class TestMetrics {
     secondRecord.setField("binaryCol", ByteBuffer.wrap("S".getBytes()));
     secondRecord.setField("timestampColBelowEpoch", DateTimeUtil.timestampFromMicros(0L));
 
-
     Metrics metrics = getMetrics(
         SIMPLE_SCHEMA,
         MetricsConfig.forTable(table),
@@ -698,8 +697,8 @@ public abstract class TestMetrics {
     SortOrder sortOrder = SortOrder.builderFor(NESTED_SCHEMA)
         .asc("nestedStructCol.longCol")
         .asc("nestedStructCol.leafStructCol.leafLongCol").build();
-    Table table = TestTables.create(tableDir, "nested", NESTED_SCHEMA, PartitionSpec.unpartitioned(),
-        sortOrder, FORMAT_V2);
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Table table = TestTables.create(tableDir, "nested", NESTED_SCHEMA, spec, sortOrder, FORMAT_V2);
 
     Record leafStruct = GenericRecord.create(LEAF_STRUCT_TYPE);
     leafStruct.setField("leafLongCol", Long.MAX_VALUE);

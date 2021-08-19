@@ -51,7 +51,6 @@ public class TestMetricsModes {
     TestTables.clearTables();
   }
 
-
   @Test
   public void testMetricsModeParsing() {
     Assert.assertEquals(None.get(), MetricsModes.fromString("none"));

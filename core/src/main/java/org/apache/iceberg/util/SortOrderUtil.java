@@ -69,11 +69,12 @@ public class SortOrderUtil {
     return builder.build();
   }
 
-  public static Set<String> sortedColumns(SortOrder sortOrder) {
+  public static Set<String> orderPreservingSortedColumns(SortOrder sortOrder) {
     if (sortOrder == null) {
       return Collections.emptySet();
     } else {
       return sortOrder.fields().stream()
+          .filter(f -> f.transform().preservesOrder())
           .map(SortField::sourceId)
           .map(sid -> sortOrder.schema().findColumnName(sid))
           .filter(Objects::nonNull)
