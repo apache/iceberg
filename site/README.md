@@ -49,10 +49,14 @@ To see changes in Javadoc, run:
 
 ### Publishing
 
-After site changes are committed, you can publish the site with this command:
+After site changes are committed, you can publish the site with this series of commands:
 
 ```
-mkdocs gh-deploy
+rm -r site
+mkdir site
+cp ../.asf.yaml site/
+mkdocs gh-deploy --dirty
 ```
-
 This assumes that the Apache remote is named `apache` and will push to the `asf-site` branch. To use a different remote add `-r <remote-name>`.
+
+Please note that the commands listed above for publishing the site are taken from ASF INFRA's [Project sites using MKDocs](https://infra.apache.org/asfyaml-mkdocs.html) page. If you encounter any problems publishing the site, please check this page first to see if the process has changed.
