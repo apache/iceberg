@@ -167,6 +167,7 @@ class FlinkOrcWriters {
     }
 
     @Override
+    @SuppressWarnings("JavaInstantGetSecondsGetNano")
     public void nonNullWrite(int rowId, TimestampData data, ColumnVector output) {
       TimestampColumnVector cv = (TimestampColumnVector) output;
       // millis

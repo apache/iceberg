@@ -395,6 +395,7 @@ public class GenericOrcWriters {
     }
 
     @Override
+    @SuppressWarnings("JavaLocalDateTimeGetNano")
     public void nonNullWrite(int rowId, LocalDateTime data, ColumnVector output) {
       TimestampColumnVector cv = (TimestampColumnVector) output;
       cv.setIsUTC(true);
