@@ -89,6 +89,7 @@ High-level features:
   * Refactored Actions API and added a new entry point (need to find the ref)
   * Added support for Hadoop configuration overrides [[\#2922](https://github.com/apache/iceberg/pull/2922)].
   * Added support for the Timestamp without Timezone type in Spark [[\#2757](https://github.com/apache/iceberg/pull/2757)].
+  * Added validation that files referenced by row-level deletes are not concurrently rewritten [[\#2308](https://github.com/apache/iceberg/pull/2308)].
 
 
 Important bug fixes:
@@ -99,7 +100,7 @@ Important bug fixes:
   * Fixed a problem with the configuration of HiveCatalog [[\#2550](https://github.com/apache/iceberg/pull/2550)].
   * Fixed partition field IDs in table replacement [[\#2906](https://github.com/apache/iceberg/pull/2906)].
 * **Hive**
-  * Enabled dropping HMS tables despite metadata problems [[\#2583](https://github.com/apache/iceberg/pull/2583)].
+  * Enabled dropping HMS tables even if the metadata on disk gets corrupted [[\#2583](https://github.com/apache/iceberg/pull/2583)].
 * **Parquet**
   * Fixed Parquet row group filters when types are promoted from `int` to `long` or from `float` to `double` [[\#2232](https://github.com/apache/iceberg/pull/2232)]
 * **Spark**
