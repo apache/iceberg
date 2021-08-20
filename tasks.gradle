@@ -54,6 +54,19 @@ task refreshJavadoc(type: Exec) {
 
 task deploySite(type: Exec) {
   workingDir 'site'
-  commandLine 'mkdocs', 'gh-deploy'
-}
+  def remoteName = 'apache'
+  if (project.hasProperty('remote.name')) {
+    remoteName = project.getProperty('remote.name')
+  }
 
+  // Normally the site directory is removed and built entirely from the docs
+  // directory when `mkdocs gh-deploy` runs. Removing the site directory,
+  // copying the file by hand, and using --dirty does basically the same thing,
+  // but allows us to end up with .asf.yaml in the output that gets copied to
+  // the asf-site branch. That's required for publishing now, which is why this
+  // workaround is necessary. For further clarification please see
+  // https://github.com/apache/iceberg/pull/2998#discussion_r693517612
+  commandLine('rm', '-rf', 'site')
+  commandLine('cp', '../.asf.yaml', 'site/')
+  commandLine('mkdocs', 'gh-deploy', '--dirty', '-r', remoteName)
+}
