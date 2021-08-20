@@ -50,6 +50,7 @@ public class IcebergTimestampObjectInspectorHive3 extends AbstractPrimitiveJavaO
   }
 
   @Override
+  @SuppressWarnings("JavaLocalDateTimeGetNano")
   public Timestamp getPrimitiveJavaObject(Object o) {
     if (o == null) {
       return null;
