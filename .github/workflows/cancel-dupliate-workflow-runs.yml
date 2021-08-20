@@ -35,4 +35,4 @@ jobs:
           cancelMode: allDuplicates
           token: ${{ secrets.GITHUB_TOKEN }}
           sourceRunId: ${{ github.event.workflow_run.id }}
-          skipEventTypes: '["push", "schedule"]'  # TODO - May not to remove push from skipEventTypes
+          skipEventTypes: '["push", "schedule"]'  # May consider removing push, which runs in forks
