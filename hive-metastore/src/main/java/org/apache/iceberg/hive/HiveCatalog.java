@@ -507,7 +507,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("name", name)
-        .add("uri", this.conf.get(HiveConf.ConfVars.METASTOREURIS.varname))
+        .add("uri", this.conf == null ? "" : this.conf.get(HiveConf.ConfVars.METASTOREURIS.varname))
         .toString();
   }
 
