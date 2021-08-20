@@ -22,6 +22,7 @@ package org.apache.iceberg.spark;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.SortOrderParser;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
@@ -31,7 +32,7 @@ import static org.apache.iceberg.NullOrder.NULLS_LAST;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-public class TestSpark3Util {
+public class TestSpark3Util extends SparkTestBase {
   @Test
   public void testDescribeSortOrder() {
     Schema schema = new Schema(
@@ -76,6 +77,19 @@ public class TestSpark3Util {
     Assert.assertEquals("Schema description isn't correct.",
         "struct<data: list<string> not null,pairs: map<string, bigint>,time: timestamp not null>",
         Spark3Util.describe(schema));
+  }
+
+  @Test
+  public void testLoadIcebergTable() throws Exception {
+    spark.conf().set("spark.sql.catalog.hive", SparkCatalog.class.getName());
+    spark.conf().set("spark.sql.catalog.hive.type", "hive");
+    spark.conf().set("spark.sql.catalog.hive.default-namespace", "default");
+
+    String tableFullName = "hive.default.tbl";
+    sql("CREATE TABLE %s (c1 bigint, c2 string, c3 string) USING iceberg", tableFullName);
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableFullName);
+    Assert.assertTrue(table.name().equals(tableFullName));
   }
 
   private SortOrder buildSortOrder(String transform, Schema schema, int sourceId) {
