@@ -75,6 +75,7 @@ subprojects {
           '-Xep:EqualsGetClass:OFF',
           // patterns that are allowed
           '-Xep:MissingCasesInEnumSwitch:OFF',
+          '-Xep:ShutdownHook:OFF',
           //Added because it errors out compile, but we need to figure out if we want it
           '-Xep:StrictUnusedVariable:OFF',
           '-Xep:TypeParameterShadowing:OFF',
