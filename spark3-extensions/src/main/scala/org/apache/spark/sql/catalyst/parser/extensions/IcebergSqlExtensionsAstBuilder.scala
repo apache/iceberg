@@ -37,6 +37,7 @@ import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParse
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.CallArgument
 import org.apache.spark.sql.catalyst.plans.logical.CallStatement
+import org.apache.spark.sql.catalyst.plans.logical.CreateTableEncKey
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -113,6 +114,18 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     DropIdentifierFields(
       typedVisit[Seq[String]](ctx.multipartIdentifier),
       ctx.fieldList.fields.asScala.map(_.getText))
+  }
+
+  /**
+   * Create a ENCRYPTED WITH (KEK | MEK) BY TABLE KEY command.
+   */
+  override def visitCreateTableEncKey(ctx: CreateTableEncKeyContext): CreateTableEncKey = withOrigin(ctx) {
+    val isKEK = if (ctx.KEK() != null) true else false
+    CreateTableEncKey(
+      typedVisit[Seq[String]](ctx.multipartIdentifier),
+      isKEK,
+      ctx.keyId().getText
+    )
   }
 
   /**

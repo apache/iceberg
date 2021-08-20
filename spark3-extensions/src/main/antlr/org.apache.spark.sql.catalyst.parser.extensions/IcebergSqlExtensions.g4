@@ -73,6 +73,7 @@ statement
     | ALTER TABLE multipartIdentifier WRITE writeSpec                                       #setWriteDistributionAndOrdering
     | ALTER TABLE multipartIdentifier SET IDENTIFIER_KW FIELDS fieldList                    #setIdentifierFields
     | ALTER TABLE multipartIdentifier DROP IDENTIFIER_KW FIELDS fieldList                   #dropIdentifierFields
+    | ALTER TABLE multipartIdentifier ENCRYPTED WITH (KEK | MEK) BY TABLE KEY keyId         #createTableEncKey
     ;
 
 writeSpec
@@ -163,9 +164,14 @@ fieldList
     : fields+=multipartIdentifier (',' fields+=multipartIdentifier)*
     ;
 
+keyId
+    : STRING
+    ;
+
 nonReserved
     : ADD | ALTER | AS | ASC | BY | CALL | DESC | DROP | FIELD | FIRST | LAST | NULLS | ORDERED | PARTITION | TABLE | WRITE
     | DISTRIBUTED | LOCALLY | UNORDERED | REPLACE | WITH | IDENTIFIER_KW | FIELDS | SET
+    | ENCRYPTED | KEY | KEK | MEK
     | TRUE | FALSE
     | MAP
     ;
@@ -194,6 +200,10 @@ TABLE: 'TABLE';
 UNORDERED: 'UNORDERED';
 WITH: 'WITH';
 WRITE: 'WRITE';
+ENCRYPTED: 'ENCRYPTED';
+KEK: 'KEK';
+MEK: 'MEK';
+KEY: 'KEY';
 
 TRUE: 'TRUE';
 FALSE: 'FALSE';
