@@ -757,8 +757,8 @@ public class Spark3Util {
   }
 
   /**
-   * Returns an Iceberg Table by its name from a Spark V2 Catalog. The {@link TableOperations} of the table may be
-   * stale, please refresh the table to get the latest one.
+   * Returns an Iceberg Table by its name from a Spark V2 Catalog. If cache is enabled in {@link SparkCatalog},
+   * the {@link TableOperations} of the table may be stale, please refresh the table to get the latest one.
    *
    * @param spark SparkSession used for looking up catalog references and tables
    * @param name  The multipart identifier of the Iceberg table
