@@ -34,6 +34,7 @@ import org.apache.iceberg.data.Record
 import org.apache.iceberg.flink.FlinkSchemaUtil
 import org.apache.iceberg.flink.TestHelpers
 import org.apache.iceberg.flink.scala.source.FlinkSource._
+import org.apache.iceberg.flink.source.FlinkSourceScala
 import org.apache.iceberg.flink.source.TestFlinkInputFormat
 import org.apache.iceberg.flink.source.TestFlinkScan
 import org.apache.iceberg.relocated.com.google.common.collect.Lists
@@ -70,7 +71,7 @@ class TestFlinkSourceScala(file: String) extends TestFlinkInputFormat(file) {
 
     val rowType = FlinkSchemaUtil.convert(FlinkSchemaUtil.convert(projectedSchema));
 
-    val data: DataStream[RowData] = FlinkSource.forRowData()
+    val data: DataStream[RowData] = FlinkSourceScala.forRowData()
       .env(env)
       .tableLoader(tableLoader())
       .project(projectedSchema).build()

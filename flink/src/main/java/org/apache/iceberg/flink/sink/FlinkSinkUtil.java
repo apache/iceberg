@@ -8,7 +8,7 @@
  * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
- *   
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -30,10 +30,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
-import org.apache.iceberg.flink.sink.IcebergStreamWriter;
-import org.apache.iceberg.flink.sink.RowDataTaskWriterFactory;
-import org.apache.iceberg.flink.sink.TaskWriterFactory;
-import org.apache.iceberg.flink.source.FlinkSource;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import scala.collection.JavaConverters;
@@ -47,7 +43,6 @@ public class FlinkSinkUtil {
 
   private FlinkSinkUtil() {
   }
-
 
   static RowType toFlinkRowType(Schema schema, TableSchema requestedSchema) {
     if (requestedSchema != null) {
@@ -84,16 +79,15 @@ public class FlinkSinkUtil {
   static IcebergStreamWriter<RowData> createStreamWriter(
       Table table,
       RowType flinkRowType,
-      scala.collection.immutable.List<Integer> equalityFieldIds) {
+      scala.collection.immutable.List<Integer> equalityFieldIdsScala) {
     return FlinkSinkUtil.createStreamWriter(table, flinkRowType,
-        (List<Integer>) JavaConverters.seqAsJavaListConverter(equalityFieldIds).asJava());
+        (List<Integer>) JavaConverters.seqAsJavaListConverter(equalityFieldIdsScala).asJava());
   }
 
   private static FileFormat getFileFormat(Map<String, String> properties) {
     String formatString = properties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
     return FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
   }
-
 
   private static long getTargetFileSizeBytes(Map<String, String> properties) {
     return PropertyUtil.propertyAsLong(

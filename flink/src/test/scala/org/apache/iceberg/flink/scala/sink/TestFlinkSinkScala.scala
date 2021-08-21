@@ -99,7 +99,7 @@ class TestFlinkSinkScala(ft: String, parallelism: Int, partitioned: Boolean) ext
       .table(table)
       .tableLoader(tableLoader)
       .writeParallelism(parallelism)
-      .build();
+      .build()
 
     // Execute the program.
     env.execute("Test Iceberg DataStream.");

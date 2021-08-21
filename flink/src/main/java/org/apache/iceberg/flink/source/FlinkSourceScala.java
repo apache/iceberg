@@ -54,8 +54,8 @@ public class FlinkSourceScala {
 
   public static class Builder extends FlinkSource.Builder<Builder> {
 
-    public Builder env(StreamExecutionEnvironment newEnv) {
-      super.env(newEnv.getJavaEnv());
+    public Builder env(StreamExecutionEnvironment scalaEnv) {
+      super.env(scalaEnv.getJavaEnv());
       return this;
     }
 
@@ -64,7 +64,7 @@ public class FlinkSourceScala {
     }
   }
 
-  public static boolean isBounded(scala.collection.immutable.Map<String, String> properties) {
-    return FlinkSource.isBounded((Map<String, String>) JavaConverters.mapAsJavaMapConverter(properties).asJava());
+  public static boolean isBounded(scala.collection.immutable.Map<String, String> propertiesScala) {
+    return FlinkSource.isBounded((Map<String, String>) JavaConverters.mapAsJavaMapConverter(propertiesScala).asJava());
   }
 }

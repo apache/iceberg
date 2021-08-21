@@ -20,8 +20,6 @@
 package org.apache.iceberg.flink.sink;
 
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.scala.DataStream;
@@ -31,18 +29,8 @@ import org.apache.flink.table.data.util.DataFormatConverters;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.SerializableTable;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.flink.source.FlinkSource;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
-import org.apache.iceberg.util.PropertyUtil;
 import scala.collection.JavaConverters;
-
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
-import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
 public class FlinkSinkScala {
 
@@ -67,15 +55,14 @@ public class FlinkSinkScala {
     return new Builder().forMapperOutputType(input.javaStream(), mapper, outputType);
   }
 
-  
   /**
-   * Initialize a {@link FlinkSink.Builder} to export the data from input data stream with {@link Row}s into iceberg table. We use
+   * Initialize a {@link Builder} to export the data from input data stream with {@link Row}s into iceberg table. We use
    * {@link RowData} inside the sink connector, so users need to provide a {@link TableSchema} for builder to convert
    * those {@link Row}s to a {@link RowData} DataStream.
    *
    * @param input       the source input data stream with {@link Row}s.
    * @param tableSchema defines the {@link TypeInformation} for input data.
-   * @return {@link FlinkSink.Builder} to connect the iceberg table.
+   * @return {@link Builder} to connect the iceberg table.
    */
   public static Builder forRow(DataStream<Row> input, TableSchema tableSchema) {
     RowType rowType = (RowType) tableSchema.toRowDataType().getLogicalType();
@@ -87,29 +74,24 @@ public class FlinkSinkScala {
   }
 
   /**
-   * Initialize a {@link FlinkSink.Builder} to export the data from input data stream with {@link RowData}s into iceberg table.
+   * Initialize a {@link Builder} to export the data from input data stream with {@link RowData}s into iceberg table.
    *
    * @param input the source input data stream with {@link RowData}s.
-   * @return {@link FlinkSink.Builder} to connect the iceberg table.
+   * @return {@link Builder} to connect the iceberg table.
    */
   public static Builder forRowData(DataStream<RowData> input) {
     return new Builder().forRowData(input.javaStream());
   }
 
-  public static class Builder extends FlinkSinkBase.Builder<Builder> {
+  public static class Builder extends FlinkSink.Builder<Builder> {
     /**
      * Configuring the equality field columns for iceberg table that accept CDC or UPSERT events.
      *
-     * @param columns defines the iceberg table's key.
+     * @param columnsScala defines the iceberg table's key.
      * @return {@link FlinkSink.Builder} to connect the iceberg table.
      */
-    public Builder equalityFieldColumns(scala.collection.immutable.List<String> columns) {
-      this.equalityFieldColumns = (List<String>) JavaConverters.seqAsJavaListConverter(columns).asJava();
-      return self();
-    }
-
-    @Override
-    protected Builder self() {
+    public Builder equalityFieldColumns(scala.collection.immutable.List<String> columnsScala) {
+      super.equalityFieldColumns((List<String>) JavaConverters.seqAsJavaList(columnsScala));
       return this;
     }
   }

@@ -22,14 +22,15 @@ package org.apache.iceberg.flink.util;
 import org.apache.flink.streaming.api.scala.DataStream;
 
 public class IcebergScalaUtils {
-
   private IcebergScalaUtils() {
   }
 
+  /**
+   * Converts an [[org.apache.flink.streaming.api.datastream.DataStream]] to a
+   * [[org.apache.flink.streaming.api.scala.DataStream]].
+   */
   public static <T> DataStream<T> asScalaStream(
       org.apache.flink.streaming.api.datastream.DataStream<T> javaDataStream) {
     return new DataStream<>(javaDataStream);
   }
-  
-  
 }

@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -314,7 +315,8 @@ public class TestIcebergStreamWriter {
         record.copy(ImmutableMap.of("tinyint", 3, "smallint", 32767, "int", 103))
     );
 
-    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness = createIcebergStreamWriter(icebergTable,
+    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness = createIcebergStreamWriter(
+        icebergTable,
         flinkSchema)) {
       for (RowData row : rows) {
         testHarness.processElement(row, 1);
@@ -340,7 +342,8 @@ public class TestIcebergStreamWriter {
   private OneInputStreamOperatorTestHarness<RowData, WriteResult> createIcebergStreamWriter(
       Table icebergTable, TableSchema flinkSchema) throws Exception {
     RowType flinkRowType = FlinkSinkUtil.toFlinkRowType(icebergTable.schema(), flinkSchema);
-    IcebergStreamWriter<RowData> streamWriter = FlinkSinkUtil.createStreamWriter(icebergTable, flinkRowType, null);
+    IcebergStreamWriter<RowData> streamWriter =
+        FlinkSinkUtil.createStreamWriter(icebergTable, flinkRowType, new ArrayList<>());
     OneInputStreamOperatorTestHarness<RowData, WriteResult> harness = new OneInputStreamOperatorTestHarness<>(
         streamWriter, 1, 1, 0);
 
