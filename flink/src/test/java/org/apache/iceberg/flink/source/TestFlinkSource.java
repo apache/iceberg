@@ -51,8 +51,6 @@ public abstract class TestFlinkSource extends TestFlinkScan {
 
   @Override
   protected List<Row> runWithFilter(Expression filter, String sqlFilter) throws Exception {
-
-
     FlinkSource.Builder builder = FlinkSource.forRowData().filters(Collections.singletonList(filter));
     return run(builder, Maps.newHashMap(), sqlFilter, "*");
   }
