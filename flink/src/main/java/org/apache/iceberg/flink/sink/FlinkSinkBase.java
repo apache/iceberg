@@ -207,7 +207,7 @@ abstract class FlinkSinkBase {
       }
 
       // Convert the requested flink table schema to flink row type.
-      RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
+      RowType flinkRowType = FlinkSinkUtil.toFlinkRowType(table.schema(), tableSchema);
 
       // Distribute the records from input data stream based on the write.distribution-mode.
       DataStream<RowData> distributeStream = distributeDataStream(
@@ -262,7 +262,8 @@ abstract class FlinkSinkBase {
           equalityFieldIds.add(field.fieldId());
         }
       }
-      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds);
+      IcebergStreamWriter<RowData> streamWriter = FlinkSinkUtil.createStreamWriter(table, flinkRowType,
+          equalityFieldIds);
 
       int parallelism = writeParallelism == null ? input.getParallelism() : writeParallelism;
       SingleOutputStreamOperator<WriteResult> writerStream = input
@@ -317,47 +318,6 @@ abstract class FlinkSinkBase {
     abstract protected T self();
   }
 
-  static RowType toFlinkRowType(Schema schema, TableSchema requestedSchema) {
-    if (requestedSchema != null) {
-      // Convert the flink schema to iceberg schema firstly, then reassign ids to match the existing iceberg schema.
-      Schema writeSchema = TypeUtil.reassignIds(FlinkSchemaUtil.convert(requestedSchema), schema);
-      TypeUtil.validateWriteSchema(schema, writeSchema, true, true);
 
-      // We use this flink schema to read values from RowData. The flink's TINYINT and SMALLINT will be promoted to
-      // iceberg INTEGER, that means if we use iceberg's table schema to read TINYINT (backend by 1 'byte'), we will
-      // read 4 bytes rather than 1 byte, it will mess up the byte array in BinaryRowData. So here we must use flink
-      // schema.
-      return (RowType) requestedSchema.toRowDataType().getLogicalType();
-    } else {
-      return FlinkSchemaUtil.convert(schema);
-    }
-  }
 
-  static IcebergStreamWriter<RowData> createStreamWriter(
-      Table table,
-      RowType flinkRowType,
-      List<Integer> equalityFieldIds) {
-    Map<String, String> props = table.properties();
-    long targetFileSize = getTargetFileSizeBytes(props);
-    FileFormat fileFormat = getFileFormat(props);
-
-    Table serializableTable = SerializableTable.copyOf(table);
-    TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(
-        serializableTable, flinkRowType, targetFileSize,
-        fileFormat, equalityFieldIds);
-
-    return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
-  }
-
-  private static FileFormat getFileFormat(Map<String, String> properties) {
-    String formatString = properties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
-    return FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
-  }
-
-  private static long getTargetFileSizeBytes(Map<String, String> properties) {
-    return PropertyUtil.propertyAsLong(
-        properties,
-        WRITE_TARGET_FILE_SIZE_BYTES,
-        WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
-  }
 }

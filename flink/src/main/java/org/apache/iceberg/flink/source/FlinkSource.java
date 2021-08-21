@@ -77,92 +77,92 @@ public class FlinkSource {
     private ReadableConfig readableConfig = new Configuration();
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
 
-    public Builder tableLoader(TableLoader newLoader) {
+    public T tableLoader(TableLoader newLoader) {
       this.tableLoader = newLoader;
       return self();
     }
 
-    public Builder table(Table newTable) {
+    public T table(Table newTable) {
       this.table = newTable;
       return self();
     }
 
-    public Builder env(StreamExecutionEnvironment newEnv) {
+    public T env(StreamExecutionEnvironment newEnv) {
       this.env = newEnv;
       return self();
     }
 
-    public Builder filters(List<Expression> filters) {
+    public T filters(List<Expression> filters) {
       contextBuilder.filters(filters);
       return self();
     }
 
-    public Builder project(TableSchema schema) {
+    public T project(TableSchema schema) {
       this.projectedSchema = schema;
       return self();
     }
 
-    public Builder limit(long newLimit) {
+    public T limit(long newLimit) {
       contextBuilder.limit(newLimit);
       return self();
     }
 
-    public Builder properties(Map<String, String> properties) {
+    public T properties(Map<String, String> properties) {
       contextBuilder.fromProperties(properties);
       return self();
     }
 
-    public Builder caseSensitive(boolean caseSensitive) {
+    public T caseSensitive(boolean caseSensitive) {
       contextBuilder.caseSensitive(caseSensitive);
       return self();
     }
 
-    public Builder snapshotId(Long snapshotId) {
+    public T snapshotId(Long snapshotId) {
       contextBuilder.useSnapshotId(snapshotId);
       return self();
     }
 
-    public Builder startSnapshotId(Long startSnapshotId) {
+    public T startSnapshotId(Long startSnapshotId) {
       contextBuilder.startSnapshotId(startSnapshotId);
       return self();
     }
 
-    public Builder endSnapshotId(Long endSnapshotId) {
+    public T endSnapshotId(Long endSnapshotId) {
       contextBuilder.endSnapshotId(endSnapshotId);
       return self();
     }
 
-    public Builder asOfTimestamp(Long asOfTimestamp) {
+    public T asOfTimestamp(Long asOfTimestamp) {
       contextBuilder.asOfTimestamp(asOfTimestamp);
       return self();
     }
 
-    public Builder splitSize(Long splitSize) {
+    public T splitSize(Long splitSize) {
       contextBuilder.splitSize(splitSize);
       return self();
     }
 
-    public Builder splitLookback(Integer splitLookback) {
+    public T splitLookback(Integer splitLookback) {
       contextBuilder.splitLookback(splitLookback);
       return self();
     }
 
-    public Builder splitOpenFileCost(Long splitOpenFileCost) {
+    public T splitOpenFileCost(Long splitOpenFileCost) {
       contextBuilder.splitOpenFileCost(splitOpenFileCost);
       return self();
     }
 
-    public Builder streaming(boolean streaming) {
+    public T streaming(boolean streaming) {
       contextBuilder.streaming(streaming);
       return self();
     }
 
-    public Builder nameMapping(String nameMapping) {
+    public T nameMapping(String nameMapping) {
       contextBuilder.nameMapping(nameMapping);
       return self();
     }
 
-    public Builder flinkConf(ReadableConfig config) {
+    public T flinkConf(ReadableConfig config) {
       this.readableConfig = config;
       return self();
     }

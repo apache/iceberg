@@ -31,6 +31,7 @@ import org.apache.iceberg.TableProperties
 import org.apache.iceberg.flink.MiniClusterResource
 import org.apache.iceberg.flink.SimpleDataUtil
 import org.apache.iceberg.flink.TableLoader
+import org.apache.iceberg.flink.sink.FlinkSinkScala
 import org.apache.iceberg.flink.sink.TestFlinkIcebergSink
 import org.apache.iceberg.flink.source.BoundedTestSource
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil
@@ -94,7 +95,7 @@ class TestFlinkSinkScala(ft: String, parallelism: Int, partitioned: Boolean) ext
         new DataFormatConverters.RowConverter(SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes).toInternal(one)
       })(FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE))
 
-    FlinkSink.forRowData(dataStream)
+    FlinkSinkScala.forRowData(dataStream)
       .table(table)
       .tableLoader(tableLoader)
       .writeParallelism(parallelism)

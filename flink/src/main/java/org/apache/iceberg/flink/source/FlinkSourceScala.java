@@ -17,41 +17,54 @@
  * under the License.
  */
 
-package org.apache.iceberg.flink.scala.source
+package org.apache.iceberg.flink.source;
 
-import org.apache.flink.streaming.api.datastream.{DataStream => JavaStream}
-import org.apache.flink.streaming.api.scala.DataStream
-import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
-import org.apache.iceberg.flink.source.{FlinkSource => JavaFlinkSource}
-import scala.collection.JavaConverters.mapAsJavaMapConverter
-import scala.language.implicitConversions
+import java.util.Map;
+import org.apache.flink.streaming.api.scala.DataStream;
+import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment;
+import org.apache.flink.table.data.RowData;
+import org.apache.iceberg.TableScan;
+import org.apache.iceberg.flink.util.IcebergScalaUtils;
+import scala.collection.JavaConverters;
 
-object FlinkSource {
+public class FlinkSourceScala {
+
+
+  private FlinkSourceScala() {
+  }
 
   /**
    * Initialize a {@link Builder} to read the data from iceberg table. Equivalent to {@link TableScan}. See more options
-   * in {@link ScanContext}.
+   * in {@link org.apache.iceberg.flink.source.ScanContext}.
    * <p>
    * The Source can be read static data in bounded mode. It can also continuously check the arrival of new data and read
    * records incrementally.
    * <ul>
-   * <li>Without startSnapshotId: Bounded</li>
-   * <li>With startSnapshotId and with endSnapshotId: Bounded</li>
-   * <li>With startSnapshotId (-1 means unbounded preceding) and Without endSnapshotId: Unbounded</li>
+   *   <li>Without startSnapshotId: Bounded</li>
+   *   <li>With startSnapshotId and with endSnapshotId: Bounded</li>
+   *   <li>With startSnapshotId (-1 means unbounded preceding) and Without endSnapshotId: Unbounded</li>
    * </ul>
    * <p>
    *
    * @return {@link Builder} to connect the iceberg table.
    */
-  def forRowData(): JavaFlinkSource.Builder = new JavaFlinkSource.Builder
-
-  def isBounded(properties: Map[String, String]): Boolean = JavaFlinkSource.isBounded(properties.asJava)
-
-  class ScalaBuilder(builder: JavaFlinkSource.Builder) {
-    def env(newEnv: StreamExecutionEnvironment): JavaFlinkSource.Builder = builder.env(newEnv.getJavaEnv)
+  public static Builder forRowData() {
+    return new Builder();
   }
 
-  implicit def javaBuild2ScalaBuild(builder: JavaFlinkSource.Builder): ScalaBuilder = new ScalaBuilder(builder)
+  public static class Builder extends FlinkSource.Builder<Builder> {
 
-  implicit def javaStream2ScalaStream[R](stream: JavaStream[R]): DataStream[R] = new DataStream[R](stream)
+    public Builder env(StreamExecutionEnvironment newEnv) {
+      super.env(newEnv.getJavaEnv());
+      return this;
+    }
+
+    public DataStream<RowData> buildAsScala() {
+      return IcebergScalaUtils.asScalaStream(super.build());
+    }
+  }
+
+  public static boolean isBounded(scala.collection.immutable.Map<String, String> properties) {
+    return FlinkSource.isBounded((Map<String, String>) JavaConverters.mapAsJavaMapConverter(properties).asJava());
+  }
 }

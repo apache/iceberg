@@ -20,7 +20,6 @@
 package org.apache.iceberg.flink.sink;
 
 import java.util.List;
-import org.apache.commons.net.echo.EchoUDPClient;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -33,11 +32,8 @@ import org.apache.flink.types.Row;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class FlinkSink {
-  private static final Logger LOG = LoggerFactory.getLogger(FlinkSink.class);
 
   private FlinkSink() {
   }
@@ -92,9 +88,7 @@ public class FlinkSink {
 
     public Builder() {
     }
-
-
-
+    
     /**
      * Configuring the equality field columns for iceberg table that accept CDC or UPSERT events.
      *
@@ -106,22 +100,11 @@ public class FlinkSink {
       return self();
     }
 
-
-
     @Override
     protected Builder self() {
       return this;
     }
   }
 
-  static RowType toFlinkRowType(Schema schema, TableSchema requestedSchema) {
-    return FlinkSinkBase.toFlinkRowType(schema, requestedSchema);
-  }
-  static IcebergStreamWriter<RowData> createStreamWriter(
-      Table table,
-      RowType flinkRowType,
-      List<Integer> equalityFieldIds) {
-    return FlinkSinkBase.createStreamWriter(table, flinkRowType, equalityFieldIds);
-  }
       
 }

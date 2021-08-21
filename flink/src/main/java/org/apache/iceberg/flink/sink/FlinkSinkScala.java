@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.flink.sink;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -103,47 +104,13 @@ public class FlinkSinkScala {
      * @return {@link FlinkSink.Builder} to connect the iceberg table.
      */
     public Builder equalityFieldColumns(scala.collection.immutable.List<String> columns) {
-      this.equalityFieldColumns = JavaConverters.seqAsJavaListConverter(columns).asJava();
+      this.equalityFieldColumns = (List<String>) JavaConverters.seqAsJavaListConverter(columns).asJava();
       return self();
     }
-   
 
     @Override
     protected Builder self() {
       return this;
     }
-  }
-
-  static IcebergStreamWriter<RowData> createStreamWriter(
-      Table table,
-      RowType flinkRowType,
-      scala.collection.immutable.List<Integer> equalityFieldIds) {
-
-    Map<String, String> props = table.properties();
-    long targetFileSize = getTargetFileSizeBytes(props);
-    FileFormat fileFormat = getFileFormat(props);
-
-    Table serializableTable = SerializableTable.copyOf(table);
-    TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(
-        serializableTable, flinkRowType, targetFileSize,
-        fileFormat, JavaConverters.seqAsJavaListConverter(equalityFieldIds).asJava());
-
-    return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
-  }
-
-  public static boolean isBounded(scala.collection.immutable.Map<String, String> properties) {
-    return FlinkSource.isBounded(JavaConverters.mapAsJavaMapConverter(properties).asJava());
-  }
-
-  private static long getTargetFileSizeBytes(Map<String, String> properties) {
-    return PropertyUtil.propertyAsLong(
-        properties,
-        WRITE_TARGET_FILE_SIZE_BYTES,
-        WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
-  }
-
-  private static FileFormat getFileFormat(Map<String, String> properties) {
-    String formatString = properties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
-    return FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
   }
 }
