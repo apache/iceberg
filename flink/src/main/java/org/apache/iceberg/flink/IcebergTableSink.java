@@ -39,6 +39,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
   private final TableSchema tableSchema;
 
   private boolean overwrite = false;
+  private ChangelogMode inputChangelogMode = ChangelogMode.insertOnly();
 
   private IcebergTableSink(IcebergTableSink toCopy) {
     this.tableLoader = toCopy.tableLoader;
@@ -66,7 +67,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
       // result for iceberg(e.g. +U comes before -U). Here try to specific the Filter opr parallelism same as it's
       // input to keep Filter chaining it's input and avoid rebalance.
       Transformation<?> forwardOpr = dataStream.getTransformation();
-      if (forwardOpr.getName().equals("Filter") && forwardOpr.getInputs().size() == 1) {
+      if (!inputChangelogMode.containsOnly(RowKind.INSERT) && forwardOpr.getInputs().size() == 1) {
         forwardOpr.setParallelism(forwardOpr.getInputs().get(0).getParallelism());
       }
       return FlinkSink.forRowData(dataStream)
@@ -85,6 +86,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
 
   @Override
   public ChangelogMode getChangelogMode(ChangelogMode requestedMode) {
+    this.inputChangelogMode = requestedMode;
     ChangelogMode.Builder builder = ChangelogMode.newBuilder();
     for (RowKind kind : requestedMode.getContainedKinds()) {
       builder.addContainedKind(kind);
