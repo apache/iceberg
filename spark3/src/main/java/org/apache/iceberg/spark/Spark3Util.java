@@ -35,6 +35,7 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.UpdateSchema;
@@ -753,6 +754,27 @@ public class Spark3Util {
     }
     // Could not find table
     return null;
+  }
+
+  /**
+   * Returns an Iceberg Table by its name from a Spark V2 Catalog. If cache is enabled in {@link SparkCatalog},
+   * the {@link TableOperations} of the table may be stale, please refresh the table to get the latest one.
+   *
+   * @param spark SparkSession used for looking up catalog references and tables
+   * @param name  The multipart identifier of the Iceberg table
+   * @return an Iceberg table
+   */
+  public static org.apache.iceberg.Table loadIcebergTable(SparkSession spark, String name)
+      throws ParseException, NoSuchTableException {
+    CatalogAndIdentifier catalogAndIdentifier = catalogAndIdentifier(spark, name);
+
+    CatalogPlugin catalog = catalogAndIdentifier.catalog;
+    Preconditions.checkArgument(catalog instanceof BaseCatalog, "Catalog %s(%s) is not an Iceberg Catalog",
+        catalog.name(), catalog.getClass().toString());
+    BaseCatalog baseCatalog = (BaseCatalog) catalogAndIdentifier.catalog;
+
+    Table sparkTable = baseCatalog.loadTable(catalogAndIdentifier.identifier);
+    return toIcebergTable(sparkTable);
   }
 
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, String name) throws ParseException {
