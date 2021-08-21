@@ -69,7 +69,7 @@ public class FlinkSource {
   /**
    * Source builder to build {@link DataStream}.
    */
-  public static class Builder {
+  public static class Builder<T extends Builder<T>>  {
     private StreamExecutionEnvironment env;
     private Table table;
     private TableLoader tableLoader;
@@ -79,92 +79,92 @@ public class FlinkSource {
 
     public Builder tableLoader(TableLoader newLoader) {
       this.tableLoader = newLoader;
-      return this;
+      return self();
     }
 
     public Builder table(Table newTable) {
       this.table = newTable;
-      return this;
+      return self();
     }
 
     public Builder env(StreamExecutionEnvironment newEnv) {
       this.env = newEnv;
-      return this;
+      return self();
     }
 
     public Builder filters(List<Expression> filters) {
       contextBuilder.filters(filters);
-      return this;
+      return self();
     }
 
     public Builder project(TableSchema schema) {
       this.projectedSchema = schema;
-      return this;
+      return self();
     }
 
     public Builder limit(long newLimit) {
       contextBuilder.limit(newLimit);
-      return this;
+      return self();
     }
 
     public Builder properties(Map<String, String> properties) {
       contextBuilder.fromProperties(properties);
-      return this;
+      return self();
     }
 
     public Builder caseSensitive(boolean caseSensitive) {
       contextBuilder.caseSensitive(caseSensitive);
-      return this;
+      return self();
     }
 
     public Builder snapshotId(Long snapshotId) {
       contextBuilder.useSnapshotId(snapshotId);
-      return this;
+      return self();
     }
 
     public Builder startSnapshotId(Long startSnapshotId) {
       contextBuilder.startSnapshotId(startSnapshotId);
-      return this;
+      return self();
     }
 
     public Builder endSnapshotId(Long endSnapshotId) {
       contextBuilder.endSnapshotId(endSnapshotId);
-      return this;
+      return self();
     }
 
     public Builder asOfTimestamp(Long asOfTimestamp) {
       contextBuilder.asOfTimestamp(asOfTimestamp);
-      return this;
+      return self();
     }
 
     public Builder splitSize(Long splitSize) {
       contextBuilder.splitSize(splitSize);
-      return this;
+      return self();
     }
 
     public Builder splitLookback(Integer splitLookback) {
       contextBuilder.splitLookback(splitLookback);
-      return this;
+      return self();
     }
 
     public Builder splitOpenFileCost(Long splitOpenFileCost) {
       contextBuilder.splitOpenFileCost(splitOpenFileCost);
-      return this;
+      return self();
     }
 
     public Builder streaming(boolean streaming) {
       contextBuilder.streaming(streaming);
-      return this;
+      return self();
     }
 
     public Builder nameMapping(String nameMapping) {
       contextBuilder.nameMapping(nameMapping);
-      return this;
+      return self();
     }
 
     public Builder flinkConf(ReadableConfig config) {
       this.readableConfig = config;
-      return this;
+      return self();
     }
 
     public FlinkInputFormat buildFormat() {
@@ -246,6 +246,10 @@ public class FlinkSource {
       // parallelism must be positive.
       parallelism = Math.max(1, parallelism);
       return parallelism;
+    }
+
+    private T self() {
+      return (T) this;
     }
   }
 

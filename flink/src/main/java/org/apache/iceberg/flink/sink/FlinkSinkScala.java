@@ -19,31 +19,37 @@
 
 package org.apache.iceberg.flink.sink;
 
-import java.util.List;
-import org.apache.commons.net.echo.EchoUDPClient;
+import java.util.Locale;
+import java.util.Map;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.scala.DataStream;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.Schema;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.flink.source.FlinkSource;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.iceberg.util.PropertyUtil;
+import scala.collection.JavaConverters;
 
-public class FlinkSink {
-  private static final Logger LOG = LoggerFactory.getLogger(FlinkSink.class);
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
+import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
-  private FlinkSink() {
+public class FlinkSinkScala {
+
+  private FlinkSinkScala() {
   }
 
   /**
-   * Initialize a {@link Builder} to export the data from generic input data stream into iceberg table. We use
+   * Initialize a {@link FlinkSink.Builder} to export the data from generic input data stream into iceberg table. We use
    * {@link RowData} inside the sink connector, so users need to provide a mapper function and a
    * {@link TypeInformation} to convert those generic records to a RowData DataStream.
    *
@@ -51,23 +57,24 @@ public class FlinkSink {
    * @param mapper     function to convert the generic data to {@link RowData}
    * @param outputType to define the {@link TypeInformation} for the input data.
    * @param <T>        the data type of records.
-   * @return {@link Builder} to connect the iceberg table.
+   * @return {@link FlinkSink.Builder} to connect the iceberg table.
    */
   public static <T> Builder builderFor(
       DataStream<T> input,
       MapFunction<T, RowData> mapper,
       TypeInformation<RowData> outputType) {
-    return new Builder().forMapperOutputType(input, mapper, outputType);
+    return new Builder().forMapperOutputType(input.javaStream(), mapper, outputType);
   }
 
+  
   /**
-   * Initialize a {@link Builder} to export the data from input data stream with {@link Row}s into iceberg table. We use
+   * Initialize a {@link FlinkSink.Builder} to export the data from input data stream with {@link Row}s into iceberg table. We use
    * {@link RowData} inside the sink connector, so users need to provide a {@link TableSchema} for builder to convert
    * those {@link Row}s to a {@link RowData} DataStream.
    *
    * @param input       the source input data stream with {@link Row}s.
    * @param tableSchema defines the {@link TypeInformation} for input data.
-   * @return {@link Builder} to connect the iceberg table.
+   * @return {@link FlinkSink.Builder} to connect the iceberg table.
    */
   public static Builder forRow(DataStream<Row> input, TableSchema tableSchema) {
     RowType rowType = (RowType) tableSchema.toRowDataType().getLogicalType();
@@ -79,34 +86,27 @@ public class FlinkSink {
   }
 
   /**
-   * Initialize a {@link Builder} to export the data from input data stream with {@link RowData}s into iceberg table.
+   * Initialize a {@link FlinkSink.Builder} to export the data from input data stream with {@link RowData}s into iceberg table.
    *
    * @param input the source input data stream with {@link RowData}s.
-   * @return {@link Builder} to connect the iceberg table.
+   * @return {@link FlinkSink.Builder} to connect the iceberg table.
    */
   public static Builder forRowData(DataStream<RowData> input) {
-    return new Builder().forRowData(input);
+    return new Builder().forRowData(input.javaStream());
   }
 
   public static class Builder extends FlinkSinkBase.Builder<Builder> {
-
-    public Builder() {
-    }
-
-
-
     /**
      * Configuring the equality field columns for iceberg table that accept CDC or UPSERT events.
      *
      * @param columns defines the iceberg table's key.
-     * @return {@link Builder} to connect the iceberg table.
+     * @return {@link FlinkSink.Builder} to connect the iceberg table.
      */
-    public Builder equalityFieldColumns(List<String> columns) {
-      this.equalityFieldColumns = columns;
+    public Builder equalityFieldColumns(scala.collection.immutable.List<String> columns) {
+      this.equalityFieldColumns = JavaConverters.seqAsJavaListConverter(columns).asJava();
       return self();
     }
-
-
+   
 
     @Override
     protected Builder self() {
@@ -114,14 +114,36 @@ public class FlinkSink {
     }
   }
 
-  static RowType toFlinkRowType(Schema schema, TableSchema requestedSchema) {
-    return FlinkSinkBase.toFlinkRowType(schema, requestedSchema);
-  }
   static IcebergStreamWriter<RowData> createStreamWriter(
       Table table,
       RowType flinkRowType,
-      List<Integer> equalityFieldIds) {
-    return FlinkSinkBase.createStreamWriter(table, flinkRowType, equalityFieldIds);
+      scala.collection.immutable.List<Integer> equalityFieldIds) {
+
+    Map<String, String> props = table.properties();
+    long targetFileSize = getTargetFileSizeBytes(props);
+    FileFormat fileFormat = getFileFormat(props);
+
+    Table serializableTable = SerializableTable.copyOf(table);
+    TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(
+        serializableTable, flinkRowType, targetFileSize,
+        fileFormat, JavaConverters.seqAsJavaListConverter(equalityFieldIds).asJava());
+
+    return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
   }
-      
+
+  public static boolean isBounded(scala.collection.immutable.Map<String, String> properties) {
+    return FlinkSource.isBounded(JavaConverters.mapAsJavaMapConverter(properties).asJava());
+  }
+
+  private static long getTargetFileSizeBytes(Map<String, String> properties) {
+    return PropertyUtil.propertyAsLong(
+        properties,
+        WRITE_TARGET_FILE_SIZE_BYTES,
+        WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+  }
+
+  private static FileFormat getFileFormat(Map<String, String> properties) {
+    String formatString = properties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
+    return FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
+  }
 }
