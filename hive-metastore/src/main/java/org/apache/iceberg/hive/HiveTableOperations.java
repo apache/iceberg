@@ -69,7 +69,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -102,6 +102,38 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       // gc.enabled in Iceberg and external.table.purge in Hive are meant to do the same things but with different names
       GC_ENABLED, "external.table.purge"
   );
+
+  private static Map<Long, String> tableLocksById;
+  private static ClientPool<HiveMetaStoreClient, TException> globalMetaClients;
+
+  /**
+   * Initialize a hook to avoid that the finally code block used to unlock hive table may not be executed
+   * due to the following conditions:
+   *   - System.exit(N)
+   *   - all non-daemon threads exit
+   *
+   * Also, to avoid memory leaks caused by addShutdownHook, we use a class level hook.
+   */
+  private static synchronized void initUnlockTableHook(ClientPool metaClients) {
+    globalMetaClients = metaClients;
+
+    if (tableLocksById == null) {
+      tableLocksById = Maps.newConcurrentMap();
+
+      Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+        tableLocksById.forEach((lockId, fullName) -> {
+          try {
+            globalMetaClients.run(client -> {
+              client.unlock(lockId);
+              return null;
+            });
+          } catch (Exception e) {
+            LOG.warn("Failed to unlock {}", fullName, e);
+          }
+        });
+      }));
+    }
+  }
 
   private static Cache<String, ReentrantLock> commitLockCache;
 
@@ -143,7 +175,6 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final long lockAcquireTimeout;
   private final long lockCheckMinWaitTime;
   private final long lockCheckMaxWaitTime;
-  private final Set<Long> lockIds;
   private final FileIO fileIO;
   private final ClientPool<HiveMetaStoreClient, TException> metaClients;
 
@@ -161,18 +192,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
         conf.getLong(HIVE_LOCK_CHECK_MIN_WAIT_MS, HIVE_LOCK_CHECK_MIN_WAIT_MS_DEFAULT);
     this.lockCheckMaxWaitTime =
         conf.getLong(HIVE_LOCK_CHECK_MAX_WAIT_MS, HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT);
-    this.lockIds = Sets.newConcurrentHashSet();
+
+    initUnlockTableHook(metaClients);
+
     long tableLevelLockCacheEvictionTimeout =
         conf.getLong(HIVE_TABLE_LEVEL_LOCK_EVICT_MS, HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT);
     initTableLevelLockCache(tableLevelLockCacheEvictionTimeout);
-
-    // Avoid that the finally code block used to unlock hive table may not be executed due to the
-    // following conditions:
-    //   - System.exit(N)
-    //   - all non-daemon threads exit
-    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-      lockIds.forEach(lockId -> unlock(Optional.of(lockId)));
-    }));
   }
 
   @Override
@@ -425,7 +450,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     LockResponse lockResponse = metaClients.run(client -> client.lock(lockRequest));
     AtomicReference<LockState> state = new AtomicReference<>(lockResponse.getState());
     long lockId = lockResponse.getLockid();
-    lockIds.add(lockId);
+    tableLocksById.put(lockId, fullName);
 
     final long start = System.currentTimeMillis();
     long duration = 0;
@@ -501,7 +526,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     if (lockId.isPresent()) {
       try {
         doUnlock(lockId.get());
-        lockIds.remove(lockId.get());
+        tableLocksById.remove(lockId.get());
       } catch (Exception e) {
         LOG.warn("Failed to unlock {}.{}", database, tableName, e);
       }
