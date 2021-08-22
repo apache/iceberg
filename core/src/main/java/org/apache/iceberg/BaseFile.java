@@ -274,6 +274,9 @@ abstract class BaseFile<F>
         this.sortOrderId = (Integer) value;
         return;
       case 16:
+        this.partitionSpecId = (value != null) ? (Integer) value : -1;
+        return;
+      case 17:
         this.fileOrdinal = (long) value;
         return;
       default:
@@ -327,6 +330,8 @@ abstract class BaseFile<F>
       case 15:
         return sortOrderId;
       case 16:
+        return partitionSpecId;
+      case 17:
         return pos;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
