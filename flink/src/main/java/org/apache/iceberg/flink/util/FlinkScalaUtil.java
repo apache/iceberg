@@ -21,8 +21,8 @@ package org.apache.iceberg.flink.util;
 
 import org.apache.flink.streaming.api.scala.DataStream;
 
-public class IcebergScalaUtils {
-  private IcebergScalaUtils() {
+public class FlinkScalaUtil {
+  private FlinkScalaUtil() {
   }
 
   /**

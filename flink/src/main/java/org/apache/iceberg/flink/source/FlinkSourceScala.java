@@ -24,11 +24,10 @@ import org.apache.flink.streaming.api.scala.DataStream;
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.TableScan;
-import org.apache.iceberg.flink.util.IcebergScalaUtils;
+import org.apache.iceberg.flink.util.FlinkScalaUtil;
 import scala.collection.JavaConverters;
 
 public class FlinkSourceScala {
-
 
   private FlinkSourceScala() {
   }
@@ -60,7 +59,7 @@ public class FlinkSourceScala {
     }
 
     public DataStream<RowData> buildAsScala() {
-      return IcebergScalaUtils.asScalaStream(super.build());
+      return FlinkScalaUtil.asScalaStream(super.build());
     }
   }
 
