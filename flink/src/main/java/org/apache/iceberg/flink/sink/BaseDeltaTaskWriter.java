@@ -21,6 +21,8 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
+import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
@@ -28,6 +30,7 @@ import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.io.BaseTaskWriter;
 import org.apache.iceberg.io.FileAppenderFactory;
@@ -41,6 +44,8 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
   private final Schema schema;
   private final Schema deleteSchema;
   private final RowDataWrapper wrapper;
+  private final RowDataWrapper deleteWrapper;
+  private final List<Integer> equalityFieldIds;
 
   BaseDeltaTaskWriter(PartitionSpec spec,
                       FileFormat format,
@@ -55,12 +60,23 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     this.schema = schema;
     this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
     this.wrapper = new RowDataWrapper(flinkSchema, schema.asStruct());
+    this.deleteWrapper = new RowDataWrapper(FlinkSchemaUtil.convert(deleteSchema), deleteSchema.asStruct());
+    this.equalityFieldIds = equalityFieldIds.stream().sorted().collect(Collectors.toList());
   }
 
   abstract RowDataDeltaWriter route(RowData row);
 
   RowDataWrapper wrapper() {
     return wrapper;
+  }
+
+  RowData projectDeleteData(RowData data) {
+    wrapper.wrap(data);
+    GenericRowData newRowData = new GenericRowData(data.getRowKind(), equalityFieldIds.size());
+    for (int i = 0; i < equalityFieldIds.size(); i++) {
+      newRowData.setField(i, wrapper.getRawValue(equalityFieldIds.get(i) - 1));
+    }
+    return newRowData;
   }
 
   @Override
@@ -75,7 +91,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
 
       case DELETE:
       case UPDATE_BEFORE:
-        writer.delete(row);
+        writer.deleteKey(projectDeleteData(row));
         break;
 
       default:
@@ -91,6 +107,11 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     @Override
     protected StructLike asStructLike(RowData data) {
       return wrapper.wrap(data);
+    }
+
+    @Override
+    protected StructLike asDeleteStructLike(RowData data) {
+      return deleteWrapper.wrap(data);
     }
   }
 }

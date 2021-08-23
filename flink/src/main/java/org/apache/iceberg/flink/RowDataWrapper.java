@@ -53,6 +53,10 @@ public class RowDataWrapper implements StructLike {
     }
   }
 
+  public Object getRawValue(int pos) {
+    return RowData.createFieldGetter(types[pos], pos).getFieldOrNull(rowData);
+  }
+
   public RowDataWrapper wrap(RowData data) {
     this.rowData = data;
     return this;
