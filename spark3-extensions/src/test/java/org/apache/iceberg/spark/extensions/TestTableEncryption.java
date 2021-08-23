@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.spark.extensions;
 
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
 import org.junit.After;
 import org.junit.Assert;
@@ -43,12 +44,10 @@ public class TestTableEncryption extends SparkExtensionsTestBase {
         "location struct<lon:bigint NOT NULL,lat:bigint NOT NULL> NOT NULL) USING iceberg", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertTrue("Table should start without identifier", table.schema().identifierFieldIds().isEmpty());
-    try {
-        sql("ALTER TABLE %s ENCRYPTED WITH KEK BY TABLE KEY '12345'", tableName);
-    } catch (UnsupportedOperationException e) {
-        String message = e.getMessage();
-        Assert.assertTrue(message.contains(tableName) &&
-        message.contains("isKEK: true") && message.contains("12345"));
-    }
+
+    AssertHelpers.assertThrows("Should throw an Unsupported Operation Exception for now",
+        UnsupportedOperationException.class,
+        tableName + " isKEK: true '12345'",
+        () -> sql("ALTER TABLE %s ENCRYPTED WITH KEK BY TABLE KEY '12345'", tableName));
   }
 }
