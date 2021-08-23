@@ -93,9 +93,37 @@ public class Schema implements Serializable {
     this.schemaId = schemaId;
     this.struct = StructType.of(columns);
     this.aliasToId = aliases != null ? ImmutableBiMap.copyOf(aliases) : null;
+
+    // validate IdentifierField
+    if (identifierFieldIds != null) {
+      Map<Integer, Integer> idToParent = TypeUtil.indexParents(struct);
+      identifierFieldIds.forEach(id -> validateIdentifierField(id, lazyIdToField(), idToParent));
+    }
+
     this.identifierFieldIds = identifierFieldIds != null ? Ints.toArray(identifierFieldIds) : new int[0];
 
     lazyIdToName();
+  }
+
+  static void validateIdentifierField(int fieldId, Map<Integer, Types.NestedField> idToField,
+                                              Map<Integer, Integer> idToParent) {
+    Types.NestedField field = idToField.get(fieldId);
+    Preconditions.checkArgument(field.type().isPrimitiveType(),
+        "Cannot add field %s as an identifier field: not a primitive type field", field.name());
+    Preconditions.checkArgument(field.isRequired(),
+        "Cannot add field %s as an identifier field: not a required field", field.name());
+    Preconditions.checkArgument(!Types.DoubleType.get().equals(field.type()) &&
+            !Types.FloatType.get().equals(field.type()),
+        "Cannot add field %s as an identifier field: must not be float or double field", field.name());
+
+    // check whether the nested field is in a chain of struct fields
+    Integer parentId = idToParent.get(field.fieldId());
+    while (parentId != null) {
+      Types.NestedField parent = idToField.get(parentId);
+      Preconditions.checkArgument(parent.type().isStructType(),
+          "Cannot add field %s as an identifier field: must not be nested in %s", field.name(), parent);
+      parentId = idToParent.get(parent.fieldId());
+    }
   }
 
   public Schema(NestedField... columns) {

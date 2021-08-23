@@ -44,8 +44,11 @@ To create iceberg table in flink, we recommend to use [Flink SQL Client](https:/
 Step.1 Downloading the flink 1.11.x binary package from the apache flink [download page](https://flink.apache.org/downloads.html). We now use scala 2.12 to archive the apache iceberg-flink-runtime jar, so it's recommended to use flink 1.11 bundled with scala 2.12.
 
 ```bash
-wget https://downloads.apache.org/flink/flink-1.11.1/flink-1.11.1-bin-scala_2.12.tgz
-tar xzvf flink-1.11.1-bin-scala_2.12.tgz
+FLINK_VERSION=1.11.1
+SCALA_VERSION=2.12
+APACHE_FLINK_URL=archive.apache.org/dist/flink/
+wget ${APACHE_FLINK_URL}/flink-${FLINK_VERSION}/flink-${FLINK_VERSION}-bin-scala_${SCALA_VERSION}.tgz
+tar xzvf flink-${FLINK_VERSION}-bin-scala_${SCALA_VERSION}.tgz
 ```
 
 Step.2 Start a standalone flink cluster within hadoop environment.
@@ -78,12 +81,25 @@ as the following:
 # HADOOP_HOME is your hadoop root directory after unpack the binary package.
 export HADOOP_CLASSPATH=`$HADOOP_HOME/bin/hadoop classpath`
 
-# wget the flink-sql-connector-hive-2.3.6_2.11-1.11.0.jar from the above bundled jar URL firstly.
+# download Iceberg dependency
+ICEBERG_VERSION=0.11.1
+MAVEN_URL=https://repo1.maven.org/maven2
+ICEBERG_MAVEN_URL=${MAVEN_URL}/org/apache/iceberg
+ICEBERG_PACKAGE=iceberg-flink-runtime
+wget ${ICEBERG_MAVEN_URL}/${ICEBERG_PACKAGE}/${ICEBERG_VERSION}/${ICEBERG_PACKAGE}-${ICEBERG_VERSION}.jar
+
+# download the flink-sql-connector-hive-${HIVE_VERSION}_${SCALA_VERSION}-${FLINK_VERSION}.jar
+HIVE_VERSION=2.3.6
+SCALA_VERSION=2.11
+FLINK_VERSION=1.11.0
+FLINK_CONNECTOR_URL=${MAVEN_URL}/org/apache/flink
+FLINK_CONNECTOR_PACKAGE=flink-sql-connector-hive
+wget ${FLINK_CONNECTOR_URL}/${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_VERSION}/${FLINK_VERSION}/${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_VERSION}-${FLINK_VERSION}.jar
 
 # open the SQL client.
-./bin/sql-client.sh embedded \
-    -j <flink-runtime-directory>/iceberg-flink-runtime-xxx.jar \
-    -j <hive-bundlded-jar-directory>/flink-sql-connector-hive-2.3.6_2.11-1.11.0.jar \
+/path/to/bin/sql-client.sh embedded \
+    -j ${ICEBERG_PACKAGE}-${ICEBERG_VERSION}.jar \
+    -j ${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_VERSION}-${FLINK_VERSION}.jar \
     shell
 ```
 ## Preparation when using Flink's Python API
@@ -152,7 +168,7 @@ import os
 from pyflink.datastream import StreamExecutionEnvironment
 
 env = StreamExecutionEnvironment.get_execution_environment()
-iceberg_flink_runtime_jar = os.path.join(os.getcwd(), "iceberg-flink-runtime-0.11.1.jar")
+iceberg_flink_runtime_jar = os.path.join(os.getcwd(), "iceberg-flink-runtime-{{ versions.iceberg }}.jar")
 
 env.add_jars("file://{}".format(iceberg_flink_runtime_jar))
 ```
@@ -441,7 +457,7 @@ stream.print();
 env.execute("Test Iceberg Batch Read");
 ```
 
-There are other options that we could set by Java API, please see the [FlinkSource#Builder](./javadoc/0.11.1/org/apache/iceberg/flink/source/FlinkSource.html).
+There are other options that we could set by Java API, please see the [FlinkSource#Builder](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/flink/source/FlinkSource.html).
 
 ## Writing with DataStream
 
@@ -505,7 +521,7 @@ RewriteDataFilesActionResult result = Actions.forTable(table)
         .execute();
 ```
 
-For more doc about options of the rewrite files action, please see [RewriteDataFilesAction](./javadoc/0.11.1/org/apache/iceberg/flink/actions/RewriteDataFilesAction.html)
+For more doc about options of the rewrite files action, please see [RewriteDataFilesAction](./javadoc/{{ versions.iceberg }}/org/apache/iceberg/flink/actions/RewriteDataFilesAction.html)
 
 ## Future improvement.
 

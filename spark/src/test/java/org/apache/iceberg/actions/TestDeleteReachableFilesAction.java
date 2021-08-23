@@ -131,7 +131,7 @@ public abstract class TestDeleteReachableFilesAction extends SparkTestBase {
         .rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_C))
         .commit();
 
-    Set<String> deletedFiles = Sets.newHashSet();
+    Set<String> deletedFiles = ConcurrentHashMap.newKeySet();
     Set<String> deleteThreads = ConcurrentHashMap.newKeySet();
     AtomicInteger deleteThreadsIndex = new AtomicInteger(0);
 

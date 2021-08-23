@@ -17,6 +17,9 @@
 # under the License.
 #
 
+# The format of this file is documented at
+# https://cwiki.apache.org/confluence/display/INFRA/Git+-+.asf.yaml+features
+
 github:
   description: "Apache Iceberg"
   homepage: https://iceberg.apache.org/
@@ -27,9 +30,23 @@ github:
     wiki: true
     issues: true
     projects: true
+  collaborators:  # Note: the number of collaborators is limited to 10
+    - chenjunjiedada
+    - kbendick
+    - jun-he
+    - marton-bod
+    - nastra
+    - samarthjain
+    - mccheah
+    - szehon-ho
+    - findepi
+    - SreeramGarlapati
 
 notifications:
     commits:      commits@iceberg.apache.org
     issues:       issues@iceberg.apache.org
     pullrequests: issues@iceberg.apache.org
     jira_options: link label link label
+
+publish:
+    whoami:  asf-site

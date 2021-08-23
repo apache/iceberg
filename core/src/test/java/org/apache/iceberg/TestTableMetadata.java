@@ -601,6 +601,76 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void testBuildReplacementForV1Table() {
+    Schema schema = new Schema(
+        Types.NestedField.required(1, "x", Types.LongType.get()),
+        Types.NestedField.required(2, "y", Types.LongType.get())
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(schema).withSpecId(0)
+        .identity("x")
+        .identity("y")
+        .build();
+    String location = "file://tmp/db/table";
+    TableMetadata metadata = TableMetadata.newTableMetadata(
+        schema, spec, SortOrder.unsorted(), location, ImmutableMap.of(), 1);
+    Assert.assertEquals(spec, metadata.spec());
+
+    Schema updatedSchema = new Schema(
+        Types.NestedField.required(1, "x", Types.LongType.get()),
+        Types.NestedField.required(2, "z", Types.StringType.get()),
+        Types.NestedField.required(3, "y", Types.LongType.get())
+    );
+    PartitionSpec updatedSpec = PartitionSpec.builderFor(updatedSchema).withSpecId(0)
+        .bucket("z", 8)
+        .identity("x")
+        .build();
+    TableMetadata updated = metadata.buildReplacement(
+        updatedSchema, updatedSpec, SortOrder.unsorted(), location, ImmutableMap.of());
+    PartitionSpec expected = PartitionSpec.builderFor(updated.schema()).withSpecId(1)
+        .add(1, 1000, "x", "identity")
+        .add(2, 1001, "y", "void")
+        .add(3, 1002, "z_bucket", "bucket[8]")
+        .build();
+    Assert.assertEquals(
+        "Should reassign the partition field IDs and reuse any existing IDs for equivalent fields",
+        expected, updated.spec());
+  }
+
+  @Test
+  public void testBuildReplacementForV2Table() {
+    Schema schema = new Schema(
+        Types.NestedField.required(1, "x", Types.LongType.get()),
+        Types.NestedField.required(2, "y", Types.LongType.get())
+    );
+    PartitionSpec spec = PartitionSpec.builderFor(schema).withSpecId(0)
+        .identity("x")
+        .identity("y")
+        .build();
+    String location = "file://tmp/db/table";
+    TableMetadata metadata = TableMetadata.newTableMetadata(
+        schema, spec, SortOrder.unsorted(), location, ImmutableMap.of(), 2);
+    Assert.assertEquals(spec, metadata.spec());
+
+    Schema updatedSchema = new Schema(
+        Types.NestedField.required(1, "x", Types.LongType.get()),
+        Types.NestedField.required(2, "z", Types.StringType.get())
+    );
+    PartitionSpec updatedSpec = PartitionSpec.builderFor(updatedSchema).withSpecId(0)
+        .bucket("z", 8)
+        .identity("x")
+        .build();
+    TableMetadata updated = metadata.buildReplacement(
+        updatedSchema, updatedSpec, SortOrder.unsorted(), location, ImmutableMap.of());
+    PartitionSpec expected = PartitionSpec.builderFor(updated.schema()).withSpecId(1)
+        .add(3, 1002, "z_bucket", "bucket[8]")
+        .add(1, 1000, "x", "identity")
+        .build();
+    Assert.assertEquals(
+        "Should reassign the partition field IDs and reuse any existing IDs for equivalent fields",
+        expected, updated.spec());
+  }
+
+  @Test
   public void testSortOrder() {
     Schema schema = new Schema(
         Types.NestedField.required(10, "x", Types.StringType.get())
@@ -755,5 +825,69 @@ public class TestTableMetadata {
         schema3.asStruct(), threeSchemaTable.schema().asStruct());
     Assert.assertEquals("Should return expected last column id",
         6, threeSchemaTable.lastColumnId());
+  }
+
+  @Test
+  public void testCreateV2MetadataThroughTableProperty() {
+    Schema schema = new Schema(
+        Types.NestedField.required(10, "x", Types.StringType.get())
+    );
+
+    TableMetadata meta = TableMetadata.newTableMetadata(schema, PartitionSpec.unpartitioned(), null,
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, "2", "key", "val"));
+
+    Assert.assertEquals("format version should be configured based on the format-version key",
+        2, meta.formatVersion());
+    Assert.assertEquals("should not contain format-version in properties",
+        ImmutableMap.of("key", "val"), meta.properties());
+  }
+
+  @Test
+  public void testReplaceV1MetadataToV2ThroughTableProperty() {
+    Schema schema = new Schema(
+        Types.NestedField.required(10, "x", Types.StringType.get())
+    );
+
+    TableMetadata meta = TableMetadata.newTableMetadata(schema, PartitionSpec.unpartitioned(), null,
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, "1", "key", "val"));
+
+    meta = meta.buildReplacement(meta.schema(), meta.spec(), meta.sortOrder(), meta.location(),
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, "2", "key2", "val2"));
+
+    Assert.assertEquals("format version should be configured based on the format-version key",
+        2, meta.formatVersion());
+    Assert.assertEquals("should not contain format-version but should contain old and new properties",
+        ImmutableMap.of("key", "val", "key2", "val2"), meta.properties());
+  }
+
+  @Test
+  public void testUpgradeV1MetadataToV2ThroughTableProperty() {
+    Schema schema = new Schema(
+        Types.NestedField.required(10, "x", Types.StringType.get())
+    );
+
+    TableMetadata meta = TableMetadata.newTableMetadata(schema, PartitionSpec.unpartitioned(), null,
+        ImmutableMap.of(TableProperties.FORMAT_VERSION, "1", "key", "val"));
+
+    meta = meta.replaceProperties(ImmutableMap.of(TableProperties.FORMAT_VERSION,
+        "2", "key2", "val2"));
+
+    Assert.assertEquals("format version should be configured based on the format-version key",
+        2, meta.formatVersion());
+    Assert.assertEquals("should not contain format-version but should contain new properties",
+        ImmutableMap.of("key2", "val2"), meta.properties());
+  }
+
+  @Test
+  public void testNoReservedPropertyForTableMetadataCreation() {
+    Schema schema = new Schema(
+        Types.NestedField.required(10, "x", Types.StringType.get())
+    );
+
+    AssertHelpers.assertThrows("should not allow reserved table property when creating table metadata",
+        IllegalArgumentException.class,
+        "Table properties should not contain reserved properties, but got {format-version=1}",
+        () -> TableMetadata.newTableMetadata(schema, PartitionSpec.unpartitioned(), null, "/tmp",
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, "1"), 1));
   }
 }

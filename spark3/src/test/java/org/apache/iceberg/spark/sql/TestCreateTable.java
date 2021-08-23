@@ -22,9 +22,11 @@ package org.apache.iceberg.spark.sql;
 import java.io.File;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
@@ -220,5 +222,61 @@ public class TestCreateTable extends SparkCatalogTestBase {
     Assert.assertEquals("Should not be partitioned", 0, table.spec().fields().size());
     Assert.assertEquals("Should have property p1", "2", table.properties().get("p1"));
     Assert.assertEquals("Should have property p2", "x", table.properties().get("p2"));
+  }
+
+  @Test
+  public void testCreateTableWithFormatV2ThroughTableProperty() {
+    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
+
+    sql("CREATE TABLE %s " +
+            "(id BIGINT NOT NULL, data STRING) " +
+            "USING iceberg " +
+            "TBLPROPERTIES ('format-version'='2')",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Assert.assertEquals("should create table using format v2",
+        2, ((BaseTable) table).operations().current().formatVersion());
+  }
+
+  @Test
+  public void testUpgradeTableWithFormatV2ThroughTableProperty() {
+    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
+
+    sql("CREATE TABLE %s " +
+            "(id BIGINT NOT NULL, data STRING) " +
+            "USING iceberg " +
+            "TBLPROPERTIES ('format-version'='1')",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    TableOperations ops = ((BaseTable) table).operations();
+    Assert.assertEquals("should create table using format v1",
+        1, ops.refresh().formatVersion());
+
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='2')", tableName);
+    Assert.assertEquals("should update table to use format v2",
+        2, ops.refresh().formatVersion());
+  }
+
+  @Test
+  public void testDowngradeTableToFormatV1ThroughTablePropertyFails() {
+    Assert.assertFalse("Table should not already exist", validationCatalog.tableExists(tableIdent));
+
+    sql("CREATE TABLE %s " +
+            "(id BIGINT NOT NULL, data STRING) " +
+            "USING iceberg " +
+            "TBLPROPERTIES ('format-version'='2')",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    TableOperations ops = ((BaseTable) table).operations();
+    Assert.assertEquals("should create table using format v2",
+        2, ops.refresh().formatVersion());
+
+    AssertHelpers.assertThrowsCause("should fail to downgrade to v1",
+        IllegalArgumentException.class,
+        "Cannot downgrade v2 table to v1",
+        () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='1')", tableName));
   }
 }

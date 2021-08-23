@@ -32,7 +32,6 @@ import org.apache.spark.sql.catalyst.expressions.IcebergTruncateTransform
 import org.apache.spark.sql.catalyst.expressions.IcebergYearTransform
 import org.apache.spark.sql.catalyst.expressions.NamedExpression
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.RepartitionByExpression
 import org.apache.spark.sql.catalyst.plans.logical.Sort
 import org.apache.spark.sql.connector.catalog.CatalogV2Implicits
 import org.apache.spark.sql.connector.expressions.ApplyTransform
@@ -60,18 +59,6 @@ import org.apache.spark.sql.types.IntegerType
 
 object DistributionAndOrderingUtils {
 
-  private val repartitionByExpressionCtor: DynConstructors.Ctor[RepartitionByExpression] =
-    DynConstructors.builder()
-      .impl(classOf[RepartitionByExpression],
-        classOf[Seq[catalyst.expressions.Expression]],
-        classOf[LogicalPlan],
-        classOf[Option[Int]])
-      .impl(classOf[RepartitionByExpression],
-        classOf[Seq[catalyst.expressions.Expression]],
-        classOf[LogicalPlan],
-        Integer.TYPE)
-      .build()
-
   def prepareQuery(
       requiredDistribution: Distribution,
       requiredOrdering: Seq[SortOrder],
@@ -94,11 +81,7 @@ object DistributionAndOrderingUtils {
       // the conversion to catalyst expressions above produces SortOrder expressions
       // for OrderedDistribution and generic expressions for ClusteredDistribution
       // this allows RepartitionByExpression to pick either range or hash partitioning
-      if (Spark3VersionUtil.isSpark30) {
-        repartitionByExpressionCtor.newInstance(distribution.toSeq, query, Integer.valueOf(numShufflePartitions))
-      } else {
-        repartitionByExpressionCtor.newInstance(distribution.toSeq, query, Some(numShufflePartitions))
-      }
+      PlanUtils.createRepartitionByExpression(distribution.toSeq, query, numShufflePartitions)
     } else {
       query
     }

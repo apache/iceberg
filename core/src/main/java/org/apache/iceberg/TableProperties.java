@@ -19,10 +19,36 @@
 
 package org.apache.iceberg;
 
+import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+
 public class TableProperties {
 
   private TableProperties() {
   }
+
+  /**
+   * Reserved table property for table format version.
+   * <p>
+   * Iceberg will default a new table's format version to the latest stable and recommended version.
+   * This reserved property keyword allows users to override the Iceberg format version of the table metadata.
+   * <p>
+   * If this table property exists when creating a table, the table will use the specified format version.
+   * If a table updates this property, it will try to upgrade to the specified format version.
+   * <p>
+   * Note: incomplete or unstable versions cannot be selected using this property.
+   */
+  public static final String FORMAT_VERSION = "format-version";
+
+  /**
+   * Reserved Iceberg table properties list.
+   * <p>
+   * Reserved table properties are only used to control behaviors when creating or updating a table.
+   * The value of these properties are not persisted as a part of the table metadata.
+   */
+  public static final Set<String> RESERVED_PROPERTIES = ImmutableSet.of(
+      FORMAT_VERSION
+  );
 
   public static final String COMMIT_NUM_RETRIES = "commit.retry.num-retries";
   public static final int COMMIT_NUM_RETRIES_DEFAULT = 4;

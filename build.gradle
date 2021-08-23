@@ -1049,12 +1049,12 @@ project(':iceberg-spark3') {
 
   task testSpark31(type: Test) {
     dependsOn classes
+    group = "verification"
     description = "Test against Spark 3.1"
     testClassesDirs = sourceSets.spark31.output.classesDirs
     classpath = sourceSets.spark31.runtimeClasspath + sourceSets.main.output
   }
-
-  test.dependsOn testSpark31
+  check.dependsOn testSpark31
 }
 
 project(":iceberg-spark3-extensions") {
@@ -1120,12 +1120,12 @@ project(":iceberg-spark3-extensions") {
 
   task testSpark31(type: Test) {
     dependsOn classes
+    group = "verification"
     description = "Test against Spark 3.1"
     testClassesDirs = sourceSets.spark31.output.classesDirs
     classpath = sourceSets.spark31.runtimeClasspath + sourceSets.main.output
   }
-
-  test.dependsOn testSpark31
+  check.dependsOn testSpark31
 }
 
 project(':iceberg-spark3-runtime') {

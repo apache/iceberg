@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.spark.source;
 
-import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
@@ -31,7 +30,6 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -40,28 +38,17 @@ import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.Attribute;
-import org.apache.spark.sql.catalyst.expressions.AttributeReference;
-import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
-import org.apache.spark.sql.types.StructType;
-import scala.collection.JavaConverters;
 
 class RowDataReader extends BaseDataReader<InternalRow> {
-  // for some reason, the apply method can't be called from Java without reflection
-  private static final DynMethods.UnboundMethod APPLY_PROJECTION = DynMethods.builder("apply")
-      .impl(UnsafeProjection.class, InternalRow.class)
-      .build();
 
   private final Schema tableSchema;
   private final Schema expectedSchema;
@@ -186,33 +173,10 @@ class RowDataReader extends BaseDataReader<InternalRow> {
   }
 
   private CloseableIterable<InternalRow> newDataIterable(DataTask task, Schema readSchema) {
-    StructInternalRow row = new StructInternalRow(tableSchema.asStruct());
+    StructInternalRow row = new StructInternalRow(readSchema.asStruct());
     CloseableIterable<InternalRow> asSparkRows = CloseableIterable.transform(
         task.asDataTask().rows(), row::setStruct);
-    return CloseableIterable.transform(
-        asSparkRows, APPLY_PROJECTION.bind(projection(readSchema, tableSchema))::invoke);
-  }
-
-  private static UnsafeProjection projection(Schema finalSchema, Schema readSchema) {
-    StructType struct = SparkSchemaUtil.convert(readSchema);
-
-    List<AttributeReference> refs = JavaConverters.seqAsJavaListConverter(struct.toAttributes()).asJava();
-    List<Attribute> attrs = Lists.newArrayListWithExpectedSize(struct.fields().length);
-    List<org.apache.spark.sql.catalyst.expressions.Expression> exprs =
-        Lists.newArrayListWithExpectedSize(struct.fields().length);
-
-    for (AttributeReference ref : refs) {
-      attrs.add(ref.toAttribute());
-    }
-
-    for (Types.NestedField field : finalSchema.columns()) {
-      int indexInReadSchema = struct.fieldIndex(field.name());
-      exprs.add(refs.get(indexInReadSchema));
-    }
-
-    return UnsafeProjection.create(
-        JavaConverters.asScalaBufferConverter(exprs).asScala().toSeq(),
-        JavaConverters.asScalaBufferConverter(attrs).asScala().toSeq());
+    return asSparkRows;
   }
 
   protected class SparkDeleteFilter extends DeleteFilter<InternalRow> {

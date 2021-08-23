@@ -191,6 +191,25 @@ public class TestFindFiles extends TableTestBase {
   }
 
   @Test
+  public void testIncludeColumnStats() {
+    table.newAppend()
+        .appendFile(FILE_WITH_STATS)
+        .commit();
+
+    Iterable<DataFile> files = FindFiles.in(table)
+        .includeColumnStats()
+        .collect();
+    final DataFile file = files.iterator().next();
+
+    Assert.assertEquals(FILE_WITH_STATS.columnSizes(), file.columnSizes());
+    Assert.assertEquals(FILE_WITH_STATS.valueCounts(), file.valueCounts());
+    Assert.assertEquals(FILE_WITH_STATS.nullValueCounts(), file.nullValueCounts());
+    Assert.assertEquals(FILE_WITH_STATS.nanValueCounts(), file.nanValueCounts());
+    Assert.assertEquals(FILE_WITH_STATS.lowerBounds(), file.lowerBounds());
+    Assert.assertEquals(FILE_WITH_STATS.upperBounds(), file.upperBounds());
+  }
+
+  @Test
   public void testNoSnapshot() {
     // a table has no snapshot when it just gets created and no data is loaded yet
 

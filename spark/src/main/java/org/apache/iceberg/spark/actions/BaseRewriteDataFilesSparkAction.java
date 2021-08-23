@@ -114,10 +114,16 @@ abstract class BaseRewriteDataFilesSparkAction
 
   @Override
   public RewriteDataFiles.Result execute() {
+    if (table.currentSnapshot() == null) {
+      return new BaseRewriteDataFilesResult(ImmutableList.of());
+    }
+
+    long startingSnapshotId = table.currentSnapshot().snapshotId();
+
     validateAndInitOptions();
     strategy = strategy.options(options());
 
-    Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition = planFileGroups();
+    Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition = planFileGroups(startingSnapshotId);
     RewriteExecutionContext ctx = new RewriteExecutionContext(fileGroupsByPartition);
     Stream<RewriteFileGroup> groupStream = toGroupStream(ctx, fileGroupsByPartition);
 
@@ -126,15 +132,17 @@ abstract class BaseRewriteDataFilesSparkAction
       return new BaseRewriteDataFilesResult(Collections.emptyList());
     }
 
+    RewriteDataFilesCommitManager commitManager = commitManager(startingSnapshotId);
     if (partialProgressEnabled) {
-      return doExecuteWithPartialProgress(ctx, groupStream);
+      return doExecuteWithPartialProgress(ctx, groupStream, commitManager);
     } else {
-      return doExecute(ctx, groupStream);
+      return doExecute(ctx, groupStream, commitManager);
     }
   }
 
-  private Map<StructLike, List<List<FileScanTask>>> planFileGroups() {
+  private Map<StructLike, List<List<FileScanTask>>> planFileGroups(long startingSnapshotId) {
     CloseableIterable<FileScanTask> fileScanTasks = table.newScan()
+        .useSnapshot(startingSnapshotId)
         .filter(filter)
         .ignoreResiduals()
         .planFiles();
@@ -186,13 +194,13 @@ abstract class BaseRewriteDataFilesSparkAction
   }
 
   @VisibleForTesting
-  RewriteDataFilesCommitManager commitManager() {
-    return new RewriteDataFilesCommitManager(table);
+  RewriteDataFilesCommitManager commitManager(long startingSnapshotId) {
+    return new RewriteDataFilesCommitManager(table, startingSnapshotId);
   }
 
-  private Result doExecute(RewriteExecutionContext ctx, Stream<RewriteFileGroup> groupStream) {
+  private Result doExecute(RewriteExecutionContext ctx, Stream<RewriteFileGroup> groupStream,
+                           RewriteDataFilesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
-    RewriteDataFilesCommitManager commitManager = commitManager();
 
     ConcurrentLinkedQueue<RewriteFileGroup> rewrittenGroups = Queues.newConcurrentLinkedQueue();
 
@@ -244,12 +252,13 @@ abstract class BaseRewriteDataFilesSparkAction
     return new BaseRewriteDataFilesResult(rewriteResults);
   }
 
-  private Result doExecuteWithPartialProgress(RewriteExecutionContext ctx, Stream<RewriteFileGroup> groupStream) {
+  private Result doExecuteWithPartialProgress(RewriteExecutionContext ctx, Stream<RewriteFileGroup> groupStream,
+                                              RewriteDataFilesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
     // Start Commit Service
     int groupsPerCommit = IntMath.divide(ctx.totalGroupCount(), maxCommits, RoundingMode.CEILING);
-    RewriteDataFilesCommitManager.CommitService commitService = commitManager().service(groupsPerCommit);
+    RewriteDataFilesCommitManager.CommitService commitService = commitManager.service(groupsPerCommit);
     commitService.start();
 
     // Start rewrite tasks

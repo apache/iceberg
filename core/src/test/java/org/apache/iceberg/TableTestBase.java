@@ -28,11 +28,13 @@ import java.util.stream.LongStream;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.io.Files;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.Assert;
@@ -129,6 +131,20 @@ public class TableTestBase {
       .withFileSizeInBytes(10)
       .withPartition(TestHelpers.Row.of(3))
       .withRecordCount(1)
+      .build();
+  static final DataFile FILE_WITH_STATS = DataFiles.builder(SPEC)
+      .withPath("/path/to/data-with-stats.parquet")
+      .withMetrics(new Metrics(10L,
+          ImmutableMap.of(3, 100L, 4, 200L), // column sizes
+          ImmutableMap.of(3, 90L, 4, 180L), // value counts
+          ImmutableMap.of(3, 10L, 4, 20L), // null value counts
+          ImmutableMap.of(3, 0L, 4, 0L), // nan value counts
+          ImmutableMap.of(3, Conversions.toByteBuffer(Types.IntegerType.get(), 1),
+             4, Conversions.toByteBuffer(Types.IntegerType.get(), 2)),  // lower bounds
+          ImmutableMap.of(3, Conversions.toByteBuffer(Types.IntegerType.get(), 5),
+             4, Conversions.toByteBuffer(Types.IntegerType.get(), 10))  // upperbounds
+          ))
+      .withFileSizeInBytes(350)
       .build();
 
   static final FileIO FILE_IO = new TestTables.LocalFileIO();
