@@ -40,7 +40,7 @@ public class TestTableEncryption extends SparkExtensionsTestBase {
   public void testEncKey() {
 
     sql("CREATE TABLE %s (id bigint NOT NULL, " +
-        "location struct<lon:bigint NOT NULL,lat:bigint NOT NULL> NOT NULL) USING iceberg", tableName);
+        "coordinates struct<lon:bigint NOT NULL,lat:bigint NOT NULL> NOT NULL) USING iceberg", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertTrue("Table should start without identifier", table.schema().identifierFieldIds().isEmpty());
 

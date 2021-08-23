@@ -117,7 +117,7 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
   }
 
   /**
-   * Create a ENCRYPTED WITH (KEK | MEK) BY TABLE KEY command.
+   * Create a [[CreateTableEncKey]] for creating a KEK or MEK encryption key for the table.
    */
   override def visitCreateTableEncKey(ctx: CreateTableEncKeyContext): CreateTableEncKey = withOrigin(ctx) {
     val isKEK = if (ctx.KEK() != null) true else false
