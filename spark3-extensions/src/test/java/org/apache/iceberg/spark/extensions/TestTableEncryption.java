@@ -19,13 +19,12 @@
 
 package org.apache.iceberg.spark.extensions;
 
+import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.util.Map;
 
 public class TestTableEncryption extends SparkExtensionsTestBase {
   public TestTableEncryption(String catalogName, String implementation, Map<String, String> config) {
