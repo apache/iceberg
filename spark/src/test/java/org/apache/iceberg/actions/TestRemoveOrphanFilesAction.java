@@ -285,7 +285,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   public void testMetadataFolderIsIntact() throws InterruptedException {
     // write data directly to the table location
     Map<String, String> props = Maps.newHashMap();
-    props.put(TableProperties.WRITE_NEW_DATA_LOCATION, tableLocation);
+    props.put(TableProperties.WRITE_FOLDER_STORAGE_LOCATION, tableLocation);
     Table table = TABLES.create(SCHEMA, SPEC, props, tableLocation);
 
     List<ThreeColumnRecord> records = Lists.newArrayList(
@@ -357,7 +357,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   @Test
   public void testRemoveUnreachableMetadataVersionFiles() throws InterruptedException {
     Map<String, String> props = Maps.newHashMap();
-    props.put(TableProperties.WRITE_NEW_DATA_LOCATION, tableLocation);
+    props.put(TableProperties.WRITE_FOLDER_STORAGE_LOCATION, tableLocation);
     props.put(TableProperties.METADATA_PREVIOUS_VERSIONS_MAX, "1");
     Table table = TABLES.create(SCHEMA, SPEC, props, tableLocation);
 

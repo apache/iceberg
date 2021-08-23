@@ -167,7 +167,7 @@ public class BaseSnapshotTableSparkAction
     // remove any possible location properties from origin properties
     properties.remove(LOCATION);
     properties.remove(TableProperties.WRITE_METADATA_LOCATION);
-    properties.remove(TableProperties.WRITE_NEW_DATA_LOCATION);
+    properties.remove(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
 
     // set default and user-provided props
     properties.put(TableCatalog.PROP_PROVIDER, "iceberg");
