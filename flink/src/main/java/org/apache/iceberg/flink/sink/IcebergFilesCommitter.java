@@ -312,14 +312,14 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     committerMetrics.commitDuration(durationMs);
   }
 
+  /**
+   * For file size distribution histogram, we don't have to update them after successful commits.
+   * This should works equally well and we avoided the overhead of tracking the list of file sizes
+   * in the {@link CommitStats}, which currently stores simple stats for counters and gauges metrics.
+   */
   @Override
   public void processElement(StreamRecord<WriteResult> element) {
     this.writeResultsOfCurrentCkpt.add(element.getValue());
-    /**
-     * For file size distribution histogram, we don't have to update them after successful commits.
-     * This should works equally well and we avoided the overhead of tracking the list of file sizes
-     * in the {@link CommitStats}, which currently stores simple stats for counters and gauges metrics.
-     */
     committerMetrics.updateFileSizeHistogram(element.getValue());
   }
 

@@ -27,20 +27,14 @@ import org.apache.iceberg.io.WriteResult;
 class IcebergStreamWriterMetrics {
 
   private final Counter processedRecords;
-  private final AtomicLong flushedDataFiles;
-  private final AtomicLong flushedDeleteFiles;
-  private final AtomicLong flushedReferencedDataFiles;
-  private final AtomicLong lastFlushDurationMs;
+  private final AtomicLong flushedDataFiles = new AtomicLong();
+  private final AtomicLong flushedDeleteFiles = new AtomicLong();
+  private final AtomicLong flushedReferencedDataFiles = new AtomicLong();
+  private final AtomicLong lastFlushDurationMs = new AtomicLong();
 
   IcebergStreamWriterMetrics(MetricGroup metrics, String fullTableName) {
     MetricGroup writerMetrics = metrics.addGroup("IcebergStreamWriter", fullTableName);
-
     processedRecords = writerMetrics.counter("processedRecords");
-    flushedDataFiles = new AtomicLong();
-    flushedDeleteFiles = new AtomicLong();
-    flushedReferencedDataFiles = new AtomicLong();
-    lastFlushDurationMs = new AtomicLong();
-
     writerMetrics.gauge("flushedDataFiles", flushedDataFiles::get);
     writerMetrics.gauge("flushedDeleteFiles", flushedDeleteFiles::get);
     writerMetrics.gauge("flushedReferencedDataFiles", flushedReferencedDataFiles::get);

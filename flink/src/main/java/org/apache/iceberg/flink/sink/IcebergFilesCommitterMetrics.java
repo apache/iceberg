@@ -29,14 +29,14 @@ import org.apache.iceberg.io.WriteResult;
 
 class IcebergFilesCommitterMetrics {
 
-  private final AtomicLong lastCheckpointDurationMs;
-  private final AtomicLong lastCommitDurationMs;
-  private final AtomicLong committedDataFilesCount;
-  private final AtomicLong committedDataFilesRecordCount;
-  private final AtomicLong committedDataFilesByteCount;
-  private final AtomicLong committedDeleteFilesCount;
-  private final AtomicLong committedDeleteFilesRecordCount;
-  private final AtomicLong committedDeleteFilesByteCount;
+  private final AtomicLong lastCheckpointDurationMs = new AtomicLong();
+  private final AtomicLong lastCommitDurationMs = new AtomicLong();
+  private final AtomicLong committedDataFilesCount = new AtomicLong();
+  private final AtomicLong committedDataFilesRecordCount = new AtomicLong();
+  private final AtomicLong committedDataFilesByteCount = new AtomicLong();
+  private final AtomicLong committedDeleteFilesCount = new AtomicLong();
+  private final AtomicLong committedDeleteFilesRecordCount = new AtomicLong();
+  private final AtomicLong committedDeleteFilesByteCount = new AtomicLong();
 
   private final Histogram dataFilesSizeHistogram;
   private final Histogram deleteFilesSizeHistogram;
@@ -44,15 +44,6 @@ class IcebergFilesCommitterMetrics {
   IcebergFilesCommitterMetrics(MetricGroup metrics, String fullTableName,
                                int slidingWindowReservoirSize) {
     MetricGroup committerMetrics = metrics.addGroup("IcebergFilesCommitter", fullTableName);
-
-    this.lastCheckpointDurationMs = new AtomicLong();
-    this.lastCommitDurationMs = new AtomicLong();
-    this.committedDataFilesCount = new AtomicLong();
-    this.committedDataFilesRecordCount = new AtomicLong();
-    this.committedDataFilesByteCount = new AtomicLong();
-    this.committedDeleteFilesCount = new AtomicLong();
-    this.committedDeleteFilesRecordCount = new AtomicLong();
-    this.committedDeleteFilesByteCount = new AtomicLong();
 
     committerMetrics.gauge("lastCheckpointDurationMs", lastCheckpointDurationMs::get);
     committerMetrics.gauge("lastCommitDurationMs", lastCommitDurationMs::get);

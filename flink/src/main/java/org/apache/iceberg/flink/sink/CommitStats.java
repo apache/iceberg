@@ -76,11 +76,11 @@ class CommitStats {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("dataFilesCount", dataFilesCount.get())
-        .add("dataFilesRecordCount", dataFilesRecordCount.get())
-        .add("dataFilesByteCount", dataFilesByteCount.get())
-        .add("deleteFilesCount", deleteFilesCount.get())
-        .add("deleteFilesRecordCount", deleteFilesRecordCount.get())
+        .add("dataFilesCount", dataFilesCount)
+        .add("dataFilesRecordCount", dataFilesRecordCount)
+        .add("dataFilesByteCount", dataFilesByteCount)
+        .add("deleteFilesCount", deleteFilesCount)
+        .add("deleteFilesRecordCount", deleteFilesRecordCount)
         .add("deleteFilesByteCount", deleteFilesByteCount)
         .toString();
   }

@@ -255,11 +255,13 @@ public class FlinkSink {
      * Set the {@link SlidingWindowReservoir} size (number of measurements stored)
      * for the two histogram metrics of data files and delete file size distribution.
      *
-     * @param newReservoirSize
-     * default is 128, which  only add a small memory overhead of 1 KB (128 x 8B) per histogram. For large
+     * @param newReservoirSize the new histogram reservoir size for the file size distribution.
+     * default is 128, which only add a small memory overhead of 1 KB (128 x 8B) per histogram. For large
      * use cases with a lot of files, a larger reservoir size can produce more accurate histogram distribution.
      */
     public Builder fileSizeHistogramReservoirSize(int newReservoirSize) {
+      Preconditions.checkArgument(newReservoirSize > 0,
+          "Reservoir size should be larger than 0");
       this.fileSizeHistogramReservoirSize = newReservoirSize;
       return this;
     }
