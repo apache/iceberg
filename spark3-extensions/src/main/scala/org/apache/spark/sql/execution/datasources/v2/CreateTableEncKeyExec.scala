@@ -41,7 +41,7 @@ case class CreateTableEncKeyExec(
         throw new UnsupportedOperationException(s"create Table encryption key not supported yet: " +
           s"${catalog.name}.${ident.quoted} isKEK: $isKEK $keyId")
       case table =>
-        throw new UnsupportedOperationException(s"Cannot create Table encryption key  for a non-Iceberg table: $table")
+        throw new UnsupportedOperationException(s"Cannot create Table encryption key for a non-Iceberg table: $table")
     }
 
     Nil
