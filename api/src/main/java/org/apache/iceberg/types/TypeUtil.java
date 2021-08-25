@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.types;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -43,10 +44,11 @@ public class TypeUtil {
   }
 
   /**
-   * Project extracts particular fields from a schema. Unlike
-   * {@link TypeUtil#select(Schema, Set)}, project will pick out only
-   * the fields enumerated, this means no sub fields will be selected
-   * unless they are explicitly requested.
+   * Project extracts particular fields from a schema by ID.
+   * <p>
+   * Unlike {@link TypeUtil#select(Schema, Set)}, project will pick out only the fields enumerated. Structs that are
+   * explicitly projected are empty unless sub-fields are explicitly projected. Maps and lists cannot be explicitly
+   * selected in fieldIds.
    * @param schema to project fields from
    * @param fieldIds list of explicit fields to extract
    * @return the schema with all fields fields not selected removed
@@ -55,7 +57,7 @@ public class TypeUtil {
     Preconditions.checkNotNull(schema, "Schema cannot be null");
 
     Types.StructType result = project(schema.asStruct(), fieldIds);
-    if (Objects.equals(schema.asStruct(), result)) {
+    if (schema.asStruct().equals(result)) {
       return schema;
     } else if (result != null) {
       if (schema.getAliases() != null) {
@@ -64,7 +66,7 @@ public class TypeUtil {
         return new Schema(result.fields());
       }
     }
-    return new Schema();
+    return new Schema(Collections.emptyList(), schema.getAliases());
   }
 
   public static Types.StructType project(Types.StructType struct, Set<Integer> fieldIds) {
@@ -102,8 +104,8 @@ public class TypeUtil {
     Preconditions.checkNotNull(struct, "Struct cannot be null");
     Preconditions.checkNotNull(fieldIds, "Field ids cannot be null");
 
-    Type result = visit(struct, new PruneColumns(fieldIds));
-    if (struct == result) {
+    Type result = visit(struct, new PruneColumns(fieldIds, true));
+    if (struct.equals(result)) {
       return struct;
     } else if (result != null) {
       return result.asStructType();

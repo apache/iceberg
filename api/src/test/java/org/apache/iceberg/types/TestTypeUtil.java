@@ -144,7 +144,9 @@ public class TestTypeUtil {
                 )))));
 
     Schema actualDepthTwo = TypeUtil.project(schema, Sets.newHashSet(11, 12, 15, 17));
+    Schema actualDepthTwoChildren = TypeUtil.project(schema, Sets.newHashSet(11, 17));
     Assert.assertEquals(expectedDepthTwo.asStruct(), actualDepthTwo.asStruct());
+    Assert.assertEquals(expectedDepthTwo.asStruct(), actualDepthTwoChildren.asStruct());
   }
 
   @Test
@@ -179,7 +181,9 @@ public class TestTypeUtil {
                 ))))));
 
     Schema actualDepthThree = TypeUtil.project(schema, Sets.newHashSet(12, 15, 20));
+    Schema actualDepthThreeChildren = TypeUtil.project(schema, Sets.newHashSet(20));
     Assert.assertEquals(expectedDepthThree.asStruct(), actualDepthThree.asStruct());
+    Assert.assertEquals(expectedDepthThree.asStruct(), actualDepthThreeChildren.asStruct());
   }
 
   @Test
@@ -260,7 +264,7 @@ public class TestTypeUtil {
 
   @Test
   public void testProjectMap() {
-    // We can't partially project keys
+    // We can't partially project keys because it changes key equality
     Schema schema = new Schema(
         Lists.newArrayList(
             required(10, "a", Types.IntegerType.get()),
@@ -297,7 +301,9 @@ public class TestTypeUtil {
                     optional(101, "y", Types.IntegerType.get())),
                 Types.StructType.of()))));
     Schema actualDepthOne = TypeUtil.project(schema, Sets.newHashSet(10, 13, 14, 100, 101));
+    Schema actualDepthOneNoKeys = TypeUtil.project(schema, Sets.newHashSet(10, 13, 14));
     Assert.assertEquals(expectedDepthOne.asStruct(), actualDepthOne.asStruct());
+    Assert.assertEquals(expectedDepthOne.asStruct(), actualDepthOneNoKeys.asStruct());
 
     Schema expectedDepthTwo = new Schema(
             Lists.newArrayList(

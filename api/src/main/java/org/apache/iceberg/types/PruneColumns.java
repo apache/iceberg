@@ -33,18 +33,15 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   private final boolean selectFullTypes;
 
   /**
-   * Visits a schema and returns only those element's whose id's have been passed as selected
+   * Visits a schema and returns only the fields selected by the id set.
    * @param selected ids of elements to return
-   * @param selectFullTypes whether explicitly selected fields should automatically include all subfields
+   * @param selectFullTypes when true, selecting a nested type selects all subfields. When false selecting list or
+   *                        map types is undefined and forbidden.
    */
   PruneColumns(Set<Integer> selected, boolean selectFullTypes) {
     Preconditions.checkNotNull(selected, "Selected field ids cannot be null");
     this.selected = selected;
     this.selectFullTypes = selectFullTypes;
-  }
-
-  PruneColumns(Set<Integer> selected) {
-    this(selected, true);
   }
 
   @Override
@@ -95,7 +92,8 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
         return projectSelectedStruct(fieldResult);
       } else {
         Preconditions.checkArgument(selectFullTypes || !field.type().isNestedType(),
-            "Cannot select partial List or Map types explicitly");
+            "Cannot select partial List or Map types explicitly, %s:%s of type %s was selected",
+            field.fieldId(), field.name(), field.type());
         // Selected non-struct field
         return field.type();
       }
@@ -145,7 +143,7 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   }
 
   private ListType projectList(ListType list, Type elementResult) {
-    Preconditions.checkArgument(elementResult != null);
+    Preconditions.checkArgument(elementResult != null, "Cannot project a list when the element result is null");
     if (list.elementType() == elementResult) {
       return list;
     } else if (list.isElementOptional()) {
@@ -156,7 +154,7 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   }
 
   private MapType projectMap(MapType map, Type valueResult) {
-    Preconditions.checkArgument(valueResult != null);
+    Preconditions.checkArgument(valueResult != null, "Attempted to project a map without a defined map value type");
     if (map.valueType() == valueResult) {
       return map;
     } else if (map.isValueOptional()) {
