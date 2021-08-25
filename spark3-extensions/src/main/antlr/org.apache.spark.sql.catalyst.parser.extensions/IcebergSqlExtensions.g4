@@ -73,7 +73,7 @@ statement
     | ALTER TABLE multipartIdentifier WRITE writeSpec                                       #setWriteDistributionAndOrdering
     | ALTER TABLE multipartIdentifier SET IDENTIFIER_KW FIELDS fieldList                    #setIdentifierFields
     | ALTER TABLE multipartIdentifier DROP IDENTIFIER_KW FIELDS fieldList                   #dropIdentifierFields
-    | ALTER TABLE multipartIdentifier ENCRYPTED WITH (KEK | MEK) BY TABLE KEY keyId         #createTableEncKey
+    | ALTER TABLE multipartIdentifier ENCRYPTED WITH (KEK | MEK) KEY keyId                  #createTableEncKey
     ;
 
 writeSpec
