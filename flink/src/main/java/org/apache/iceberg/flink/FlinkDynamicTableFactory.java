@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.flink;
 
-import java.util.Map;
 import java.util.Set;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.table.api.TableSchema;
@@ -49,10 +48,9 @@ public class FlinkDynamicTableFactory implements DynamicTableSinkFactory, Dynami
   @Override
   public DynamicTableSink createDynamicTableSink(Context context) {
     ObjectPath objectPath = context.getObjectIdentifier().toObjectPath();
-    Map<String, String> tableProps = context.getCatalogTable().getOptions();
     TableLoader tableLoader = createTableLoader(objectPath);
     TableSchema tableSchema = TableSchemaUtils.getPhysicalSchema(context.getCatalogTable().getSchema());
-    return new IcebergTableSink(tableLoader, tableSchema, tableProps);
+    return new IcebergTableSink(tableLoader, tableSchema);
   }
 
   @Override

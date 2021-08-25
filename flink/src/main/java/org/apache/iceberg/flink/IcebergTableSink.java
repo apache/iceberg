@@ -32,36 +32,27 @@ import org.apache.flink.types.RowKind;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.flink.sink.FlinkSink;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.util.PropertyUtil;
-
-import static org.apache.iceberg.TableProperties.UPSERT_MODE_ENABLED;
-import static org.apache.iceberg.TableProperties.UPSERT_MODE_ENABLED_DEFAULT;
 
 public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning, SupportsOverwrite {
-
   private final TableLoader tableLoader;
   private final TableSchema tableSchema;
-  private final Map<String, String> tableProperties;
 
   private boolean overwrite = false;
 
   private IcebergTableSink(IcebergTableSink toCopy) {
     this.tableLoader = toCopy.tableLoader;
     this.tableSchema = toCopy.tableSchema;
-    this.tableProperties = toCopy.tableProperties;
     this.overwrite = toCopy.overwrite;
   }
 
-  public IcebergTableSink(TableLoader tableLoader, TableSchema tableSchema, Map<String, String> tableProperties) {
+  public IcebergTableSink(TableLoader tableLoader, TableSchema tableSchema) {
     this.tableLoader = tableLoader;
     this.tableSchema = tableSchema;
-    this.tableProperties = tableProperties;
   }
 
   @Override
   public SinkRuntimeProvider getSinkRuntimeProvider(Context context) {
-    Preconditions.checkState(
-        !overwrite || context.isBounded(),
+    Preconditions.checkState(!overwrite || context.isBounded(),
         "Unbounded data stream doesn't support overwrite operation.");
 
     List<String> equalityColumns = tableSchema.getPrimaryKey()
@@ -72,7 +63,6 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
         .tableLoader(tableLoader)
         .tableSchema(tableSchema)
         .equalityFieldColumns(equalityColumns)
-        .upsert(PropertyUtil.propertyAsBoolean(tableProperties, UPSERT_MODE_ENABLED, UPSERT_MODE_ENABLED_DEFAULT))
         .overwrite(overwrite)
         .build();
   }
