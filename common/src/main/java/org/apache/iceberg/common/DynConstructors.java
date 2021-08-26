@@ -126,6 +126,7 @@ public class DynConstructors {
 
     public Builder(Class<?> baseClass) {
       this.baseClass = baseClass;
+      this.loader = this.baseClass.getClassLoader();
     }
 
     public Builder() {
