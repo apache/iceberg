@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.flink;
 
+import java.io.File;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -138,6 +139,13 @@ public class FlinkCatalogFactory implements CatalogFactory {
           "There should be a hive-site.xml file under the directory %s", hiveConfDir);
       newConf.addResource(new Path(hiveConfDir, "hive-site.xml"));
     } else {
+      // If don't provide the hive-site.xml path explicitly, it will try to load resource from hive
+      // configuration with hive conf directory.
+      Configuration hiveConfFromEnv = hiveConfFromEnvVariables();
+      if (hiveConfFromEnv != null) {
+        newConf.addResource(hiveConfFromEnv);
+      }
+
       // If don't provide the hive-site.xml path explicitly, it will try to load resource from classpath. If still
       // couldn't load the configuration file, then it will throw exception in HiveCatalog.
       URL configFile = CatalogLoader.class.getClassLoader().getResource("hive-site.xml");
@@ -150,5 +158,27 @@ public class FlinkCatalogFactory implements CatalogFactory {
 
   public static Configuration clusterHadoopConf() {
     return HadoopUtils.getHadoopConfiguration(GlobalConfiguration.loadConfiguration());
+  }
+
+  public static Configuration hiveConfFromEnvVariables() {
+    Configuration hiveConfFromEnv = null;
+    if (System.getenv("HIVE_HOME") != null) {
+      File hiveSite = new File(System.getenv("HIVE_HOME") + "/conf", "hive-site.xml");
+      if (hiveSite.exists()) {
+        hiveConfFromEnv = new Configuration();
+        hiveConfFromEnv.addResource(new Path(hiveSite.getAbsolutePath()));
+      }
+    }
+
+    if (System.getenv("HIVE_CONF_DIR") != null) {
+      File hiveSite = new File(System.getenv("HIVE_CONF_DIR"), "hive-site.xml");
+      if (hiveSite.exists()) {
+        if (hiveConfFromEnv == null) {
+          hiveConfFromEnv = new Configuration();
+        }
+        hiveConfFromEnv.addResource(new Path(hiveSite.getAbsolutePath()));
+      }
+    }
+    return hiveConfFromEnv;
   }
 }
