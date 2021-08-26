@@ -123,7 +123,9 @@ public class ArrowReaderTest {
           "time",
           "time_nullable",
           "uuid",
-          "uuid_nullable"
+          "uuid_nullable",
+          "fixed",
+          "fixed_nullable"
       );
 
   @Rule
@@ -572,6 +574,20 @@ public class ArrowReaderTest {
         (records, i) -> records.get(i).getField("time_nullable"),
         (array, i) -> LocalTime.ofNanoOfDay(array.getLong(i) * 1000)
     );
+
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("fixed"),
+        columnSet, "fixed",
+        (records, i) -> records.get(i).getField("fixed"),
+        ColumnVector::getBinary
+    );
+
+    checkColumnarArrayValues(
+        expectedNumRows, expectedRows, batch, columnNameToIndex.get("fixed_nullable"),
+        columnSet, "fixed_nullable",
+        (records, i) -> records.get(i).getField("fixed_nullable"),
+        ColumnVector::getBinary
+    );
   }
 
   private static void checkColumnarArrayValues(
@@ -633,7 +649,9 @@ public class ArrowReaderTest {
         Types.NestedField.required(22, "time", Types.TimeType.get()),
         Types.NestedField.optional(23, "time_nullable", Types.TimeType.get()),
         Types.NestedField.required(24, "uuid", Types.UUIDType.get()),
-        Types.NestedField.optional(25, "uuid_nullable", Types.UUIDType.get())
+        Types.NestedField.optional(25, "uuid_nullable", Types.UUIDType.get()),
+        Types.NestedField.required(26, "fixed", Types.FixedType.ofLength(4)),
+        Types.NestedField.optional(27, "fixed_nullable", Types.FixedType.ofLength(7))
     );
 
     PartitionSpec spec = PartitionSpec.builderFor(schema)
@@ -719,7 +737,11 @@ public class ArrowReaderTest {
         new Field(
             "uuid", new FieldType(false, new ArrowType.FixedSizeBinary(16), null), null),
         new Field(
-            "uuid_nullable", new FieldType(true, new ArrowType.FixedSizeBinary(16), null), null)
+            "uuid_nullable", new FieldType(true, new ArrowType.FixedSizeBinary(16), null), null),
+        new Field(
+            "fixed", new FieldType(false, new ArrowType.FixedSizeBinary(4), null), null),
+        new Field(
+            "fixed_nullable", new FieldType(true, new ArrowType.FixedSizeBinary(7), null), null)
     );
     List<Field> filteredFields = allFields.stream()
         .filter(f -> columnSet.contains(f.getName()))
@@ -758,6 +780,8 @@ public class ArrowReaderTest {
       byte[] uuid = bb.array();
       rec.setField("uuid", uuid);
       rec.setField("uuid_nullable", uuid);
+      rec.setField("fixed", ("abc" + i % 10).getBytes(StandardCharsets.UTF_8));
+      rec.setField("fixed_nullable", ("abcdef" + i % 10).getBytes(StandardCharsets.UTF_8));
       records.add(rec);
     }
     return records;
@@ -794,6 +818,8 @@ public class ArrowReaderTest {
       byte[] uuid = bb.array();
       rec.setField("uuid", uuid);
       rec.setField("uuid_nullable", uuid);
+      rec.setField("fixed", "abcd".getBytes(StandardCharsets.UTF_8));
+      rec.setField("fixed_nullable", "abcdefg".getBytes(StandardCharsets.UTF_8));
       records.add(rec);
     }
     return records;
@@ -872,6 +898,8 @@ public class ArrowReaderTest {
     assertEqualsForField(root, columnSet, "uuid", FixedSizeBinaryVector.class);
     assertEqualsForField(root, columnSet, "uuid_nullable", FixedSizeBinaryVector.class);
     assertEqualsForField(root, columnSet, "int_promotion", IntVector.class);
+    assertEqualsForField(root, columnSet, "fixed", FixedSizeBinaryVector.class);
+    assertEqualsForField(root, columnSet, "fixed_nullable", FixedSizeBinaryVector.class);
   }
 
   private void assertEqualsForField(
@@ -881,6 +909,7 @@ public class ArrowReaderTest {
     }
   }
 
+  @SuppressWarnings("MethodLength")
   private void checkAllVectorValues(
       int expectedNumRows,
       List<GenericRecord> expectedRows,
@@ -1015,6 +1044,18 @@ public class ArrowReaderTest {
         expectedNumRows, expectedRows, root, columnSet, "time_nullable",
         (records, i) -> records.get(i).getField("time_nullable"),
         (vector, i) -> LocalTime.ofNanoOfDay(((TimeMicroVector) vector).get(i) * 1000)
+    );
+
+    checkVectorValues(
+        expectedNumRows, expectedRows, root, columnSet, "fixed",
+        (records, i) -> records.get(i).getField("fixed"),
+        (vector, i) -> ((FixedSizeBinaryVector) vector).get(i)
+    );
+
+    checkVectorValues(
+        expectedNumRows, expectedRows, root, columnSet, "fixed_nullable",
+        (records, i) -> records.get(i).getField("fixed_nullable"),
+        (vector, i) -> ((FixedSizeBinaryVector) vector).get(i)
     );
   }
 

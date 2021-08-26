@@ -69,9 +69,10 @@ public class ArrowSchemaUtil {
 
     switch (field.type().typeId()) {
       case BINARY:
-        // Spark doesn't support BYTE(fixed_size) type, so cast it to VarBinary
-      case FIXED:
         arrowType = ArrowType.Binary.INSTANCE;
+        break;
+      case FIXED:
+        arrowType = new ArrowType.FixedSizeBinary(((Types.FixedType) field.type()).length());
         break;
       case BOOLEAN:
         arrowType = ArrowType.Bool.INSTANCE;
