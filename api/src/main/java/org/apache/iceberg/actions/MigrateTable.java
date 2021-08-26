@@ -50,6 +50,16 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
     throw new UnsupportedOperationException("Dropping a backup is not supported");
   }
 
+  /**
+   * Sets a backup suffix to use in the backup table post-migration. Default suffix is __BACKUP__.
+   *
+   * @param backupSuffix a backup suffix string
+   * @return this for method chaining
+   */
+  default MigrateTable withBackupSuffix(String backupSuffix) {
+    throw new UnsupportedOperationException("Setting a backup suffix is not supported");
+  }
+
   /** The action result that contains a summary of the execution. */
   interface Result {
     /** Returns the number of migrated data files. */

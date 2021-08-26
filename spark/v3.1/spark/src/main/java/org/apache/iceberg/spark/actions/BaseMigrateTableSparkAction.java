@@ -27,6 +27,7 @@ import org.apache.iceberg.actions.MigrateTable;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.SparkSessionCatalog;
@@ -53,12 +54,12 @@ public class BaseMigrateTableSparkAction
     implements MigrateTable {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseMigrateTableSparkAction.class);
-  private static final String BACKUP_SUFFIX = "_BACKUP_";
+  public static final String DEFAULT_BACKUP_SUFFIX = "_BACKUP_";
 
   private final StagingTableCatalog destCatalog;
   private final Identifier destTableIdent;
-  private final Identifier backupIdent;
 
+  private Identifier backupIdent;
   private boolean dropBackup = false;
 
   public BaseMigrateTableSparkAction(
@@ -66,8 +67,8 @@ public class BaseMigrateTableSparkAction
     super(spark, sourceCatalog, sourceTableIdent);
     this.destCatalog = checkDestinationCatalog(sourceCatalog);
     this.destTableIdent = sourceTableIdent;
-    String backupName = sourceTableIdent.name() + BACKUP_SUFFIX;
-    this.backupIdent = Identifier.of(sourceTableIdent.namespace(), backupName);
+    String backupName = destTableIdent.name() + DEFAULT_BACKUP_SUFFIX;
+    this.backupIdent = Identifier.of(destTableIdent.namespace(), backupName);
   }
 
   @Override
@@ -100,6 +101,15 @@ public class BaseMigrateTableSparkAction
   @Override
   public MigrateTable dropBackup() {
     this.dropBackup = true;
+    return this;
+  }
+
+  @Override
+  public MigrateTable withBackupSuffix(String backupSuffix) {
+    Preconditions.checkArgument(
+        !Strings.isNullOrEmpty(backupSuffix), "Backup suffix cannot be null or empty string");
+    String backupName = destTableIdent.name() + backupSuffix;
+    this.backupIdent = Identifier.of(destTableIdent.namespace(), backupName);
     return this;
   }
 

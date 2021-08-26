@@ -123,6 +123,38 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testMigrateWithBackupSuffix() throws IOException {
+    Assume.assumeTrue(catalogName.equals("spark_catalog"));
+    String backupSuffix = "_tmp";
+    String location = temp.newFolder().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        tableName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    Object result =
+        scalarSql(
+            "CALL %s.system.migrate(table => '%s', backup_suffix => '%s')",
+            catalogName, tableName, backupSuffix);
+
+    Assert.assertEquals("Should have added one file", 1L, result);
+
+    Table createdTable = validationCatalog.loadTable(tableIdent);
+
+    String tableLocation = createdTable.location().replace("file:", "");
+    Assert.assertEquals("Table should have original location", location, tableLocation);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L, "a"), row(1L, "a")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    sql("DROP TABLE %s", tableName + backupSuffix);
+  }
+
+  @Test
   public void testMigrateWithInvalidMetricsConfig() throws IOException {
     Assume.assumeTrue(catalogName.equals("spark_catalog"));
 
