@@ -19,15 +19,23 @@
 
 This is a specification for the Iceberg table format that is designed to manage a large, slow-changing collection of files in a distributed file system or key-value store as a table.
 
+## Format Versioning
+
+Versions 1 and 2 of the Iceberg format are finished and supported by the community.
+
+The format version number is incremented when new features are added that will break forward-compatibility---that is, when older readers would not read newer table features correctly. Tables may continue to be written with an older version of the spec to ensure compatibility by not using features that are not yet implemented by processing engines.
+
 #### Version 1: Analytic Data Tables
 
-**Iceberg format version 1 is the current version**. It defines how to manage large analytic tables using immutable file formats: Parquet, Avro, and ORC.
+Iceberg format version 1 defines how to manage large analytic tables using immutable file formats: Parquet, Avro, and ORC.
 
 #### Version 2: Row-level Deletes
 
-The Iceberg community is currently working on version 2 of the Iceberg format that supports encoding row-level deletes. **The v2 specification is incomplete and may change until it is finished and adopted.** This document includes tentative v2 format requirements, but there are currently no compatibility guarantees with the unfinished v2 spec.
+Iceberg format version 2 adds row-level deletes for analytic tables with immutable files.
 
-The primary goal of version 2 is to provide a way to encode row-level deletes. This update can be used to delete or replace individual rows in an immutable data file without rewriting the file.
+The primary change in version 2 adds delete files to encode that rows that are deleted in existing data files. This version can be used to delete or replace individual rows in immutable data files without rewriting the files.
+
+In addition to row-level deletes, version 2 makes some requirements stricter for writers. For example, multiple schemas can be tracked in v1 metadata using an optional `schemas` list. In v2, the schemas list is required. The full set of changes are listed in [Appendix D: Format version changes, Version 2](#version-2).
 
 
 ## Goals
@@ -1002,7 +1010,7 @@ This serialization scheme is for storing single values as individual binary valu
 | **`map`**                    | Not supported                                                                                                |
 
 
-## Format version changes
+## Appendix D: Format version changes
 
 ### Version 2
 
