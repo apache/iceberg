@@ -215,10 +215,14 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
     long sizeInBytes = 0L;
     long numRows = 0L;
+    double compressionFactor = SparkSession.active().sessionState().conf().fileCompressionFactor();
+    StructType tableSchema = SparkSchemaUtil.convert(table.schema());
+    double adjustmentFactor = compressionFactor * readSchema().defaultSize() / tableSchema.defaultSize();
 
     for (CombinedScanTask task : tasks()) {
       for (FileScanTask file : task.files()) {
-        sizeInBytes += file.length();
+        long estimate = (long) (adjustmentFactor * file.length());
+        sizeInBytes += estimate;
         numRows += file.file().recordCount();
       }
     }
