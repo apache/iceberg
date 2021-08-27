@@ -23,6 +23,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import org.apache.commons.collections.IteratorUtils;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.GenericRowData;
@@ -37,6 +39,9 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -55,6 +60,7 @@ import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
@@ -259,4 +265,37 @@ public class SimpleDataUtil {
 
     return dataFiles;
   }
+
+  public static Map<Long, List<DataFile>> snapshotToDataFiles(
+      Table table)
+      throws IOException {
+    table.refresh();
+    Map<Long, List<DataFile>> res = Maps.newHashMap();
+    List<ManifestFile> manifestFiles = table.currentSnapshot().allManifests();
+    for (ManifestFile mf : manifestFiles) {
+      try (ManifestReader<DataFile> reader = ManifestFiles.read(mf, table.io())) {
+        List<DataFile> dataFiles = IteratorUtils.toList(reader.iterator());
+        if (res.containsKey(mf.snapshotId())) {
+          res.get(mf.snapshotId()).addAll(dataFiles);
+        } else {
+          res.put(mf.snapshotId(), dataFiles);
+        }
+      }
+    }
+    return res;
+  }
+
+  public static List<DataFile> matchingPartitions(
+      List<DataFile> dataFiles, PartitionSpec partitionSpec, Map<String, Object> partitionValues) {
+    Types.StructType spec = partitionSpec.partitionType();
+    Record partitionRecord = GenericRecord.create(spec).copy(partitionValues);
+    StructLikeWrapper expected = StructLikeWrapper
+        .forType(spec)
+        .set(partitionRecord);
+    return dataFiles.stream().filter(df -> {
+      StructLikeWrapper wrapper = StructLikeWrapper.forType(spec).set(df.partition());
+      return wrapper.equals(expected);
+    }).collect(Collectors.toList());
+  }
+
 }
