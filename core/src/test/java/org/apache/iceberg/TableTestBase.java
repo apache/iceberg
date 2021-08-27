@@ -42,13 +42,14 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class TableTestBase {
   // Schema passed to create tables
   public static final Schema SCHEMA = new Schema(
-      required(3, "id", Types.IntegerType.get()),
-      required(4, "data", Types.StringType.get())
+      required(3,"id", Types.IntegerType.get()),
+      optional(4,"data", Types.StringType.get())
   );
 
   // Partition spec used to create tables

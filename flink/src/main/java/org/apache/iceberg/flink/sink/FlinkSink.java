@@ -127,6 +127,7 @@ public class FlinkSink {
     private Integer writeParallelism = null;
     private List<String> equalityFieldColumns = null;
     private String uidPrefix = null;
+    private boolean onlyWritePrimaryKey = false;
 
     private Builder() {
     }
@@ -220,6 +221,12 @@ public class FlinkSink {
      */
     public Builder equalityFieldColumns(List<String> columns) {
       this.equalityFieldColumns = columns;
+      return this;
+    }
+
+
+    public Builder onlyWritePrimaryKey(boolean onlyWritePrimaryKey) {
+      this.onlyWritePrimaryKey = onlyWritePrimaryKey;
       return this;
     }
 
@@ -321,7 +328,7 @@ public class FlinkSink {
           equalityFieldIds.add(field.fieldId());
         }
       }
-      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds);
+      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds,onlyWritePrimaryKey);
 
       int parallelism = writeParallelism == null ? input.getParallelism() : writeParallelism;
       SingleOutputStreamOperator<WriteResult> writerStream = input
@@ -390,7 +397,8 @@ public class FlinkSink {
 
   static IcebergStreamWriter<RowData> createStreamWriter(Table table,
                                                          RowType flinkRowType,
-                                                         List<Integer> equalityFieldIds) {
+                                                         List<Integer> equalityFieldIds,
+                                                         boolean onlyWritePrimaryKey) {
     Map<String, String> props = table.properties();
     long targetFileSize = getTargetFileSizeBytes(props);
     FileFormat fileFormat = getFileFormat(props);
@@ -398,7 +406,7 @@ public class FlinkSink {
     Table serializableTable = SerializableTable.copyOf(table);
     TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(
         serializableTable, flinkRowType, targetFileSize,
-        fileFormat, equalityFieldIds);
+        fileFormat, equalityFieldIds,onlyWritePrimaryKey);
 
     return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
   }

@@ -478,6 +478,11 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
       }
 
       @Override
+      public void delete(Record data) throws IOException {
+        deleteEntireRow(data);
+      }
+
+      @Override
       protected StructLike asStructLike(Record row) {
         return row;
       }

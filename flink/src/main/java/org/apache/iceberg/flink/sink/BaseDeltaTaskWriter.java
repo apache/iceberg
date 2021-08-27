@@ -64,7 +64,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     this.equalityFieldIds = equalityFieldIds.stream().sorted().collect(Collectors.toList());
   }
 
-  abstract RowDataDeltaWriter route(RowData row);
+  abstract BaseEqualityDeltaWriter route(RowData row);
 
   RowDataWrapper wrapper() {
     return wrapper;
@@ -81,7 +81,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
 
   @Override
   public void write(RowData row) throws IOException {
-    RowDataDeltaWriter writer = route(row);
+      BaseEqualityDeltaWriter writer = route(row);
 
     switch (row.getRowKind()) {
       case INSERT:
@@ -91,7 +91,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
 
       case DELETE:
       case UPDATE_BEFORE:
-        writer.deleteKey(projectDeleteData(row));
+        writer.delete(row);
         break;
 
       default:
@@ -105,6 +105,11 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     }
 
     @Override
+    public void delete(RowData data) throws IOException {
+        deleteEntireRow(data);
+    }
+
+    @Override
     protected StructLike asStructLike(RowData data) {
       return wrapper.wrap(data);
     }
@@ -113,5 +118,26 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     protected StructLike asDeleteStructLike(RowData data) {
       return deleteWrapper.wrap(data);
     }
+  }
+
+  protected class ColumnPruningRowDataDeltaWriter extends BaseEqualityDeltaWriter {
+      ColumnPruningRowDataDeltaWriter(PartitionKey partition) {
+          super(partition, schema, deleteSchema);
+      }
+
+      @Override
+      public void delete(RowData data) throws IOException {
+          deleteKey(projectDeleteData(data));
+      }
+
+      @Override
+      protected StructLike asStructLike(RowData data) {
+          return wrapper.wrap(data);
+      }
+
+      @Override
+      protected StructLike asDeleteStructLike(RowData data) {
+          return deleteWrapper.wrap(data);
+      }
   }
 }

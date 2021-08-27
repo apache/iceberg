@@ -146,13 +146,15 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       }
     }
 
+    abstract public void delete(T row) throws IOException;
+
     /**
      * Delete those rows whose equality fields has the same values with the given row. It will write the entire row into
      * the equality-delete file.
      *
      * @param row the given row to delete.
      */
-    public void delete(T row) throws IOException {
+    public void deleteEntireRow(T row) throws IOException {
       internalPosDelete(structProjection.wrap(asStructLike(row)));
 
       eqDeleteWriter.write(row);

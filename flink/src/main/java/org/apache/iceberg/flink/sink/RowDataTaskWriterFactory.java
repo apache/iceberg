@@ -49,6 +49,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final FileFormat format;
   private final List<Integer> equalityFieldIds;
   private final FileAppenderFactory<RowData> appenderFactory;
+  private final boolean onlyWritePrimaryKey;
 
   private transient OutputFileFactory outputFileFactory;
 
@@ -56,7 +57,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
                                   RowType flinkSchema,
                                   long targetFileSizeBytes,
                                   FileFormat format,
-                                  List<Integer> equalityFieldIds) {
+                                  List<Integer> equalityFieldIds,
+                                  boolean onlyWritePrimaryKey) {
     this.table = table;
     this.schema = table.schema();
     this.flinkSchema = flinkSchema;
@@ -65,12 +67,18 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.targetFileSizeBytes = targetFileSizeBytes;
     this.format = format;
     this.equalityFieldIds = equalityFieldIds;
+    this.onlyWritePrimaryKey = onlyWritePrimaryKey;
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
       this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec);
     } else {
       // TODO provide the ability to customize the equality-delete row schema.
-      Schema deleteSchema = TypeUtil.select(schema, new HashSet<>(equalityFieldIds));
+      Schema deleteSchema;
+      if(onlyWritePrimaryKey){
+        deleteSchema = TypeUtil.select(schema, new HashSet<>(equalityFieldIds));
+      }else{
+        deleteSchema=schema;
+      }
       this.appenderFactory = new FlinkAppenderFactory(schema, flinkSchema, table.properties(), spec,
           ArrayUtil.toIntArray(equalityFieldIds), deleteSchema, null);
     }
@@ -98,10 +106,10 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       // Initialize a task writer to write both INSERT and equality DELETE.
       if (spec.isUnpartitioned()) {
         return new UnpartitionedDeltaWriter(spec, format, appenderFactory, outputFileFactory, io,
-            targetFileSizeBytes, schema, flinkSchema, equalityFieldIds);
+            targetFileSizeBytes, schema, flinkSchema, equalityFieldIds,onlyWritePrimaryKey);
       } else {
         return new PartitionedDeltaWriter(spec, format, appenderFactory, outputFileFactory, io,
-            targetFileSizeBytes, schema, flinkSchema, equalityFieldIds);
+            targetFileSizeBytes, schema, flinkSchema, equalityFieldIds,onlyWritePrimaryKey);
       }
     }
   }

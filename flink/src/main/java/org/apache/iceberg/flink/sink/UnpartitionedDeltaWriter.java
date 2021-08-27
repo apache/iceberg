@@ -31,7 +31,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 
 class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
-  private final RowDataDeltaWriter writer;
+  private final BaseEqualityDeltaWriter writer;
 
   UnpartitionedDeltaWriter(PartitionSpec spec,
                            FileFormat format,
@@ -41,13 +41,18 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
                            long targetFileSize,
                            Schema schema,
                            RowType flinkSchema,
-                           List<Integer> equalityFieldIds) {
+                           List<Integer> equalityFieldIds,
+                           boolean onlyWritePrimaryKey) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize, schema, flinkSchema, equalityFieldIds);
-    this.writer = new RowDataDeltaWriter(null);
+    if(onlyWritePrimaryKey){
+      this.writer = new ColumnPruningRowDataDeltaWriter(null);
+    }else{
+      this.writer = new RowDataDeltaWriter(null);
+    }
   }
 
   @Override
-  RowDataDeltaWriter route(RowData row) {
+  BaseEqualityDeltaWriter route(RowData row) {
     return writer;
   }
 

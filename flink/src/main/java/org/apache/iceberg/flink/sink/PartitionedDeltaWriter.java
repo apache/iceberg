@@ -38,8 +38,9 @@ import org.apache.iceberg.util.Tasks;
 class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
 
   private final PartitionKey partitionKey;
+  private final boolean onlyWritePrimaryKey;
 
-  private final Map<PartitionKey, RowDataDeltaWriter> writers = Maps.newHashMap();
+  private final Map<PartitionKey, BaseEqualityDeltaWriter> writers = Maps.newHashMap();
 
   PartitionedDeltaWriter(PartitionSpec spec,
                          FileFormat format,
@@ -49,20 +50,28 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
                          long targetFileSize,
                          Schema schema,
                          RowType flinkSchema,
-                         List<Integer> equalityFieldIds) {
+                         List<Integer> equalityFieldIds,
+                         boolean onlyWritePrimaryKey) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize, schema, flinkSchema, equalityFieldIds);
     this.partitionKey = new PartitionKey(spec, schema);
+    this.onlyWritePrimaryKey = onlyWritePrimaryKey;
   }
 
   @Override
-  RowDataDeltaWriter route(RowData row) {
+  BaseEqualityDeltaWriter route(RowData row) {
     partitionKey.partition(wrapper().wrap(row));
 
-    RowDataDeltaWriter writer = writers.get(partitionKey);
+    BaseEqualityDeltaWriter writer = writers.get(partitionKey);
+
     if (writer == null) {
       // NOTICE: we need to copy a new partition key here, in case of messing up the keys in writers.
       PartitionKey copiedKey = partitionKey.copy();
-      writer = new RowDataDeltaWriter(copiedKey);
+      if(onlyWritePrimaryKey){
+        writer = new ColumnPruningRowDataDeltaWriter(copiedKey);
+      }else{
+        writer = new RowDataDeltaWriter(copiedKey);
+      }
+
       writers.put(copiedKey, writer);
     }
 
@@ -75,7 +84,7 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
       Tasks.foreach(writers.values())
           .throwFailureWhenFinished()
           .noRetry()
-          .run(RowDataDeltaWriter::close, IOException.class);
+          .run(BaseEqualityDeltaWriter::close, IOException.class);
 
       writers.clear();
     } catch (IOException e) {

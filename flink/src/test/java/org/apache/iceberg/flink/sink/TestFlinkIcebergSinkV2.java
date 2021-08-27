@@ -83,29 +83,39 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
   private final FileFormat format;
   private final int parallelism;
   private final boolean partitioned;
+  private final boolean OnlyWritePrimaryKey;
 
   private StreamExecutionEnvironment env;
   private TestTableLoader tableLoader;
 
-  @Parameterized.Parameters(name = "FileFormat = {0}, Parallelism = {1}, Partitioned={2}")
+  @Parameterized.Parameters(name = "FileFormat = {0}, Parallelism = {1}, Partitioned={2}, OnlyWritePrimaryKey={3}")
   public static Object[][] parameters() {
     return new Object[][] {
-        new Object[] {"avro", 1, true},
-        new Object[] {"avro", 1, false},
-        new Object[] {"avro", 2, true},
-        new Object[] {"avro", 2, false},
-        new Object[] {"parquet", 1, true},
-        new Object[] {"parquet", 1, false},
-        new Object[] {"parquet", 2, true},
-        new Object[] {"parquet", 2, false}
+        new Object[] {"avro", 1, true, false},
+        new Object[] {"avro", 1, false, false},
+        new Object[] {"avro", 2, true, false},
+        new Object[] {"avro", 2, false, false},
+        new Object[] {"parquet", 1, true, false},
+        new Object[] {"parquet", 1, false, false},
+        new Object[] {"parquet", 2, true, false},
+        new Object[] {"parquet", 2, false, false},
+        new Object[] {"avro", 1, true, true},
+        new Object[] {"avro", 1, false, true},
+        new Object[] {"avro", 2, true, true},
+        new Object[] {"avro", 2, false, true},
+        new Object[] {"parquet", 1, true, true},
+        new Object[] {"parquet", 1, false, true},
+        new Object[] {"parquet", 2, true, true},
+        new Object[] {"parquet", 2, false, true}
     };
   }
 
-  public TestFlinkIcebergSinkV2(String format, int parallelism, boolean partitioned) {
+  public TestFlinkIcebergSinkV2(String format, int parallelism, boolean partitioned, boolean OnlyWritePrimaryKey) {
     super(FORMAT_V2);
     this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
     this.parallelism = parallelism;
     this.partitioned = partitioned;
+    this.OnlyWritePrimaryKey = OnlyWritePrimaryKey;
   }
 
   @Before
@@ -157,6 +167,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
         .writeParallelism(parallelism)
         .equalityFieldColumns(equalityFieldColumns)
+            .onlyWritePrimaryKey(OnlyWritePrimaryKey)
         .build();
 
     // Execute the program.

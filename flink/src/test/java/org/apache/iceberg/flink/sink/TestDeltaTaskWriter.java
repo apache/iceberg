@@ -24,24 +24,40 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.flink.table.data.RowData;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.Assert;
 import org.junit.Before;
@@ -54,6 +70,7 @@ import static org.apache.iceberg.flink.SimpleDataUtil.createInsert;
 import static org.apache.iceberg.flink.SimpleDataUtil.createRecord;
 import static org.apache.iceberg.flink.SimpleDataUtil.createUpdateAfter;
 import static org.apache.iceberg.flink.SimpleDataUtil.createUpdateBefore;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
 public class TestDeltaTaskWriter extends TableTestBase {
@@ -209,6 +226,39 @@ public class TestDeltaTaskWriter extends TableTestBase {
     testWritePureEqDeletes(true);
   }
 
+  @Test
+  public void testPureEqDeletesOnlyWritePrimaryKey() throws IOException {
+    initTable(false);
+    List<Integer> equalityFieldIds = Lists.newArrayList(idFieldId());
+    TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(
+            SerializableTable.copyOf(table), FlinkSchemaUtil.convert(table.schema()),
+            128 * 1024 * 1024, format, equalityFieldIds,true);
+    taskWriterFactory.initialize(1, 1);
+
+    TaskWriter<RowData> writer = taskWriterFactory.create();
+    writer.write(createDelete(1, "aaa"));
+    writer.write(createDelete(2, "bbb"));
+    writer.write(createDelete(3, "ccc"));
+
+    WriteResult result = writer.complete();
+    commitTransaction(result);
+
+    AtomicInteger lastColumnId = new AtomicInteger(0);
+    Schema freshSchema = TypeUtil.assignFreshIds(0, SCHEMA, lastColumnId::incrementAndGet);
+
+    ArrayList<Record> expectedRecords = Lists.newArrayList();
+
+    for(DeleteFile deleteFile : result.deleteFiles()){
+      expectedRecords.addAll(readRecordsAsList(freshSchema,deleteFile.path()));
+    }
+
+    Assert.assertEquals("Should have no record", ImmutableList.of(
+            createRecord(1, null),
+            createRecord(2, null),
+            createRecord(3, null)
+    ), expectedRecords);
+  }
+
   private void testAbort(boolean partitioned) throws IOException {
     initTable(partitioned);
     List<Integer> equalityFieldIds = Lists.newArrayList(idFieldId());
@@ -334,6 +384,34 @@ public class TestDeltaTaskWriter extends TableTestBase {
   private TaskWriterFactory<RowData> createTaskWriterFactory(List<Integer> equalityFieldIds) {
     return new RowDataTaskWriterFactory(
         SerializableTable.copyOf(table), FlinkSchemaUtil.convert(table.schema()),
-        128 * 1024 * 1024, format, equalityFieldIds);
+        128 * 1024 * 1024, format, equalityFieldIds,false);
+  }
+
+  private Set<Record> readRecordsAsList(Schema schema, CharSequence path) throws IOException {
+      CloseableIterable<Record> iterable;
+
+      InputFile inputFile = org.apache.iceberg.Files.localInput(path.toString());
+      switch (format) {
+          case PARQUET:
+              iterable = Parquet.read(inputFile)
+                      .project(schema)
+                      .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+                      .build();
+              break;
+
+          case AVRO:
+              iterable = Avro.read(inputFile)
+                      .project(schema)
+                      .createReaderFunc(DataReader::create)
+                      .build();
+              break;
+
+          default:
+              throw new UnsupportedOperationException("Unsupported file format: " + format);
+      }
+
+      try (CloseableIterable<Record> closeableIterable = iterable) {
+          return Sets.newHashSet(closeableIterable);
+      }
   }
 }
