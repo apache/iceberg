@@ -86,6 +86,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final boolean localityPreferred;
   private final StreamingOffset initialOffset;
   private final boolean skipDelete;
+  private final long fromTimestamp;
 
   SparkMicroBatchStream(JavaSparkContext sparkContext, Table table, boolean caseSensitive,
                         Schema expectedSchema, CaseInsensitiveStringMap options, String checkpointLocation) {
@@ -106,7 +107,9 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     this.splitOpenFileCost = Spark3Util.propertyAsLong(
         options, SparkReadOptions.FILE_OPEN_COST, tableSplitOpenFileCost);
 
-    InitialOffsetStore initialOffsetStore = new InitialOffsetStore(table, checkpointLocation);
+    this.fromTimestamp = Spark3Util.propertyAsLong(options, SparkReadOptions.STREAM_FROM_TIMESTAMP, -1L);
+
+    InitialOffsetStore initialOffsetStore = new InitialOffsetStore(table, checkpointLocation, this.fromTimestamp);
     this.initialOffset = initialOffsetStore.initialOffset();
 
     this.skipDelete = Spark3Util.propertyAsBoolean(options, SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS, false);
@@ -181,7 +184,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private List<FileScanTask> planFiles(StreamingOffset startOffset, StreamingOffset endOffset) {
     List<FileScanTask> fileScanTasks = Lists.newArrayList();
     StreamingOffset batchStartOffset = StreamingOffset.START_OFFSET.equals(startOffset) ?
-        new StreamingOffset(SnapshotUtil.oldestSnapshot(table).snapshotId(), 0, false) :
+        new StreamingOffset(SnapshotUtil.oldestSnapshot(table, fromTimestamp).snapshotId(), 0, false) :
         startOffset;
 
     StreamingOffset currentOffset = null;
@@ -224,11 +227,13 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     private final Table table;
     private final FileIO io;
     private final String initialOffsetLocation;
+    private final long fromTimestamp;
 
-    InitialOffsetStore(Table table, String checkpointLocation) {
+    InitialOffsetStore(Table table, String checkpointLocation, long fromTimestamp) {
       this.table = table;
       this.io = table.io();
       this.initialOffsetLocation = SLASH.join(checkpointLocation, "offsets/0");
+      this.fromTimestamp = fromTimestamp;
     }
 
     public StreamingOffset initialOffset() {
@@ -240,7 +245,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
       table.refresh();
       StreamingOffset offset = table.currentSnapshot() == null ?
           StreamingOffset.START_OFFSET :
-          new StreamingOffset(SnapshotUtil.oldestSnapshot(table).snapshotId(), 0, false);
+          new StreamingOffset(SnapshotUtil.oldestSnapshot(table, fromTimestamp).snapshotId(), 0, false);
 
       OutputFile outputFile = io.newOutputFile(initialOffsetLocation);
       writeOffset(offset, outputFile);

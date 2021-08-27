@@ -167,6 +167,32 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
   @SuppressWarnings("unchecked")
   @Test
+  public void testReadingStreamFromTimestamp() throws Exception {
+    List<SimpleRecord> dataBeforeTimestamp = Lists.newArrayList(
+        new SimpleRecord(-2, "minustwo"),
+        new SimpleRecord(-1, "minusone"),
+        new SimpleRecord(0, "zero"));
+    appendData(dataBeforeTimestamp, tableIdentifier, "parquet");
+
+    table.refresh();
+    long streamStartTimestamp = table.currentSnapshot().timestampMillis() + 1;
+
+    List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(expected, tableIdentifier);
+
+    table.refresh();
+
+    Dataset<Row> df = spark.readStream()
+        .format("iceberg")
+        .option(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(streamStartTimestamp))
+        .load(tableIdentifier);
+    List<SimpleRecord> actual = processAvailable(df);
+
+    Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
   public void testResumingStreamReadFromCheckpoint() throws Exception {
     File writerCheckpointFolder = temp.newFolder("writer-checkpoint-folder");
     File writerCheckpoint = new File(writerCheckpointFolder, "writer-checkpoint");

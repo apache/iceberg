@@ -53,4 +53,7 @@ public class SparkReadOptions {
 
   // skip snapshots of type delete while reading stream out of iceberg table
   public static final String STREAMING_SKIP_DELETE_SNAPSHOTS = "streaming-skip-delete-snapshots";
+
+  // Timestamp in milliseconds; start a stream from the snapshot that occurs after this timestamp
+  public static final String STREAM_FROM_TIMESTAMP = "stream-from-timestamp";
 }
