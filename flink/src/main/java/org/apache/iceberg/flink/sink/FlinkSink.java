@@ -59,8 +59,8 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
-import static org.apache.iceberg.TableProperties.UPSERT_MODE_ENABLED;
-import static org.apache.iceberg.TableProperties.UPSERT_MODE_ENABLED_DEFAULT;
+import static org.apache.iceberg.TableProperties.UPSERT_MODE_ENABLE;
+import static org.apache.iceberg.TableProperties.UPSERT_MODE_ENABLE_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
@@ -342,7 +342,7 @@ public class FlinkSink {
 
       // Fallback to use upsert mode parsed from table properties if don't specify in job level.
       boolean upsertMode = upsert || PropertyUtil.propertyAsBoolean(table.properties(),
-          UPSERT_MODE_ENABLED, UPSERT_MODE_ENABLED_DEFAULT);
+          UPSERT_MODE_ENABLE, UPSERT_MODE_ENABLE_DEFAULT);
 
       // Validate the equality fields and partition fields if we enable the upsert mode.
       if (upsertMode) {

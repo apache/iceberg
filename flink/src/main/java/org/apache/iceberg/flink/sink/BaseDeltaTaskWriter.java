@@ -83,6 +83,8 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
         if (upsert) {
           break;  // UPDATE_BEFORE is not necessary for UPDATE, we do nothing to prevent delete one row twice
         }
+        writer.delete(row);
+        break;
       case DELETE:
         writer.delete(row);
         break;
