@@ -127,7 +127,7 @@ public class FlinkSink {
     private Integer writeParallelism = null;
     private List<String> equalityFieldColumns = null;
     private String uidPrefix = null;
-    private boolean onlyWritePrimaryKey = false;
+    private boolean onlyWriteEqualityFieldColumns = false;
 
     private Builder() {
     }
@@ -224,9 +224,15 @@ public class FlinkSink {
       return this;
     }
 
-
-    public Builder onlyWritePrimaryKey(boolean onlyWritePrimaryKey) {
-      this.onlyWritePrimaryKey = onlyWritePrimaryKey;
+    /**
+     * Configuring the equality-delete row schema for eq-delete file.
+     *
+     * @param newOnlyWriteEqualityFieldColumns If <code>true</code> the flink sink will only write Equality Field
+     *                                         Columns to eq-delete file.
+     * @return {@link Builder} to connect the iceberg table.
+     */
+    public Builder onlyWriteEqualityFieldColumns(boolean newOnlyWriteEqualityFieldColumns) {
+      this.onlyWriteEqualityFieldColumns = newOnlyWriteEqualityFieldColumns;
       return this;
     }
 
@@ -328,7 +334,8 @@ public class FlinkSink {
           equalityFieldIds.add(field.fieldId());
         }
       }
-      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds,onlyWritePrimaryKey);
+      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds,
+              onlyWriteEqualityFieldColumns);
 
       int parallelism = writeParallelism == null ? input.getParallelism() : writeParallelism;
       SingleOutputStreamOperator<WriteResult> writerStream = input
@@ -406,7 +413,7 @@ public class FlinkSink {
     Table serializableTable = SerializableTable.copyOf(table);
     TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(
         serializableTable, flinkRowType, targetFileSize,
-        fileFormat, equalityFieldIds,onlyWritePrimaryKey);
+        fileFormat, equalityFieldIds, onlyWritePrimaryKey);
 
     return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
   }

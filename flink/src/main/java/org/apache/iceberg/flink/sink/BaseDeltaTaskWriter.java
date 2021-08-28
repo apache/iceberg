@@ -81,7 +81,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
 
   @Override
   public void write(RowData row) throws IOException {
-      BaseEqualityDeltaWriter writer = route(row);
+    BaseEqualityDeltaWriter writer = route(row);
 
     switch (row.getRowKind()) {
       case INSERT:
@@ -106,7 +106,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
 
     @Override
     public void delete(RowData data) throws IOException {
-        deleteEntireRow(data);
+      deleteEntireRow(data);
     }
 
     @Override
@@ -120,24 +120,25 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     }
   }
 
-  protected class ColumnPruningRowDataDeltaWriter extends BaseEqualityDeltaWriter {
-      ColumnPruningRowDataDeltaWriter(PartitionKey partition) {
-          super(partition, schema, deleteSchema);
-      }
+  protected class DeleteKeyRowDataDeltaWriter extends RowDataDeltaWriter {
+    DeleteKeyRowDataDeltaWriter(PartitionKey partition) {
+      super(partition);
+    }
 
-      @Override
-      public void delete(RowData data) throws IOException {
-          deleteKey(projectDeleteData(data));
-      }
+    @Override
+    public void delete(RowData data) throws IOException {
+      deleteKey(projectDeleteData(data));
+    }
+  }
 
-      @Override
-      protected StructLike asStructLike(RowData data) {
-          return wrapper.wrap(data);
-      }
+  protected class DeleteEntireRowDataDeltaWriter extends RowDataDeltaWriter {
+    DeleteEntireRowDataDeltaWriter(PartitionKey partition) {
+      super(partition);
+    }
 
-      @Override
-      protected StructLike asDeleteStructLike(RowData data) {
-          return deleteWrapper.wrap(data);
-      }
+    @Override
+    public void delete(RowData data) throws IOException {
+      deleteEntireRow(data);
+    }
   }
 }

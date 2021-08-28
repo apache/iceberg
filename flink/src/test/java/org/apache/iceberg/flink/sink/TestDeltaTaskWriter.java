@@ -24,13 +24,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.flink.table.data.RowData;
@@ -70,6 +66,7 @@ import static org.apache.iceberg.flink.SimpleDataUtil.createInsert;
 import static org.apache.iceberg.flink.SimpleDataUtil.createRecord;
 import static org.apache.iceberg.flink.SimpleDataUtil.createUpdateAfter;
 import static org.apache.iceberg.flink.SimpleDataUtil.createUpdateBefore;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 @RunWith(Parameterized.class)
@@ -232,7 +229,7 @@ public class TestDeltaTaskWriter extends TableTestBase {
     List<Integer> equalityFieldIds = Lists.newArrayList(idFieldId());
     TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(
             SerializableTable.copyOf(table), FlinkSchemaUtil.convert(table.schema()),
-            128 * 1024 * 1024, format, equalityFieldIds,true);
+            128 * 1024 * 1024, format, equalityFieldIds, true);
     taskWriterFactory.initialize(1, 1);
 
     TaskWriter<RowData> writer = taskWriterFactory.create();
@@ -243,13 +240,18 @@ public class TestDeltaTaskWriter extends TableTestBase {
     WriteResult result = writer.complete();
     commitTransaction(result);
 
+    Schema optionalSchema = new Schema(
+            required(3, "id", Types.IntegerType.get()),
+            optional(4, "data", Types.StringType.get())
+    );
+
     AtomicInteger lastColumnId = new AtomicInteger(0);
-    Schema freshSchema = TypeUtil.assignFreshIds(0, SCHEMA, lastColumnId::incrementAndGet);
+    Schema freshSchema = TypeUtil.assignFreshIds(0, optionalSchema, lastColumnId::incrementAndGet);
 
-    ArrayList<Record> expectedRecords = Lists.newArrayList();
+    List<Record> expectedRecords = Lists.newArrayList();
 
-    for(DeleteFile deleteFile : result.deleteFiles()){
-      expectedRecords.addAll(readRecordsAsList(freshSchema,deleteFile.path()));
+    for (DeleteFile deleteFile : result.deleteFiles()) {
+      expectedRecords.addAll(readRecordsAsList(freshSchema, deleteFile.path()));
     }
 
     Assert.assertEquals("Should have no record", ImmutableList.of(
@@ -384,34 +386,34 @@ public class TestDeltaTaskWriter extends TableTestBase {
   private TaskWriterFactory<RowData> createTaskWriterFactory(List<Integer> equalityFieldIds) {
     return new RowDataTaskWriterFactory(
         SerializableTable.copyOf(table), FlinkSchemaUtil.convert(table.schema()),
-        128 * 1024 * 1024, format, equalityFieldIds,false);
+        128 * 1024 * 1024, format, equalityFieldIds, false);
   }
 
-  private Set<Record> readRecordsAsList(Schema schema, CharSequence path) throws IOException {
-      CloseableIterable<Record> iterable;
+  private List<Record> readRecordsAsList(Schema schema, CharSequence path) throws IOException {
+    CloseableIterable<Record> iterable;
 
-      InputFile inputFile = org.apache.iceberg.Files.localInput(path.toString());
-      switch (format) {
-          case PARQUET:
-              iterable = Parquet.read(inputFile)
-                      .project(schema)
-                      .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
-                      .build();
-              break;
+    InputFile inputFile = org.apache.iceberg.Files.localInput(path.toString());
+    switch (format) {
+      case PARQUET:
+        iterable = Parquet.read(inputFile)
+                .project(schema)
+                .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+                .build();
+        break;
 
-          case AVRO:
-              iterable = Avro.read(inputFile)
-                      .project(schema)
-                      .createReaderFunc(DataReader::create)
-                      .build();
-              break;
+      case AVRO:
+        iterable = Avro.read(inputFile)
+                .project(schema)
+                .createReaderFunc(DataReader::create)
+                .build();
+        break;
 
-          default:
-              throw new UnsupportedOperationException("Unsupported file format: " + format);
-      }
+      default:
+        throw new UnsupportedOperationException("Unsupported file format: " + format);
+    }
 
-      try (CloseableIterable<Record> closeableIterable = iterable) {
-          return Sets.newHashSet(closeableIterable);
-      }
+    try (CloseableIterable<Record> closeableIterable = iterable) {
+      return Lists.newArrayList(closeableIterable);
+    }
   }
 }

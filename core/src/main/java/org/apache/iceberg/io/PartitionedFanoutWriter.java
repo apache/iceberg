@@ -24,7 +24,6 @@ import java.util.Map;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public abstract class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {

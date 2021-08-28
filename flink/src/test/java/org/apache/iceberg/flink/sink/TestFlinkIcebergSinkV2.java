@@ -83,12 +83,13 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
   private final FileFormat format;
   private final int parallelism;
   private final boolean partitioned;
-  private final boolean OnlyWritePrimaryKey;
+  private final boolean onlyWriteEqualityFieldColumns;
 
   private StreamExecutionEnvironment env;
   private TestTableLoader tableLoader;
 
-  @Parameterized.Parameters(name = "FileFormat = {0}, Parallelism = {1}, Partitioned={2}, OnlyWritePrimaryKey={3}")
+  @Parameterized.Parameters(name = "FileFormat = {0}, Parallelism = {1}, Partitioned={2}, " +
+          "OnlyWriteEqualityFieldColumns={3}")
   public static Object[][] parameters() {
     return new Object[][] {
         new Object[] {"avro", 1, true, false},
@@ -110,12 +111,13 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
     };
   }
 
-  public TestFlinkIcebergSinkV2(String format, int parallelism, boolean partitioned, boolean OnlyWritePrimaryKey) {
+  public TestFlinkIcebergSinkV2(String format, int parallelism, boolean partitioned,
+                                boolean onlyWriteEqualityFieldColumns) {
     super(FORMAT_V2);
     this.format = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
     this.parallelism = parallelism;
     this.partitioned = partitioned;
-    this.OnlyWritePrimaryKey = OnlyWritePrimaryKey;
+    this.onlyWriteEqualityFieldColumns = onlyWriteEqualityFieldColumns;
   }
 
   @Before
@@ -167,7 +169,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
         .writeParallelism(parallelism)
         .equalityFieldColumns(equalityFieldColumns)
-            .onlyWritePrimaryKey(OnlyWritePrimaryKey)
+        .onlyWriteEqualityFieldColumns(onlyWriteEqualityFieldColumns)
         .build();
 
     // Execute the program.

@@ -44,10 +44,10 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
                            List<Integer> equalityFieldIds,
                            boolean onlyWritePrimaryKey) {
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize, schema, flinkSchema, equalityFieldIds);
-    if(onlyWritePrimaryKey){
-      this.writer = new ColumnPruningRowDataDeltaWriter(null);
-    }else{
-      this.writer = new RowDataDeltaWriter(null);
+    if (onlyWritePrimaryKey) {
+      this.writer = new DeleteKeyRowDataDeltaWriter(null);
+    } else {
+      this.writer = new DeleteEntireRowDataDeltaWriter(null);
     }
   }
 
