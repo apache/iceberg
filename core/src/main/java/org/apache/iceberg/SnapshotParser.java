@@ -22,7 +22,10 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringWriter;
+import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +34,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.apache.iceberg.util.JsonUtil;
 
 public class SnapshotParser {
@@ -47,6 +51,7 @@ public class SnapshotParser {
   private static final String MANIFESTS = "manifests";
   private static final String MANIFEST_LIST = "manifest-list";
   private static final String SCHEMA_ID = "schema-id";
+  private static final String KEY_METADATA_LOCATION = "key-metadata-location";
 
   static void toJson(Snapshot snapshot, JsonGenerator generator)
       throws IOException {
@@ -146,19 +151,31 @@ public class SnapshotParser {
     }
 
     Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, node);
+    String keyMetadataLocation = JsonUtil.getStringOrNull(KEY_METADATA_LOCATION, node);
 
     if (node.has(MANIFEST_LIST)) {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
-      return new BaseSnapshot(
-          io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary, schemaId, manifestList);
+      return new BaseSnapshot(io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary, schemaId,
+          manifestList, keyMetadataLocation);
 
     } else {
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be
       // loaded lazily, if it is needed
       List<ManifestFile> manifests = Lists.transform(JsonUtil.getStringList(MANIFESTS, node),
           location -> new GenericManifestFile(io.newInputFile(location), 0));
-      return new BaseSnapshot(io, snapshotId, parentId, timestamp, operation, summary, schemaId, manifests);
+
+      ByteBuffer keyMetadata = null;
+      if (keyMetadataLocation != null) {
+        try (InputStream stream = io.newInputFile(keyMetadataLocation).newStream()) {
+          keyMetadata = ByteBuffer.wrap(ByteStreams.toByteArray(stream));
+        } catch (IOException e) {
+          throw new UncheckedIOException("Failed to read key metadata at location " + keyMetadataLocation, e);
+        }
+      }
+
+      return new BaseSnapshot(io, snapshotId, parentId, timestamp, operation, summary, schemaId,
+          manifests, keyMetadata);
     }
   }
 

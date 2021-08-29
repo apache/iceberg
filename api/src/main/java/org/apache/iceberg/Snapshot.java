@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 
@@ -133,6 +134,22 @@ public interface Snapshot extends Serializable {
    * @return schema id associated with this snapshot
    */
   default Integer schemaId() {
+    return null;
+  }
+
+  /**
+   * Returns the location of the manifest list's encryption key metadata file location,
+   * or null if there is no key metadata.
+   */
+  default String keyMetadataLocation() {
+    return null;
+  }
+
+  /**
+   * Returns metadata about how the manifest list in the snapshot is encrypted,
+   * or null if the file is stored in plain text.
+   */
+  default ByteBuffer keyMetadata() {
     return null;
   }
 }
