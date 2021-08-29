@@ -19,13 +19,19 @@
 
 package org.apache.iceberg.aws.glue;
 
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.DatabaseInput;
 
 class IcebergToGlueConverter {
@@ -131,5 +137,62 @@ class IcebergToGlueConverter {
   static void validateTableIdentifier(TableIdentifier tableIdentifier) {
     validateNamespace(tableIdentifier.namespace());
     validateTableName(tableIdentifier.name());
+  }
+
+  static List<Column> toColumns(Schema schema) {
+    return schema.columns().stream()
+        .map(field -> Column.builder()
+            .name(field.name())
+            .type(toTypeString(field.type()))
+            .comment(field.doc())
+            .build())
+        .collect(Collectors.toList());
+  }
+
+  private static String toTypeString(Type type) {
+    switch (type.typeId()) {
+      case BOOLEAN:
+        return "boolean";
+      case INTEGER:
+        return "int";
+      case LONG:
+        return "bigint";
+      case FLOAT:
+        return "float";
+      case DOUBLE:
+        return "double";
+      case DATE:
+        return "date";
+      case TIME:
+      case STRING:
+      case UUID:
+        return "string";
+      case TIMESTAMP:
+        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
+          return "timestamp with local time zone";
+        } else {
+          return "timestamp";
+        }
+      case FIXED:
+      case BINARY:
+        return "binary";
+      case DECIMAL:
+        final Types.DecimalType decimalType = (Types.DecimalType) type;
+        return String.format("decimal(%s,%s)", decimalType.precision(), decimalType.scale());
+      case STRUCT:
+        final Types.StructType structType = type.asStructType();
+        final String nameToType = structType.fields().stream()
+            .map(f -> String.format("%s:%s", f.name(), toTypeString(f.type())))
+            .collect(Collectors.joining(","));
+        return String.format("struct<%s>", nameToType);
+      case LIST:
+        final Types.ListType listType = type.asListType();
+        return String.format("array<%s>", toTypeString(listType.elementType()));
+      case MAP:
+        final Types.MapType mapType = type.asMapType();
+        return String.format("map<%s,%s>", toTypeString(mapType.keyType()), toTypeString(mapType.valueType()));
+      default:
+        throw new UnsupportedOperationException(type + " is not supported");
+    }
   }
 }
