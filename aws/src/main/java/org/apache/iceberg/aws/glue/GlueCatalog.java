@@ -25,8 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.hadoop.conf.Configurable;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
@@ -69,12 +67,11 @@ import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateDatabaseRequest;
 
-public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces, Configurable {
+public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, SupportsNamespaces {
 
   private static final Logger LOG = LoggerFactory.getLogger(GlueCatalog.class);
 
   private GlueClient glue;
-  private Configuration hadoopConf;
   private String catalogName;
   private String warehousePath;
   private AwsProperties awsProperties;
@@ -100,14 +97,14 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
         initializeFileIO(properties));
   }
 
-  private FileIO initializeFileIO(Map<String, String> properties) {
+  FileIO initializeFileIO(Map<String, String> properties) {
     String fileIOImpl = properties.get(CatalogProperties.FILE_IO_IMPL);
     if (fileIOImpl == null) {
       FileIO io = new S3FileIO();
       io.initialize(properties);
       return io;
     } else {
-      return CatalogUtil.loadFileIO(fileIOImpl, properties, hadoopConf);
+      return CatalogUtil.loadFileIO(fileIOImpl, properties, null);
     }
   }
 
@@ -416,15 +413,5 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   @Override
   public void close() throws IOException {
     glue.close();
-  }
-
-  @Override
-  public void setConf(Configuration conf) {
-    this.hadoopConf = conf;
-  }
-
-  @Override
-  public Configuration getConf() {
-    return hadoopConf;
   }
 }
