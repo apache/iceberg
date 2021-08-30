@@ -186,7 +186,7 @@ public class CatalogUtil {
           String.format("Cannot initialize Catalog, %s does not implement Catalog.", impl), e);
     }
 
-    if (catalog instanceof Configurable) {
+    if (hadoopConf != null && catalog instanceof Configurable) {
       ((Configurable) catalog).setConf(hadoopConf);
     }
 
@@ -261,7 +261,7 @@ public class CatalogUtil {
           String.format("Cannot initialize FileIO, %s does not implement FileIO.", impl), e);
     }
 
-    if (fileIO instanceof Configurable) {
+    if (hadoopConf != null && fileIO instanceof Configurable) {
       ((Configurable) fileIO).setConf(hadoopConf);
     }
 
