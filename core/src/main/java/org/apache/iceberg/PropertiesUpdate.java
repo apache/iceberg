@@ -50,7 +50,7 @@ class PropertiesUpdate implements UpdateProperties {
   @Override
   public UpdateProperties set(String key, String value) {
     Preconditions.checkNotNull(key, "Key cannot be null");
-    Preconditions.checkNotNull(key, "Value cannot be null");
+    Preconditions.checkNotNull(value, "Value cannot be null");
     Preconditions.checkArgument(!removals.contains(key),
         "Cannot remove and update the same key: %s", key);
 
