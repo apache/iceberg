@@ -21,7 +21,9 @@ package org.apache.iceberg.parquet;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -44,6 +46,9 @@ import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.encryption.EnvelopeEncryptedInputFile;
+import org.apache.iceberg.encryption.NativeFileDecryptParameters;
+import org.apache.iceberg.encryption.NativeFileEncryptParameters;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
@@ -69,12 +74,18 @@ import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.avro.AvroWriteSupport;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
+import org.apache.parquet.crypto.ColumnDecryptionProperties;
+import org.apache.parquet.crypto.ColumnEncryptionProperties;
+import org.apache.parquet.crypto.FileDecryptionProperties;
+import org.apache.parquet.crypto.FileEncryptionProperties;
+import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.ParquetReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.api.ReadSupport;
 import org.apache.parquet.hadoop.api.WriteSupport;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
 
@@ -117,6 +128,7 @@ public class Parquet {
     private ParquetFileWriter.Mode writeMode = ParquetFileWriter.Mode.CREATE;
     private WriterVersion writerVersion = WriterVersion.PARQUET_1_0;
     private Function<Map<String, String>, Context> createContextFunc = Context::dataContext;
+    private FileEncryptionProperties fileEncryptionProperties = null;
 
     private WriteBuilder(OutputFile file) {
       this.file = file;
@@ -183,6 +195,11 @@ public class Parquet {
       return this;
     }
 
+    public WriteBuilder encryption(NativeFileEncryptParameters nativeEncryptionParameters) {
+      this.fileEncryptionProperties = createEncryptionProperties(nativeEncryptionParameters);
+      return this;
+    }
+
     @SuppressWarnings("unchecked")
     private <T> WriteSupport<T> getWriteSupport(MessageType type) {
       if (writeSupport != null) {
@@ -208,6 +225,46 @@ public class Parquet {
     private WriteBuilder createContextFunc(Function<Map<String, String>, Context> newCreateContextFunc) {
       this.createContextFunc = newCreateContextFunc;
       return this;
+    }
+
+    private FileEncryptionProperties createEncryptionProperties(NativeFileEncryptParameters nativeParameters) {
+      if (null == nativeParameters) {
+        return null;
+      }
+
+      ByteBuffer footerDataKey = nativeParameters.fileKey();
+      if (null == footerDataKey) {
+        throw new ParquetCryptoRuntimeException("Missing key for parquet footer");
+      }
+
+      Map<String, ByteBuffer> columnDataKeys = nativeParameters.columnKeys();
+      Map<ColumnPath, ColumnEncryptionProperties> encryptedColumns = null;
+      if (columnDataKeys != null && !columnDataKeys.isEmpty()) {
+        encryptedColumns = new HashMap<>();
+        for (Map.Entry<String, ByteBuffer> entry : columnDataKeys.entrySet()) {
+          String columnName = entry.getKey();
+          ByteBuffer columnDek = entry.getValue();
+          if (null == columnDek) {
+            throw new ParquetCryptoRuntimeException("Missing key for column " + columnName);
+          }
+
+          ColumnPath columnPath = ColumnPath.fromDotString(columnName);
+          ColumnEncryptionProperties columnEncryptionProperties = ColumnEncryptionProperties.builder(columnPath)
+                  .withKey(columnDek.array())
+                  .build();
+          encryptedColumns.put(columnPath, columnEncryptionProperties);
+        }
+      }
+
+      byte[] addPrefix = null;
+      if (null != nativeParameters.aadPrefix()) {
+        addPrefix = nativeParameters.aadPrefix().array();
+      }
+
+      return FileEncryptionProperties.builder(footerDataKey.array())
+              .withAADPrefix(addPrefix)
+              .withEncryptedColumns(encryptedColumns)
+              .build();
     }
 
     public <D> FileAppender<D> build() throws IOException {
@@ -267,7 +324,7 @@ public class Parquet {
 
         return new org.apache.iceberg.parquet.ParquetWriter<>(
             conf, file, schema, rowGroupSize, metadata, createWriterFunc, codec,
-            parquetProperties, metricsConfig, writeMode);
+            parquetProperties, metricsConfig, writeMode, fileEncryptionProperties);
       } else {
         return new ParquetWriteAdapter<>(new ParquetWriteBuilder<D>(ParquetIO.file(file))
             .withWriterVersion(writerVersion)
@@ -280,6 +337,7 @@ public class Parquet {
             .withRowGroupSize(rowGroupSize)
             .withPageSize(pageSize)
             .withDictionaryPageSize(dictionaryPageSize)
+            .withEncryption(fileEncryptionProperties)
             .build(),
             metricsConfig);
       }
@@ -548,6 +606,11 @@ public class Parquet {
       return this;
     }
 
+    public DeleteWriteBuilder encryption(NativeFileEncryptParameters nativeEncryptionParameters) {
+      this.appenderBuilder.encryption(nativeEncryptionParameters);
+      return this;
+    }
+
     public DeleteWriteBuilder equalityFieldIds(List<Integer> fieldIds) {
       this.equalityFieldIds = ArrayUtil.toIntArray(fieldIds);
       return this;
@@ -694,9 +757,17 @@ public class Parquet {
     private boolean reuseContainers = false;
     private int maxRecordsPerBatch = 10000;
     private NameMapping nameMapping = null;
+    private FileDecryptionProperties fileDecryptionProperties = null;
 
     private ReadBuilder(InputFile file) {
       this.file = file;
+      if (file instanceof EnvelopeEncryptedInputFile) {
+        EnvelopeEncryptedInputFile envelopeEncryptedInputFile = (EnvelopeEncryptedInputFile) file;
+        if (envelopeEncryptedInputFile.useNativeDecryption()) {
+          fileDecryptionProperties =
+                  createDecryptionProperties(envelopeEncryptedInputFile.nativeDecryptionParameters());
+        }
+      }
     }
 
     /**
@@ -780,6 +851,47 @@ public class Parquet {
       return this;
     }
 
+    private FileDecryptionProperties createDecryptionProperties(NativeFileDecryptParameters nativeParameters) {
+      if (null == nativeParameters) {
+        return null;
+      }
+
+      ByteBuffer footerDataKey = nativeParameters.fileKey();
+      if (null == footerDataKey) {
+        throw new ParquetCryptoRuntimeException("Missing key for parquet footer");
+      }
+
+      Map<String, ByteBuffer> columnDataKeys = nativeParameters.columnKeys();
+      Map<ColumnPath, ColumnDecryptionProperties> columnKeys = null;
+      if (columnDataKeys != null && !columnDataKeys.isEmpty()) {
+        columnKeys = new HashMap<>();
+        for (Map.Entry<String, ByteBuffer> entry : columnDataKeys.entrySet()) {
+          String columnName = entry.getKey();
+          ByteBuffer columnDek = entry.getValue();
+          if (null == columnDek) {
+            throw new ParquetCryptoRuntimeException("Missing key for column " + columnName);
+          }
+
+          ColumnPath columnPath = ColumnPath.fromDotString(columnName);
+          ColumnDecryptionProperties columnDecryptionProperties = ColumnDecryptionProperties.builder(columnPath)
+                  .withKey(columnDek.array())
+                  .build();
+          columnKeys.put(columnPath, columnDecryptionProperties);
+        }
+      }
+
+      byte[] aadPrefix = null;
+      if (null != nativeParameters.aadPrefix()) {
+        aadPrefix = nativeParameters.aadPrefix().array();
+      }
+
+      return FileDecryptionProperties.builder()
+              .withFooterKey(footerDataKey.array())
+              .withColumnKeys(columnKeys)
+              .withAADPrefix(aadPrefix)
+              .build();
+    }
+
     @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
     public <D> CloseableIterable<D> build() {
       if (readerFunc != null || batchedReaderFunc != null) {
@@ -801,6 +913,10 @@ public class Parquet {
 
         if (start != null) {
           optionsBuilder.withRange(start, start + length);
+        }
+
+        if (fileDecryptionProperties != null) {
+          optionsBuilder.withDecryption(fileDecryptionProperties);
         }
 
         ParquetReadOptions options = optionsBuilder.build();
@@ -834,10 +950,13 @@ public class Parquet {
       }
 
       if (filter != null) {
+        ParquetReadOptions decryptOptions = ParquetReadOptions.builder()
+                .withDecryption(fileDecryptionProperties)
+                .build();
         // TODO: should not need to get the schema to push down before opening the file.
         // Parquet should allow setting a filter inside its read support
         MessageType type;
-        try (ParquetFileReader schemaReader = ParquetFileReader.open(ParquetIO.file(file))) {
+        try (ParquetFileReader schemaReader = ParquetFileReader.open(ParquetIO.file(file), decryptOptions)) {
           type = schemaReader.getFileMetaData().getSchema();
         } catch (IOException e) {
           throw new RuntimeIOException(e);
@@ -864,6 +983,10 @@ public class Parquet {
 
       if (nameMapping != null) {
         builder.withNameMapping(nameMapping);
+      }
+
+      if (fileDecryptionProperties != null) {
+        builder.withDecryption(fileDecryptionProperties);
       }
 
       return new ParquetIterable<>(builder);

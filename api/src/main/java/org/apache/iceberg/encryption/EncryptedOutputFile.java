@@ -32,6 +32,14 @@ import org.apache.iceberg.io.OutputFile;
 public interface EncryptedOutputFile {
 
   /**
+   * Use flat filestream encryption (default) or pushdown to native format encryption
+   */
+  default boolean useNativeEncryption() {
+    return false;
+  }
+
+
+  /**
    * An OutputFile instance that encrypts the bytes that are written to its output streams.
    */
   OutputFile encryptingOutputFile();
@@ -41,4 +49,8 @@ public interface EncryptedOutputFile {
    * {@link #encryptingOutputFile()}.
    */
   EncryptionKeyMetadata keyMetadata();
+
+  default NativeFileEncryptParameters nativeEncryptionParameters() {
+    return null;
+  }
 }

@@ -23,6 +23,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -33,11 +35,20 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.LocationProviders;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.encryption.EncryptionAlgorithm;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EnvelopeConfig;
+import org.apache.iceberg.encryption.EnvelopeEncryptionManager;
+import org.apache.iceberg.encryption.EnvelopeEncryptionSpec;
+import org.apache.iceberg.encryption.EnvelopeKeyManager;
+import org.apache.iceberg.encryption.KmsClient;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
+import org.apache.iceberg.encryption.TableEnvelopeKeyManager;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -47,6 +58,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,6 +79,7 @@ public class HadoopTableOperations implements TableOperations {
   private volatile TableMetadata currentMetadata = null;
   private volatile Integer version = null;
   private volatile boolean shouldRefresh = true;
+  private volatile EncryptionManager encryptionManager = null;
 
   protected HadoopTableOperations(Path location, FileIO fileIO, Configuration conf) {
     this.conf = conf;
@@ -80,6 +93,104 @@ public class HadoopTableOperations implements TableOperations {
       return refresh();
     }
     return currentMetadata;
+  }
+
+  @Override
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  public EncryptionManager encryption() {
+    // TODO run by single thread? or synchronize?
+    if (null != encryptionManager) {
+      return encryptionManager;
+    }
+
+    TableMetadata tableMetadata = current();
+    Map<String, String> tableProperties = tableMetadata.properties();
+
+    String keyManagerType = PropertyUtil.propertyAsString(tableProperties,
+            TableProperties.ENCRYPTION_MANAGER_TYPE, TableProperties.ENCRYPTION_MANAGER_TYPE_PLAINTEXT);
+    if (keyManagerType.equals(TableProperties.ENCRYPTION_MANAGER_TYPE_PLAINTEXT)) {
+      encryptionManager = new PlaintextEncryptionManager();
+      return encryptionManager;
+    }
+
+    if (keyManagerType.equals(TableProperties.ENCRYPTION_MANAGER_TYPE_SINGLE_ENVELOPE) ||
+            keyManagerType.equals(TableProperties.ENCRYPTION_MANAGER_TYPE_DOUBLE_ENVELOPE)) {
+      boolean doubleWrap = keyManagerType.equals(TableProperties.ENCRYPTION_MANAGER_TYPE_DOUBLE_ENVELOPE);
+      if (doubleWrap) {
+        throw new RuntimeException("Double envelope encryption is not supported yet");
+      }
+
+      Schema tableSchema = tableMetadata.schema();
+
+      String tableKeyId = PropertyUtil.propertyAsString(tableProperties,
+              TableProperties.ENCRYPTION_TABLE_KEY, null);
+      if (null == tableKeyId) {
+        throw new RuntimeException("Table encryption key is not specified");
+      }
+
+      boolean pushdown = PropertyUtil.propertyAsBoolean(tableProperties,
+              TableProperties.ENCRYPTION_PUSHDOWN_ENABLED, TableProperties.ENCRYPTION_PUSHDOWN_ENABLED_DEFAULT);
+      // TODO since TableProperties.DEFAULT_FILE_FORMAT are overwritten eg in Spark,
+      // TODO check for pushdown in each data format and throw unsupported exception in Avro
+
+      String dataEncryptionAlgorithm = PropertyUtil.propertyAsString(tableProperties,
+              TableProperties.ENCRYPTION_DATA_ALGORITHM, TableProperties.ENCRYPTION_DATA_ALGORITHM_DEFAULT);
+
+      EnvelopeConfig.Builder dataFileConfBuilder = EnvelopeConfig.builderFor(tableSchema)
+              .singleWrap(tableKeyId)
+              .useAlgorithm(EncryptionAlgorithm.valueOf(dataEncryptionAlgorithm));
+
+      String columnKeysProperty = PropertyUtil.propertyAsString(tableProperties,
+              TableProperties.ENCRYPTION_COLUMN_KEYS, null);
+
+      if (null != columnKeysProperty) {
+        if (!pushdown) {
+          throw new RuntimeException("Column-specific master keys are supported only in pushdown mode");
+        }
+
+        // TODO
+        throw new RuntimeException("Column-specific master keys are not supported yet");
+      }
+
+      EnvelopeConfig dataFileConfig = dataFileConfBuilder.build();
+
+      String kmsClientImpl = PropertyUtil.propertyAsString(tableProperties,
+              TableProperties.ENCRYPTION_KMS_CLIENT_IMPL, null);
+
+      // Pass custom kms configuration from table and Hadoop properties
+      Map<String, String> kmsProperties = new HashMap<>();
+      for (Map.Entry<String, String> property : tableProperties.entrySet()) {
+        if (property.getKey().contains("kms.client")) { // TODO
+          kmsProperties.put(property.getKey(), property.getValue());
+        }
+      }
+
+      for (Map.Entry<String, String> property : conf) {
+        if (property.getKey().contains("kms.client")) { // TODO
+          kmsProperties.put(property.getKey(), property.getValue());
+        }
+      }
+
+      KmsClient kmsClient = TableEnvelopeKeyManager.loadKmsClient(kmsClientImpl, kmsProperties);
+
+      int dataKeyLength = -1;
+      if (!kmsClient.supportsKeyGeneration()) {
+        dataKeyLength = PropertyUtil.propertyAsInt(tableProperties,
+                TableProperties.ENCRYPTION_DEK_LENGTH, TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
+      }
+
+      EnvelopeKeyManager keyManager = new TableEnvelopeKeyManager(kmsClient, dataFileConfig, pushdown,
+              tableSchema, dataKeyLength);
+
+      // TODO add manifest/list encr specs
+      EnvelopeEncryptionSpec spec = EnvelopeEncryptionSpec.builderFor(tableSchema)
+              .addDataFileConfig(dataFileConfig).build();
+
+      encryptionManager = new EnvelopeEncryptionManager(pushdown, spec, keyManager);
+      return encryptionManager;
+    }
+
+    throw new UnsupportedOperationException("Unsupported encryption manager type " + keyManagerType);
   }
 
   private synchronized Pair<Integer, TableMetadata> versionAndMetadata() {
@@ -222,7 +333,8 @@ public class HadoopTableOperations implements TableOperations {
 
       @Override
       public EncryptionManager encryption() {
-        return HadoopTableOperations.this.encryption();
+        // TODO encryption in temp table ops?? re-use main function?
+        throw new UnsupportedOperationException("Add encryption support");
       }
 
       @Override

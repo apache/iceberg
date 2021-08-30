@@ -20,6 +20,7 @@
 package org.apache.iceberg;
 
 import java.util.Set;
+import org.apache.iceberg.encryption.EncryptionAlgorithm;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 
 public class TableProperties {
@@ -228,4 +229,35 @@ public class TableProperties {
 
   public static final String MERGE_CARDINALITY_CHECK_ENABLED = "write.merge.cardinality-check.enabled";
   public static final boolean MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT = true;
+
+  /**
+   * Encryption manager type
+   */
+  public static final String ENCRYPTION_MANAGER_TYPE = "encryption.manager.type";
+  public static final String ENCRYPTION_MANAGER_TYPE_PLAINTEXT = "plaintext";
+  public static final String ENCRYPTION_MANAGER_TYPE_SINGLE_ENVELOPE = "envelope";
+  public static final String ENCRYPTION_MANAGER_TYPE_DOUBLE_ENVELOPE = "double.envelope";
+
+  public static final String ENCRYPTION_TABLE_KEY = "encryption.table.key";
+  // HIVE-21848 format
+  public static final String ENCRYPTION_COLUMN_KEYS = "encryption.column.keys";
+
+  public static final String ENCRYPTION_DEK_LENGTH = "encryption.data.key.length";
+  public static final int ENCRYPTION_DEK_LENGTH_DEFAULT = 16;
+
+  public static final String ENCRYPTION_DATA_ALGORITHM = "encryption.data.algorithm";
+  public static final String ENCRYPTION_DATA_ALGORITHM_DEFAULT = EncryptionAlgorithm.AES_GCM.toString();
+
+  /**
+   * Allow file format native encryption instead of
+   * encrypting the entire file through Iceberg encryption stream.
+   */
+  public static final String ENCRYPTION_PUSHDOWN_ENABLED = "encryption.pushdown";
+  public static final boolean ENCRYPTION_PUSHDOWN_ENABLED_DEFAULT = false;
+
+  /**
+   * Implementation of the KMS client for envelope encryption.
+   */
+  public static final String ENCRYPTION_KMS_CLIENT_IMPL = "encryption.kms.client-impl";
+
 }
