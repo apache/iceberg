@@ -118,11 +118,11 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   @Override
   public Offset latestOffset() {
     table.refresh();
-    Snapshot latestSnapshot = table.currentSnapshot();
-    if (latestSnapshot == null) {
+    if (isStreamEmpty(table, fromTimestamp)) {
       return StreamingOffset.START_OFFSET;
     }
 
+    Snapshot latestSnapshot = table.currentSnapshot();
     return new StreamingOffset(latestSnapshot.snapshotId(), Iterables.size(latestSnapshot.addedFiles()), false);
   }
 
@@ -223,6 +223,10 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     return op.equals(DataOperations.APPEND);
   }
 
+  private static boolean isStreamEmpty(Table table, long streamStartTimeStamp) {
+    return table.currentSnapshot() == null || table.currentSnapshot().timestampMillis() < streamStartTimeStamp;
+  }
+
   private static class InitialOffsetStore {
     private final Table table;
     private final FileIO io;
@@ -243,8 +247,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
       }
 
       table.refresh();
-      StreamingOffset offset = table.currentSnapshot() == null ?
-          StreamingOffset.START_OFFSET :
+      StreamingOffset offset = isStreamEmpty(table, fromTimestamp) ? StreamingOffset.START_OFFSET :
           new StreamingOffset(SnapshotUtil.oldestSnapshot(table, fromTimestamp).snapshotId(), 0, false);
 
       OutputFile outputFile = io.newOutputFile(initialOffsetLocation);

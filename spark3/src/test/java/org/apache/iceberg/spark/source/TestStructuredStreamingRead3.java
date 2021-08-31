@@ -193,6 +193,26 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
   @SuppressWarnings("unchecked")
   @Test
+  public void testReadingStreamFromTimestampGreaterThanLatestSnapshotTime() throws Exception {
+    List<SimpleRecord> dataBeforeTimestamp = Lists.newArrayList(
+        new SimpleRecord(1, "one"),
+        new SimpleRecord(2, "two"),
+        new SimpleRecord(3, "three"));
+    appendData(dataBeforeTimestamp, tableIdentifier, "parquet");
+
+    table.refresh();
+    long streamStartTimestamp = table.currentSnapshot().timestampMillis() + 1;
+
+    Dataset<Row> df = spark.readStream()
+        .format("iceberg")
+        .option(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(streamStartTimestamp))
+        .load(tableIdentifier);
+    List<SimpleRecord> actual = processAvailable(df);
+    Assert.assertEquals(Collections.emptyList(), actual);
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
   public void testResumingStreamReadFromCheckpoint() throws Exception {
     File writerCheckpointFolder = temp.newFolder("writer-checkpoint-folder");
     File writerCheckpoint = new File(writerCheckpointFolder, "writer-checkpoint");
