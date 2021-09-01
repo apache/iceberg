@@ -24,6 +24,7 @@ import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types.IntegerType;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -364,6 +365,89 @@ public class TestTypeUtil {
                         Types.StructType.of())))))));
     Schema actualDepthTwo = TypeUtil.project(schema, Sets.newHashSet(10, 13, 20, 14));
     Assert.assertEquals(expectedDepthTwo.asStruct(), actualDepthTwo.asStruct());
+  }
+
+  @Test
+  public void testProjectListNested() {
+    Schema schema = new Schema(
+        Lists.newArrayList(
+            required(12, "list", Types.ListType.ofRequired(13,
+                Types.ListType.ofRequired(14,
+                    Types.MapType.ofRequired(15, 16,
+                        IntegerType.get(),
+                        Types.StructType.of(
+                            required(17, "x", Types.IntegerType.get()),
+                            required(18, "y", Types.IntegerType.get())
+                        )))))));
+
+    AssertHelpers.assertThrows("Cannot explicitly project List",
+        IllegalArgumentException.class,
+        () -> TypeUtil.project(schema, Sets.newHashSet(12))
+    );
+
+    AssertHelpers.assertThrows("Cannot explicitly project List",
+        IllegalArgumentException.class,
+        () -> TypeUtil.project(schema, Sets.newHashSet(13))
+    );
+
+    AssertHelpers.assertThrows("Cannot explicitly project Map",
+        IllegalArgumentException.class,
+        () -> TypeUtil.project(schema, Sets.newHashSet(14))
+    );
+
+    Schema expected = new Schema(
+        Lists.newArrayList(
+            required(12, "list", Types.ListType.ofRequired(13,
+                Types.ListType.ofRequired(14,
+                    Types.MapType.ofRequired(15, 16,
+                        IntegerType.get(),
+                        Types.StructType.of()))))));
+
+    Schema actual = TypeUtil.project(schema, Sets.newHashSet(16));
+    Assert.assertEquals(expected.asStruct(), actual.asStruct());
+  }
+
+  @Test
+  public void testProjectMapNested() {
+    Schema schema = new Schema(
+        Lists.newArrayList(
+            required(12, "map", Types.MapType.ofRequired(13, 14,
+                Types.IntegerType.get(),
+                Types.MapType.ofRequired(15, 16,
+                    Types.IntegerType.get(),
+                    Types.ListType.ofRequired(17,
+                      Types.StructType.of(
+                          required(18, "x", Types.IntegerType.get()),
+                          required(19, "y", Types.IntegerType.get())
+                      )))))));
+
+
+    AssertHelpers.assertThrows("Cannot explicitly project Map",
+        IllegalArgumentException.class,
+        () -> TypeUtil.project(schema, Sets.newHashSet(12))
+    );
+
+    AssertHelpers.assertThrows("Cannot explicitly project Map",
+        IllegalArgumentException.class,
+        () -> TypeUtil.project(schema, Sets.newHashSet(14))
+    );
+
+    AssertHelpers.assertThrows("Cannot explicitly project List",
+        IllegalArgumentException.class,
+        () -> TypeUtil.project(schema, Sets.newHashSet(16))
+    );
+
+    Schema expected = new Schema(
+        Lists.newArrayList(
+            required(12, "map", Types.MapType.ofRequired(13, 14,
+                Types.IntegerType.get(),
+                Types.MapType.ofRequired(15, 16,
+                    Types.IntegerType.get(),
+                    Types.ListType.ofRequired(17,
+                        Types.StructType.of()))))));
+
+    Schema actual = TypeUtil.project(schema, Sets.newHashSet(17));
+    Assert.assertEquals(expected.asStruct(), actual.asStruct());
   }
 
   @Test(expected = IllegalArgumentException.class)

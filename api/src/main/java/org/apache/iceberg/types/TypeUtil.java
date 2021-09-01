@@ -74,7 +74,7 @@ public class TypeUtil {
     Preconditions.checkNotNull(fieldIds, "Field ids cannot be null");
 
     Type result = visit(struct, new PruneColumns(fieldIds, false));
-    if (struct == result) {
+    if (struct.equals(result)) {
       return struct;
     } else if (result != null) {
       return result.asStructType();

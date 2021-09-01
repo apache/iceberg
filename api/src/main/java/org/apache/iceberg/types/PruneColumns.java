@@ -34,9 +34,11 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
 
   /**
    * Visits a schema and returns only the fields selected by the id set.
+   * <p>
+   * When selectFullTypes is false selecting list or map types is undefined and forbidden.
+   *
    * @param selected ids of elements to return
-   * @param selectFullTypes when true, selecting a nested type selects all subfields. When false selecting list or
-   *                        map types is undefined and forbidden.
+   * @param selectFullTypes whether to select all subfields of a selected nested type
    */
   PruneColumns(Set<Integer> selected, boolean selectFullTypes) {
     Preconditions.checkNotNull(selected, "Selected field ids cannot be null");
@@ -88,18 +90,20 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   @Override
   public Type field(Types.NestedField field, Type fieldResult) {
     if (selected.contains(field.fieldId())) {
-      if (field.type().isStructType() && !selectFullTypes) {
+      if (selectFullTypes) {
+        return field.type();
+      } else if (field.type().isStructType()) {
         return projectSelectedStruct(fieldResult);
       } else {
-        Preconditions.checkArgument(selectFullTypes || !field.type().isNestedType(),
-            "Cannot select partial List or Map types explicitly, %s:%s of type %s was selected",
+        Preconditions.checkArgument(!field.type().isNestedType(),
+            "Cannot explicitly project List or Map types, %s:%s of type %s was selected",
             field.fieldId(), field.name(), field.type());
         // Selected non-struct field
         return field.type();
       }
     } else if (fieldResult != null) {
       // This field wasn't selected but a subfield was so include that
-      return  fieldResult;
+      return fieldResult;
     }
     return null;
   }
@@ -107,10 +111,15 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   @Override
   public Type list(Types.ListType list, Type elementResult) {
     if (selected.contains(list.elementId())) {
-      if (list.elementType().isStructType() && !selectFullTypes) {
+      if (selectFullTypes) {
+        return list;
+      } else if (list.elementType().isStructType()) {
         StructType projectedStruct = projectSelectedStruct(elementResult);
         return projectList(list, projectedStruct);
       } else {
+        Preconditions.checkArgument(list.elementType().isPrimitiveType(),
+            "Cannot explicitly project List or Map types, Field %s of type %s was selected",
+            list.elementId(), list.elementType());
         return list;
       }
     } else if (elementResult != null) {
@@ -122,10 +131,15 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   @Override
   public Type map(Types.MapType map, Type ignored, Type valueResult) {
     if (selected.contains(map.valueId())) {
-      if (map.valueType().isStructType() && !selectFullTypes) {
+      if (selectFullTypes) {
+        return map;
+      } else if (map.valueType().isStructType()) {
         Type projectedStruct = projectSelectedStruct(valueResult);
         return projectMap(map, projectedStruct);
       } else {
+        Preconditions.checkArgument(map.valueType().isPrimitiveType(),
+            "Cannot explicitly project List or Map types, Field %s of type %s was selected",
+            map.valueId(), map.valueType());
         return map;
       }
     } else if (valueResult != null) {
