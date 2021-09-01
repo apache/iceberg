@@ -78,6 +78,11 @@ public class TestPartitioning {
             NestedField.optional(1001, "category_bucket_8", Types.IntegerType.get()));
     StructType actualType = Partitioning.partitionType(table);
     Assert.assertEquals("Types must match", expectedType, actualType);
+
+    table.updateSpec().removeField("data").removeField("category_bucket_8").commit();
+
+    Assert.assertEquals("Should have 3 specs", 3, table.specs().size());
+    Assert.assertTrue("PartitionSpec should be unpartitioned", table.spec().isUnpartitioned());
   }
 
   @Test
