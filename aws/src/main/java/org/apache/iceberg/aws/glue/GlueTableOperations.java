@@ -41,7 +41,6 @@ import software.amazon.awssdk.services.glue.model.CreateTableRequest;
 import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
 import software.amazon.awssdk.services.glue.model.GetTableRequest;
 import software.amazon.awssdk.services.glue.model.GetTableResponse;
-import software.amazon.awssdk.services.glue.model.StorageDescriptor;
 import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateTableRequest;
@@ -188,10 +187,8 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
           .databaseName(databaseName)
           .skipArchive(awsProperties.glueCatalogSkipArchive())
           .tableInput(TableInput.builder()
+              .applyMutation(builder -> IcebergToGlueConverter.setTableInputInformation(builder, metadata))
               .name(tableName)
-              .storageDescriptor(StorageDescriptor.builder()
-                  .columns(IcebergToGlueConverter.toColumns(metadata.schema()))
-                  .build())
               .tableType(GLUE_EXTERNAL_TABLE_TYPE)
               .parameters(parameters)
               .build())
@@ -202,10 +199,8 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
           .catalogId(awsProperties.glueCatalogId())
           .databaseName(databaseName)
           .tableInput(TableInput.builder()
+              .applyMutation(builder -> IcebergToGlueConverter.setTableInputInformation(builder, metadata))
               .name(tableName)
-              .storageDescriptor(StorageDescriptor.builder()
-                  .columns(IcebergToGlueConverter.toColumns(metadata.schema()))
-                  .build())
               .tableType(GLUE_EXTERNAL_TABLE_TYPE)
               .parameters(parameters)
               .build())
