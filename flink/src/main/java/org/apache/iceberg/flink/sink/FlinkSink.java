@@ -249,7 +249,7 @@ public class FlinkSink {
       return this;
     }
 
-    public DataStreamSink<RowData> build() {
+    public DataStreamSink<Void> build() {
       Preconditions.checkArgument(inputCreator != null,
           "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
       Preconditions.checkNotNull(tableLoader, "Table loader shouldn't be null");
@@ -287,9 +287,9 @@ public class FlinkSink {
       return uidPrefix != null ? uidPrefix + "-" + suffix : suffix;
     }
 
-    private DataStreamSink<RowData> appendDummySink(SingleOutputStreamOperator<Void> committerStream) {
-      DataStreamSink<RowData> resultStream = committerStream
-          .addSink(new DiscardingSink())
+    private DataStreamSink<Void> appendDummySink(SingleOutputStreamOperator<Void> committerStream) {
+      DataStreamSink<Void> resultStream = committerStream
+          .addSink(new DiscardingSink<>())
           .name(operatorName(String.format("IcebergSink %s", this.table.name())))
           .setParallelism(1);
       if (uidPrefix != null) {
