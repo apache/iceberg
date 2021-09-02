@@ -243,18 +243,18 @@ public class SimpleDataUtil {
   public static List<DataFile> partitionDataFiles(Table table, Map<String, Object> partitionValues)
       throws IOException {
     table.refresh();
-    Types.StructType spec = table.spec().partitionType();
+    Types.StructType partitionType = table.spec().partitionType();
 
-    Record partitionRecord = GenericRecord.create(spec).copy(partitionValues);
+    Record partitionRecord = GenericRecord.create(partitionType).copy(partitionValues);
     StructLikeWrapper expectedWrapper = StructLikeWrapper
-        .forType(spec)
+        .forType(partitionType)
         .set(partitionRecord);
 
     List<DataFile> dataFiles = Lists.newArrayList();
     try (CloseableIterable<FileScanTask> fileScanTasks = table.newScan().planFiles()) {
       for (FileScanTask scanTask : fileScanTasks) {
         StructLikeWrapper wrapper = StructLikeWrapper
-            .forType(spec)
+            .forType(partitionType)
             .set(scanTask.file().partition());
 
         if (expectedWrapper.equals(wrapper)) {
@@ -270,30 +270,30 @@ public class SimpleDataUtil {
       Table table)
       throws IOException {
     table.refresh();
-    Map<Long, List<DataFile>> res = Maps.newHashMap();
-    List<ManifestFile> manifestFiles = table.currentSnapshot().allManifests();
-    for (ManifestFile mf : manifestFiles) {
-      try (ManifestReader<DataFile> reader = ManifestFiles.read(mf, table.io())) {
+    Map<Long, List<DataFile>> result = Maps.newHashMap();
+    List<ManifestFile> manifestFiles = table.currentSnapshot().dataManifests();
+    for (ManifestFile manifestFile : manifestFiles) {
+      try (ManifestReader<DataFile> reader = ManifestFiles.read(manifestFile, table.io())) {
         List<DataFile> dataFiles = IteratorUtils.toList(reader.iterator());
-        if (res.containsKey(mf.snapshotId())) {
-          res.get(mf.snapshotId()).addAll(dataFiles);
+        if (result.containsKey(manifestFile.snapshotId())) {
+          result.get(manifestFile.snapshotId()).addAll(dataFiles);
         } else {
-          res.put(mf.snapshotId(), dataFiles);
+          result.put(manifestFile.snapshotId(), dataFiles);
         }
       }
     }
-    return res;
+    return result;
   }
 
   public static List<DataFile> matchingPartitions(
       List<DataFile> dataFiles, PartitionSpec partitionSpec, Map<String, Object> partitionValues) {
-    Types.StructType spec = partitionSpec.partitionType();
-    Record partitionRecord = GenericRecord.create(spec).copy(partitionValues);
+    Types.StructType partitionType = partitionSpec.partitionType();
+    Record partitionRecord = GenericRecord.create(partitionType).copy(partitionValues);
     StructLikeWrapper expected = StructLikeWrapper
-        .forType(spec)
+        .forType(partitionType)
         .set(partitionRecord);
     return dataFiles.stream().filter(df -> {
-      StructLikeWrapper wrapper = StructLikeWrapper.forType(spec).set(df.partition());
+      StructLikeWrapper wrapper = StructLikeWrapper.forType(partitionType).set(df.partition());
       return wrapper.equals(expected);
     }).collect(Collectors.toList());
   }

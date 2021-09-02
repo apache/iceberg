@@ -274,7 +274,8 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
           SimpleDataUtil.createRecord(3, "ccc")
       ));
 
-      // Sometimes we will have more than one checkpoint if we pass the auto checkpoint interval
+      // Sometimes we will have more than one checkpoint if we pass the auto checkpoint interval,
+      // thus producing multiple snapshots.  Here we assert that each snapshot has only 1 file per partition.
       Map<Long, List<DataFile>> snapshotToDataFiles = SimpleDataUtil.snapshotToDataFiles(table);
       for (List<DataFile> dataFiles : snapshotToDataFiles.values()) {
         Assert.assertEquals("There should be 1 data file in partition 'aaa'", 1,
