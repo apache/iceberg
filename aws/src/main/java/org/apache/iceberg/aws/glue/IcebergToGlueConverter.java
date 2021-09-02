@@ -19,16 +19,28 @@
 
 package org.apache.iceberg.aws.glue;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.DatabaseInput;
+import software.amazon.awssdk.services.glue.model.StorageDescriptor;
+import software.amazon.awssdk.services.glue.model.TableInput;
 
 class IcebergToGlueConverter {
+
+  private static final Logger LOG = LoggerFactory.getLogger(IcebergToGlueConverter.class);
 
   private IcebergToGlueConverter() {
   }
@@ -131,5 +143,92 @@ class IcebergToGlueConverter {
   static void validateTableIdentifier(TableIdentifier tableIdentifier) {
     validateNamespace(tableIdentifier.namespace());
     validateTableName(tableIdentifier.name());
+  }
+
+  /**
+   * Set Glue table input information based on Iceberg table metadata.
+   * <p>
+   * A best-effort conversion of Iceberg metadata to Glue table is performed to display Iceberg information in Glue,
+   * but such information is only intended for informational human read access through tools like UI or CLI,
+   * and should never be used by any query processing engine to infer information like schema, partition spec, etc.
+   * The source of truth is stored in the actual Iceberg metadata file defined by the metadata_location table property.
+   * @param tableInputBuilder Glue TableInput builder
+   * @param metadata Iceberg table metadata
+   */
+  static void setTableInputInformation(TableInput.Builder tableInputBuilder, TableMetadata metadata) {
+    try {
+      tableInputBuilder
+          .storageDescriptor(StorageDescriptor.builder()
+              .location(metadata.location())
+              .columns(metadata.schema().columns().stream()
+                  .map(f -> Column.builder()
+                      .name(f.name())
+                      .type(toTypeString(f.type()))
+                      .comment("Iceberg column: { " + f + " }")
+                      .build())
+                  .collect(Collectors.toList()))
+              .build())
+          .partitionKeys(metadata.spec().fields().stream()
+              .map(f -> Column.builder()
+                  .name(f.name())
+                  .type(toTypeString(f.transform().getResultType(metadata.schema().findField(f.sourceId()).type())))
+                  .comment("Iceberg partition field: {" + f + "}")
+                  .build())
+              .collect(Collectors.toList()));
+    } catch (RuntimeException e) {
+      LOG.warn("Encountered unexpected exception while converting Iceberg metadata to Glue table information", e);
+    }
+  }
+
+  /**
+   * Converting from an Iceberg type to a type string that can be displayed in Glue.
+   * <p>
+   * Such conversion is only used for informational purpose,
+   * DO NOT reference this method for any actual data processing type conversion.
+   *
+   * @param type Iceberg type
+   * @return type string
+   */
+  private static String toTypeString(Type type) {
+    switch (type.typeId()) {
+      case BOOLEAN:
+        return "boolean";
+      case INTEGER:
+        return "int";
+      case LONG:
+        return "bigint";
+      case FLOAT:
+        return "float";
+      case DOUBLE:
+        return "double";
+      case DATE:
+        return "date";
+      case TIME:
+      case STRING:
+      case UUID:
+        return "string";
+      case TIMESTAMP:
+        return "timestamp";
+      case FIXED:
+      case BINARY:
+        return "binary";
+      case DECIMAL:
+        final Types.DecimalType decimalType = (Types.DecimalType) type;
+        return String.format("decimal(%s,%s)", decimalType.precision(), decimalType.scale());
+      case STRUCT:
+        final Types.StructType structType = type.asStructType();
+        final String nameToType = structType.fields().stream()
+            .map(f -> String.format("%s:%s", f.name(), toTypeString(f.type())))
+            .collect(Collectors.joining(","));
+        return String.format("struct<%s>", nameToType);
+      case LIST:
+        final Types.ListType listType = type.asListType();
+        return String.format("array<%s>", toTypeString(listType.elementType()));
+      case MAP:
+        final Types.MapType mapType = type.asMapType();
+        return String.format("map<%s,%s>", toTypeString(mapType.keyType()), toTypeString(mapType.valueType()));
+      default:
+        return type.typeId().name().toLowerCase(Locale.ENGLISH);
+    }
   }
 }
