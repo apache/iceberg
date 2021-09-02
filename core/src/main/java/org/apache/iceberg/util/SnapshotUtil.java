@@ -65,16 +65,16 @@ public class SnapshotUtil {
   }
 
   /**
-   * Traverses the history of the table's current snapshot and finds the oldest Snapshot after the timestamp.
-   * @return null if there is no current snapshot in the table, else the oldest Snapshot after the timestamp.
+   * Traverses the history of the table's current snapshot and finds the oldest Snapshot after or equal to the timestamp in milliseconds.
+   * @return null if there is no current snapshot in the table, else the oldest Snapshot after or equal to the timestamp in milliseconds.
    */
-  public static Snapshot oldestSnapshot(Table table, long timestamp) {
+  public static Snapshot oldestSnapshot(Table table, long timestampMillis) {
     Snapshot current = table.currentSnapshot();
-    if (current == null || current.timestampMillis() < timestamp) {
+    if (current == null || current.timestampMillis() < timestampMillis) {
       return null;
     }
 
-    while (current.parentId() != null && table.snapshot(current.parentId()).timestampMillis() > timestamp) {
+    while (current.parentId() != null && table.snapshot(current.parentId()).timestampMillis() >= timestampMillis) {
       current = table.snapshot(current.parentId());
     }
 

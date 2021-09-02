@@ -31,6 +31,7 @@ import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -186,6 +187,40 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         .format("iceberg")
         .option(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(streamStartTimestamp))
         .load(tableIdentifier);
+    List<SimpleRecord> actual = processAvailable(df);
+
+    Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testReadingStreamFromTimestampStartWithExistingTimestamp() throws Exception {
+    List<SimpleRecord> dataBeforeTimestamp = Lists.newArrayList(
+            new SimpleRecord(-2, "minustwo"),
+            new SimpleRecord(-1, "minusone"),
+            new SimpleRecord(0, "zero"));
+    appendData(dataBeforeTimestamp, tableIdentifier, "parquet");
+
+    table.refresh();
+    long seedDataTimestamp = table.currentSnapshot().timestampMillis();
+
+    List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(expected, tableIdentifier);
+
+    table.refresh();
+
+    // Find most recent available timestamp after seedDataTimestamp
+    Snapshot mostRecentSnapshotAfterSeedData = table.currentSnapshot();
+    while (mostRecentSnapshotAfterSeedData.parentId() != null
+            && table.snapshot(mostRecentSnapshotAfterSeedData.parentId()).timestampMillis() > seedDataTimestamp) {
+      mostRecentSnapshotAfterSeedData = table.snapshot(mostRecentSnapshotAfterSeedData.parentId());
+    }
+
+    long streamStartTimestamp = mostRecentSnapshotAfterSeedData.timestampMillis();
+    Dataset<Row> df = spark.readStream()
+            .format("iceberg")
+            .option(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(streamStartTimestamp))
+            .load(tableIdentifier);
     List<SimpleRecord> actual = processAvailable(df);
 
     Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
