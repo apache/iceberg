@@ -118,7 +118,7 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
         return projectList(list, projectedStruct);
       } else {
         Preconditions.checkArgument(list.elementType().isPrimitiveType(),
-            "Cannot explicitly project List or Map types, Field %s of type %s was selected",
+            "Cannot explicitly project List or Map types, List element %s of type %s was selected",
             list.elementId(), list.elementType());
         return list;
       }
@@ -138,7 +138,7 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
         return projectMap(map, projectedStruct);
       } else {
         Preconditions.checkArgument(map.valueType().isPrimitiveType(),
-            "Cannot explicitly project List or Map types, Field %s of type %s was selected",
+            "Cannot explicitly project List or Map types, Map value %s of type %s was selected",
             map.valueId(), map.valueType());
         return map;
       }
