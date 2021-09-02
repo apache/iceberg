@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink.source;
 
 import java.util.Map;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
@@ -45,15 +46,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
 
-public class RowDataFileReader implements FileReader<RowData> {
+@Internal
+public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
 
   private final Schema tableSchema;
   private final Schema projectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
 
-  public RowDataFileReader(Schema tableSchema, Schema projectedSchema,
-                           String nameMapping, boolean caseSensitive) {
+  public RowDataFileScanTaskReader(Schema tableSchema, Schema projectedSchema,
+                                   String nameMapping, boolean caseSensitive) {
     this.tableSchema = tableSchema;
     this.projectedSchema = projectedSchema;
     this.nameMapping = nameMapping;

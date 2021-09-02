@@ -99,7 +99,7 @@ public class RowDataRewriter {
     private final boolean caseSensitive;
     private final EncryptionManager encryptionManager;
     private final TaskWriterFactory<RowData> taskWriterFactory;
-    private final RowDataFileReader rowDataReader;
+    private final RowDataFileScanTaskReader rowDataReader;
 
     public RewriteMap(Schema schema, String nameMapping, FileIO io, boolean caseSensitive,
                       EncryptionManager encryptionManager, TaskWriterFactory<RowData> taskWriterFactory) {
@@ -109,7 +109,7 @@ public class RowDataRewriter {
       this.caseSensitive = caseSensitive;
       this.encryptionManager = encryptionManager;
       this.taskWriterFactory = taskWriterFactory;
-      this.rowDataReader = new RowDataFileReader(schema, schema, nameMapping, caseSensitive);
+      this.rowDataReader = new RowDataFileScanTaskReader(schema, schema, nameMapping, caseSensitive);
     }
 
     @Override

@@ -22,6 +22,7 @@ package org.apache.iceberg.flink.source;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
+import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -30,21 +31,22 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 
 /**
- * Base class of Flink iterators.
+ * Flink data iterator that reads {@link CombinedScanTask} into a {@link CloseableIterator}
  *
- * @param <T> is the Java class returned by this iterator whose objects contain one or more rows.
+ * @param <T> is the output data type returned by this iterator.
  */
+@Internal
 public class DataIterator<T> implements CloseableIterator<T> {
 
-  private final FileReader<T> fileReader;
+  private final FileScanTaskReader<T> fileScanTaskReader;
 
   private final InputFilesDecryptor inputFilesDecryptor;
   private Iterator<FileScanTask> tasks;
   private CloseableIterator<T> currentIterator;
 
-  public DataIterator(FileReader<T> fileReader, CombinedScanTask task,
+  public DataIterator(FileScanTaskReader<T> fileScanTaskReader, CombinedScanTask task,
                       FileIO io, EncryptionManager encryption) {
-    this.fileReader = fileReader;
+    this.fileScanTaskReader = fileScanTaskReader;
 
     this.inputFilesDecryptor = new InputFilesDecryptor(task, io, encryption);
     this.tasks = task.files().iterator();
@@ -78,8 +80,8 @@ public class DataIterator<T> implements CloseableIterator<T> {
     }
   }
 
-  private CloseableIterator<T> openTaskIterator(FileScanTask scanTask) throws IOException {
-    return fileReader.open(scanTask, inputFilesDecryptor);
+  private CloseableIterator<T> openTaskIterator(FileScanTask scanTask) {
+    return fileScanTaskReader.open(scanTask, inputFilesDecryptor);
   }
 
   @Override

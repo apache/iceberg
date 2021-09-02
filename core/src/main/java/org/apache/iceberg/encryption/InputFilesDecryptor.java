@@ -45,7 +45,7 @@ public class InputFilesDecryptor {
     // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
     Iterable<InputFile> decryptedFiles = encryption.decrypt(encrypted::iterator);
 
-    Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(combinedTask.files().size());
+    Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(keyMetadata.size());
     decryptedFiles.forEach(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
     this.decryptedInputFiles = Collections.unmodifiableMap(files);
   }
