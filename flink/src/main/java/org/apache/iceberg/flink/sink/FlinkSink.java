@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.flink.sink;
 
-import com.codahale.metrics.SlidingWindowReservoir;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
@@ -128,7 +127,6 @@ public class FlinkSink {
     private Integer writeParallelism = null;
     private List<String> equalityFieldColumns = null;
     private String uidPrefix = null;
-    private int fileSizeHistogramReservoirSize = 128;
 
     private Builder() {
     }
@@ -251,21 +249,6 @@ public class FlinkSink {
       return this;
     }
 
-    /**
-     * Set the {@link SlidingWindowReservoir} size (number of measurements stored)
-     * for the two histogram metrics of data files and delete file size distribution.
-     *
-     * @param newReservoirSize the new histogram reservoir size for the file size distribution.
-     * default reservoir size is 128, which only add a small memory overhead of 1 KB (128 x 8B) per histogram.
-     * For use cases with a lot of files, a larger reservoir size can produce more accurate histogram distribution.
-     */
-    public Builder fileSizeHistogramReservoirSize(int newReservoirSize) {
-      Preconditions.checkArgument(newReservoirSize > 0,
-          "Reservoir size should be larger than 0");
-      this.fileSizeHistogramReservoirSize = newReservoirSize;
-      return this;
-    }
-
     public DataStreamSink<RowData> build() {
       Preconditions.checkArgument(inputCreator != null,
           "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
@@ -316,8 +299,7 @@ public class FlinkSink {
     }
 
     private SingleOutputStreamOperator<Void> appendCommitter(SingleOutputStreamOperator<WriteResult> writerStream) {
-      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(
-          tableLoader, overwrite, fileSizeHistogramReservoirSize);
+      IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
       SingleOutputStreamOperator<Void> committerStream = writerStream
           .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
           .setParallelism(1)

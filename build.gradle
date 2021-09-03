@@ -390,7 +390,6 @@ project(':iceberg-flink-runtime') {
 
   configurations {
     compile {
-      exclude group: 'org.apache.flink'
       // included in Flink
       exclude group: 'org.slf4j'
       exclude group: 'org.apache.commons'
@@ -408,6 +407,9 @@ project(':iceberg-flink-runtime') {
     compile(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
+
+    // for dropwizard histogram metrics implementation
+    compile "org.apache.flink:flink-metrics-dropwizard"
   }
 
   shadowJar {

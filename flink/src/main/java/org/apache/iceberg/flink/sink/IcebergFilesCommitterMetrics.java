@@ -19,16 +19,10 @@
 
 package org.apache.iceberg.flink.sink;
 
-import com.codahale.metrics.SlidingWindowReservoir;
-import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
-import org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper;
-import org.apache.flink.metrics.Histogram;
 import org.apache.flink.metrics.MetricGroup;
-import org.apache.iceberg.io.WriteResult;
 
 class IcebergFilesCommitterMetrics {
-
   private final AtomicLong lastCheckpointDurationMs = new AtomicLong();
   private final AtomicLong lastCommitDurationMs = new AtomicLong();
   private final AtomicLong committedDataFilesCount = new AtomicLong();
@@ -38,11 +32,7 @@ class IcebergFilesCommitterMetrics {
   private final AtomicLong committedDeleteFilesRecordCount = new AtomicLong();
   private final AtomicLong committedDeleteFilesByteCount = new AtomicLong();
 
-  private final Histogram dataFilesSizeHistogram;
-  private final Histogram deleteFilesSizeHistogram;
-
-  IcebergFilesCommitterMetrics(MetricGroup metrics, String fullTableName,
-                               int slidingWindowReservoirSize) {
+  IcebergFilesCommitterMetrics(MetricGroup metrics, String fullTableName) {
     MetricGroup committerMetrics = metrics.addGroup("IcebergFilesCommitter", fullTableName);
 
     committerMetrics.gauge("lastCheckpointDurationMs", lastCheckpointDurationMs::get);
@@ -53,16 +43,6 @@ class IcebergFilesCommitterMetrics {
     committerMetrics.gauge("committedDeleteFilesCount", committedDeleteFilesCount::get);
     committerMetrics.gauge("committedDeleteFilesRecordCount", committedDeleteFilesRecordCount::get);
     committerMetrics.gauge("committedDeleteFilesByteCount", committedDeleteFilesByteCount::get);
-
-    com.codahale.metrics.Histogram dropwizardDataFilesSizeHistogram =
-        new com.codahale.metrics.Histogram(new SlidingWindowReservoir(slidingWindowReservoirSize));
-    this.dataFilesSizeHistogram = committerMetrics.histogram(
-        "dataFilesSizeHistogram", new DropwizardHistogramWrapper(dropwizardDataFilesSizeHistogram));
-
-    com.codahale.metrics.Histogram dropwizardDeleteFilesSizeHistogram =
-        new com.codahale.metrics.Histogram(new SlidingWindowReservoir(slidingWindowReservoirSize));
-    this.deleteFilesSizeHistogram = committerMetrics.histogram(
-        "deleteFilesSizeHistogram", new DropwizardHistogramWrapper(dropwizardDeleteFilesSizeHistogram));
   }
 
   void checkpointDuration(long checkpointDurationMs) {
@@ -80,14 +60,5 @@ class IcebergFilesCommitterMetrics {
     committedDeleteFilesCount.addAndGet(stats.deleteFilesCount());
     committedDeleteFilesRecordCount.addAndGet(stats.deleteFilesRecordCount());
     committedDeleteFilesByteCount.addAndGet(stats.deleteFilesByteCount());
-  }
-
-  void updateFileSizeHistogram(WriteResult writeResult) {
-    Arrays.stream(writeResult.dataFiles()).forEach(dataFile -> {
-      dataFilesSizeHistogram.update(dataFile.fileSizeInBytes());
-    });
-    Arrays.stream(writeResult.deleteFiles()).forEach(deleteFile -> {
-      deleteFilesSizeHistogram.update(deleteFile.fileSizeInBytes());
-    });
   }
 }

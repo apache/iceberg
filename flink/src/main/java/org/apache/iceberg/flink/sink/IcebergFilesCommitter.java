@@ -80,7 +80,6 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // TableLoader to load iceberg table lazily.
   private final TableLoader tableLoader;
   private final boolean replacePartitions;
-  private final int fileSizeHistogramReservoirSize;
 
   // A sorted map to maintain the completed data files for each pending checkpointId (which have not been committed
   // to iceberg table). We need a sorted map here because there's possible that few checkpoints snapshot failed, for
@@ -113,11 +112,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private static final ListStateDescriptor<SortedMap<Long, byte[]>> STATE_DESCRIPTOR = buildStateDescriptor();
   private transient ListState<SortedMap<Long, byte[]>> checkpointsState;
 
-  IcebergFilesCommitter(TableLoader tableLoader, boolean replacePartitions,
-                        int fileSizeHistogramReservoirSize) {
+  IcebergFilesCommitter(TableLoader tableLoader, boolean replacePartitions) {
     this.tableLoader = tableLoader;
     this.replacePartitions = replacePartitions;
-    this.fileSizeHistogramReservoirSize = fileSizeHistogramReservoirSize;
   }
 
   @Override
@@ -128,8 +125,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     // Open the table loader and load the table.
     this.tableLoader.open();
     this.table = tableLoader.loadTable();
-    this.committerMetrics = new IcebergFilesCommitterMetrics(
-        super.metrics, table.name(), fileSizeHistogramReservoirSize);
+    this.committerMetrics = new IcebergFilesCommitterMetrics(super.metrics, table.name());
 
     maxContinuousEmptyCommits = PropertyUtil.propertyAsInt(table.properties(), MAX_CONTINUOUS_EMPTY_COMMITS, 10);
     Preconditions.checkArgument(maxContinuousEmptyCommits > 0,
@@ -320,7 +316,6 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   @Override
   public void processElement(StreamRecord<WriteResult> element) {
     this.writeResultsOfCurrentCkpt.add(element.getValue());
-    committerMetrics.updateFileSizeHistogram(element.getValue());
   }
 
   @Override
