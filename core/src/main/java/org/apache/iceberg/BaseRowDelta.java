@@ -27,7 +27,8 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   private Long startingSnapshotId = null; // check all versions by default
   private final CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
   private boolean validateDeletes = false;
-  private Expression conflictDetectionFilter = null;
+  private Expression appendConflictDetectionFilter = null;
+  private Expression deleteConflictDetectionFilter = null;
   private boolean caseSensitive = true;
 
   BaseRowDelta(String tableName, TableOperations ops) {
@@ -83,7 +84,14 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   @Override
   public RowDelta validateNoConflictingAppends(Expression newConflictDetectionFilter) {
     Preconditions.checkArgument(newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
-    this.conflictDetectionFilter = newConflictDetectionFilter;
+    this.appendConflictDetectionFilter = newConflictDetectionFilter;
+    return this;
+  }
+
+  @Override
+  public RowDelta validateNoConflictingDeleteFiles(Expression newConflictDetectionFilter) {
+    Preconditions.checkArgument(newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
+    this.deleteConflictDetectionFilter = newConflictDetectionFilter;
     return this;
   }
 
@@ -92,12 +100,15 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
     if (base.currentSnapshot() != null) {
       if (!referencedDataFiles.isEmpty()) {
         validateDataFilesExist(
-            base, startingSnapshotId, referencedDataFiles, !validateDeletes, conflictDetectionFilter);
+            base, startingSnapshotId, referencedDataFiles, !validateDeletes, appendConflictDetectionFilter);
       }
 
-      // TODO: does this need to check new delete files?
-      if (conflictDetectionFilter != null) {
-        validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter, caseSensitive);
+      if (appendConflictDetectionFilter != null) {
+        validateAddedDataFiles(base, startingSnapshotId, appendConflictDetectionFilter, caseSensitive);
+      }
+
+      if (deleteConflictDetectionFilter != null) {
+        validateNoNewDeletes(base, startingSnapshotId, deleteConflictDetectionFilter, caseSensitive);
       }
     }
   }

@@ -94,7 +94,7 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
   RowDelta validateDeletedFiles();
 
   /**
-   * Enables validation that files added concurrently do not conflict with this commit's operation.
+   * Enables validation that data files added concurrently do not conflict with this commit's operation.
    * <p>
    * This method should be called when the table is queried to determine which files to delete/append.
    * If a concurrent operation commits a new file after the data was read and that file might
@@ -111,4 +111,19 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
    * @return this for method chaining
    */
   RowDelta validateNoConflictingAppends(Expression conflictDetectionFilter);
+
+  /**
+   * Enables validation that delete files added concurrently do not conflict with this commit's operation.
+   * <p>
+   * This method must be called when the table is queried to produce a row delta for UPDATE and
+   * MERGE operations independently of the isolation level. Calling this method isn't required
+   * for DELETE operations as it is OK when a particular record we are trying to delete
+   * was deleted concurrently.
+   * <p>
+   * Validation applies to operations that happened after the snapshot passed to {@link #validateFromSnapshot(long)}.
+   *
+   * @param conflictDetectionFilter an expression on rows in the table
+   * @return this for method chaining
+   */
+  RowDelta validateNoConflictingDeleteFiles(Expression conflictDetectionFilter);
 }

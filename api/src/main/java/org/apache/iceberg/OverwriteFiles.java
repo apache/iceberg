@@ -107,7 +107,7 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
   OverwriteFiles caseSensitive(boolean caseSensitive);
 
   /**
-   * Enables validation that files added concurrently do not conflict with this commit's operation.
+   * Enables validation that data files added concurrently do not conflict with this commit's operation.
    * <p>
    * This method should be called when the table is queried to determine which files to delete/append.
    * If a concurrent operation commits a new file after the data was read and that file might
@@ -145,4 +145,23 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
    */
   @Deprecated
   OverwriteFiles validateNoConflictingAppends(Long readSnapshotId, Expression conflictDetectionFilter);
+
+  /**
+   * Enables validation that delete files added concurrently do not conflict with this commit's operation.
+   * <p>
+   * Validating concurrently added delete files is required during DELETE, UPDATE and MERGE operations.
+   * If a concurrent operation adds a new delete file that applies to one of the data files being
+   * overwritten, the overwrite operation must be aborted as it may undelete rows that were removed
+   * concurrently.
+   * <p>
+   * Calling this method with a correct conflict detection filter is required to maintain
+   * serializable isolation for overwrite operations. Otherwise, the isolation level
+   * will be snapshot isolation.
+   * <p>
+   * Validation applies to operations that happened after the snapshot passed to {@link #validateFromSnapshot(long)}.
+   *
+   * @param conflictDetectionFilter an expression on rows in the table
+   * @return this for method chaining
+   */
+  OverwriteFiles validateNoConflictingDeleteFiles(Expression conflictDetectionFilter);
 }

@@ -86,6 +86,20 @@ class DeleteFileIndex {
     return (globalDeletes == null || globalDeletes.length == 0) && sortedDeletesByPartition.isEmpty();
   }
 
+  public List<DeleteFile> referencedDeleteFiles() {
+    List<DeleteFile> deleteFiles = Lists.newArrayList();
+
+    if (globalDeletes != null) {
+      deleteFiles.addAll(Arrays.asList(globalDeletes));
+    }
+
+    sortedDeletesByPartition.forEach((key, partitionDeletes) -> {
+      deleteFiles.addAll(Arrays.asList(partitionDeletes.second()));
+    });
+
+    return deleteFiles;
+  }
+
   private StructLikeWrapper newWrapper(int specId) {
     return StructLikeWrapper.forType(partitionTypeById.get(specId));
   }
