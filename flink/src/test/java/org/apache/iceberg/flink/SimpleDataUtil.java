@@ -24,7 +24,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.apache.commons.collections.IteratorUtils;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.GenericRowData;
@@ -266,15 +265,13 @@ public class SimpleDataUtil {
     return dataFiles;
   }
 
-  public static Map<Long, List<DataFile>> snapshotToDataFiles(
-      Table table)
-      throws IOException {
+  public static Map<Long, List<DataFile>> snapshotToDataFiles(Table table) throws IOException {
     table.refresh();
     Map<Long, List<DataFile>> result = Maps.newHashMap();
     List<ManifestFile> manifestFiles = table.currentSnapshot().dataManifests();
     for (ManifestFile manifestFile : manifestFiles) {
       try (ManifestReader<DataFile> reader = ManifestFiles.read(manifestFile, table.io())) {
-        List<DataFile> dataFiles = IteratorUtils.toList(reader.iterator());
+        List<DataFile> dataFiles = Lists.newArrayList(reader);
         if (result.containsKey(manifestFile.snapshotId())) {
           result.get(manifestFile.snapshotId()).addAll(dataFiles);
         } else {
