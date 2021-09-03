@@ -33,18 +33,30 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+@RunWith(Parameterized.class)
 public class TestMetricsModes {
+
+  private final int formatVersion;
+
+  @Parameterized.Parameters(name = "formatVersion = {0}")
+  public static Object[] parameters() {
+    return new Object[] { 1, 2 };
+  }
+
+  public TestMetricsModes(int formatVersion) {
+    this.formatVersion = formatVersion;
+  }
 
   @Rule
   public ExpectedException exceptionRule = ExpectedException.none();
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
-
-  private static final int FORMAT_V2 = 2;
 
   @After
   public void after() {
@@ -105,7 +117,7 @@ public class TestMetricsModes {
     );
     SortOrder sortOrder = SortOrder.builderFor(schema).asc("col2").asc("col3").build();
     Table testTable = TestTables.create(tableDir, "test", schema, PartitionSpec.unpartitioned(),
-        sortOrder, FORMAT_V2);
+        sortOrder, formatVersion);
     testTable.updateProperties()
         .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts")
         .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col1", "counts")
@@ -135,7 +147,7 @@ public class TestMetricsModes {
     );
     SortOrder sortOrder = SortOrder.builderFor(schema).asc("col2").asc("col3").build();
     Table testTable = TestTables.create(tableDir, "test", schema, PartitionSpec.unpartitioned(),
-        sortOrder, FORMAT_V2);
+        sortOrder, formatVersion);
     testTable.updateProperties()
         .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts")
         .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col1", "full")

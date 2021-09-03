@@ -70,6 +70,10 @@ import static org.apache.iceberg.types.Types.NestedField.required;
  */
 public abstract class TestMetrics {
 
+  protected TestMetrics(int formatVersion) {
+    this.formatVersion = formatVersion;
+  }
+
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
@@ -113,8 +117,8 @@ public abstract class TestMetrics {
   private static final Record FLOAT_DOUBLE_RECORD_1 = createRecordWithFloatAndDouble(1.2F, 3.4D);
   private static final Record FLOAT_DOUBLE_RECORD_2 = createRecordWithFloatAndDouble(5.6F, 7.8D);
   private static final Record NAN_ONLY_RECORD = createRecordWithFloatAndDouble(Float.NaN, Double.NaN);
-  private static final int FORMAT_V2 = 2;
 
+  private final int formatVersion;
   private final byte[] fixed = "abcd".getBytes(StandardCharsets.UTF_8);
 
   @After
@@ -639,7 +643,7 @@ public abstract class TestMetrics {
         .asc("stringCol")
         .asc("dateCol").build();
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    Table table = TestTables.create(tableDir, "test", SIMPLE_SCHEMA, spec, sortOrder, FORMAT_V2);
+    Table table = TestTables.create(tableDir, "test", SIMPLE_SCHEMA, spec, sortOrder, formatVersion);
     table.updateProperties().set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none").commit();
 
     Record firstRecord = GenericRecord.create(SIMPLE_SCHEMA);
@@ -698,7 +702,7 @@ public abstract class TestMetrics {
         .asc("nestedStructCol.longCol")
         .asc("nestedStructCol.leafStructCol.leafLongCol").build();
     PartitionSpec spec = PartitionSpec.unpartitioned();
-    Table table = TestTables.create(tableDir, "nested", NESTED_SCHEMA, spec, sortOrder, FORMAT_V2);
+    Table table = TestTables.create(tableDir, "nested", NESTED_SCHEMA, spec, sortOrder, formatVersion);
 
     Record leafStruct = GenericRecord.create(LEAF_STRUCT_TYPE);
     leafStruct.setField("leafLongCol", Long.MAX_VALUE);

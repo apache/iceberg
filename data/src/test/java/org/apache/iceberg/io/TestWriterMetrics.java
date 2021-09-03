@@ -77,7 +77,6 @@ public abstract class TestWriterMetrics<T> {
   protected FileFormat fileFormat;
   protected TestTables.TestTable table = null;
   protected File metadataDir = null;
-  private File tableDir = null;
   private OutputFileFactory fileFactory = null;
 
   @Parameterized.Parameters(name = "FileFormat = {0}")
@@ -98,7 +97,7 @@ public abstract class TestWriterMetrics<T> {
 
   @Before
   public void setupTable() throws Exception {
-    this.tableDir = temp.newFolder();
+    File tableDir = temp.newFolder();
     tableDir.delete(); // created by table create
 
     this.metadataDir = new File(tableDir, "metadata");

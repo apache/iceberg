@@ -78,10 +78,20 @@ public class MetricsConfig implements Serializable {
     }
   }
 
+  /**
+   * @param props Table configuration
+   * @return Metrics Config based on configuration
+   * @deprecated use {@link MetricsConfig#forTable(Table)}
+   **/
+  @Deprecated
   public static MetricsConfig fromProperties(Map<String, String> props) {
     return from(props, null);
   }
 
+  /**
+   * @param table Iceberg Table
+   * @return Metrics Config based on table properties
+   */
   public static MetricsConfig forTable(Table table) {
     return from(table.properties(), table.sortOrder());
   }
