@@ -43,7 +43,7 @@ import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
-import org.apache.iceberg.io.CloseGroupHelper;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -81,7 +81,7 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
   private AwsProperties awsProperties;
   private FileIO fileIO;
   private LockManager lockManager;
-  private CloseGroupHelper closeGroupHelper;
+  private CloseableGroup closeableGroup;
 
   /**
    * No-arg constructor to load the catalog dynamically.
@@ -121,7 +121,12 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
     this.glue = client;
     this.lockManager = lock;
     this.fileIO = io;
-    this.closeGroupHelper = new CloseGroupHelper(glue, lockManager, fileIO);
+
+    this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(glue);
+    closeableGroup.addCloseable(lockManager);
+    closeableGroup.addCloseable(fileIO);
+    closeableGroup.setSuppressCloseFailure(true);
   }
 
   private String cleanWarehousePath(String path) {
@@ -418,7 +423,7 @@ public class GlueCatalog extends BaseMetastoreCatalog implements Closeable, Supp
 
   @Override
   public void close() throws IOException {
-    closeGroupHelper.closeAsCloseable(true);
+    closeableGroup.close();
   }
 
   @Override

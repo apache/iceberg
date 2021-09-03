@@ -25,7 +25,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-public class CloseGroupHelperTest {
+public class TestCloseableGroup {
 
   @Test
   public void callCloseToAllCloseables() throws IOException {
@@ -33,24 +33,15 @@ public class CloseGroupHelperTest {
     Closeable closeable2 = Mockito.mock(Closeable.class);
     Closeable closeable3 = Mockito.mock(Closeable.class);
 
-    CloseGroupHelper closeableGroup = new CloseGroupHelper(closeable1, closeable2, closeable3);
+    CloseableGroup closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(closeable1);
+    closeableGroup.addCloseable(closeable2);
+    closeableGroup.addCloseable(closeable3);
 
-    closeableGroup.closeAsCloseable(false);
+    closeableGroup.close();
     Mockito.verify(closeable1).close();
     Mockito.verify(closeable2).close();
     Mockito.verify(closeable3).close();
-  }
-
-  @Test
-  public void callCloseHandlesNull() throws IOException {
-    Closeable closeable1 = Mockito.mock(Closeable.class);
-    Closeable closeable2 = Mockito.mock(Closeable.class);
-
-    CloseGroupHelper closeableGroup = new CloseGroupHelper(closeable1, null, closeable2);
-
-    closeableGroup.closeAsCloseable(false);
-    Mockito.verify(closeable1).close();
-    Mockito.verify(closeable2).close();
   }
 
   @Test
@@ -58,9 +49,11 @@ public class CloseGroupHelperTest {
     Closeable closeable1 = Mockito.mock(Closeable.class);
     AutoCloseable closeable2 = Mockito.mock(AutoCloseable.class);
 
-    CloseGroupHelper closeableGroup = new CloseGroupHelper(closeable1, null, closeable2);
+    CloseableGroup closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(closeable1);
+    closeableGroup.addCloseable(closeable2);
 
-    closeableGroup.closeAsCloseable(false);
+    closeableGroup.close();
     Mockito.verify(closeable1).close();
     Mockito.verify(closeable2).close();
   }
@@ -73,9 +66,13 @@ public class CloseGroupHelperTest {
     Mockito.doThrow(new IOException("exception1")).when(closeable1).close();
     Mockito.doThrow(new RuntimeException("exception2")).when(closeable2).close();
 
-    CloseGroupHelper closeableGroup = new CloseGroupHelper(closeable1, closeable2, closeable3);
+    CloseableGroup closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(closeable1);
+    closeableGroup.addCloseable(closeable2);
+    closeableGroup.addCloseable(closeable3);
 
-    closeableGroup.closeAsCloseable(true);
+    closeableGroup.setSuppressCloseFailure(true);
+    closeableGroup.close();
     Mockito.verify(closeable1).close();
     Mockito.verify(closeable2).close();
     Mockito.verify(closeable3).close();
@@ -90,9 +87,12 @@ public class CloseGroupHelperTest {
     Closeable closeable3 = Mockito.mock(Closeable.class);
     Mockito.doThrow(ioException).when(closeable2).close();
 
-    CloseGroupHelper closeableGroup = new CloseGroupHelper(closeable1, closeable2, closeable3);
+    CloseableGroup closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(closeable1);
+    closeableGroup.addCloseable(closeable2);
+    closeableGroup.addCloseable(closeable3);
 
-    Assertions.assertThatThrownBy(() -> closeableGroup.closeAsCloseable(false))
+    Assertions.assertThatThrownBy(closeableGroup::close)
         .isEqualTo(ioException);
     Mockito.verify(closeable1).close();
     Mockito.verify(closeable2).close();
@@ -108,9 +108,12 @@ public class CloseGroupHelperTest {
     AutoCloseable closeable3 = Mockito.mock(AutoCloseable.class);
     Mockito.doThrow(ioException).when(closeable2).close();
 
-    CloseGroupHelper closeableGroup = new CloseGroupHelper(closeable1, closeable2, closeable3);
+    CloseableGroup closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(closeable1);
+    closeableGroup.addCloseable(closeable2);
+    closeableGroup.addCloseable(closeable3);
 
-    Assertions.assertThatThrownBy(() -> closeableGroup.closeAsCloseable(false))
+    Assertions.assertThatThrownBy(closeableGroup::close)
         .isEqualTo(ioException);
     Mockito.verify(closeable1).close();
     Mockito.verify(closeable2).close();
@@ -118,15 +121,16 @@ public class CloseGroupHelperTest {
   }
 
   @Test
-  public void wrapAutoCloseableFailuresWithIOException() throws Exception {
+  public void wrapAutoCloseableFailuresWithRuntimeException() throws Exception {
     Exception generalException = new Exception("e");
     AutoCloseable throwingAutoCloseable = Mockito.mock(AutoCloseable.class);
     Mockito.doThrow(generalException).when(throwingAutoCloseable).close();
 
-    CloseGroupHelper closeableGroup = new CloseGroupHelper(throwingAutoCloseable);
+    CloseableGroup closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(throwingAutoCloseable);
 
-    Assertions.assertThatThrownBy(() -> closeableGroup.closeAsCloseable(false))
-        .isInstanceOf(IOException.class)
+    Assertions.assertThatThrownBy(closeableGroup::close)
+        .isInstanceOf(RuntimeException.class)
         .hasRootCause(generalException);
   }
 
@@ -137,9 +141,10 @@ public class CloseGroupHelperTest {
     Closeable throwingCloseable = Mockito.mock(Closeable.class);
     Mockito.doThrow(runtimeException).when(throwingCloseable).close();
 
-    CloseGroupHelper closeableGroup = new CloseGroupHelper(throwingCloseable);
+    CloseableGroup closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(throwingCloseable);
 
-    Assertions.assertThatThrownBy(() -> closeableGroup.closeAsCloseable(false))
+    Assertions.assertThatThrownBy(closeableGroup::close)
         .isEqualTo(runtimeException);
   }
 
@@ -149,9 +154,10 @@ public class CloseGroupHelperTest {
     AutoCloseable throwingAutoCloseable = Mockito.mock(AutoCloseable.class);
     Mockito.doThrow(runtimeException).when(throwingAutoCloseable).close();
 
-    CloseGroupHelper closeableGroup = new CloseGroupHelper(throwingAutoCloseable);
+    CloseableGroup closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(throwingAutoCloseable);
 
-    Assertions.assertThatThrownBy(() -> closeableGroup.closeAsCloseable(false))
+    Assertions.assertThatThrownBy(closeableGroup::close)
         .isEqualTo(runtimeException);
   }
 }

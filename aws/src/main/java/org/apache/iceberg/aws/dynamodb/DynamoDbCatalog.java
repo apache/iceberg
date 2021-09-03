@@ -44,7 +44,7 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.io.CloseGroupHelper;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -110,7 +110,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
   private String warehousePath;
   private AwsProperties awsProperties;
   private FileIO fileIO;
-  private CloseGroupHelper closeGroupHelper;
+  private CloseableGroup closeableGroup;
 
   public DynamoDbCatalog() {
   }
@@ -132,7 +132,11 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
     this.warehousePath = cleanWarehousePath(path);
     this.dynamo = client;
     this.fileIO = io;
-    this.closeGroupHelper = new CloseGroupHelper(dynamo, fileIO);
+
+    this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(dynamo);
+    closeableGroup.addCloseable(fileIO);
+    closeableGroup.setSuppressCloseFailure(true);
 
     ensureCatalogTableExistsOrCreate();
   }
@@ -433,7 +437,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
 
   @Override
   public void close() throws IOException {
-    closeGroupHelper.closeAsCloseable(true);
+    closeableGroup.close();
   }
 
   /**
