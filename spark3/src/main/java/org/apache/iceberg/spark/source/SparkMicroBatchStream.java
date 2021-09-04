@@ -65,6 +65,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.iceberg.TableProperties.SPLIT_BIN_ITEMS_SIZE;
+import static org.apache.iceberg.TableProperties.SPLIT_BIN_ITEMS_SIZE_DEFAULT;
 import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK;
 import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK_DEFAULT;
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
@@ -82,6 +84,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final Broadcast<Table> tableBroadcast;
   private final Long splitSize;
   private final Integer splitLookback;
+  private final Integer splitBinItemsSize;
   private final Long splitOpenFileCost;
   private final boolean localityPreferred;
   private final StreamingOffset initialOffset;
@@ -100,6 +103,10 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
     int tableSplitLookback = PropertyUtil.propertyAsInt(table.properties(), SPLIT_LOOKBACK, SPLIT_LOOKBACK_DEFAULT);
     this.splitLookback = Spark3Util.propertyAsInt(options, SparkReadOptions.LOOKBACK, tableSplitLookback);
+
+    int tableSplitBinItemsSize =
+        PropertyUtil.propertyAsInt(table.properties(), SPLIT_BIN_ITEMS_SIZE, SPLIT_BIN_ITEMS_SIZE_DEFAULT);
+    this.splitBinItemsSize = Spark3Util.propertyAsInt(options, SparkReadOptions.BIN_ITEMS_SIZE, tableSplitBinItemsSize);
 
     long tableSplitOpenFileCost = PropertyUtil.propertyAsLong(
         table.properties(), SPLIT_OPEN_FILE_COST, SPLIT_OPEN_FILE_COST_DEFAULT);
@@ -142,7 +149,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         CloseableIterable.withNoopClose(fileScanTasks),
         splitSize);
     List<CombinedScanTask> combinedScanTasks = Lists.newArrayList(
-        TableScanUtil.planTasks(splitTasks, splitSize, splitLookback, splitOpenFileCost));
+        TableScanUtil.planTasks(splitTasks, splitSize, splitLookback, splitOpenFileCost, splitBinItemsSize));
     InputPartition[] readTasks = new InputPartition[combinedScanTasks.size()];
 
     Tasks.range(readTasks.length)
