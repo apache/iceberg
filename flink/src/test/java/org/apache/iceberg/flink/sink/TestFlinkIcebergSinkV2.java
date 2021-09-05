@@ -354,7 +354,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
           elementsPerCheckpoint, expectedRecords);
     } else {
       AssertHelpers.assertThrows("Should be error because equality field columns don't include all partition keys",
-          IllegalStateException.class, "not included in equality fields",
+          IllegalStateException.class, "should be included in equality fields",
           () -> {
             testChangeLogs(ImmutableList.of("id"), row -> row.getField(ROW_ID_POS), true, elementsPerCheckpoint,
                 expectedRecords);
