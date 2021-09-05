@@ -37,8 +37,8 @@ import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-import static org.apache.iceberg.TableProperties.SPLIT_BIN_ITEMS_SIZE;
-import static org.apache.iceberg.TableProperties.SPLIT_BIN_ITEMS_SIZE_DEFAULT;
+import static org.apache.iceberg.TableProperties.SPLIT_ITEMS_PER_BIN;
+import static org.apache.iceberg.TableProperties.SPLIT_ITEMS_PER_BIN_DEFAULT;
 import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK;
 import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK_DEFAULT;
 import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
@@ -50,7 +50,7 @@ class SparkFilesScan extends SparkBatchScan {
   private final String taskSetID;
   private final Long splitSize;
   private final Integer splitLookback;
-  private final Integer splitBinItemsSize;
+  private final Integer splitItemsPerBin;
   private final Long splitOpenFileCost;
 
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
@@ -68,8 +68,8 @@ class SparkFilesScan extends SparkBatchScan {
     int tableSplitLookback = PropertyUtil.propertyAsInt(props, SPLIT_LOOKBACK, SPLIT_LOOKBACK_DEFAULT);
     this.splitLookback = Spark3Util.propertyAsInt(options, SparkReadOptions.LOOKBACK, tableSplitLookback);
 
-    int tableSplitBinItemsSize = PropertyUtil.propertyAsInt(props, SPLIT_BIN_ITEMS_SIZE, SPLIT_BIN_ITEMS_SIZE_DEFAULT);
-    this.splitBinItemsSize = Spark3Util.propertyAsInt(options, SparkReadOptions.BIN_ITEMS_SIZE, tableSplitBinItemsSize);
+    int tableSplitItemsPerBin = PropertyUtil.propertyAsInt(props, SPLIT_ITEMS_PER_BIN, SPLIT_ITEMS_PER_BIN_DEFAULT);
+    this.splitItemsPerBin = Spark3Util.propertyAsInt(options, SparkReadOptions.ITEMS_PER_BIN, tableSplitItemsPerBin);
 
     long tableOpenFileCost = PropertyUtil.propertyAsLong(props, SPLIT_OPEN_FILE_COST, SPLIT_OPEN_FILE_COST_DEFAULT);
     this.splitOpenFileCost = Spark3Util.propertyAsLong(options, SparkReadOptions.FILE_OPEN_COST, tableOpenFileCost);
@@ -89,7 +89,7 @@ class SparkFilesScan extends SparkBatchScan {
           splitSize);
       CloseableIterable<CombinedScanTask> scanTasks = TableScanUtil.planTasks(
           splitFiles, splitSize,
-          splitLookback, splitOpenFileCost, splitBinItemsSize);
+          splitLookback, splitOpenFileCost, splitItemsPerBin);
       this.tasks = Lists.newArrayList(scanTasks);
     }
 

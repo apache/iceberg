@@ -65,7 +65,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
   private Expression filter;
   private long targetSizeInBytes;
   private int splitLookback;
-  private int binItemsSize;
+  private int itemsPerBin;
   private long splitOpenFileCost;
 
   protected BaseRewriteDataFilesAction(Table table) {
@@ -88,10 +88,10 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
         table.properties(),
         TableProperties.SPLIT_LOOKBACK,
         TableProperties.SPLIT_LOOKBACK_DEFAULT);
-    this.binItemsSize = PropertyUtil.propertyAsInt(
+    this.itemsPerBin = PropertyUtil.propertyAsInt(
         table.properties(),
-        TableProperties.SPLIT_BIN_ITEMS_SIZE,
-        TableProperties.SPLIT_BIN_ITEMS_SIZE_DEFAULT);
+        TableProperties.SPLIT_ITEMS_PER_BIN,
+        TableProperties.SPLIT_ITEMS_PER_BIN_DEFAULT);
     this.splitOpenFileCost = PropertyUtil.propertyAsLong(
         table.properties(),
         TableProperties.SPLIT_OPEN_FILE_COST,
@@ -238,7 +238,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
         .map(scanTasks -> {
           CloseableIterable<FileScanTask> splitTasks = TableScanUtil.splitFiles(
               CloseableIterable.withNoopClose(scanTasks), targetSizeInBytes);
-          return TableScanUtil.planTasks(splitTasks, targetSizeInBytes, splitLookback, splitOpenFileCost, binItemsSize);
+          return TableScanUtil.planTasks(splitTasks, targetSizeInBytes, splitLookback, splitOpenFileCost, itemsPerBin);
         })
         .flatMap(Streams::stream)
         .filter(task -> task.files().size() > 1 || isPartialFileScan(task))

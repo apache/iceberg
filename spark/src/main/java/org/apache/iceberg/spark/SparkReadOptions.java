@@ -39,8 +39,8 @@ public class SparkReadOptions {
   // Overrides the table's read.split.planning-lookback
   public static final String LOOKBACK = "lookback";
 
-  // Overrides the table's read.split.bin-items-size.
-  public static final String BIN_ITEMS_SIZE = "bin-items-size";
+  // Overrides the table's read.split.items-per-bin
+  public static final String ITEMS_PER_BIN = "items-per-bin";
 
   // Overrides the table's read.split.open-file-cost
   public static final String FILE_OPEN_COST = "file-open-cost";
