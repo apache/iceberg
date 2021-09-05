@@ -92,8 +92,8 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
-import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
-import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL_DEFAULT;
+import static org.apache.iceberg.TableProperties.REPLACE_PARTITION_LEVEL;
+import static org.apache.iceberg.TableProperties.REPLACE_PARTITION_LEVEL_DEFAULT;
 import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
@@ -135,8 +135,8 @@ class SparkWrite {
   }
 
   BatchWrite asDynamicOverwrite() {
-    String isolationLevelAsString = table.properties().getOrDefault(DELETE_ISOLATION_LEVEL,
-        DELETE_ISOLATION_LEVEL_DEFAULT);
+    String isolationLevelAsString = table.properties().getOrDefault(REPLACE_PARTITION_LEVEL,
+        REPLACE_PARTITION_LEVEL_DEFAULT);
     IsolationLevel level = IsolationLevel.valueOf(isolationLevelAsString.toUpperCase(Locale.ROOT));
     return new DynamicOverwrite(level, table.currentSnapshot().snapshotId());
   }
