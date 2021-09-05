@@ -20,8 +20,8 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import java.util.Optional;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.util.PartitionSet;
 
@@ -76,27 +76,11 @@ public class BaseReplacePartitions
   @Override
   public void validate(TableMetadata currentMetadata) {
     if (validateNoConflictingAppends) {
-      Expression conflictDetectionFilter;
       if (writeSpec().isUnpartitioned()) {
-        // Unpartitioned table, check against all files
-        conflictDetectionFilter = Expressions.alwaysTrue();
+        validateAddedDataFiles(currentMetadata, startingSnapshotId, Optional.empty());
       } else {
-        conflictDetectionFilter = deletedPartitions.stream().map(p -> {
-          int partSpecId = p.first();
-          StructLike partition = p.second();
-          Expression partialFilter = Expressions.alwaysTrue();
-
-          PartitionSpec partSpec = super.getSpecsById().get(partSpecId);
-          for (int i = 0; i < partSpec.fields().size(); i += 1) {
-            PartitionField field = partSpec.fields().get(i);
-            partialFilter = Expressions.and(
-                partialFilter,
-                Expressions.equal(field.name(), partition.get(i, Object.class)));
-          }
-          return partialFilter;
-        }).reduce(Expressions.alwaysFalse(), Expressions::or);
+        validateAddedDataFiles(currentMetadata, startingSnapshotId, Optional.of(deletedPartitions));
       }
-      validateAddedFilesWithPartFilter(currentMetadata, startingSnapshotId, conflictDetectionFilter, true);
     }
   }
 

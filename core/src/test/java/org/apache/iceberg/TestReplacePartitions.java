@@ -263,21 +263,22 @@ public class TestReplacePartitions extends TableTestBase {
     TableMetadata base = readMetadata();
     long baseId = base.currentSnapshot().snapshotId();
 
-    // Concurrent Replace
+    // Concurrent Replace Partitions should fail with ValidationException
     table.newReplacePartitions()
         .addFile(FILE_A)
         .commit();
 
-    ReplacePartitions replace = table.newReplacePartitions()
-        .validateFromSnapshot(baseId)
-        .validateNoConflictingAppends()
-        .addFile(FILE_A)
-        .addFile(FILE_B);
-
     AssertHelpers.assertThrows("Should reject commit with file matching partitions replaced",
         ValidationException.class,
-        "Found conflicting files that can contain records matching true: [/path/to/data-a.parquet]",
-        replace::commit);
+        "Found conflicting files that can contain records matching partitions " +
+            "[data_bucket=0, data_bucket=1]: [/path/to/data-a.parquet]",
+        () ->
+            table.newReplacePartitions()
+                .validateFromSnapshot(baseId)
+                .validateNoConflictingAppends()
+                .addFile(FILE_A)
+                .addFile(FILE_B)
+                .commit());
   }
 
   @Test
@@ -289,21 +290,22 @@ public class TestReplacePartitions extends TableTestBase {
     TableMetadata base = readMetadata();
     long baseId = base.currentSnapshot().snapshotId();
 
-    // Concurrent Insert
+    // Concurrent Append and ReplacePartition should fail with ValidationException
     table.newFastAppend()
         .appendFile(FILE_B)
         .commit();
 
-    ReplacePartitions replace = table.newReplacePartitions()
-        .validateFromSnapshot(baseId)
-        .validateNoConflictingAppends()
-        .addFile(FILE_A)
-        .addFile(FILE_B);
-
     AssertHelpers.assertThrows("Should reject commit with file matching partitions replaced",
         ValidationException.class,
-        "Found conflicting files that can contain records matching true: [/path/to/data-b.parquet]",
-        replace::commit);
+        "Found conflicting files that can contain records matching partitions " +
+            "[data_bucket=0, data_bucket=1]: [/path/to/data-b.parquet]",
+        () ->
+            table.newReplacePartitions()
+                .validateFromSnapshot(baseId)
+                .validateNoConflictingAppends()
+                .addFile(FILE_A)
+                .addFile(FILE_B)
+                .commit());
   }
 
   @Test
@@ -315,14 +317,13 @@ public class TestReplacePartitions extends TableTestBase {
     TableMetadata base = readMetadata();
     long baseId = base.currentSnapshot().snapshotId();
 
-    // Concurrent Insert
+    // Two concurrent ReplacePartitions with Validation Disabled
     table.newReplacePartitions()
         .addFile(FILE_E)
         .commit();
-
     table.newReplacePartitions()
         .validateFromSnapshot(baseId)
-        .addFile(FILE_A)
+        .addFile(FILE_A) // Replaces FILE_E which becomes Deleted
         .addFile(FILE_B)
         .commit();
 
@@ -333,7 +334,6 @@ public class TestReplacePartitions extends TableTestBase {
         ids(replaceId, replaceId),
         files(FILE_A, FILE_B),
         statuses(Status.ADDED, Status.ADDED));
-
     validateManifestEntries(table.currentSnapshot().allManifests().get(1),
         ids(replaceId),
         files(FILE_E),
@@ -349,31 +349,27 @@ public class TestReplacePartitions extends TableTestBase {
     TableMetadata base = readMetadata();
     long baseId = base.currentSnapshot().snapshotId();
 
-    // Concurrent Insert
+    // Concurrent Append and ReplacePartition with Validation Disabled
     table.newFastAppend()
         .appendFile(FILE_B)
         .commit();
-
     table.newReplacePartitions()
         .validateFromSnapshot(baseId)
-        .addFile(FILE_E)
-        .addFile(FILE_F)
+        .addFile(FILE_E) // Replaces FILE_A which becomes Deleted
+        .addFile(FILE_F) // Replaces FILE_B which becomes Deleted
         .commit();
 
     long replaceId = readMetadata().currentSnapshot().snapshotId();
     Assert.assertEquals("Table should have 3 manifest",
         3, table.currentSnapshot().allManifests().size());
-
     validateManifestEntries(table.currentSnapshot().allManifests().get(0),
         ids(replaceId, replaceId),
         files(FILE_E, FILE_F),
         statuses(Status.ADDED, Status.ADDED));
-
     validateManifestEntries(table.currentSnapshot().allManifests().get(1),
         ids(replaceId),
         files(FILE_B),
         statuses(Status.DELETED));
-
     validateManifestEntries(table.currentSnapshot().allManifests().get(2),
         ids(replaceId),
         files(FILE_A),
@@ -391,21 +387,21 @@ public class TestReplacePartitions extends TableTestBase {
     TableMetadata replaceMetadata = TestTables.readMetadata("unpartitioned");
     long replaceBaseId = replaceMetadata.currentSnapshot().snapshotId();
 
-    // Intermediate commit
+    // Concurrent Append and ReplacePartitions should fail with ValidationException
     unpartitioned.newReplacePartitions()
         .addFile(FILE_A)
         .commit();
 
-    ReplacePartitions replace = unpartitioned.newReplacePartitions()
-        .validateFromSnapshot(replaceBaseId)
-        .validateNoConflictingAppends()
-        .addFile(FILE_A)
-        .addFile(FILE_B);
-
     AssertHelpers.assertThrows("Should reject commit with file matching partitions replaced",
         ValidationException.class,
-        "Found conflicting files that can contain records matching true: [/path/to/data-a.parquet]",
-        replace::commit);
+        "Found conflicting files in an unpartitioned table: [/path/to/data-a.parquet]",
+        () ->
+            unpartitioned.newReplacePartitions()
+                .validateFromSnapshot(replaceBaseId)
+                .validateNoConflictingAppends()
+                .addFile(FILE_A)
+                .addFile(FILE_B)
+                .commit());
   }
 
   @Test
@@ -419,21 +415,21 @@ public class TestReplacePartitions extends TableTestBase {
     TableMetadata replaceMetadata = TestTables.readMetadata("unpartitioned");
     long replaceBaseId = replaceMetadata.currentSnapshot().snapshotId();
 
-    // Intermediate commit
+    // Concurrent Append and ReplacePartitions should fail with ValidationException
     unpartitioned.newAppend()
         .appendFile(FILE_A)
         .commit();
 
-    ReplacePartitions replace = unpartitioned.newReplacePartitions()
-        .validateFromSnapshot(replaceBaseId)
-        .validateNoConflictingAppends()
-        .addFile(FILE_A)
-        .addFile(FILE_B);
-
     AssertHelpers.assertThrows("Should reject commit with file matching partitions replaced",
         ValidationException.class,
-        "Found conflicting files that can contain records matching true: [/path/to/data-a.parquet]",
-        replace::commit);
+        "Found conflicting files in an unpartitioned table: [/path/to/data-a.parquet]",
+        () ->
+            unpartitioned.newReplacePartitions()
+                .validateFromSnapshot(replaceBaseId)
+                .validateNoConflictingAppends()
+                .addFile(FILE_A)
+                .addFile(FILE_B)
+                .commit());
   }
 
   @Test

@@ -35,7 +35,6 @@ package org.apache.iceberg;
  * changes.
  */
 public interface ReplacePartitions extends SnapshotUpdate<ReplacePartitions> {
-
   /**
    * Add a {@link DataFile} to the table.
    *
@@ -62,18 +61,12 @@ public interface ReplacePartitions extends SnapshotUpdate<ReplacePartitions> {
    */
   ReplacePartitions validateFromSnapshot(long snapshotId);
 
-
   /**
    * Enables validation that files added concurrently do not conflict with this commit's operation.
    * <p>
-   * This method should be called when the table is queried to determine which files to overwrite.
+   * This method should be called when the table is first queried to determine which files to overwrite.
    * If a concurrent operation commits a new file after the data was read and that file might
-   * contain rows matching the specified conflict detection filter, the overwrite operation
-   * will detect this during retries and fail.
-   * <p>
-   * Calling this method with a correct conflict detection filter is required to maintain
-   * serializable isolation for eager partition overwrite operations. Otherwise, the isolation level
-   * will be snapshot isolation.
+   * contain rows matching a partition marked for deletion, the overwrite operation will detect this and fail.
    * <p>
    * Validation applies to files added to the table since the snapshot passed to {@link #validateFromSnapshot(long)}.
    *
