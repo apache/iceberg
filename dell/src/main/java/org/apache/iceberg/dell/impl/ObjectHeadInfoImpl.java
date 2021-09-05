@@ -19,7 +19,7 @@ import java.util.Map;
 import org.apache.iceberg.dell.ObjectHeadInfo;
 
 /**
- * a record class of {@link ObjectHeadInfo}
+ * A record class of {@link ObjectHeadInfo}
  */
 public class ObjectHeadInfoImpl implements ObjectHeadInfo {
   private final long contentLength;

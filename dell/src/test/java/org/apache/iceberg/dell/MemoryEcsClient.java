@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.iceberg.dell.impl.ContentAndETagImpl;
+import org.apache.iceberg.dell.impl.ContentAndHeadInfoImpl;
 import org.apache.iceberg.dell.impl.ObjectHeadInfoImpl;
 import org.apache.iceberg.dell.impl.ObjectKeysImpl;
 
@@ -46,7 +46,7 @@ public class MemoryEcsClient implements EcsClient {
   }
 
   @Override
-  public ObjectKeys getKeys() {
+  public ObjectKeys objectKeys() {
     return new ObjectKeysImpl(baseKey);
   }
 
@@ -68,7 +68,7 @@ public class MemoryEcsClient implements EcsClient {
   }
 
   @Override
-  public ContentAndETag readAll(ObjectKey key) {
+  public ContentAndHeadInfo readAll(ObjectKey key) {
     return data.get(key).getContentAndETag();
   }
 
@@ -108,7 +108,7 @@ public class MemoryEcsClient implements EcsClient {
 
   @Override
   public <T> List<T> listDelimiterAll(ObjectKey prefix, Function<ObjectKey, Optional<T>> filterAndMapper) {
-    String delimiter = getKeys().getDelimiter();
+    String delimiter = objectKeys().getDelimiter();
     String prefixKey;
     if (prefix.getKey().isEmpty()) {
       prefixKey = "";
@@ -155,8 +155,8 @@ public class MemoryEcsClient implements EcsClient {
       return Arrays.copyOf(content, content.length);
     }
 
-    public ContentAndETag getContentAndETag() {
-      return new ContentAndETagImpl(getHeadInfo(), getContent());
+    public ContentAndHeadInfo getContentAndETag() {
+      return new ContentAndHeadInfoImpl(getHeadInfo(), getContent());
     }
 
     public static EcsObject create(byte[] content, Map<String, String> userMetadata) {

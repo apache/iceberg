@@ -19,14 +19,14 @@ import org.apache.iceberg.dell.ObjectBaseKey;
 import org.apache.iceberg.dell.ObjectKeys;
 
 /**
- * impl of {@link ObjectKeys}
+ * The implementation of {@link ObjectKeys}
  */
 public class ObjectKeysImpl implements ObjectKeys {
 
   private final ObjectBaseKey baseKey;
 
   /**
-   * lazy results of {@link #getBaseKeyParts()}
+   * A cached lazy results of {@link #baseKeyParts()}
    */
   private volatile List<String> lazyBaseKeyParts;
 
@@ -35,20 +35,18 @@ public class ObjectKeysImpl implements ObjectKeys {
   }
 
   @Override
-  public ObjectBaseKey getBaseKey() {
+  public ObjectBaseKey baseKey() {
     return baseKey;
   }
 
   /**
-   * use field to cache result parts.
-   *
-   * @return cached base key parts
+   * Use field to cache result parts.
    */
   @Override
-  public List<String> getBaseKeyParts() {
+  public List<String> baseKeyParts() {
     // code isn't full thread safe. but creating instances in multiple times is fine
     if (lazyBaseKeyParts == null) {
-      lazyBaseKeyParts = ObjectKeys.super.getBaseKeyParts();
+      lazyBaseKeyParts = ObjectKeys.super.baseKeyParts();
     }
     return lazyBaseKeyParts;
   }

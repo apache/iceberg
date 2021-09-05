@@ -23,12 +23,11 @@ import java.nio.ByteBuffer;
 import org.apache.iceberg.dell.ObjectKey;
 
 /**
- * use ECS append api to write data
+ * An {@link OutputStream} implementation of ECS append API.
  */
 public class EcsAppendOutputStream extends OutputStream {
 
   private final AmazonS3 s3;
-
   private final ObjectKey key;
 
   /**

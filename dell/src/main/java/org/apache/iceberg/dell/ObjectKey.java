@@ -17,17 +17,11 @@ package org.apache.iceberg.dell;
 import java.util.Objects;
 
 /**
- * a immutable record class of object key
+ * An immutable record class of object key.
  */
 public class ObjectKey {
-  /**
-   * bucket
-   */
-  private final String bucket;
 
-  /**
-   * key
-   */
+  private final String bucket;
   private final String key;
 
   public ObjectKey(String bucket, String key) {
@@ -46,6 +40,10 @@ public class ObjectKey {
     return key;
   }
 
+  /**
+   * The method is for debug. If you want to use string format, please use {@link ObjectKeys#toString(ObjectKey)} and
+   * {@link ObjectKeys#parse(String)}
+   */
   @Override
   public String toString() {
     return "ObjectKey{" +

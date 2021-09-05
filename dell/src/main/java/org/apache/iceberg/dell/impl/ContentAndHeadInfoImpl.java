@@ -18,14 +18,14 @@ import org.apache.iceberg.dell.EcsClient;
 import org.apache.iceberg.dell.ObjectHeadInfo;
 
 /**
- * a record class of {@link EcsClient.ContentAndETag}
+ * A record class of {@link EcsClient.ContentAndHeadInfo}
  */
-public class ContentAndETagImpl implements EcsClient.ContentAndETag {
+public class ContentAndHeadInfoImpl implements EcsClient.ContentAndHeadInfo {
 
   private final ObjectHeadInfo headInfo;
   private final byte[] content;
 
-  public ContentAndETagImpl(ObjectHeadInfo headInfo, byte[] content) {
+  public ContentAndHeadInfoImpl(ObjectHeadInfo headInfo, byte[] content) {
     this.headInfo = headInfo;
     this.content = content;
   }

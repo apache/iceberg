@@ -31,7 +31,6 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -43,7 +42,7 @@ import org.apache.iceberg.dell.ObjectKeys;
 import org.apache.iceberg.dell.PropertiesSerDes;
 
 /**
- * the implementation of {@link EcsClient}
+ * An implementation of {@link EcsClient}
  * <p>
  * ECS use aws sdk v1 to support private function.
  */
@@ -63,15 +62,18 @@ public class EcsClientImpl implements EcsClient {
   }
 
   @Override
-  public ObjectKeys getKeys() {
+  public ObjectKeys objectKeys() {
     return keys;
   }
 
   @Override
-  public PropertiesSerDes getPropertiesSerDes() {
+  public PropertiesSerDes propertiesSerDes() {
     return propertiesSerDes;
   }
 
+  /**
+   * Delegate to {@link AmazonS3#getObjectMetadata(java.lang.String, java.lang.String)}
+   */
   @Override
   public Optional<ObjectHeadInfo> head(ObjectKey key) {
     try {
@@ -89,6 +91,9 @@ public class EcsClientImpl implements EcsClient {
     }
   }
 
+  /**
+   * Delegate to {@link AmazonS3#getObject(com.amazonaws.services.s3.model.GetObjectRequest)} with a range option.
+   */
   @Override
   public InputStream inputStream(ObjectKey key, long pos) {
     S3Object object = s3.getObject(new GetObjectRequest(key.getBucket(), key.getKey())
@@ -101,8 +106,11 @@ public class EcsClientImpl implements EcsClient {
     return new EcsAppendOutputStream(s3, key, new byte[1_000]);
   }
 
+  /**
+   * Delegate to {@link AmazonS3#getObject(com.amazonaws.services.s3.model.GetObjectRequest)}.
+   */
   @Override
-  public ContentAndETag readAll(ObjectKey key) {
+  public ContentAndHeadInfo readAll(ObjectKey key) {
     S3Object object = s3.getObject(new GetObjectRequest(key.getBucket(), key.getKey()));
     ObjectMetadata metadata = object.getObjectMetadata();
     int size = (int) metadata.getContentLength();
@@ -124,17 +132,12 @@ public class EcsClientImpl implements EcsClient {
         metadata.getContentLength(),
         metadata.getETag(),
         metadata.getUserMetadata());
-    return new ContentAndETagImpl(headInfo, content);
+    return new ContentAndHeadInfoImpl(headInfo, content);
   }
 
   /**
-   * using If-Match to replace object with eTag
-   *
-   * @param key          is object key
-   * @param eTag         is e-tag
-   * @param bytes        is content
-   * @param userMetadata is user metadata stored in object metadata
-   * @return true if replace success
+   * Delegate to {@link AmazonS3#putObject(java.lang.String, java.lang.String, java.io.InputStream, com.amazonaws.services.s3.model.ObjectMetadata)}
+   * with an ECS customer header "If-Match = ${E-Tag}".
    */
   @Override
   public boolean replace(ObjectKey key, String eTag, byte[] bytes, Map<String, String> userMetadata) {
@@ -148,12 +151,8 @@ public class EcsClientImpl implements EcsClient {
   }
 
   /**
-   * using If-None-Match to write object
-   *
-   * @param key          is object key
-   * @param bytes        is content
-   * @param userMetadata is user metadata stored in object metadata
-   * @return true if object is absent when write object
+   * Delegate to {@link AmazonS3#putObject(java.lang.String, java.lang.String, java.io.InputStream, com.amazonaws.services.s3.model.ObjectMetadata)}
+   * with an ECS customer header "If-None-Match = *".
    */
   @Override
   public boolean writeIfAbsent(ObjectKey key, byte[] bytes, Map<String, String> userMetadata) {
@@ -167,12 +166,8 @@ public class EcsClientImpl implements EcsClient {
   }
 
   /**
-   * using x-amz-copy-source-if-match and If-None-Match to copy object
-   *
-   * @param fromKey is source key
-   * @param eTag    is E-Tag of source key
-   * @param toKey   is destination key
-   * @return true if object is copied to destination
+   * Delegate to {@link AmazonS3#copyObject(com.amazonaws.services.s3.model.CopyObjectRequest)} with
+   * AWS S3's customer header "x-amz-copy-source-if-match = ${E-Tag}" and an ECS customer header "If-None-Match = *".
    */
   @Override
   public boolean copyObjectIfAbsent(ObjectKey fromKey, String eTag, ObjectKey toKey) {
@@ -189,10 +184,7 @@ public class EcsClientImpl implements EcsClient {
   }
 
   /**
-   * cas error code
-   *
-   * @param fn is function that sending request
-   * @return true if cas operation succeed
+   * Process CAS error code.
    */
   private boolean cas(Runnable fn) {
     try {
@@ -207,14 +199,21 @@ public class EcsClientImpl implements EcsClient {
     }
   }
 
+  /**
+   * Delegate to {@link AmazonS3#deleteObject(java.lang.String, java.lang.String)}
+   */
   @Override
   public void deleteObject(ObjectKey key) {
     s3.deleteObject(key.getBucket(), key.getKey());
   }
 
+  /**
+   * Delegate to {@link AmazonS3#listObjectsV2(com.amazonaws.services.s3.model.ListObjectsV2Request)}, and process
+   * the result list.
+   */
   @Override
   public <T> List<T> listDelimiterAll(ObjectKey prefix, Function<ObjectKey, Optional<T>> filterAndMapper) {
-    String delimiter = getKeys().getDelimiter();
+    String delimiter = objectKeys().getDelimiter();
     List<T> result = new ArrayList<>();
     String prefixKey;
     if (prefix.getKey().isEmpty()) {

@@ -17,7 +17,7 @@ package org.apache.iceberg.dell;
 import java.util.Objects;
 
 /**
- * a immutable record class of object base key which allow not null bucket and key.
+ * An record class of object base key which allow not null bucket and key.
  */
 public class ObjectBaseKey {
 

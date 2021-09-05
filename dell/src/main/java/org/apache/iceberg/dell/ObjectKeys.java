@@ -25,37 +25,36 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 
 /**
- * operations of {@link ObjectKey}
+ * The operations of {@link ObjectKey}
  */
 public interface ObjectKeys {
 
   /**
-   * default delimiter
+   * The default and generally be-used delimiter.
    */
   String DELIMITER = "/";
   /**
-   * default suffix of table metadata object
+   * The default suffix of table metadata object
    */
   String TABLE_METADATA_SUFFIX = ".table";
   /**
-   * default suffix of namespace metadata object
+   * The default suffix of namespace metadata object
    */
   String NAMESPACE_METADATA_SUFFIX = ".namespace";
 
   /**
-   * base key of catalog
-   *
-   * @return the base key
+   * The base key of catalog.
    */
-  ObjectBaseKey getBaseKey();
+  ObjectBaseKey baseKey();
 
   /**
-   * base key parts for calculate sub key
+   * The base key parts for calculate sub key.
    *
    * @return the parts of the base key
+   * @see #subParts(ObjectKey)
    */
-  default List<String> getBaseKeyParts() {
-    ObjectBaseKey baseKey = getBaseKey();
+  default List<String> baseKeyParts() {
+    ObjectBaseKey baseKey = baseKey();
     if (baseKey.getBucket() == null) {
       return Collections.emptyList();
     } else if (baseKey.getKey() == null) {
@@ -74,26 +73,41 @@ public interface ObjectKeys {
     }
   }
 
+  /**
+   * Get current delimiter.
+   * <p>
+   * Now, we only support "/".
+   */
   default String getDelimiter() {
     return DELIMITER;
   }
 
+  /**
+   * Get current namespace object suffix.
+   * <p>
+   * Now, we only support ".namespace".
+   */
   default String getNamespaceMetadataSuffix() {
     return NAMESPACE_METADATA_SUFFIX;
   }
 
+  /**
+   * Get current table object suffix.
+   * <p>
+   * Now, we only support ".table".
+   */
   default String getTableMetadataSuffix() {
     return TABLE_METADATA_SUFFIX;
   }
 
   /**
-   * convert relative parts to object key
+   * Convert relative parts to object key
    *
    * @param parts that relative to base key
    * @return object key
    */
-  default ObjectKey getObjectKey(List<String> parts) {
-    ObjectBaseKey baseKey = getBaseKey();
+  default ObjectKey createObjectKey(List<String> parts) {
+    ObjectBaseKey baseKey = baseKey();
     if (parts.isEmpty()) {
       return baseKey.asKey();
     }
@@ -110,40 +124,31 @@ public interface ObjectKeys {
   }
 
   /**
-   * get metadata key of namespace
-   *
-   * @param namespace is a namespace
-   * @return object key
+   * Create an {@link ObjectKey} for namespace object
    */
-  default ObjectKey getMetadataKey(Namespace namespace) {
+  default ObjectKey createMetadataKey(Namespace namespace) {
     if (namespace.isEmpty()) {
-      return getObjectKey(Collections.singletonList(getNamespaceMetadataSuffix()));
+      return createObjectKey(Collections.singletonList(getNamespaceMetadataSuffix()));
     }
     // copy namespace levels
     List<String> keyParts = new ArrayList<>(Arrays.asList(namespace.levels()));
     int lastIndex = keyParts.size() - 1;
     keyParts.set(lastIndex, keyParts.get(lastIndex) + getNamespaceMetadataSuffix());
-    return getObjectKey(keyParts);
+    return createObjectKey(keyParts);
   }
 
   /**
-   * get prefix key of namespace.
+   * Create a prefix {@link ObjectKey} to list tables or namespaces in the specific namespace.
    * <p>
    * The prefix key lack namespace metadata suffix.
-   *
-   * @param namespace is a namespace
-   * @return object prefix
    */
-  default ObjectKey getPrefix(Namespace namespace) {
-    return getObjectKey(Arrays.asList(namespace.levels()));
+  default ObjectKey createPrefixKey(Namespace namespace) {
+    return createObjectKey(Arrays.asList(namespace.levels()));
   }
 
   /**
-   * try to extract namespace from specific key
-   *
-   * @param key    key
-   * @param parent is parent namespace
-   * @return namespace if present
+   * Try to extract {@link Namespace} from specific key. If the key is not a namespace object key pattern, or parent
+   * namespace is not matched, the method will return {@link Optional#empty()}
    */
   default Optional<Namespace> extractNamespace(ObjectKey key, Namespace parent) {
     if (!key.getKey().endsWith(getNamespaceMetadataSuffix())) {
@@ -161,28 +166,22 @@ public interface ObjectKeys {
   }
 
   /**
-   * get metadata key of namespace
-   *
-   * @param tableIdentifier is a table id
-   * @return object key
+   * Create an {@link ObjectKey} for table object.
    */
-  default ObjectKey getMetadataKey(TableIdentifier tableIdentifier) {
+  default ObjectKey createMetadataKey(TableIdentifier tableIdentifier) {
     if (tableIdentifier.hasNamespace()) {
       List<String> parts = new ArrayList<>(tableIdentifier.namespace().levels().length + 1);
       parts.addAll(Arrays.asList(tableIdentifier.namespace().levels()));
       parts.add(tableIdentifier.name() + getTableMetadataSuffix());
-      return getObjectKey(parts);
+      return createObjectKey(parts);
     } else {
-      return getObjectKey(Collections.singletonList(tableIdentifier.name() + getTableMetadataSuffix()));
+      return createObjectKey(Collections.singletonList(tableIdentifier.name() + getTableMetadataSuffix()));
     }
   }
 
   /**
-   * try to extract table id from specific key
-   *
-   * @param key       key
-   * @param namespace is parent namespace
-   * @return table id if present
+   * Try to extract {@link TableIdentifier} from specific key. If the key is not a table object key pattern, or
+   * namespace is not matched, the method will return {@link Optional#empty()}
    */
   default Optional<TableIdentifier> extractTableIdentifier(ObjectKey key, Namespace namespace) {
     if (!key.getKey().endsWith(getTableMetadataSuffix())) {
@@ -198,11 +197,8 @@ public interface ObjectKeys {
   }
 
   /**
-   * check namespace is expected and extract last part
-   *
-   * @param key             is object key
-   * @param expectNamespace is parent namespace
-   * @return the last part if namespace is matched
+   * Try to extract last part from specific key. If the parent key is not match the input namespace, the method
+   * will return {@link Optional#empty()}
    */
   default Optional<String> extractLastPart(ObjectKey key, Namespace expectNamespace) {
     Optional<List<String>> partsOpt = subParts(key);
@@ -222,10 +218,7 @@ public interface ObjectKeys {
   }
 
   /**
-   * get the relative parts of {@link #getBaseKey()}
-   *
-   * @param key is object key
-   * @return relative parts if this key start with base key
+   * Get the relative parts of {@link #baseKey()}. The object key will be spilt by {@link #getDelimiter()}
    */
   default Optional<List<String>> subParts(ObjectKey key) {
     List<String> parts = new ArrayList<>();
@@ -236,7 +229,7 @@ public interface ObjectKeys {
     if (!checkParts(parts)) {
       return Optional.empty();
     }
-    List<String> baseParts = getBaseKeyParts();
+    List<String> baseParts = baseKeyParts();
     if (parts.size() < baseParts.size() || !Objects.equals(parts.subList(0, baseParts.size()), baseParts)) {
       return Optional.empty();
     } else {
@@ -245,47 +238,38 @@ public interface ObjectKeys {
   }
 
   /**
-   * check all parts are valid.
-   *
-   * @param parts is key parts
-   * @return true if all parts are valid
+   * Check all parts are valid in Iceberg.
    */
   default boolean checkParts(List<String> parts) {
     return parts.stream().noneMatch(String::isEmpty);
   }
 
   /**
-   * get default warehouse location of table id
+   * Get default warehouse location of table id
    *
    * @param tableIdentifier is table id
    * @return default warehouse location prefix key
    */
   default ObjectKey warehouseLocation(TableIdentifier tableIdentifier) {
     if (!tableIdentifier.hasNamespace()) {
-      return getObjectKey(Collections.singletonList(tableIdentifier.name()));
+      return createObjectKey(Collections.singletonList(tableIdentifier.name()));
     } else {
       List<String> parts = new ArrayList<>(tableIdentifier.namespace().levels().length + 1);
       parts.addAll(Arrays.asList(tableIdentifier.namespace().levels()));
       parts.add(tableIdentifier.name());
-      return getObjectKey(parts);
+      return createObjectKey(parts);
     }
   }
 
   /**
-   * convert key to string
-   *
-   * @param key is object key
-   * @return string key
+   * Convert {@link ObjectKey} to string
    */
   default String toString(ObjectKey key) {
     return key.getBucket() + getDelimiter() + key.getKey();
   }
 
   /**
-   * convert string to key
-   *
-   * @param key is string key
-   * @return object key
+   * Convert string to {@link ObjectKey}
    */
   default ObjectKey parse(String key) {
     String[] r = key.split(getDelimiter(), 2);

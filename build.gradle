@@ -406,7 +406,6 @@ project(':iceberg-flink-runtime') {
     compile(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
-    compile(project(':iceberg-dell'))
   }
 
   shadowJar {

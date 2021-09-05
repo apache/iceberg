@@ -17,30 +17,16 @@ package org.apache.iceberg.dell;
 import java.util.Map;
 
 /**
- * object head info
- * <p>
- * it's the basic info of an object in the object storage.
+ * The object head info which can be fetched without the whole object content data.
  */
 public interface ObjectHeadInfo {
 
-  /**
-   * content length of object
-   *
-   * @return length in bytes
-   */
   long getContentLength();
 
   /**
-   * eTag of object
-   *
-   * @return eTag
+   * E-Tag is a hash string of object content.
    */
   String getETag();
 
-  /**
-   * user metadata of object
-   *
-   * @return user metadata
-   */
   Map<String, String> getUserMetadata();
 }
