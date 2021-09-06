@@ -307,7 +307,7 @@ CREATE TABLE `hive_catalog`.`default`.`sample` (
     data STRING
 );
 
-CREATE TABLE  hive_catalog.`default`.sample_like LIKE hive_catalog.`default`.sample;
+CREATE TABLE  `hive_catalog`.`default`.`sample_like` LIKE `hive_catalog`.`default`.`sample`;
 ```
 
 For more details, refer to the [Flink `CREATE TABLE` documentation](https://ci.apache.org/projects/flink/flink-docs-release-1.11/dev/table/sql/create.html#create-table).
