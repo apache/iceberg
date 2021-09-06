@@ -270,7 +270,7 @@ USE iceberg_db;
 ### `CREATE TABLE`
 
 ```sql
-CREATE TABLE hive_catalog.default.sample (
+CREATE TABLE `hive_catalog`.`default`.`sample` (
     id BIGINT COMMENT 'unique id',
     data STRING
 );
@@ -289,7 +289,7 @@ Currently, it does not support computed column, primary key and watermark defini
 To create a partition table, use `PARTITIONED BY`:
 
 ```sql
-CREATE TABLE hive_catalog.default.sample (
+CREATE TABLE `hive_catalog`.`default`.`sample` (
     id BIGINT COMMENT 'unique id',
     data STRING
 ) PARTITIONED BY (data);
@@ -302,12 +302,12 @@ Apache Iceberg support hidden partition but apache flink don't support partition
 To create a table with the same schema, partitioning, and table properties as another table, use `CREATE TABLE LIKE`.
 
 ```sql
-CREATE TABLE hive_catalog.default.sample (
+CREATE TABLE `hive_catalog`.`default`.`sample` (
     id BIGINT COMMENT 'unique id',
     data STRING
 );
 
-CREATE TABLE  hive_catalog.default.sample_like LIKE hive_catalog.default.sample;
+CREATE TABLE  `hive_catalog`.`default`.`sample_like` LIKE `hive_catalog`.`default`.`sample`;
 ```
 
 For more details, refer to the [Flink `CREATE TABLE` documentation](https://ci.apache.org/projects/flink/flink-docs-release-1.11/dev/table/sql/create.html#create-table).
@@ -318,13 +318,13 @@ For more details, refer to the [Flink `CREATE TABLE` documentation](https://ci.a
 Iceberg only support altering table properties in flink 1.11 now.
 
 ```sql
-ALTER TABLE hive_catalog.default.sample SET ('write.format.default'='avro')
+ALTER TABLE `hive_catalog`.`default`.`sample` SET ('write.format.default'='avro')
 ```
 
 ### `ALTER TABLE .. RENAME TO`
 
 ```sql
-ALTER TABLE hive_catalog.default.sample RENAME TO hive_catalog.default.new_sample;
+ALTER TABLE `hive_catalog`.`default`.`sample` RENAME TO `hive_catalog`.`default`.`new_sample`;
 ```
 
 ### `DROP TABLE`
@@ -332,7 +332,7 @@ ALTER TABLE hive_catalog.default.sample RENAME TO hive_catalog.default.new_sampl
 To delete a table, run:
 
 ```sql
-DROP TABLE hive_catalog.default.sample;
+DROP TABLE `hive_catalog`.`default`.`sample`;
 ```
 
 ## Querying with SQL
@@ -389,8 +389,8 @@ Iceberg support both `INSERT INTO` and `INSERT OVERWRITE` in flink 1.11 now.
 To append new data to a table with a flink streaming job, use `INSERT INTO`:
 
 ```sql
-INSERT INTO hive_catalog.default.sample VALUES (1, 'a');
-INSERT INTO hive_catalog.default.sample SELECT id, data from other_kafka_table;
+INSERT INTO `hive_catalog`.`default`.`sample` VALUES (1, 'a');
+INSERT INTO `hive_catalog`.`default`.`sample` SELECT id, data from other_kafka_table;
 ```
 
 ### `INSERT OVERWRITE`
@@ -406,7 +406,7 @@ INSERT OVERWRITE sample VALUES (1, 'a');
 Iceberg also support overwriting given partitions by the `select` values:
 
 ```sql
-INSERT OVERWRITE hive_catalog.default.sample PARTITION(data='a') SELECT 6;
+INSERT OVERWRITE `hive_catalog`.`default`.`sample` PARTITION(data='a') SELECT 6;
 ```
 
 For a partitioned iceberg table, when all the partition columns are set a value in `PARTITION` clause, it is inserting into a static partition, otherwise if partial partition columns (prefix part of all partition columns) are set a value in `PARTITION` clause, it is writing the query result into a dynamic partition.
