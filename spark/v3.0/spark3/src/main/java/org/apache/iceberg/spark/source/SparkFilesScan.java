@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableIterable;
@@ -52,11 +51,6 @@ class SparkFilesScan extends SparkBatchScan {
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();
     this.splitOpenFileCost = readConf.splitOpenFileCost();
-  }
-
-  @Override
-  protected Schema snapshotSchema() {
-    return table().schema();
   }
 
   @Override

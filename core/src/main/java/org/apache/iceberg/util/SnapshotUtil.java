@@ -22,6 +22,8 @@ package org.apache.iceberg.util;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.HistoryEntry;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -143,5 +145,73 @@ public class SnapshotUtil {
 
     throw new IllegalStateException(
         String.format("Cannot find snapshot after %s: not an ancestor of table's current snapshot", snapshotId));
+  }
+
+  /**
+   * Returns the ID of the most recent snapshot for the table as of the timestamp.
+   *
+   * @param table a {@link Table}
+   * @param timestampMillis the timestamp in millis since the epoch
+   * @return the snapshot ID
+   * @throws IllegalArgumentException when no snapshot is found in the table
+   * older than the timestamp
+   */
+  public static long snapshotIdAsOfTime(Table table, long timestampMillis) {
+    Long snapshotId = null;
+    for (HistoryEntry logEntry : table.history()) {
+      if (logEntry.timestampMillis() <= timestampMillis) {
+        snapshotId = logEntry.snapshotId();
+      }
+    }
+    Preconditions.checkArgument(snapshotId != null,
+        "Cannot find a snapshot older than %s", timestampMillis);
+    return snapshotId;
+  }
+
+  /**
+   * Returns the schema of the table for the specified snapshot.
+   *
+   * @param table a {@link Table}
+   * @param snapshotId the ID of the snapshot
+   * @return the schema
+   */
+  public static Schema schemaFor(Table table, long snapshotId) {
+    Snapshot snapshot = table.snapshot(snapshotId);
+    Preconditions.checkArgument(snapshot != null, "Cannot find snapshot %s", snapshotId);
+    Integer schemaId = snapshot.schemaId();
+    // schemaId could be null, if snapshot was created before Iceberg added schema id to snapshot
+    if (schemaId != null) {
+      return table.schemas().get(schemaId);
+    }
+    // TODO: recover the schema by reading previous metadata files
+    return table.schema();
+  }
+
+  /**
+   * Convenience method for returning the schema of the table for a snapshot,
+   * when we have a snapshot id and/or a timestamp.
+   * If a timestamp is given (i.e., not null), it is used to find the snapshot.
+   * Otherwise the snapshot id is used if available (i.e., not null), else
+   * the table schema is returned.
+   *
+   * @param table a {@link Table}
+   * @param snapshotId the ID of the snapshot
+   * @param timestampMillis the timestamp in millis since the epoch
+   * @return the schema
+   */
+  public static Schema schemaFor(Table table, Long snapshotId, Long timestampMillis) {
+    // timestampMillis takes precedence over snapshotId
+    // This is in order to be compatible with the behavior in spark2's Reader#tasks()
+    // and spark3's SparkBatchQueryScan#tasks(), where useSnapshot is called first on
+    // the TableScan (if a snapshot id is set), and asOfTimestamp is called after (if
+    // a timestamp is set); if both are called, asOfTimestamp would override the snapshot
+    // set by the useSnapshot -- in other words, the timestamp takes precedence.
+    if (timestampMillis != null) {
+      return schemaFor(table, snapshotIdAsOfTime(table, timestampMillis));
+    } else if (snapshotId != null) {
+      return schemaFor(table, snapshotId);
+    } else {
+      return table.schema();
+    }
   }
 }

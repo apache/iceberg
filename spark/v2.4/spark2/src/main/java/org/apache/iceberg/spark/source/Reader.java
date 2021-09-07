@@ -28,7 +28,6 @@ import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
@@ -55,6 +54,7 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -164,13 +164,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   }
 
   protected Schema snapshotSchema() {
-    if (snapshotId != null && table instanceof BaseTable) {
-      return ((BaseTable) table).schemaForSnapshot(snapshotId);
-    } else if (asOfTimestamp != null && table instanceof BaseTable) {
-      return ((BaseTable) table).schemaForSnapshotAsOfTime(asOfTimestamp);
-    } else {
-      return table.schema();
-    }
+    return SnapshotUtil.schemaFor(table, snapshotId, asOfTimestamp);
   }
 
   private Schema lazySchema() {

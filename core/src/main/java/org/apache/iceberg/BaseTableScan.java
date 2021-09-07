@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -123,8 +124,9 @@ abstract class BaseTableScan implements TableScan {
         "Cannot override snapshot, already set to id=%s", context.snapshotId());
     Preconditions.checkArgument(ops.current().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s", scanSnapshotId);
+    Schema snapshotSchema = SnapshotUtil.schemaFor(table, scanSnapshotId);
     return newRefinedScan(
-        ops, table, schema, context.useSnapshotId(scanSnapshotId));
+        ops, table, snapshotSchema, context.useSnapshotId(scanSnapshotId));
   }
 
   @Override

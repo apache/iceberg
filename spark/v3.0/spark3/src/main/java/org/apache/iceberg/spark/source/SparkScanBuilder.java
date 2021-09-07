@@ -23,7 +23,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -37,6 +36,7 @@ import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
@@ -76,13 +76,7 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
   }
 
   private Schema snapshotSchema() {
-    if (snapshotId != null && table instanceof BaseTable) {
-      return ((BaseTable) table).schemaForSnapshot(snapshotId);
-    } else if (asOfTimestamp != null && table instanceof BaseTable) {
-      return ((BaseTable) table).schemaForSnapshotAsOfTime(asOfTimestamp);
-    } else {
-      return table.schema();
-    }
+    return SnapshotUtil.schemaFor(table, snapshotId, asOfTimestamp);
   }
 
   private Schema lazySchema() {
