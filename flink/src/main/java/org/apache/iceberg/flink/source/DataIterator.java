@@ -21,62 +21,36 @@ package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
 import java.util.Iterator;
-import java.util.Map;
-import java.util.stream.Stream;
+import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.encryption.EncryptedFiles;
-import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
- * Base class of Flink iterators.
+ * Flink data iterator that reads {@link CombinedScanTask} into a {@link CloseableIterator}
  *
- * @param <T> is the Java class returned by this iterator whose objects contain one or more rows.
+ * @param <T> is the output data type returned by this iterator.
  */
-abstract class DataIterator<T> implements CloseableIterator<T> {
+@Internal
+public class DataIterator<T> implements CloseableIterator<T> {
 
+  private final FileScanTaskReader<T> fileScanTaskReader;
+
+  private final InputFilesDecryptor inputFilesDecryptor;
   private Iterator<FileScanTask> tasks;
-  private final Map<String, InputFile> inputFiles;
-
   private CloseableIterator<T> currentIterator;
 
-  DataIterator(CombinedScanTask task, FileIO io, EncryptionManager encryption) {
+  public DataIterator(FileScanTaskReader<T> fileScanTaskReader, CombinedScanTask task,
+                      FileIO io, EncryptionManager encryption) {
+    this.fileScanTaskReader = fileScanTaskReader;
+
+    this.inputFilesDecryptor = new InputFilesDecryptor(task, io, encryption);
     this.tasks = task.files().iterator();
-
-    Map<String, ByteBuffer> keyMetadata = Maps.newHashMap();
-    task.files().stream()
-        .flatMap(fileScanTask -> Stream.concat(Stream.of(fileScanTask.file()), fileScanTask.deletes().stream()))
-        .forEach(file -> keyMetadata.put(file.path().toString(), file.keyMetadata()));
-    Stream<EncryptedInputFile> encrypted = keyMetadata.entrySet().stream()
-        .map(entry -> EncryptedFiles.encryptedInput(io.newInputFile(entry.getKey()), entry.getValue()));
-
-    // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
-    Iterable<InputFile> decryptedFiles = encryption.decrypt(encrypted::iterator);
-
-    Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(task.files().size());
-    decryptedFiles.forEach(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
-    this.inputFiles = ImmutableMap.copyOf(files);
-
     this.currentIterator = CloseableIterator.empty();
-  }
-
-  InputFile getInputFile(FileScanTask task) {
-    Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
-
-    return inputFiles.get(task.file().path().toString());
-  }
-
-  InputFile getInputFile(String location) {
-    return inputFiles.get(location);
   }
 
   @Override
@@ -106,7 +80,9 @@ abstract class DataIterator<T> implements CloseableIterator<T> {
     }
   }
 
-  abstract CloseableIterator<T> openTaskIterator(FileScanTask scanTask) throws IOException;
+  private CloseableIterator<T> openTaskIterator(FileScanTask scanTask) {
+    return fileScanTaskReader.open(scanTask, inputFilesDecryptor);
+  }
 
   @Override
   public void close() throws IOException {
