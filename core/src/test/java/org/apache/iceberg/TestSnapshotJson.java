@@ -79,7 +79,7 @@ public class TestSnapshotJson {
 
     Snapshot expected = new BaseSnapshot(ops.io(), id, parentId, System.currentTimeMillis(),
         DataOperations.REPLACE, ImmutableMap.of("files-added", "4", "files-deleted", "100"),
-        3, manifests);
+        3, manifests, null);
 
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json);
@@ -122,9 +122,9 @@ public class TestSnapshotJson {
 
     Snapshot expected = new BaseSnapshot(
         ops.io(), id, 34, parentId, System.currentTimeMillis(),
-        null, null, 4, localInput(manifestList).location());
+        null, null, 4, localInput(manifestList).location(), null);
     Snapshot inMemory = new BaseSnapshot(
-        ops.io(), id, parentId, expected.timestampMillis(), null, null, 4, manifests);
+        ops.io(), id, parentId, expected.timestampMillis(), null, null, 4, manifests, null);
 
     Assert.assertEquals("Files should match in memory list",
         inMemory.allManifests(), expected.allManifests());

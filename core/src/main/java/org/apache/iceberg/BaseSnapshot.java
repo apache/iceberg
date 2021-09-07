@@ -20,6 +20,9 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +34,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
+import org.apache.iceberg.util.ByteBuffers;
 
 class BaseSnapshot implements Snapshot {
   private static final long INITIAL_SEQUENCE_NUMBER = 0;
@@ -44,6 +49,7 @@ class BaseSnapshot implements Snapshot {
   private final String operation;
   private final Map<String, String> summary;
   private final Integer schemaId;
+  private final String keyMetadataLocation;
 
   // lazily initialized
   private transient List<ManifestFile> allManifests = null;
@@ -51,6 +57,7 @@ class BaseSnapshot implements Snapshot {
   private transient List<ManifestFile> deleteManifests = null;
   private transient List<DataFile> cachedAdds = null;
   private transient List<DataFile> cachedDeletes = null;
+  private transient byte[] keyMetadata;
 
   /**
    * For testing only.
@@ -61,7 +68,7 @@ class BaseSnapshot implements Snapshot {
                String... manifestFiles) {
     this(io, snapshotId, null, System.currentTimeMillis(), null, null,
         schemaId, Lists.transform(Arrays.asList(manifestFiles),
-            path -> new GenericManifestFile(io.newInputFile(path), 0)));
+            path -> new GenericManifestFile(io.newInputFile(path), 0)), null);
   }
 
   BaseSnapshot(FileIO io,
@@ -72,7 +79,8 @@ class BaseSnapshot implements Snapshot {
                String operation,
                Map<String, String> summary,
                Integer schemaId,
-               String manifestList) {
+               String manifestList,
+               String keyMetadataLocation) {
     this.io = io;
     this.sequenceNumber = sequenceNumber;
     this.snapshotId = snapshotId;
@@ -82,6 +90,7 @@ class BaseSnapshot implements Snapshot {
     this.summary = summary;
     this.schemaId = schemaId;
     this.manifestListLocation = manifestList;
+    this.keyMetadataLocation = keyMetadataLocation;
   }
 
   BaseSnapshot(FileIO io,
@@ -91,9 +100,12 @@ class BaseSnapshot implements Snapshot {
                String operation,
                Map<String, String> summary,
                Integer schemaId,
-               List<ManifestFile> dataManifests) {
-    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, schemaId, null);
+               List<ManifestFile> dataManifests,
+               ByteBuffer keyMetadata) {
+    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, schemaId,
+        null, null);
     this.allManifests = dataManifests;
+    this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
   }
 
   @Override
@@ -222,6 +234,33 @@ class BaseSnapshot implements Snapshot {
   }
 
   @Override
+  public String keyMetadataLocation() {
+    return keyMetadataLocation;
+  }
+
+  @Override
+  public ByteBuffer keyMetadata() {
+    if (keyMetadata == null) {
+      cacheKeyMetadata();
+    }
+
+    return keyMetadata == null ? null : ByteBuffer.wrap(keyMetadata);
+  }
+
+  private void cacheKeyMetadata() {
+    if (keyMetadataLocation == null) {
+      return;
+    }
+
+    try (InputStream stream = io.newInputFile(keyMetadataLocation).newStream()) {
+      keyMetadata = ByteStreams.toByteArray(stream);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to read key metadata at location " + keyMetadataLocation, e);
+    }
+
+  }
+
+  @Override
   public boolean equals(Object o) {
     if (this == o) {
       return true;
@@ -259,6 +298,7 @@ class BaseSnapshot implements Snapshot {
         .add("summary", summary)
         .add("manifest-list", manifestListLocation)
         .add("schema-id", schemaId)
+        .add("key-metadata-location", keyMetadataLocation)
         .toString();
   }
 }
