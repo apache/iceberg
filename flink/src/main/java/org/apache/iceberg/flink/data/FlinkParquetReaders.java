@@ -24,16 +24,11 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import org.apache.flink.table.data.ArrayData;
-import org.apache.flink.table.data.DecimalData;
-import org.apache.flink.table.data.GenericRowData;
-import org.apache.flink.table.data.MapData;
-import org.apache.flink.table.data.RawValueData;
-import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.data.StringData;
-import org.apache.flink.table.data.TimestampData;
+
+import org.apache.flink.table.data.*;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetValueReader;
@@ -483,7 +478,7 @@ public class FlinkParquetReaders {
     @Override
     protected ArrayData buildList(ReusableArrayData list) {
       list.setNumElements(writePos);
-      return list;
+      return list.buildGenericArrayData();
     }
   }
 
@@ -541,7 +536,7 @@ public class FlinkParquetReaders {
     @Override
     protected MapData buildMap(ReusableMapData map) {
       map.setNumElements(writePos);
-      return map;
+      return map.buildGenericMapData();
     }
   }
 
@@ -634,6 +629,14 @@ public class FlinkParquetReaders {
       values.setNumElements(numElements);
     }
 
+    public GenericMapData buildGenericMapData() {
+      Map<Object, Object> map = Maps.newHashMapWithExpectedSize(numElements);
+      for (int i = 0; i < numElements; i++) {
+        map.put(keys.values[i], values.values[i]);
+      }
+      return new GenericMapData(map);
+    }
+
     @Override
     public int size() {
       return numElements;
@@ -673,6 +676,10 @@ public class FlinkParquetReaders {
 
     public void setNumElements(int numElements) {
       this.numElements = numElements;
+    }
+
+    public GenericArrayData buildGenericArrayData() {
+      return new GenericArrayData(Arrays.copyOf(values, numElements));
     }
 
     @Override

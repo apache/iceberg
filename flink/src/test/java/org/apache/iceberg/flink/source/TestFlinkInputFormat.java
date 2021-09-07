@@ -33,6 +33,7 @@ import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -59,6 +60,37 @@ public class TestFlinkInputFormat extends TestFlinkSource {
       FlinkSource.Builder formatBuilder, Map<String, String> sqlOptions, String sqlFilter, String... sqlSelectedFields)
       throws Exception {
     return runFormat(formatBuilder.tableLoader(tableLoader()).buildFormat());
+  }
+
+  @Test
+  public void testReadMap() throws Exception {
+    Schema MAP_SCHEMA = new Schema(
+            required(0, "id", Types.LongType.get()),
+            required(1, "data", Types.MapType.ofOptional(2, 3,
+                    Types.StringType.get(), Types.StringType.get())));
+
+    Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, MAP_SCHEMA);
+
+    List<Record> expectedRecords = RandomGenericData.generate(MAP_SCHEMA, 1, 0L);
+
+    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(expectedRecords);
+
+    TestHelpers.assertRecords(run(), expectedRecords, MAP_SCHEMA);
+  }
+
+  @Test
+  public void testReadArray() throws Exception {
+    Schema ARRAY_SCHEMA = new Schema(
+            required(0, "id", Types.LongType.get()),
+            required(1, "data", Types.ListType.ofRequired(2, Types.StringType.get())));
+
+    Table table = catalog.createTable(TestFixtures.TABLE_IDENTIFIER, ARRAY_SCHEMA);
+
+    List<Record> expectedRecords = RandomGenericData.generate(ARRAY_SCHEMA, 1, 0L);
+
+    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(expectedRecords);
+
+    TestHelpers.assertRecords(run(), expectedRecords, ARRAY_SCHEMA);
   }
 
   @Test
