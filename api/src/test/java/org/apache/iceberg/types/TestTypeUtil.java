@@ -20,8 +20,8 @@
 
 package org.apache.iceberg.types;
 
-import org.apache.iceberg.AssertHelpers;
 import java.util.Set;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
