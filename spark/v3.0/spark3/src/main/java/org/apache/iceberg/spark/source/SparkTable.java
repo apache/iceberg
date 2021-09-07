@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Map;
 import java.util.Set;
-import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -37,6 +36,7 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.SupportsWrite;
@@ -112,13 +112,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   }
 
   private Schema snapshotSchema() {
-    if (snapshotId != null && icebergTable instanceof BaseTable) {
-      return ((BaseTable) icebergTable).schemaForSnapshot(snapshotId);
-    } else if (asOfTimestamp != null && icebergTable instanceof BaseTable) {
-      return ((BaseTable) icebergTable).schemaForSnapshotAsOfTime(asOfTimestamp);
-    } else {
-      return icebergTable.schema();
-    }
+    return SnapshotUtil.schemaFor(icebergTable, snapshotId, asOfTimestamp);
   }
 
   @Override

@@ -705,7 +705,7 @@ public class Spark3Util {
     return toIcebergTable(sparkTable);
   }
 
-  private static List<String> getMultipartIdentifier(SparkSession spark, String name) throws ParseException {
+  private static List<String> parseMultipartIdentifier(SparkSession spark, String name) throws ParseException {
     ParserInterface parser = spark.sessionState().sqlParser();
     Seq<String> multiPartIdentifier = parser.parseMultipartIdentifier(name);
     return JavaConverters.seqAsJavaList(multiPartIdentifier);
@@ -717,7 +717,7 @@ public class Spark3Util {
 
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, String name,
                                                           CatalogPlugin defaultCatalog) throws ParseException {
-    List<String> nameParts = getMultipartIdentifier(spark, name);
+    List<String> nameParts = parseMultipartIdentifier(spark, name);
     return catalogAndIdentifier(spark, nameParts, defaultCatalog);
   }
 
@@ -744,7 +744,7 @@ public class Spark3Util {
                                                           String name, Long snapshotId, Long asOfTimestamp,
                                                           CatalogPlugin defaultCatalog) {
     try {
-      List<String> nameParts = getMultipartIdentifier(spark, name);
+      List<String> nameParts = parseMultipartIdentifier(spark, name);
       return catalogAndIdentifier(spark, nameParts, snapshotId, asOfTimestamp, defaultCatalog);
     } catch (ParseException e) {
       throw new IllegalArgumentException("Cannot parse " + description + ": " + name, e);
