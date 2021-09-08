@@ -101,7 +101,7 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
       throw new IOException("No split remaining");
     }
     currentSplitId = nextSplit.splitId();
-    currentReader = readerFunction.read(nextSplit);
+    currentReader = readerFunction.apply(nextSplit);
   }
 
   private FileRecords<T> finishSplit() throws IOException {

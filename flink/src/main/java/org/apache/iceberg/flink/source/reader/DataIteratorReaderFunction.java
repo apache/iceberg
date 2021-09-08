@@ -35,7 +35,7 @@ public abstract class DataIteratorReaderFunction<T> implements ReaderFunction<T>
   public abstract DataIterator<T> createDataIterator(IcebergSourceSplit split);
 
   @Override
-  public CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> read(IcebergSourceSplit split) {
+  public CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> apply(IcebergSourceSplit split) {
     DataIterator<T> inputIterator = createDataIterator(split);
     if (split.position() != null) {
       inputIterator.seek(split.position());
