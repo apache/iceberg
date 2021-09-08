@@ -77,7 +77,7 @@ nav:
       - Time Travel: spark-queries/#time-travel
     - Flink:
       - Getting Started: flink.md
-      - Iceberg Connector: flink-connector.md
+      - Flink Connector: flink-connector.md
     - Hive: hive.md
     - Trino: https://trino.io/docs/current/connector/iceberg.html
     - PrestoDB: https://prestodb.io/docs/current/connector/iceberg.html

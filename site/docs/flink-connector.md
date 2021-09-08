@@ -15,21 +15,21 @@
  - limitations under the License.
  -->
 
-Apache Iceberg support creating flink table directly without creating explicit flink catalog in flink SQL in [#2666](https://github.com/apache/iceberg/pull/2666). That means we can just create an iceberg table with specifying 'connector'='iceberg' table option in flink SQL which is similar to the flink official [document](https://nightlies.apache.org/flink/flink-docs-release-1.13/docs/connectors/table/overview/).
+Apache Iceberg supports creating flink table directly without creating the explicit flink catalog in flink SQL in [#2666](https://github.com/apache/iceberg/pull/2666). That means we can just create an iceberg table by specifying `'connector'='iceberg'` table option in flink SQL which is similar to usage in the flink official [document](https://nightlies.apache.org/flink/flink-docs-release-1.13/docs/connectors/table/overview/).
 
 In flink, the SQL `CREATE TABLE test (..) WITH ('connector'='iceberg', ...)` will create an flink table in current flink catalog (use [GenericInMemoryCatalog](https://ci.apache.org/projects/flink/flink-docs-release-1.13/docs/dev/table/catalogs/#genericinmemorycatalog) by default),
-which is just map to the underlying iceberg table instead of maintaining iceberg table.
+which is just mapping to the underlying iceberg table instead of maintaining iceberg table directly in current flink catalog.
 
-To create flink table backend iceberg table in flink SQL by using syntax `CREATE TABLE test (..) WITH ('connector'='iceberg', ...)`,  flink iceberg connector provides the following table properties:
+To create the table in flink SQL by using SQL syntax `CREATE TABLE test (..) WITH ('connector'='iceberg', ...)`,  flink iceberg connector provides the following table properties:
 
 * `connector`: Use the constant `iceberg`.
-* `catalog-name`: User-specified catalog name.
-* `catalog-type`: The optional values are:
-    * `hive`: The hive metastore catalog. Use `hive` by default if we don't specify any value for `catalog-type`. 
+* `catalog-name`: User-specified catalog name. It's required because the connector don't have any default value.
+* `catalog-type`: Default to use `hive` if don't specify any value. The optional values are:
+    * `hive`: The hive metastore catalog.
     * `hadoop`: The hadoop catalog.
-    * `custom`: All database and tables are maintained in the customized catalog, see [custom catalog](https://iceberg.apache.org/custom-catalog/) for more details.
+    * `custom`: The customized catalog, see [custom catalog](./custom-catalog.md) for more details.
 * `catalog-database`: The iceberg database name in the backend catalog, use the current flink database name by default.
-* `catalog-table`: The iceberg table name in the backend catalog.
+* `catalog-table`: The iceberg table name in the backend catalog. Default to use the `<table-name>` in the flink DDL `CREATE TABLE <table-name> (..) WITH ('connector'='iceberg', ...)`.
 
 ## Table managed in hive catalog.
 
@@ -45,7 +45,7 @@ CREATE TABLE flink_table (
     'connector'='iceberg',
     'catalog-name'='hive_prod',
     'uri'='thrift://localhost:9083',
-    'warehouse'='file:///path/to/warehouse'
+    'warehouse'='hdfs://nn:8020/path/to/warehouse'
 );
 ```
 
@@ -61,12 +61,12 @@ CREATE TABLE flink_table (
     'catalog-database'='hive_db',
     'catalog-table'='hive_iceberg_table',
     'uri'='thrift://localhost:9083',
-    'warehouse'='file:///path/to/warehouse'
+    'warehouse'='hdfs://nn:8020/path/to/warehouse'
 );
 ```
 
 !!! Note
-    The underlying catalog database (`hive_db` in the above example) will be created automatically if it does not exist when writing records into the flink table, same thing with the underlying catalog table (`hive_iceberg_table` in the above example).
+    The underlying catalog database (`hive_db` in the above example) will be created automatically if it does not exist when writing records into the flink table.
 
 ## Table managed in hadoop catalog
 
@@ -80,7 +80,7 @@ CREATE TABLE flink_table (
     'connector'='iceberg',
     'catalog-name'='hadoop_prod',
     'catalog-type'='hadoop',
-    'warehouse'='file:///path/to/warehouse'
+    'warehouse'='hdfs://nn:8020/path/to/warehouse'
 );
 ```
 
@@ -105,7 +105,7 @@ CREATE TABLE flink_table (
 
 Please refer to [AWS](./aws.md#catalogs), [Nessie](./nessie.md), [JDBC](./jdbc.md) catalog for more details.
 
-## Queries
+## A complete example.
 
 Take the hive catalog as an example:
 
