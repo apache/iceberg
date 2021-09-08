@@ -65,8 +65,10 @@ public class SnapshotUtil {
   }
 
   /**
-   * Traverses the history of the table's current snapshot and finds the oldest Snapshot after or equal to the timestamp in milliseconds.
-   * @return null if there is no current snapshot in the table, else the oldest Snapshot after or equal to the timestamp in milliseconds.
+   * Traverses the history of the table's current snapshot
+   * and finds the oldest Snapshot after or equal to the timestamp in milliseconds.
+   * @return null if there is no current snapshot in the table,
+   * else the oldest Snapshot after or equal to the timestamp in milliseconds.
    */
   public static Snapshot oldestSnapshot(Table table, long timestampMillis) {
     Snapshot current = table.currentSnapshot();
