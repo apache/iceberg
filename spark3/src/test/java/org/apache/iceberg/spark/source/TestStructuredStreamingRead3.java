@@ -31,7 +31,6 @@ import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -210,7 +209,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     long streamStartTimestamp = table.currentSnapshot().timestampMillis();
 
     // Append rest of expected data
-    for (int i=1; i<expected.size(); i++) {
+    for (int i = 1; i < expected.size(); i++) {
       appendData(expected.get(i), tableIdentifier, "parquet");
     }
 
