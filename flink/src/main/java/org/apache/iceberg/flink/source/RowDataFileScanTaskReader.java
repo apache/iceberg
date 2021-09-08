@@ -48,7 +48,6 @@ import org.apache.iceberg.util.PartitionUtil;
 
 @Internal
 public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
-
   private final Schema tableSchema;
   private final Schema projectedSchema;
   private final String nameMapping;

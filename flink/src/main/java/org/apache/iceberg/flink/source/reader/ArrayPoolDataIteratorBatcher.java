@@ -32,7 +32,6 @@ import org.apache.iceberg.flink.source.Position;
 import org.apache.iceberg.io.CloseableIterator;
 
 class ArrayPoolDataIteratorBatcher<T> implements DataIteratorBatcher<T> {
-
   private final Configuration config;
   private final RecordFactory<T> recordFactory;
 

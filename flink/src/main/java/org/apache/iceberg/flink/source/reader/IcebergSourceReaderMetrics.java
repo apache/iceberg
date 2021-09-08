@@ -24,7 +24,6 @@ import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MetricGroup;
 
 public class IcebergSourceReaderMetrics {
-
   private final AtomicLong numRecordsOut;
   private final AtomicLong assignedSplits;
   private final AtomicLong finishedSplits;

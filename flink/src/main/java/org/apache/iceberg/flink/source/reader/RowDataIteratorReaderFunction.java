@@ -29,7 +29,6 @@ import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 
 public class RowDataIteratorReaderFunction extends DataIteratorReaderFunction<RowData> {
-
   private final Table table;
   private final ScanContext scanContext;
 

@@ -22,7 +22,6 @@ package org.apache.iceberg.flink.source.reader;
 import java.io.Serializable;
 
 interface RecordFactory<T> extends Serializable {
-
   /**
    * Create a batch of records
    */

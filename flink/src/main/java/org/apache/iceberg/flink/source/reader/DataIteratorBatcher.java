@@ -27,7 +27,5 @@ import org.apache.iceberg.io.CloseableIterator;
 
 @FunctionalInterface
 public interface DataIteratorBatcher<T> extends Serializable {
-
   CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> apply(String splitId, DataIterator<T> inputIterator);
-
 }

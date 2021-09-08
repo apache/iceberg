@@ -29,9 +29,7 @@ import org.apache.flink.util.InstantiationUtil;
  * will switch to more stable serializer from issue-1698.
  */
 public class IcebergSourceSplitSerializer implements SimpleVersionedSerializer<IcebergSourceSplit> {
-
   public static final IcebergSourceSplitSerializer INSTANCE = new IcebergSourceSplitSerializer();
-
   private static final int VERSION = 1;
 
   @Override

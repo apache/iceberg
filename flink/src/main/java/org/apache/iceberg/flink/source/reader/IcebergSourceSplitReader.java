@@ -40,7 +40,6 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
   private final ReaderFunction<T> readerFunction;
   private final int indexOfSubtask;
   private final IcebergSourceReaderMetrics metrics;
-
   private final Queue<IcebergSourceSplit> splits;
 
   @Nullable

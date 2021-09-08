@@ -32,9 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 public class IcebergSourceSplit implements SourceSplit, Serializable {
-
   private final CombinedScanTask task;
-
   /**
    * Position field is mutable
    */

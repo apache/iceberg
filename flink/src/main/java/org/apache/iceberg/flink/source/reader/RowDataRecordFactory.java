@@ -27,7 +27,6 @@ import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.flink.data.RowDataUtil;
 
 class RowDataRecordFactory implements RecordFactory<RowData> {
-
   private final RowType rowType;
   private final TypeSerializer[] fieldSerializers;
 

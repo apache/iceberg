@@ -32,7 +32,6 @@ import org.apache.iceberg.io.CloseableIterator;
  * Main difference is the records array can be recycled back to a pool.
  */
 final class RecyclableArrayIterator<E> implements CloseableIterator<RecordAndPosition<E>> {
-
   private final Pool.Recycler<E[]> recycler;
   private final E[] records;
   private final int num;
