@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -441,7 +442,7 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
     Schema deleteSchema = table.schema().select(columns);
 
     return new GenericTaskDeltaWriter(table.schema(), deleteSchema, table.spec(), format, appenderFactory,
-        fileFactory, table.io(), TARGET_FILE_SIZE);
+        fileFactory, table.io(), TARGET_FILE_SIZE, table.properties());
   }
 
   private static class GenericTaskDeltaWriter extends BaseTaskWriter<Record> {
@@ -449,8 +450,9 @@ public class TestTaskEqualityDeltaWriter extends TableTestBase {
 
     private GenericTaskDeltaWriter(Schema schema, Schema deleteSchema, PartitionSpec spec, FileFormat format,
                                    FileAppenderFactory<Record> appenderFactory,
-                                   OutputFileFactory fileFactory, FileIO io, long targetFileSize) {
-      super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
+                                   OutputFileFactory fileFactory, FileIO io, long targetFileSize,
+                                   Map<String, String> properties) {
+      super(spec, format, appenderFactory, fileFactory, io, targetFileSize, properties);
       this.deltaWriter = new GenericEqualityDeltaWriter(null, schema, deleteSchema);
     }
 
