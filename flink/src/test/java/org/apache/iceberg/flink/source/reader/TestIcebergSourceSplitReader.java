@@ -27,6 +27,8 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitsAddition;
 import org.apache.flink.connector.file.src.util.RecordAndPosition;
+import org.apache.flink.connector.testutils.source.reader.TestingReaderContext;
+import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
@@ -44,6 +46,7 @@ import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -71,6 +74,8 @@ public class TestIcebergSourceSplitReader {
   private static List<DataFile> dataFileList;
   private static IcebergSourceSplit icebergSplit;
 
+  private IcebergSourceSplitReader reader;
+
   @BeforeClass
   public static void beforeClass() throws IOException {
     final GenericAppenderHelper dataAppender = new GenericAppenderHelper(
@@ -92,13 +97,23 @@ public class TestIcebergSourceSplitReader {
     icebergSplit = ReaderFunctionTestBase.sortFilesAsAppendOrder(splits.get(0), dataFileList);
   }
 
+  @Before
+  public void before() {
+    reader = createSplitReader();
+  }
+
+  private IcebergSourceSplitReader createSplitReader() {
+    final Configuration config = new Configuration();
+    RowType rowType = FlinkSchemaUtil.convert(tableResource.table().schema());
+    return new IcebergSourceSplitReader(
+        new RowDataReaderFunction(config, tableResource.table(), scanContext, rowType),
+        new TestingReaderContext(),
+        new IcebergSourceReaderMetrics(new UnregisteredMetricsGroup()));
+  }
+
   @Test
   public void testFullScan() throws Exception {
     final IcebergSourceSplit split = icebergSplit;
-    final Configuration config = new Configuration();
-    RowType rowType = FlinkSchemaUtil.convert(tableResource.table().schema());
-    IcebergSourceSplitReader reader = new IcebergSourceSplitReader(
-        new RowDataIteratorReaderFunction(config, tableResource.table(), scanContext, rowType));
     reader.handleSplitsChanges(new SplitsAddition(Arrays.asList(split)));
 
     final RecordsWithSplitIds<RecordAndPosition<RowData>> readBatch0 = reader.fetch();
@@ -122,10 +137,6 @@ public class TestIcebergSourceSplitReader {
   @Test
   public void testResumeFromEndOfFirstBatch() throws Exception {
     final IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(icebergSplit.task(), 0L, 2L);
-    final Configuration config = new Configuration();
-    RowType rowType = FlinkSchemaUtil.convert(tableResource.table().schema());
-    IcebergSourceSplitReader reader = new IcebergSourceSplitReader(
-        new RowDataIteratorReaderFunction(config, tableResource.table(), scanContext, rowType));
     reader.handleSplitsChanges(new SplitsAddition(Arrays.asList(split)));
 
     final RecordsWithSplitIds<RecordAndPosition<RowData>> readBatch1 = reader.fetch();
@@ -144,10 +155,6 @@ public class TestIcebergSourceSplitReader {
   @Test
   public void testResumeFromStartOfSecondBatch() throws Exception {
     final IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(icebergSplit.task(), 1L, 0L);
-    final Configuration config = new Configuration();
-    RowType rowType = FlinkSchemaUtil.convert(tableResource.table().schema());
-    IcebergSourceSplitReader reader = new IcebergSourceSplitReader(
-        new RowDataIteratorReaderFunction(config, tableResource.table(), scanContext, rowType));
     reader.handleSplitsChanges(new SplitsAddition(Arrays.asList(split)));
 
     final RecordsWithSplitIds<RecordAndPosition<RowData>> readBatch1 = reader.fetch();
@@ -167,11 +174,6 @@ public class TestIcebergSourceSplitReader {
   @Test
   public void testResumeFromMiddleOfSecondBatch() throws Exception {
     final IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(icebergSplit.task(), 1L, 1L);
-
-    final Configuration config = new Configuration();
-    RowType rowType = FlinkSchemaUtil.convert(tableResource.table().schema());
-    IcebergSourceSplitReader reader = new IcebergSourceSplitReader(
-        new RowDataIteratorReaderFunction(config, tableResource.table(), scanContext, rowType));
     reader.handleSplitsChanges(new SplitsAddition(Arrays.asList(split)));
 
     final RecordsWithSplitIds<RecordAndPosition<RowData>> readBatch1 = reader.fetch();

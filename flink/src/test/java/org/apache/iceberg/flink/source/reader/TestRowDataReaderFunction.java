@@ -35,7 +35,7 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
 
-public class TestRowDataIteratorReaderFunction extends ReaderFunctionTestBase<RowData> {
+public class TestRowDataReaderFunction extends ReaderFunctionTestBase<RowData> {
 
   protected static final RowType rowType = FlinkSchemaUtil
       .convert(scanContext.project());
@@ -44,13 +44,13 @@ public class TestRowDataIteratorReaderFunction extends ReaderFunctionTestBase<Ro
   private static final org.apache.flink.configuration.Configuration flinkConfig =
       new org.apache.flink.configuration.Configuration();
 
-  public TestRowDataIteratorReaderFunction(FileFormat fileFormat) {
+  public TestRowDataReaderFunction(FileFormat fileFormat) {
     super(fileFormat);
   }
 
   @Override
   protected ReaderFunction<RowData> readerFunction() {
-    return new RowDataIteratorReaderFunction(new Configuration(), tableResource.table(), scanContext, rowType);
+    return new RowDataReaderFunction(new Configuration(), tableResource.table(), scanContext, rowType);
   }
 
   @Override
