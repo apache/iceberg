@@ -202,21 +202,19 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     appendData(dataBeforeTimestamp, tableIdentifier, "parquet");
 
     table.refresh();
-    long seedDataTimestamp = table.currentSnapshot().timestampMillis();
-
     List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
-    appendDataAsMultipleSnapshots(expected, tableIdentifier);
 
+    // Append the first expected data
+    appendData(expected.get(0), tableIdentifier, "parquet");
     table.refresh();
+    long streamStartTimestamp = table.currentSnapshot().timestampMillis();
 
-    // Find most recent available timestamp after seedDataTimestamp
-    Snapshot mostRecentSnapshotAfterSeedData = table.currentSnapshot();
-    while (mostRecentSnapshotAfterSeedData.parentId() != null
-            && table.snapshot(mostRecentSnapshotAfterSeedData.parentId()).timestampMillis() > seedDataTimestamp) {
-      mostRecentSnapshotAfterSeedData = table.snapshot(mostRecentSnapshotAfterSeedData.parentId());
+    // Append rest of expected data
+    for (int i=1; i<expected.size(); i++) {
+      appendData(expected.get(i), tableIdentifier, "parquet");
     }
 
-    long streamStartTimestamp = mostRecentSnapshotAfterSeedData.timestampMillis();
+    table.refresh();
     Dataset<Row> df = spark.readStream()
             .format("iceberg")
             .option(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(streamStartTimestamp))
