@@ -32,6 +32,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -741,19 +742,31 @@ public class Spark3Util {
   private static Dataset<Row> loadCatalogMetadataTable(SparkSession spark, String name, MetadataTableType type) {
     try {
       CatalogAndIdentifier catalogAndIdentifier = catalogAndIdentifier(spark, name);
-      if (catalogAndIdentifier.catalog instanceof BaseCatalog) {
-        BaseCatalog catalog = (BaseCatalog) catalogAndIdentifier.catalog;
-        Identifier baseId = catalogAndIdentifier.identifier;
-        Identifier metaId = Identifier.of(ArrayUtil.add(baseId.namespace(), baseId.name()), type.name());
-        Table metaTable = catalog.loadTable(metaId);
-        return Dataset.ofRows(spark, DataSourceV2Relation.create(metaTable, Some.apply(catalog), Some.apply(metaId)));
-      }
-    } catch (NoSuchTableException | ParseException e) {
+
+      TableCatalog catalog = asTableCatalog(catalogAndIdentifier.catalog);
+      Identifier baseId = catalogAndIdentifier.identifier;
+      Identifier metaId = Identifier.of(ArrayUtil.add(baseId.namespace(), baseId.name()), type.name());
+      Table metaTable = catalog.loadTable(metaId);
+      return Dataset.ofRows(spark, DataSourceV2Relation.create(metaTable, Some.apply(catalog), Some.apply(metaId)));
+
+    } catch (IllegalArgumentException | NoSuchTableException | ParseException e) {
       // Could not find table
       return null;
     }
-    // Could not find table
-    return null;
+  }
+
+  /**
+   * Returns a metadata table as a Dataset based on the given Iceberg table.
+   *
+   * @param spark SparkSession where the Dataset will be created
+   * @param table an Iceberg table
+   * @param type the type of metadata table
+   * @return a Dataset that will read the metadata table
+   */
+  private static Dataset<Row> loadMetadataTable(SparkSession spark, org.apache.iceberg.Table table,
+                                                MetadataTableType type) {
+    Table metadataTable = new SparkTable(MetadataTableUtils.createMetadataTableInstance(table, type), false);
+    return Dataset.ofRows(spark, DataSourceV2Relation.create(metadataTable, Some.empty(), Some.empty()));
   }
 
   /**
@@ -768,12 +781,8 @@ public class Spark3Util {
       throws ParseException, NoSuchTableException {
     CatalogAndIdentifier catalogAndIdentifier = catalogAndIdentifier(spark, name);
 
-    CatalogPlugin catalog = catalogAndIdentifier.catalog;
-    Preconditions.checkArgument(catalog instanceof BaseCatalog, "Catalog %s(%s) is not an Iceberg Catalog",
-        catalog.name(), catalog.getClass().toString());
-    BaseCatalog baseCatalog = (BaseCatalog) catalogAndIdentifier.catalog;
-
-    Table sparkTable = baseCatalog.loadTable(catalogAndIdentifier.identifier);
+    TableCatalog catalog = asTableCatalog(catalogAndIdentifier.catalog);
+    Table sparkTable = catalog.loadTable(catalogAndIdentifier.identifier);
     return toIcebergTable(sparkTable);
   }
 
@@ -838,6 +847,15 @@ public class Spark3Util {
         currentNamespace
     );
     return new CatalogAndIdentifier(catalogIdentifier);
+  }
+
+  private static TableCatalog asTableCatalog(CatalogPlugin catalog) {
+    if (catalog instanceof TableCatalog) {
+      return (TableCatalog) catalog;
+    }
+
+    throw new IllegalArgumentException(String.format(
+        "Cannot use catalog %s(%s): not a TableCatalog", catalog.name(), catalog.getClass().getName()));
   }
 
   /**
