@@ -45,6 +45,7 @@ import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -64,6 +65,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   private static final long serialVersionUID = 1L;
   private static final long INITIAL_CHECKPOINT_ID = -1L;
+  private static final long INITIAL_SNAPSHOT_ID = -1L;
   private static final byte[] EMPTY_MANIFEST_DATA = new byte[0];
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergFilesCommitter.class);
@@ -97,6 +99,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   private transient Table table;
   private transient ManifestOutputFileFactory manifestOutputFileFactory;
   private transient long maxCommittedCheckpointId;
+  private transient long lastCommittedSnapshotId;
   private transient int continuousEmptyCheckpoints;
   private transient int maxContinuousEmptyCommits;
   // There're two cases that we restore from flink checkpoints: the first case is restoring from snapshot created by the
@@ -132,6 +135,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     int attemptId = getRuntimeContext().getAttemptNumber();
     this.manifestOutputFileFactory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, subTaskId, attemptId);
     this.maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
+    this.lastCommittedSnapshotId = INITIAL_SNAPSHOT_ID;  // validate all snapshot history for first commit
 
     this.checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
     this.jobIdState = context.getOperatorStateStore().getListState(JOB_ID_DESCRIPTOR);
@@ -283,6 +287,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         // merged one will lead to the incorrect delete semantic.
         WriteResult result = e.getValue();
         RowDelta rowDelta = table.newRowDelta()
+            .validateFromSnapshot(lastCommittedSnapshotId)
             .validateDataFilesExist(ImmutableList.copyOf(result.referencedDataFiles()))
             .validateDeletedFiles();
 
@@ -293,6 +298,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
 
         commitOperation(rowDelta, numDataFiles, numDeleteFiles, "rowDelta", newFlinkJobId, e.getKey());
+
+        lastCommittedSnapshotId = ((CreateSnapshotEvent) rowDelta.updateEvent()).snapshotId();
       }
     }
   }

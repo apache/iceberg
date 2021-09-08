@@ -740,6 +740,99 @@ public class TestIcebergFilesCommitter extends TableTestBase {
   }
 
   @Test
+  public void testValidateDataFileExistStartFromLastCommittedSnapshot() throws Exception {
+    Assume.assumeFalse("Only support equality-delete in format v2.", formatVersion < 2);
+    long timestamp = 0;
+    long checkpoint = 10;
+    JobID jobId = new JobID();
+    FileAppenderFactory<RowData> appenderFactory = createDeletableAppenderFactory();
+
+    // Txn#1: insert the row <1, 'aaa'> to data-file-1
+    RowData insert1 = SimpleDataUtil.createInsert(1, "aaa");
+    DataFile dataFile1 = writeDataFile("data-file-1", ImmutableList.of(insert1));
+    new TestTableLoader(tablePath)
+        .loadTable()
+        .newAppend()
+        .appendFile(dataFile1)
+        .commit();
+
+    // Txn#2: Overwrite the committed data-file-1 and insert row <1, 'bbb'> to data-file-2
+    RowData insert2 = SimpleDataUtil.createInsert(2, "bbb");
+    DataFile dataFile2 = writeDataFile("data-file-2", ImmutableList.of(insert2));
+    new TestTableLoader(tablePath)
+        .loadTable()
+        .newOverwrite()
+        .addFile(dataFile2)
+        .deleteFile(dataFile1)
+        .commit();
+
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
+      harness.setup();
+      harness.open();
+
+      // Txn#3: construct should not exist pos-delete-file to delete the not exist row <1, 'aaa'> (only for test).
+      DeleteFile shouldNotExistDeleteFile = writePosDeleteFile(appenderFactory,
+          "pos-delete-file-x",
+          ImmutableList.of(Pair.of(dataFile1.path(), 0L)));
+      harness.processElement(WriteResult.builder()
+              .addDeleteFiles(shouldNotExistDeleteFile)
+              .addReferencedDataFiles(dataFile1.path())
+              .build(),
+          ++timestamp);
+      harness.snapshot(++checkpoint, ++timestamp);
+
+      // First commit will travel all snapshot history to ensure referenced data files are exist.
+      // And validate will be failure when committing.
+      final long currentCheckpointId = checkpoint;
+      AssertHelpers.assertThrows("Validation should be failure because of non-exist data files.",
+          ValidationException.class, "Cannot commit, missing data files",
+          () -> {
+            harness.notifyOfCompletedCheckpoint(currentCheckpointId);
+            return null;
+          });
+    }
+
+    try (OneInputStreamOperatorTestHarness<WriteResult, Void> harness = createStreamSink(jobId)) {
+      harness.setup();
+      harness.open();
+
+      // Txn#3: delete row <2, 'bbb'> and insert the row <3, 'ccc'> to data-file-3
+      RowData insert3 = SimpleDataUtil.createInsert(3, "ccc");
+      DataFile dataFile3 = writeDataFile("data-file-3", ImmutableList.of(insert3));
+      DeleteFile deleteFile1 = writePosDeleteFile(appenderFactory,
+          "pos-delete-file-1",
+          ImmutableList.of(Pair.of(dataFile2.path(), 0L)));
+      harness.processElement(WriteResult.builder()
+              .addDataFiles(dataFile3)
+              .addDeleteFiles(deleteFile1)
+              .addReferencedDataFiles(dataFile2.path())
+              .build(),
+          ++timestamp);
+      harness.snapshot(checkpoint, ++timestamp);
+      harness.notifyOfCompletedCheckpoint(checkpoint);
+
+      // Txn#4: construct should not exist pos-delete-file to delete the not exist row <1, 'aaa'> (only for test).
+      DeleteFile shouldNotExistDeleteFile = writePosDeleteFile(appenderFactory,
+          "pos-delete-file-x",
+          ImmutableList.of(Pair.of(dataFile1.path(), 0L)));
+      harness.processElement(WriteResult.builder()
+              .addDeleteFiles(shouldNotExistDeleteFile)
+              .addReferencedDataFiles(dataFile1.path())
+              .build(),
+          ++timestamp);
+      harness.snapshot(++checkpoint, ++timestamp);
+      // Commit will travel snapshot history from last succeed commit snapshotId(here is snapshot#3).
+      // And this commit will success even't dataFile1 not exist.
+      harness.notifyOfCompletedCheckpoint(checkpoint);
+
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(insert3));
+      assertMaxCommittedCheckpointId(jobId, checkpoint);
+      assertFlinkManifests(0);
+      Assert.assertEquals("Should have committed 4 txn.", 4, ImmutableList.copyOf(table.snapshots()).size());
+    }
+  }
+
+  @Test
   public void testCommitTwoCheckpointsInSingleTxn() throws Exception {
     Assume.assumeFalse("Only support equality-delete in format v2.", formatVersion < 2);
 
