@@ -28,10 +28,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceSet;
 
+import static org.apache.iceberg.TableProperties.WATERMARK_VALUE_DEFAULT;
+
 public class WriteResult implements Serializable {
   private DataFile[] dataFiles;
   private DeleteFile[] deleteFiles;
   private CharSequence[] referencedDataFiles;
+
+  private Long watermark = WATERMARK_VALUE_DEFAULT;
 
   private WriteResult(List<DataFile> dataFiles,
                       List<DeleteFile> deleteFiles,
@@ -51,6 +55,15 @@ public class WriteResult implements Serializable {
 
   public CharSequence[] referencedDataFiles() {
     return referencedDataFiles;
+  }
+
+  public Long getWatermark() {
+    return watermark;
+  }
+
+  public WriteResult setWatermark(Long watermark) {
+    this.watermark = watermark;
+    return this;
   }
 
   public static Builder builder() {

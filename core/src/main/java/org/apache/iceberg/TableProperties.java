@@ -222,4 +222,10 @@ public class TableProperties {
 
   public static final String MERGE_CARDINALITY_CHECK_ENABLED = "write.merge.cardinality-check.enabled";
   public static final boolean MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT = true;
+
+  public static final String WATERMARK_FIELD_NAME = "write.watermark.field";
+  public static final String WATERMARK_FIELD_NAME_DEFAULT = "";
+
+  public static final String WATERMARK_VALUE = "write.watermark";
+  public static final long WATERMARK_VALUE_DEFAULT = -1;
 }
