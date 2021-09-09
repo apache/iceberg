@@ -230,12 +230,12 @@ abstract class BaseTableScan implements TableScan {
       lookback = ops.current().propertyAsInt(
           TableProperties.SPLIT_LOOKBACK, TableProperties.SPLIT_LOOKBACK_DEFAULT);
     }
-    int itemsPerBin;
-    if (options.containsKey(TableProperties.SPLIT_ITEMS_PER_BIN)) {
-      itemsPerBin = Integer.parseInt(options.get(TableProperties.SPLIT_ITEMS_PER_BIN));
+    int binItemsSize;
+    if (options.containsKey(TableProperties.SPLIT_BIN_ITEMS_SIZE)) {
+      binItemsSize = Integer.parseInt(options.get(TableProperties.SPLIT_BIN_ITEMS_SIZE));
     } else {
-      itemsPerBin = ops.current().propertyAsInt(
-          TableProperties.SPLIT_ITEMS_PER_BIN, TableProperties.SPLIT_ITEMS_PER_BIN_DEFAULT);
+      binItemsSize = ops.current().propertyAsInt(
+          TableProperties.SPLIT_BIN_ITEMS_SIZE, TableProperties.SPLIT_BIN_ITEMS_SIZE_DEFAULT);
     }
     long openFileCost;
     if (options.containsKey(TableProperties.SPLIT_OPEN_FILE_COST)) {
@@ -247,7 +247,7 @@ abstract class BaseTableScan implements TableScan {
 
     CloseableIterable<FileScanTask> fileScanTasks = planFiles();
     CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(fileScanTasks, splitSize);
-    return TableScanUtil.planTasks(splitFiles, splitSize, lookback, openFileCost, itemsPerBin);
+    return TableScanUtil.planTasks(splitFiles, splitSize, lookback, openFileCost, binItemsSize);
   }
 
   @Override

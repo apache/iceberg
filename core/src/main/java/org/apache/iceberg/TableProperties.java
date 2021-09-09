@@ -120,8 +120,8 @@ public class TableProperties {
   public static final String SPLIT_LOOKBACK = "read.split.planning-lookback";
   public static final int SPLIT_LOOKBACK_DEFAULT = 10;
 
-  public static final String SPLIT_ITEMS_PER_BIN = "read.split.items-per-bin";
-  public static final int SPLIT_ITEMS_PER_BIN_DEFAULT = Integer.MAX_VALUE;
+  public static final String SPLIT_BIN_ITEMS_SIZE = "read.split.bin-items-size";
+  public static final int SPLIT_BIN_ITEMS_SIZE_DEFAULT = Integer.MAX_VALUE;
 
   public static final String SPLIT_OPEN_FILE_COST = "read.split.open-file-cost";
   public static final long SPLIT_OPEN_FILE_COST_DEFAULT = 4 * 1024 * 1024; // 4MB
