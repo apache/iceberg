@@ -44,6 +44,8 @@ public abstract class ClientPoolImpl<C, E extends Exception> implements Closeabl
     this.closed = false;
   }
 
+  protected abstract boolean shouldRetry();
+
   @Override
   public <R> R run(Action<R, C, E> action) throws E, InterruptedException {
     C client = get();
@@ -51,7 +53,7 @@ public abstract class ClientPoolImpl<C, E extends Exception> implements Closeabl
       return action.run(client);
 
     } catch (Exception exc) {
-      if (isConnectionException(exc)) {
+      if (isConnectionException(exc) && shouldRetry()) {
         try {
           client = reconnect(client);
         } catch (Exception ignored) {

@@ -45,6 +45,11 @@ class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
   }
 
   @Override
+  protected boolean shouldRetry() {
+    return true;
+  }
+
+  @Override
   protected Connection newClient() {
     try {
       Properties dbProps = new Properties();
