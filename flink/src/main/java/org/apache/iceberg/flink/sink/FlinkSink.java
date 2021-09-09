@@ -249,7 +249,7 @@ public class FlinkSink {
       return this;
     }
 
-    public DataStreamSink<RowData> build() {
+    private <T> DataStreamSink<T> chainIcebergOperators() {
       Preconditions.checkArgument(inputCreator != null,
           "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
       Preconditions.checkNotNull(tableLoader, "Table loader shouldn't be null");
@@ -283,12 +283,34 @@ public class FlinkSink {
       return appendDummySink(committerStream);
     }
 
+    /**
+     * Append the iceberg sink operators to write records to iceberg table.
+     *
+     * @return {@link DataStreamSink} for sink.
+     * @deprecated this will be removed in 0.14.0; use {@link #append()} because its returned {@link DataStreamSink}
+     * has a more correct data type.
+     */
+    @Deprecated
+    public DataStreamSink<RowData> build() {
+      return chainIcebergOperators();
+    }
+
+    /**
+     * Append the iceberg sink operators to write records to iceberg table.
+     *
+     * @return {@link DataStreamSink} for sink.
+     */
+    public DataStreamSink<Void> append() {
+      return chainIcebergOperators();
+    }
+
     private String operatorName(String suffix) {
       return uidPrefix != null ? uidPrefix + "-" + suffix : suffix;
     }
 
-    private DataStreamSink<RowData> appendDummySink(SingleOutputStreamOperator<Void> committerStream) {
-      DataStreamSink<RowData> resultStream = committerStream
+    @SuppressWarnings("unchecked")
+    private <T> DataStreamSink<T> appendDummySink(SingleOutputStreamOperator<Void> committerStream) {
+      DataStreamSink<T> resultStream = committerStream
           .addSink(new DiscardingSink())
           .name(operatorName(String.format("IcebergSink %s", this.table.name())))
           .setParallelism(1);
