@@ -51,18 +51,16 @@ public class TableScanUtil {
   }
 
   public static CloseableIterable<CombinedScanTask> planTasks(CloseableIterable<FileScanTask> splitFiles,
-                                                              long splitSize, int lookback, long openFileCost,
-                                                              int binItemsSize) {
+                                                              long splitSize, int lookback, long openFileCost) {
     Preconditions.checkArgument(splitSize > 0, "Invalid split size (negative or 0): %s", splitSize);
     Preconditions.checkArgument(lookback > 0, "Invalid split planning lookback (negative or 0): %s", lookback);
     Preconditions.checkArgument(openFileCost >= 0, "Invalid file open cost (negative): %s", openFileCost);
-    Preconditions.checkArgument(binItemsSize > 0, "Invalid bin items size (negative or 0): %s", binItemsSize);
 
     Function<FileScanTask, Long> weightFunc = file -> Math.max(file.length(), openFileCost);
 
     return CloseableIterable.transform(
         CloseableIterable.combine(
-            new BinPacking.PackingIterable<>(splitFiles, splitSize, lookback, weightFunc, true, binItemsSize),
+            new BinPacking.PackingIterable<>(splitFiles, splitSize, lookback, weightFunc, true),
             splitFiles),
         BaseCombinedScanTask::new);
   }

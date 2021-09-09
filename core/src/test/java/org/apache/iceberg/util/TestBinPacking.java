@@ -173,50 +173,6 @@ public class TestBinPacking {
         pack(list(64, 64, 128, 32, 32, 32, 32), 128, 1, true));
   }
 
-  @Test
-  public void testBinPackingBinItemsSize() {
-    // bin-packing state:
-    // 1. [5]
-    // 2. [5, 1]
-    // 3. [5, 1], [5]
-    // 4. [5, 1, 1], [5]
-    // 5. [5, 1, 1], [5], [5]
-    // 6. [5, 1, 1, 1], [5], [5]
-    Assert.assertEquals("Unlimited bin items-size: should merge ones into first bin",
-        list(list(5, 1, 1, 1), list(5), list(5)), pack(list(5, 1, 5, 1, 5, 1), 8));
-
-    // bin-packing state:
-    // 1. [5]
-    // 2. [5, 1]
-    // 3. [5, 1], [5]
-    // 4. [5, 1, 1], [5]
-    // 5. [5], [5]          ([5, 1, 1] drops out due to bin items-size satisfied)
-    // 6. [5, 1], [5]
-    Assert.assertEquals("2 bin items-size: should merge two ones into first bin",
-        list(list(5, 1, 1), list(5, 1), list(5)),
-        pack(list(5, 1, 5, 1, 5, 1), 8, Integer.MAX_VALUE, false, 2));
-
-    // bin-packing state:
-    // 1. [5]
-    // 2. [5, 1]
-    // 3. [5]               ([5, 1] drops out due to bin items-size satisfied)
-    // 4. [5, 1]
-    // 5. [5]               ([5, 1] #2 drops out due to bin items-size satisfied)
-    // 6. [5, 1]
-    Assert.assertEquals("1 bin items-size: should merge ones witth fives",
-        list(list(5, 1), list(5, 1), list(5, 1)),
-        pack(list(5, 1, 5, 1, 5, 1), 8, Integer.MAX_VALUE, false, 1));
-
-    Assert.assertEquals("2 bin items-size: should merge until targetWeight when largestBinFirst is enabled",
-        list(list(36, 36, 36), list(36, 65, 20), list(65, 36), list(128)),
-        pack(list(36, 36, 36, 36, 65, 65, 36, 20, 128), 128, Integer.MAX_VALUE, true, 2));
-
-    Assert.assertEquals(
-        "1 bin items-size: should merge until targetWeight when largestBinFirst is enabled",
-        list(list(64, 64), list(128), list(32, 32), list(32, 32)),
-        pack(list(64, 64, 128, 32, 32, 32, 32), 128, Integer.MAX_VALUE, true, 1));
-  }
-
   private List<List<Integer>> pack(List<Integer> items, long targetWeight) {
     return pack(items, targetWeight, Integer.MAX_VALUE);
   }
@@ -227,12 +183,6 @@ public class TestBinPacking {
 
   private List<List<Integer>> pack(List<Integer> items, long targetWeight, int lookback, boolean largestBinFirst) {
     ListPacker<Integer> packer = new ListPacker<>(targetWeight, lookback, largestBinFirst);
-    return packer.pack(items, Integer::longValue);
-  }
-
-  private List<List<Integer>> pack(List<Integer> items, long targetWeight, int lookback,
-                                   boolean largestBinFirst, int binItemsSize) {
-    ListPacker<Integer> packer = new ListPacker<>(targetWeight, lookback, largestBinFirst, binItemsSize);
     return packer.pack(items, Integer::longValue);
   }
 
