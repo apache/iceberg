@@ -136,7 +136,7 @@ public class LocationProviders {
 
   public static String dataLocation(Map<String, String> properties, String tableLocation) {
     String dataLocation = properties.get(TableProperties.WRITE_DATA_LOCATION);
-    if(dataLocation == null) {
+    if (dataLocation == null) {
       dataLocation = properties.get(TableProperties.OBJECT_STORE_PATH);
       if (dataLocation == null) {
         dataLocation = properties.get(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
