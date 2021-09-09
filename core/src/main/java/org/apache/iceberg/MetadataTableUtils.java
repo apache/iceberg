@@ -35,7 +35,8 @@ public class MetadataTableUtils {
       TableOperations ops = ((BaseTable) table).operations();
       return createMetadataTableInstance(ops, table, metadataTableName(table.name(), type), type);
     } else {
-      throw new IllegalArgumentException(String.format("Cannot create metadata table for table: %s", table));
+      throw new IllegalArgumentException(String.format(
+          "Cannot create metadata table for table %s: not a base table", table));
     }
   }
 

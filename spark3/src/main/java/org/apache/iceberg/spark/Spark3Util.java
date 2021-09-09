@@ -61,7 +61,6 @@ import org.apache.iceberg.transforms.SortOrderVisitor;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SortOrderUtil;
@@ -724,34 +723,6 @@ public class Spark3Util {
       } else {
         return lit.value().toString();
       }
-    }
-  }
-
-  /**
-   * Returns a Metadata Table Dataset if it can be loaded from a Spark V2 Catalog
-   *
-   * Because Spark does not allow more than 1 piece in the namespace for a Session Catalog table, we circumvent
-   * the entire resolution path for tables and instead look up the table directly ourselves. This lets us correctly
-   * get metadata tables for the SessionCatalog, if we didn't have to work around this we could just use spark.table.
-   *
-   * @param spark SparkSession used for looking up catalog references and tables
-   * @param name The multipart identifier of the base Iceberg table
-   * @param type The type of metadata table to load
-   * @return null if we cannot find the Metadata Table, a Dataset of rows otherwise
-   */
-  private static Dataset<Row> loadCatalogMetadataTable(SparkSession spark, String name, MetadataTableType type) {
-    try {
-      CatalogAndIdentifier catalogAndIdentifier = catalogAndIdentifier(spark, name);
-
-      TableCatalog catalog = asTableCatalog(catalogAndIdentifier.catalog);
-      Identifier baseId = catalogAndIdentifier.identifier;
-      Identifier metaId = Identifier.of(ArrayUtil.add(baseId.namespace(), baseId.name()), type.name());
-      Table metaTable = catalog.loadTable(metaId);
-      return Dataset.ofRows(spark, DataSourceV2Relation.create(metaTable, Some.apply(catalog), Some.apply(metaId)));
-
-    } catch (IllegalArgumentException | NoSuchTableException | ParseException e) {
-      // Could not find table
-      return null;
     }
   }
 
