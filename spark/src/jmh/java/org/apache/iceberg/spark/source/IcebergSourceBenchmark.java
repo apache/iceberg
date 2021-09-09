@@ -26,6 +26,7 @@ import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
@@ -78,9 +79,7 @@ public abstract class IcebergSourceBenchmark {
   }
 
   protected String dataLocation() {
-    Map<String, String> properties = table.properties();
-    return properties.getOrDefault(TableProperties.WRITE_FOLDER_STORAGE_LOCATION,
-        String.format("%s/data", table.location()));
+    return LocationProviders.dataLocation(table().properties(), table.location());
   }
 
   protected void cleanupFiles() throws IOException {

@@ -114,7 +114,7 @@ public class TestLocationProvider extends TableTestBase {
   @Test
   public void testDefaultLocationProviderWithCustomDataLocation() {
     this.table.updateProperties()
-        .set(TableProperties.WRITE_FOLDER_STORAGE_LOCATION, "new_location")
+        .set(TableProperties.WRITE_DATA_LOCATION, "new_location")
         .commit();
 
     this.table.locationProvider().newDataLocation("my_file");
@@ -237,5 +237,13 @@ public class TestLocationProvider extends TableTestBase {
 
     Assert.assertTrue("object storage path should be used when set",
         table.locationProvider().newDataLocation("file").contains(objectPath));
+
+    String dataPath = "s3://random/data/location";
+    table.updateProperties()
+        .set(TableProperties.WRITE_DATA_LOCATION, dataPath)
+        .commit();
+
+    Assert.assertTrue("object storage path should be used when set",
+        table.locationProvider().newDataLocation("file").contains(dataPath));
   }
 }
