@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -80,6 +81,7 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   private long maxFileSize;
   private long targetFileSize;
   private long maxGroupSize;
+  private long openFileCost;
 
   @Override
   public String name() {
@@ -120,6 +122,13 @@ public abstract class BinPackStrategy implements RewriteStrategy {
         MIN_INPUT_FILES,
         MIN_INPUT_FILES_DEFAULT);
 
+    openFileCost = PropertyUtil.propertyAsLong(options,
+        RewriteDataFiles.OPEN_FILE_COST,
+        PropertyUtil.propertyAsLong(
+            table().properties(),
+            TableProperties.SPLIT_OPEN_FILE_COST,
+            TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT));
+
     validateOptions();
     return this;
   }
@@ -133,7 +142,7 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   @Override
   public Iterable<List<FileScanTask>> planFileGroups(Iterable<FileScanTask> dataFiles) {
     ListPacker<FileScanTask> packer = new BinPacking.ListPacker<>(maxGroupSize, 1, false);
-    List<List<FileScanTask>> potentialGroups = packer.pack(dataFiles, FileScanTask::length);
+    List<List<FileScanTask>> potentialGroups = packer.pack(dataFiles, this::sizeOfInputFile);
     return potentialGroups.stream().filter(group ->
       group.size() >= minInputFiles || sizeOfInputFiles(group) > targetFileSize
     ).collect(Collectors.toList());
@@ -211,7 +220,13 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   }
 
   private long sizeOfInputFiles(List<FileScanTask> group) {
-    return group.stream().mapToLong(FileScanTask::length).sum();
+    return group.stream().mapToLong(this::sizeOfInputFile).sum();
+  }
+
+  private long sizeOfInputFile(FileScanTask file) {
+    // For V2Format, we should check the size of delete file as well to avoid unbalanced bin-packing
+    return Math.max(file.length() + file.deletes().stream().mapToLong(ContentFile::fileSizeInBytes).sum(),
+        (1 + file.deletes().size()) * openFileCost);
   }
 
   private void validateOptions() {
@@ -234,5 +249,8 @@ public abstract class BinPackStrategy implements RewriteStrategy {
     Preconditions.checkArgument(minInputFiles > 0,
         "Cannot set %s is less than 1. All values less than 1 have the same effect as 1. %d < 1",
         MIN_INPUT_FILES, minInputFiles);
+
+    Preconditions.checkArgument(openFileCost > 0,
+        "Cannot set %s is less than 1, %d < 1", RewriteDataFiles.OPEN_FILE_COST, openFileCost);
   }
 }
