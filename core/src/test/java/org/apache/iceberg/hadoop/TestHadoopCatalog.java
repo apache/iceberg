@@ -19,10 +19,12 @@
 
 package org.apache.iceberg.hadoop;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
+import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -235,6 +237,24 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     catalog.dropTable(testTable);
     Assert.assertFalse(fs.isDirectory(new Path(metaLocation)));
+  }
+
+  @Test
+  public void testDropNonIcebergTable() throws Exception {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    TableIdentifier testTable = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    String metaLocation = catalog.defaultWarehouseLocation(testTable);
+
+    FileSystem fs = Util.getFs(new Path(metaLocation), conf);
+    File tablePath = new File(warehousePath+"/db/ns1/ns2/tbl");
+    tablePath.mkdirs();
+    Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
+
+    Assert.assertFalse(catalog.dropTable(testTable));
+    Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
+    FileUtils.deleteDirectory(new File(warehousePath+"/db"));
   }
 
   @Test
