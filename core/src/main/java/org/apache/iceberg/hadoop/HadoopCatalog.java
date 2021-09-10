@@ -254,7 +254,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
     Path tablePath = new Path(defaultWarehouseLocation(identifier));
     TableOperations ops = newTableOps(identifier);
     TableMetadata lastMetadata = ops.current();
-    if(lastMetadata == null){
+    if (lastMetadata == null) {
       LOG.error("Not an iceberg table: %s", identifier);
       return false;
     }
