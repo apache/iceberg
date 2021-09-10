@@ -25,9 +25,13 @@ import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.table.data.RowData;
+import org.apache.iceberg.flink.IcebergWatermark;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+
+import static org.apache.iceberg.TableProperties.WATERMARK_VALUE_DEFAULT;
 
 class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
     implements OneInputStreamOperator<T, WriteResult>, BoundedOneInput {
@@ -36,14 +40,25 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
 
   private final String fullTableName;
   private final TaskWriterFactory<T> taskWriterFactory;
+  private final IcebergWatermark icebergWatermark;
 
   private transient TaskWriter<T> writer;
   private transient int subTaskId;
   private transient int attemptId;
 
+  private Long watermark;
+
   IcebergStreamWriter(String fullTableName, TaskWriterFactory<T> taskWriterFactory) {
     this.fullTableName = fullTableName;
     this.taskWriterFactory = taskWriterFactory;
+    this.icebergWatermark = null;
+    setChainingStrategy(ChainingStrategy.ALWAYS);
+  }
+
+  IcebergStreamWriter(String fullTableName, TaskWriterFactory<T> taskWriterFactory, IcebergWatermark icebergWatermark) {
+    this.fullTableName = fullTableName;
+    this.taskWriterFactory = taskWriterFactory;
+    this.icebergWatermark = icebergWatermark;
     setChainingStrategy(ChainingStrategy.ALWAYS);
   }
 
@@ -57,6 +72,8 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
 
     // Initialize the task writer.
     this.writer = taskWriterFactory.create();
+
+    this.watermark = WATERMARK_VALUE_DEFAULT;
   }
 
   @Override
@@ -69,6 +86,12 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
 
   @Override
   public void processElement(StreamRecord<T> element) throws Exception {
+    if (icebergWatermark != null) {
+      RowData rowData = (RowData) element.getValue();
+      Long currentWatermark = icebergWatermark.getWatermark(rowData);
+      watermark = currentWatermark > watermark ? currentWatermark : watermark;
+    }
+
     writer.write(element.getValue());
   }
 
@@ -98,6 +121,8 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
   }
 
   private void emit(WriteResult result) {
+    result.setWatermark(watermark);
+
     output.collect(new StreamRecord<>(result));
   }
 }
