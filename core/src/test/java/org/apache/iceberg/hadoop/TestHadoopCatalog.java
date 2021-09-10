@@ -248,13 +248,13 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
 
     FileSystem fs = Util.getFs(new Path(metaLocation), conf);
-    File tablePath = new File(warehousePath+"/db/ns1/ns2/tbl");
+    File tablePath = new File(warehousePath + "/db/ns1/ns2/tbl");
     tablePath.mkdirs();
     Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
 
     Assert.assertFalse(catalog.dropTable(testTable));
     Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
-    FileUtils.deleteDirectory(new File(warehousePath+"/db"));
+    FileUtils.deleteDirectory(new File(warehousePath + "/db"));
   }
 
   @Test
