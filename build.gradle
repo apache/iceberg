@@ -986,6 +986,8 @@ if (jdkVersion == '8') {
 }
 
 project(':iceberg-spark3') {
+  apply plugin: 'scala'
+
   sourceSets {
     // Compile test source against Spark 3.1 and main classes compiled against Spark 3.0
     spark31 {
@@ -1157,6 +1159,7 @@ project(':iceberg-spark3-runtime') {
       exclude group: 'org.xerial.snappy'
       exclude group: 'javax.xml.bind'
       exclude group: 'javax.annotation'
+      exclude group: 'com.github.luben'
     }
     spark31Implementation.extendsFrom integrationImplementation
     spark31CompileOnly.extendsFrom integrationCompileOnly

@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.GenericRowData;
@@ -37,6 +38,9 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -55,6 +59,7 @@ import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
@@ -237,18 +242,18 @@ public class SimpleDataUtil {
   public static List<DataFile> partitionDataFiles(Table table, Map<String, Object> partitionValues)
       throws IOException {
     table.refresh();
-    Types.StructType spec = table.spec().partitionType();
+    Types.StructType partitionType = table.spec().partitionType();
 
-    Record partitionRecord = GenericRecord.create(spec).copy(partitionValues);
+    Record partitionRecord = GenericRecord.create(partitionType).copy(partitionValues);
     StructLikeWrapper expectedWrapper = StructLikeWrapper
-        .forType(spec)
+        .forType(partitionType)
         .set(partitionRecord);
 
     List<DataFile> dataFiles = Lists.newArrayList();
     try (CloseableIterable<FileScanTask> fileScanTasks = table.newScan().planFiles()) {
       for (FileScanTask scanTask : fileScanTasks) {
         StructLikeWrapper wrapper = StructLikeWrapper
-            .forType(spec)
+            .forType(partitionType)
             .set(scanTask.file().partition());
 
         if (expectedWrapper.equals(wrapper)) {
@@ -259,4 +264,35 @@ public class SimpleDataUtil {
 
     return dataFiles;
   }
+
+  public static Map<Long, List<DataFile>> snapshotToDataFiles(Table table) throws IOException {
+    table.refresh();
+    Map<Long, List<DataFile>> result = Maps.newHashMap();
+    List<ManifestFile> manifestFiles = table.currentSnapshot().dataManifests();
+    for (ManifestFile manifestFile : manifestFiles) {
+      try (ManifestReader<DataFile> reader = ManifestFiles.read(manifestFile, table.io())) {
+        List<DataFile> dataFiles = Lists.newArrayList(reader);
+        if (result.containsKey(manifestFile.snapshotId())) {
+          result.get(manifestFile.snapshotId()).addAll(dataFiles);
+        } else {
+          result.put(manifestFile.snapshotId(), dataFiles);
+        }
+      }
+    }
+    return result;
+  }
+
+  public static List<DataFile> matchingPartitions(
+      List<DataFile> dataFiles, PartitionSpec partitionSpec, Map<String, Object> partitionValues) {
+    Types.StructType partitionType = partitionSpec.partitionType();
+    Record partitionRecord = GenericRecord.create(partitionType).copy(partitionValues);
+    StructLikeWrapper expected = StructLikeWrapper
+        .forType(partitionType)
+        .set(partitionRecord);
+    return dataFiles.stream().filter(df -> {
+      StructLikeWrapper wrapper = StructLikeWrapper.forType(partitionType).set(df.partition());
+      return wrapper.equals(expected);
+    }).collect(Collectors.toList());
+  }
+
 }

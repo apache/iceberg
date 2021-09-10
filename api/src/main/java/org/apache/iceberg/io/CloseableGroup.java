@@ -23,20 +23,68 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Deque;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.ExceptionUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public abstract class CloseableGroup implements Closeable {
-  private final Deque<Closeable> closeables = Lists.newLinkedList();
+/**
+ * This class acts as a helper for handling the closure of multiple resource.
+ * It can be used for either inheritance or composition.
+ * To use it, register resources to be closed via the add() calls, and call the corresponding close method when needed.
+ * <p>
+ * It can take both closeable and autocloseable objects, and handle closeable as autocloseable and guarantee close
+ * idempotency by ensuring that each resource will be closed once even with concurrent close calls. It will also
+ * wrap checked non-IO exceptions into runtime exceptions.
+ * <p>
+ * Users can choose to suppress close failure with this class. By default such failures are not suppressed.
+ */
+public class CloseableGroup implements Closeable {
+  private static final Logger LOG = LoggerFactory.getLogger(CloseableGroup.class);
 
-  protected void addCloseable(Closeable closeable) {
+  private final Deque<AutoCloseable> closeables = Lists.newLinkedList();
+  private boolean suppressCloseFailure = false;
+
+  /**
+   * Register a closeable to be managed by this class.
+   */
+  public void addCloseable(Closeable closeable) {
     closeables.add(closeable);
   }
 
+  /**
+   * Register an autocloseables to be managed by this class. It will be handled as a closeable object.
+   */
+  public void addCloseable(AutoCloseable autoCloseable) {
+    closeables.add(autoCloseable);
+  }
+
+  /**
+   * Whether to suppress failure when any of the closeable this class tracks throws exception during closing.
+   * This could be helpful to ensure the close method of all resources to be called.
+   * @param shouldSuppress true if user wants to suppress close failures
+   */
+  public void setSuppressCloseFailure(boolean shouldSuppress) {
+    this.suppressCloseFailure = shouldSuppress;
+  }
+
+  /**
+   * Close all the registered resources. Close method of each resource will only be called once.
+   * Checked exception from AutoCloseable will be wrapped to runtime exception.
+   */
   @Override
   public void close() throws IOException {
     while (!closeables.isEmpty()) {
-      Closeable toClose = closeables.removeFirst();
+      AutoCloseable toClose = closeables.pollFirst();
       if (toClose != null) {
-        toClose.close();
+        try {
+          toClose.close();
+        } catch (Exception e) {
+          if (suppressCloseFailure) {
+            LOG.error("Exception suppressed when attempting to close resources", e);
+          } else {
+            ExceptionUtil.castAndThrow(e, IOException.class);
+          }
+        }
       }
     }
   }

@@ -595,17 +595,25 @@ public class SparkTableUtil {
   }
 
   // Attempt to use Spark3 Catalog resolution if available on the path
-  private static final DynMethods.UnboundMethod LOAD_CATALOG = DynMethods.builder("loadCatalogMetadataTable")
-      .hiddenImpl("org.apache.iceberg.spark.Spark3Util", SparkSession.class, String.class, MetadataTableType.class)
+  private static final DynMethods.UnboundMethod LOAD_METADATA_TABLE = DynMethods.builder("loadMetadataTable")
+      .hiddenImpl("org.apache.iceberg.spark.Spark3Util", SparkSession.class, Table.class, MetadataTableType.class)
       .orNoop()
       .build();
 
-  public static Dataset<Row> loadCatalogMetadataTable(SparkSession spark, String tableName, MetadataTableType type) {
-    Preconditions.checkArgument(!LOAD_CATALOG.isNoop(), "Cannot find Spark3Util class but Spark3 is in use");
-    return LOAD_CATALOG.asStatic().invoke(spark, tableName, type);
+  public static Dataset<Row> loadCatalogMetadataTable(SparkSession spark, Table table, MetadataTableType type) {
+    Preconditions.checkArgument(!LOAD_METADATA_TABLE.isNoop(), "Cannot find Spark3Util class but Spark3 is in use");
+    return LOAD_METADATA_TABLE.asStatic().invoke(spark, table, type);
   }
 
   public static Dataset<Row> loadMetadataTable(SparkSession spark, Table table, MetadataTableType type) {
+    if (spark.version().startsWith("3")) {
+      // construct the metadata table instance directly
+      Dataset<Row> catalogMetadataTable = loadCatalogMetadataTable(spark, table, type);
+      if (catalogMetadataTable != null) {
+        return catalogMetadataTable;
+      }
+    }
+
     String tableName = table.name();
     String tableLocation = table.location();
 
@@ -613,14 +621,6 @@ public class SparkTableUtil {
     if (tableName.contains("/")) {
       // Hadoop Table or Metadata location passed, load without a catalog
       return dataFrameReader.load(tableName + "#" + type);
-    }
-
-    // Try DSV2 catalog based name based resolution
-    if (spark.version().startsWith("3")) {
-      Dataset<Row> catalogMetadataTable = loadCatalogMetadataTable(spark, tableName, type);
-      if (catalogMetadataTable != null) {
-        return catalogMetadataTable;
-      }
     }
 
     // Catalog based resolution failed, our catalog may be a non-DatasourceV2 Catalog
