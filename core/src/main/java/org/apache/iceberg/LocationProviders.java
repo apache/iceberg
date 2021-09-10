@@ -28,8 +28,11 @@ import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class LocationProviders {
+  private static final Logger LOG = LoggerFactory.getLogger(LocationProviders.class);
 
   private LocationProviders() {
   }
@@ -54,10 +57,12 @@ public class LocationProviders {
         return ctor.newInstance(location, properties);
       } catch (ClassCastException e) {
         throw new IllegalArgumentException(
-            String.format("Provided implementation for dynamic instantiation should implement %s.",
+            String.format(
+                "Provided implementation for dynamic instantiation should implement %s.",
                 LocationProvider.class), e);
       }
-    } else if (PropertyUtil.propertyAsBoolean(properties,
+    } else if (PropertyUtil.propertyAsBoolean(
+        properties,
         TableProperties.OBJECT_STORE_ENABLED,
         TableProperties.OBJECT_STORE_ENABLED_DEFAULT)) {
       return new ObjectStoreLocationProvider(location, properties);
@@ -70,7 +75,8 @@ public class LocationProviders {
     private final String dataLocation;
 
     DefaultLocationProvider(String tableLocation, Map<String, String> properties) {
-      this.dataLocation = stripTrailingSlash(dataLocation(properties, tableLocation));
+      this.dataLocation =
+          stripTrailingSlash(dataLocation(properties, tableLocation, TableProperties.WRITE_FOLDER_STORAGE_LOCATION));
     }
 
     @Override
@@ -92,7 +98,8 @@ public class LocationProviders {
     private final String context;
 
     ObjectStoreLocationProvider(String tableLocation, Map<String, String> properties) {
-      this.storageLocation = stripTrailingSlash(dataLocation(properties, tableLocation));
+      this.storageLocation =
+          stripTrailingSlash(dataLocation(properties, tableLocation, TableProperties.OBJECT_STORE_PATH));
       this.context = pathContext(tableLocation);
     }
 
@@ -134,14 +141,16 @@ public class LocationProviders {
     return result;
   }
 
-  public static String dataLocation(Map<String, String> properties, String tableLocation) {
+  private static String dataLocation(Map<String, String> properties, String tableLocation, String deprecatedProperty) {
     String dataLocation = properties.get(TableProperties.WRITE_DATA_LOCATION);
     if (dataLocation == null) {
-      dataLocation = properties.get(TableProperties.OBJECT_STORE_PATH);
+      dataLocation = properties.get(deprecatedProperty);
       if (dataLocation == null) {
-        dataLocation = properties.get(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
-        if (dataLocation == null) {
-          dataLocation = String.format("%s/data", tableLocation);
+        dataLocation = String.format("%s/data", tableLocation);
+      } else {
+        if (deprecatedProperty != null) {
+          LOG.warn("Table property {} is deprecated, please use {} instead.", deprecatedProperty,
+              TableProperties.WRITE_DATA_LOCATION);
         }
       }
     }
