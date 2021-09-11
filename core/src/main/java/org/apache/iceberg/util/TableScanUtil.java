@@ -57,7 +57,7 @@ public class TableScanUtil {
     Preconditions.checkArgument(lookback > 0, "Invalid split planning lookback (negative or 0): %s", lookback);
     Preconditions.checkArgument(openFileCost >= 0, "Invalid file open cost (negative): %s", openFileCost);
 
-    // For V2Format, we should check the size of delete file as well to avoid unbalanced bin-packing
+    // Check the size of delete file as well to avoid unbalanced bin-packing
     Function<FileScanTask, Long> weightFunc = file -> Math.max(
         file.length() + file.deletes().stream().mapToLong(ContentFile::fileSizeInBytes).sum(),
         (1 + file.deletes().size()) * openFileCost);

@@ -19,6 +19,7 @@
 
 package org.apache.iceberg;
 
+import java.util.Arrays;
 import org.mockito.Mockito;
 
 public class MockFileScanTask extends BaseFileScanTask {
@@ -47,6 +48,12 @@ public class MockFileScanTask extends BaseFileScanTask {
     return new MockFileScanTask(mockFile);
   }
 
+  public static MockFileScanTask mockTaskWithDataAndDeleteSizes(long dataSize, long[] deleteSizes) {
+    DataFile dataFile = dataFileWithSize(dataSize);
+    DeleteFile[] deleteFiles = deleteFilesWithSizes(deleteSizes);
+    return new MockFileScanTask(dataFile, deleteFiles);
+  }
+
   @Override
   public long length() {
     return length;
@@ -73,5 +80,19 @@ public class MockFileScanTask extends BaseFileScanTask {
   @Override
   public int hashCode() {
     return (int) (length ^ (length >>> 32));
+  }
+
+  private static DataFile dataFileWithSize(long size) {
+    DataFile mockFile = Mockito.mock(DataFile.class);
+    Mockito.when(mockFile.fileSizeInBytes()).thenReturn(size);
+    return mockFile;
+  }
+
+  private static DeleteFile[] deleteFilesWithSizes(long... sizes) {
+    return Arrays.stream(sizes).mapToObj(size -> {
+      DeleteFile mockDeleteFile = Mockito.mock(DeleteFile.class);
+      Mockito.when(mockDeleteFile.fileSizeInBytes()).thenReturn(size);
+      return mockDeleteFile;
+    }).toArray(DeleteFile[]::new);
   }
 }

@@ -224,8 +224,8 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   }
 
   private long sizeOfInputFile(FileScanTask file) {
-    // For V2Format, we should check the size of delete file as well to avoid unbalanced bin-packing
-    return Math.max(file.length() + file.deletes().stream().mapToLong(ContentFile::fileSizeInBytes).sum(),
+    return Math.max(
+        file.length() + file.deletes().stream().mapToLong(ContentFile::fileSizeInBytes).sum(),
         (1 + file.deletes().size()) * openFileCost);
   }
 
@@ -250,7 +250,7 @@ public abstract class BinPackStrategy implements RewriteStrategy {
         "Cannot set %s is less than 1. All values less than 1 have the same effect as 1. %d < 1",
         MIN_INPUT_FILES, minInputFiles);
 
-    Preconditions.checkArgument(openFileCost > 0,
-        "Cannot set %s is less than 1, %d < 1", RewriteDataFiles.OPEN_FILE_COST, openFileCost);
+    Preconditions.checkArgument(openFileCost >= 0,
+        "Invalid file open cost: %d (not positive)", openFileCost);
   }
 }

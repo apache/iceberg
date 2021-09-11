@@ -63,6 +63,11 @@ public class BinPacking {
     private final boolean largestBinFirst;
 
     public PackingIterable(Iterable<T> iterable, long targetWeight, int lookback,
+                           Function<T, Long> weightFunc) {
+      this(iterable, targetWeight, lookback, weightFunc, false);
+    }
+
+    public PackingIterable(Iterable<T> iterable, long targetWeight, int lookback,
                            Function<T, Long> weightFunc, boolean largestBinFirst) {
       Preconditions.checkArgument(lookback > 0,
           "Bin look-back size must be greater than 0: %s", lookback);

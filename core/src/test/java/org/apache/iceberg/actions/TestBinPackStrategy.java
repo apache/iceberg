@@ -26,7 +26,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MockFileScanTask;
 import org.apache.iceberg.Table;
@@ -34,13 +33,11 @@ import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.util.Pair;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import org.mockito.Mockito;
-
-import static org.apache.iceberg.actions.BinPackStrategy.MIN_INPUT_FILES;
 
 @RunWith(Parameterized.class)
 public class TestBinPackStrategy extends TableTestBase {
@@ -73,24 +70,11 @@ public class TestBinPackStrategy extends TableTestBase {
     return Arrays.stream(sizes).mapToObj(size -> new MockFileScanTask(size * MB)).collect(Collectors.toList());
   }
 
-  private FileScanTask fileOfDataAndDeleteSize(long dataSize, long[] deleteSizes) {
-    DataFile dataFile = mockDataFile(dataSize);
-    DeleteFile[] deleteFiles = deleteFilesOfSize(deleteSizes);
-    return new MockFileScanTask(dataFile, deleteFiles);
-  }
-
-  private DeleteFile[] deleteFilesOfSize(long... sizes) {
-    return Arrays.stream(sizes).mapToObj(size -> {
-      DeleteFile mockDeleteFile = Mockito.mock(DeleteFile.class);
-      Mockito.when(mockDeleteFile.fileSizeInBytes()).thenReturn(size * MB);
-      return mockDeleteFile;
-    }).toArray(DeleteFile[]::new);
-  }
-
-  private DataFile mockDataFile(long size) {
-    DataFile mockFile = Mockito.mock(DataFile.class);
-    Mockito.when(mockFile.fileSizeInBytes()).thenReturn(size * MB);
-    return mockFile;
+  private List<FileScanTask> tasksWithDataAndDeleteSizes(List<Pair<Long, Long[]>> sizePairs) {
+    return sizePairs.stream().map(
+        sizePair -> MockFileScanTask.mockTaskWithDataAndDeleteSizes(sizePair.first() * MB,
+            Arrays.stream(sizePair.second()).mapToLong(size -> size * MB).toArray())
+    ).collect(Collectors.toList());
   }
 
   private RewriteStrategy defaultBinPack() {
@@ -196,18 +180,19 @@ public class TestBinPackStrategy extends TableTestBase {
         RewriteDataFiles.OPEN_FILE_COST, Long.toString(4 * MB)
     ));
 
-    List<FileScanTask> testFiles = Arrays.asList(
-        fileOfDataAndDeleteSize(100L, new long[] {20L, 20L}),
-        fileOfDataAndDeleteSize(250L, new long[0]),
-        fileOfDataAndDeleteSize(100L, new long[] {40L, 40L, 40L}),
-        fileOfDataAndDeleteSize(510L, new long[] {1L, 1L}),
-        fileOfDataAndDeleteSize(1L, new long[0]),
-        fileOfDataAndDeleteSize(100L, new long[] {40L, 40L, 40L})
-    );
+    List<FileScanTask> testFiles = tasksWithDataAndDeleteSizes(
+        Arrays.asList(
+            Pair.of(100L, new Long[] {20L, 20L}),
+            Pair.of(250L, new Long[0]),
+            Pair.of(100L, new Long[] {40L, 40L, 40L}),
+            Pair.of(510L, new Long[] {1L, 1L}),
+            Pair.of(1L, new Long[0]),
+            Pair.of(100L, new Long[] {40L, 40L, 40L})
+        ));
     Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
     Assert.assertEquals("Should plan 4 groups since there is delete files to be considered",
         4, Iterables.size(grouped));
-    Assert.assertEquals("group detail check failed", grouped,
+    Assert.assertEquals("Group detail check failed", grouped,
         Arrays.asList(
             Arrays.asList(testFiles.get(0), testFiles.get(1)),
             Collections.singletonList(testFiles.get(2)),
