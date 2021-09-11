@@ -96,6 +96,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
           String.class, String.class, Table.class, EnvironmentContext.class)
       .impl(IMetaStoreClient.class, "alter_table",
           String.class, String.class, Table.class, EnvironmentContext.class)
+      .impl(IMetaStoreClient.class, "alter_table",
+          String.class, String.class, Table.class)
       .build();
   private static final BiMap<String, String> ICEBERG_TO_HMS_TRANSLATION = ImmutableBiMap.of(
       // gc.enabled in Iceberg and external.table.purge in Hive are meant to do the same things but with different names
