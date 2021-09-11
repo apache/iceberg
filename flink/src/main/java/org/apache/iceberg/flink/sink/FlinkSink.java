@@ -21,10 +21,12 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
+import org.apache.directory.api.util.Strings;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
@@ -60,6 +62,8 @@ import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_DEFAULT;
+import static org.apache.iceberg.TableProperties.WRITE_EQUALITY_FIELD_COLUMNS_ENABLE;
+import static org.apache.iceberg.TableProperties.WRITE_EQUALITY_FIELD_COLUMNS_ENABLE_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
@@ -127,6 +131,7 @@ public class FlinkSink {
     private Integer writeParallelism = null;
     private List<String> equalityFieldColumns = null;
     private String uidPrefix = null;
+    private final SinkContext.Builder contextBuilder = SinkContext.builder();
 
     private Builder() {
     }
@@ -223,6 +228,11 @@ public class FlinkSink {
       return this;
     }
 
+    public Builder properties(Map<String, String> properties) {
+      contextBuilder.fromProperties(properties);
+      return this;
+    }
+
     /**
      * Set the uid prefix for FlinkSink operators. Note that FlinkSink internally consists of multiple operators (like
      * writer, committer, dummy sink etc.) Actually operator uid will be appended with a suffix like "uidPrefix-writer".
@@ -265,6 +275,18 @@ public class FlinkSink {
         }
       }
 
+      // Get the equalityFieldColumns configured in options
+      if (PropertyUtil.propertyAsBoolean(table.properties(),
+              WRITE_EQUALITY_FIELD_COLUMNS_ENABLE, WRITE_EQUALITY_FIELD_COLUMNS_ENABLE_DEFAULT)) {
+        List<String> equalityColumns = Lists.newArrayList();
+        SinkContext context = contextBuilder.build();
+        String[] splitColumns = context.equalityFieldColumns().split(",");
+        Arrays.stream(splitColumns).map(String::trim).filter(Strings::isNotEmpty).forEach(equalityColumns::add);
+
+        Preconditions.checkState(!equalityColumns.isEmpty(),
+              "Equality field columns shouldn't be empty when configuring to use equality-field-columns.");
+        equalityFieldColumns = equalityColumns;
+      }
       // Convert the requested flink table schema to flink row type.
       RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
 
