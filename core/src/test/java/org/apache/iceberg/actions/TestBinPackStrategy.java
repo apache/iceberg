@@ -33,7 +33,6 @@ import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.util.Pair;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -68,13 +67,6 @@ public class TestBinPackStrategy extends TableTestBase {
 
   private List<FileScanTask> filesOfSize(long... sizes) {
     return Arrays.stream(sizes).mapToObj(size -> new MockFileScanTask(size * MB)).collect(Collectors.toList());
-  }
-
-  private List<FileScanTask> tasksWithDataAndDeleteSizes(List<Pair<Long, Long[]>> sizePairs) {
-    return sizePairs.stream().map(
-        sizePair -> MockFileScanTask.mockTaskWithDataAndDeleteSizes(sizePair.first() * MB,
-            Arrays.stream(sizePair.second()).mapToLong(size -> size * MB).toArray())
-    ).collect(Collectors.toList());
   }
 
   private RewriteStrategy defaultBinPack() {
@@ -173,35 +165,6 @@ public class TestBinPackStrategy extends TableTestBase {
   }
 
   @Test
-  public void testGroupingWithDeleteFiles() {
-    RewriteStrategy strategy = defaultBinPack().options(ImmutableMap.of(
-        RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Long.toString(512 * MB),
-        RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(100 * MB),
-        RewriteDataFiles.OPEN_FILE_COST, Long.toString(4 * MB)
-    ));
-
-    List<FileScanTask> testFiles = tasksWithDataAndDeleteSizes(
-        Arrays.asList(
-            Pair.of(100L, new Long[] {20L, 20L}),
-            Pair.of(250L, new Long[0]),
-            Pair.of(100L, new Long[] {40L, 40L, 40L}),
-            Pair.of(510L, new Long[] {1L, 1L}),
-            Pair.of(1L, new Long[0]),
-            Pair.of(100L, new Long[] {40L, 40L, 40L})
-        ));
-    Iterable<List<FileScanTask>> grouped = strategy.planFileGroups(testFiles);
-    Assert.assertEquals("Should plan 4 groups since there is delete files to be considered",
-        4, Iterables.size(grouped));
-    Assert.assertEquals("Group detail check failed", grouped,
-        Arrays.asList(
-            Arrays.asList(testFiles.get(0), testFiles.get(1)),
-            Collections.singletonList(testFiles.get(2)),
-            Collections.singletonList(testFiles.get(3)),
-            Arrays.asList(testFiles.get(4), testFiles.get(5))
-        ));
-  }
-
-  @Test
   public void testNumOuputFiles() {
     BinPackStrategy strategy = (BinPackStrategy) defaultBinPack();
     long targetFileSize = strategy.targetFileSize();
@@ -233,7 +196,7 @@ public class TestBinPackStrategy extends TableTestBase {
               BinPackStrategy.MIN_FILE_SIZE_BYTES, Long.toString(1000 * MB)));
         });
 
-    AssertHelpers.assertThrows("Should not allow min input size smaller than 1",
+    AssertHelpers.assertThrows("Should not allow min input size smaller tha 1",
         IllegalArgumentException.class, () -> {
           defaultBinPack().options(ImmutableMap.of(
               BinPackStrategy.MIN_INPUT_FILES, Long.toString(-5)));
@@ -243,12 +206,6 @@ public class TestBinPackStrategy extends TableTestBase {
         IllegalArgumentException.class, () -> {
           defaultBinPack().options(ImmutableMap.of(
               RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(-5)));
-        });
-
-    AssertHelpers.assertThrows("Should not allow open file size smaller than 1",
-        IllegalArgumentException.class, () -> {
-          defaultBinPack().options(ImmutableMap.of(
-              RewriteDataFiles.OPEN_FILE_COST, Long.toString(-5)));
         });
   }
 }

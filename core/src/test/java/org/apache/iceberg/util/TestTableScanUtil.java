@@ -23,23 +23,41 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.apache.commons.lang.ArrayUtils;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MockFileScanTask;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 public class TestTableScanUtil {
 
   private List<FileScanTask> tasksWithDataAndDeleteSizes(List<Pair<Long, Long[]>> sizePairs) {
-    return sizePairs.stream().map(
-        sizePair -> MockFileScanTask.mockTaskWithDataAndDeleteSizes(sizePair.first(),
-            ArrayUtils.toPrimitive(sizePair.second()))
-    ).collect(Collectors.toList());
+    return sizePairs.stream().map(sizePair -> {
+      DataFile dataFile = dataFileWithSize(sizePair.first());
+      DeleteFile[] deleteFiles = deleteFilesWithSizes(
+          Arrays.stream(sizePair.second()).mapToLong(Long::longValue).toArray());
+      return new MockFileScanTask(dataFile, deleteFiles);
+    }).collect(Collectors.toList());
+  }
+
+  private DataFile dataFileWithSize(long size) {
+    DataFile mockFile = Mockito.mock(DataFile.class);
+    Mockito.when(mockFile.fileSizeInBytes()).thenReturn(size);
+    return mockFile;
+  }
+
+  private DeleteFile[] deleteFilesWithSizes(long... sizes) {
+    return Arrays.stream(sizes).mapToObj(size -> {
+      DeleteFile mockDeleteFile = Mockito.mock(DeleteFile.class);
+      Mockito.when(mockDeleteFile.fileSizeInBytes()).thenReturn(size);
+      return mockDeleteFile;
+    }).toArray(DeleteFile[]::new);
   }
 
   @Test

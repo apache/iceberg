@@ -77,12 +77,6 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
   String TARGET_FILE_SIZE_BYTES = "target-file-size-bytes";
 
   /**
-   * The estimated cost to open a file, used as a minimum weight when combining splits. By default this
-   * will use the "read.split.open-file-cost" value in the table properties of the table being updated.
-   */
-  String OPEN_FILE_COST = "open-file-cost";
-
-  /**
    * Choose BINPACK as a strategy for this rewrite operation
    * @return this for method chaining
    */
