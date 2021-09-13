@@ -57,12 +57,10 @@ public class LocationProviders {
         return ctor.newInstance(location, properties);
       } catch (ClassCastException e) {
         throw new IllegalArgumentException(
-            String.format(
-                "Provided implementation for dynamic instantiation should implement %s.",
+            String.format("Provided implementation for dynamic instantiation should implement %s.",
                 LocationProvider.class), e);
       }
-    } else if (PropertyUtil.propertyAsBoolean(
-        properties,
+    } else if (PropertyUtil.propertyAsBoolean(properties,
         TableProperties.OBJECT_STORE_ENABLED,
         TableProperties.OBJECT_STORE_ENABLED_DEFAULT)) {
       return new ObjectStoreLocationProvider(location, properties);
