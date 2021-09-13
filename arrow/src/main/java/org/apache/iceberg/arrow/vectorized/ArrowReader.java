@@ -247,9 +247,11 @@ public class ArrowReader extends CloseableGroup {
       if (fileTasks.stream().anyMatch(TableScanUtil::hasDeletes)) {
         throw new UnsupportedOperationException("Cannot read files that require applying delete files");
       }
+
       if (expectedSchema.columns().isEmpty()) {
         throw new UnsupportedOperationException("Cannot read without at least one projected column");
       }
+
       Set<TypeID> unsupportedTypes = Sets.difference(
           expectedSchema.columns().stream().map(c -> c.type().typeId()).collect(Collectors.toSet()),
           SUPPORTED_TYPES);
