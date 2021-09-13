@@ -77,7 +77,8 @@ public class RowDataRewriter {
         flinkSchema,
         Long.MAX_VALUE,
         format,
-        null);
+        null,
+        false);
   }
 
   public List<DataFile> rewriteDataForTasks(DataStream<CombinedScanTask> dataStream, int parallelism) throws Exception {
