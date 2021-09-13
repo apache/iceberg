@@ -241,7 +241,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
       if (rewriteDataFilesAction != null) {
         rewriteDataFilesAction.execute();
-        if (action.getException() != null) throw action.getException();
+        if (action.getException() != null) {
+          throw action.getException();
+        }
       }
     }
   }

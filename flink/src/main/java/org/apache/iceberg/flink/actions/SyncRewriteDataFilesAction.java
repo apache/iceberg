@@ -102,9 +102,9 @@ public class SyncRewriteDataFilesAction extends BaseRewriteDataFilesAction<SyncR
       List<DataFile> dataFiles = new ArrayList<>();
       // Initialize the task writer.
       this.writer = taskWriterFactory.create();
-      for (CombinedScanTask task:combinedScanTask) {
+      for (CombinedScanTask task : combinedScanTask) {
         try (RowDataIterator iterator =
-                     new RowDataIterator(task, io, encryptionManager, schema, schema, nameMapping, caseSensitive)) {
+            new RowDataIterator(task, io, encryptionManager, schema, schema, nameMapping, caseSensitive)) {
           while (iterator.hasNext()) {
             RowData rowData = iterator.next();
             writer.write(rowData);
@@ -131,7 +131,6 @@ public class SyncRewriteDataFilesAction extends BaseRewriteDataFilesAction<SyncR
       }
       return dataFiles;
     }
-
   }
 
   @Override
