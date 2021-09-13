@@ -256,7 +256,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog implements Closeable, 
       dynamo.deleteItem(DeleteItemRequest.builder()
           .tableName(awsProperties.dynamoDbTableName())
           .key(namespacePrimaryKey(namespace))
-          .conditionExpression("attribute_exists(" + namespace + ")")
+          .conditionExpression("attribute_exists(" + COL_NAMESPACE + ")")
           .build());
       return true;
     } catch (ConditionalCheckFailedException e) {
