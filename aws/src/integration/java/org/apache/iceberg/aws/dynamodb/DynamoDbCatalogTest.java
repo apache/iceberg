@@ -283,6 +283,18 @@ public class DynamoDbCatalogTest {
     Assert.assertEquals(2, table.schema().columns().size());
   }
 
+  @Test
+  public void testDropNamespace() {
+    Namespace namespace = Namespace.of(genRandomName());
+    catalog.createNamespace(namespace);
+    catalog.dropNamespace(namespace);
+    GetItemResponse response = dynamo.getItem(GetItemRequest.builder()
+            .tableName(catalogTableName)
+            .key(DynamoDbCatalog.namespacePrimaryKey(namespace))
+            .build());
+    Assert.assertFalse("namespace must not exist", response.hasItem());
+  }
+
   private static String genRandomName() {
     return UUID.randomUUID().toString().replace("-", "");
   }
