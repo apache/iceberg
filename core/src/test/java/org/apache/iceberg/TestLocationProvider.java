@@ -235,7 +235,7 @@ public class TestLocationProvider extends TableTestBase {
         .set(TableProperties.WRITE_DATA_LOCATION, dataPath)
         .commit();
 
-    Assert.assertTrue("object storage path should be used when set",
+    Assert.assertTrue("write data path should be used when set",
         table.locationProvider().newDataLocation("file").contains(dataPath));
   }
 
@@ -261,7 +261,7 @@ public class TestLocationProvider extends TableTestBase {
         .set(TableProperties.WRITE_DATA_LOCATION, dataPath)
         .commit();
 
-    Assert.assertTrue("object storage path should be used when set",
+    Assert.assertTrue("write data path should be used when set",
         table.locationProvider().newDataLocation("file").contains(dataPath));
   }
 }
