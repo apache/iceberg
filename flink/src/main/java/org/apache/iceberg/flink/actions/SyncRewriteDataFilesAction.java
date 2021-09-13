@@ -98,37 +98,40 @@ public class SyncRewriteDataFilesAction extends BaseRewriteDataFilesAction<SyncR
 
   @Override
   protected List<DataFile> rewriteDataForTasks(List<CombinedScanTask> combinedScanTask) {
-    List<DataFile> dataFiles = new ArrayList<>();
-    // Initialize the task writer.
-    this.writer = taskWriterFactory.create();
-    for (CombinedScanTask task : combinedScanTask) {
-      try (RowDataIterator iterator =
-          new RowDataIterator(task, io, encryptionManager, schema, schema, nameMapping, caseSensitive)) {
-        while (iterator.hasNext()) {
-          RowData rowData = iterator.next();
-          writer.write(rowData);
-        }
-        dataFiles.addAll(Lists.newArrayList(writer.dataFiles()));
-      } catch (Throwable originalThrowable) {
-        try {
-          LOG.error("Aborting commit for  (subTaskId {}, attemptId {})", subTaskId, attemptId);
-          writer.abort();
-          LOG.error("Aborted commit for  (subTaskId {}, attemptId {})", subTaskId, attemptId);
-        } catch (Throwable inner) {
-          if (originalThrowable != inner) {
-            originalThrowable.addSuppressed(inner);
-            LOG.warn("Suppressing exception in catch: {}", inner.getMessage(), inner);
+    synchronized (SyncRewriteDataFilesAction.class) {
+      List<DataFile> dataFiles = new ArrayList<>();
+      // Initialize the task writer.
+      this.writer = taskWriterFactory.create();
+      for (CombinedScanTask task:combinedScanTask) {
+        try (RowDataIterator iterator =
+                     new RowDataIterator(task, io, encryptionManager, schema, schema, nameMapping, caseSensitive)) {
+          while (iterator.hasNext()) {
+            RowData rowData = iterator.next();
+            writer.write(rowData);
+          }
+          dataFiles.addAll(Lists.newArrayList(writer.dataFiles()));
+        } catch (Throwable originalThrowable) {
+          try {
+            LOG.error("Aborting commit for  (subTaskId {}, attemptId {})", subTaskId, attemptId);
+            writer.abort();
+            LOG.error("Aborted commit for  (subTaskId {}, attemptId {})", subTaskId, attemptId);
+          } catch (Throwable inner) {
+            if (originalThrowable != inner) {
+              originalThrowable.addSuppressed(inner);
+              LOG.warn("Suppressing exception in catch: {}", inner.getMessage(), inner);
+            }
+          }
+
+          if (originalThrowable instanceof Exception) {
+            this.exception = (Exception) originalThrowable;
+          } else {
+            this.exception = new RuntimeException(originalThrowable);
           }
         }
-
-        if (originalThrowable instanceof Exception) {
-          this.exception = (Exception) originalThrowable;
-        } else {
-          this.exception = new RuntimeException(originalThrowable);
-        }
       }
+      return dataFiles;
     }
-    return dataFiles;
+
   }
 
   @Override

@@ -213,6 +213,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
                 .filter(Expressions.equal(p.getKey(), pValue));
           }
         }
+      } else {
+        rewriteDataFilesAction = null;
       }
     }
 
@@ -222,23 +224,24 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   @Override
   public void notifyCheckpointComplete(long checkpointId) throws Exception {
-    super.notifyCheckpointComplete(checkpointId);
-    // It's possible that we have the following events:
-    //   1. snapshotState(ckpId);
-    //   2. snapshotState(ckpId+1);
-    //   3. notifyCheckpointComplete(ckpId+1);
-    //   4. notifyCheckpointComplete(ckpId);
-    // For step#4, we don't need to commit iceberg table again because in step#3 we've committed all the files,
-    // Besides, we need to maintain the max-committed-checkpoint-id to be increasing.
-    if (checkpointId > maxCommittedCheckpointId) {
-      commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, checkpointId);
-      this.maxCommittedCheckpointId = checkpointId;
-    }
+    // sync exec commit checkpoint and compact datafile
+    synchronized (IcebergFilesCommitter.class) {
+      super.notifyCheckpointComplete(checkpointId);
+      // It's possible that we have the following events:
+      //   1. snapshotState(ckpId);
+      //   2. snapshotState(ckpId+1);
+      //   3. notifyCheckpointComplete(ckpId+1);
+      //   4. notifyCheckpointComplete(ckpId);
+      // For step#4, we don't need to commit iceberg table again because in step#3 we've committed all the files,
+      // Besides, we need to maintain the max-committed-checkpoint-id to be increasing.
+      if (checkpointId > maxCommittedCheckpointId) {
+        commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, checkpointId);
+        this.maxCommittedCheckpointId = checkpointId;
+      }
 
-    if (rewriteDataFilesAction != null) {
-      rewriteDataFilesAction.execute();
-      if (action.getException() != null) {
-        throw action.getException();
+      if (rewriteDataFilesAction != null) {
+        rewriteDataFilesAction.execute();
+        if (action.getException() != null) throw action.getException();
       }
     }
   }
