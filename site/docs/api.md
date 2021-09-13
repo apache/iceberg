@@ -89,10 +89,11 @@ scanBuilder.where(Expressions.equal("id", 5))
 When a scan is configured, call method `build` to execute scan. `build` return `CloseableIterable<Record>`
 
 ```java
-Iterable<Record> result = IcebergGenerics.read(table)
+CloseableIterable<Record> result = IcebergGenerics.read(table)
         .where(Expressions.lessThan("id", 5))
         .build();
 ```
+where `Record` is Iceberg record for iceberg-data module `org.apache.iceberg.data.Record`.
 
 ### Update operations
 
