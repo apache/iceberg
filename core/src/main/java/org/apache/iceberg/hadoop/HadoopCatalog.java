@@ -252,21 +252,19 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
     Path tablePath = new Path(defaultWarehouseLocation(identifier));
     TableOperations ops = newTableOps(identifier);
-    TableMetadata lastMetadata;
-    if (purge && ops.current() != null) {
-      lastMetadata = ops.current();
-    } else {
-      lastMetadata = null;
-    }
-
+    TableMetadata lastMetadata = ops.current();
     try {
-      if (purge && lastMetadata != null) {
-        // Since the data files and the metadata files may store in different locations,
-        // so it has to call dropTableData to force delete the data file.
-        CatalogUtil.dropTableData(ops.io(), lastMetadata);
+      if (lastMetadata == null) {
+        LOG.debug("Not an iceberg table: {}", identifier);
+        return false;
+      } else {
+        if (purge) {
+          // Since the data files and the metadata files may store in different locations,
+          // so it has to call dropTableData to force delete the data file.
+          CatalogUtil.dropTableData(ops.io(), lastMetadata);
+        }
+        return fs.delete(tablePath, true /* recursive */);
       }
-      fs.delete(tablePath, true /* recursive */);
-      return true;
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to delete file: %s", tablePath);
     }
