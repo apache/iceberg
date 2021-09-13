@@ -334,6 +334,6 @@ public class TestDeltaTaskWriter extends TableTestBase {
   private TaskWriterFactory<RowData> createTaskWriterFactory(List<Integer> equalityFieldIds) {
     return new RowDataTaskWriterFactory(
         SerializableTable.copyOf(table), FlinkSchemaUtil.convert(table.schema()),
-        128 * 1024 * 1024, format, equalityFieldIds);
+        128 * 1024 * 1024, format, equalityFieldIds, false);
   }
 }
