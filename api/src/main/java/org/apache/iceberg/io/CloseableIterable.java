@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -115,6 +116,12 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
         };
       }
     };
+  }
+
+  static <E> CloseableIterable<E> concat(Iterable<? extends Iterable<E>> iterable,
+                                         ExecutorService executorService,
+                                         int parallelism) {
+    return new ParallelIterable<>(iterable, executorService, parallelism);
   }
 
   static <E> CloseableIterable<E> concat(Iterable<CloseableIterable<E>> iterable) {

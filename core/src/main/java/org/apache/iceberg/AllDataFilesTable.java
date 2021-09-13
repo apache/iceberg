@@ -30,7 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.StructType;
-import org.apache.iceberg.util.ParallelIterable;
+import org.apache.iceberg.io.ParallelIterable;
 import org.apache.iceberg.util.ThreadPools;
 
 /**
@@ -128,9 +128,9 @@ public class AllDataFilesTable extends BaseMetadataTable {
   }
 
   private static CloseableIterable<ManifestFile> allDataManifestFiles(List<Snapshot> snapshots) {
-    try (CloseableIterable<ManifestFile> iterable = new ParallelIterable<>(
+    try (CloseableIterable<ManifestFile> iterable = CloseableIterable.concat(
         Iterables.transform(snapshots, snapshot -> (Iterable<ManifestFile>) () -> snapshot.dataManifests().iterator()),
-        ThreadPools.getWorkerPool())) {
+        ThreadPools.getWorkerPool(), ThreadPools.getPoolParallelism())) {
       return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close parallel iterable");

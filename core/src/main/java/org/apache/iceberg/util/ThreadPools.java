@@ -61,6 +61,15 @@ public class ThreadPools {
     return WORKER_POOL;
   }
 
+  /**
+   * Return parallelism for "worker" thread-pool.
+   * In default, we submit 2 tasks per worker at a time.
+   * @return the parallelism of the worker pool.
+   */
+  public static int getPoolParallelism() {
+    return WORKER_THREAD_POOL_SIZE * 2;
+  }
+
   private static int getPoolSize(String systemProperty, int defaultSize) {
     String value = System.getProperty(systemProperty);
     if (value != null) {

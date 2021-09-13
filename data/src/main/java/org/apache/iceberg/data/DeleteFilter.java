@@ -52,6 +52,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Filter;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
+import org.apache.iceberg.util.ThreadPools;
 import org.apache.parquet.Preconditions;
 
 public abstract class DeleteFilter<T> {
@@ -135,8 +136,10 @@ public abstract class DeleteFilter<T> {
       Iterable<CloseableIterable<Record>> deleteRecords = Iterables.transform(deletes,
           delete -> openDeletes(delete, deleteSchema));
       StructLikeSet deleteSet = Deletes.toEqualitySet(
-          // copy the delete records because they will be held in a set
-          CloseableIterable.transform(CloseableIterable.concat(deleteRecords), Record::copy),
+          CloseableIterable.transform(
+              CloseableIterable.concat(deleteRecords, ThreadPools.getWorkerPool(), ThreadPools.getPoolParallelism()),
+              deleteRecord -> (StructLike) deleteRecord
+          ),
           deleteSchema.asStruct());
 
       Predicate<T> isInDeleteSet = record -> deleteSet.contains(projectRow.wrap(asStructLike(record)));
@@ -189,7 +192,11 @@ public abstract class DeleteFilter<T> {
     if (posDeletes.stream().mapToLong(DeleteFile::recordCount).sum() < setFilterThreshold) {
       return Deletes.filter(
           records, this::pos,
-          Deletes.toPositionSet(dataFile.path(), CloseableIterable.concat(deletes)));
+          Deletes.toPositionSet(
+              dataFile.path(),
+              CloseableIterable.concat(deletes, ThreadPools.getWorkerPool(), ThreadPools.getPoolParallelism())
+          )
+      );
     }
 
     return Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(dataFile.path(), deletes));
@@ -205,14 +212,12 @@ public abstract class DeleteFilter<T> {
       case AVRO:
         return Avro.read(input)
             .project(deleteSchema)
-            .reuseContainers()
             .createReaderFunc(DataReader::create)
             .build();
 
       case PARQUET:
         Parquet.ReadBuilder builder = Parquet.read(input)
             .project(deleteSchema)
-            .reuseContainers()
             .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(deleteSchema, fileSchema));
 
         if (deleteFile.content() == FileContent.POSITION_DELETES) {

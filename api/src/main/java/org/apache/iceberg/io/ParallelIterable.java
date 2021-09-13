@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.util;
+package org.apache.iceberg.io;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -28,25 +28,25 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import org.apache.iceberg.exceptions.RuntimeIOException;
-import org.apache.iceberg.io.CloseableGroup;
-import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 public class ParallelIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final Iterable<? extends Iterable<T>> iterables;
   private final ExecutorService workerPool;
+  private final int parallelism;
 
   public ParallelIterable(Iterable<? extends Iterable<T>> iterables,
-                          ExecutorService workerPool) {
+                          ExecutorService workerPool,
+                          int parallelism) {
     this.iterables = iterables;
     this.workerPool = workerPool;
+    this.parallelism = parallelism;
   }
 
   @Override
   public CloseableIterator<T> iterator() {
-    ParallelIterator<T> iter = new ParallelIterator<>(iterables, workerPool);
+    ParallelIterator<T> iter = new ParallelIterator<>(iterables, workerPool, parallelism);
     addCloseable(iter);
     return iter;
   }
@@ -59,7 +59,8 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     private boolean closed = false;
 
     private ParallelIterator(Iterable<? extends Iterable<T>> iterables,
-                             ExecutorService workerPool) {
+                             ExecutorService workerPool,
+                             int parallelism) {
       this.tasks = Iterables.transform(iterables, iterable ->
           (Runnable) () -> {
             try (Closeable ignored = (iterable instanceof Closeable) ?
@@ -72,8 +73,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
             }
           }).iterator();
       this.workerPool = workerPool;
-      // submit 2 tasks per worker at a time
-      this.taskFutures = new Future[2 * ThreadPools.WORKER_THREAD_POOL_SIZE];
+      this.taskFutures = new Future[parallelism];
     }
 
     @Override

@@ -39,7 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ParallelIterable;
+import org.apache.iceberg.util.ThreadPools;
 
 class ManifestGroup {
   private static final Types.StructType EMPTY_STRUCT = Types.StructType.of();
@@ -183,7 +183,7 @@ class ManifestGroup {
     });
 
     if (executorService != null) {
-      return new ParallelIterable<>(tasks, executorService);
+      return CloseableIterable.concat(tasks, executorService, ThreadPools.getPoolParallelism());
     } else {
       return CloseableIterable.concat(tasks);
     }
