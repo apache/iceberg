@@ -700,4 +700,54 @@ public class TestRowDelta extends V2TableTestBase {
         files(deleteFile),
         statuses(Status.ADDED));
   }
+
+  @Test
+  public void testValidateDataFilesDoNotExistWithConflictDetectionFilter() {
+    // change the spec to be partitioned by data
+    table.updateSpec()
+        .removeField(Expressions.bucket("data", 16))
+        .addField(Expressions.ref("data"))
+        .commit();
+
+    // add a data file to partition A
+    DataFile dataFile1 = DataFiles.builder(table.spec())
+        .withPath("/path/to/data-a.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data=a")
+        .withRecordCount(1)
+        .build();
+
+    table.newAppend()
+        .appendFile(dataFile1)
+        .commit();
+
+    // use this snapshot as the starting snapshot in rowDelta
+    Snapshot baseSnapshot = table.currentSnapshot();
+
+    // add a delete file for partition A
+    DeleteFile deleteFile = FileMetadata.deleteFileBuilder(table.spec())
+        .ofPositionDeletes()
+        .withPath("/path/to/data-a-deletes.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data=a")
+        .withRecordCount(1)
+        .build();
+
+    Expression conflictDetectionFilter = Expressions.equal("data", "a");
+    RowDelta rowDelta = table.newRowDelta()
+        .addDeletes(deleteFile)
+        .validateDataFilesExist(ImmutableList.of(dataFile1.path()))
+        .validateDeletedFiles()
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .validateNoConflictingAppends(conflictDetectionFilter);
+
+    // concurrently delete the file for partition A
+    table.newDelete()
+        .deleteFile(dataFile1)
+        .commit();
+
+    AssertHelpers.assertThrows("Should fail to add deletes because data file is missing",
+        ValidationException.class, "Cannot commit, missing data files",
+        rowDelta::commit);
+  }
 }
