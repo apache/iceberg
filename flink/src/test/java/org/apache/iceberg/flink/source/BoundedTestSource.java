@@ -69,7 +69,8 @@ public final class BoundedTestSource<T> implements SourceFunction<T>, Checkpoint
         // Even if the checkpoints that emitted results are not continuous, the correctness of the data should not be
         // affected in the end. Setting the delta to be 2 is introducing the variable that produce un-continuous
         // checkpoints that emit the records buffer from elementsPerCheckpoints.
-        checkpointToAwait = numCheckpointsComplete.get() + 2;
+        // TODO - Document this went from 2 -> 4 due to the two source test.
+        checkpointToAwait = numCheckpointsComplete.get() + 4;
         for (T element : elementsPerCheckpoint.get(checkpoint)) {
           ctx.collect(element);
         }
