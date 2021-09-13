@@ -318,7 +318,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   @SuppressWarnings("CollectionUndefinedEquality")
   protected void validateDataFilesExist(TableMetadata base, Long startingSnapshotId,
-                                        CharSequenceSet requiredDataFiles, boolean skipDeletes) {
+                                        CharSequenceSet requiredDataFiles, boolean skipDeletes,
+                                        Expression conflictDetectionFilter) {
     // if there is no current table state, no files have been removed
     if (base.currentSnapshot() == null) {
       return;
@@ -338,6 +339,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             newSnapshots.contains(entry.snapshotId()) && requiredDataFiles.contains(entry.file().path()))
         .specsById(base.specsById())
         .ignoreExisting();
+
+    if (conflictDetectionFilter != null) {
+      matchingDeletesGroup.filterData(conflictDetectionFilter);
+    }
 
     try (CloseableIterator<ManifestEntry<DataFile>> deletes = matchingDeletesGroup.entries().iterator()) {
       if (deletes.hasNext()) {
