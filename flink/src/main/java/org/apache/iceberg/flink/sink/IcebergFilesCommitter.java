@@ -145,8 +145,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     this.manifestOutputFileFactory = FlinkManifestUtil.createOutputFileFactory(table, flinkJobId, subTaskId, attemptId);
     this.maxCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
-    Map<String, String> currentSummary = this.table.currentSnapshot().summary();
-    this.currentWatermark = PropertyUtil.propertyAsLong(currentSummary, WATERMARK_VALUE, WATERMARK_VALUE_DEFAULT);
+    Snapshot currentSnapshot = this.table.currentSnapshot();
+    this.currentWatermark = currentSnapshot == null ? WATERMARK_VALUE_DEFAULT :
+            PropertyUtil.propertyAsLong(currentSnapshot.summary(), WATERMARK_VALUE, WATERMARK_VALUE_DEFAULT);
     this.watermarkState = context.getOperatorStateStore().getListState(WATERMARK_DESCRIPTOR);
 
     this.checkpointsState = context.getOperatorStateStore().getListState(STATE_DESCRIPTOR);
