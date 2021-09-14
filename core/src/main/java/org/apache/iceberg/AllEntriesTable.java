@@ -30,7 +30,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.StructType;
-import org.apache.iceberg.io.ParallelIterable;
 import org.apache.iceberg.util.ThreadPools;
 
 /**
