@@ -29,7 +29,7 @@ To create the table in flink SQL by using SQL syntax `CREATE TABLE test (..) WIT
     * `hadoop`: The hadoop catalog.
     * `custom`: The customized catalog, see [custom catalog](./custom-catalog.md) for more details.
 * `catalog-database`: The iceberg database name in the backend catalog, use the current flink database name by default.
-* `catalog-table`: The iceberg table name in the backend catalog. Default to use the `<table-name>` in the flink DDL `CREATE TABLE <table-name> (..) WITH ('connector'='iceberg', ...)`.
+* `catalog-table`: The iceberg table name in the backend catalog. Default to use the table name in the flink `CREATE TABLE` sentence.
 
 ## Table managed in hive catalog.
 
