@@ -74,7 +74,7 @@ public class LocationProviders {
 
     DefaultLocationProvider(String tableLocation, Map<String, String> properties) {
       this.dataLocation =
-          stripTrailingSlash(dataLocation(properties, tableLocation, TableProperties.WRITE_FOLDER_STORAGE_LOCATION));
+          stripTrailingSlash(dataLocation(properties, tableLocation, false));
     }
 
     @Override
@@ -97,7 +97,7 @@ public class LocationProviders {
 
     ObjectStoreLocationProvider(String tableLocation, Map<String, String> properties) {
       this.storageLocation =
-          stripTrailingSlash(dataLocation(properties, tableLocation, TableProperties.OBJECT_STORE_PATH));
+          stripTrailingSlash(dataLocation(properties, tableLocation, true));
       this.context = pathContext(tableLocation);
     }
 
@@ -139,19 +139,33 @@ public class LocationProviders {
     return result;
   }
 
-  private static String dataLocation(Map<String, String> properties, String tableLocation, String deprecatedProperty) {
+  private static String dataLocation(Map<String, String> properties, String tableLocation, boolean isObjectStore) {
     String dataLocation = properties.get(TableProperties.WRITE_DATA_LOCATION);
     if (dataLocation == null) {
+      String deprecatedProperty = null;
+      if (isObjectStore) {
+        deprecatedProperty = TableProperties.OBJECT_STORE_PATH;
+      }
+
       dataLocation = properties.get(deprecatedProperty);
       if (dataLocation == null) {
-        dataLocation = String.format("%s/data", tableLocation);
-      } else {
-        if (deprecatedProperty != null) {
-          LOG.warn("Table property {} is deprecated, please use {} instead.", deprecatedProperty,
-              TableProperties.WRITE_DATA_LOCATION);
+        dataLocation = properties.get(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+        if (dataLocation == null) {
+          dataLocation = String.format("%s/data", tableLocation);
+        } else {
+          logWarnForDeprecatedProperty(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
         }
+      } else {
+        logWarnForDeprecatedProperty(deprecatedProperty);
       }
     }
     return dataLocation;
+  }
+
+  private static void logWarnForDeprecatedProperty(String deprecatedProperty) {
+    if (deprecatedProperty != null) {
+      LOG.warn("Table property {} is deprecated, please use {} instead.", deprecatedProperty,
+          TableProperties.WRITE_DATA_LOCATION);
+    }
   }
 }
