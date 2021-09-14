@@ -79,8 +79,8 @@ public class MetricsConfig implements Serializable {
   }
 
   /**
-   * @param props Table configuration
-   * @return Metrics Config based on configuration
+   * Creates a metrics config from table configuration.
+   * @param props table configuration
    * @deprecated use {@link MetricsConfig#forTable(Table)}
    **/
   @Deprecated
@@ -89,8 +89,8 @@ public class MetricsConfig implements Serializable {
   }
 
   /**
-   * @param table Iceberg Table
-   * @return Metrics Config based on table properties
+   * Creates a metrics config from a table.
+   * @param table iceberg table
    */
   public static MetricsConfig forTable(Table table) {
     return from(table.properties(), table.sortOrder());
