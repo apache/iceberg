@@ -29,7 +29,7 @@ public class ExceptionUtil {
   }
 
   @SuppressWarnings("unchecked")
-  static <E extends Exception> void castAndThrow(
+  public static <E extends Exception> void castAndThrow(
       Throwable exception, Class<E> exceptionClass) throws E {
     if (exception instanceof RuntimeException) {
       throw (RuntimeException) exception;
