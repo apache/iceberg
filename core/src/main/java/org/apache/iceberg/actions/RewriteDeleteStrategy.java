@@ -38,6 +38,17 @@ public interface RewriteDeleteStrategy {
   Table table();
 
   /**
+   * Returns a set of options which this rewrite strategy can use. This is an allowed-list and any options not
+   * specified here will be rejected at runtime.
+   */
+  Set<String> validOptions();
+
+  /**
+   * Sets options to be used with this strategy
+   */
+  RewriteDeleteStrategy options(Map<String, String> options);
+
+  /**
    * Select the deletes to rewrite.
    *
    * @param dataFiles iterable of FileScanTasks for data files in a given partition
@@ -62,15 +73,4 @@ public interface RewriteDeleteStrategy {
    * @return iterable of lists of FileScanTasks which will be processed together
    */
   Iterable<Set<DeleteFile>> planDeleteGroups(Iterable<DeleteFile> deleteFiles);
-
-  /**
-   * Sets options to be used with this strategy
-   */
-  RewriteDeleteStrategy options(Map<String, String> options);
-
-  /**
-   * Returns a set of options which this rewrite strategy can use. This is an allowed-list and any options not
-   * specified here will be rejected at runtime.
-   */
-  Set<String> validOptions();
 }
