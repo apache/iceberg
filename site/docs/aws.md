@@ -372,9 +372,10 @@ Which will write the data to S3 with a hash (`2d3905f8`) appended directly after
 s3://my-table-data-bucket/2d3905f8/my_ns.db/my_table/category=orders/00000-0-5affc076-96a4-48f2-9cd2-d5efbc9f0c94-00001.parquet
 ```
 
-Note, the path resolution logic for `ObjectStoreLocationProvider` is as follows:
-- if `write.data.path` is set, use it
-- if not found, use `<tableLocation>/data`
+Note, the path resolution logic for `ObjectStoreLocationProvider` is `write.data.path` then `<tableLocation>/data`.
+However, for the older versions up to 0.12.0, the logic is as follows:
+- before 0.12.0, `write.object-storage.path` must be set.
+- at 0.12.0, `write.object-storage.path` then `write.folder-storage.path` then `<tableLocation>/data`.
 
 For more details, please refer to the [LocationProvider Configuration](../custom-catalog/#custom-location-provider-implementation) section.  
 
