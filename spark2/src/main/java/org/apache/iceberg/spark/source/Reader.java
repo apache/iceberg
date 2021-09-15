@@ -49,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkFilters;
+import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
@@ -58,7 +59,6 @@ import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
-import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.sources.Filter;
@@ -85,7 +85,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
   private final JavaSparkContext sparkContext;
   private final Table table;
-  private final DataSourceOptions options;
+  private final SparkReadConf readConf;
   private final Long snapshotId;
   private final Long startSnapshotId;
   private final Long endSnapshotId;
@@ -110,16 +110,16 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   Reader(SparkSession spark, Table table, boolean caseSensitive, DataSourceOptions options) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
-    this.options = options;
-    this.snapshotId = options.get(SparkReadOptions.SNAPSHOT_ID).map(Long::parseLong).orElse(null);
-    this.asOfTimestamp = options.get(SparkReadOptions.AS_OF_TIMESTAMP).map(Long::parseLong).orElse(null);
+    this.readConf = new SparkReadConf(spark, table, options.asMap());
+    this.snapshotId = readConf.snapshotId();
+    this.asOfTimestamp = readConf.asOfTimestamp();
     if (snapshotId != null && asOfTimestamp != null) {
       throw new IllegalArgumentException(
           "Cannot scan using both snapshot-id and as-of-timestamp to select the table snapshot");
     }
 
-    this.startSnapshotId = options.get("start-snapshot-id").map(Long::parseLong).orElse(null);
-    this.endSnapshotId = options.get("end-snapshot-id").map(Long::parseLong).orElse(null);
+    this.startSnapshotId = readConf.startSnapshotId();
+    this.endSnapshotId = readConf.endSnapshotId();
     if (snapshotId != null || asOfTimestamp != null) {
       if (startSnapshotId != null || endSnapshotId != null) {
         throw new IllegalArgumentException(
@@ -159,11 +159,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
     this.schema = table.schema();
     this.caseSensitive = caseSensitive;
-    this.batchSize = options.get(SparkReadOptions.VECTORIZATION_BATCH_SIZE).map(Integer::parseInt).orElseGet(() ->
-        PropertyUtil.propertyAsInt(table.properties(),
-          TableProperties.PARQUET_BATCH_SIZE, TableProperties.PARQUET_BATCH_SIZE_DEFAULT));
-    RuntimeConfig sessionConf = SparkSession.active().conf();
-    this.readTimestampWithoutZone = SparkUtil.canHandleTimestampWithoutZone(options.asMap(), sessionConf);
+    this.readTimestampWithoutZone = readConf.handleTimestampWithoutZone();
   }
 
   private Schema lazySchema() {
@@ -355,73 +351,21 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
   private boolean batchReadsEnabled(boolean isParquetOnly, boolean isOrcOnly) {
     if (isParquetOnly) {
-      return isVectorizationEnabled(FileFormat.PARQUET);
+      return readConf.parquetVectorizationEnabled();
     } else if (isOrcOnly) {
-      return isVectorizationEnabled(FileFormat.ORC);
+      return readConf.orcVectorizationEnabled();
     } else {
       return false;
     }
   }
 
-  public boolean isVectorizationEnabled(FileFormat fileFormat) {
-    String readOptionValue = options.get(SparkReadOptions.VECTORIZATION_ENABLED).orElse(null);
-    if (readOptionValue != null) {
-      return Boolean.parseBoolean(readOptionValue);
-    }
-
-    RuntimeConfig sessionConf = SparkSession.active().conf();
-    String sessionConfValue = sessionConf.get("spark.sql.iceberg.vectorization.enabled", null);
-    if (sessionConfValue != null) {
-      return Boolean.parseBoolean(sessionConfValue);
-    }
-
-    switch (fileFormat) {
-      case PARQUET:
-        return PropertyUtil.propertyAsBoolean(
-            table.properties(),
-            TableProperties.PARQUET_VECTORIZATION_ENABLED,
-            TableProperties.PARQUET_VECTORIZATION_ENABLED_DEFAULT);
-      case ORC:
-        return PropertyUtil.propertyAsBoolean(
-            table.properties(),
-            TableProperties.ORC_VECTORIZATION_ENABLED,
-            TableProperties.ORC_VECTORIZATION_ENABLED_DEFAULT);
-      default:
-        return false;
-    }
-  }
-
   private int batchSize(boolean isParquetOnly, boolean isOrcOnly) {
     if (isParquetOnly) {
-      return batchSize(FileFormat.PARQUET);
+      return readConf.parquetBatchSize();
     } else if (isOrcOnly) {
-      return batchSize(FileFormat.ORC);
+      return readConf.orcBatchSize();
     } else {
       return 0;
-    }
-  }
-
-  private int batchSize(FileFormat fileFormat) {
-    String readOptionValue = options.asMap().get(SparkReadOptions.VECTORIZATION_BATCH_SIZE);
-    if (readOptionValue != null) {
-      return Integer.parseInt(readOptionValue);
-    }
-
-    switch (fileFormat) {
-      case PARQUET:
-        return PropertyUtil.propertyAsInt(
-            table.properties(),
-            TableProperties.PARQUET_BATCH_SIZE,
-            TableProperties.PARQUET_BATCH_SIZE_DEFAULT);
-
-      case ORC:
-        return PropertyUtil.propertyAsInt(
-            table.properties(),
-            TableProperties.ORC_BATCH_SIZE,
-            TableProperties.ORC_BATCH_SIZE_DEFAULT);
-
-      default:
-        throw new IllegalArgumentException("File format does not support batch reads: " + fileFormat);
     }
   }
 

@@ -38,6 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -807,7 +808,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"dep\": \"hr\" }\n" +
         "{ \"id\": 2, \"dep\": \"hr\" }");
 
-    withSQLConf(ImmutableMap.of("spark.sql.iceberg.vectorization.enabled", "true"), () -> {
+    withSQLConf(ImmutableMap.of(SparkSQLProperties.VECTORIZATION_ENABLED, "true"), () -> {
       sql("UPDATE %s t SET id = -1", tableName);
 
       assertEquals("Should have expected rows",
