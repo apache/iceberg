@@ -49,7 +49,7 @@ jobs:
         key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
         restore-keys: ${{ runner.os }}-gradle
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-    - run: ./gradlew check -Pquick=true -x javadoc -i
+    - run: ./gradlew check -Pquick=true -x javadoc
     - uses: actions/upload-artifact@v2
       if: failure()
       with:
@@ -64,7 +64,7 @@ jobs:
     - uses: actions/setup-java@v1
       with:
         java-version: 8
-    - run: ./gradlew build -x test -x javadoc -x integrationTest -i
+    - run: ./gradlew build -x test -x javadoc -x integrationTest
 
   build-javadoc:
     runs-on: ubuntu-latest
@@ -73,4 +73,4 @@ jobs:
     - uses: actions/setup-java@v1
       with:
         java-version: 8
-    - run: ./gradlew -Pquick=true javadoc -i
+    - run: ./gradlew -Pquick=true javadoc
