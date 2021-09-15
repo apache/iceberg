@@ -244,7 +244,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
     TableIdentifier testTable = TableIdentifier.of("db", "ns1", "ns2", "tbl");
     String metaLocation = catalog.defaultWarehouseLocation(testTable);
-    //testing with non existent directory
+    // testing with non existent directory
     Assert.assertFalse(catalog.dropTable(testTable));
 
     FileSystem fs = Util.getFs(new Path(metaLocation), conf);

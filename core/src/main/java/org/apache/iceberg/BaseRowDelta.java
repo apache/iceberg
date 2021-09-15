@@ -91,7 +91,8 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
   protected void validate(TableMetadata base) {
     if (base.currentSnapshot() != null) {
       if (!referencedDataFiles.isEmpty()) {
-        validateDataFilesExist(base, startingSnapshotId, referencedDataFiles, !validateDeletes);
+        validateDataFilesExist(
+            base, startingSnapshotId, referencedDataFiles, !validateDeletes, conflictDetectionFilter);
       }
 
       // TODO: does this need to check new delete files?
