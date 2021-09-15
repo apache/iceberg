@@ -162,13 +162,13 @@ public class LocationProviders {
 
     final String warnMsg = "Table property {} is deprecated, please use " + TableProperties.WRITE_DATA_LOCATION +
         " instead.";
-    if (dataLocation == null && !deprecatedProperty.equals(TableProperties.WRITE_FOLDER_STORAGE_LOCATION)) {
+    if (dataLocation != null) {
+      LOG.warn(warnMsg, deprecatedProperty);
+    } else if (deprecatedProperty.equals(TableProperties.OBJECT_STORE_PATH)) {
       dataLocation = properties.get(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
       if (dataLocation != null) {
         LOG.warn(warnMsg, TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
       }
-    } else {
-      LOG.warn(warnMsg, deprecatedProperty);
     }
 
     return dataLocation;
