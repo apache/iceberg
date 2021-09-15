@@ -73,8 +73,7 @@ public class LocationProviders {
     private final String dataLocation;
 
     DefaultLocationProvider(String tableLocation, Map<String, String> properties) {
-      this.dataLocation =
-          stripTrailingSlash(dataLocation(properties, tableLocation, false));
+      this.dataLocation = stripTrailingSlash(dataLocation(properties, tableLocation, false));
     }
 
     @Override
@@ -96,8 +95,7 @@ public class LocationProviders {
     private final String context;
 
     ObjectStoreLocationProvider(String tableLocation, Map<String, String> properties) {
-      this.storageLocation =
-          stripTrailingSlash(dataLocation(properties, tableLocation, true));
+      this.storageLocation = stripTrailingSlash(dataLocation(properties, tableLocation, true));
       this.context = pathContext(tableLocation);
     }
 
@@ -139,33 +137,40 @@ public class LocationProviders {
     return result;
   }
 
+  /**
+   * Get the data file location. For the {@link DefaultLocationProvider}, the priority level are
+   * "write.data.path" -> "write.folder-storage.path" -> "table-location/data".
+   * For the {@link ObjectStoreLocationProvider}, the priority level are
+   * "write.data.path" -> "write.object-storage.path" -> "write.folder-storage.path" -> "table-location/data".
+   */
   private static String dataLocation(Map<String, String> properties, String tableLocation, boolean isObjectStore) {
     String dataLocation = properties.get(TableProperties.WRITE_DATA_LOCATION);
     if (dataLocation == null) {
-      String deprecatedProperty = null;
-      if (isObjectStore) {
-        deprecatedProperty = TableProperties.OBJECT_STORE_PATH;
-      }
-
-      dataLocation = properties.get(deprecatedProperty);
+      dataLocation = deprecatedDataLocation(properties, isObjectStore);
       if (dataLocation == null) {
-        dataLocation = properties.get(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
-        if (dataLocation == null) {
-          dataLocation = String.format("%s/data", tableLocation);
-        } else {
-          logWarnForDeprecatedProperty(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
-        }
-      } else {
-        logWarnForDeprecatedProperty(deprecatedProperty);
+        dataLocation = String.format("%s/data", tableLocation);
       }
     }
     return dataLocation;
   }
 
-  private static void logWarnForDeprecatedProperty(String deprecatedProperty) {
-    if (deprecatedProperty != null) {
-      LOG.warn("Table property {} is deprecated, please use {} instead.", deprecatedProperty,
-          TableProperties.WRITE_DATA_LOCATION);
+  private static String deprecatedDataLocation(Map<String, String> properties, boolean isObjectStore) {
+    String deprecatedProperty = isObjectStore ?
+        TableProperties.OBJECT_STORE_PATH : TableProperties.WRITE_FOLDER_STORAGE_LOCATION;
+
+    String dataLocation = properties.get(deprecatedProperty);
+
+    final String warnMsg = "Table property {} is deprecated, please use " + TableProperties.WRITE_DATA_LOCATION +
+        " instead.";
+    if (dataLocation == null) {
+      dataLocation = properties.get(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+      if (dataLocation != null) {
+        LOG.warn(warnMsg, TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+      }
+    } else {
+      LOG.warn(warnMsg, deprecatedProperty);
     }
+
+    return dataLocation;
   }
 }
