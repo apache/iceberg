@@ -162,7 +162,7 @@ public class LocationProviders {
 
     final String warnMsg = "Table property {} is deprecated, please use " + TableProperties.WRITE_DATA_LOCATION +
         " instead.";
-    if (dataLocation == null) {
+    if (dataLocation == null && !deprecatedProperty.equals(TableProperties.WRITE_FOLDER_STORAGE_LOCATION)) {
       dataLocation = properties.get(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
       if (dataLocation != null) {
         LOG.warn(warnMsg, TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
