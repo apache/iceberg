@@ -64,22 +64,21 @@ public class TestTableScanUtil {
   public void testPlanTaskWithDeleteFiles() {
     List<FileScanTask> testFiles = tasksWithDataAndDeleteSizes(
         Arrays.asList(
-            Pair.of(100L, new Long[] {20L, 20L}),
-            Pair.of(250L, new Long[0]),
-            Pair.of(100L, new Long[] {40L, 40L, 40L}),
-            Pair.of(510L, new Long[] {1L, 1L}),
-            Pair.of(1L, new Long[0]),
-            Pair.of(100L, new Long[] {40L, 40L, 40L})
+            Pair.of(150L, new Long[] {50L, 100L}),
+            Pair.of(100L, new Long[] {1L}),
+            Pair.of(50L, new Long[] {100L}),
+            Pair.of(1L, new Long[] {1L}),
+            Pair.of(75L, new Long[] {75L})
         ));
 
     List<CombinedScanTask> combinedScanTasks = Lists.newArrayList(
-        TableScanUtil.planTasks(CloseableIterable.withNoopClose(testFiles), 512L, 1, 4L)
+        TableScanUtil.planTasks(CloseableIterable.withNoopClose(testFiles), 300L, 1, 50L)
     );
 
     List<CombinedScanTask> expectedCombinedTasks = Arrays.asList(
-        new BaseCombinedScanTask(Arrays.asList(testFiles.get(0), testFiles.get(1))),
-        new BaseCombinedScanTask(Collections.singletonList(testFiles.get(3))),
-        new BaseCombinedScanTask(Arrays.asList(testFiles.get(2), testFiles.get(4), testFiles.get(5)))
+        new BaseCombinedScanTask(Collections.singletonList(testFiles.get(0))),
+        new BaseCombinedScanTask(Arrays.asList(testFiles.get(1), testFiles.get(2))),
+        new BaseCombinedScanTask(Arrays.asList(testFiles.get(3), testFiles.get(4)))
     );
 
     Assert.assertEquals("Should plan 3 Combined tasks since there is delete files to be considered",
