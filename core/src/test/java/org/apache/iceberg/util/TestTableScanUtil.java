@@ -65,14 +65,14 @@ public class TestTableScanUtil {
     List<FileScanTask> testFiles = tasksWithDataAndDeleteSizes(
         Arrays.asList(
             Pair.of(150L, new Long[] {50L, 100L}),
-            Pair.of(100L, new Long[] {1L}),
+            Pair.of(50L, new Long[] {1L, 50L}),
             Pair.of(50L, new Long[] {100L}),
-            Pair.of(1L, new Long[] {1L}),
+            Pair.of(1L, new Long[] {1L, 1L}),
             Pair.of(75L, new Long[] {75L})
         ));
 
     List<CombinedScanTask> combinedScanTasks = Lists.newArrayList(
-        TableScanUtil.planTasks(CloseableIterable.withNoopClose(testFiles), 300L, 1, 50L)
+        TableScanUtil.planTasks(CloseableIterable.withNoopClose(testFiles), 300L, 3, 50L)
     );
 
     List<CombinedScanTask> expectedCombinedTasks = Arrays.asList(
