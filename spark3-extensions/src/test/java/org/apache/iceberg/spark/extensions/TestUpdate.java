@@ -60,8 +60,8 @@ import static org.apache.spark.sql.functions.lit;
 public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
 
   public TestUpdate(String catalogName, String implementation, Map<String, String> config,
-                    String fileFormat, boolean vectorized) {
-    super(catalogName, implementation, config, fileFormat, vectorized);
+                    String fileFormat, boolean vectorized, String distributionMode) {
+    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
   }
 
   @BeforeClass

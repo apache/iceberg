@@ -238,6 +238,24 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
   }
 
   @Test
+  public void testDropNonIcebergTable() throws Exception {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    TableIdentifier testTable = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    String metaLocation = catalog.defaultWarehouseLocation(testTable);
+    // testing with non existent directory
+    Assert.assertFalse(catalog.dropTable(testTable));
+
+    FileSystem fs = Util.getFs(new Path(metaLocation), conf);
+    fs.mkdirs(new Path(metaLocation));
+    Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
+
+    Assert.assertFalse(catalog.dropTable(testTable));
+    Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
+  }
+
+  @Test
   public void testRenameTable() throws Exception {
     Configuration conf = new Configuration();
     String warehousePath = temp.newFolder().getAbsolutePath();
