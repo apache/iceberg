@@ -41,6 +41,10 @@ import org.junit.runners.Parameterized.Parameters;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_HASH;
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_NONE;
+import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
 
 @RunWith(Parameterized.class)
 public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTestBase {
@@ -49,16 +53,20 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
 
   protected final String fileFormat;
   protected final boolean vectorized;
+  protected final String distributionMode;
 
   public SparkRowLevelOperationsTestBase(String catalogName, String implementation,
                                          Map<String, String> config, String fileFormat,
-                                         boolean vectorized) {
+                                         boolean vectorized,
+                                         String distributionMode) {
     super(catalogName, implementation, config);
     this.fileFormat = fileFormat;
     this.vectorized = vectorized;
+    this.distributionMode = distributionMode;
   }
 
-  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, format = {3}, vectorized = {4}")
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}," +
+      " format = {3}, vectorized = {4}, distributionMode = {5}")
   public static Object[][] parameters() {
     return new Object[][] {
         { "testhive", SparkCatalog.class.getName(),
@@ -67,14 +75,16 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
                 "default-namespace", "default"
             ),
             "orc",
-            true
+            true,
+            WRITE_DISTRIBUTION_MODE_NONE
         },
         { "testhadoop", SparkCatalog.class.getName(),
             ImmutableMap.of(
                 "type", "hadoop"
             ),
             "parquet",
-            RANDOM.nextBoolean()
+            RANDOM.nextBoolean(),
+            WRITE_DISTRIBUTION_MODE_HASH
         },
         { "spark_catalog", SparkSessionCatalog.class.getName(),
             ImmutableMap.of(
@@ -85,7 +95,8 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
                 "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
             ),
             "avro",
-            false
+            false,
+            WRITE_DISTRIBUTION_MODE_RANGE
         }
     };
   }
@@ -94,6 +105,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
 
   protected void initTable() {
     sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName, DEFAULT_FILE_FORMAT, fileFormat);
+    sql("ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')", tableName, WRITE_DISTRIBUTION_MODE, distributionMode);
 
     switch (fileFormat) {
       case "parquet":

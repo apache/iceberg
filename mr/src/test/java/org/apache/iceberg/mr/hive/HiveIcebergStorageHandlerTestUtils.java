@@ -96,13 +96,6 @@ public class HiveIcebergStorageHandlerTestUtils {
     shell.setHiveSessionValue("hive.execution.engine", engine);
     shell.setHiveSessionValue("hive.jar.directory", temp.getRoot().getAbsolutePath());
     shell.setHiveSessionValue("tez.staging-dir", temp.getRoot().getAbsolutePath());
-
-    // temporarily disabling vectorization in Tez, since it doesn't work with projection pruning (fix: TEZ-4248)
-    // TODO: remove this once TEZ-4248 has been released and the Tez dependencies updated here
-    if (engine.equals("tez")) {
-      shell.setHiveSessionValue("hive.vectorized.execution.enabled", "false");
-    }
-
   }
 
   static void close(TestHiveShell shell) throws Exception {

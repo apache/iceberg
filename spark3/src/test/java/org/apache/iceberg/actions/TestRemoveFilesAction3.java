@@ -21,7 +21,7 @@ package org.apache.iceberg.actions;
 
 import org.apache.iceberg.spark.actions.SparkActions;
 
-public class TestRemoveFilesAction3 extends TestRemoveReachableFilesAction {
+public class TestRemoveFilesAction3 extends TestDeleteReachableFilesAction {
   @Override
   ActionsProvider sparkActions() {
     return SparkActions.get();

@@ -71,7 +71,7 @@ from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.table import StreamTableEnvironment
 
 env = StreamExecutionEnvironment.get_execution_environment()
-iceberg_flink_runtime_jar = os.path.join(os.getcwd(), "iceberg-flink-runtime-0.11.1.jar")
+iceberg_flink_runtime_jar = os.path.join(os.getcwd(), "iceberg-flink-runtime-{{ versions.iceberg }}.jar")
 env.add_jars("file://{}".format(iceberg_flink_runtime_jar))
 table_env = StreamTableEnvironment.create(env)
 

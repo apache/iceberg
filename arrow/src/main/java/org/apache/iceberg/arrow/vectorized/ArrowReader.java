@@ -20,12 +20,11 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -38,6 +37,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.encryption.EncryptedFiles;
+import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
@@ -49,6 +49,7 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.schema.MessageType;
 
@@ -79,8 +80,8 @@ import org.apache.parquet.schema.MessageType;
  *     <li>Columns with constant values are physically encoded as a dictionary. The Arrow vector
  *     type is int32 instead of the type as per the schema.
  *     See https://github.com/apache/iceberg/issues/2484.</li>
- *     <li>Data types: {@link Types.TimeType}, {@link Types.ListType}, {@link Types.MapType},
- *     {@link Types.StructType}, {@link Types.UUIDType}, {@link Types.FixedType} and
+ *     <li>Data types: {@link Types.ListType}, {@link Types.MapType},
+ *     {@link Types.StructType}, {@link Types.FixedType} and
  *     {@link Types.DecimalType}
  *     See https://github.com/apache/iceberg/issues/2485 and https://github.com/apache/iceberg/issues/2486.</li>
  *     <li>Iceberg v2 spec is not supported.
@@ -210,11 +211,21 @@ public class ArrowReader extends CloseableGroup {
           .flatMap(Collection::stream)
           .collect(Collectors.toList());
       this.fileItr = fileTasks.iterator();
-      this.inputFiles = Collections.unmodifiableMap(fileTasks.stream()
+
+      Map<String, ByteBuffer> keyMetadata = Maps.newHashMap();
+      fileTasks.stream()
           .flatMap(fileScanTask -> Stream.concat(Stream.of(fileScanTask.file()), fileScanTask.deletes().stream()))
-          .map(file -> EncryptedFiles.encryptedInput(io.newInputFile(file.path().toString()), file.keyMetadata()))
-          .map(encryptionManager::decrypt)
-          .collect(Collectors.toMap(InputFile::location, Function.identity())));
+          .forEach(file -> keyMetadata.put(file.path().toString(), file.keyMetadata()));
+
+      Stream<EncryptedInputFile> encrypted = keyMetadata.entrySet().stream()
+          .map(entry -> EncryptedFiles.encryptedInput(io.newInputFile(entry.getKey()), entry.getValue()));
+
+      // decrypt with the batch call to avoid multiple RPCs to a key server, if possible
+      Iterable<InputFile> decryptedFiles = encryptionManager.decrypt(encrypted::iterator);
+
+      Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(fileTasks.size());
+      decryptedFiles.forEach(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
+      this.inputFiles = ImmutableMap.copyOf(files);
       this.currentIterator = CloseableIterator.empty();
       this.expectedSchema = expectedSchema;
       this.nameMapping = nameMapping;

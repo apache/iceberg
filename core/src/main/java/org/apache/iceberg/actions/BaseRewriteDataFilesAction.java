@@ -197,8 +197,14 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
   @Override
   public RewriteDataFilesActionResult execute() {
     CloseableIterable<FileScanTask> fileScanTasks = null;
+    if (table.currentSnapshot() == null) {
+      return RewriteDataFilesActionResult.empty();
+    }
+
+    long startingSnapshotId = table.currentSnapshot().snapshotId();
     try {
       fileScanTasks = table.newScan()
+          .useSnapshot(startingSnapshotId)
           .caseSensitive(caseSensitive)
           .ignoreResiduals()
           .filter(filter)
@@ -241,7 +247,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     List<DataFile> currentDataFiles = combinedScanTasks.stream()
         .flatMap(tasks -> tasks.files().stream().map(FileScanTask::file))
         .collect(Collectors.toList());
-    replaceDataFiles(currentDataFiles, addedDataFiles);
+    replaceDataFiles(currentDataFiles, addedDataFiles, startingSnapshotId);
 
     return new RewriteDataFilesActionResult(currentDataFiles, addedDataFiles);
   }
@@ -262,10 +268,12 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     return tasksGroupedByPartition.asMap();
   }
 
-  private void replaceDataFiles(Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles) {
+  private void replaceDataFiles(Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles,
+                                long startingSnapshotId) {
     try {
-      RewriteFiles rewriteFiles = table.newRewrite();
-      rewriteFiles.rewriteFiles(Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles));
+      RewriteFiles rewriteFiles = table.newRewrite()
+          .validateFromSnapshot(startingSnapshotId)
+          .rewriteFiles(Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles));
       commit(rewriteFiles);
     } catch (Exception e) {
       Tasks.foreach(Iterables.transform(addedDataFiles, f -> f.path().toString()))

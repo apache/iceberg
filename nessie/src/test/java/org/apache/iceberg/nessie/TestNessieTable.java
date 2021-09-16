@@ -44,15 +44,18 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.projectnessie.api.params.CommitLogParams;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.CommitMeta;
 import org.projectnessie.model.ContentsKey;
 import org.projectnessie.model.IcebergTable;
+import org.projectnessie.model.ImmutableOperations;
+import org.projectnessie.model.ImmutablePut;
 
 import static org.apache.iceberg.TableMetadataParser.getFileExtension;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -78,13 +81,13 @@ public class TestNessieTable extends BaseTestIceberg {
     super(BRANCH);
   }
 
-  @Before
+  @BeforeEach
   public void beforeEach() throws IOException {
     super.beforeEach();
     this.tableLocation = new Path(catalog.createTable(TABLE_IDENTIFIER, schema).location());
   }
 
-  @After
+  @AfterEach
   public void afterEach() throws Exception {
     // drop the table data
     if (tableLocation != null) {
@@ -98,7 +101,7 @@ public class TestNessieTable extends BaseTestIceberg {
 
   private org.projectnessie.model.IcebergTable getTable(ContentsKey key) throws NessieNotFoundException {
     return client.getContentsApi()
-        .getContents(key, BRANCH)
+        .getContents(key, BRANCH, null)
         .unwrap(IcebergTable.class).get();
   }
 
@@ -112,7 +115,7 @@ public class TestNessieTable extends BaseTestIceberg {
     icebergTable.updateSchema().addColumn("mother", Types.LongType.get()).commit();
     IcebergTable table = getTable(KEY);
     // check parameters are in expected state
-    String expected = (temp.getRoot().toURI() + DB_NAME + "/" + tableName).replace("//", "/");
+    String expected = (temp.toUri() + DB_NAME + "/" + tableName).replace("///", "/");
     Assertions.assertThat(getTableLocation(tableName)).isEqualTo(expected);
 
     // Only 1 snapshotFile Should exist and no manifests should exist
@@ -149,7 +152,7 @@ public class TestNessieTable extends BaseTestIceberg {
 
   private void verifyCommitMetadata() throws NessieNotFoundException {
     // check that the author is properly set
-    List<CommitMeta> log = tree.getCommitLog(BRANCH, null, null).getOperations();
+    List<CommitMeta> log = tree.getCommitLog(BRANCH, CommitLogParams.empty()).getOperations();
     Assertions.assertThat(log).isNotNull().isNotEmpty();
     log.forEach(x -> {
       Assertions.assertThat(x.getAuthor()).isNotNull().isNotEmpty();
@@ -265,10 +268,12 @@ public class TestNessieTable extends BaseTestIceberg {
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
     Branch branch = (Branch) client.getTreeApi().getReferenceByName(BRANCH);
 
-    IcebergTable table = client.getContentsApi().getContents(KEY, BRANCH).unwrap(IcebergTable.class).get();
+    IcebergTable table = client.getContentsApi().getContents(KEY, BRANCH, null).unwrap(IcebergTable.class).get();
 
-    client.getContentsApi().setContents(KEY, branch.getName(), branch.getHash(), "",
-        IcebergTable.of("dummytable.metadata.json"));
+    client.getTreeApi().commitMultipleOperations(branch.getName(), branch.getHash(),
+        ImmutableOperations.builder().addOperations(
+            ImmutablePut.builder().key(KEY).contents(IcebergTable.of("dummytable.metadata.json"))
+                .build()).commitMeta(CommitMeta.fromMessage("")).build());
 
     Assertions.assertThatThrownBy(() -> icebergTable.updateSchema().addColumn("data", Types.LongType.get()).commit())
         .isInstanceOf(CommitFailedException.class)
@@ -291,7 +296,7 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   private String getTableBasePath(String tableName) {
-    String databasePath = temp.getRoot().toString() + "/" + DB_NAME;
+    String databasePath = temp.toString() + "/" + DB_NAME;
     return Paths.get(databasePath, tableName).toAbsolutePath().toString();
   }
 

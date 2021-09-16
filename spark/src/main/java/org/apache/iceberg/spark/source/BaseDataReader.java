@@ -23,7 +23,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -38,6 +37,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.ByteBuffers;
@@ -76,7 +76,7 @@ abstract class BaseDataReader<T> implements Closeable {
 
     Map<String, InputFile> files = Maps.newHashMapWithExpectedSize(task.files().size());
     decryptedFiles.forEach(decrypted -> files.putIfAbsent(decrypted.location(), decrypted));
-    this.inputFiles = Collections.unmodifiableMap(files);
+    this.inputFiles = ImmutableMap.copyOf(files);
 
     this.currentIterator = CloseableIterator.empty();
   }

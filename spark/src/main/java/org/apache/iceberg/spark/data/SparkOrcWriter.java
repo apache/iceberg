@@ -65,7 +65,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
   }
 
   @Override
-  public Stream<FieldMetrics> metrics() {
+  public Stream<FieldMetrics<?>> metrics() {
     return writer.metrics();
   }
 
@@ -118,6 +118,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
         case DECIMAL:
           return SparkOrcValueWriters.decimal(primitive.getPrecision(), primitive.getScale());
         case TIMESTAMP_INSTANT:
+        case TIMESTAMP:
           return SparkOrcValueWriters.timestampTz();
         default:
           throw new IllegalArgumentException("Unhandled type " + primitive);
@@ -146,7 +147,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return writers.stream().flatMap(SparkOrcValueWriter::metrics);
     }
 

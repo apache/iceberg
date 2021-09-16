@@ -94,6 +94,14 @@ Spark's built-in catalog supports existing v1 and v2 tables tracked in a Hive Me
 
 This configuration can use same Hive Metastore for both Iceberg and non-Iceberg tables.
 
+### Using catalog specific Hadoop configuration values
+
+Similar to configuring Hadoop properties by using `spark.hadoop.*`, it's possible to set per-catalog Hadoop configuration values when using Spark by adding the property for the catalog with the prefix `spark.sql.catalog.(catalog-name).hadoop.*`. These properties will take precedence over values configured globally using `spark.hadoop.*` and will only affect Iceberg tables.
+
+```plain
+spark.sql.catalog.hadoop_prod.hadoop.fs.s3a.endpoint = http://aws-local:9000
+```
+
 ### Loading a custom catalog
 
 Spark supports loading a custom Iceberg `Catalog` implementation by specifying the `catalog-impl` property.

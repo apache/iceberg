@@ -20,8 +20,7 @@
 # ![Iceberg](img/Iceberg-logo.png)
 
 
-**Apache Iceberg is an open table format for huge analytic datasets.** Iceberg adds tables to Trino and Spark that use a high-performance format that works just like a SQL table.
-
+**Apache Iceberg is an open table format for huge analytic datasets.** Iceberg adds tables to compute engines including Spark, Trino, PrestoDB, Flink and Hive using a high-performance table format that works just like a SQL table.
 
 ### User experience
 
@@ -30,7 +29,7 @@ Iceberg avoids unpleasant surprises. Schema evolution works and won't inadverten
 * [Schema evolution](evolution#schema-evolution) supports add, drop, update, or rename, and has [no side-effects](evolution#correctness)
 * [Hidden partitioning](partitioning) prevents user mistakes that cause silently incorrect results or extremely slow queries
 * [Partition layout evolution](evolution#partition-evolution) can update the layout of a table as data volume or query patterns change
-* [Time travel](spark#time-travel) enables reproducible queries that use exactly the same table snapshot, or lets users easily examine changes
+* [Time travel](spark-queries#time-travel) enables reproducible queries that use exactly the same table snapshot, or lets users easily examine changes
 * Version rollback allows users to quickly correct problems by resetting tables to a good state
 
 ### Reliability and performance

@@ -121,7 +121,7 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
   @BeforeClass
   public static void startSpark() {
     TestDataFrameWrites.spark = SparkSession.builder().master("local[2]").getOrCreate();
-    TestDataFrameWrites.sc = new JavaSparkContext(spark.sparkContext());
+    TestDataFrameWrites.sc = JavaSparkContext.fromSparkContext(spark.sparkContext());
   }
 
   @AfterClass
@@ -145,7 +145,7 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
     File tablePropertyDataLocation = temp.newFolder("test-table-property-data-dir");
     Table table = createTable(new Schema(SUPPORTED_PRIMITIVES.fields()), location);
     table.updateProperties().set(
-        TableProperties.WRITE_NEW_DATA_LOCATION, tablePropertyDataLocation.getAbsolutePath()).commit();
+        TableProperties.WRITE_FOLDER_STORAGE_LOCATION, tablePropertyDataLocation.getAbsolutePath()).commit();
     writeAndValidateWithLocations(table, location, tablePropertyDataLocation);
   }
 
@@ -271,7 +271,7 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
     String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
     String targetPath = String.format("%s/nullable_poc/targetFolder/", location.toString());
 
-    tableProperties = ImmutableMap.of(TableProperties.WRITE_NEW_DATA_LOCATION, targetPath);
+    tableProperties = ImmutableMap.of(TableProperties.WRITE_FOLDER_STORAGE_LOCATION, targetPath);
 
     // read this and append to iceberg dataset
     spark
@@ -312,7 +312,7 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
     String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
     String targetPath = String.format("%s/nullable_poc/targetFolder/", location.toString());
 
-    tableProperties = ImmutableMap.of(TableProperties.WRITE_NEW_DATA_LOCATION, targetPath);
+    tableProperties = ImmutableMap.of(TableProperties.WRITE_FOLDER_STORAGE_LOCATION, targetPath);
 
     // read this and append to iceberg dataset
     spark

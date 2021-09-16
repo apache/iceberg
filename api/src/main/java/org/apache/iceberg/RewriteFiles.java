@@ -54,12 +54,23 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
   /**
    * Add a rewrite that replaces one set of files with another set that contains the same data.
    *
-   * @param dataFilesToDelete   data files that will be replaced (deleted).
-   * @param deleteFilesToDelete delete files that will be replaced (deleted).
+   * @param dataFilesToReplace   data files that will be replaced (deleted).
+   * @param deleteFilesToReplace delete files that will be replaced (deleted).
    * @param dataFilesToAdd      data files that will be added.
    * @param deleteFilesToAdd    delete files that will be added.
    * @return this for method chaining.
    */
-  RewriteFiles rewriteFiles(Set<DataFile> dataFilesToDelete, Set<DeleteFile> deleteFilesToDelete,
+  RewriteFiles rewriteFiles(Set<DataFile> dataFilesToReplace, Set<DeleteFile> deleteFilesToReplace,
                             Set<DataFile> dataFilesToAdd, Set<DeleteFile> deleteFilesToAdd);
+
+  /**
+   * Set the snapshot ID used in any reads for this operation.
+   * <p>
+   * Validations will check changes after this snapshot ID. If this is not called, all ancestor snapshots through the
+   * table's initial snapshot are validated.
+   *
+   * @param snapshotId a snapshot ID
+   * @return this for method chaining
+   */
+  RewriteFiles validateFromSnapshot(long snapshotId);
 }

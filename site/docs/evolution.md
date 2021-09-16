@@ -74,7 +74,7 @@ sampleTable.updateSpec()
     .commit();
 ```
 
-Spark supports updating partition spec through its `ALTER TABLE` SQL statement, see more details in [Spark SQL](../spark/#alter-table-add-partition-field).
+Spark supports updating partition spec through its `ALTER TABLE` SQL statement, see more details in [Spark SQL](../spark-ddl/#alter-table-add-partition-field).
 
 ## Sort order evolution
 
@@ -95,4 +95,4 @@ sampleTable.replaceSortOrder()
    .commit();
 ```
 
-Spark supports updating sort order through its `ALTER TABLE` SQL statement, see more details in [Spark SQL](../spark/#alter-table-write-ordered-by).
+Spark supports updating sort order through its `ALTER TABLE` SQL statement, see more details in [Spark SQL](../spark-ddl/#alter-table-write-ordered-by).

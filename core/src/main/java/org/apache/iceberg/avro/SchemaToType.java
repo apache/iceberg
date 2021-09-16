@@ -20,6 +20,7 @@
 package org.apache.iceberg.avro;
 
 import java.util.List;
+import java.util.Objects;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
@@ -83,7 +84,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
     List<Schema.Field> fields = record.getFields();
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(fields.size());
 
-    if (root == record) {
+    if (Objects.equals(root, record)) {
       this.nextId = 0;
     }
 

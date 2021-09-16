@@ -57,7 +57,7 @@ public class StructLikeSet extends AbstractSet<StructLike> implements Set<Struct
 
   @Override
   public boolean contains(Object obj) {
-    if (obj instanceof StructLike) {
+    if (obj instanceof StructLike || obj == null) {
       StructLikeWrapper wrapper = wrappers.get();
       boolean result = wrapperSet.contains(wrapper.set((StructLike) obj));
       wrapper.set(null); // don't hold a reference to the value
@@ -105,7 +105,7 @@ public class StructLikeSet extends AbstractSet<StructLike> implements Set<Struct
 
   @Override
   public boolean remove(Object obj) {
-    if (obj instanceof StructLike) {
+    if (obj instanceof StructLike || obj == null) {
       StructLikeWrapper wrapper = wrappers.get();
       boolean result = wrapperSet.remove(wrapper.set((StructLike) obj));
       wrapper.set(null); // don't hold a reference to the value

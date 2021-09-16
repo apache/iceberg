@@ -18,6 +18,7 @@
 #
 
 site_name: Apache Iceberg
+site_url: https://iceberg.apache.org/
 site_description: A table format for large, slow-moving tabular data
 
 remote_name: apache
@@ -30,9 +31,12 @@ extra_css:
   - css/extra.css
 extra:
   versions:
-    iceberg: 0.11.1
+    iceberg: 0.12.0
 plugins:
-  - redirects
+  - redirects:
+      redirect_maps:
+        'time-travel.md': 'spark-queries/#time-travel'
+        'presto.md': 'trino-prestodb.md'
   - markdownextradata  
 markdown_extensions:
   - toc:
@@ -51,6 +55,8 @@ nav:
     - Blogs: blogs.md
     - Trademarks: trademarks.md
     - How to Release: how-to-release.md
+    - Security: security.md
+  - Getting Started: getting-started.md
   - Tables:
     - Configuration: configuration.md
     - Schemas: schemas.md
@@ -59,21 +65,24 @@ nav:
     - Maintenance: maintenance.md
     - Performance: performance.md
     - Reliability: reliability.md
-  - Spark:
-    - Getting Started: getting-started.md
-    - Configuration: spark-configuration.md
-    - DDL: spark-ddl.md
-    - Queries: spark-queries.md
-    - Writes: spark-writes.md
-    - Maintenance Procedures: spark-procedures.md
-    - Structured Streaming: spark-structured-streaming.md
-    - Time Travel: spark#time-travel
-  - Trino: https://trino.io/docs/current/connector/iceberg.html
-  - Flink: flink.md
-  - Hive: hive.md
+  - Engines:
+    - Spark:
+      - Getting Started: getting-started.md
+      - Configuration: spark-configuration.md
+      - DDL: spark-ddl.md
+      - Queries: spark-queries.md
+      - Writes: spark-writes.md
+      - Maintenance Procedures: spark-procedures.md
+      - Structured Streaming: spark-structured-streaming.md
+      - Time Travel: spark-queries/#time-travel
+    - Flink: flink.md
+    - Hive: hive.md
+    - Trino: https://trino.io/docs/current/connector/iceberg.html
+    - PrestoDB: https://prestodb.io/docs/current/connector/iceberg.html
   - Integrations:
     - AWS: aws.md
     - Nessie: nessie.md
+    - JDBC: jdbc.md
   - API:
     - Javadoc: /javadoc/
     - Java API intro: api.md
@@ -92,6 +101,3 @@ nav:
     - Sponsors: https://www.apache.org/foundation/thanks.html
     - Donate: https://www.apache.org/foundation/sponsorship.html
     - Events: https://www.apache.org/events/current-event.html
-redirects:
-  time-travel/index: snapshots/index
-  presto/index: trino/index

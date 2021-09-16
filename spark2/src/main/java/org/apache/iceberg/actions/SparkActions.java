@@ -22,6 +22,7 @@ package org.apache.iceberg.actions;
 import org.apache.iceberg.Table;
 import org.apache.spark.sql.SparkSession;
 
+@Deprecated
 class SparkActions extends Actions {
   protected SparkActions(SparkSession spark, Table table) {
     super(spark, table);

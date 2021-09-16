@@ -16,7 +16,7 @@
 # under the License.
 
 from .types import StructType
-
+from .types import type_util
 """
   The schema of a data table.
 
@@ -45,9 +45,9 @@ class Schema(object):
             self._id_to_alias = {v: k for k, v in self._alias_to_id.items()}
 
         self._id_to_field = None
-        self._name_to_id = None
-        self._lowercase_name_to_id = None
-        self._id_to_name = None
+        self._name_to_id = type_util.index_by_name(self.struct)
+        self._id_to_name = {v: k for k, v in self._name_to_id.items()}
+        self._lowercase_name_to_id = {k.lower(): v for k, v in self._name_to_id.items()}
 
     def as_struct(self):
         return self.struct

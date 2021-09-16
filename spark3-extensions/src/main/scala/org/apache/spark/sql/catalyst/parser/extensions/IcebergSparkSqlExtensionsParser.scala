@@ -25,6 +25,8 @@ import org.antlr.v4.runtime.atn.PredictionMode
 import org.antlr.v4.runtime.misc.Interval
 import org.antlr.v4.runtime.misc.ParseCancellationException
 import org.antlr.v4.runtime.tree.TerminalNodeImpl
+import org.apache.iceberg.common.DynConstructors
+import org.apache.iceberg.spark.Spark3VersionUtil
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.TableIdentifier
@@ -41,7 +43,9 @@ import org.apache.spark.sql.types.StructType
 
 class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserInterface {
 
-  private lazy val substitutor = new VariableSubstitution(SQLConf.get)
+  import IcebergSparkSqlExtensionsParser._
+
+  private lazy val substitutor = substitutorCtor.newInstance(SQLConf.get)
   private lazy val astBuilder = new IcebergSqlExtensionsAstBuilder(delegate)
 
   /**
@@ -54,9 +58,7 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
   /**
    * Parse a string to a raw DataType without CHAR/VARCHAR replacement.
    */
-  override def parseRawDataType(sqlText: String): DataType = {
-    delegate.parseRawDataType(sqlText)
-  }
+  def parseRawDataType(sqlText: String): DataType = throw new UnsupportedOperationException()
 
   /**
    * Parse a string to an Expression.
@@ -107,7 +109,7 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
   }
 
   private def isIcebergCommand(sqlText: String): Boolean = {
-    val normalized = sqlText.toLowerCase(Locale.ROOT).trim()
+    val normalized = sqlText.toLowerCase(Locale.ROOT).trim().replaceAll("\\s+", " ")
     normalized.startsWith("call") || (
         normalized.startsWith("alter table") && (
             normalized.contains("add partition field") ||
@@ -159,6 +161,14 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
         throw new IcebergParseException(Option(command), e.message, position, position)
     }
   }
+}
+
+object IcebergSparkSqlExtensionsParser {
+  private val substitutorCtor: DynConstructors.Ctor[VariableSubstitution] =
+    DynConstructors.builder()
+      .impl(classOf[VariableSubstitution])
+      .impl(classOf[VariableSubstitution], classOf[SQLConf])
+      .build()
 }
 
 /* Copied from Apache Spark's to avoid dependency on Spark Internals */

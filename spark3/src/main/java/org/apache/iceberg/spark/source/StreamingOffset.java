@@ -22,6 +22,7 @@ package org.apache.iceberg.spark.source;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
@@ -62,20 +63,23 @@ class StreamingOffset extends Offset {
 
     try {
       JsonNode node = JsonUtil.mapper().readValue(json, JsonNode.class);
-      // The version of StreamingOffset. The offset was created with a version number
-      // used to validate when deserializing from json string.
-      int version = JsonUtil.getInt(VERSION, node);
-      Preconditions.checkArgument(version == CURR_VERSION,
-              "Cannot parse offset JSON: offset version %s is not supported", version);
-
-      long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
-      int position = JsonUtil.getInt(POSITION, node);
-      boolean shouldScanAllFiles = JsonUtil.getBool(SCAN_ALL_FILES, node);
-
-      return new StreamingOffset(snapshotId, position, shouldScanAllFiles);
+      return fromJsonNode(node);
     } catch (IOException e) {
-      throw new IllegalArgumentException(String.format("Failed to parse StreamingOffset from JSON string %s", json), e);
+      throw new UncheckedIOException(String.format("Failed to parse StreamingOffset from JSON string %s", json), e);
     }
+  }
+
+  static StreamingOffset fromJson(InputStream inputStream) {
+    Preconditions.checkNotNull(inputStream, "Cannot parse StreamingOffset from inputStream: null");
+
+    JsonNode node;
+    try {
+      node = JsonUtil.mapper().readValue(inputStream, JsonNode.class);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to read StreamingOffset from json", e);
+    }
+
+    return fromJsonNode(node);
   }
 
   @Override
@@ -131,5 +135,20 @@ class StreamingOffset extends Offset {
   public String toString() {
     return String.format("Streaming Offset[%d: position (%d) scan_all_files (%b)]",
                 snapshotId, position, scanAllFiles);
+  }
+
+  private static StreamingOffset fromJsonNode(JsonNode node) {
+    // The version of StreamingOffset. The offset was created with a version number
+    // used to validate when deserializing from json string.
+    int version = JsonUtil.getInt(VERSION, node);
+    Preconditions.checkArgument(version == CURR_VERSION,
+        "This version of Iceberg source only supports version %s. Version %s is not supported.",
+        CURR_VERSION, version);
+
+    long snapshotId = JsonUtil.getLong(SNAPSHOT_ID, node);
+    int position = JsonUtil.getInt(POSITION, node);
+    boolean shouldScanAllFiles = JsonUtil.getBool(SCAN_ALL_FILES, node);
+
+    return new StreamingOffset(snapshotId, position, shouldScanAllFiles);
   }
 }

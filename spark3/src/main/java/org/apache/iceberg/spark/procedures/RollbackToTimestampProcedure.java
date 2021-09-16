@@ -21,8 +21,8 @@ package org.apache.iceberg.spark.procedures;
 
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
@@ -77,7 +77,7 @@ class RollbackToTimestampProcedure extends BaseProcedure {
   public InternalRow[] call(InternalRow args) {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     // timestamps in Spark have nanosecond precision so this conversion is lossy
-    long timestampMillis = DateTimeUtils.toMillis(args.getLong(1));
+    long timestampMillis = DateTimeUtil.microsToMillis(args.getLong(1));
 
     return modifyIcebergTable(tableIdent, table -> {
       Snapshot previousSnapshot = table.currentSnapshot();

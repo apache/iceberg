@@ -27,7 +27,7 @@ buildscript {
     classpath 'com.github.jengelman.gradle.plugins:shadow:5.0.0'
     classpath 'com.palantir.baseline:gradle-baseline-java:3.36.2'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.12.3'
-    classpath 'com.diffplug.spotless:spotless-plugin-gradle:3.14.0'
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:5.14.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:2.1.0'
     classpath 'me.champeau.gradle:jmh-gradle-plugin:0.4.8'
   }
@@ -35,7 +35,6 @@ buildscript {
 
 plugins {
   id 'nebula.dependency-recommender' version '9.0.2'
-  id 'org.projectnessie' version '0.5.1'
 }
 
 try {
@@ -63,6 +62,10 @@ allprojects {
   repositories {
     mavenCentral()
     mavenLocal()
+  }
+  project.ext {
+    Spark30Version = '3.0.3'
+    Spark31Version = '3.1.1'
   }
 }
 
@@ -122,7 +125,9 @@ subprojects {
     compile 'org.slf4j:slf4j-api'
     compile 'com.github.stephenc.findbugs:findbugs-annotations'
 
-    testCompile 'junit:junit'
+    testCompile 'org.junit.vintage:junit-vintage-engine'
+    testCompile 'org.junit.jupiter:junit-jupiter-engine'
+    testCompile 'org.junit.jupiter:junit-jupiter'
     testCompile 'org.slf4j:slf4j-simple'
     testCompile 'org.mockito:mockito-core'
     testCompile 'org.assertj:assertj-core'
@@ -281,6 +286,7 @@ project(':iceberg-aws') {
     testCompile("com.adobe.testing:s3mock-junit4") {
       exclude module: "spring-boot-starter-logging"
       exclude module: "logback-classic"
+      exclude group: 'junit'
     }
   }
 
@@ -328,9 +334,12 @@ project(':iceberg-flink') {
     testCompile "org.apache.flink:flink-core"
     testCompile "org.apache.flink:flink-runtime_2.12"
     testCompile "org.apache.flink:flink-table-planner-blink_2.12"
-    testCompile "org.apache.flink:flink-test-utils-junit"
+    testCompile ("org.apache.flink:flink-test-utils-junit") {
+      exclude group: 'junit'
+    }
     testCompile("org.apache.flink:flink-test-utils_2.12") {
       exclude group: "org.apache.curator", module: 'curator-test'
+      exclude group: 'junit'
     }
 
     testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
@@ -666,8 +675,8 @@ if (jdkVersion == '8') {
         exclude group: 'org.apache.hive', module: 'hive-exec'
         exclude group: 'org.apache.orc'
       }
-      testCompile("org.apache.tez:tez-dag:0.9.1")
-      testCompile("org.apache.tez:tez-mapreduce:0.9.1")
+      testCompile("org.apache.tez:tez-dag:0.10.1")
+      testCompile("org.apache.tez:tez-mapreduce:0.10.1")
     }
 
     test {
@@ -977,6 +986,23 @@ if (jdkVersion == '8') {
 }
 
 project(':iceberg-spark3') {
+  apply plugin: 'scala'
+
+  sourceSets {
+    // Compile test source against Spark 3.1 and main classes compiled against Spark 3.0
+    spark31 {
+      java.srcDir "$projectDir/src/test/java"
+      resources.srcDir "$projectDir/src/test/resources"
+      compileClasspath += sourceSets.test.output + sourceSets.main.output
+      runtimeClasspath += sourceSets.test.output
+    }
+  }
+
+  configurations {
+    spark31Implementation.extendsFrom testImplementation
+    spark31RuntimeOnly.extendsFrom testRuntimeOnly
+  }
+
   dependencies {
     compile project(':iceberg-api')
     compile project(':iceberg-common')
@@ -989,7 +1015,7 @@ project(':iceberg-spark3') {
     compile project(':iceberg-spark')
 
     compileOnly "org.apache.avro:avro"
-    compileOnly("org.apache.spark:spark-hive_2.12") {
+    compileOnly("org.apache.spark:spark-hive_2.12:${project.ext.Spark30Version}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
     }
@@ -1003,9 +1029,15 @@ project(':iceberg-spark3') {
     testCompile project(path: ':iceberg-api', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-data', configuration: 'testArtifacts')
     testCompile "org.xerial:sqlite-jdbc"
+
+    spark31Implementation("org.apache.spark:spark-hive_2.12:${project.ext.Spark31Version}") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.apache.arrow'
+      exclude group: 'junit'
+    }
   }
 
-  test {
+  tasks.withType(Test) {
     // For vectorized reads
     // Allow unsafe memory access to avoid the costly check arrow does to check if index is within bounds
     systemProperty("arrow.enable_unsafe_memory_access", "true")
@@ -1014,8 +1046,17 @@ project(':iceberg-spark3') {
     systemProperty("arrow.enable_null_check_for_get", "false")
 
     // Vectorized reads need more memory
-    maxHeapSize '2500m'
+    maxHeapSize '2560m'
   }
+
+  task testSpark31(type: Test) {
+    dependsOn classes
+    group = "verification"
+    description = "Test against Spark 3.1"
+    testClassesDirs = sourceSets.spark31.output.classesDirs
+    classpath = sourceSets.spark31.runtimeClasspath + sourceSets.main.output
+  }
+  check.dependsOn testSpark31
 }
 
 project(":iceberg-spark3-extensions") {
@@ -1023,7 +1064,21 @@ project(":iceberg-spark3-extensions") {
   apply plugin: 'scala'
   apply plugin: 'antlr'
 
+  sourceSets {
+    // Compile test source against Spark 3.1 and main classes compiled against Spark 3.0
+    spark31 {
+      // Main source is in scala, but test source is only in java
+      java.srcDir "$projectDir/src/test/java"
+      resources.srcDir "$projectDir/src/test/resources"
+      compileClasspath += sourceSets.test.output + sourceSets.main.output
+      runtimeClasspath += sourceSets.test.output
+    }
+  }
+
   configurations {
+    spark31Implementation.extendsFrom testImplementation
+    spark31RuntimeOnly.extendsFrom testRuntimeOnly
+
     /*
      The Gradle Antlr plugin erroneously adds both antlr-build and runtime dependencies to the runtime path. This
      bug https://github.com/gradle/gradle/issues/820 exists because older versions of Antlr do not have separate
@@ -1037,10 +1092,9 @@ project(":iceberg-spark3-extensions") {
   }
 
   dependencies {
-    compileOnly project(':iceberg-spark3')
-
     compileOnly "org.scala-lang:scala-library"
-    compileOnly("org.apache.spark:spark-hive_2.12") {
+    compileOnly project(':iceberg-spark3')
+    compileOnly("org.apache.spark:spark-hive_2.12:${project.ext.Spark30Version}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
     }
@@ -1049,6 +1103,11 @@ project(":iceberg-spark3-extensions") {
     testCompile project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-spark', configuration: 'testArtifacts')
     testCompile project(path: ':iceberg-spark3', configuration: 'testArtifacts')
+
+    spark31Implementation("org.apache.spark:spark-hive_2.12:${project.ext.Spark31Version}") {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.apache.arrow'
+    }
 
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
     // We shade this in Spark3 Runtime to avoid issues with Spark's Antlr Runtime
@@ -1060,6 +1119,15 @@ project(":iceberg-spark3-extensions") {
     maxHeapSize = "64m"
     arguments += ['-visitor', '-package', 'org.apache.spark.sql.catalyst.parser.extensions']
   }
+
+  task testSpark31(type: Test) {
+    dependsOn classes
+    group = "verification"
+    description = "Test against Spark 3.1"
+    testClassesDirs = sourceSets.spark31.output.classesDirs
+    classpath = sourceSets.spark31.runtimeClasspath + sourceSets.main.output
+  }
+  check.dependsOn testSpark31
 }
 
 project(':iceberg-spark3-runtime') {
@@ -1071,6 +1139,12 @@ project(':iceberg-spark3-runtime') {
     integration {
       java.srcDir "$projectDir/src/integration/java"
       resources.srcDir "$projectDir/src/integration/resources"
+    }
+    spark31 {
+      java.srcDir "$projectDir/src/integration/java"
+      resources.srcDir "$projectDir/src/integration/resources"
+      compileClasspath += sourceSets.integration.output
+      runtimeClasspath += sourceSets.integration.output
     }
   }
 
@@ -1085,7 +1159,10 @@ project(':iceberg-spark3-runtime') {
       exclude group: 'org.xerial.snappy'
       exclude group: 'javax.xml.bind'
       exclude group: 'javax.annotation'
+      exclude group: 'com.github.luben'
     }
+    spark31Implementation.extendsFrom integrationImplementation
+    spark31CompileOnly.extendsFrom integrationCompileOnly
   }
 
   dependencies {
@@ -1096,8 +1173,8 @@ project(':iceberg-spark3-runtime') {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
-    integrationImplementation 'org.apache.spark:spark-hive_2.12'
-    integrationImplementation 'junit:junit'
+    integrationImplementation "org.apache.spark:spark-hive_2.12:${project.ext.Spark30Version}"
+    integrationImplementation 'org.junit.vintage:junit-vintage-engine'
     integrationImplementation 'org.slf4j:slf4j-simple'
     integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
@@ -1107,6 +1184,8 @@ project(':iceberg-spark3-runtime') {
     // Not allowed on our classpath, only the runtime jar is allowed
     integrationCompileOnly project(':iceberg-spark3-extensions')
     integrationCompileOnly project(':iceberg-spark3')
+
+    spark31Implementation "org.apache.spark:spark-hive_2.12:${project.ext.Spark31Version}"
   }
 
   shadowJar {
@@ -1144,14 +1223,24 @@ project(':iceberg-spark3-runtime') {
   }
 
   task integrationTest(type: Test) {
-    description = "Test Spark3 Runtime Jar"
+    description = "Test Spark3 Runtime Jar against Spark 3.0"
     group = "verification"
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath + files(shadowJar.archiveFile.get().asFile.path)
     inputs.file(shadowJar.archiveFile.get().asFile.path)
   }
   integrationTest.dependsOn shadowJar
-  check.dependsOn integrationTest
+
+  task spark31IntegrationTest(type: Test) {
+    dependsOn classes
+    description = "Test Spark3 Runtime Jar against Spark 3.1"
+    group = "verification"
+    testClassesDirs = sourceSets.spark31.output.classesDirs
+    classpath = sourceSets.spark31.runtimeClasspath + files(shadowJar.archiveFile.get().asFile.path)
+  }
+  spark31IntegrationTest.dependsOn shadowJar
+
+  check.dependsOn integrationTest, spark31IntegrationTest
 
   jar {
     enabled = false
@@ -1180,19 +1269,18 @@ project(':iceberg-pig') {
 }
 
 project(':iceberg-nessie') {
-  apply plugin: 'org.projectnessie'
+  test {
+    useJUnitPlatform()
+  }
 
   dependencies {
     compile project(':iceberg-core')
     compile project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compile "org.projectnessie:nessie-client"
 
-    // dependency version "recommendation" via nebula.dependency-recommender don't work here "immediately",
-    // so pull the Quarkus + Nessie versions from the root-project
-    def quarkusVersion = rootProject.dependencyRecommendations.getRecommendedVersion("io.quarkus", "quarkus-bom")
-    def nessieVersion = rootProject.dependencyRecommendations.getRecommendedVersion("org.projectnessie", "nessie-quarkus")
-    nessieQuarkusRuntime(enforcedPlatform("io.quarkus:quarkus-bom:${quarkusVersion}"))
-    nessieQuarkusServer "org.projectnessie:nessie-quarkus:${nessieVersion}"
+    testImplementation "org.projectnessie:nessie-jaxrs-testextension"
+    // Need to "pull in" el-api explicitly :(
+    testImplementation "jakarta.el:jakarta.el-api"
 
     compileOnly "org.apache.hadoop:hadoop-common"
 

@@ -22,11 +22,17 @@ package org.apache.iceberg.actions;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.spark.actions.BaseDeleteOrphanFilesSparkAction;
 import org.apache.iceberg.spark.actions.BaseExpireSnapshotsSparkAction;
-import org.apache.iceberg.spark.actions.BaseRemoveOrphanFilesSparkAction;
 import org.apache.iceberg.spark.actions.BaseRewriteManifestsSparkAction;
 import org.apache.spark.sql.SparkSession;
 
+/**
+ * An API for interacting with actions in Spark.
+ *
+ * @deprecated since 0.12.0, will be removed in 0.13.0; use an implementation of {@link ActionsProvider} instead.
+ */
+@Deprecated
 public class Actions {
 
   /*
@@ -61,28 +67,52 @@ public class Actions {
     this.table = table;
   }
 
+  /**
+   * @deprecated since 0.12.0, will be removed in 0.13.0; use an implementation of {@link ActionsProvider} instead.
+   */
+  @Deprecated
   public static Actions forTable(SparkSession spark, Table table) {
     return actionConstructor().newInstance(spark, table);
   }
 
+  /**
+   * @deprecated since 0.12.0, will be removed in 0.13.0; use an implementation of {@link ActionsProvider} instead.
+   */
+  @Deprecated
   public static Actions forTable(Table table) {
     return forTable(SparkSession.active(), table);
   }
 
+  /**
+   * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link DeleteOrphanFiles} instead.
+   */
+  @Deprecated
   public RemoveOrphanFilesAction removeOrphanFiles() {
-    BaseRemoveOrphanFilesSparkAction delegate = new BaseRemoveOrphanFilesSparkAction(spark, table);
+    BaseDeleteOrphanFilesSparkAction delegate = new BaseDeleteOrphanFilesSparkAction(spark, table);
     return new RemoveOrphanFilesAction(delegate);
   }
 
+  /**
+   * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link RewriteManifests} instead.
+   */
+  @Deprecated
   public RewriteManifestsAction rewriteManifests() {
     BaseRewriteManifestsSparkAction delegate = new BaseRewriteManifestsSparkAction(spark, table);
     return new RewriteManifestsAction(delegate);
   }
 
+  /**
+   * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link RewriteDataFiles} instead.
+   */
+  @Deprecated
   public RewriteDataFilesAction rewriteDataFiles() {
     return new RewriteDataFilesAction(spark, table);
   }
 
+  /**
+   * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link ExpireSnapshots} instead.
+   */
+  @Deprecated
   public ExpireSnapshotsAction expireSnapshots() {
     BaseExpireSnapshotsSparkAction delegate = new BaseExpireSnapshotsSparkAction(spark, table);
     return new ExpireSnapshotsAction(delegate);
@@ -94,7 +124,9 @@ public class Actions {
    *
    * @param tableName Table to be converted
    * @return {@link CreateAction} to perform migration
+   * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link MigrateTable} instead.
    */
+  @Deprecated
   public static CreateAction migrate(String tableName) {
     try {
       return DynMethods.builder("migrate")
@@ -112,7 +144,9 @@ public class Actions {
    * @param tableName Table to be converted
    * @param spark     Spark session to use for looking up table
    * @return {@link CreateAction} to perform migration
+   * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link MigrateTable} instead.
    */
+  @Deprecated
   public static CreateAction migrate(SparkSession spark, String tableName) {
     try {
       return DynMethods.builder("migrate")
@@ -131,7 +165,9 @@ public class Actions {
    * @param sourceTable Original table which is the basis for the new Iceberg table
    * @param destTable   New Iceberg table being created
    * @return {@link SnapshotAction} to perform snapshot
+   * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link SnapshotTable} instead.
    */
+  @Deprecated
   public static SnapshotAction snapshot(SparkSession spark, String sourceTable, String destTable) {
     try {
       return DynMethods.builder("snapshot")
@@ -150,7 +186,9 @@ public class Actions {
    * @param sourceTable Original table which is the basis for the new Iceberg table
    * @param destTable   New Iceberg table being created
    * @return {@link SnapshotAction} to perform snapshot
+   * @deprecated since 0.12.0, will be removed in 0.13.0; use {@link SnapshotTable} instead.
    */
+  @Deprecated
   public static SnapshotAction snapshot(String sourceTable, String destTable) {
     try {
       return DynMethods.builder("snapshot")

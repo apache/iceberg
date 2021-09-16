@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 
 public class DataTestHelpers {
@@ -88,24 +89,24 @@ public class DataTestHelpers {
         Assert.assertEquals("Primitive value should be equal to expected for type " + type, expected, actual);
         break;
       case FIXED:
-        Assert.assertTrue("Expected should be a byte[]", expected instanceof byte[]);
-        Assert.assertTrue("Actual should be a byte[]", actual instanceof byte[]);
+        Assertions.assertThat(expected).as("Expected should be a byte[]").isInstanceOf(byte[].class);
+        Assertions.assertThat(expected).as("Actual should be a byte[]").isInstanceOf(byte[].class);
         Assert.assertArrayEquals("Array contents should be equal",
             (byte[]) expected, (byte[]) actual);
         break;
       case STRUCT:
-        Assert.assertTrue("Expected should be a Record", expected instanceof Record);
-        Assert.assertTrue("Actual should be a Record", actual instanceof Record);
+        Assertions.assertThat(expected).as("Expected should be a Record").isInstanceOf(Record.class);
+        Assertions.assertThat(actual).as("Actual should be a Record").isInstanceOf(Record.class);
         assertEquals(type.asStructType(), (Record) expected, (Record) actual);
         break;
       case LIST:
-        Assert.assertTrue("Expected should be a List", expected instanceof List);
-        Assert.assertTrue("Actual should be a List", actual instanceof List);
+        Assertions.assertThat(expected).as("Expected should be a List").isInstanceOf(List.class);
+        Assertions.assertThat(actual).as("Actual should be a List").isInstanceOf(List.class);
         assertEquals(type.asListType(), (List) expected, (List) actual);
         break;
       case MAP:
-        Assert.assertTrue("Expected should be a Map", expected instanceof Map);
-        Assert.assertTrue("Actual should be a Map", actual instanceof Map);
+        Assertions.assertThat(expected).as("Expected should be a Map").isInstanceOf(Map.class);
+        Assertions.assertThat(actual).as("Actual should be a Map").isInstanceOf(Map.class);
         assertEquals(type.asMapType(), (Map<?, ?>) expected, (Map<?, ?>) actual);
         break;
       default:

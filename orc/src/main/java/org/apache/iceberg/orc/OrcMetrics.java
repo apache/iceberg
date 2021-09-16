@@ -22,11 +22,14 @@ package org.apache.iceberg.orc;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FieldMetrics;
@@ -41,6 +44,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
@@ -92,7 +96,7 @@ public class OrcMetrics {
     }
   }
 
-  static Metrics fromWriter(Writer writer, Stream<FieldMetrics> fieldMetricsStream, MetricsConfig metricsConfig) {
+  static Metrics fromWriter(Writer writer, Stream<FieldMetrics<?>> fieldMetricsStream, MetricsConfig metricsConfig) {
     try {
       return buildOrcMetrics(writer.getNumberOfRows(), writer.getSchema(), writer.getStatistics(),
           fieldMetricsStream, metricsConfig, null);
@@ -103,7 +107,7 @@ public class OrcMetrics {
 
   private static Metrics buildOrcMetrics(final long numOfRows, final TypeDescription orcSchema,
                                          final ColumnStatistics[] colStats,
-                                         final Stream<FieldMetrics> fieldMetricsStream,
+                                         final Stream<FieldMetrics<?>> fieldMetricsStream,
                                          final MetricsConfig metricsConfig,
                                          final NameMapping mapping) {
     final TypeDescription orcSchemaWithIds = (!ORCSchemaUtil.hasIds(orcSchema) && mapping != null) ?
@@ -129,6 +133,10 @@ public class OrcMetrics {
     Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
     Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
 
+    Map<Integer, FieldMetrics<?>> fieldMetricsMap = Optional.ofNullable(fieldMetricsStream)
+        .map(stream -> stream.collect(Collectors.toMap(FieldMetrics::id, Function.identity())))
+        .orElseGet(HashMap::new);
+
     for (int i = 0; i < colStats.length; i++) {
       final ColumnStatistics colStat = colStats[i];
       final TypeDescription orcCol = orcSchemaWithIds.findSubtype(i);
@@ -138,8 +146,8 @@ public class OrcMetrics {
       if (icebergColOpt.isPresent()) {
         final Types.NestedField icebergCol = icebergColOpt.get();
         final int fieldId = icebergCol.fieldId();
-        final MetricsMode metricsMode = effectiveMetricsConfig.columnMode(icebergCol.name());
 
+        final MetricsMode metricsMode = MetricsUtil.metricsMode(schema, effectiveMetricsConfig, icebergCol.fieldId());
         columnSizes.put(fieldId, colStat.getBytesOnDisk());
 
         if (metricsMode == MetricsModes.None.get()) {
@@ -160,10 +168,10 @@ public class OrcMetrics {
 
           if (metricsMode != MetricsModes.Counts.get()) {
             Optional<ByteBuffer> orcMin = (colStat.getNumberOfValues() > 0) ?
-                fromOrcMin(icebergCol.type(), colStat, metricsMode) : Optional.empty();
+                fromOrcMin(icebergCol.type(), colStat, metricsMode, fieldMetricsMap.get(fieldId)) : Optional.empty();
             orcMin.ifPresent(byteBuffer -> lowerBounds.put(icebergCol.fieldId(), byteBuffer));
             Optional<ByteBuffer> orcMax = (colStat.getNumberOfValues() > 0) ?
-                fromOrcMax(icebergCol.type(), colStat, metricsMode) : Optional.empty();
+                fromOrcMax(icebergCol.type(), colStat, metricsMode, fieldMetricsMap.get(fieldId)) : Optional.empty();
             orcMax.ifPresent(byteBuffer -> upperBounds.put(icebergCol.fieldId(), byteBuffer));
           }
         }
@@ -174,13 +182,13 @@ public class OrcMetrics {
         columnSizes,
         valueCounts,
         nullCounts,
-        MetricsUtil.createNanValueCounts(fieldMetricsStream, effectiveMetricsConfig, schema),
+        MetricsUtil.createNanValueCounts(fieldMetricsMap.values().stream(), effectiveMetricsConfig, schema),
         lowerBounds,
         upperBounds);
   }
 
   private static Optional<ByteBuffer> fromOrcMin(Type type, ColumnStatistics columnStats,
-                                                 MetricsMode metricsMode) {
+                                                 MetricsMode metricsMode, FieldMetrics<?> fieldMetrics) {
     Object min = null;
     if (columnStats instanceof IntegerColumnStatistics) {
       min = ((IntegerColumnStatistics) columnStats).getMinimum();
@@ -188,10 +196,11 @@ public class OrcMetrics {
         min = Math.toIntExact((long) min);
       }
     } else if (columnStats instanceof DoubleColumnStatistics) {
-      min = ((DoubleColumnStatistics) columnStats).getMinimum();
-      if (type.typeId() == Type.TypeID.FLOAT) {
-        min = ((Double) min).floatValue();
-      }
+      // since Orc includes NaN for upper/lower bounds of floating point columns, and we don't want this behavior,
+      // we have tracked metrics for such columns ourselves and thus do not need to rely on Orc's column statistics.
+      Preconditions.checkNotNull(fieldMetrics,
+          "[BUG] Float or double type columns should have metrics being tracked by Iceberg Orc writers");
+      min = fieldMetrics.lowerBound();
     } else if (columnStats instanceof StringColumnStatistics) {
       min = ((StringColumnStatistics) columnStats).getMinimum();
     } else if (columnStats instanceof DecimalColumnStatistics) {
@@ -217,7 +226,7 @@ public class OrcMetrics {
   }
 
   private static Optional<ByteBuffer> fromOrcMax(Type type, ColumnStatistics columnStats,
-                                                 MetricsMode metricsMode) {
+                                                 MetricsMode metricsMode, FieldMetrics<?> fieldMetrics) {
     Object max = null;
     if (columnStats instanceof IntegerColumnStatistics) {
       max = ((IntegerColumnStatistics) columnStats).getMaximum();
@@ -225,10 +234,11 @@ public class OrcMetrics {
         max = Math.toIntExact((long) max);
       }
     } else if (columnStats instanceof DoubleColumnStatistics) {
-      max = ((DoubleColumnStatistics) columnStats).getMaximum();
-      if (type.typeId() == Type.TypeID.FLOAT) {
-        max = ((Double) max).floatValue();
-      }
+      // since Orc includes NaN for upper/lower bounds of floating point columns, and we don't want this behavior,
+      // we have tracked metrics for such columns ourselves and thus do not need to rely on Orc's column statistics.
+      Preconditions.checkNotNull(fieldMetrics,
+          "[BUG] Float or double type columns should have metrics being tracked by Iceberg Orc writers");
+      max = fieldMetrics.upperBound();
     } else if (columnStats instanceof StringColumnStatistics) {
       max = ((StringColumnStatistics) columnStats).getMaximum();
     } else if (columnStats instanceof DecimalColumnStatistics) {

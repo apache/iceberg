@@ -79,7 +79,7 @@ public abstract class FlinkTestBase extends TestBaseUtils {
               .build();
 
           TableEnvironment env = TableEnvironment.create(settings);
-          env.getConfig().getConfiguration().set(FlinkTableOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
+          env.getConfig().getConfiguration().set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
           tEnv = env;
         }
       }

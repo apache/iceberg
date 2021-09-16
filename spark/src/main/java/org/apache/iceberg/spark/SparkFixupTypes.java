@@ -52,6 +52,11 @@ class SparkFixupTypes extends FixupTypes {
           return true;
         }
         break;
+      case TIMESTAMP:
+        if (source.typeId() == Type.TypeID.TIMESTAMP) {
+          return true;
+        }
+        break;
       default:
     }
     return false;

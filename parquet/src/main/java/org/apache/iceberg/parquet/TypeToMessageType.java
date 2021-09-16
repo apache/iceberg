@@ -179,7 +179,10 @@ public class TypeToMessageType {
         }
 
       case UUID:
-        return Types.primitive(FIXED_LEN_BYTE_ARRAY, repetition).length(16).id(id).named(name);
+        return Types.primitive(FIXED_LEN_BYTE_ARRAY, repetition).length(16)
+                .as(LogicalTypeAnnotation.uuidType())
+                .id(id)
+                .named(name);
 
       default:
         throw new UnsupportedOperationException("Unsupported type for Parquet: " + primitive);

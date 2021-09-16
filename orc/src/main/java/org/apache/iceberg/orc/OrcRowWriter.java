@@ -41,7 +41,7 @@ public interface OrcRowWriter<T> {
   /**
    * Returns a stream of {@link FieldMetrics} that this OrcRowWriter keeps track of.
    */
-  default Stream<FieldMetrics> metrics() {
+  default Stream<FieldMetrics<?>> metrics() {
     return Stream.empty();
   }
 }

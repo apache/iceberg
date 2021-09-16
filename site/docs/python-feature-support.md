@@ -40,9 +40,6 @@ The goal is that the python library will provide a functional, performant subset
 
 Pyarrow is used for reading parquet files, so read support is limited to what is currently supported in the pyarrow.parquet package.
 
-There is a [gap](https://issues.apache.org/jira/browse/ARROW-1644) in the current implementation that nested fields are only supported if they are:
-> all repeated all repeated (lists) or all groups (structs) vs. a mix (structs and lists/repeated fields) then we can read and write them(otherwise we cannot)
-
 #### Primitive Types
 
 

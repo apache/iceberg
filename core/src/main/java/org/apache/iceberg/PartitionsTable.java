@@ -37,7 +37,6 @@ public class PartitionsTable extends BaseMetadataTable {
   private final Schema schema;
   static final boolean PLAN_SCANS_WITH_WORKER_POOL =
       SystemProperties.getBoolean(SystemProperties.SCAN_THREAD_POOL_ENABLED, true);
-  private static final String PARTITION_FIELD_PREFIX = "partition.";
 
   PartitionsTable(TableOperations ops, Table table) {
     this(ops, table, table.name() + ".partitions");
@@ -76,11 +75,17 @@ public class PartitionsTable extends BaseMetadataTable {
     Iterable<Partition> partitions = partitions(scan);
     if (table().spec().fields().size() < 1) {
       // the table is unpartitioned, partitions contains only the root partition
-      return StaticDataTask.of(io().newInputFile(ops.current().metadataFileLocation()), partitions,
-          root -> StaticDataTask.Row.of(root.recordCount, root.fileCount));
+      return StaticDataTask.of(
+          io().newInputFile(ops.current().metadataFileLocation()),
+          schema(), scan.schema(), partitions,
+          root -> StaticDataTask.Row.of(root.recordCount, root.fileCount)
+      );
     } else {
-      return StaticDataTask.of(io().newInputFile(ops.current().metadataFileLocation()), partitions,
-          PartitionsTable::convertPartition);
+      return StaticDataTask.of(
+          io().newInputFile(ops.current().metadataFileLocation()),
+          schema(), scan.schema(), partitions,
+          PartitionsTable::convertPartition
+      );
     }
   }
 
@@ -106,7 +111,7 @@ public class PartitionsTable extends BaseMetadataTable {
 
     // use an inclusive projection to remove the partition name prefix and filter out any non-partition expressions
     Expression partitionFilter = Projections
-        .inclusive(transformSpec(scan.schema(), table.spec()), caseSensitive)
+        .inclusive(transformSpec(scan.schema(), table.spec(), PARTITION_FIELD_PREFIX), caseSensitive)
         .project(scan.filter());
 
     ManifestGroup manifestGroup = new ManifestGroup(table.io(), snapshot.dataManifests(), snapshot.deleteManifests())
@@ -124,24 +129,6 @@ public class PartitionsTable extends BaseMetadataTable {
     }
 
     return manifestGroup.planFiles();
-  }
-
-  /**
-   * This method transforms the table's partition spec to a spec that is used to rewrite the user-provided filter
-   * expression against the partitions table.
-   * <p>
-   * The resulting partition spec maps partition.X fields to partition X using an identity partition transform. When
-   * this spec is used to project an expression for the partitions table, the projection will remove predicates for
-   * non-partition fields (not in the spec) and will remove the "partition." prefix from fields.
-   *
-   * @param partitionTableSchema schema of the partition table
-   * @param spec spec on which the partition table schema is based
-   * @return a spec used to rewrite partition table filters to partition filters using an inclusive projection
-   */
-  private static PartitionSpec transformSpec(Schema partitionTableSchema, PartitionSpec spec) {
-    PartitionSpec.Builder identitySpecBuilder = PartitionSpec.builderFor(partitionTableSchema);
-    spec.fields().forEach(pf -> identitySpecBuilder.identity(PARTITION_FIELD_PREFIX + pf.name(), pf.name()));
-    return identitySpecBuilder.build();
   }
 
   private class PartitionsScan extends StaticTableScan {

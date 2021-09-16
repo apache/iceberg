@@ -22,9 +22,11 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.SortOrderUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,7 +78,25 @@ public class MetricsConfig implements Serializable {
     }
   }
 
+  /**
+   * Creates a metrics config from table configuration.
+   * @param props table configuration
+   * @deprecated use {@link MetricsConfig#forTable(Table)}
+   **/
+  @Deprecated
   public static MetricsConfig fromProperties(Map<String, String> props) {
+    return from(props, null);
+  }
+
+  /**
+   * Creates a metrics config from a table.
+   * @param table iceberg table
+   */
+  public static MetricsConfig forTable(Table table) {
+    return from(table.properties(), table.sortOrder());
+  }
+
+  private static MetricsConfig from(Map<String, String> props, SortOrder order) {
     MetricsConfig spec = new MetricsConfig();
     String defaultModeAsString = props.getOrDefault(DEFAULT_WRITE_METRICS_MODE, DEFAULT_WRITE_METRICS_MODE_DEFAULT);
     try {
@@ -86,6 +106,11 @@ public class MetricsConfig implements Serializable {
       LOG.warn("Ignoring invalid default metrics mode: {}", defaultModeAsString, err);
       spec.defaultMode = MetricsModes.fromString(DEFAULT_WRITE_METRICS_MODE_DEFAULT);
     }
+
+    // First set sorted column with sorted column default (can be overridden by user)
+    MetricsMode sortedColDefaultMode = sortedColumnDefaultMode(spec.defaultMode);
+    Set<String> sortedCols = SortOrderUtil.orderPreservingSortedColumns(order);
+    sortedCols.forEach(sc -> spec.columnModes.put(sc, sortedColDefaultMode));
 
     props.keySet().stream()
         .filter(key -> key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX))
@@ -103,6 +128,19 @@ public class MetricsConfig implements Serializable {
         });
 
     return spec;
+  }
+
+  /**
+   * Auto promote sorted columns to truncate(16) if default is set at Counts or None.
+   * @param defaultMode default mode
+   * @return mode to use
+   */
+  private static MetricsMode sortedColumnDefaultMode(MetricsMode defaultMode) {
+    if (defaultMode == MetricsModes.None.get() || defaultMode == MetricsModes.Counts.get()) {
+      return MetricsModes.Truncate.withLength(16);
+    } else {
+      return defaultMode;
+    }
   }
 
   public void validateReferencedColumns(Schema schema) {

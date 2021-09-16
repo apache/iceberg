@@ -24,6 +24,7 @@ import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.parquet.column.Dictionary;
@@ -39,375 +40,183 @@ public class VectorizedDictionaryEncodedParquetValuesReader extends BaseVectoriz
     super(maxDefLevel, setValidityVector);
   }
 
-  void readBatchOfDictionaryIds(IntVector intVector, int startOffset, int numValuesToRead,
-                                NullabilityHolder nullabilityHolder) {
-    int left = numValuesToRead;
-    int idx = startOffset;
-    while (left > 0) {
-      if (this.currentCount == 0) {
-        this.readNextGroup();
-      }
-      int numValues = Math.min(left, this.currentCount);
-      switch (mode) {
-        case RLE:
-          for (int i = 0; i < numValues; i++) {
-            intVector.set(idx, currentValue);
-            setNotNull(intVector, nullabilityHolder, idx);
-            idx++;
+  abstract class BaseDictEncodedReader {
+    public void nextBatch(
+        FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
+        NullabilityHolder nullabilityHolder, int typeWidth) {
+      int left = numValuesToRead;
+      int idx = startOffset;
+      while (left > 0) {
+        if (currentCount == 0) {
+          readNextGroup();
+        }
+        int numValues = Math.min(left, currentCount);
+        for (int i = 0; i < numValues; i++) {
+          int index = idx * typeWidth;
+          if (typeWidth == -1) {
+            index = idx;
           }
-          break;
-        case PACKED:
-          for (int i = 0; i < numValues; i++) {
-            intVector.set(idx, packedValuesBuffer[packedValuesBufferIdx++]);
-            setNotNull(intVector, nullabilityHolder, idx);
-            idx++;
+          if (Mode.RLE.equals(mode)) {
+            nextVal(vector, dict, index, currentValue, typeWidth);
+          } else if (Mode.PACKED.equals(mode)) {
+            nextVal(vector, dict, index, packedValuesBuffer[packedValuesBufferIdx++], typeWidth);
           }
-          break;
+          nullabilityHolder.setNotNull(idx);
+          if (setArrowValidityVector) {
+            BitVectorHelper.setBit(vector.getValidityBuffer(), idx);
+          }
+          idx++;
+        }
+        left -= numValues;
+        currentCount -= numValues;
       }
-      left -= numValues;
-      currentCount -= numValues;
+    }
+
+    protected abstract void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth);
+  }
+
+  class DictionaryIdReader extends BaseDictEncodedReader {
+    @Override
+    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+      ((IntVector) vector).set(idx, currentVal);
     }
   }
 
-  void readBatchOfDictionaryEncodedLongs(FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
-                                         NullabilityHolder nullabilityHolder, int typeWidth) {
-    int left = numValuesToRead;
-    int idx = startOffset;
-    while (left > 0) {
-      if (this.currentCount == 0) {
-        this.readNextGroup();
-      }
-      int numValues = Math.min(left, this.currentCount);
-      switch (mode) {
-        case RLE:
-          for (int i = 0; i < numValues; i++) {
-            vector.getDataBuffer().setLong(idx * typeWidth, dict.decodeToLong(currentValue));
-            setNotNull(vector, nullabilityHolder, idx);
-            idx++;
-          }
-          break;
-        case PACKED:
-          for (int i = 0; i < numValues; i++) {
-            vector.getDataBuffer()
-                .setLong(idx * typeWidth, dict.decodeToLong(packedValuesBuffer[packedValuesBufferIdx++]));
-            setNotNull(vector, nullabilityHolder, idx);
-            idx++;
-          }
-          break;
-      }
-      left -= numValues;
-      currentCount -= numValues;
+  class LongDictEncodedReader extends BaseDictEncodedReader {
+    @Override
+    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+      vector.getDataBuffer().setLong(idx, dict.decodeToLong(currentVal));
     }
   }
 
-  void readBatchOfDictionaryEncodedTimestampMillis(
-      FieldVector vector, int startOffset, int numValuesToRead,
-      Dictionary dict, NullabilityHolder nullabilityHolder, int typeWidth) {
-    int left = numValuesToRead;
-    int idx = startOffset;
-    while (left > 0) {
-      if (this.currentCount == 0) {
-        this.readNextGroup();
-      }
-      int numValues = Math.min(left, this.currentCount);
-      switch (mode) {
-        case RLE:
-          for (int i = 0; i < numValues; i++) {
-            vector.getDataBuffer().setLong(idx * typeWidth, dict.decodeToLong(currentValue) * 1000);
-            setNotNull(vector, nullabilityHolder, idx);
-            idx++;
-          }
-          break;
-        case PACKED:
-          for (int i = 0; i < numValues; i++) {
-            vector.getDataBuffer()
-                .setLong(idx * typeWidth, dict.decodeToLong(packedValuesBuffer[packedValuesBufferIdx++]) * 1000);
-            setNotNull(vector, nullabilityHolder, idx);
-            idx++;
-          }
-          break;
-      }
-      left -= numValues;
-      currentCount -= numValues;
+  class TimestampMillisDictEncodedReader extends BaseDictEncodedReader {
+    @Override
+    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+      vector.getDataBuffer().setLong(idx, dict.decodeToLong(currentVal) * 1000);
     }
   }
 
-  void readBatchOfDictionaryEncodedIntegers(FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
-                                            NullabilityHolder nullabilityHolder, int typeWidth) {
-    int left = numValuesToRead;
-    int idx = startOffset;
-    while (left > 0) {
-      if (this.currentCount == 0) {
-        this.readNextGroup();
-      }
-      int num = Math.min(left, this.currentCount);
-      switch (mode) {
-        case RLE:
-          for (int i = 0; i < num; i++) {
-            vector.getDataBuffer().setInt(idx * typeWidth, dict.decodeToInt(currentValue));
-            setNotNull(vector, nullabilityHolder, idx);
-            idx++;
-          }
-          break;
-        case PACKED:
-          for (int i = 0; i < num; i++) {
-            vector.getDataBuffer()
-                .setInt(idx * typeWidth, dict.decodeToInt(packedValuesBuffer[packedValuesBufferIdx++]));
-            setNotNull(vector, nullabilityHolder, idx);
-            idx++;
-          }
-          break;
-      }
-      left -= num;
-      currentCount -= num;
+  class IntegerDictEncodedReader extends BaseDictEncodedReader {
+    @Override
+    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+      vector.getDataBuffer().setInt(idx, dict.decodeToInt(currentVal));
     }
   }
 
-  void readBatchOfDictionaryEncodedFloats(FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
-                                          NullabilityHolder nullabilityHolder, int typeWidth) {
-    int left = numValuesToRead;
-    int idx = startOffset;
-    while (left > 0) {
-      if (this.currentCount == 0) {
-        this.readNextGroup();
-      }
-      int num = Math.min(left, this.currentCount);
-      switch (mode) {
-        case RLE:
-          for (int i = 0; i < num; i++) {
-            vector.getDataBuffer().setFloat(idx * typeWidth, dict.decodeToFloat(currentValue));
-            setNotNull(vector, nullabilityHolder, idx);
-            idx++;
-          }
-          break;
-        case PACKED:
-          for (int i = 0; i < num; i++) {
-            vector.getDataBuffer()
-                .setFloat(idx * typeWidth, dict.decodeToFloat(packedValuesBuffer[packedValuesBufferIdx++]));
-            setNotNull(vector, nullabilityHolder, idx);
-            idx++;
-          }
-          break;
-      }
-      left -= num;
-      currentCount -= num;
+  class FloatDictEncodedReader extends BaseDictEncodedReader {
+    @Override
+    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+      vector.getDataBuffer().setFloat(idx, dict.decodeToFloat(currentVal));
     }
   }
 
-  void readBatchOfDictionaryEncodedDoubles(FieldVector vector, int startOffset, int numValuesToRead, Dictionary dict,
-                                           NullabilityHolder nullabilityHolder, int typeWidth) {
-    int left = numValuesToRead;
-    int idx = startOffset;
-    while (left > 0) {
-      if (this.currentCount == 0) {
-        this.readNextGroup();
-      }
-      int num = Math.min(left, this.currentCount);
-      switch (mode) {
-        case RLE:
-          for (int i = 0; i < num; i++) {
-            vector.getDataBuffer().setDouble(idx * typeWidth, dict.decodeToDouble(currentValue));
-            setNotNull(vector, nullabilityHolder, idx);
-            idx++;
-          }
-          break;
-        case PACKED:
-          for (int i = 0; i < num; i++) {
-            vector.getDataBuffer()
-                .setDouble(idx * typeWidth, dict.decodeToDouble(packedValuesBuffer[packedValuesBufferIdx++]));
-            setNotNull(vector, nullabilityHolder, idx);
-            idx++;
-          }
-          break;
-      }
-      left -= num;
-      currentCount -= num;
+  class DoubleDictEncodedReader extends BaseDictEncodedReader {
+    @Override
+    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+      vector.getDataBuffer().setDouble(idx, dict.decodeToDouble(currentVal));
     }
   }
 
-  void readBatchOfDictionaryEncodedFixedWidthBinary(FieldVector vector, int typeWidth, int startOffset,
-                                                    int numValuesToRead, Dictionary dict,
-                                                    NullabilityHolder nullabilityHolder) {
-    int left = numValuesToRead;
-    int idx = startOffset;
-    while (left > 0) {
-      if (this.currentCount == 0) {
-        this.readNextGroup();
-      }
-      int num = Math.min(left, this.currentCount);
-      switch (mode) {
-        case RLE:
-          for (int i = 0; i < num; i++) {
-            ByteBuffer buffer = dict.decodeToBinary(currentValue).toByteBuffer();
-            setFixedWidthBinary(vector, typeWidth, nullabilityHolder, idx, buffer);
-            idx++;
-          }
-          break;
-        case PACKED:
-          for (int i = 0; i < num; i++) {
-            ByteBuffer buffer = dict.decodeToBinary(packedValuesBuffer[packedValuesBufferIdx++]).toByteBuffer();
-            setFixedWidthBinary(vector, typeWidth, nullabilityHolder, idx, buffer);
-            idx++;
-          }
-          break;
-      }
-      left -= num;
-      currentCount -= num;
+  class FixedWidthBinaryDictEncodedReader extends BaseDictEncodedReader {
+    @Override
+    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+      ByteBuffer buffer = dict.decodeToBinary(currentVal).toByteBuffer();
+      vector.getDataBuffer()
+          .setBytes(idx, buffer.array(), buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
     }
   }
 
-  private void setFixedWidthBinary(
-      FieldVector vector, int typeWidth, NullabilityHolder nullabilityHolder,
-      int idx, ByteBuffer buffer) {
-    vector.getDataBuffer()
-        .setBytes(idx * typeWidth, buffer.array(),
-            buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
-    setNotNull(vector, nullabilityHolder, idx);
-  }
-
-  private void setNotNull(FieldVector vector, NullabilityHolder nullabilityHolder, int idx) {
-    nullabilityHolder.setNotNull(idx);
-    if (setArrowValidityVector) {
-      BitVectorHelper.setValidityBitToOne(vector.getValidityBuffer(), idx);
+  class FixedLengthDecimalDictEncodedReader extends BaseDictEncodedReader {
+    @Override
+    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+      byte[] decimalBytes = dict.decodeToBinary(currentVal).getBytesUnsafe();
+      byte[] vectorBytes = new byte[typeWidth];
+      System.arraycopy(decimalBytes, 0, vectorBytes, 0, typeWidth);
+      ((DecimalVector) vector).setBigEndian(idx, vectorBytes);
+      ByteBuffer buffer = dict.decodeToBinary(currentVal).toByteBuffer();
+      vector.getDataBuffer()
+          .setBytes(idx, buffer.array(), buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
     }
   }
 
-  void readBatchOfDictionaryEncodedFixedLengthDecimals(FieldVector vector, int typeWidth, int startOffset,
-                                                       int numValuesToRead, Dictionary dict,
-                                                       NullabilityHolder nullabilityHolder) {
-    int left = numValuesToRead;
-    int idx = startOffset;
-    while (left > 0) {
-      if (this.currentCount == 0) {
-        this.readNextGroup();
-      }
-      int num = Math.min(left, this.currentCount);
-      switch (mode) {
-        case RLE:
-          for (int i = 0; i < num; i++) {
-            byte[] decimalBytes = dict.decodeToBinary(currentValue).getBytesUnsafe();
-            byte[] vectorBytes = new byte[typeWidth];
-            System.arraycopy(decimalBytes, 0, vectorBytes, 0, typeWidth);
-            ((DecimalVector) vector).setBigEndian(idx, vectorBytes);
-            nullabilityHolder.setNotNull(idx);
-            idx++;
-          }
-          break;
-        case PACKED:
-          for (int i = 0; i < num; i++) {
-            byte[] decimalBytes = dict.decodeToBinary(packedValuesBuffer[packedValuesBufferIdx++]).getBytesUnsafe();
-            byte[] vectorBytes = new byte[typeWidth];
-            System.arraycopy(decimalBytes, 0, vectorBytes, 0, typeWidth);
-            ((DecimalVector) vector).setBigEndian(idx, vectorBytes);
-            nullabilityHolder.setNotNull(idx);
-            idx++;
-          }
-          break;
-      }
-      left -= num;
-      currentCount -= num;
+  class VarWidthBinaryDictEncodedReader extends BaseDictEncodedReader {
+    @Override
+    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+      ByteBuffer buffer = dict.decodeToBinary(currentVal).toByteBuffer();
+      ((BaseVariableWidthVector) vector).setSafe(idx, buffer.array(),
+          buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
     }
   }
 
-  void readBatchOfDictionaryEncodedVarWidthBinary(FieldVector vector, int startOffset, int numValuesToRead,
-                                                  Dictionary dict, NullabilityHolder nullabilityHolder) {
-    int left = numValuesToRead;
-    int idx = startOffset;
-    while (left > 0) {
-      if (this.currentCount == 0) {
-        this.readNextGroup();
-      }
-      int num = Math.min(left, this.currentCount);
-      switch (mode) {
-        case RLE:
-          for (int i = 0; i < num; i++) {
-            ByteBuffer buffer = dict.decodeToBinary(currentValue).toByteBuffer();
-            ((BaseVariableWidthVector) vector).setSafe(idx, buffer.array(),
-                buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
-            nullabilityHolder.setNotNull(idx);
-            idx++;
-          }
-          break;
-        case PACKED:
-          for (int i = 0; i < num; i++) {
-            ByteBuffer buffer = dict.decodeToBinary(packedValuesBuffer[packedValuesBufferIdx++]).toByteBuffer();
-            ((BaseVariableWidthVector) vector).setSafe(idx, buffer.array(),
-                buffer.position() + buffer.arrayOffset(), buffer.limit() - buffer.position());
-            nullabilityHolder.setNotNull(idx);
-            idx++;
-          }
-          break;
-      }
-      left -= num;
-      currentCount -= num;
+  class IntBackedDecimalDictEncodedReader extends BaseDictEncodedReader {
+    @Override
+    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+      ((DecimalVector) vector).set(idx, dict.decodeToInt(currentVal));
     }
   }
 
-  void readBatchOfDictionaryEncodedIntBackedDecimals(FieldVector vector, int startOffset,
-                                                         int numValuesToRead, Dictionary dict,
-                                                         NullabilityHolder nullabilityHolder) {
-    int left = numValuesToRead;
-    int idx = startOffset;
-    while (left > 0) {
-      if (this.currentCount == 0) {
-        this.readNextGroup();
-      }
-      int num = Math.min(left, this.currentCount);
-      switch (mode) {
-        case RLE:
-          for (int i = 0; i < num; i++) {
-            ((DecimalVector) vector).set(
-                idx,
-                dict.decodeToInt(currentValue));
-            nullabilityHolder.setNotNull(idx);
-            idx++;
-          }
-          break;
-        case PACKED:
-          for (int i = 0; i < num; i++) {
-            ((DecimalVector) vector).set(
-                idx, dict.decodeToInt(packedValuesBuffer[packedValuesBufferIdx++]));
-            nullabilityHolder.setNotNull(idx);
-            idx++;
-          }
-          break;
-      }
-      left -= num;
-      currentCount -= num;
+  class LongBackedDecimalDictEncodedReader extends BaseDictEncodedReader {
+    @Override
+    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+      ((DecimalVector) vector).set(idx, dict.decodeToLong(currentVal));
     }
   }
 
-  void readBatchOfDictionaryEncodedLongBackedDecimals(FieldVector vector, int startOffset,
-                                                     int numValuesToRead, Dictionary dict,
-                                                     NullabilityHolder nullabilityHolder) {
-    int left = numValuesToRead;
-    int idx = startOffset;
-    while (left > 0) {
-      if (this.currentCount == 0) {
-        this.readNextGroup();
-      }
-      int num = Math.min(left, this.currentCount);
-      switch (mode) {
-        case RLE:
-          for (int i = 0; i < num; i++) {
-            ((DecimalVector) vector).set(
-                    idx,
-                    dict.decodeToLong(currentValue));
-            nullabilityHolder.setNotNull(idx);
-            idx++;
-          }
-          break;
-        case PACKED:
-          for (int i = 0; i < num; i++) {
-            ((DecimalVector) vector).set(
-                    idx, dict.decodeToLong(packedValuesBuffer[packedValuesBufferIdx++]));
-            nullabilityHolder.setNotNull(idx);
-            idx++;
-          }
-          break;
-      }
-      left -= num;
-      currentCount -= num;
+  class FixedSizeBinaryDictEncodedReader extends BaseDictEncodedReader {
+    @Override
+    protected void nextVal(FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
+      byte[] bytes = dict.decodeToBinary(currentVal).getBytesUnsafe();
+      byte[] vectorBytes = new byte[typeWidth];
+      System.arraycopy(bytes, 0, vectorBytes, 0, typeWidth);
+      ((FixedSizeBinaryVector) vector).set(idx, vectorBytes);
     }
+  }
+
+  public DictionaryIdReader dictionaryIdReader() {
+    return new DictionaryIdReader();
+  }
+
+  public LongDictEncodedReader longDictEncodedReader() {
+    return new LongDictEncodedReader();
+  }
+
+  public TimestampMillisDictEncodedReader timestampMillisDictEncodedReader() {
+    return new TimestampMillisDictEncodedReader();
+  }
+
+  public IntegerDictEncodedReader integerDictEncodedReader() {
+    return new IntegerDictEncodedReader();
+  }
+
+  public FloatDictEncodedReader floatDictEncodedReader() {
+    return new FloatDictEncodedReader();
+  }
+
+  public DoubleDictEncodedReader doubleDictEncodedReader() {
+    return new DoubleDictEncodedReader();
+  }
+
+  public FixedWidthBinaryDictEncodedReader fixedWidthBinaryDictEncodedReader() {
+    return new FixedWidthBinaryDictEncodedReader();
+  }
+
+  public FixedLengthDecimalDictEncodedReader fixedLengthDecimalDictEncodedReader() {
+    return new FixedLengthDecimalDictEncodedReader();
+  }
+
+  public VarWidthBinaryDictEncodedReader varWidthBinaryDictEncodedReader() {
+    return new VarWidthBinaryDictEncodedReader();
+  }
+
+  public IntBackedDecimalDictEncodedReader intBackedDecimalDictEncodedReader() {
+    return new IntBackedDecimalDictEncodedReader();
+  }
+
+  public LongBackedDecimalDictEncodedReader longBackedDecimalDictEncodedReader() {
+    return new LongBackedDecimalDictEncodedReader();
+  }
+
+  public FixedSizeBinaryDictEncodedReader fixedSizeBinaryDictEncodedReader() {
+    return new FixedSizeBinaryDictEncodedReader();
   }
 }

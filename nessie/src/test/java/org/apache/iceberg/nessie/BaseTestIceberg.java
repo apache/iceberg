@@ -20,6 +20,7 @@
 package org.apache.iceberg.nessie;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
@@ -33,15 +34,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StructType;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.io.TempDir;
 import org.projectnessie.api.ContentsApi;
 import org.projectnessie.api.TreeApi;
 import org.projectnessie.client.NessieClient;
 import org.projectnessie.error.NessieConflictException;
 import org.projectnessie.error.NessieNotFoundException;
+import org.projectnessie.jaxrs.NessieJaxRsExtension;
 import org.projectnessie.model.Branch;
 import org.projectnessie.model.Reference;
 import org.slf4j.Logger;
@@ -50,11 +52,13 @@ import org.slf4j.LoggerFactory;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public abstract class BaseTestIceberg {
+  @RegisterExtension
+  static NessieJaxRsExtension server = new NessieJaxRsExtension();
 
   private static final Logger LOGGER = LoggerFactory.getLogger(BaseTestIceberg.class);
 
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir
+  public Path temp;
 
   protected NessieCatalog catalog;
   protected NessieClient client;
@@ -79,10 +83,10 @@ public abstract class BaseTestIceberg {
     tree.createReference(Branch.of("main", null));
   }
 
-  @Before
+  @BeforeEach
   public void beforeEach() throws IOException {
     String port = System.getProperty("quarkus.http.test-port", "19120");
-    uri = String.format("http://localhost:%s/api/v1", port);
+    uri = server.getURI().toString();
     this.client = NessieClient.builder().withUri(uri).build();
     tree = client.getTreeApi();
     contents = client.getContentsApi();
@@ -104,9 +108,9 @@ public abstract class BaseTestIceberg {
     newCatalog.setConf(hadoopConfig);
     newCatalog.initialize("nessie", ImmutableMap.of("ref", ref,
         CatalogProperties.URI, uri,
-        "auth_type", "NONE",
-        CatalogProperties.WAREHOUSE_LOCATION, temp.getRoot().toURI().toString()
-        ));
+        "auth-type", "NONE",
+        CatalogProperties.WAREHOUSE_LOCATION, temp.toUri().toString()
+    ));
     return newCatalog;
   }
 
@@ -120,8 +124,7 @@ public abstract class BaseTestIceberg {
   }
 
   protected void createTable(TableIdentifier tableIdentifier) {
-    Schema schema = new Schema(StructType.of(required(1, "id", LongType.get()))
-                                         .fields());
+    Schema schema = new Schema(StructType.of(required(1, "id", LongType.get())).fields());
     catalog.createTable(tableIdentifier, schema).location();
   }
 
@@ -137,7 +140,7 @@ public abstract class BaseTestIceberg {
     tree.createReference(Branch.of(name, hash));
   }
 
-  @After
+  @AfterEach
   public void afterEach() throws Exception {
     catalog.close();
     client.close();
@@ -153,5 +156,4 @@ public abstract class BaseTestIceberg {
     NessieTableOperations icebergOps = (NessieTableOperations) ops;
     return icebergOps.currentMetadataLocation();
   }
-
 }

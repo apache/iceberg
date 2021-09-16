@@ -28,6 +28,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Metrics;
@@ -40,6 +42,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
@@ -80,13 +83,16 @@ public class ParquetUtil {
     }
   }
 
-  public static Metrics footerMetrics(ParquetMetadata metadata, Stream<FieldMetrics> fieldMetrics,
+  public static Metrics footerMetrics(ParquetMetadata metadata, Stream<FieldMetrics<?>> fieldMetrics,
                                       MetricsConfig metricsConfig) {
     return footerMetrics(metadata, fieldMetrics, metricsConfig, null);
   }
 
-  public static Metrics footerMetrics(ParquetMetadata metadata, Stream<FieldMetrics> fieldMetrics,
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  public static Metrics footerMetrics(ParquetMetadata metadata, Stream<FieldMetrics<?>> fieldMetrics,
                                       MetricsConfig metricsConfig, NameMapping nameMapping) {
+    Preconditions.checkNotNull(fieldMetrics, "fieldMetrics should not be null");
+
     long rowCount = 0;
     Map<Integer, Long> columnSizes = Maps.newHashMap();
     Map<Integer, Long> valueCounts = Maps.newHashMap();
@@ -98,6 +104,9 @@ public class ParquetUtil {
     // ignore metrics for fields we failed to determine reliable IDs
     MessageType parquetTypeWithIds = getParquetTypeWithIds(metadata, nameMapping);
     Schema fileSchema = ParquetSchemaUtil.convertAndPrune(parquetTypeWithIds);
+
+    Map<Integer, FieldMetrics<?>> fieldMetricsMap = fieldMetrics.collect(
+        Collectors.toMap(FieldMetrics::id, Function.identity()));
 
     List<BlockMetaData> blocks = metadata.getBlocks();
     for (BlockMetaData block : blocks) {
@@ -125,7 +134,9 @@ public class ParquetUtil {
         } else if (!stats.isEmpty()) {
           increment(nullValueCounts, fieldId, stats.getNumNulls());
 
-          if (metricsMode != MetricsModes.Counts.get()) {
+          // when there are metrics gathered by Iceberg for a column, we should use those instead
+          // of the ones from Parquet
+          if (metricsMode != MetricsModes.Counts.get() && !fieldMetricsMap.containsKey(fieldId)) {
             Types.NestedField field = fileSchema.findField(fieldId);
             if (field != null && stats.hasNonNullValue() && shouldStoreBounds(column, fileSchema)) {
               Literal<?> min = ParquetConversions.fromParquetPrimitive(
@@ -147,9 +158,38 @@ public class ParquetUtil {
       upperBounds.remove(fieldId);
     }
 
+    updateFromFieldMetrics(fieldMetricsMap, metricsConfig, fileSchema, lowerBounds, upperBounds);
+
     return new Metrics(rowCount, columnSizes, valueCounts, nullValueCounts,
-        MetricsUtil.createNanValueCounts(fieldMetrics, metricsConfig, fileSchema),
-        toBufferMap(fileSchema, lowerBounds), toBufferMap(fileSchema, upperBounds));
+        MetricsUtil.createNanValueCounts(fieldMetricsMap.values().stream(), metricsConfig, fileSchema),
+        toBufferMap(fileSchema, lowerBounds),
+        toBufferMap(fileSchema, upperBounds));
+  }
+
+  private static void updateFromFieldMetrics(
+      Map<Integer, FieldMetrics<?>> idToFieldMetricsMap, MetricsConfig metricsConfig, Schema schema,
+      Map<Integer, Literal<?>> lowerBounds, Map<Integer, Literal<?>> upperBounds) {
+    idToFieldMetricsMap.entrySet().forEach(entry -> {
+      int fieldId = entry.getKey();
+      FieldMetrics<?> metrics = entry.getValue();
+      MetricsMode metricsMode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
+
+      // only check for MetricsModes.None, since we don't truncate float/double values.
+      if (metricsMode != MetricsModes.None.get()) {
+        if (!metrics.hasBounds()) {
+          lowerBounds.remove(fieldId);
+          upperBounds.remove(fieldId);
+        } else if (metrics.upperBound() instanceof Float) {
+          lowerBounds.put(fieldId, Literal.of((Float) metrics.lowerBound()));
+          upperBounds.put(fieldId, Literal.of((Float) metrics.upperBound()));
+        } else if (metrics.upperBound() instanceof Double) {
+          lowerBounds.put(fieldId, Literal.of((Double) metrics.lowerBound()));
+          upperBounds.put(fieldId, Literal.of((Double) metrics.upperBound()));
+        } else {
+          throw new UnsupportedOperationException("Expected only float or double column metrics");
+        }
+      }
+    });
   }
 
   private static MessageType getParquetTypeWithIds(ParquetMetadata metadata, NameMapping nameMapping) {

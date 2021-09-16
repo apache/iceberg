@@ -30,6 +30,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.math.LongMath;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -37,7 +38,6 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalog.Column;
 import org.apache.spark.sql.types.DataType;
-import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 
 /**
@@ -122,8 +122,31 @@ public class SparkSchemaUtil {
    * @throws IllegalArgumentException if the type cannot be converted
    */
   public static Schema convert(StructType sparkType) {
+    return convert(sparkType, false);
+  }
+
+  /**
+   * Convert a Spark {@link StructType struct} to a {@link Schema} with new field ids.
+   * <p>
+   * This conversion assigns fresh ids.
+   * <p>
+   * Some data types are represented as the same Spark type. These are converted to a default type.
+   * <p>
+   * To convert using a reference schema for field ids and ambiguous types, use
+   * {@link #convert(Schema, StructType)}.
+   *
+   * @param sparkType a Spark StructType
+   * @param useTimestampWithoutZone boolean flag indicates that timestamp should be stored without timezone
+   * @return the equivalent Schema
+   * @throws IllegalArgumentException if the type cannot be converted
+   */
+  public static Schema convert(StructType sparkType, boolean useTimestampWithoutZone) {
     Type converted = SparkTypeVisitor.visit(sparkType, new SparkTypeToType(sparkType));
-    return new Schema(converted.asNestedType().asStructType().fields());
+    Schema schema = new Schema(converted.asNestedType().asStructType().fields());
+    if (useTimestampWithoutZone) {
+      schema = SparkFixupTimestampType.fixup(schema);
+    }
+    return schema;
   }
 
   /**
@@ -257,23 +280,23 @@ public class SparkSchemaUtil {
   }
 
   /**
-   * estimate approximate table size based on spark schema and total records.
+   * Estimate approximate table size based on Spark schema and total records.
    *
-   * @param tableSchema  spark schema
+   * @param tableSchema  Spark schema
    * @param totalRecords total records in the table
-   * @return approxiate size based on table schema
+   * @return approximate size based on table schema
    */
   public static long estimateSize(StructType tableSchema, long totalRecords) {
     if (totalRecords == Long.MAX_VALUE) {
       return totalRecords;
     }
 
-    long approximateSize = 0;
-    for (StructField sparkField : tableSchema.fields()) {
-      approximateSize += sparkField.dataType().defaultSize();
+    long result;
+    try {
+      result = LongMath.checkedMultiply(tableSchema.defaultSize(), totalRecords);
+    } catch (ArithmeticException e) {
+      result = Long.MAX_VALUE;
     }
-
-    long result = approximateSize * totalRecords;
-    return result > 0 ? result : Long.MAX_VALUE;
+    return result;
   }
 }

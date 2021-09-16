@@ -65,6 +65,7 @@ import org.apache.spark.sql.types.IntegerType$;
 import org.apache.spark.sql.types.LongType$;
 import org.apache.spark.sql.types.StringType$;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -491,7 +492,7 @@ public class TestFilteredScan {
   }
 
   private void pushFilters(ScanBuilder scan, Filter... filters) {
-    Assert.assertTrue(scan instanceof SupportsPushDownFilters);
+    Assertions.assertThat(scan).isInstanceOf(SupportsPushDownFilters.class);
     SupportsPushDownFilters filterable = (SupportsPushDownFilters) scan;
     filterable.pushFilters(filters);
   }

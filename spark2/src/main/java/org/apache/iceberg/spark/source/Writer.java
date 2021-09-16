@@ -184,10 +184,17 @@ class Writer implements DataSourceWriter {
   }
 
   private void replacePartitions(WriterCommitMessage[] messages) {
+    Iterable<DataFile> files = files(messages);
+
+    if (!files.iterator().hasNext()) {
+      LOG.info("Dyanmic overwrite is empty, skipping commit");
+      return;
+    }
+
     ReplacePartitions dynamicOverwrite = table.newReplacePartitions();
 
     int numFiles = 0;
-    for (DataFile file : files(messages)) {
+    for (DataFile file : files) {
       numFiles += 1;
       dynamicOverwrite.addFile(file);
     }
@@ -263,7 +270,7 @@ class Writer implements DataSourceWriter {
     public DataWriter<InternalRow> createDataWriter(int partitionId, long taskId, long epochId) {
       Table table = tableBroadcast.value();
 
-      OutputFileFactory fileFactory = new OutputFileFactory(table, format, partitionId, taskId);
+      OutputFileFactory fileFactory = OutputFileFactory.builderFor(table, partitionId, taskId).format(format).build();
       SparkAppenderFactory appenderFactory = SparkAppenderFactory.builderFor(table, writeSchema, dsSchema).build();
 
       PartitionSpec spec = table.spec();

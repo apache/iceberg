@@ -34,6 +34,7 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -77,8 +78,8 @@ public class TestPathIdentifier extends SparkTestBase {
         ImmutableMap.of());
 
     Assert.assertEquals(table.table().location(), tableLocation.getAbsolutePath());
-    Assert.assertTrue(table.table() instanceof BaseTable);
-    Assert.assertTrue(((BaseTable) table.table()).operations() instanceof HadoopTableOperations);
+    Assertions.assertThat(table.table()).isInstanceOf(BaseTable.class);
+    Assertions.assertThat(((BaseTable) table.table()).operations()).isInstanceOf(HadoopTableOperations.class);
 
     Assert.assertEquals(sparkCatalog.loadTable(identifier), table);
     Assert.assertTrue(sparkCatalog.dropTable(identifier));

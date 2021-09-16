@@ -58,7 +58,6 @@ public class CachedClientPool implements ClientPool<HiveMetaStoreClient, TExcept
     return clientPoolCache.get(metastoreUri, k -> new HiveClientPool(clientPoolSize, conf));
   }
 
-
   private synchronized void init() {
     if (clientPoolCache == null) {
       clientPoolCache = Caffeine.newBuilder().expireAfterAccess(evictionInterval, TimeUnit.MILLISECONDS)

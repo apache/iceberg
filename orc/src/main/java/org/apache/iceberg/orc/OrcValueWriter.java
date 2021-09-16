@@ -38,6 +38,7 @@ public interface OrcValueWriter<T> {
     if (data == null) {
       output.noNulls = false;
       output.isNull[rowId] = true;
+      nullWrite();
     } else {
       output.isNull[rowId] = false;
       nonNullWrite(rowId, data, output);
@@ -46,10 +47,14 @@ public interface OrcValueWriter<T> {
 
   void nonNullWrite(int rowId, T data, ColumnVector output);
 
+  default void nullWrite() {
+    // no op
+  }
+
   /**
    * Returns a stream of {@link FieldMetrics} that this OrcValueWriter keeps track of.
    */
-  default Stream<FieldMetrics> metrics() {
+  default Stream<FieldMetrics<?>> metrics() {
     return Stream.empty();
   }
 }

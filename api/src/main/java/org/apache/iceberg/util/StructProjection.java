@@ -23,8 +23,11 @@ import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.ListType;
+import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StructType;
 
 public class StructProjection implements StructLike {
@@ -82,8 +85,31 @@ public class StructProjection implements StructLike {
                   dataField.type().asStructType(), projectedField.type().asStructType());
               break;
             case MAP:
+              MapType projectedMap = projectedField.type().asMapType();
+              MapType originalMap = dataField.type().asMapType();
+
+              boolean keyProjectable = !projectedMap.keyType().isNestedType() ||
+                  projectedMap.keyType().equals(originalMap.keyType());
+              boolean valueProjectable = !projectedMap.valueType().isNestedType() ||
+                  projectedMap.valueType().equals(originalMap.valueType());
+              Preconditions.checkArgument(keyProjectable && valueProjectable,
+                  "Cannot project a partial map key or value struct. Trying to project %s out of %s",
+                  projectedField, dataField);
+
+              nestedProjections[pos] = null;
+              break;
             case LIST:
-              throw new IllegalArgumentException(String.format("Cannot project list or map field: %s", projectedField));
+              ListType projectedList = projectedField.type().asListType();
+              ListType originalList = dataField.type().asListType();
+
+              boolean elementProjectable = !projectedList.elementType().isNestedType() ||
+                  projectedList.elementType().equals(originalList.elementType());
+              Preconditions.checkArgument(elementProjectable,
+                  "Cannot project a partial list element struct. Trying to project %s out of %s",
+                  projectedField, dataField);
+
+              nestedProjections[pos] = null;
+              break;
             default:
               nestedProjections[pos] = null;
           }

@@ -176,7 +176,13 @@ public class TestHiveCatalog extends HiveMetastoreTest {
       table = catalog.loadTable(tableIdent);
       Assert.assertEquals(newLocation, table.location());
       Assert.assertNull(table.currentSnapshot());
-      Assert.assertTrue(table.spec().isUnpartitioned());
+      PartitionSpec v1Expected = PartitionSpec.builderFor(table.schema())
+          .alwaysNull("data", "data_bucket")
+          .withSpecId(1)
+          .build();
+      Assert.assertEquals("Table should have a spec with one void field",
+          v1Expected, table.spec());
+
       Assert.assertEquals("value1", table.properties().get("key1"));
       Assert.assertEquals("value2", table.properties().get("key2"));
     } finally {

@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
+import org.apache.iceberg.DoubleFieldMetrics;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FloatFieldMetrics;
 import org.apache.iceberg.orc.OrcValueWriter;
@@ -219,12 +220,11 @@ public class GenericOrcWriters {
   }
 
   private static class FloatWriter implements OrcValueWriter<Float> {
-    private final int id;
-    private long nanCount;
+    private final FloatFieldMetrics.Builder floatFieldMetricsBuilder;
+    private long nullValueCount = 0;
 
     private FloatWriter(int id) {
-      this.id = id;
-      this.nanCount = 0;
+      this.floatFieldMetricsBuilder = new FloatFieldMetrics.Builder(id);
     }
 
     @Override
@@ -235,24 +235,30 @@ public class GenericOrcWriters {
     @Override
     public void nonNullWrite(int rowId, Float data, ColumnVector output) {
       ((DoubleColumnVector) output).vector[rowId] = data;
-      if (Float.isNaN(data)) {
-        nanCount++;
-      }
+      floatFieldMetricsBuilder.addValue(data);
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
-      return Stream.of(new FloatFieldMetrics(id, nanCount));
+    public void nullWrite() {
+      nullValueCount++;
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      FieldMetrics<Float> metricsWithoutNullCount = floatFieldMetricsBuilder.build();
+      return Stream.of(new FieldMetrics<>(metricsWithoutNullCount.id(),
+          metricsWithoutNullCount.valueCount() + nullValueCount,
+          nullValueCount, metricsWithoutNullCount.nanValueCount(),
+          metricsWithoutNullCount.lowerBound(), metricsWithoutNullCount.upperBound()));
     }
   }
 
   private static class DoubleWriter implements OrcValueWriter<Double> {
-    private final int id;
-    private long nanCount;
+    private final DoubleFieldMetrics.Builder doubleFieldMetricsBuilder;
+    private long nullValueCount = 0;
 
     private DoubleWriter(Integer id) {
-      this.id = id;
-      this.nanCount = 0;
+      this.doubleFieldMetricsBuilder = new DoubleFieldMetrics.Builder(id);
     }
 
     @Override
@@ -263,14 +269,21 @@ public class GenericOrcWriters {
     @Override
     public void nonNullWrite(int rowId, Double data, ColumnVector output) {
       ((DoubleColumnVector) output).vector[rowId] = data;
-      if (Double.isNaN(data)) {
-        nanCount++;
-      }
+      doubleFieldMetricsBuilder.addValue(data);
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
-      return Stream.of(new FloatFieldMetrics(id, nanCount));
+    public void nullWrite() {
+      nullValueCount++;
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      FieldMetrics<Double> metricsWithoutNullCount = doubleFieldMetricsBuilder.build();
+      return Stream.of(new FieldMetrics<>(metricsWithoutNullCount.id(),
+          metricsWithoutNullCount.valueCount() + nullValueCount,
+          nullValueCount, metricsWithoutNullCount.nanValueCount(),
+          metricsWithoutNullCount.lowerBound(), metricsWithoutNullCount.upperBound()));
     }
   }
 
@@ -469,7 +482,7 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return element.metrics();
     }
   }
@@ -513,7 +526,7 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public Stream<FieldMetrics> metrics() {
+    public Stream<FieldMetrics<?>> metrics() {
       return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
     }
   }

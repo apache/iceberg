@@ -59,8 +59,8 @@ import static org.apache.spark.sql.functions.lit;
 public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
   public TestDelete(String catalogName, String implementation, Map<String, String> config,
-                    String fileFormat, Boolean vectorized) {
-    super(catalogName, implementation, config, fileFormat, vectorized);
+                    String fileFormat, Boolean vectorized, String distributionMode) {
+    super(catalogName, implementation, config, fileFormat, vectorized, distributionMode);
   }
 
   @BeforeClass
