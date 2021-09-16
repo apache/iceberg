@@ -118,9 +118,11 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
     };
   }
 
-  static <E> CloseableIterable<E> concat(Iterable<? extends Iterable<E>> iterable,
-                                         ExecutorService executorService,
-                                         int parallelism) {
+  static <E> CloseableIterable<E> combine(Iterable<? extends Iterable<E>> iterable,
+                                          ExecutorService executorService,
+                                          int parallelism) {
+    Preconditions.checkNotNull(executorService, "ExecutorService shouldn't be null");
+    Preconditions.checkArgument(parallelism > 0, "Parallelism must be > 0");
     return new ParallelIterable<>(iterable, executorService, parallelism);
   }
 

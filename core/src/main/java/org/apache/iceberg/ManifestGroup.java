@@ -183,7 +183,7 @@ class ManifestGroup {
     });
 
     if (executorService != null) {
-      return CloseableIterable.concat(tasks, executorService, ThreadPools.getPoolParallelism());
+      return CloseableIterable.combine(tasks, executorService, ThreadPools.WORKER_THREAD_POOL_PARALLELISM);
     } else {
       return CloseableIterable.concat(tasks);
     }
