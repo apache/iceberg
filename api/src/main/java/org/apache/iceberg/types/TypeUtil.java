@@ -125,18 +125,22 @@ public class TypeUtil {
     return ImmutableSet.copyOf(getIdsInternal(type));
   }
 
+  private static Set<Integer> getIdsInternal(Type type, boolean includeStructIds) {
+    return visit(type, new GetProjectedIds(includeStructIds));
+  }
+
   private static Set<Integer> getIdsInternal(Type type) {
-    return visit(type, new GetProjectedIds());
+    return getIdsInternal(type, true);
   }
 
   public static Types.StructType selectNot(Types.StructType struct, Set<Integer> fieldIds) {
-    Set<Integer> projectedIds = getIdsInternal(struct);
+    Set<Integer> projectedIds = getIdsInternal(struct, false);
     projectedIds.removeAll(fieldIds);
     return project(struct, projectedIds);
   }
 
   public static Schema selectNot(Schema schema, Set<Integer> fieldIds) {
-    Set<Integer> projectedIds = getIdsInternal(schema.asStruct());
+    Set<Integer> projectedIds = getIdsInternal(schema.asStruct(), false);
     projectedIds.removeAll(fieldIds);
     return project(schema, projectedIds);
   }

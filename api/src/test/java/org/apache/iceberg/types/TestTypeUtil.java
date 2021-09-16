@@ -452,4 +452,34 @@ public class TestTypeUtil {
 
     TypeUtil.indexByName(Types.StructType.of(nestedType));
   }
+
+  @Test
+  public void testSelectNot() {
+    Schema schema = new Schema(
+        Lists.newArrayList(
+            required(1, "id", Types.LongType.get()),
+            required(2, "location", Types.StructType.of(
+                required(3, "lat", Types.DoubleType.get()),
+                required(4, "long", Types.DoubleType.get())
+            ))));
+
+    Schema expectedNoPrimitive = new Schema(
+        Lists.newArrayList(
+            required(2, "location", Types.StructType.of(
+                required(3, "lat", Types.DoubleType.get()),
+                required(4, "long", Types.DoubleType.get())
+            ))));
+
+    Schema actualNoPrimitve = TypeUtil.selectNot(schema, Sets.newHashSet(1));
+    Assert.assertEquals(expectedNoPrimitive.asStruct(), actualNoPrimitve.asStruct());
+
+    // Expected legacy behavior is to completely remove structs if their elements are removed
+    Schema expectedNoStructElements = new Schema(required(1, "id", Types.LongType.get()));
+    Schema actualNoStructElements = TypeUtil.selectNot(schema, Sets.newHashSet(3, 4));
+    Assert.assertEquals(expectedNoStructElements.asStruct(), actualNoStructElements.asStruct());
+
+    // Expected legacy behavior is to ignore selectNot on struct elements.
+    Schema actualNoStruct = TypeUtil.selectNot(schema, Sets.newHashSet(2));
+    Assert.assertEquals(schema.asStruct(), actualNoStruct.asStruct());
+  }
 }

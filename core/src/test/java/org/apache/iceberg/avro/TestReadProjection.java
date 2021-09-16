@@ -37,11 +37,10 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public abstract class TestReadProjection {
-
   protected abstract Record writeAndRead(String desc,
-      Schema writeSchema,
-      Schema readSchema,
-      Record record) throws IOException;
+                                         Schema writeSchema,
+                                         Schema readSchema,
+                                         Record record) throws IOException;
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
