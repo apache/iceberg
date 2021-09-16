@@ -136,8 +136,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     this.table = tableLoader.loadTable();
 
     maxContinuousEmptyCommits = PropertyUtil.propertyAsInt(table.properties(), MAX_CONTINUOUS_EMPTY_COMMITS, 10);
-    Preconditions.checkArgument(
-        maxContinuousEmptyCommits > 0,
+    Preconditions.checkArgument(maxContinuousEmptyCommits > 0,
         MAX_CONTINUOUS_EMPTY_COMMITS + " must be positive");
 
     int subTaskId = getRuntimeContext().getIndexOfThisSubtask();
@@ -159,8 +158,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       }
 
       String restoredFlinkJobId = jobIdState.get().iterator().next();
-      Preconditions.checkState(
-          !Strings.isNullOrEmpty(restoredFlinkJobId),
+      Preconditions.checkState(!Strings.isNullOrEmpty(restoredFlinkJobId),
           "Flink job id parsed from checkpoint snapshot shouldn't be null or empty");
 
       // Since flink's checkpoint id will start from the max-committed-checkpoint-id + 1 in the new flink job even if
@@ -223,10 +221,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     }
   }
 
-  private void commitUpToCheckpoint(
-      NavigableMap<Long, byte[]> deltaManifestsMap,
-      String newFlinkJobId,
-      long checkpointId) throws IOException {
+  private void commitUpToCheckpoint(NavigableMap<Long, byte[]> deltaManifestsMap,
+                                    String newFlinkJobId,
+                                    long checkpointId) throws IOException {
     NavigableMap<Long, byte[]> pendingMap = deltaManifestsMap.headMap(checkpointId, true);
     List<ManifestFile> manifests = Lists.newArrayList();
     NavigableMap<Long, WriteResult> pendingResults = Maps.newTreeMap();
@@ -272,9 +269,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     }
   }
 
-  private void replacePartitions(
-      NavigableMap<Long, WriteResult> pendingResults, String newFlinkJobId,
-      long checkpointId) {
+  private void replacePartitions(NavigableMap<Long, WriteResult> pendingResults, String newFlinkJobId,
+                                 long checkpointId) {
     // Partition overwrite does not support delete files.
     int deleteFilesNum = pendingResults.values().stream().mapToInt(r -> r.deleteFiles().length).sum();
     Preconditions.checkState(deleteFilesNum == 0, "Cannot overwrite partitions with delete files.");
@@ -331,9 +327,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     }
   }
 
-  private void commitOperation(
-      SnapshotUpdate<?> operation, int numDataFiles, int numDeleteFiles, String description,
-      String newFlinkJobId, long checkpointId) {
+  private void commitOperation(SnapshotUpdate<?> operation, int numDataFiles, int numDeleteFiles, String description,
+                               String newFlinkJobId, long checkpointId) {
     LOG.info("Committing {} with {} data files and {} delete files to table {}", description, numDataFiles,
         numDeleteFiles, table);
     operation.set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));

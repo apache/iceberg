@@ -86,10 +86,9 @@ public class FlinkSink {
    * @param <T>        the data type of records.
    * @return {@link Builder} to connect the iceberg table.
    */
-  public static <T> Builder builderFor(
-      DataStream<T> input,
-      MapFunction<T, RowData> mapper,
-      TypeInformation<RowData> outputType) {
+  public static <T> Builder builderFor(DataStream<T> input,
+                                       MapFunction<T, RowData> mapper,
+                                       TypeInformation<RowData> outputType) {
     return new Builder().forMapperOutputType(input, mapper, outputType);
   }
 
@@ -140,10 +139,9 @@ public class FlinkSink {
       return this;
     }
 
-    private <T> Builder forMapperOutputType(
-        DataStream<T> input,
-        MapFunction<T, RowData> mapper,
-        TypeInformation<RowData> outputType) {
+    private <T> Builder forMapperOutputType(DataStream<T> input,
+                                            MapFunction<T, RowData> mapper,
+                                            TypeInformation<RowData> outputType) {
       this.inputCreator = newUidPrefix -> {
         if (newUidPrefix != null) {
           return input.map(mapper, outputType)
@@ -200,8 +198,7 @@ public class FlinkSink {
      * @return {@link Builder} to connect the iceberg table.
      */
     public Builder distributionMode(DistributionMode mode) {
-      Preconditions.checkArgument(
-          !DistributionMode.RANGE.equals(mode),
+      Preconditions.checkArgument(!DistributionMode.RANGE.equals(mode),
           "Flink does not support 'range' write distribution mode now.");
       this.distributionMode = mode;
       return this;
@@ -256,8 +253,7 @@ public class FlinkSink {
     }
 
     private <T> DataStreamSink<T> chainIcebergOperators() {
-      Preconditions.checkArgument(
-          inputCreator != null,
+      Preconditions.checkArgument(inputCreator != null,
           "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
       Preconditions.checkNotNull(tableLoader, "Table loader shouldn't be null");
 
@@ -362,17 +358,15 @@ public class FlinkSink {
       return writerStream;
     }
 
-    private DataStream<RowData> distributeDataStream(
-        DataStream<RowData> input,
-        Map<String, String> properties,
-        PartitionSpec partitionSpec,
-        Schema iSchema,
-        RowType flinkRowType) {
+    private DataStream<RowData> distributeDataStream(DataStream<RowData> input,
+                                                     Map<String, String> properties,
+                                                     PartitionSpec partitionSpec,
+                                                     Schema iSchema,
+                                                     RowType flinkRowType) {
       DistributionMode writeMode;
       if (distributionMode == null) {
         // Fallback to use distribution mode parsed from table properties if don't specify in job level.
-        String modeName = PropertyUtil.propertyAsString(
-            properties,
+        String modeName = PropertyUtil.propertyAsString(properties,
             WRITE_DISTRIBUTION_MODE,
             WRITE_DISTRIBUTION_MODE_DEFAULT);
 
@@ -419,10 +413,9 @@ public class FlinkSink {
     }
   }
 
-  static IcebergStreamWriter<RowData> createStreamWriter(
-      Table table,
-      RowType flinkRowType,
-      List<Integer> equalityFieldIds) {
+  static IcebergStreamWriter<RowData> createStreamWriter(Table table,
+                                                         RowType flinkRowType,
+                                                         List<Integer> equalityFieldIds) {
     Map<String, String> props = table.properties();
     long targetFileSize = getTargetFileSizeBytes(props);
     FileFormat fileFormat = getFileFormat(props);
@@ -447,15 +440,13 @@ public class FlinkSink {
   }
 
   private static long getTargetFileSizeBytes(Map<String, String> properties) {
-    return PropertyUtil.propertyAsLong(
-        properties,
+    return PropertyUtil.propertyAsLong(properties,
         WRITE_TARGET_FILE_SIZE_BYTES,
         WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
   }
 
   private static String getWatermarkFieldName(Map<String, String> properties) {
-    return PropertyUtil.propertyAsString(
-        properties,
+    return PropertyUtil.propertyAsString(properties,
         WATERMARK_FIELD_NAME,
         WATERMARK_FIELD_NAME_DEFAULT);
   }
