@@ -243,7 +243,7 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
     if (options.containsKey("type") && options.get("type").equalsIgnoreCase("hive") && options.containsKey("uri")) {
-      throw new UnsupportedOperationException("Passing hive catalog uri through spark.sql.catalog.<catalog_name>.uri is not allowed̉.");
+      throw new UnsupportedOperationException("Cannot set an alternative uri when using the SparkSessionCatalog, make an alternative SparkCatalog if the Spark Session catalog and Iceberg catalog should contact different metastores.");
     }
     this.catalogName = name;
     this.icebergCatalog = buildSparkCatalog(name, options);
