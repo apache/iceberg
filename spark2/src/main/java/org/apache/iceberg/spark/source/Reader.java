@@ -306,16 +306,15 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
       return new Stats(SparkSchemaUtil.estimateSize(lazyType(), totalRecords), totalRecords);
     }
 
-    long sizeInBytes = 0L;
     long numRows = 0L;
 
     for (CombinedScanTask task : tasks()) {
       for (FileScanTask file : task.files()) {
-        sizeInBytes += file.length();
         numRows += file.file().recordCount();
       }
     }
 
+    long sizeInBytes = SparkSchemaUtil.estimateSize(lazyType(), numRows);
     return new Stats(sizeInBytes, numRows);
   }
 
