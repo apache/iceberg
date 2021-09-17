@@ -22,11 +22,11 @@ package org.apache.iceberg.flink;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Collections;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.apache.commons.compress.utils.Sets;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.runtime.util.HadoopUtils;
@@ -39,6 +39,8 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
  * A Flink Catalog factory implementation that creates {@link FlinkCatalog}.
@@ -72,6 +74,8 @@ public class FlinkCatalogFactory implements CatalogFactory {
   public static final String CACHE_ENABLED = "cache-enabled";
 
   public static final String IDENTIFIER = "iceberg";
+  public static final String TYPE = "type";
+  public static final String PROPERTY_VERSION = "property-version";
 
   /**
    * Create an Iceberg {@link org.apache.iceberg.catalog.Catalog} loader to be used by this Flink catalog adapter.
@@ -111,14 +115,32 @@ public class FlinkCatalogFactory implements CatalogFactory {
 
   @Override
   public Set<ConfigOption<?>> requiredOptions() {
-    return Collections.emptySet();
+    return Sets.newHashSet();
   }
 
   @Override
   public Set<ConfigOption<?>> optionalOptions() {
-    final Set<ConfigOption<?>> options = new HashSet<>();
+    final Set<ConfigOption<?>> options = Sets.newHashSet();
     options.add(FactoryUtil.PROPERTY_VERSION);
     return options;
+  }
+
+  @Override
+  public Map<String, String> requiredContext() {
+    Map<String, String> context = Maps.newHashMap();
+    context.put(TYPE, "iceberg");
+    context.put(PROPERTY_VERSION, "1");
+    return context;
+  }
+
+  @Override
+  public List<String> supportedProperties() {
+    return ImmutableList.of("*");
+  }
+
+  @Override
+  public Catalog createCatalog(String name, Map<String, String> properties) {
+    return createCatalog(name, properties, clusterHadoopConf());
   }
 
   @Override
