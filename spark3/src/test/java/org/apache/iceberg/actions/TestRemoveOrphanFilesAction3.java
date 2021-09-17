@@ -141,7 +141,8 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     spark.conf().set("spark.sql.catalog.spark_catalog.type", "hive");
     spark.conf().set("spark.sql.catalog.spark_catalog.uri", "thrift://localhost:9083");
     AssertHelpers.assertThrows("Expects config error",
-         UnsupportedOperationException.class, () -> (SparkSessionCatalog) spark.sessionState().catalogManager().v2SessionCatalog()
+         UnsupportedOperationException.class,
+        () -> (SparkSessionCatalog) spark.sessionState().catalogManager().v2SessionCatalog()
     );
   }
 
