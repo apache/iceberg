@@ -21,15 +21,35 @@ package org.apache.iceberg.actions;
 
 import java.util.Set;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.expressions.Expression;
 
-public interface RewriteDeletes extends SnapshotUpdate<RewriteDeletes, RewriteDeletes.Result> {
+/**
+ * An action for rewriting delete files according to a rewrite strategy.
+ * Generally used for optimizing the sizing and layout of delete files within a table.
+ */
+public interface RewriteDeleteFiles extends SnapshotUpdate<RewriteDeleteFiles, RewriteDeleteFiles.Result> {
 
   /**
-   * Set the implementation class name for rewrite strategy.
+   * Convert the equality deletes to the position deletes.
    *
    * @return this for method chaining
    */
-  RewriteDeletes strategy(String strategyImpl);
+  RewriteDeleteFiles convertEqDeletesToPosDeletes();
+
+  /**
+   * Bin pack the position deletes.
+   *
+   * @return this for method chaining
+   */
+  RewriteDeleteFiles binPackPosDeletes();
+
+  /**
+   * A filter for choosing deletes to rewrite.
+   *
+   * @param expression An iceberg expression used to choose deletes.
+   * @return this for method chaining
+   */
+  RewriteDeleteFiles filter(Expression expression);
 
   /**
    * The action result that contains a summary of the execution.

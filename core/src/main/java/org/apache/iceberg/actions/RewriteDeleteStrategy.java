@@ -22,7 +22,6 @@ package org.apache.iceberg.actions;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 
 public interface RewriteDeleteStrategy {
@@ -51,10 +50,9 @@ public interface RewriteDeleteStrategy {
   /**
    * Select the deletes to rewrite.
    *
-   * @param dataFiles iterable of FileScanTasks for data files in a given partition
    * @return iterable of original delete file to be replaced.
    */
-  Iterable<DeleteFile> selectDeletesToRewrite(Iterable<FileScanTask> dataFiles);
+  Iterable<DeleteFile> selectDeletesToRewrite();
 
   /**
    * Define how to rewrite the deletes.
