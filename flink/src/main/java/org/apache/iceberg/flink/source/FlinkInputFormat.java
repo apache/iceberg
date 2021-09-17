@@ -26,10 +26,13 @@ import org.apache.flink.api.common.io.RichInputFormat;
 import org.apache.flink.api.common.io.statistics.BaseStatistics;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.io.InputSplitAssigner;
+import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -46,17 +49,20 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   private final FileIO io;
   private final EncryptionManager encryption;
   private final ScanContext context;
-
+  private final int[][] schemaIndexes;
+  private final int fieldLen;
   private transient RowDataIterator iterator;
   private transient long currentReadCount = 0L;
 
-  FlinkInputFormat(TableLoader tableLoader, Schema tableSchema, FileIO io, EncryptionManager encryption,
+  FlinkInputFormat(TableLoader tableLoader, Schema tableSchema, int[][] schemaIndexes, int fieldLen, FileIO io, EncryptionManager encryption,
                    ScanContext context) {
     this.tableLoader = tableLoader;
     this.tableSchema = tableSchema;
     this.io = io;
     this.encryption = encryption;
     this.context = context;
+    this.schemaIndexes = schemaIndexes;
+    this.fieldLen = fieldLen;
   }
 
   @VisibleForTesting
@@ -80,6 +86,10 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
     }
   }
 
+  public RowType getRowtype(){
+    return FlinkSchemaUtil.convert(context.project());
+  }
+
   @Override
   public InputSplitAssigner getInputSplitAssigner(FlinkInputSplit[] inputSplits) {
     return new DefaultInputSplitAssigner(inputSplits);
@@ -92,8 +102,8 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   @Override
   public void open(FlinkInputSplit split) {
     this.iterator = new RowDataIterator(
-        split.getTask(), io, encryption, tableSchema, context.project(), context.nameMapping(),
-        context.caseSensitive());
+            split.getTask(), io, encryption, tableSchema, context.project(), context.nameMapping(),
+            context.caseSensitive());
   }
 
   @Override
@@ -108,7 +118,37 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
   @Override
   public RowData nextRecord(RowData reuse) {
     currentReadCount++;
-    return iterator.next();
+    GenericRowData rowData = (GenericRowData)iterator.next();
+
+    if (this.schemaIndexes == null) {
+      return rowData;
+    }
+    GenericRowData flattenRowData = new GenericRowData(rowData.getRowKind(), fieldLen);
+
+    for (int i = 0; i < this.schemaIndexes.length; i++) {
+      flattenRowData.setField(i, extractRecord(rowData.getField(schemaIndexes[i][0]), schemaIndexes[i]));
+    }
+
+    return flattenRowData;
+  }
+
+  private Object extractRecord(Object record, int[] schemaIndex) {
+    if (schemaIndex.length == 1) {
+      return record;
+    }
+    Preconditions.checkArgument(record instanceof GenericRowData);
+    GenericRowData value = (GenericRowData) record;
+
+    for (int i = 1; i < schemaIndex.length; i++) {
+      int index = schemaIndex[i];
+      Object valueField = value.getField(index);
+      if (i == schemaIndex.length - 1) {
+        return valueField;
+      }
+      value = (GenericRowData)valueField;
+    }
+
+    return value;
   }
 
   @Override

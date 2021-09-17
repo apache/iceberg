@@ -31,6 +31,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.config.ExecutionConfigOptions;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.DataType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
@@ -75,6 +76,9 @@ public class FlinkSource {
     private TableLoader tableLoader;
     private TableSchema projectedSchema;
     private ReadableConfig readableConfig = new Configuration();
+    private String[] projectedFieldNames;
+    private DataType[] projectedFieldTypes;
+    private int[][] schemaIndexes;
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
 
     public Builder tableLoader(TableLoader newLoader) {
@@ -167,6 +171,21 @@ public class FlinkSource {
       return this;
     }
 
+    public Builder projectedFieldNames(String[] projectedFieldNames) {
+      this.projectedFieldNames = projectedFieldNames;
+      return this;
+    }
+
+    public Builder projectedFieldTypes(DataType[] projectedFieldTypes) {
+      this.projectedFieldTypes = projectedFieldTypes;
+      return this;
+    }
+
+    public Builder schemaIndexes(int[][] schemaIndexes) {
+      this.schemaIndexes = schemaIndexes;
+      return this;
+    }
+
     public FlinkInputFormat buildFormat() {
       Preconditions.checkNotNull(tableLoader, "TableLoader should not be null");
 
@@ -196,15 +215,20 @@ public class FlinkSource {
         contextBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
       }
 
-      return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, contextBuilder.build());
+      return new FlinkInputFormat(tableLoader, icebergSchema, schemaIndexes, projectedFieldNames.length, io, encryption, contextBuilder.build());
     }
 
     public DataStream<RowData> build() {
       Preconditions.checkNotNull(env, "StreamExecutionEnvironment should not be null");
       FlinkInputFormat format = buildFormat();
-
       ScanContext context = contextBuilder.build();
-      TypeInformation<RowData> typeInfo = FlinkCompatibilityUtil.toTypeInfo(FlinkSchemaUtil.convert(context.project()));
+      Schema schema = context.project();
+      if (projectedFieldNames != null && projectedFieldTypes != null) {
+        projectedSchema = TableSchema.builder()
+                .fields(projectedFieldNames, projectedFieldTypes).build();
+        schema = FlinkSchemaUtil.convert(projectedSchema);
+      }
+      TypeInformation<RowData> typeInfo = FlinkCompatibilityUtil.toTypeInfo(FlinkSchemaUtil.convert(schema));
 
       if (!context.isStreaming()) {
         int parallelism = inferParallelism(format, context);
@@ -216,7 +240,7 @@ public class FlinkSource {
         String readerOperatorName = String.format("Iceberg table (%s) reader", table);
 
         return env.addSource(function, monitorFunctionName)
-            .transform(readerOperatorName, typeInfo, StreamingReaderOperator.factory(format));
+                .transform(readerOperatorName, typeInfo, StreamingReaderOperator.factory(format));
       }
     }
 
@@ -224,9 +248,9 @@ public class FlinkSource {
       int parallelism = readableConfig.get(ExecutionConfigOptions.TABLE_EXEC_RESOURCE_DEFAULT_PARALLELISM);
       if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM)) {
         int maxInferParallelism = readableConfig.get(FlinkConfigOptions
-            .TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX);
+                .TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX);
         Preconditions.checkState(maxInferParallelism >= 1,
-            FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX.key() + " cannot be less than 1");
+                FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX.key() + " cannot be less than 1");
         int splitNum;
         try {
           FlinkInputSplit[] splits = format.createInputSplits(0);
