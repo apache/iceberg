@@ -22,7 +22,6 @@ package org.apache.iceberg.actions;
 import java.io.File;
 import java.util.List;
 import java.util.Map;
-import jline.internal.Log;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkCatalog;
@@ -140,8 +139,10 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
   public void testSparkSessionCatalogHiveWrongConfig() {
     spark.conf().set("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog");
     spark.conf().set("spark.sql.catalog.spark_catalog.type", "hive");
-    spark.conf().set("spark.sql.catalog.spark_catalog.uri","thrift://localhost:9083" );
-    AssertHelpers.assertThrows("verifying unsupported exception", ClassCastException.class,() -> (SparkSessionCatalog)spark.sessionState().catalogManager().v2SessionCatalog());
+    spark.conf().set("spark.sql.catalog.spark_catalog.uri", "thrift://localhost:9083");
+    AssertHelpers.assertThrows("Expects config error",
+        ClassCastException.class, () -> (SparkSessionCatalog) spark.sessionState().catalogManager().v2SessionCatalog()
+    );
   }
 
   @Test
