@@ -31,6 +31,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.config.ExecutionConfigOptions;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.DataType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
@@ -75,6 +76,9 @@ public class FlinkSource {
     private TableLoader tableLoader;
     private TableSchema projectedSchema;
     private ReadableConfig readableConfig = new Configuration();
+    private String[] projectedFieldNames;
+    private DataType[] projectedFieldTypes;
+    private int[][] schemaIndexes;
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
 
     public Builder tableLoader(TableLoader newLoader) {
@@ -162,6 +166,21 @@ public class FlinkSource {
       return this;
     }
 
+    public Builder projectedFieldNames(String[] projectedFieldNames) {
+      this.projectedFieldNames = projectedFieldNames;
+      return this;
+    }
+
+    public Builder projectedFieldTypes(DataType[] projectedFieldTypes) {
+      this.projectedFieldTypes = projectedFieldTypes;
+      return this;
+    }
+
+    public Builder schemaIndexes(int[][] schemaIndexes) {
+      this.schemaIndexes = schemaIndexes;
+      return this;
+    }
+
     public Builder flinkConf(ReadableConfig config) {
       this.readableConfig = config;
       return this;
@@ -196,7 +215,8 @@ public class FlinkSource {
         contextBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedSchema));
       }
 
-      return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, contextBuilder.build());
+      return new FlinkInputFormat(tableLoader, icebergSchema,schemaIndexes,
+              projectedFieldNames == null ? -1: projectedFieldNames.length, io, encryption, contextBuilder.build());
     }
 
     public DataStream<RowData> build() {
@@ -204,7 +224,13 @@ public class FlinkSource {
       FlinkInputFormat format = buildFormat();
 
       ScanContext context = contextBuilder.build();
-      TypeInformation<RowData> typeInfo = FlinkCompatibilityUtil.toTypeInfo(FlinkSchemaUtil.convert(context.project()));
+      Schema schema = context.project();
+      if (projectedFieldNames != null && projectedFieldTypes != null) {
+        projectedSchema = TableSchema.builder()
+                .fields(projectedFieldNames, projectedFieldTypes).build();
+        schema = FlinkSchemaUtil.convert(projectedSchema);
+      }
+      TypeInformation<RowData> typeInfo = FlinkCompatibilityUtil.toTypeInfo(FlinkSchemaUtil.convert(schema));
 
       if (!context.isStreaming()) {
         int parallelism = inferParallelism(format, context);

@@ -37,11 +37,26 @@ import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushD
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.types.FieldsDataType;
+import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.types.Row;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.source.FlinkSource;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.StringJoiner;
 
 /**
  * Flink Iceberg table source.
@@ -49,7 +64,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 public class IcebergTableSource
     implements ScanTableSource, SupportsProjectionPushDown, SupportsFilterPushDown, SupportsLimitPushDown {
 
-  private int[] projectedFields;
   private long limit;
   private List<Expression> filters;
 
@@ -59,15 +73,23 @@ public class IcebergTableSource
   private final boolean isLimitPushDown;
   private final ReadableConfig readableConfig;
 
+  private int[][] projectPhysicalFields;
+  private String[] projectedFieldNames;
+  private DataType[] projectedFieldTypes;
+  private int[][] schemaIndexes;
+
   private IcebergTableSource(IcebergTableSource toCopy) {
     this.loader = toCopy.loader;
     this.schema = toCopy.schema;
     this.properties = toCopy.properties;
-    this.projectedFields = toCopy.projectedFields;
     this.isLimitPushDown = toCopy.isLimitPushDown;
     this.limit = toCopy.limit;
     this.filters = toCopy.filters;
     this.readableConfig = toCopy.readableConfig;
+    this.projectPhysicalFields = toCopy.projectPhysicalFields;
+    this.projectedFieldNames = toCopy.projectedFieldNames;
+    this.projectedFieldTypes = toCopy.projectedFieldTypes;
+    this.schemaIndexes = toCopy.schemaIndexes;
   }
 
   public IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> properties,
@@ -76,26 +98,24 @@ public class IcebergTableSource
   }
 
   private IcebergTableSource(TableLoader loader, TableSchema schema, Map<String, String> properties,
-                             int[] projectedFields, boolean isLimitPushDown,
+                             int[][] projectPhysicalFields, boolean isLimitPushDown,
                              long limit, List<Expression> filters, ReadableConfig readableConfig) {
     this.loader = loader;
     this.schema = schema;
     this.properties = properties;
-    this.projectedFields = projectedFields;
     this.isLimitPushDown = isLimitPushDown;
     this.limit = limit;
     this.filters = filters;
     this.readableConfig = readableConfig;
+    this.projectPhysicalFields = projectPhysicalFields;
+    this.projectedFieldTypes = null;
+    this.projectedFieldNames = null;
+    this.schemaIndexes = null;
   }
 
   @Override
   public void applyProjection(int[][] projectFields) {
-    this.projectedFields = new int[projectFields.length];
-    for (int i = 0; i < projectFields.length; i++) {
-      Preconditions.checkArgument(projectFields[i].length == 1,
-          "Don't support nested projection in iceberg source now.");
-      this.projectedFields[i] = projectFields[i][0];
-    }
+    this.projectPhysicalFields = projectFields;
   }
 
   private DataStream<RowData> createDataStream(StreamExecutionEnvironment execEnv) {
@@ -104,6 +124,9 @@ public class IcebergTableSource
         .tableLoader(loader)
         .properties(properties)
         .project(getProjectedSchema())
+        .projectedFieldNames(projectedFieldNames)
+        .projectedFieldTypes(projectedFieldTypes)
+        .schemaIndexes(schemaIndexes)
         .limit(limit)
         .filters(filters)
         .flinkConf(readableConfig)
@@ -111,15 +134,283 @@ public class IcebergTableSource
   }
 
   private TableSchema getProjectedSchema() {
-    if (projectedFields == null) {
+    if (projectPhysicalFields == null) {
       return schema;
-    } else {
-      String[] fullNames = schema.getFieldNames();
-      DataType[] fullTypes = schema.getFieldDataTypes();
-      return TableSchema.builder().fields(
-          Arrays.stream(projectedFields).mapToObj(i -> fullNames[i]).toArray(String[]::new),
-          Arrays.stream(projectedFields).mapToObj(i -> fullTypes[i]).toArray(DataType[]::new)).build();
     }
+    DataType producedDataType = schema.toRowDataType();
+    TableSchema tableSchema = projectSchema(producedDataType, projectPhysicalFields);
+    parseFieldNameType();
+    parseSchemaIndexes(tableSchema);
+    return tableSchema;
+  }
+
+  private void parseSchemaIndexes(TableSchema tableSchema) {
+    schemaIndexes = new int[this.projectedFieldNames.length][];
+    for (int i = 0; i < this.projectedFieldNames.length; i++) {
+      schemaIndexes[i] = schemaIndexes(this.projectedFieldNames[i], tableSchema);
+    }
+  }
+
+  private int[] schemaIndexes(String projectedFieldName, TableSchema tableSchema) {
+    String[] nestedFieldDim = projectedFieldName.split("-");
+    String[] tableSchemaFieldNames = tableSchema.getFieldNames();
+    int channel = 0;
+    for (; channel < tableSchemaFieldNames.length; channel++) {
+      if (nestedFieldDim[0].equals(tableSchemaFieldNames[channel])) {
+        break;
+      }
+    }
+
+    int[] schemaIndexes = new int[nestedFieldDim.length];
+    schemaIndexes[0] = channel;
+    DataType dataType = tableSchema.toRowDataType().getChildren().get(channel);
+    for (int i = 1; i < nestedFieldDim.length; i++) {
+      int rank = schemaIndexesFromSpecColumn(dataType, nestedFieldDim[i]);
+      Preconditions.checkArgument(rank >= 0);
+      schemaIndexes[i] = rank;
+      if (i == nestedFieldDim.length - 1) {
+        break;
+      }
+      dataType = dataType.getChildren().get(rank);
+      if (dataType.getLogicalType() instanceof RowType) {
+        List<String> logicalFieldNames = ((RowType) dataType.getLogicalType()).getFieldNames();
+        for (int j = 0; j < logicalFieldNames.size(); j++) {
+          if (logicalFieldNames.get(j).equals(nestedFieldDim[i])) {
+            dataType = dataType.getChildren().get(j);
+          }
+        }
+      }
+    }
+
+    return schemaIndexes;
+  }
+
+  private int schemaIndexesFromSpecColumn(DataType dataType, String fieldName) {
+    List<String> subFieldName = ((RowType) dataType.getLogicalType()).getFieldNames();
+    for (int i = 0; i < subFieldName.size(); i++) {
+      if (fieldName.equals(subFieldName.get(i))) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  private void parseFieldNameType() {
+    List<DataType> fieldDataTypes = this.schema.toRowDataType().getChildren();
+
+    this.projectedFieldTypes = new DataType[this.projectPhysicalFields.length];
+    this.projectedFieldNames = new String[this.projectPhysicalFields.length];
+
+    String[] fieldNames = this.schema.getFieldNames();
+
+    for (int index = 0; index < projectPhysicalFields.length; index++) {
+      int[] projectPhysicalField = projectPhysicalFields[index];
+      DataType dataType = fieldDataTypes.get(projectPhysicalFields[index][0]);
+
+      if (projectPhysicalField.length == 1) {
+        projectedFieldTypes[index] = dataType;
+        projectedFieldNames[index] = fieldNames[projectPhysicalFields[index][0]];
+        continue;
+      }
+      StringJoiner sj = new StringJoiner("-");
+      sj.add(fieldNames[projectPhysicalFields[index][0]]);
+      for (int i = 1; i < projectPhysicalField.length;i++) {
+        sj.add(((RowType)dataType.getLogicalType()).getFieldNames().get(projectPhysicalField[i]));
+        dataType = dataType.getChildren().get(projectPhysicalField[i]);
+      }
+      projectedFieldTypes[index] = dataType;
+      projectedFieldNames[index] = sj.toString();
+    }
+  }
+
+  private TableSchema projectSchema(DataType dataType, int[][] indexPaths) {
+    Set<String> nameDomain = new HashSet<>();
+    HashMap<String, LinkedList<Integer>> fieldIndexMap = new HashMap<>(indexPaths.length);
+    Set<Integer> fieldLen = new HashSet<>();
+    for (int[] path : indexPaths) {
+      fieldLen.add(path[0]);
+    }
+    String[] fieldNames = new String[fieldLen.size()];
+    DataType[] types = new DataType[indexPaths.length];
+    int count = 0;
+    for (int i = 0; i < indexPaths.length; i++) {
+      int[] indexPath = indexPaths[i];
+      String fieldName = ((RowType) dataType.getLogicalType()).getFieldNames().get(indexPath[0]);
+
+      LinkedList<Integer> indexes = new LinkedList<>();
+      if (fieldIndexMap.containsKey(fieldName)) {
+        indexes = fieldIndexMap.get(fieldName);
+      }
+      indexes.add(i);
+      fieldIndexMap.put(fieldName, indexes);
+
+      if (!nameDomain.contains(fieldName)) {
+        nameDomain.add(fieldName);
+        fieldNames[count++] = fieldName;
+      }
+      types[i] = parseType(dataType, indexPaths, i, 1, null);
+    }
+
+    return TableSchema.builder().fields(fieldNames, combineField(fieldNames, types, fieldIndexMap)).build();
+  }
+
+  private DataType[] combineField(String[] fieldNames, DataType[] types, HashMap<String, LinkedList<Integer>> fieldIndexMap) {
+    HashSet<String> consumedFieldNameSet = new HashSet<>();
+    DataType[] dataTypes = new DataType[fieldIndexMap.size()];
+
+    int index = 0;
+    int i = 0;
+    while (index < fieldNames.length) {
+      String fieldName = fieldNames[index];
+      if (consumedFieldNameSet.contains(fieldName)) {
+        continue;
+      }
+      LinkedList<Integer> indexes = fieldIndexMap.get(fieldName);
+      if (indexes.size() == 1) {
+        dataTypes[index++] = types[i];
+        i++;
+      } else {
+        dataTypes[index++] = combineFieldByFieldInfo(types, indexes, 1, null);
+        i = i + indexes.size();
+      }
+      consumedFieldNameSet.add(fieldName);
+    }
+
+    return dataTypes;
+  }
+
+  private DataType combineFieldByFieldInfo(DataType[] types, LinkedList<Integer> indexes, int indexDim, DataType combinedType) {
+    DataType[] nestedDataTypes = new DataType[indexes.size()];
+    RowType.RowField[] rowFields =  new RowType.RowField[indexes.size()];
+    int count = 0;
+    for (Integer index : indexes) {
+      nestedDataTypes[count++] = types[index];
+    }
+
+    if (nestedDataTypes.length == 1) {
+      return nestedDataTypes[0];
+    }
+
+    if (isSameField(nestedDataTypes, indexDim)) {
+      combinedType = combineFieldByFieldInfo(nestedDataTypes, indexes, indexDim + 1, combinedType);
+    } else {
+      HashMap<String, ArrayList<DataType>> duplicateDataTypeMap = new HashMap<>();
+      ArrayList<String> fieldNames = new ArrayList<>();
+
+      for (DataType nestedDataType : nestedDataTypes) {
+        String fieldName = ((RowType) nestedDataType.getLogicalType()).getFieldNames().get(0);
+        if (!fieldNames.contains(fieldName)) {
+          fieldNames.add(fieldName);
+        }
+        ArrayList<DataType> dataTypes;
+        if (!duplicateDataTypeMap.containsKey(fieldName)) {
+          dataTypes = new ArrayList<>();
+        } else {
+          dataTypes = duplicateDataTypeMap.get(fieldName);
+        }
+        dataTypes.add(nestedDataType);
+        duplicateDataTypeMap.put(fieldName, dataTypes);
+      }
+      if (duplicateDataTypeMap.size() == nestedDataTypes.length) {
+        for (int i = 0; i < indexes.size(); i++) {
+          rowFields[i] = new RowType.RowField(getFieldName(nestedDataTypes[i], indexDim), getFieldType(nestedDataTypes[i], indexDim).getLogicalType());
+        }
+        return new FieldsDataType(
+                new RowType(Arrays.asList(rowFields)),
+                Row.class,
+                Arrays.asList(nestedDataTypes));
+      } else {
+        DataType[] generatedDataType = new DataType[duplicateDataTypeMap.size()];
+        int index = 0;
+        for (String fieldName : fieldNames) {
+          ArrayList<DataType> dataTypes = duplicateDataTypeMap.get(fieldName);
+          if (dataTypes.size() == 1) {
+            combinedType = dataTypes.get(0);
+            generatedDataType[index++] = dataTypes.get(0);
+            continue;
+          }
+          DataType[] tmpDataTypes = new DataType[dataTypes.size()];
+          LinkedList<Integer> tmpIndexesList = new LinkedList<>();
+          for (int i = 0; i < dataTypes.size(); i++) {
+            tmpIndexesList.add(i);
+            tmpDataTypes[i] = dataTypes.get(i).getChildren().get(0);
+          }
+
+          combinedType = combineFieldByFieldInfo(tmpDataTypes, tmpIndexesList, 1, combinedType);
+          RowType.RowField rowField = new RowType.RowField(fieldName, combinedType.getLogicalType());
+          generatedDataType[index++] = new FieldsDataType(new RowType(Collections.singletonList(rowField)), Row.class, Collections.singletonList(combinedType));
+        }
+
+        LinkedList<Integer> indexesList = new LinkedList<>();
+        for (int i = 0; i < generatedDataType.length; i++) {
+          indexesList.add(i);
+        }
+        combinedType = combineFieldByFieldInfo(generatedDataType, indexesList, 1, combinedType);
+      }
+    }
+    return combinedType;
+  }
+
+  private boolean isSameField(DataType[] nestedDataTypes, int indexDim) {
+    HashSet<String> duplicateName = new HashSet<>();
+
+    for (DataType dataType : nestedDataTypes) {
+      for (int i = 0; i < indexDim - 1; i++) {
+        dataType = dataType.getChildren().get(0);
+      }
+      duplicateName.add(((RowType)dataType.getLogicalType()).getFieldNames().get(0));
+    }
+
+    return duplicateName.size() == 1;
+  }
+
+  private String getFieldName(DataType dataType, int indexDim) {
+    for (int i = 0; i < indexDim - 1; i++) {
+      dataType = dataType.getChildren().get(0);
+    }
+    List<String> fieldNames = ((RowType) dataType.getLogicalType()).getFieldNames();
+    Preconditions.checkArgument(fieldNames != null && fieldNames.size() == 1);
+    return fieldNames.get(0);
+  }
+
+  private DataType getFieldType(DataType dataType, int indexDim) {
+    for (int i = 0; i < indexDim - 1; i++) {
+      dataType = dataType.getChildren().get(0);
+    }
+    List<DataType> childrenTypes = dataType.getChildren();
+    Preconditions.checkArgument(childrenTypes != null && childrenTypes.size() == 1);
+    return childrenTypes.get(0);
+  }
+
+  private DataType parseType(DataType dataType, int[][] indexPaths, int index, int indexDim, DataType generatedType) {
+    if (indexPaths[index].length == 1) {
+      return dataType.getChildren().get(indexPaths[index][0]);
+    }
+
+    if (indexDim == indexPaths[index].length) {
+      DataType subNestedFieldType = dataType.getChildren().get(indexPaths[index][indexDim - 1]);
+      String subNestedFieldName = ((RowType) dataType.getLogicalType()).getFieldNames().get(indexPaths[index][indexDim - 1]);
+
+      RowType.RowField rowField = new RowType.RowField(subNestedFieldName, subNestedFieldType.getLogicalType());
+      generatedType =  new FieldsDataType(
+              new RowType(Collections.singletonList(rowField)),
+              Row.class,
+              Collections.singletonList(subNestedFieldType));
+      return generatedType;
+    }
+
+    generatedType = parseType(dataType.getChildren().get(indexPaths[index][indexDim - 1]), indexPaths, index, indexDim + 1, generatedType);
+
+    if (indexPaths[index].length == 2 || indexDim == 1) {
+      return generatedType;
+    }
+
+    String fieldName = ((RowType) dataType.getLogicalType()).getFieldNames().get(indexPaths[index][indexDim - 1]);
+    RowType.RowField rowField = new RowType.RowField(fieldName, generatedType.getLogicalType());
+    return new FieldsDataType(
+            new RowType(Collections.singletonList(rowField)),
+            Row.class,
+            Collections.singletonList(generatedType));
   }
 
   @Override
@@ -146,8 +437,7 @@ public class IcebergTableSource
 
   @Override
   public boolean supportsNestedProjection() {
-    // TODO: support nested projection
-    return false;
+    return true;
   }
 
   @Override
