@@ -150,7 +150,7 @@ public class ORC {
       schema(table.schema());
       withSpec(table.spec());
       setAll(table.properties());
-      metricsConfig(MetricsConfig.fromProperties(table.properties()));
+      metricsConfig(MetricsConfig.forTable(table));
       return this;
     }
 

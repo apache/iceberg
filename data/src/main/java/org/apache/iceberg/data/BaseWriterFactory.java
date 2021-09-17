@@ -85,7 +85,7 @@ public abstract class BaseWriterFactory<T> implements WriterFactory<T> {
     OutputFile outputFile = file.encryptingOutputFile();
     EncryptionKeyMetadata keyMetadata = file.keyMetadata();
     Map<String, String> properties = table.properties();
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(properties);
+    MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
       switch (dataFileFormat) {
@@ -148,7 +148,7 @@ public abstract class BaseWriterFactory<T> implements WriterFactory<T> {
     OutputFile outputFile = file.encryptingOutputFile();
     EncryptionKeyMetadata keyMetadata = file.keyMetadata();
     Map<String, String> properties = table.properties();
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(properties);
+    MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
       switch (deleteFileFormat) {
