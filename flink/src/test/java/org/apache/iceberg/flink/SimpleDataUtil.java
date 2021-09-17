@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +31,7 @@ import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -78,6 +80,11 @@ public class SimpleDataUtil {
       Types.NestedField.optional(2, "data", Types.StringType.get())
   );
 
+  public static final Schema DATE_SCHEMA = new Schema(
+          Types.NestedField.required(1, "dt", Types.DateType.get()),
+          Types.NestedField.optional(2, "data", Types.StringType.get())
+  );
+
   public static final TableSchema FLINK_SCHEMA = TableSchema.builder()
       .field("id", DataTypes.INT())
       .field("data", DataTypes.STRING())
@@ -86,6 +93,8 @@ public class SimpleDataUtil {
   public static final RowType ROW_TYPE = (RowType) FLINK_SCHEMA.toRowDataType().getLogicalType();
 
   public static final Record RECORD = GenericRecord.create(SCHEMA);
+
+  public static final Record DATE_RECORD = GenericRecord.create(DATE_SCHEMA);
 
   public static Table createTable(String path, Map<String, String> properties, boolean partitioned) {
     PartitionSpec spec;
@@ -102,6 +111,28 @@ public class SimpleDataUtil {
     record.setField("id", id);
     record.setField("data", data);
     return record;
+  }
+
+  public static Record createDateRecord(LocalDate dt, String data) {
+    Record record = DATE_RECORD.copy();
+    record.setField("dt", dt);
+    record.setField("data", data);
+    return record;
+  }
+
+  private static final Map<String, RowKind> ROW_KIND_MAP = ImmutableMap.of(
+          "+I", RowKind.INSERT,
+          "-D", RowKind.DELETE,
+          "-U", RowKind.UPDATE_BEFORE,
+          "+U", RowKind.UPDATE_AFTER);
+
+  public static Row createDateRow(String rowKind, LocalDate dt, String data) {
+    RowKind kind = ROW_KIND_MAP.get(rowKind);
+    if (kind == null) {
+      throw new IllegalArgumentException("Unknown row kind: " + rowKind);
+    }
+
+    return Row.ofKind(kind, dt, data);
   }
 
   public static RowData createRowData(Integer id, String data) {
