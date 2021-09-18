@@ -15,27 +15,27 @@
  - limitations under the License.
  -->
 
-Apache Iceberg supports creating flink table directly without creating the explicit flink catalog in flink SQL in [#2666](https://github.com/apache/iceberg/pull/2666). That means we can just create an iceberg table by specifying `'connector'='iceberg'` table option in flink SQL which is similar to usage in the flink official [document](https://nightlies.apache.org/flink/flink-docs-release-1.13/docs/connectors/table/overview/).
+Apache Flink supports creating Iceberg table directly without creating the explicit Flink catalog in Flink SQL. That means we can just create an iceberg table by specifying `'connector'='iceberg'` table option in Flink SQL which is similar to usage in the Flink official [document](https://nightlies.apache.org/flink/flink-docs-release-1.13/docs/connectors/table/overview/).
 
-In flink, the SQL `CREATE TABLE test (..) WITH ('connector'='iceberg', ...)` will create an flink table in current flink catalog (use [GenericInMemoryCatalog](https://ci.apache.org/projects/flink/flink-docs-release-1.13/docs/dev/table/catalogs/#genericinmemorycatalog) by default),
-which is just mapping to the underlying iceberg table instead of maintaining iceberg table directly in current flink catalog.
+In Flink, the SQL `CREATE TABLE test (..) WITH ('connector'='iceberg', ...)` will create an Flink table in current Flink catalog (use [GenericInMemoryCatalog](https://ci.apache.org/projects/flink/flink-docs-release-1.13/docs/dev/table/catalogs/#genericinmemorycatalog) by default),
+which is just mapping to the underlying iceberg table instead of maintaining iceberg table directly in current Flink catalog.
 
-To create the table in flink SQL by using SQL syntax `CREATE TABLE test (..) WITH ('connector'='iceberg', ...)`,  flink iceberg connector provides the following table properties:
+To create the table in Flink SQL by using SQL syntax `CREATE TABLE test (..) WITH ('connector'='iceberg', ...)`,  Flink iceberg connector provides the following table properties:
 
 * `connector`: Use the constant `iceberg`.
 * `catalog-name`: User-specified catalog name. It's required because the connector don't have any default value.
 * `catalog-type`: Default to use `hive` if don't specify any value. The optional values are:
-    * `hive`: The hive metastore catalog.
+    * `hive`: The Hive metastore catalog.
     * `hadoop`: The hadoop catalog.
     * `custom`: The customized catalog, see [custom catalog](./custom-catalog.md) for more details.
 * `catalog-database`: The iceberg database name in the backend catalog, use the current flink database name by default.
 * `catalog-table`: The iceberg table name in the backend catalog. Default to use the table name in the flink `CREATE TABLE` sentence.
 
-## Table managed in hive catalog.
+## Table managed in Hive catalog.
 
-Before executing the following SQL, please make sure you've configured the flink SQL client correctly according to the quick start [document](./flink.md).
+Before executing the following SQL, please make sure you've configured the Flink SQL client correctly according to the quick start [document](./flink.md).
 
-The following SQL will create an flink table in the current flink catalog, which maps to the iceberg table `default_database.iceberg_table` managed in iceberg catalog.
+The following SQL will create an Flink table in the current Flink catalog, which maps to the iceberg table `default_database.iceberg_table` managed in iceberg catalog.
 
 ```sql
 CREATE TABLE flink_table (
@@ -49,7 +49,7 @@ CREATE TABLE flink_table (
 );
 ```
 
-If you want to create a flink table mapping to a different iceberg table managed in hive catalog (such as `hive_db.hive_iceberg_table` in hive), then you can create flink table as following:
+If you want to create a Flink table mapping to a different iceberg table managed in Hive catalog (such as `hive_db.hive_iceberg_table` in Hive), then you can create Flink table as following:
 
 ```sql
 CREATE TABLE flink_table (
@@ -66,11 +66,11 @@ CREATE TABLE flink_table (
 ```
 
 !!! Note
-    The underlying catalog database (`hive_db` in the above example) will be created automatically if it does not exist when writing records into the flink table.
+    The underlying catalog database (`hive_db` in the above example) will be created automatically if it does not exist when writing records into the Flink table.
 
 ## Table managed in hadoop catalog
 
-The following SQL will create an flink table in current flink catalog, which maps to the iceberg table `default_database.flink_table` managed in hadoop catalog.
+The following SQL will create a Flink table in current Flink catalog, which maps to the iceberg table `default_database.flink_table` managed in hadoop catalog.
 
 ```sql
 CREATE TABLE flink_table (
@@ -86,7 +86,7 @@ CREATE TABLE flink_table (
 
 ## Table managed in custom catalog
 
-The following SQL will create an flink table in current flink catalog, which maps to the iceberg table `default_database.flink_table` managed in custom catalog.
+The following SQL will create a Flink table in current Flink catalog, which maps to the iceberg table `default_database.flink_table` managed in custom catalog.
 
 ```sql
 CREATE TABLE flink_table (
@@ -103,11 +103,11 @@ CREATE TABLE flink_table (
 );
 ```
 
-Please refer to [AWS](./aws.md#catalogs), [Nessie](./nessie.md), [JDBC](./jdbc.md) catalog for more details.
+Please check sections under the Integrations tab for all custom catalogs.
 
 ## A complete example.
 
-Take the hive catalog as an example:
+Take the Hive catalog as an example:
 
 ```sql
 CREATE TABLE flink_table (
@@ -135,4 +135,4 @@ SELECT * FROM flink_table;
 3 rows in set
 ```
 
-Please refer to [document](./flink.md) for queries and writes.
+For more details, please refer to the Iceberg [Flink document](./flink.md).
