@@ -187,4 +187,24 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
         IllegalArgumentException.class, "Cannot run procedure in catalog",
         () -> sql("CALL %s.system.expire_snapshots('%s')", catalogName, anotherCatalog + "." + tableName));
   }
+
+  @Test
+  public void testConcurrentExpireSnapshots() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (3, 'c')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (4, 'd')", tableName);
+
+    Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
+    List<Object[]> output = sql(
+        "CALL %s.system.expire_snapshots(" +
+            "older_than => TIMESTAMP '%s'," +
+            "table => '%s'," +
+            "max_concurrent_deletes => %s," +
+            "retain_last => 1)",
+        catalogName, currentTimestamp, tableIdent, 4);
+    assertEquals("Expiring snapshots concurrently should succeed", ImmutableList.of(row(0L, 0L, 3L)), output);
+  }
 }
