@@ -21,8 +21,8 @@ package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.TestWriterMetrics;
-import org.apache.iceberg.io.WriterFactory;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.unsafe.types.UTF8String;
@@ -34,8 +34,8 @@ public class TestSparkWriterMetrics extends TestWriterMetrics<InternalRow> {
   }
 
   @Override
-  protected WriterFactory<InternalRow> newWriterFactory(Schema dataSchema) {
-    return SparkWriterFactory.builderFor(table)
+  protected FileWriterFactory<InternalRow> newWriterFactory(Schema dataSchema) {
+    return SparkFileWriterFactory.builderFor(table)
         .dataSchema(table.schema())
         .dataFileFormat(fileFormat)
         .deleteFileFormat(fileFormat)

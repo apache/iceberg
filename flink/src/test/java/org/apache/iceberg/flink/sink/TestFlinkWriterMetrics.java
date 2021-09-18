@@ -24,8 +24,8 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.TestWriterMetrics;
-import org.apache.iceberg.io.WriterFactory;
 
 public class TestFlinkWriterMetrics extends TestWriterMetrics<RowData> {
 
@@ -34,8 +34,8 @@ public class TestFlinkWriterMetrics extends TestWriterMetrics<RowData> {
   }
 
   @Override
-  protected WriterFactory<RowData> newWriterFactory(Schema dataSchema) {
-    return FlinkWriterFactory.builderFor(table)
+  protected FileWriterFactory<RowData> newWriterFactory(Schema dataSchema) {
+    return FlinkFileWriterFactory.builderFor(table)
         .dataSchema(table.schema())
         .dataFileFormat(fileFormat)
         .deleteFileFormat(fileFormat)
