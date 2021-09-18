@@ -98,7 +98,6 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   private List<Expression> filterExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
   private final boolean localityPreferred;
-  private final int batchSize;
   private final boolean readTimestampWithoutZone;
 
   // lazy variables
@@ -106,6 +105,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   private StructType type = null; // cached because Spark accesses it multiple times
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
   private Boolean readUsingBatch = null;
+  private int batchSize = 0;
 
   Reader(SparkSession spark, Table table, boolean caseSensitive, DataSourceOptions options) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
@@ -306,16 +306,15 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
       return new Stats(SparkSchemaUtil.estimateSize(lazyType(), totalRecords), totalRecords);
     }
 
-    long sizeInBytes = 0L;
     long numRows = 0L;
 
     for (CombinedScanTask task : tasks()) {
       for (FileScanTask file : task.files()) {
-        sizeInBytes += file.length();
         numRows += file.file().recordCount();
       }
     }
 
+    long sizeInBytes = SparkSchemaUtil.estimateSize(lazyType(), numRows);
     return new Stats(sizeInBytes, numRows);
   }
 
@@ -346,6 +345,10 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
       this.readUsingBatch = batchReadsEnabled && hasNoDeleteFiles && (allOrcFileScanTasks ||
           (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives));
+
+      if (readUsingBatch) {
+        this.batchSize = batchSize(allParquetFileScanTasks, allOrcFileScanTasks);
+      }
     }
     return readUsingBatch;
   }
@@ -385,6 +388,40 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
             TableProperties.ORC_VECTORIZATION_ENABLED_DEFAULT);
       default:
         return false;
+    }
+  }
+
+  private int batchSize(boolean isParquetOnly, boolean isOrcOnly) {
+    if (isParquetOnly) {
+      return batchSize(FileFormat.PARQUET);
+    } else if (isOrcOnly) {
+      return batchSize(FileFormat.ORC);
+    } else {
+      return 0;
+    }
+  }
+
+  private int batchSize(FileFormat fileFormat) {
+    String readOptionValue = options.asMap().get(SparkReadOptions.VECTORIZATION_BATCH_SIZE);
+    if (readOptionValue != null) {
+      return Integer.parseInt(readOptionValue);
+    }
+
+    switch (fileFormat) {
+      case PARQUET:
+        return PropertyUtil.propertyAsInt(
+            table.properties(),
+            TableProperties.PARQUET_BATCH_SIZE,
+            TableProperties.PARQUET_BATCH_SIZE_DEFAULT);
+
+      case ORC:
+        return PropertyUtil.propertyAsInt(
+            table.properties(),
+            TableProperties.ORC_BATCH_SIZE,
+            TableProperties.ORC_BATCH_SIZE_DEFAULT);
+
+      default:
+        throw new IllegalArgumentException("File format does not support batch reads: " + fileFormat);
     }
   }
 

@@ -531,10 +531,29 @@ public class Spark3Util {
     }
   }
 
-  public static int batchSize(Map<String, String> properties, CaseInsensitiveStringMap readOptions) {
-    return readOptions.getInt(SparkReadOptions.VECTORIZATION_BATCH_SIZE,
-        PropertyUtil.propertyAsInt(properties,
-            TableProperties.PARQUET_BATCH_SIZE, TableProperties.PARQUET_BATCH_SIZE_DEFAULT));
+  public static int batchSize(FileFormat fileFormat, Map<String, String> properties,
+                              CaseInsensitiveStringMap readOptions) {
+    String readOptionValue = readOptions.get(SparkReadOptions.VECTORIZATION_BATCH_SIZE);
+    if (readOptionValue != null) {
+      return Integer.parseInt(readOptionValue);
+    }
+
+    switch (fileFormat) {
+      case PARQUET:
+        return PropertyUtil.propertyAsInt(
+            properties,
+            TableProperties.PARQUET_BATCH_SIZE,
+            TableProperties.PARQUET_BATCH_SIZE_DEFAULT);
+
+      case ORC:
+        return PropertyUtil.propertyAsInt(
+            properties,
+            TableProperties.ORC_BATCH_SIZE,
+            TableProperties.ORC_BATCH_SIZE_DEFAULT);
+
+      default:
+        throw new IllegalArgumentException("File format does not support batch reads: " + fileFormat);
+    }
   }
 
   public static Long propertyAsLong(CaseInsensitiveStringMap options, String property, Long defaultValue) {
