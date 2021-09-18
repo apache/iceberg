@@ -73,6 +73,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -300,6 +301,23 @@ public class ArrowReaderTest {
   }
 
   /**
+   * The test asserts that {@link CloseableIterator#hasNext()} returned
+   * by the {@link ArrowReader} is idempotent.
+   */
+  @Test
+  public void testHasNextIsIdempotent() throws Exception {
+    writeTableWithIncrementalRecords();
+    Table table = tables.load(tableLocation);
+    TableScan scan = table.newScan();
+    // Call hasNext() 0 extra times.
+    readAndCheckHasNextIsIdempotent(scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, 0);
+    // Call hasNext() 1 extra time.
+    readAndCheckHasNextIsIdempotent(scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, 1);
+    // Call hasNext() 2 extra times.
+    readAndCheckHasNextIsIdempotent(scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, 2);
+  }
+
+  /**
    * Run the following verifications:
    * <ol>
    *   <li>Read the data and verify that the returned ColumnarBatches match expected rows.</li>
@@ -347,6 +365,29 @@ public class ArrowReaderTest {
         checkAllVectorTypes(root, columnSet);
         checkAllVectorValues(numRowsPerRoot, expectedRows, root, columnSet);
         rowIndex += numRowsPerRoot;
+        totalRows += root.getRowCount();
+      }
+    }
+    assertEquals(expectedTotalRows, totalRows);
+  }
+
+  private void readAndCheckHasNextIsIdempotent(
+      TableScan scan,
+      int numRowsPerRoot,
+      int expectedTotalRows,
+      int numExtraCallsToHasNext) throws IOException {
+    int totalRows = 0;
+    try (VectorizedTableScanIterable itr = new VectorizedTableScanIterable(scan, numRowsPerRoot, false)) {
+      CloseableIterator<ColumnarBatch> iterator = itr.iterator();
+      while (iterator.hasNext()) {
+        // Call hasNext() a few extra times.
+        // This should not affect the total number of rows read.
+        for (int i = 0; i < numExtraCallsToHasNext; i++) {
+          assertTrue(iterator.hasNext());
+        }
+
+        ColumnarBatch batch = iterator.next();
+        VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
         totalRows += root.getRowCount();
       }
     }
