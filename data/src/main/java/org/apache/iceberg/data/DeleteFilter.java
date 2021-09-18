@@ -138,7 +138,9 @@ public abstract class DeleteFilter<T> {
       CloseableIterable<Record> records = CloseableIterable.transform(CloseableIterable.concat(deleteRecords),
           Record::copy);
 
-      StructLikeSet deleteSet = Deletes.toEqualitySet(CloseableIterable.transform(records,
+      StructLikeSet deleteSet = Deletes.toEqualitySet(
+          // copy the delete records because they will be held in a set
+          CloseableIterable.transform(records,
           record -> new InternalRecordWrapper(deleteSchema.asStruct()).wrap(record)),
           deleteSchema.asStruct());
 
