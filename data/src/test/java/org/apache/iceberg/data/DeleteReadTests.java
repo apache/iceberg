@@ -87,10 +87,6 @@ public abstract class DeleteReadTests {
     this.table = createTable(tableName, SCHEMA, SPEC);
     this.records = Lists.newArrayList();
 
-    this.tableName2 = "test2";
-    this.table2 = createTable(tableName2, DATE_SCHEMA, DATE_SPEC);
-    this.records2 = Lists.newArrayList();
-
     // records all use IDs that are in bucket id_bucket=0
     GenericRecord record = GenericRecord.create(table.schema());
     records.add(record.copy("id", 29, "data", "a"));
@@ -101,6 +97,23 @@ public abstract class DeleteReadTests {
     records.add(record.copy("id", 121, "data", "f"));
     records.add(record.copy("id", 122, "data", "g"));
 
+    this.dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile("table1")), Row.of(0), records);
+
+    table.newAppend()
+        .appendFile(dataFile)
+        .commit();
+  }
+
+  @After
+  public void cleanup() throws IOException {
+    dropTable("test");
+    dropTable("test2");
+  }
+
+  protected void initTable2() throws IOException {
+    this.tableName2 = "test2";
+    this.table2 = createTable(tableName2, DATE_SCHEMA, DATE_SPEC);
+    this.records2 = Lists.newArrayList();
 
     GenericRecord record2 = GenericRecord.create(table2.schema());
     records2.add(record2.copy("dt", LocalDate.parse("2021-09-01"), "data", "a", "id", 1));
@@ -111,21 +124,11 @@ public abstract class DeleteReadTests {
     records2.add(record2.copy("dt", LocalDate.parse("2021-09-06"), "data", "f", "id", 6));
     records2.add(record2.copy("dt", LocalDate.parse("2021-09-07"), "data", "g", "id", 7));
 
-    this.dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile("table1")), Row.of(0), records);
     this.dataFile2 = FileHelpers.writeDataFile(table2, Files.localOutput(temp.newFile("table2")), Row.of(0), records2);
-    table.newAppend()
-        .appendFile(dataFile)
-        .commit();
 
     table2.newAppend()
             .appendFile(dataFile2)
             .commit();
-  }
-
-  @After
-  public void cleanup() throws IOException {
-    dropTable("test");
-    dropTable("test2");
   }
 
   protected abstract Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException;
@@ -163,6 +166,8 @@ public abstract class DeleteReadTests {
 
   @Test
   public void testEqualityDateDeletes() throws IOException {
+    initTable2();
+
     Schema deleteRowSchema = table2.schema().select("*");
     Record dataDelete = GenericRecord.create(deleteRowSchema);
     List<Record> dataDeletes = Lists.newArrayList(

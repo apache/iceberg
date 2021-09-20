@@ -80,6 +80,8 @@ public class TestFlinkInputFormatReaderDeletes extends TestFlinkReaderDeletesBas
 
   @Test
   public void testEqualityDateDeletes() throws IOException {
+    initTable2();
+
     Schema deleteRowSchema = table2.schema().select("*");
     Record dataDelete = GenericRecord.create(deleteRowSchema);
     List<Record> dataDeletes = Lists.newArrayList(

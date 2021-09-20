@@ -222,6 +222,8 @@ public abstract class TestSparkReaderDeletes extends DeleteReadTests {
 
   @Test
   public void testEqualityDateDeletes() throws IOException {
+    initTable2();
+
     Schema deleteRowSchema = table2.schema().select("*");
     Record dataDelete = GenericRecord.create(deleteRowSchema);
     List<Record> dataDeletes = Lists.newArrayList(
