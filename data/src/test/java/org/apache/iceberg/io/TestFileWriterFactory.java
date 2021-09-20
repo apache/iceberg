@@ -59,7 +59,7 @@ import static org.apache.iceberg.MetadataColumns.DELETE_FILE_POS;
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
 
 @RunWith(Parameterized.class)
-public abstract class TestWriterFactory<T> extends TableTestBase {
+public abstract class TestFileWriterFactory<T> extends TableTestBase {
   @Parameterized.Parameters(name = "FileFormat={0}, Partitioned={1}")
   public static Object[] parameters() {
     return new Object[][] {
@@ -81,7 +81,7 @@ public abstract class TestWriterFactory<T> extends TableTestBase {
   private StructLike partition = null;
   private OutputFileFactory fileFactory = null;
 
-  public TestWriterFactory(FileFormat fileFormat, boolean partitioned) {
+  public TestFileWriterFactory(FileFormat fileFormat, boolean partitioned) {
     super(TABLE_FORMAT_VERSION);
     this.fileFormat = fileFormat;
     this.partitioned = partitioned;
@@ -94,8 +94,9 @@ public abstract class TestWriterFactory<T> extends TableTestBase {
     );
   }
 
-  protected abstract WriterFactory<T> newWriterFactory(Schema dataSchema, List<Integer> equalityFieldIds,
-                                                       Schema equalityDeleteRowSchema, Schema positionDeleteRowSchema);
+  protected abstract FileWriterFactory<T> newWriterFactory(Schema dataSchema, List<Integer> equalityFieldIds,
+                                                           Schema equalityDeleteRowSchema,
+                                                           Schema positionDeleteRowSchema);
 
   protected abstract T toRow(Integer id, String data);
 
@@ -125,7 +126,7 @@ public abstract class TestWriterFactory<T> extends TableTestBase {
 
   @Test
   public void testDataWriter() throws IOException {
-    WriterFactory<T> writerFactory = newWriterFactory(table.schema());
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
     DataFile dataFile = writeData(writerFactory, dataRows, table.spec(), partition);
 
@@ -142,7 +143,7 @@ public abstract class TestWriterFactory<T> extends TableTestBase {
 
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
     Schema equalityDeleteRowSchema = table.schema().select("id");
-    WriterFactory<T> writerFactory = newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);
 
     // write a data file
     DataFile dataFile = writeData(writerFactory, dataRows, table.spec(), partition);
@@ -191,7 +192,7 @@ public abstract class TestWriterFactory<T> extends TableTestBase {
 
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
     Schema equalityDeleteRowSchema = table.schema().select("id");
-    WriterFactory<T> writerFactory = newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);
 
     // write an unpartitioned data file
     DataFile firstDataFile = writeData(writerFactory, dataRows, table.spec(), partition);
@@ -251,7 +252,7 @@ public abstract class TestWriterFactory<T> extends TableTestBase {
   public void testPositionDeleteWriter() throws IOException {
     Assume.assumeFalse("ORC delete files are not supported", fileFormat == FileFormat.ORC);
 
-    WriterFactory<T> writerFactory = newWriterFactory(table.schema());
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
     // write a data file
     DataFile dataFile = writeData(writerFactory, dataRows, table.spec(), partition);
@@ -297,7 +298,7 @@ public abstract class TestWriterFactory<T> extends TableTestBase {
   public void testPositionDeleteWriterWithRow() throws IOException {
     Assume.assumeFalse("ORC delete files are not supported", fileFormat == FileFormat.ORC);
 
-    WriterFactory<T> writerFactory = newWriterFactory(table.schema(), table.schema());
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema(), table.schema());
 
     // write a data file
     DataFile dataFile = writeData(writerFactory, dataRows, table.spec(), partition);
@@ -351,20 +352,20 @@ public abstract class TestWriterFactory<T> extends TableTestBase {
     return partitionKey;
   }
 
-  private WriterFactory<T> newWriterFactory(Schema dataSchema) {
+  private FileWriterFactory<T> newWriterFactory(Schema dataSchema) {
     return newWriterFactory(dataSchema, null, null, null);
   }
 
-  private WriterFactory<T> newWriterFactory(Schema dataSchema, List<Integer> equalityFieldIds,
-                                            Schema equalityDeleteRowSchema) {
+  private FileWriterFactory<T> newWriterFactory(Schema dataSchema, List<Integer> equalityFieldIds,
+                                                Schema equalityDeleteRowSchema) {
     return newWriterFactory(dataSchema, equalityFieldIds, equalityDeleteRowSchema, null);
   }
 
-  private WriterFactory<T> newWriterFactory(Schema dataSchema, Schema positionDeleteRowSchema) {
+  private FileWriterFactory<T> newWriterFactory(Schema dataSchema, Schema positionDeleteRowSchema) {
     return newWriterFactory(dataSchema, null, null, positionDeleteRowSchema);
   }
 
-  private DataFile writeData(WriterFactory<T> writerFactory, List<T> rows,
+  private DataFile writeData(FileWriterFactory<T> writerFactory, List<T> rows,
                              PartitionSpec spec, StructLike partitionKey) throws IOException {
 
     EncryptedOutputFile file = newOutputFile(spec, partitionKey);
@@ -379,7 +380,7 @@ public abstract class TestWriterFactory<T> extends TableTestBase {
     return writer.toDataFile();
   }
 
-  private DeleteFile writeEqualityDeletes(WriterFactory<T> writerFactory, List<T> deletes,
+  private DeleteFile writeEqualityDeletes(FileWriterFactory<T> writerFactory, List<T> deletes,
                                           PartitionSpec spec, StructLike partitionKey) throws IOException {
 
     EncryptedOutputFile file = newOutputFile(spec, partitionKey);
@@ -392,7 +393,7 @@ public abstract class TestWriterFactory<T> extends TableTestBase {
     return writer.toDeleteFile();
   }
 
-  private Pair<DeleteFile, CharSequenceSet> writePositionDeletes(WriterFactory<T> writerFactory,
+  private Pair<DeleteFile, CharSequenceSet> writePositionDeletes(FileWriterFactory<T> writerFactory,
                                                                  List<PositionDelete<T>> deletes,
                                                                  PartitionSpec spec,
                                                                  StructLike partitionKey) throws IOException {
