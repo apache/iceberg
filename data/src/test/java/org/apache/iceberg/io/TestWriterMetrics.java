@@ -91,7 +91,7 @@ public abstract class TestWriterMetrics<T> {
     this.fileFormat = fileFormat;
   }
 
-  protected abstract WriterFactory<T> newWriterFactory(Schema dataSchema);
+  protected abstract FileWriterFactory<T> newWriterFactory(Schema dataSchema);
 
   protected abstract T toRow(Integer id, String data, boolean boolValue, Long longValue);
 

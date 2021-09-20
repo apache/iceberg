@@ -392,7 +392,6 @@
             <message key="name.invalidPattern" value="Type name ''{0}'' must match pattern ''{1}''."/>
         </module>
         <module name="TypecastParenPad"/> <!-- Java Style Guide: Horizontal whitespace -->
-        <module name="UnnecessaryParentheses"/>
         <module name="UnusedImports"> <!-- Java Style Guide: No unused imports -->
             <property name="processJavadoc" value="true"/>
         </module>
@@ -420,7 +419,7 @@
           <property name="max" value="12"/>
         </module>
         <module name="JavadocMethod"> <!-- Java Style Guide: Where Javadoc is used -->
-            <property name="scope" value="public"/>
+            <property name="accessModifiers" value="public"/>
             <property name="allowMissingParamTags" value="true"/>
             <property name="allowMissingReturnTag" value="true"/>
             <property name="allowedAnnotations" value="Override, Test"/>

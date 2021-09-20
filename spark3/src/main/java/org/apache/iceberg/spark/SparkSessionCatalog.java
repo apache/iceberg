@@ -122,6 +122,15 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
   }
 
   @Override
+  public void invalidateTable(Identifier ident) {
+    if (icebergCatalog.tableExists(ident)) {
+      icebergCatalog.invalidateTable(ident);
+    } else {
+      getSessionCatalog().invalidateTable(ident);
+    }
+  }
+
+  @Override
   public Table createTable(Identifier ident, StructType schema, Transform[] partitions,
                            Map<String, String> properties)
       throws TableAlreadyExistsException, NoSuchNamespaceException {
