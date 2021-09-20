@@ -111,6 +111,8 @@ public abstract class DeleteReadTests {
   }
 
   protected void initTable2() throws IOException {
+    dropTable("test2");
+
     this.tableName2 = "test2";
     this.table2 = createTable(tableName2, DATE_SCHEMA, DATE_SPEC);
     this.records2 = Lists.newArrayList();
