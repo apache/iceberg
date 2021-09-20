@@ -310,11 +310,11 @@ public class ArrowReaderTest {
     Table table = tables.load(tableLocation);
     TableScan scan = table.newScan();
     // Call hasNext() 0 extra times.
-    readAndCheckHasNextIsIdempotent(scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, 0);
+    readAndCheckHasNextIsIdempotent(scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, 0, ALL_COLUMNS);
     // Call hasNext() 1 extra time.
-    readAndCheckHasNextIsIdempotent(scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, 1);
+    readAndCheckHasNextIsIdempotent(scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, 1, ALL_COLUMNS);
     // Call hasNext() 2 extra times.
-    readAndCheckHasNextIsIdempotent(scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, 2);
+    readAndCheckHasNextIsIdempotent(scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, 2, ALL_COLUMNS);
   }
 
   /**
@@ -375,7 +375,10 @@ public class ArrowReaderTest {
       TableScan scan,
       int numRowsPerRoot,
       int expectedTotalRows,
-      int numExtraCallsToHasNext) throws IOException {
+      int numExtraCallsToHasNext,
+      List<String> columns) throws IOException {
+    Set<String> columnSet = ImmutableSet.copyOf(columns);
+    int rowIndex = 0;
     int totalRows = 0;
     try (VectorizedTableScanIterable itr = new VectorizedTableScanIterable(scan, numRowsPerRoot, false)) {
       CloseableIterator<ColumnarBatch> iterator = itr.iterator();
@@ -388,6 +391,11 @@ public class ArrowReaderTest {
 
         ColumnarBatch batch = iterator.next();
         VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
+        assertEquals(createExpectedArrowSchema(columnSet), root.getSchema());
+        checkAllVectorTypes(root, columnSet);
+        List<GenericRecord> expectedRows = rowsWritten.subList(rowIndex, rowIndex + numRowsPerRoot);
+        checkAllVectorValues(numRowsPerRoot, expectedRows, root, columnSet);
+        rowIndex += numRowsPerRoot;
         totalRows += root.getRowCount();
       }
     }
