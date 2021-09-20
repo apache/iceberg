@@ -91,16 +91,18 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
       // selected by lower IDs.
       if (selectedIds.contains(fieldId)) {
         if (fieldSchema != null) {
+          hasChange = true; // Sub-fields may be different
           filteredFields.add(copyField(field, fieldSchema, fieldId));
         } else {
           if (isRecord(field.schema())) {
+            hasChange = true; // Sub-fields are now empty
             filteredFields.add(copyField(field, makeEmptyCopy(field.schema()), fieldId));
           } else {
             filteredFields.add(copyField(field, field.schema(), fieldId));
           }
         }
       } else if (fieldSchema != null) {
-        hasChange = true;
+        hasChange = true; // Sub-fields may be different
         filteredFields.add(copyField(field, fieldSchema, fieldId));
       }
     }

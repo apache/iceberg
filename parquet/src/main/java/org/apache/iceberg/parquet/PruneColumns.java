@@ -56,6 +56,7 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
           builder.addField(field);
         } else {
           if (isStruct(originalField)) {
+            hasChange = true;
             builder.addField(originalField.asGroupType().withNewFields(Collections.emptyList()));
           } else {
             builder.addField(originalField);
@@ -63,9 +64,9 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
         }
         fieldCount += 1;
       } else if (field != null) {
+        hasChange = true;
         builder.addField(field);
         fieldCount += 1;
-        hasChange = true;
       }
     }
 
