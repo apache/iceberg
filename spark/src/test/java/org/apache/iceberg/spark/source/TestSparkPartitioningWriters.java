@@ -23,16 +23,19 @@ import java.util.List;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileWriterFactory;
-import org.apache.iceberg.io.TestRollingFileWriters;
+import org.apache.iceberg.io.TestPartitioningWriters;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.util.StructLikeSet;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 
-public class TestSparkRollingFileWriters extends TestRollingFileWriters<InternalRow> {
+public class TestSparkPartitioningWriters extends TestPartitioningWriters<InternalRow> {
 
-  public TestSparkRollingFileWriters(FileFormat fileFormat, boolean partitioned) {
-    super(fileFormat, partitioned);
+  public TestSparkPartitioningWriters(FileFormat fileFormat) {
+    super(fileFormat);
   }
 
   @Override
@@ -55,5 +58,16 @@ public class TestSparkRollingFileWriters extends TestRollingFileWriters<Internal
     row.update(0, id);
     row.update(1, UTF8String.fromString(data));
     return row;
+  }
+
+  @Override
+  protected StructLikeSet toSet(Iterable<InternalRow> rows) {
+    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
+    StructType sparkType = SparkSchemaUtil.convert(table.schema());
+    for (InternalRow row : rows) {
+      InternalRowWrapper wrapper = new InternalRowWrapper(sparkType);
+      set.add(wrapper.wrap(row));
+    }
+    return set;
   }
 }

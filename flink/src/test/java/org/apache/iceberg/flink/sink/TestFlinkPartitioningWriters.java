@@ -21,17 +21,21 @@ package org.apache.iceberg.flink.sink;
 
 import java.util.List;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.io.FileWriterFactory;
-import org.apache.iceberg.io.TestRollingFileWriters;
+import org.apache.iceberg.io.TestPartitioningWriters;
 import org.apache.iceberg.util.ArrayUtil;
+import org.apache.iceberg.util.StructLikeSet;
 
-public class TestFlinkRollingFileWriters extends TestRollingFileWriters<RowData> {
+public class TestFlinkPartitioningWriters<T> extends TestPartitioningWriters<RowData> {
 
-  public TestFlinkRollingFileWriters(FileFormat fileFormat, boolean partitioned) {
-    super(fileFormat, partitioned);
+  public TestFlinkPartitioningWriters(FileFormat fileFormat) {
+    super(fileFormat);
   }
 
   @Override
@@ -51,5 +55,16 @@ public class TestFlinkRollingFileWriters extends TestRollingFileWriters<RowData>
   @Override
   protected RowData toRow(Integer id, String data) {
     return SimpleDataUtil.createRowData(id, data);
+  }
+
+  @Override
+  protected StructLikeSet toSet(Iterable<RowData> rows) {
+    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
+    RowType flinkType = FlinkSchemaUtil.convert(table.schema());
+    for (RowData row : rows) {
+      RowDataWrapper wrapper = new RowDataWrapper(flinkType, table.schema().asStruct());
+      set.add(wrapper.wrap(row));
+    }
+    return set;
   }
 }

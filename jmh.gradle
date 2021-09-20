@@ -30,7 +30,7 @@ configure(jmhProjects) {
   apply plugin: 'me.champeau.gradle.jmh'
 
   jmh {
-    jmhVersion = jmhVersion
+    jmhVersion = '1.32'
     failOnError = true
     forceGC = true
     includeTests = true

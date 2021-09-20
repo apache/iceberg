@@ -115,10 +115,6 @@ subprojects {
     options.encoding = 'UTF-8'
   }
 
-  ext {
-    jmhVersion = '1.21'
-  }
-
   sourceCompatibility = '1.8'
   targetCompatibility = '1.8'
 
