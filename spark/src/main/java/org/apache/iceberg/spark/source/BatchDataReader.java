@@ -20,11 +20,13 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
+import java.util.Set;
 import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.CloseableIterable;
@@ -35,6 +37,7 @@ import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
@@ -90,9 +93,12 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
 
       iter = builder.build();
     } else if (task.file().format() == FileFormat.ORC) {
-      Schema schemaWithoutConstants = TypeUtil.selectNot(expectedSchema, idToConstant.keySet());
+      Set<Integer> constantFieldIds = idToConstant.keySet();
+      Set<Integer> metadataFieldIds = MetadataColumns.metadataFieldIds();
+      Sets.SetView<Integer> constantAndMetadataFieldIds = Sets.union(constantFieldIds, metadataFieldIds);
+      Schema schemaWithoutConstantAndMetadataFields = TypeUtil.selectNot(expectedSchema, constantAndMetadataFieldIds);
       ORC.ReadBuilder builder = ORC.read(location)
-          .project(schemaWithoutConstants)
+          .project(schemaWithoutConstantAndMetadataFields)
           .split(task.start(), task.length())
           .createBatchedReaderFunc(fileSchema -> VectorizedSparkOrcReaders.buildReader(expectedSchema, fileSchema,
               idToConstant))

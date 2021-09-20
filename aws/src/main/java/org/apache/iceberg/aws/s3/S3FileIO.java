@@ -28,9 +28,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.util.SerializableSupplier;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.Delete;
-import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
-import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 
 /**
  * FileIO implementation backed by S3.
@@ -88,12 +86,10 @@ public class S3FileIO implements FileIO {
   @Override
   public void deleteFile(String path) {
     S3URI location = new S3URI(path);
-    ObjectIdentifier objectIdentifier = ObjectIdentifier.builder().key(location.key()).build();
-    Delete delete = Delete.builder().objects(objectIdentifier).build();
-    DeleteObjectsRequest deleteRequest =
-        DeleteObjectsRequest.builder().bucket(location.bucket()).delete(delete).build();
+    DeleteObjectRequest deleteRequest =
+        DeleteObjectRequest.builder().bucket(location.bucket()).key(location.key()).build();
 
-    client().deleteObjects(deleteRequest);
+    client().deleteObject(deleteRequest);
   }
 
   private S3Client client() {

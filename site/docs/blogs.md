@@ -24,6 +24,10 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 
 **Author**: [Christine Mathiesen](https://www.linkedin.com/in/christine-mathiesen-676a98159/)
 
+### [Taking Query Optimizations to the Next Level with Iceberg](https://medium.com/adobetech/taking-query-optimizations-to-the-next-level-with-iceberg-6c968b83cd6f)
+**Date**: Jan 14th, 2021, **Company**: Adobe
+
+**Author**: [Gautam Kowshik](https://www.linkedin.com/in/gautamk/), [Xabriel J. Collazo Mojica](https://www.linkedin.com/in/xabriel/)
 
 ### [FastIngest: Low-latency Gobblin with Apache Iceberg and ORC format](https://engineering.linkedin.com/blog/2021/fastingest-low-latency-gobblin)
 **Date**: Jan 6th, 2021, **Company**: Linkedin

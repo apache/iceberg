@@ -270,8 +270,8 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
 
     sql("UPDATE %s SET id = 100 WHERE id NOT IN (1, 10)", tableName);
     assertEquals("Should have expected rows",
-        ImmutableList.of(row(100, "hr"), row(100, "hardware"), row(null, "hr")),
-        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", tableName));
+        ImmutableList.of(row(100, "hardware"), row(100, "hr"), row(null, "hr")),
+        sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST, dep", tableName));
   }
 
   @Test
@@ -652,7 +652,7 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
 
     sql("UPDATE %s SET id = -1 WHERE id NOT IN (SELECT * FROM updated_id WHERE value IS NOT NULL)", tableName);
     assertEquals("Should have expected rows",
-        ImmutableList.of(row(-1, "hr"), row(-1, "hardware"), row(null, "hr")),
+        ImmutableList.of(row(-1, "hardware"), row(-1, "hr"), row(null, "hr")),
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST, dep", tableName));
 
     sql("UPDATE %s SET id = 5 WHERE id NOT IN (SELECT * FROM updated_id) OR dep IN ('software', 'hr')", tableName);
@@ -796,6 +796,24 @@ public abstract class TestUpdate extends SparkRowLevelOperationsTestBase {
     } finally {
       spark.conf().set("spark.sql.shuffle.partitions", originalNumOfShufflePartitions);
     }
+  }
+
+  @Test
+  public void testUpdateWithVectorization() {
+    createAndInitTable("id INT, dep STRING");
+
+    append(tableName,
+        "{ \"id\": 0, \"dep\": \"hr\" }\n" +
+        "{ \"id\": 1, \"dep\": \"hr\" }\n" +
+        "{ \"id\": 2, \"dep\": \"hr\" }");
+
+    withSQLConf(ImmutableMap.of("spark.sql.iceberg.vectorization.enabled", "true"), () -> {
+      sql("UPDATE %s t SET id = -1", tableName);
+
+      assertEquals("Should have expected rows",
+          ImmutableList.of(row(-1, "hr"), row(-1, "hr"), row(-1, "hr")),
+          sql("SELECT * FROM %s ORDER BY id, dep", tableName));
+    });
   }
 
   @Test

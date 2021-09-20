@@ -60,7 +60,7 @@ case class RewriteMergeInto(spark: SparkSession) extends Rule[LogicalPlan] with 
   import RewriteMergeInto._
 
   override def apply(plan: LogicalPlan): LogicalPlan = {
-    plan resolveOperators {
+    plan transform {
       case MergeIntoTable(target: DataSourceV2Relation, source, cond, matchedActions, notMatchedActions)
           if matchedActions.isEmpty && notMatchedActions.size == 1 && isIcebergRelation(target) =>
 

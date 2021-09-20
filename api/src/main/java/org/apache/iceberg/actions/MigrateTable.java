@@ -21,22 +21,36 @@ package org.apache.iceberg.actions;
 
 import java.util.Map;
 
-public interface CreateAction extends Action<CreateAction, Long> {
-
+/**
+ * An action that migrates an existing table to Iceberg.
+ */
+public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> {
   /**
-   * Adds additional properties to the newly created Iceberg table. Any properties with
+   * Sets table properties in the newly created Iceberg table. Any properties with
    * the same key name will be overwritten.
-   * @param properties a map of properties to be included
-   * @return this for chaining
+   *
+   * @param properties a map of properties to set
+   * @return this for method chaining
    */
-  CreateAction withProperties(Map<String, String> properties);
+  MigrateTable tableProperties(Map<String, String> properties);
 
   /**
-   * Adds an additional property to the newly created Iceberg table. Any properties
-   * with the same key name will be overwritten.
-   * @param key the key of the property to add
-   * @param value the value of the property to add
-   * @return this for chaining
+   * Sets a table property in the newly created Iceberg table. Any properties
+   * with the same key will be overwritten.
+   *
+   * @param name a table property name
+   * @param value a table property value
+   * @return this for method chaining
    */
-  CreateAction withProperty(String key, String value);
+  MigrateTable tableProperty(String name, String value);
+
+  /**
+   * The action result that contains a summary of the execution.
+   */
+  interface Result {
+    /**
+     * Returns the number of migrated data files.
+     */
+    long migratedDataFilesCount();
+  }
 }

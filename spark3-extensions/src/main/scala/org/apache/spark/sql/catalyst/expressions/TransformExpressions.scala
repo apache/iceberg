@@ -28,7 +28,6 @@ import org.apache.iceberg.transforms.Transforms
 import org.apache.iceberg.types.Type
 import org.apache.iceberg.types.Types
 import org.apache.iceberg.util.ByteBuffers
-import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.codegen.CodegenFallback
 import org.apache.spark.sql.types.AbstractDataType
 import org.apache.spark.sql.types.BinaryType
@@ -41,13 +40,9 @@ import org.apache.spark.sql.types.TimestampType
 import org.apache.spark.unsafe.types.UTF8String
 
 abstract class IcebergTransformExpression
-  extends Expression with CodegenFallback with NullIntolerant {
+  extends UnaryExpression with CodegenFallback with NullIntolerant {
 
-  def child: Expression
-
-  override def children: Seq[Expression] = child :: Nil
-
-  override def nullable: Boolean = true
+  override def nullable: Boolean = child.nullable
 
   @transient lazy val icebergInputType: Type = SparkSchemaUtil.convert(child.dataType)
 }
@@ -55,14 +50,10 @@ abstract class IcebergTransformExpression
 abstract class IcebergTimeTransform
   extends IcebergTransformExpression with ImplicitCastInputTypes {
 
-  def child: Expression
   def transform: Transform[Any, Integer]
 
-  override def eval(input: InternalRow): Any = child.eval(input) match {
-    case null =>
-      null
-    case value =>
-      transform(value).toInt
+  override protected def nullSafeEval(value: Any): Any = {
+    transform(value).toInt
   }
 
   override def dataType: DataType = IntegerType
@@ -96,8 +87,6 @@ case class IcebergHourTransform(child: Expression)
 
 case class IcebergBucketTransform(numBuckets: Int, child: Expression) extends IcebergTransformExpression {
 
-  override def children: Seq[Expression] = child :: Nil
-
   @transient lazy val bucketFunc: Any => Int = child.dataType match {
     case _: DecimalType =>
       val t = Transforms.bucket[Any](icebergInputType, numBuckets)
@@ -112,19 +101,14 @@ case class IcebergBucketTransform(numBuckets: Int, child: Expression) extends Ic
       a: Any => t(a).toInt
   }
 
-  override def eval(input: InternalRow): Any = child.eval(input) match {
-    case null =>
-      null
-    case value =>
-      bucketFunc(value)
+  override protected def nullSafeEval(value: Any): Any = {
+    bucketFunc(value)
   }
 
   override def dataType: DataType = IntegerType
 }
 
 case class IcebergTruncateTransform(child: Expression, width: Int) extends IcebergTransformExpression {
-
-  override def children: Seq[Expression] = child :: Nil
 
   @transient lazy val truncateFunc: Any => Any = child.dataType match {
     case _: DecimalType =>
@@ -145,11 +129,8 @@ case class IcebergTruncateTransform(child: Expression, width: Int) extends Icebe
       a: Any => t(a)
   }
 
-  override def eval(input: InternalRow): Any = child.eval(input) match {
-    case null =>
-      null
-    case value =>
-      truncateFunc(value)
+  override protected def nullSafeEval(value: Any): Any = {
+    truncateFunc(value)
   }
 
   override def dataType: DataType = child.dataType
