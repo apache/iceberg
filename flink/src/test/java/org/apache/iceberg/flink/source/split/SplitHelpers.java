@@ -34,7 +34,7 @@ import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.TestFixtures;
-import org.apache.iceberg.flink.source.FlinkSplitGenerator;
+import org.apache.iceberg.flink.source.FlinkSplitPlanner;
 import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -79,7 +79,7 @@ public class SplitHelpers {
       }
 
       final ScanContext scanContext = ScanContext.builder().build();
-      final List<IcebergSourceSplit> splits = FlinkSplitGenerator.planIcebergSourceSplits(table, scanContext);
+      final List<IcebergSourceSplit> splits = FlinkSplitPlanner.planIcebergSourceSplits(table, scanContext);
       return splits.stream()
           .flatMap(split -> {
             List<List<FileScanTask>> filesList = Lists.partition(new ArrayList<>(split.task().files()), filesPerSplit);

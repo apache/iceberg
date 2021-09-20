@@ -20,6 +20,7 @@
 package org.apache.iceberg.flink.source.split;
 
 import java.io.IOException;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.util.InstantiationUtil;
@@ -28,6 +29,7 @@ import org.apache.flink.util.InstantiationUtil;
  * TODO: use Java serialization for now.
  * will switch to more stable serializer from issue-1698.
  */
+@Internal
 public class IcebergSourceSplitSerializer implements SimpleVersionedSerializer<IcebergSourceSplit> {
   public static final IcebergSourceSplitSerializer INSTANCE = new IcebergSourceSplitSerializer();
   private static final int VERSION = 1;

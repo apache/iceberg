@@ -140,7 +140,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
         newScanContext = scanContext.copyWithAppendsBetween(lastSnapshotId, snapshotId);
       }
 
-      FlinkInputSplit[] splits = FlinkSplitGenerator.createInputSplits(table, newScanContext);
+      FlinkInputSplit[] splits = FlinkSplitPlanner.planInputSplits(table, newScanContext);
       for (FlinkInputSplit split : splits) {
         sourceContext.collect(split);
       }

@@ -254,7 +254,7 @@ public class TestStreamingReaderOperator extends TableTestBase {
             .build();
       }
 
-      Collections.addAll(inputSplits, FlinkSplitGenerator.createInputSplits(table, scanContext));
+      Collections.addAll(inputSplits, FlinkSplitPlanner.planInputSplits(table, scanContext));
     }
 
     return inputSplits;

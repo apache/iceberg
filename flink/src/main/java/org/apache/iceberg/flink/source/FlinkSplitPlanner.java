@@ -22,6 +22,7 @@ package org.apache.iceberg.flink.source;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -31,11 +32,12 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-public class FlinkSplitGenerator {
-  private FlinkSplitGenerator() {
+@Internal
+public class FlinkSplitPlanner {
+  private FlinkSplitPlanner() {
   }
 
-  static FlinkInputSplit[] createInputSplits(Table table, ScanContext context) {
+  static FlinkInputSplit[] planInputSplits(Table table, ScanContext context) {
     try (CloseableIterable<CombinedScanTask> tasksIterable = planTasks(table, context)) {
       List<CombinedScanTask> tasks = Lists.newArrayList(tasksIterable);
       FlinkInputSplit[] splits = new FlinkInputSplit[tasks.size()];
@@ -48,6 +50,9 @@ public class FlinkSplitGenerator {
     }
   }
 
+  /**
+   * This returns splits for the FLIP-27 source
+   */
   public static List<IcebergSourceSplit> planIcebergSourceSplits(
       Table table, ScanContext context) {
     try (CloseableIterable<CombinedScanTask> tasksIterable = planTasks(table, context)) {

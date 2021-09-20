@@ -20,9 +20,11 @@
 package org.apache.iceberg.flink.source.reader;
 
 import java.util.concurrent.atomic.AtomicLong;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MetricGroup;
 
+@Internal
 public class IcebergSourceReaderMetrics {
   private final AtomicLong numRecordsOut;
   private final AtomicLong assignedSplits;

@@ -36,7 +36,7 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.HadoopTableResource;
 import org.apache.iceberg.flink.TestFixtures;
-import org.apache.iceberg.flink.source.FlinkSplitGenerator;
+import org.apache.iceberg.flink.source.FlinkSplitPlanner;
 import org.apache.iceberg.flink.source.Position;
 import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
@@ -103,7 +103,7 @@ public abstract class ReaderFunctionTestBase<T> {
       dataAppender.appendToTable(dataFile);
     }
 
-    final List<IcebergSourceSplit> splits = FlinkSplitGenerator
+    final List<IcebergSourceSplit> splits = FlinkSplitPlanner
         .planIcebergSourceSplits(tableResource.table(), scanContext);
     Assert.assertEquals(1, splits.size());
     Assert.assertEquals(3, splits.get(0).task().files().size());

@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source;
 
 import java.io.Serializable;
 import java.util.Objects;
+import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
@@ -31,6 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  *   <li>record offset within a file</li>
  * </ul>
  */
+@Internal
 public class Position implements Serializable {
 
   private static final long serialVersionUID = 1L;

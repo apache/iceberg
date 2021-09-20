@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 import javax.annotation.Nullable;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.file.src.util.RecordAndPosition;
 import org.apache.iceberg.io.CloseableIterator;
@@ -30,6 +31,7 @@ import org.apache.iceberg.io.CloseableIterator;
 /**
  * A batch of recrods for one split
  */
+@Internal
 public class FileRecords<T> implements RecordsWithSplitIds<RecordAndPosition<T>> {
 
   @Nullable
