@@ -65,6 +65,10 @@ public class FlinkSplitGenerator {
         .caseSensitive(context.caseSensitive())
         .project(context.project());
 
+    if (context.includeColumnStats()) {
+      scan = scan.includeColumnStats();
+    }
+
     if (context.snapshotId() != null) {
       scan = scan.useSnapshot(context.snapshotId());
     }
