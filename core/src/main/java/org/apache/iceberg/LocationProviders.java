@@ -28,11 +28,8 @@ import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class LocationProviders {
-  private static final Logger LOG = LoggerFactory.getLogger(LocationProviders.class);
 
   private LocationProviders() {
   }
@@ -73,7 +70,18 @@ public class LocationProviders {
     private final String dataLocation;
 
     DefaultLocationProvider(String tableLocation, Map<String, String> properties) {
-      this.dataLocation = stripTrailingSlash(dataLocation(properties, tableLocation, false));
+      this.dataLocation = stripTrailingSlash(dataLocation(properties, tableLocation));
+    }
+
+    private static String dataLocation(Map<String, String> properties, String tableLocation) {
+      String dataLocation = properties.get(TableProperties.WRITE_DATA_LOCATION);
+      if (dataLocation == null) {
+        dataLocation = properties.get(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+        if (dataLocation == null) {
+          dataLocation = String.format("%s/data", tableLocation);
+        }
+      }
+      return dataLocation;
     }
 
     @Override
@@ -95,8 +103,22 @@ public class LocationProviders {
     private final String context;
 
     ObjectStoreLocationProvider(String tableLocation, Map<String, String> properties) {
-      this.storageLocation = stripTrailingSlash(dataLocation(properties, tableLocation, true));
+      this.storageLocation = stripTrailingSlash(dataLocation(properties, tableLocation));
       this.context = pathContext(tableLocation);
+    }
+
+    private static String dataLocation(Map<String, String> properties, String tableLocation) {
+      String dataLocation = properties.get(TableProperties.WRITE_DATA_LOCATION);
+      if (dataLocation == null) {
+        dataLocation = properties.get(TableProperties.OBJECT_STORE_PATH);
+        if (dataLocation == null) {
+          dataLocation = properties.get(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+          if (dataLocation == null) {
+            dataLocation = String.format("%s/data", tableLocation);
+          }
+        }
+      }
+      return dataLocation;
     }
 
     @Override
@@ -135,42 +157,5 @@ public class LocationProviders {
       result = result.substring(0, result.length() - 1);
     }
     return result;
-  }
-
-  /**
-   * Get the data file location. For the {@link DefaultLocationProvider}, the priority level are
-   * "write.data.path" -> "write.folder-storage.path" -> "table-location/data".
-   * For the {@link ObjectStoreLocationProvider}, the priority level are
-   * "write.data.path" -> "write.object-storage.path" -> "write.folder-storage.path" -> "table-location/data".
-   */
-  private static String dataLocation(Map<String, String> properties, String tableLocation, boolean isObjectStore) {
-    String dataLocation = properties.get(TableProperties.WRITE_DATA_LOCATION);
-    if (dataLocation == null) {
-      dataLocation = deprecatedDataLocation(properties, isObjectStore);
-      if (dataLocation == null) {
-        dataLocation = String.format("%s/data", tableLocation);
-      }
-    }
-    return dataLocation;
-  }
-
-  private static String deprecatedDataLocation(Map<String, String> properties, boolean isObjectStore) {
-    String deprecatedProperty = isObjectStore ?
-        TableProperties.OBJECT_STORE_PATH : TableProperties.WRITE_FOLDER_STORAGE_LOCATION;
-
-    String dataLocation = properties.get(deprecatedProperty);
-
-    final String warnMsg = "Table property {} is deprecated, please use " + TableProperties.WRITE_DATA_LOCATION +
-        " instead.";
-    if (dataLocation != null) {
-      LOG.warn(warnMsg, deprecatedProperty);
-    } else if (deprecatedProperty.equals(TableProperties.OBJECT_STORE_PATH)) {
-      dataLocation = properties.get(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
-      if (dataLocation != null) {
-        LOG.warn(warnMsg, TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
-      }
-    }
-
-    return dataLocation;
   }
 }
