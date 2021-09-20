@@ -22,6 +22,7 @@ package org.apache.iceberg.spark;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.SparkContext;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -245,17 +246,25 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
   }
 
   public boolean isHiveCatalogConfigValid(CaseInsensitiveStringMap options, StringBuilder errorMsg) {
-    String hadoopConfUri = SparkContext.getOrCreate().conf().get("spark.hadoop.hive.metastore.uris");
+    String hadoopConfUri = SparkSession.active().sparkContext().conf().contains("spark.hadoop.hive.metastore.uris") ?
+            SparkSession.active().sparkContext().conf().get("spark.hadoop.hive.metastore.uris") : null;
     String catalogConfUri = options.get("uri");
-    if (catalogConfUri != null) {
+
+    if (hadoopConfUri == null) {
+      errorMsg.append("Hive uri config is missing");
+    } else if (catalogConfUri != null) {
       LOG.warn("Don't set uri for SparkSessionCatalog" +
               "set it only in hive conf");
       if (!hadoopConfUri.equalsIgnoreCase(catalogConfUri)) {
         errorMsg.append("Cannot set uri for SparkSessionCatalog: " +
                 "conflicts with Hive conf URI");
-        return false;
       }
     }
+
+    if (errorMsg.length() != 0) {
+      return false;
+    }
+
     return true;
   }
 
@@ -266,8 +275,8 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
       if (!isHiveCatalogConfigValid(options, errorMsg)) {
         throw new UnsupportedOperationException(errorMsg.toString());
       }
-
     }
+
     this.catalogName = name;
     this.icebergCatalog = buildSparkCatalog(name, options);
     if (icebergCatalog instanceof StagingTableCatalog) {
