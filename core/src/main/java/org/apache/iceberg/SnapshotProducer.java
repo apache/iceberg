@@ -306,7 +306,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       Exceptions.suppressAndThrow(e, this::cleanAll);
     }
 
-    LOG.info("Committed snapshot {} ({})", newSnapshotId.get(), getClass().getSimpleName());
+    LOG.debug("Committed snapshot {} ({})", newSnapshotId.get(), getClass().getSimpleName());
 
     try {
       // at this point, the commit must have succeeded. after a refresh, the snapshot is loaded by
