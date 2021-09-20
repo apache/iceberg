@@ -198,7 +198,7 @@ abstract class BaseTableScan implements TableScan {
   public CloseableIterable<FileScanTask> planFiles() {
     Snapshot snapshot = snapshot();
     if (snapshot != null) {
-      LOG.info("Scanning table {} snapshot {} created at {} with filter {}", table,
+      LOG.debug("Scanning table {} snapshot {} created at {} with filter {}", table,
           snapshot.snapshotId(), formatTimestampMillis(snapshot.timestampMillis()),
           context.rowFilter());
 
