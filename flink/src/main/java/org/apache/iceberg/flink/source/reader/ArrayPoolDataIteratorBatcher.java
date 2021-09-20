@@ -56,7 +56,7 @@ class ArrayPoolDataIteratorBatcher<T> implements DataIteratorBatcher<T> {
     ArrayPoolBatchIterator(String splitId, DataIterator<T> inputIterator) {
       this.splitId = splitId;
       this.inputIterator = inputIterator;
-      this.batchSize = config.getInteger(FlinkConfigOptions.SOURCE_READER_FETCH_BATCH_SIZE);
+      this.batchSize = config.getInteger(FlinkConfigOptions.SOURCE_READER_FETCH_RECORD_BATCH_SIZE);
       this.pool = createPoolOfBatches(config.getInteger(SourceReaderOptions.ELEMENT_QUEUE_CAPACITY));
     }
 
