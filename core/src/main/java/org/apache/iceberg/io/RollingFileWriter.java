@@ -26,7 +26,7 @@ import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * A rolling writer capable of splitting incoming data/deletes into multiple files within one spec/partition
+ * A rolling writer capable of splitting incoming data or deletes into multiple files within one spec/partition
  * based on the target file size.
  */
 abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements FileWriter<T, R> {
@@ -87,7 +87,7 @@ abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements Fi
 
     if (shouldRollToNewFile()) {
       closeCurrentWriter();
-      initCurrentWriter();
+      openCurrentWriter();
     }
   }
 
@@ -95,7 +95,7 @@ abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements Fi
     return currentFileRows % ROWS_DIVISOR == 0 && currentWriter.length() >= targetFileSizeInBytes;
   }
 
-  protected void initCurrentWriter() {
+  protected void openCurrentWriter() {
     Preconditions.checkState(currentWriter == null, "Current writer has been already initialized");
 
     this.currentFile = newFile();
