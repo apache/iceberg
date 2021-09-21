@@ -50,6 +50,7 @@ markdown_extensions:
 nav:
   - Project:
     - About: index.md
+    - Roadmap: roadmap.md
     - Community: community.md
     - Releases: releases.md
     - Blogs: blogs.md
