@@ -26,7 +26,7 @@ import org.apache.iceberg.spark.PathIdentifier;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSessionCatalog;
-import org.apache.iceberg.spark.TableIdentifier;
+import org.apache.iceberg.spark.SparkTableIdentifier;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
@@ -113,7 +113,7 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
           new PathIdentifier(path, snapshotId, asOfTimestamp));
     }
 
-    // Get the CatalogAndIdentifier and swap out the Identifier for a snapshot-aware TableIdentifier
+    // Get the CatalogAndIdentifier and swap out the Identifier for a snapshot-aware Identifier
     // if snapshotId or asOfTimestamp is set.
 
     final Spark3Util.CatalogAndIdentifier catalogAndIdentifier = Spark3Util.catalogAndIdentifier(
@@ -124,14 +124,14 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
       // catalog is a session catalog but does not support Iceberg. Use Iceberg instead.
       Identifier ident = catalogAndIdentifier.identifier();
       return new Spark3Util.CatalogAndIdentifier(catalogManager.catalog(DEFAULT_CATALOG_NAME),
-          TableIdentifier.of(ident.namespace(), ident.name(), snapshotId, asOfTimestamp));
+          SparkTableIdentifier.of(ident.namespace(), ident.name(), snapshotId, asOfTimestamp));
     } else if (snapshotId == null && asOfTimestamp == null) {
       return catalogAndIdentifier;
     } else {
       CatalogPlugin catalog = catalogAndIdentifier.catalog();
       Identifier ident = catalogAndIdentifier.identifier();
       return new Spark3Util.CatalogAndIdentifier(catalog,
-          TableIdentifier.of(ident.namespace(), ident.name(), snapshotId, asOfTimestamp));
+          SparkTableIdentifier.of(ident.namespace(), ident.name(), snapshotId, asOfTimestamp));
     }
   }
 
