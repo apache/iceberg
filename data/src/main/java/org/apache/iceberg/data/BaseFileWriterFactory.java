@@ -35,15 +35,15 @@ import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.WriterFactory;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 
 /**
  * A base writer factory to be extended by query engine integrations.
  */
-public abstract class BaseWriterFactory<T> implements WriterFactory<T> {
+public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
   private final Table table;
   private final FileFormat dataFileFormat;
   private final Schema dataSchema;
@@ -54,10 +54,10 @@ public abstract class BaseWriterFactory<T> implements WriterFactory<T> {
   private final SortOrder equalityDeleteSortOrder;
   private final Schema positionDeleteRowSchema;
 
-  protected BaseWriterFactory(Table table, FileFormat dataFileFormat, Schema dataSchema,
-                              SortOrder dataSortOrder, FileFormat deleteFileFormat,
-                              int[] equalityFieldIds, Schema equalityDeleteRowSchema,
-                              SortOrder equalityDeleteSortOrder, Schema positionDeleteRowSchema) {
+  protected BaseFileWriterFactory(Table table, FileFormat dataFileFormat, Schema dataSchema,
+                                  SortOrder dataSortOrder, FileFormat deleteFileFormat,
+                                  int[] equalityFieldIds, Schema equalityDeleteRowSchema,
+                                  SortOrder equalityDeleteSortOrder, Schema positionDeleteRowSchema) {
     this.table = table;
     this.dataFileFormat = dataFileFormat;
     this.dataSchema = dataSchema;

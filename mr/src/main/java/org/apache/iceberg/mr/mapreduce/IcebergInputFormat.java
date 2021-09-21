@@ -373,8 +373,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       // ORC does not support reuse containers yet
       switch (inMemoryDataModel) {
         case PIG:
-          // TODO: implement value readers for Pig and Hive
-          throw new UnsupportedOperationException("ORC support not yet supported for Pig and Hive");
+          // TODO: implement value readers for Pig
+          throw new UnsupportedOperationException("ORC support not yet supported for Pig");
         case HIVE:
           if (MetastoreUtil.hive3PresentOnClasspath()) {
             orcIterator = HIVE_VECTORIZED_READER_BUILDER.invoke(inputFile, task, idToConstant, context);

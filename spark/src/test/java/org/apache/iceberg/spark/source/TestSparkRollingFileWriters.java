@@ -22,33 +22,28 @@ package org.apache.iceberg.spark.source;
 import java.util.List;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.io.TestWriterFactory;
-import org.apache.iceberg.io.WriterFactory;
-import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.io.FileWriterFactory;
+import org.apache.iceberg.io.TestRollingFileWriters;
 import org.apache.iceberg.util.ArrayUtil;
-import org.apache.iceberg.util.StructLikeSet;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
-import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 
-public class TestSparkWriterFactory extends TestWriterFactory<InternalRow> {
+public class TestSparkRollingFileWriters extends TestRollingFileWriters<InternalRow> {
 
-  public TestSparkWriterFactory(FileFormat fileFormat, boolean partitioned) {
+  public TestSparkRollingFileWriters(FileFormat fileFormat, boolean partitioned) {
     super(fileFormat, partitioned);
   }
 
   @Override
-  protected WriterFactory<InternalRow> newWriterFactory(Schema dataSchema, List<Integer> equalityFieldIds,
-                                                        Schema equalityDeleteRowSchema,
-                                                        Schema positionDeleteRowSchema) {
-    return SparkWriterFactory.builderFor(table)
+  protected FileWriterFactory<InternalRow> newWriterFactory(Schema dataSchema, List<Integer> equalityFieldIds,
+                                                            Schema equalityDeleteRowSchema) {
+    return SparkFileWriterFactory.builderFor(table)
         .dataSchema(table.schema())
         .dataFileFormat(format())
         .deleteFileFormat(format())
         .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
         .equalityDeleteRowSchema(equalityDeleteRowSchema)
-        .positionDeleteRowSchema(positionDeleteRowSchema)
         .build();
   }
 
@@ -58,16 +53,5 @@ public class TestSparkWriterFactory extends TestWriterFactory<InternalRow> {
     row.update(0, id);
     row.update(1, UTF8String.fromString(data));
     return row;
-  }
-
-  @Override
-  protected StructLikeSet toSet(Iterable<InternalRow> rows) {
-    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
-    StructType sparkType = SparkSchemaUtil.convert(table.schema());
-    for (InternalRow row : rows) {
-      InternalRowWrapper wrapper = new InternalRowWrapper(sparkType);
-      set.add(wrapper.wrap(row));
-    }
-    return set;
   }
 }

@@ -17,42 +17,37 @@
  * under the License.
  */
 
-package org.apache.iceberg.spark.source;
+package org.apache.iceberg.flink.sink;
 
+import java.util.List;
+import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.io.FileWriterFactory;
-import org.apache.iceberg.io.TestWriterMetrics;
-import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
-import org.apache.spark.unsafe.types.UTF8String;
+import org.apache.iceberg.io.TestRollingFileWriters;
+import org.apache.iceberg.util.ArrayUtil;
 
-public class TestSparkWriterMetrics extends TestWriterMetrics<InternalRow> {
+public class TestFlinkRollingFileWriters extends TestRollingFileWriters<RowData> {
 
-  public TestSparkWriterMetrics(FileFormat fileFormat) {
-    super(fileFormat);
+  public TestFlinkRollingFileWriters(FileFormat fileFormat, boolean partitioned) {
+    super(fileFormat, partitioned);
   }
 
   @Override
-  protected FileWriterFactory<InternalRow> newWriterFactory(Schema dataSchema) {
-    return SparkFileWriterFactory.builderFor(table)
+  protected FileWriterFactory<RowData> newWriterFactory(Schema dataSchema, List<Integer> equalityFieldIds,
+                                                        Schema equalityDeleteRowSchema) {
+    return FlinkFileWriterFactory.builderFor(table)
         .dataSchema(table.schema())
-        .dataFileFormat(fileFormat)
-        .deleteFileFormat(fileFormat)
+        .dataFileFormat(format())
+        .deleteFileFormat(format())
+        .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
+        .equalityDeleteRowSchema(equalityDeleteRowSchema)
         .build();
   }
 
   @Override
-  protected InternalRow toRow(Integer id, String data, boolean boolValue, Long longValue) {
-    InternalRow row = new GenericInternalRow(3);
-    row.update(0, id);
-    row.update(1, UTF8String.fromString(data));
-
-    InternalRow nested = new GenericInternalRow(2);
-    nested.update(0, boolValue);
-    nested.update(1, longValue);
-
-    row.update(2, nested);
-    return row;
+  protected RowData toRow(Integer id, String data) {
+    return SimpleDataUtil.createRowData(id, data);
   }
 }

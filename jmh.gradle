@@ -36,6 +36,7 @@ configure(jmhProjects) {
     includeTests = true
     humanOutputFile = file(jmhOutputPath)
     include = [jmhIncludeRegex]
+    zip64 true
   }
 
   // Path is relative to either spark2 or spark3 folder, depending on project being tested
