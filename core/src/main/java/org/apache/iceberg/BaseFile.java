@@ -235,10 +235,10 @@ abstract class BaseFile<F>
         this.format = FileFormat.valueOf(value.toString());
         return;
       case 3:
-        this.partitionData = (PartitionData) value;
+        this.partitionSpecId = (value != null) ? (Integer) value : -1;
         return;
       case 4:
-        this.partitionSpecId = (value != null) ? (Integer) value : -1;
+        this.partitionData = (PartitionData) value;
         return;
       case 5:
         this.recordCount = (Long) value;
@@ -304,9 +304,9 @@ abstract class BaseFile<F>
       case 2:
         return format != null ? format.toString() : null;
       case 3:
-        return partitionData;
-      case 4:
         return partitionSpecId;
+      case 4:
+        return partitionData;
       case 5:
         return recordCount;
       case 6:
@@ -447,8 +447,8 @@ abstract class BaseFile<F>
         .add("content", content.toString().toLowerCase(Locale.ROOT))
         .add("file_path", filePath)
         .add("file_format", format)
-        .add("partition", partitionData)
         .add("spec_id", specId())
+        .add("partition", partitionData)
         .add("record_count", recordCount)
         .add("file_size_in_bytes", fileSizeInBytes)
         .add("column_sizes", columnSizes)
