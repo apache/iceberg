@@ -44,6 +44,10 @@ public class PathIdentifier implements SnapshotAwareIdentifier {
         new String[0];
   }
 
+  public PathIdentifier(String location) {
+    this(location, null, null);
+  }
+
   @Override
   public String[] namespace() {
     return namespace;

@@ -54,7 +54,6 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -87,14 +86,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   private final JavaSparkContext sparkContext;
   private final Table table;
   private final SparkReadConf readConf;
-  private final Long snapshotId;
-  private final Long startSnapshotId;
-  private final Long endSnapshotId;
-  private final Long asOfTimestamp;
-  private final Long splitSize;
-  private final Integer splitLookback;
-  private final Long splitOpenFileCost;
-  private final boolean caseSensitive;
+  private final TableScan baseScan;
   private StructType requestedSchema = null;
   private List<Expression> filterExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
@@ -112,31 +104,9 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.readConf = new SparkReadConf(spark, table, options.asMap());
-    this.snapshotId = readConf.snapshotId();
-    this.asOfTimestamp = readConf.asOfTimestamp();
-    if (snapshotId != null && asOfTimestamp != null) {
-      throw new IllegalArgumentException(
-          "Cannot scan using both snapshot-id and as-of-timestamp to select the table snapshot");
-    }
 
-    this.startSnapshotId = readConf.startSnapshotId();
-    this.endSnapshotId = readConf.endSnapshotId();
-    if (snapshotId != null || asOfTimestamp != null) {
-      if (startSnapshotId != null || endSnapshotId != null) {
-        throw new IllegalArgumentException(
-            "Cannot specify start-snapshot-id and end-snapshot-id to do incremental scan when either snapshot-id or " +
-                "as-of-timestamp is specified");
-      }
-    } else {
-      if (startSnapshotId == null && endSnapshotId != null) {
-        throw new IllegalArgumentException("Cannot only specify option end-snapshot-id to do incremental scan");
-      }
-    }
-
-    // look for split behavior overrides in options
-    this.splitSize = options.get(SparkReadOptions.SPLIT_SIZE).map(Long::parseLong).orElse(null);
-    this.splitLookback = options.get(SparkReadOptions.LOOKBACK).map(Integer::parseInt).orElse(null);
-    this.splitOpenFileCost = options.get(SparkReadOptions.FILE_OPEN_COST).map(Long::parseLong).orElse(null);
+    this.baseScan = configureBaseScan(caseSensitive, options);
+    this.schema = baseScan.schema();
 
     if (table.io() instanceof HadoopFileIO) {
       String fsscheme = "no_exist";
@@ -158,22 +128,84 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
       this.localityPreferred = false;
     }
 
-    this.schema = snapshotSchema();
-    this.caseSensitive = caseSensitive;
     this.readTimestampWithoutZone = readConf.handleTimestampWithoutZone();
   }
 
+  private void validateOptions(
+      Long snapshotId, Long asOfTimestamp, Long startSnapshotId, Long endSnapshotId) {
+    if (snapshotId != null && asOfTimestamp != null) {
+      throw new IllegalArgumentException(
+          "Cannot scan using both snapshot-id and as-of-timestamp to select the table snapshot");
+    }
+
+    if ((snapshotId != null || asOfTimestamp != null) &&
+        (startSnapshotId != null || endSnapshotId != null)) {
+      throw new IllegalArgumentException(
+          "Cannot specify start-snapshot-id and end-snapshot-id to do incremental scan when either snapshot-id or " +
+          "as-of-timestamp is specified");
+    }
+
+    if (startSnapshotId == null && endSnapshotId != null) {
+      throw new IllegalArgumentException("Cannot only specify option end-snapshot-id to do incremental scan");
+    }
+  }
+
+  private TableScan configureBaseScan(boolean caseSensitive, DataSourceOptions options) {
+    Long snapshotId = readConf.snapshotId();
+    Long asOfTimestamp = readConf.asOfTimestamp();
+    Long startSnapshotId = readConf.startSnapshotId();
+    Long endSnapshotId = readConf.endSnapshotId();
+    validateOptions(snapshotId, asOfTimestamp, startSnapshotId, endSnapshotId);
+
+    TableScan scan = table.newScan().caseSensitive(caseSensitive);
+
+    if (snapshotId != null) {
+      scan = scan.useSnapshot(snapshotId);
+    }
+
+    if (asOfTimestamp != null) {
+      scan = scan.asOfTime(asOfTimestamp);
+    }
+
+    if (startSnapshotId != null) {
+      if (endSnapshotId != null) {
+        scan = scan.appendsBetween(startSnapshotId, endSnapshotId);
+      } else {
+        scan = scan.appendsAfter(startSnapshotId);
+      }
+    }
+
+    // look for split behavior overrides in options
+    Long splitSize = options.get(SparkReadOptions.SPLIT_SIZE).map(Long::parseLong).orElse(null);
+    if (splitSize != null) {
+      scan = scan.option(TableProperties.SPLIT_SIZE, splitSize.toString());
+    }
+
+    Integer splitLookback = options.get(SparkReadOptions.LOOKBACK).map(Integer::parseInt).orElse(null);
+    if (splitLookback != null) {
+      scan = scan.option(TableProperties.SPLIT_LOOKBACK, splitLookback.toString());
+    }
+
+    Long splitOpenFileCost = options.get(SparkReadOptions.FILE_OPEN_COST).map(Long::parseLong).orElse(null);
+    if (splitOpenFileCost != null) {
+      scan = scan.option(TableProperties.SPLIT_OPEN_FILE_COST, splitOpenFileCost.toString());
+    }
+
+    return scan;
+  }
+
   protected Schema snapshotSchema() {
-    return SnapshotUtil.schemaFor(table, snapshotId, asOfTimestamp);
+    return baseScan.schema();
   }
 
   private Schema lazySchema() {
     if (schema == null) {
       if (requestedSchema != null) {
         // the projection should include all columns that will be returned, including those only used in filters
-        this.schema = SparkSchemaUtil.prune(snapshotSchema(), requestedSchema, filterExpression(), caseSensitive);
+        this.schema = SparkSchemaUtil.prune(
+            baseScan.schema(), requestedSchema, filterExpression(), baseScan.isCaseSensitive());
       } else {
-        this.schema = snapshotSchema();
+        this.schema = baseScan.schema();
       }
     }
     return schema;
@@ -216,6 +248,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
 
     List<CombinedScanTask> scanTasks = tasks();
+    boolean caseSensitive = baseScan.isCaseSensitive();
     InputPartition<ColumnarBatch>[] readTasks = new InputPartition[scanTasks.size()];
 
     Tasks.range(readTasks.length)
@@ -240,6 +273,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
 
     List<CombinedScanTask> scanTasks = tasks();
+    boolean caseSensitive = baseScan.isCaseSensitive();
     InputPartition<InternalRow>[] readTasks = new InputPartition[scanTasks.size()];
 
     Tasks.range(readTasks.length)
@@ -383,38 +417,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
   private List<CombinedScanTask> tasks() {
     if (tasks == null) {
-      TableScan scan = table
-          .newScan()
-          .caseSensitive(caseSensitive)
-          .project(lazySchema());
-
-      if (snapshotId != null) {
-        scan = scan.useSnapshot(snapshotId);
-      }
-
-      if (asOfTimestamp != null) {
-        scan = scan.asOfTime(asOfTimestamp);
-      }
-
-      if (startSnapshotId != null) {
-        if (endSnapshotId != null) {
-          scan = scan.appendsBetween(startSnapshotId, endSnapshotId);
-        } else {
-          scan = scan.appendsAfter(startSnapshotId);
-        }
-      }
-
-      if (splitSize != null) {
-        scan = scan.option(TableProperties.SPLIT_SIZE, splitSize.toString());
-      }
-
-      if (splitLookback != null) {
-        scan = scan.option(TableProperties.SPLIT_LOOKBACK, splitLookback.toString());
-      }
-
-      if (splitOpenFileCost != null) {
-        scan = scan.option(TableProperties.SPLIT_OPEN_FILE_COST, splitOpenFileCost.toString());
-      }
+      TableScan scan = baseScan.project(lazySchema());
 
       if (filterExpressions != null) {
         for (Expression filter : filterExpressions) {
@@ -435,8 +438,8 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
   @Override
   public String toString() {
     return String.format(
-        "IcebergScan(table=%s, type=%s, filters=%s, caseSensitive=%s, batchedReads=%s)",
-        table, lazySchema().asStruct(), filterExpressions, caseSensitive, enableBatchRead());
+        "IcebergScan(table=%s, type=%s, filters=%s, batchedReads=%s)",
+        table, lazySchema().asStruct(), filterExpressions, enableBatchRead());
   }
 
   private static class ReadTask<T> implements Serializable, InputPartition<T> {

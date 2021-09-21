@@ -21,17 +21,17 @@ package org.apache.iceberg.spark;
 
 import org.apache.spark.sql.connector.catalog.Identifier;
 
-public class TableIdentifier implements SnapshotAwareIdentifier {
+public class SparkTableIdentifier implements SnapshotAwareIdentifier {
   private final String[] namespace;
   private final String name;
   private final Long snapshotId;
   private final Long asOfTimestamp;
 
   public static Identifier of(String[] namespace, String name, Long snapshotId, Long asOfTimestamp) {
-    return new TableIdentifier(namespace, name, snapshotId, asOfTimestamp);
+    return new SparkTableIdentifier(namespace, name, snapshotId, asOfTimestamp);
   }
 
-  public TableIdentifier(String[] namespace, String name, Long snapshotId, Long asOfTimestamp) {
+  public SparkTableIdentifier(String[] namespace, String name, Long snapshotId, Long asOfTimestamp) {
     this.namespace = namespace;
     this.name = name;
     this.snapshotId = snapshotId;

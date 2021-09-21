@@ -151,7 +151,7 @@ public class SnapshotUtil {
    * Returns the ID of the most recent snapshot for the table as of the timestamp.
    *
    * @param table a {@link Table}
-   * @param timestampMillis the timestamp in millis since the epoch
+   * @param timestampMillis the timestamp in millis since the Unix epoch
    * @return the snapshot ID
    * @throws IllegalArgumentException when no snapshot is found in the table
    * older than the timestamp
@@ -163,6 +163,7 @@ public class SnapshotUtil {
         snapshotId = logEntry.snapshotId();
       }
     }
+
     Preconditions.checkArgument(snapshotId != null,
         "Cannot find a snapshot older than %s", timestampMillis);
     return snapshotId;
@@ -179,39 +180,42 @@ public class SnapshotUtil {
     Snapshot snapshot = table.snapshot(snapshotId);
     Preconditions.checkArgument(snapshot != null, "Cannot find snapshot %s", snapshotId);
     Integer schemaId = snapshot.schemaId();
+
     // schemaId could be null, if snapshot was created before Iceberg added schema id to snapshot
     if (schemaId != null) {
-      return table.schemas().get(schemaId);
+      Schema schema = table.schemas().get(schemaId);
+      Preconditions.checkState(schema != null,
+          "Cannot find schema for snapshot %s", schemaId);
+      return schema;
     }
+
     // TODO: recover the schema by reading previous metadata files
     return table.schema();
   }
 
   /**
    * Convenience method for returning the schema of the table for a snapshot,
-   * when we have a snapshot id and/or a timestamp.
-   * If a timestamp is given (i.e., not null), it is used to find the snapshot.
-   * Otherwise the snapshot id is used if available (i.e., not null), else
-   * the table schema is returned.
+   * when we have a snapshot id or a timestamp. Only one of them should be specified
+   * (non-null), or an IllegalArgumentException is thrown.
    *
    * @param table a {@link Table}
    * @param snapshotId the ID of the snapshot
-   * @param timestampMillis the timestamp in millis since the epoch
+   * @param timestampMillis the timestamp in millis since the Unix epoch
    * @return the schema
+   * @throws IllegalArgumentException if both snapshotId and timestampMillis are non-null
    */
   public static Schema schemaFor(Table table, Long snapshotId, Long timestampMillis) {
-    // timestampMillis takes precedence over snapshotId
-    // This is in order to be compatible with the behavior in spark2's Reader#tasks()
-    // and spark3's SparkBatchQueryScan#tasks(), where useSnapshot is called first on
-    // the TableScan (if a snapshot id is set), and asOfTimestamp is called after (if
-    // a timestamp is set); if both are called, asOfTimestamp would override the snapshot
-    // set by the useSnapshot -- in other words, the timestamp takes precedence.
+    Preconditions.checkArgument(snapshotId == null || timestampMillis == null,
+        "snapshot id and timestamp cannot both be used to find a schema");
+
+    if (snapshotId != null) {
+      return schemaFor(table, snapshotId);
+    }
+
     if (timestampMillis != null) {
       return schemaFor(table, snapshotIdAsOfTime(table, timestampMillis));
-    } else if (snapshotId != null) {
-      return schemaFor(table, snapshotId);
-    } else {
-      return table.schema();
     }
+
+    return table.schema();
   }
 }
