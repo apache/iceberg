@@ -25,7 +25,7 @@ Iceberg python is currently in development, for development and testing purposes
 
 ```
 git clone https://github.com/apache/iceberg.git
-cd iceberg/python
+cd iceberg/python_legacy
 pip install -e .
 ```
 
