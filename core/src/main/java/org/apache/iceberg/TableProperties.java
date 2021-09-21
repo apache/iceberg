@@ -123,6 +123,9 @@ public class TableProperties {
   public static final String SPLIT_OPEN_FILE_COST = "read.split.open-file-cost";
   public static final long SPLIT_OPEN_FILE_COST_DEFAULT = 4 * 1024 * 1024; // 4MB
 
+  public static final String READ_DELETE_FILES_WORKER_POOL_SIZE = "read.deletes.num-threads";
+  public static final int READ_DELETE_FILES_WORKER_POOL_SIZE_DEFAULT = 1;  // read delete files in serial.
+
   public static final String PARQUET_VECTORIZATION_ENABLED = "read.parquet.vectorization.enabled";
   public static final boolean PARQUET_VECTORIZATION_ENABLED_DEFAULT = false;
 

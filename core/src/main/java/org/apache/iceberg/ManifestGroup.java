@@ -182,11 +182,7 @@ class ManifestGroup {
       }
     });
 
-    if (executorService != null) {
-      return CloseableIterable.combine(tasks, executorService, ThreadPools.WORKER_THREAD_POOL_PARALLELISM);
-    } else {
-      return CloseableIterable.concat(tasks);
-    }
+    return CloseableIterable.combine(tasks, executorService, ThreadPools.WORKER_THREAD_POOL_SIZE);
   }
 
  /**

@@ -38,9 +38,6 @@ public class ThreadPools {
       WORKER_THREAD_POOL_SIZE_PROP,
       Runtime.getRuntime().availableProcessors());
 
-  // In default, we submit 2 tasks per worker at a time.
-  public static final int WORKER_THREAD_POOL_PARALLELISM = WORKER_THREAD_POOL_SIZE * 2;
-
   private static final ExecutorService WORKER_POOL = MoreExecutors.getExitingExecutorService(
       (ThreadPoolExecutor) Executors.newFixedThreadPool(
           WORKER_THREAD_POOL_SIZE,

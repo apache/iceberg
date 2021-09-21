@@ -31,22 +31,22 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
-public class ParallelIterable<T> extends CloseableGroup implements CloseableIterable<T> {
+class ParallelIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final Iterable<? extends Iterable<T>> iterables;
   private final ExecutorService workerPool;
-  private final int parallelism;
+  private final int workerPoolSize;
 
-  public ParallelIterable(Iterable<? extends Iterable<T>> iterables,
+  ParallelIterable(Iterable<? extends Iterable<T>> iterables,
                           ExecutorService workerPool,
-                          int parallelism) {
+                          int workerPoolSize) {
     this.iterables = iterables;
     this.workerPool = workerPool;
-    this.parallelism = parallelism;
+    this.workerPoolSize = workerPoolSize;
   }
 
   @Override
   public CloseableIterator<T> iterator() {
-    ParallelIterator<T> iter = new ParallelIterator<>(iterables, workerPool, parallelism);
+    ParallelIterator<T> iter = new ParallelIterator<>(iterables, workerPool, workerPoolSize);
     addCloseable(iter);
     return iter;
   }
@@ -60,7 +60,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
 
     private ParallelIterator(Iterable<? extends Iterable<T>> iterables,
                              ExecutorService workerPool,
-                             int parallelism) {
+                             int workerPoolSize) {
       this.tasks = Iterables.transform(iterables, iterable ->
           (Runnable) () -> {
             try (Closeable ignored = (iterable instanceof Closeable) ?
@@ -73,7 +73,8 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
             }
           }).iterator();
       this.workerPool = workerPool;
-      this.taskFutures = new Future[parallelism];
+      // In default, we submit 2 tasks per worker at a time.
+      this.taskFutures = new Future[workerPoolSize * 2];
     }
 
     @Override

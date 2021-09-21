@@ -114,8 +114,8 @@ public class AllEntriesTable extends BaseMetadataTable {
 
   private static CloseableIterable<ManifestFile> allManifestFiles(List<Snapshot> snapshots) {
     try (CloseableIterable<ManifestFile> iterable = CloseableIterable.combine(
-        Iterables.transform(snapshots, snapshot -> (Iterable<ManifestFile>) () -> snapshot.allManifests().iterator()),
-        ThreadPools.getWorkerPool(), ThreadPools.WORKER_THREAD_POOL_PARALLELISM)) {
+        Iterables.transform(snapshots, snapshot -> CloseableIterable.withNoopClose(snapshot.allManifests())),
+        ThreadPools.getWorkerPool(), ThreadPools.WORKER_THREAD_POOL_SIZE)) {
       return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close parallel iterable");

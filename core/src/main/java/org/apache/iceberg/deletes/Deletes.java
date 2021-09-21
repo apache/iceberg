@@ -77,8 +77,9 @@ public class Deletes {
     return filter.filter(rows);
   }
 
-  public static StructLikeSet toEqualitySet(CloseableIterable<StructLike> eqDeletes, Types.StructType eqType) {
-    try (CloseableIterable<StructLike> deletes = eqDeletes) {
+  public static <T extends StructLike> StructLikeSet toEqualitySet(CloseableIterable<T> eqDeletes,
+                                                                   Types.StructType eqType) {
+    try (CloseableIterable<T> deletes = eqDeletes) {
       StructLikeSet deleteSet = StructLikeSet.create(eqType);
       Iterables.addAll(deleteSet, deletes);
       return deleteSet;

@@ -22,6 +22,7 @@ package org.apache.iceberg.flink.source;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.configuration.Configuration;
@@ -59,6 +60,7 @@ public class RowDataRewriter {
   private final EncryptionManager encryptionManager;
   private final TaskWriterFactory<RowData> taskWriterFactory;
   private final String tableName;
+  private final Map<String, String> tableProperties;
 
   public RowDataRewriter(Table table, boolean caseSensitive, FileIO io, EncryptionManager encryptionManager) {
     this.schema = table.schema();
@@ -67,6 +69,7 @@ public class RowDataRewriter {
     this.encryptionManager = encryptionManager;
     this.nameMapping = PropertyUtil.propertyAsString(table.properties(), DEFAULT_NAME_MAPPING, null);
     this.tableName = table.name();
+    this.tableProperties = table.properties();
 
     String formatString = PropertyUtil.propertyAsString(table.properties(), TableProperties.DEFAULT_FILE_FORMAT,
         TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
@@ -82,7 +85,8 @@ public class RowDataRewriter {
   }
 
   public List<DataFile> rewriteDataForTasks(DataStream<CombinedScanTask> dataStream, int parallelism) throws Exception {
-    RewriteMap map = new RewriteMap(schema, nameMapping, io, caseSensitive, encryptionManager, taskWriterFactory);
+    RewriteMap map = new RewriteMap(schema, nameMapping, io, caseSensitive, encryptionManager, taskWriterFactory,
+        tableProperties);
     DataStream<List<DataFile>> ds = dataStream.map(map).setParallelism(parallelism);
     return Lists.newArrayList(ds.executeAndCollect("Rewrite table :" + tableName)).stream().flatMap(Collection::stream)
         .collect(Collectors.toList());
@@ -103,14 +107,15 @@ public class RowDataRewriter {
     private final RowDataFileScanTaskReader rowDataReader;
 
     public RewriteMap(Schema schema, String nameMapping, FileIO io, boolean caseSensitive,
-                      EncryptionManager encryptionManager, TaskWriterFactory<RowData> taskWriterFactory) {
+                      EncryptionManager encryptionManager, TaskWriterFactory<RowData> taskWriterFactory,
+                      Map<String, String> properties) {
       this.schema = schema;
       this.nameMapping = nameMapping;
       this.io = io;
       this.caseSensitive = caseSensitive;
       this.encryptionManager = encryptionManager;
       this.taskWriterFactory = taskWriterFactory;
-      this.rowDataReader = new RowDataFileScanTaskReader(schema, schema, nameMapping, caseSensitive);
+      this.rowDataReader = new RowDataFileScanTaskReader(schema, schema, nameMapping, caseSensitive, properties);
     }
 
     @Override

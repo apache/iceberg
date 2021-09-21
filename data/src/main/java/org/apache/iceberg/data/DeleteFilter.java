@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Predicate;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.DataFile;
@@ -33,6 +35,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
@@ -48,12 +51,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Filter;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
-import org.apache.iceberg.util.ThreadPools;
 import org.apache.parquet.Preconditions;
 
 public abstract class DeleteFilter<T> {
@@ -69,10 +74,11 @@ public abstract class DeleteFilter<T> {
   private final Schema requiredSchema;
   private final Accessor<StructLike> posAccessor;
 
-  private ExecutorService readService;
-  private int readParallelism;
+  private int readDeletesWorkerPoolSize;
+  private ExecutorService readDeletesService;
 
-  protected DeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema) {
+  protected DeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema,
+                         Map<String, String> tableProperties) {
     this.setFilterThreshold = DEFAULT_SET_FILTER_THRESHOLD;
     this.dataFile = task.file();
 
@@ -96,8 +102,9 @@ public abstract class DeleteFilter<T> {
     this.requiredSchema = fileProjection(tableSchema, requestedSchema, posDeletes, eqDeletes);
     this.posAccessor = requiredSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
 
-    this.readService = ThreadPools.getWorkerPool();
-    this.readParallelism = ThreadPools.WORKER_THREAD_POOL_PARALLELISM;
+    this.readDeletesWorkerPoolSize = PropertyUtil.propertyAsInt(tableProperties,
+        TableProperties.READ_DELETE_FILES_WORKER_POOL_SIZE, TableProperties.READ_DELETE_FILES_WORKER_POOL_SIZE_DEFAULT);
+    this.readDeletesService = readDeletesWorkerPoolSize > 1 ? readDeletesService(readDeletesWorkerPoolSize) : null;
   }
 
   public Schema requiredSchema() {
@@ -116,10 +123,13 @@ public abstract class DeleteFilter<T> {
     return (Long) posAccessor.get(asStructLike(record));
   }
 
-  public DeleteFilter<T> readDeleteFileWith(ExecutorService executorService, int parallelism) {
-    this.readService = executorService;
-    this.readParallelism = parallelism;
-    return this;
+  private ExecutorService readDeletesService(int workerPoolSize) {
+    return MoreExecutors.getExitingExecutorService(
+        (ThreadPoolExecutor) Executors.newFixedThreadPool(
+            workerPoolSize,
+            new ThreadFactoryBuilder()
+                .setNameFormat("Read-delete-Service-%d")
+                .build()));
   }
 
   public CloseableIterable<T> filter(CloseableIterable<T> records) {
@@ -149,10 +159,7 @@ public abstract class DeleteFilter<T> {
       Iterable<CloseableIterable<Record>> deleteRecords = Iterables.transform(deletes,
           delete -> openDeletes(delete, deleteSchema));
       StructLikeSet deleteSet = Deletes.toEqualitySet(
-          CloseableIterable.transform(
-              CloseableIterable.combine(deleteRecords, readService, readParallelism),
-              deleteRecord -> (StructLike) deleteRecord
-          ),
+          CloseableIterable.combine(deleteRecords, readDeletesService, readDeletesWorkerPoolSize),
           deleteSchema.asStruct());
 
       Predicate<T> isInDeleteSet = record -> deleteSet.contains(projectRow.wrap(asStructLike(record)));
@@ -205,8 +212,8 @@ public abstract class DeleteFilter<T> {
     if (posDeletes.stream().mapToLong(DeleteFile::recordCount).sum() < setFilterThreshold) {
       return Deletes.filter(
           records, this::pos,
-          Deletes.toPositionSet(dataFile.path(), CloseableIterable.combine(deletes, readService, readParallelism))
-      );
+          Deletes.toPositionSet(dataFile.path(),
+              CloseableIterable.combine(deletes, readDeletesService, readDeletesWorkerPoolSize)));
     }
 
     return Deletes.streamingFilter(records, this::pos, Deletes.deletePositions(dataFile.path(), deletes));
