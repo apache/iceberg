@@ -76,6 +76,7 @@ public interface DataFile extends ContentFile<DataFile> {
         FILE_PATH,
         FILE_FORMAT,
         required(PARTITION_ID, PARTITION_NAME, partitionType, PARTITION_DOC),
+        SPEC_ID,
         RECORD_COUNT,
         FILE_SIZE,
         COLUMN_SIZES,
@@ -87,8 +88,7 @@ public interface DataFile extends ContentFile<DataFile> {
         KEY_METADATA,
         SPLIT_OFFSETS,
         EQUALITY_IDS,
-        SORT_ORDER_ID,
-        SPEC_ID
+        SORT_ORDER_ID
     );
   }
 

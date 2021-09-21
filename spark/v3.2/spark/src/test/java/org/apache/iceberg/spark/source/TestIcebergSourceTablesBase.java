@@ -140,7 +140,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
       rows.forEach(row -> {
         row.put(2, 0L);
         GenericData.Record file = (GenericData.Record) row.get("data_file");
-        asEntriesTableRecord(file);
+        asUnpartitionedTableRecord(file);
         expected.add(row);
       });
     }
@@ -298,7 +298,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         rows.forEach(row -> {
           row.put(2, 0L);
           GenericData.Record file = (GenericData.Record) row.get("data_file");
-          asEntriesTableRecord(file);
+          asUnpartitionedTableRecord(file);
           expected.add(row);
         });
       }
@@ -373,7 +373,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         for (GenericData.Record record : rows) {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
             GenericData.Record file = (GenericData.Record) record.get("data_file");
-            asFilesTableRecord(file);
+            asPartitionedTableRecord(file);
             expected.add(file);
           }
         }
@@ -429,7 +429,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         try (CloseableIterable<GenericData.Record> rows = Avro.read(in).project(entriesTable.schema()).build()) {
           for (GenericData.Record record : rows) {
             GenericData.Record file = (GenericData.Record) record.get("data_file");
-            asFilesTableRecord(file);
+            asPartitionedTableRecord(file);
             expected.add(file);
           }
         }
@@ -536,7 +536,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         for (GenericData.Record record : rows) {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
             GenericData.Record file = (GenericData.Record) record.get("data_file");
-            asUnpartitioendFileTableRecord(file);
+            asUnpartitionedTableRecord(file);
             expected.add(file);
           }
         }
@@ -633,7 +633,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         for (GenericData.Record record : rows) {
           if ((Integer) record.get("status") < 2 /* added or existing */) {
             GenericData.Record file = (GenericData.Record) record.get("data_file");
-            asFilesTableRecord(file);
+            asPartitionedTableRecord(file);
             expected.add(file);
           }
         }
@@ -1218,18 +1218,13 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Assert.assertEquals("Should have two partition specs", ImmutableList.of(spec0, spec1), actual);
   }
 
-  private void asFilesTableRecord(GenericData.Record file) {
+  private void asPartitionedTableRecord(GenericData.Record file) {
     file.put(0, FileContent.DATA.id());
-    file.put(16, 0); // specId
+    file.put(4, 0); // specId
   }
 
-  private void asUnpartitioendFileTableRecord(GenericData.Record file) {
+  private void asUnpartitionedTableRecord(GenericData.Record file) {
     file.put(0, FileContent.DATA.id());
-    file.put(15, 0); // specId
-  }
-
-  private void asEntriesTableRecord(GenericData.Record file) {
-    file.put(0, FileContent.DATA.id());
-    file.put(15, 0); // specId
+    file.put(3, 0); // specId
   }
 }

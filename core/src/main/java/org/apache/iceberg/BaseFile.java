@@ -238,43 +238,43 @@ abstract class BaseFile<F>
         this.partitionData = (PartitionData) value;
         return;
       case 4:
-        this.recordCount = (Long) value;
+        this.partitionSpecId = (value != null) ? (Integer) value : -1;
         return;
       case 5:
-        this.fileSizeInBytes = (Long) value;
+        this.recordCount = (Long) value;
         return;
       case 6:
-        this.columnSizes = (Map<Integer, Long>) value;
+        this.fileSizeInBytes = (Long) value;
         return;
       case 7:
-        this.valueCounts = (Map<Integer, Long>) value;
+        this.columnSizes = (Map<Integer, Long>) value;
         return;
       case 8:
-        this.nullValueCounts = (Map<Integer, Long>) value;
+        this.valueCounts = (Map<Integer, Long>) value;
         return;
       case 9:
-        this.nanValueCounts = (Map<Integer, Long>) value;
+        this.nullValueCounts = (Map<Integer, Long>) value;
         return;
       case 10:
-        this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
+        this.nanValueCounts = (Map<Integer, Long>) value;
         return;
       case 11:
-        this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
+        this.lowerBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
         return;
       case 12:
-        this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
+        this.upperBounds = SerializableByteBufferMap.wrap((Map<Integer, ByteBuffer>) value);
         return;
       case 13:
-        this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
+        this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
         return;
       case 14:
-        this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
+        this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
         return;
       case 15:
-        this.sortOrderId = (Integer) value;
+        this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
         return;
       case 16:
-        this.partitionSpecId = (value != null) ? (Integer) value : -1;
+        this.sortOrderId = (Integer) value;
         return;
       case 17:
         this.fileOrdinal = (long) value;
@@ -306,31 +306,31 @@ abstract class BaseFile<F>
       case 3:
         return partitionData;
       case 4:
-        return recordCount;
-      case 5:
-        return fileSizeInBytes;
-      case 6:
-        return columnSizes;
-      case 7:
-        return valueCounts;
-      case 8:
-        return nullValueCounts;
-      case 9:
-        return nanValueCounts;
-      case 10:
-        return lowerBounds;
-      case 11:
-        return upperBounds;
-      case 12:
-        return keyMetadata();
-      case 13:
-        return splitOffsets();
-      case 14:
-        return equalityFieldIds();
-      case 15:
-        return sortOrderId;
-      case 16:
         return partitionSpecId;
+      case 5:
+        return recordCount;
+      case 6:
+        return fileSizeInBytes;
+      case 7:
+        return columnSizes;
+      case 8:
+        return valueCounts;
+      case 9:
+        return nullValueCounts;
+      case 10:
+        return nanValueCounts;
+      case 11:
+        return lowerBounds;
+      case 12:
+        return upperBounds;
+      case 13:
+        return keyMetadata();
+      case 14:
+        return splitOffsets();
+      case 15:
+        return equalityFieldIds();
+      case 16:
+        return sortOrderId;
       case 17:
         return pos;
       default:
@@ -448,6 +448,7 @@ abstract class BaseFile<F>
         .add("file_path", filePath)
         .add("file_format", format)
         .add("partition", partitionData)
+        .add("spec_id", specId())
         .add("record_count", recordCount)
         .add("file_size_in_bytes", fileSizeInBytes)
         .add("column_sizes", columnSizes)
