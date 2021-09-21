@@ -103,7 +103,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
   @Override
   protected void validate(TableMetadata base) {
     if (validateAddedFilesMatchOverwriteFilter) {
-      PartitionSpec spec = writeSpec();
+      PartitionSpec spec = dataSpec();
       Expression rowFilter = rowFilter();
 
       Expression inclusiveExpr = Projections.inclusive(spec).project(rowFilter);
