@@ -447,7 +447,7 @@ public class TableTestBase {
     PartitionSpec spec = table.specs().get(specId);
     return FileMetadata.deleteFileBuilder(spec)
         .ofPositionDeletes()
-        .withPath("/path/to/delete" + UUID.randomUUID() + ".parquet")
+        .withPath("/path/to/delete-" + UUID.randomUUID() + ".parquet")
         .withFileSizeInBytes(10)
         .withPartitionPath(partitionPath)
         .withRecordCount(1)
