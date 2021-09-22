@@ -61,4 +61,8 @@ public class DeleteWriteResult {
   public CharSequenceSet referencedDataFiles() {
     return referencedDataFiles;
   }
+
+  public boolean referencesDataFiles() {
+    return referencedDataFiles != null && referencedDataFiles.size() > 0;
+  }
 }

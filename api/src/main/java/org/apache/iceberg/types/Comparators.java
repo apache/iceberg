@@ -117,6 +117,10 @@ public class Comparators {
 
     @Override
     public int compare(StructLike o1, StructLike o2) {
+      if (o1 == o2) {
+        return 0;
+      }
+
       for (int i = 0; i < comparators.length; i += 1) {
         Class<?> valueClass = classes[i];
         int cmp = comparators[i].compare(o1.get(i, valueClass), o2.get(i, valueClass));
@@ -141,6 +145,10 @@ public class Comparators {
 
     @Override
     public int compare(List<T> o1, List<T> o2) {
+      if (o1 == o2) {
+        return 0;
+      }
+
       int length = Math.min(o1.size(), o2.size());
       for (int i = 0; i < length; i += 1) {
         int cmp = elementComparator.compare(o1.get(i), o2.get(i));
@@ -187,15 +195,18 @@ public class Comparators {
 
     @Override
     public int compare(T o1, T o2) {
+      if (o1 == o2) {
+        return 0;
+      }
+
       if (o1 != null) {
         if (o2 != null) {
           return 0;
         }
         return 1;
-      } else if (o2 != null) {
-        return -1;
       }
-      return 0;
+
+      return -1;
     }
 
     @Override
@@ -212,15 +223,18 @@ public class Comparators {
 
     @Override
     public int compare(T o1, T o2) {
+      if (o1 == o2) {
+        return 0;
+      }
+
       if (o1 != null) {
         if (o2 != null) {
           return 0;
         }
         return -1;
-      } else if (o2 != null) {
-        return 1;
       }
-      return 0;
+
+      return 1;
     }
 
     @Override
@@ -240,6 +254,10 @@ public class Comparators {
 
     @Override
     public int compare(T o1, T o2) {
+      if (o1 == o2) {
+        return 0;
+      }
+
       int cmp = first.compare(o1, o2);
       if (cmp == 0 && o1 != null) {
         return second.compare(o1, o2);
@@ -256,6 +274,10 @@ public class Comparators {
 
     @Override
     public int compare(ByteBuffer buf1, ByteBuffer buf2) {
+      if (buf1 == buf2) {
+        return 0;
+      }
+
       int len = Math.min(buf1.remaining(), buf2.remaining());
 
       // find the first difference and return
@@ -284,6 +306,10 @@ public class Comparators {
 
     @Override
     public int compare(byte[] array1, byte[] array2) {
+      if (array1 == array2) {
+        return 0;
+      }
+
       int len = Math.min(array1.length, array2.length);
 
       // find the first difference and return
@@ -316,6 +342,10 @@ public class Comparators {
      */
     @Override
     public int compare(CharSequence s1, CharSequence s2) {
+      if (s1 == s2) {
+        return 0;
+      }
+
       int len = Math.min(s1.length(), s2.length());
 
       // find the first difference and return
