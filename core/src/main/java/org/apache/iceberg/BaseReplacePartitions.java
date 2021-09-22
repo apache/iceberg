@@ -76,7 +76,7 @@ public class BaseReplacePartitions
   @Override
   public void validate(TableMetadata currentMetadata) {
     if (validateNoConflictingAppends) {
-      if (writeSpec().isUnpartitioned()) {
+      if (dataSpec().isUnpartitioned()) {
         validateAddedDataFiles(currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), false);
       } else {
         validateAddedDataFiles(currentMetadata, startingSnapshotId, deletedPartitions);
