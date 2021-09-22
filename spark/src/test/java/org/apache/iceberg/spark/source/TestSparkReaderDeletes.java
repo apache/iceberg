@@ -215,5 +215,4 @@ public abstract class TestSparkReaderDeletes extends DeleteReadTests {
     Assert.assertEquals("should include 4 deleted row", 4, actualRowSet.size());
     Assert.assertEquals("deleted row should be matched", expectedRowSet, actualRowSet);
   }
-
 }
