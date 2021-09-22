@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Files;
@@ -31,12 +30,12 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers.Row;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
@@ -55,9 +54,9 @@ public abstract class DeleteReadTests {
   );
 
   public static final Schema DATE_SCHEMA = new Schema(
-          Types.NestedField.required(1, "dt", Types.DateType.get()),
-          Types.NestedField.required(2, "data", Types.StringType.get()),
-          Types.NestedField.required(3, "id", Types.IntegerType.get())
+      Types.NestedField.required(1, "dt", Types.DateType.get()),
+      Types.NestedField.required(2, "data", Types.StringType.get()),
+      Types.NestedField.required(3, "id", Types.IntegerType.get())
   );
 
   // Partition spec used to create tables
@@ -66,20 +65,19 @@ public abstract class DeleteReadTests {
       .build();
 
   public static final PartitionSpec DATE_SPEC = PartitionSpec.builderFor(DATE_SCHEMA)
-          .day("dt")
-          .build();
+      .day("dt")
+      .build();
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
   protected String tableName = null;
-  protected String tableName2 = null;
+  protected String dateTableName = null;
   protected Table table = null;
-  protected Table table2 = null;
+  protected Table dateTable = null;
   private List<Record> records = null;
-  private List<Record> records2 = null;
+  private List<Record> dateRecords = null;
   private DataFile dataFile = null;
-  private DataFile dataFile2 = null;
 
   @Before
   public void writeTestDataFile() throws IOException {
@@ -110,27 +108,43 @@ public abstract class DeleteReadTests {
     dropTable("test2");
   }
 
-  protected void initTable2() throws IOException {
+  public void initDateTable() throws IOException {
     dropTable("test2");
+    this.dateTableName = "test2";
+    this.dateTable = createTable(dateTableName, DATE_SCHEMA, DATE_SPEC);
 
-    this.tableName2 = "test2";
-    this.table2 = createTable(tableName2, DATE_SCHEMA, DATE_SPEC);
-    this.records2 = Lists.newArrayList();
+    GenericRecord record = GenericRecord.create(dateTable.schema());
 
-    GenericRecord record2 = GenericRecord.create(table2.schema());
-    records2.add(record2.copy("dt", LocalDate.parse("2021-09-01"), "data", "a", "id", 1));
-    records2.add(record2.copy("dt", LocalDate.parse("2021-09-02"), "data", "b", "id", 2));
-    records2.add(record2.copy("dt", LocalDate.parse("2021-09-03"), "data", "c", "id", 3));
-    records2.add(record2.copy("dt", LocalDate.parse("2021-09-04"), "data", "d", "id", 4));
-    records2.add(record2.copy("dt", LocalDate.parse("2021-09-05"), "data", "e", "id", 5));
-    records2.add(record2.copy("dt", LocalDate.parse("2021-09-06"), "data", "f", "id", 6));
-    records2.add(record2.copy("dt", LocalDate.parse("2021-09-07"), "data", "g", "id", 7));
+    this.dateRecords = Lists.newArrayList(
+        record.copy("dt", LocalDate.parse("2021-09-01"), "data", "a", "id", 1),
+        record.copy("dt", LocalDate.parse("2021-09-02"), "data", "b", "id", 2),
+        record.copy("dt", LocalDate.parse("2021-09-03"), "data", "c", "id", 3),
+        record.copy("dt", LocalDate.parse("2021-09-04"), "data", "d", "id", 4),
+        record.copy("dt", LocalDate.parse("2021-09-05"), "data", "e", "id", 5));
 
-    this.dataFile2 = FileHelpers.writeDataFile(table2, Files.localOutput(temp.newFile("table2")), Row.of(0), records2);
+    DataFile dataFile1 = FileHelpers.writeDataFile(
+        dateTable, Files.localOutput(temp.newFile()),
+        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-01"))), dateRecords.subList(0, 1));
+    DataFile dataFile2 = FileHelpers.writeDataFile(
+        dateTable, Files.localOutput(temp.newFile()),
+        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-02"))), dateRecords.subList(1, 2));
+    DataFile dataFile3 = FileHelpers.writeDataFile(
+        dateTable, Files.localOutput(temp.newFile()),
+        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-03"))), dateRecords.subList(2, 3));
+    DataFile dataFile4 = FileHelpers.writeDataFile(
+        dateTable, Files.localOutput(temp.newFile()),
+        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-04"))), dateRecords.subList(3, 4));
+    DataFile dataFile5 = FileHelpers.writeDataFile(
+        dateTable, Files.localOutput(temp.newFile()),
+        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-05"))), dateRecords.subList(4, 5));
 
-    table2.newAppend()
-            .appendFile(dataFile2)
-            .commit();
+    dateTable.newAppend()
+        .appendFile(dataFile1)
+        .appendFile(dataFile2)
+        .appendFile(dataFile3)
+        .appendFile(dataFile4)
+        .appendFile(dataFile5)
+        .commit();
   }
 
   protected abstract Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException;
@@ -168,38 +182,37 @@ public abstract class DeleteReadTests {
 
   @Test
   public void testEqualityDateDeletes() throws IOException {
-    initTable2();
+    initDateTable();
 
-    Schema deleteRowSchema = table2.schema().select("*");
+    Schema deleteRowSchema = dateTable.schema().select("*");
     Record dataDelete = GenericRecord.create(deleteRowSchema);
     List<Record> dataDeletes = Lists.newArrayList(
-            dataDelete.copy("dt", LocalDate.parse("2021-09-01"), "data", "a", "id", 1),
-            dataDelete.copy("dt", LocalDate.parse("2021-09-02"), "data", "b", "id", 2),
-            dataDelete.copy("dt", LocalDate.parse("2021-09-03"), "data", "c", "id", 3)
+        dataDelete.copy("dt", LocalDate.parse("2021-09-01"), "data", "a", "id", 1),
+        dataDelete.copy("dt", LocalDate.parse("2021-09-02"), "data", "b", "id", 2),
+        dataDelete.copy("dt", LocalDate.parse("2021-09-03"), "data", "c", "id", 3)
     );
 
-    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
-            table2, Files.localOutput(temp.newFile()), Row.of(0), dataDeletes, deleteRowSchema);
+    DeleteFile eqDeletes1 = FileHelpers.writeDeleteFile(
+        dateTable, Files.localOutput(temp.newFile()),
+        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-01"))), dataDeletes.subList(0, 1), deleteRowSchema);
+    DeleteFile eqDeletes2 = FileHelpers.writeDeleteFile(
+        dateTable, Files.localOutput(temp.newFile()),
+        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-02"))), dataDeletes.subList(1, 2), deleteRowSchema);
+    DeleteFile eqDeletes3 = FileHelpers.writeDeleteFile(
+        dateTable, Files.localOutput(temp.newFile()),
+        Row.of(DateTimeUtil.daysFromDate(LocalDate.parse("2021-09-03"))), dataDeletes.subList(2, 3), deleteRowSchema);
 
-    table2.newRowDelta()
-            .addDeletes(eqDeletes)
-            .commit();
+    dateTable.newRowDelta()
+        .addDeletes(eqDeletes1)
+        .addDeletes(eqDeletes2)
+        .addDeletes(eqDeletes3)
+        .commit();
 
-    StructLikeSet expected = rowSetWithoutIds2(1, 2, 3);
-    StructLikeSet expectedSet = StructLikeSet.create(table2.schema().asStruct());
+    StructLikeSet expected = rowSetWithoutIds(Sets.newHashSet(1, 2, 3), dateTable, dateRecords);
 
-    Iterables.addAll(expectedSet, expected.stream()
-            .map(record -> new InternalRecordWrapper(table2.schema().asStruct()).wrap(record))
-            .collect(Collectors.toList()));
+    StructLikeSet actual = rowSet(dateTableName, dateTable, "*");
 
-    StructLikeSet actual = rowSet(tableName2, table2, "*");
-    StructLikeSet actualSet = StructLikeSet.create(table2.schema().asStruct());
-
-    Iterables.addAll(actualSet, actual.stream()
-            .map(record -> new InternalRecordWrapper(table2.schema().asStruct()).wrap(record))
-            .collect(Collectors.toList()));
-
-    Assert.assertEquals("Table should contain expected rows", expectedSet, actualSet);
+    Assert.assertEquals("Table should contain expected rows", expected, actual);
   }
 
   @Test
@@ -407,12 +420,12 @@ public abstract class DeleteReadTests {
     return set;
   }
 
-  protected StructLikeSet rowSetWithoutIds2(int... idsToRemove) {
-    Set<Integer> deletedIds = Sets.newHashSet(ArrayUtil.toIntList(idsToRemove));
-    StructLikeSet set = StructLikeSet.create(table2.schema().asStruct());
-    records2.stream()
-            .filter(row -> !deletedIds.contains(row.getField("id")))
-            .forEach(set::add);
+  public StructLikeSet rowSetWithoutIds(Set<Integer> idSet, Table iTable, List<Record> recordList) {
+    StructLikeSet set = StructLikeSet.create(iTable.schema().asStruct());
+    recordList.stream()
+        .filter(row -> !idSet.contains(row.getField("id")))
+        .map(record -> new InternalRecordWrapper(iTable.schema().asStruct()).wrap(record))
+        .forEach(set::add);
     return set;
   }
 
