@@ -332,7 +332,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
         writerFactory, fileFactory, io,
         fileFormat(), TARGET_FILE_SIZE_IN_BYTES);
 
-    PositionDelete<InternalRow> positionDelete = new PositionDelete<>();
+    PositionDelete<InternalRow> positionDelete = PositionDelete.create();
     try (ClusteredPositionDeleteWriter<InternalRow> closeableWriter = writer) {
       for (InternalRow row : positionDeleteRows) {
         String path = row.getString(0);

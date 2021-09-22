@@ -31,7 +31,7 @@ import org.apache.iceberg.util.CharSequenceSet;
 
 /**
  * A position delete writer capable of writing to multiple specs and partitions that requires
- * the incoming delete records to be properly clustered by partition spec and partition.
+ * the incoming delete records to be properly clustered by partition spec and by partition within each spec.
  */
 public class ClusteredPositionDeleteWriter<T> extends ClusteredWriter<PositionDelete<T>, DeleteWriteResult> {
 

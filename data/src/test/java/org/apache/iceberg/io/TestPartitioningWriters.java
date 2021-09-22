@@ -151,7 +151,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     writer.write(toRow(5, "ccc"), spec, partitionKey(spec, "ccc"));
 
     AssertHelpers.assertThrows("Should fail to write out of order partitions",
-        IllegalStateException.class, "Already closed files for partition: data=aaa",
+        IllegalStateException.class, "Already closed files for partition",
         () -> {
           try {
             writer.write(toRow(6, "aaa"), spec, partitionKey(spec, "aaa"));

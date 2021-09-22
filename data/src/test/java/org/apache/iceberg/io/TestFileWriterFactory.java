@@ -251,9 +251,9 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
     // write a position delete file
     List<PositionDelete<T>> deletes = ImmutableList.of(
-        new PositionDelete<T>().set(dataFile.path(), 0L, null),
-        new PositionDelete<T>().set(dataFile.path(), 2L, null),
-        new PositionDelete<T>().set(dataFile.path(), 4L, null)
+        positionDelete(dataFile.path(), 0L, null),
+        positionDelete(dataFile.path(), 2L, null),
+        positionDelete(dataFile.path(), 4L, null)
     );
     Pair<DeleteFile, CharSequenceSet> result = writePositionDeletes(writerFactory, deletes, table.spec(), partition);
     DeleteFile deleteFile = result.first();
@@ -297,7 +297,7 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
     // write a position delete file and persist the deleted row
     List<PositionDelete<T>> deletes = ImmutableList.of(
-        new PositionDelete<T>().set(dataFile.path(), 0, dataRows.get(0))
+        positionDelete(dataFile.path(), 0, dataRows.get(0))
     );
     Pair<DeleteFile, CharSequenceSet> result = writePositionDeletes(writerFactory, deletes, table.spec(), partition);
     DeleteFile deleteFile = result.first();

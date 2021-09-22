@@ -30,7 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * An equality delete writer capable of writing to multiple specs and partitions that requires
- * the incoming delete records to be properly clustered by partition spec and partition.
+ * the incoming delete records to be properly clustered by partition spec and by partition within each spec.
  */
 public class ClusteredEqualityDeleteWriter<T> extends ClusteredWriter<T, DeleteWriteResult> {
 

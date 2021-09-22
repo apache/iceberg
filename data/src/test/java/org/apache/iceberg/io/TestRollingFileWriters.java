@@ -202,7 +202,7 @@ public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
 
     List<PositionDelete<T>> deletes = Lists.newArrayListWithExpectedSize(4 * FILE_SIZE_CHECK_ROWS_DIVISOR);
     for (int index = 0; index < 4 * FILE_SIZE_CHECK_ROWS_DIVISOR; index++) {
-      deletes.add(new PositionDelete<T>().set("path/to/data/file-1.parquet", index, null));
+      deletes.add(positionDelete("path/to/data/file-1.parquet", index, null));
     }
 
     try (RollingPositionDeleteWriter<T> closeableWriter = writer) {

@@ -33,7 +33,7 @@ import org.apache.iceberg.util.StructLikeSet;
 
 /**
  * A writer capable of writing to multiple specs and partitions that requires the incoming records
- * to be clustered by partition spec and partition.
+ * to be clustered by partition spec and by partition within each spec.
  * <p>
  * As opposed to {@link FanoutWriter}, this writer keeps at most one file open to reduce
  * the memory consumption. Prefer using this writer whenever the incoming records can be clustered
@@ -85,7 +85,8 @@ abstract class ClusteredWriter<T, R> implements PartitioningWriter<T, R> {
 
       if (completedPartitions.contains(partition)) {
         String path = spec.partitionToPath(partition);
-        throw new IllegalStateException("Already closed files for partition: " + path);
+        String errMsg = String.format("Already closed files for partition '%s' in spec %d", path, spec.specId());
+        throw new IllegalStateException(errMsg);
       }
 
       // copy the partition key as the key object may be reused

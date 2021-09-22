@@ -30,7 +30,6 @@ import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.StructLikeSet;
@@ -90,9 +89,5 @@ public abstract class WriterTestBase<T> extends TableTestBase {
     }
 
     return writer.toDataFile();
-  }
-
-  protected PositionDelete<T> positionDelete(CharSequence path, long pos, T row) {
-    return new PositionDelete<T>().set(path, pos, row);
   }
 }

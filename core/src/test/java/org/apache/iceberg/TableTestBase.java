@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.LongStream;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -452,6 +453,11 @@ public class TableTestBase {
         .withPartitionPath(partitionPath)
         .withRecordCount(1)
         .build();
+  }
+
+  protected <T> PositionDelete<T> positionDelete(CharSequence path, long pos, T row) {
+    PositionDelete<T> positionDelete = PositionDelete.create();
+    return positionDelete.set(path, pos, row);
   }
 
   static void validateManifestEntries(ManifestFile manifest,
