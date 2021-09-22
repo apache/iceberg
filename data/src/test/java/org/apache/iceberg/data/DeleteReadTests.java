@@ -108,7 +108,7 @@ public abstract class DeleteReadTests {
     dropTable("test2");
   }
 
-  public void initDateTable() throws IOException {
+  private void initDateTable() throws IOException {
     dropTable("test2");
     this.dateTableName = "test2";
     this.dateTable = createTable(dateTableName, DATE_SCHEMA, DATE_SPEC);
@@ -420,7 +420,7 @@ public abstract class DeleteReadTests {
     return set;
   }
 
-  public StructLikeSet rowSetWithoutIds(Set<Integer> idSet, Table iTable, List<Record> recordList) {
+  private StructLikeSet rowSetWithoutIds(Set<Integer> idSet, Table iTable, List<Record> recordList) {
     StructLikeSet set = StructLikeSet.create(iTable.schema().asStruct());
     recordList.stream()
         .filter(row -> !idSet.contains(row.getField("id")))
