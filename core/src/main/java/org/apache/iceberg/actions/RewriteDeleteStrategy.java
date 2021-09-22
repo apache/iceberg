@@ -48,11 +48,11 @@ public interface RewriteDeleteStrategy {
   RewriteDeleteStrategy options(Map<String, String> options);
 
   /**
-   * Select the deletes to rewrite.
+   * Select the delete files to rewrite.
    *
    * @return iterable of original delete file to be replaced.
    */
-  Iterable<DeleteFile> selectDeletesToRewrite();
+  Iterable<DeleteFile> selectDeleteFiles();
 
   /**
    * Define how to rewrite the deletes.
@@ -60,7 +60,7 @@ public interface RewriteDeleteStrategy {
    * @param deleteFilesToRewrite a group of files to be rewritten together
    * @return iterable of delete files used to replace the original delete files.
    */
-  Set<DeleteFile> rewriteDeletes(Set<DeleteFile> deleteFilesToRewrite);
+  Set<DeleteFile> rewriteDeleteFiles(Set<DeleteFile> deleteFilesToRewrite);
 
   /**
    * Groups file scans into lists which will be processed in a single executable unit. Each group will end up being
@@ -70,5 +70,5 @@ public interface RewriteDeleteStrategy {
    * @param deleteFiles iterable of DeleteFile to be rewritten
    * @return iterable of lists of FileScanTasks which will be processed together
    */
-  Iterable<Set<DeleteFile>> planDeleteGroups(Iterable<DeleteFile> deleteFiles);
+  Iterable<Set<DeleteFile>> planDeleteFileGroups(Iterable<DeleteFile> deleteFiles);
 }

@@ -34,14 +34,14 @@ public interface RewriteDeleteFiles extends SnapshotUpdate<RewriteDeleteFiles, R
    *
    * @return this for method chaining
    */
-  RewriteDeleteFiles convertEqDeletesToPosDeletes();
+  RewriteDeleteFiles convertEqualityDeletes();
 
   /**
-   * Bin pack the position deletes.
+   * Combine the position deletes.
    *
    * @return this for method chaining
    */
-  RewriteDeleteFiles binPackPosDeletes();
+  RewriteDeleteFiles combinePositionDeletes();
 
   /**
    * A filter for choosing deletes to rewrite.
