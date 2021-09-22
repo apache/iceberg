@@ -20,9 +20,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
-import java.time.LocalDate;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogUtil;
@@ -41,14 +39,12 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.DeleteReadTests;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkStructLike;
@@ -220,37 +216,4 @@ public abstract class TestSparkReaderDeletes extends DeleteReadTests {
     Assert.assertEquals("deleted row should be matched", expectedRowSet, actualRowSet);
   }
 
-  @Test
-  public void testEqualityDateDeletes() throws IOException {
-    initTable2();
-
-    Schema deleteRowSchema = table2.schema().select("*");
-    Record dataDelete = GenericRecord.create(deleteRowSchema);
-    List<Record> dataDeletes = Lists.newArrayList(
-            dataDelete.copy("dt", LocalDate.parse("2021-09-01"), "data", "a", "id", 1),
-            dataDelete.copy("dt", LocalDate.parse("2021-09-02"), "data", "b", "id", 2),
-            dataDelete.copy("dt", LocalDate.parse("2021-09-03"), "data", "c", "id", 3)
-    );
-
-    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
-            table2, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, deleteRowSchema);
-
-    table2.newRowDelta()
-            .addDeletes(eqDeletes)
-            .commit();
-
-    StructLikeSet expected = rowSetWithoutIds2(1, 2, 3);
-    StructLikeSet expectedSet = StructLikeSet.create(table2.schema().asStruct());
-
-    Iterables.addAll(expectedSet, expected.stream()
-            .map(record -> new InternalRecordWrapper(table2.schema().asStruct()).wrap(record))
-            .collect(Collectors.toList()));
-
-    StructLikeSet actual = rowSet(tableName2, table2, "*");
-    StructLikeSet actualSet = StructLikeSet.create(table2.schema().asStruct());
-
-    Iterables.addAll(actualSet, actual);
-
-    Assert.assertEquals("Table should contain expected rows", expectedSet, actualSet);
-  }
 }

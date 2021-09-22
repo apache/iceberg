@@ -20,34 +20,21 @@
 package org.apache.iceberg.flink.source;
 
 import java.io.IOException;
-import java.time.LocalDate;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.data.FileHelpers;
-import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.InternalRecordWrapper;
-import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestHelpers;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.StructLikeSet;
-import org.junit.Assert;
-import org.junit.Test;
 
 public class TestFlinkInputFormatReaderDeletes extends TestFlinkReaderDeletesBase {
 
@@ -76,41 +63,6 @@ public class TestFlinkInputFormatReaderDeletes extends TestFlinkReaderDeletesBas
     });
 
     return set;
-  }
-
-  @Test
-  public void testEqualityDateDeletes() throws IOException {
-    initTable2();
-
-    Schema deleteRowSchema = table2.schema().select("*");
-    Record dataDelete = GenericRecord.create(deleteRowSchema);
-    List<Record> dataDeletes = Lists.newArrayList(
-            dataDelete.copy("dt", LocalDate.parse("2021-09-01"), "data", "a", "id", 1),
-            dataDelete.copy("dt", LocalDate.parse("2021-09-02"), "data", "b", "id", 2),
-            dataDelete.copy("dt", LocalDate.parse("2021-09-03"), "data", "c", "id", 3)
-    );
-
-    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
-            table2, Files.localOutput(temp.newFile()),
-            org.apache.iceberg.TestHelpers.Row.of(0), dataDeletes, deleteRowSchema);
-
-    table2.newRowDelta()
-            .addDeletes(eqDeletes)
-            .commit();
-
-    StructLikeSet expected = rowSetWithoutIds2(1, 2, 3);
-    StructLikeSet expectedSet = StructLikeSet.create(table2.schema().asStruct());
-
-    Iterables.addAll(expectedSet, expected.stream()
-            .map(record -> new InternalRecordWrapper(table2.schema().asStruct()).wrap(record))
-            .collect(Collectors.toList()));
-
-    StructLikeSet actual = rowSet(tableName2, table2, "*");
-    StructLikeSet actualSet = StructLikeSet.create(table2.schema().asStruct());
-
-    Iterables.addAll(actualSet, actual);
-
-    Assert.assertEquals("Table should contain expected rows", expectedSet, actualSet);
   }
 
 }
