@@ -17,9 +17,10 @@
 
 # Roadmap Overview
 
-This is an overview of the current Roadmap planning with links to their plannings boards that encapsulate related issues.
-The mailing list discussion around Roadmap planning can be found [here](https://lists.apache.org/thread.html/r84e80216c259c81f824c6971504c321cd8c785774c489d52d4fc123f%40%3Cdev.iceberg.apache.org%3E).
-Related design docs (if available) should be linked on the planning boards.
+This roadmap outlines projects that the Iceberg community is working on, their priority, and a rough size estimate.
+This is based on the latest [community priority discussion](https://lists.apache.org/thread.html/r84e80216c259c81f824c6971504c321cd8c785774c489d52d4fc123f%40%3Cdev.iceberg.apache.org%3E).
+Each high-level item links to a Github project board that tracks the current status.
+Related design docs will be linked on the planning boards.
 
 # Priority 1
 
@@ -49,7 +50,6 @@ Related design docs (if available) should be linked on the planning boards.
 * Docs: [versioned docs](https://github.com/apache/iceberg/projects/20) [medium]
 * IO: [Support Aliyun OSS/DLF](https://github.com/apache/iceberg/projects/21) [medium]
 * IO: [Support Dell ECS](https://github.com/apache/iceberg/projects/22) [medium]
-
 
 # External
 
