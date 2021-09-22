@@ -83,7 +83,7 @@ Apache Iceberg 0.12.0 was released on August 15, 2021. It consists of 395 commit
     * Added support for micro-batch streaming reads for structured streaming in Spark3 [[\#2660](https://github.com/apache/iceberg/pull/2660)].
     * Improved the performance of importing a Hive table by not loading all partitions from Hive and instead pushing the partition filter to the Metastore [[\#2777](https://github.com/apache/iceberg/pull/2777)].
     * Added support for `UPDATE` statements in Spark [[\#2193](https://github.com/apache/iceberg/pull/2193), [\#2206](https://github.com/apache/iceberg/pull/2206)].
-    * Added support for Spark 3.1 [[\#2512]()].
+    * Added support for Spark 3.1 [[\#2512](https://github.com/apache/iceberg/pull/2512)].
     * Added `RemoveReachableFiles` action [[\#2415](https://github.com/apache/iceberg/pull/2415)].
     * Added `add_files` stored procedure [[\#2210](https://github.com/apache/iceberg/pull/2210)].
     * Refactored Actions API and added a new entry point.
