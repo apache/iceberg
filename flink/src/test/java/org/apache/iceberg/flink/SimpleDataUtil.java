@@ -78,6 +78,7 @@ public class SimpleDataUtil {
       Types.NestedField.optional(1, "id", Types.IntegerType.get()),
       Types.NestedField.optional(2, "data", Types.StringType.get())
   );
+
   public static final TableSchema FLINK_SCHEMA = TableSchema.builder()
       .field("id", DataTypes.INT())
       .field("data", DataTypes.STRING())
