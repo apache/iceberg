@@ -27,21 +27,22 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.SimpleDataUtil;
-import org.apache.iceberg.io.TestWriterFactory;
-import org.apache.iceberg.io.WriterFactory;
+import org.apache.iceberg.io.FileWriterFactory;
+import org.apache.iceberg.io.TestFileWriterFactory;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.StructLikeSet;
 
-public class TestFlinkWriterFactory extends TestWriterFactory<RowData> {
+public class TestFlinkFileWriterFactory extends TestFileWriterFactory<RowData> {
 
-  public TestFlinkWriterFactory(FileFormat fileFormat, boolean partitioned) {
+  public TestFlinkFileWriterFactory(FileFormat fileFormat, boolean partitioned) {
     super(fileFormat, partitioned);
   }
 
   @Override
-  protected WriterFactory<RowData> newWriterFactory(Schema dataSchema, List<Integer> equalityFieldIds,
-                                                    Schema equalityDeleteRowSchema, Schema positionDeleteRowSchema) {
-    return FlinkWriterFactory.builderFor(table)
+  protected FileWriterFactory<RowData> newWriterFactory(Schema dataSchema, List<Integer> equalityFieldIds,
+                                                        Schema equalityDeleteRowSchema,
+                                                        Schema positionDeleteRowSchema) {
+    return FlinkFileWriterFactory.builderFor(table)
         .dataSchema(table.schema())
         .dataFileFormat(format())
         .deleteFileFormat(format())

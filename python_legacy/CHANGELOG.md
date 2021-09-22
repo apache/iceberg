@@ -17,5 +17,8 @@
 
 # iceberg Changelog
 
+## 2021-09-04
+* Rename this one to python_legacy. - [Jun He]
+
 ## iceberg 0.0.1 (2019-02-08)
 * Library creation. - [Ted Gooch]
