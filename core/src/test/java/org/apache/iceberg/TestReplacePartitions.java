@@ -394,7 +394,7 @@ public class TestReplacePartitions extends TableTestBase {
 
     AssertHelpers.assertThrows("Should reject commit with file matching partitions replaced",
         ValidationException.class,
-        "Found conflicting files in an unpartitioned table: [/path/to/data-a.parquet]",
+        "Found conflicting files that can contain records matching true: [/path/to/data-a.parquet]",
         () ->
             unpartitioned.newReplacePartitions()
                 .validateFromSnapshot(replaceBaseId)
@@ -422,7 +422,7 @@ public class TestReplacePartitions extends TableTestBase {
 
     AssertHelpers.assertThrows("Should reject commit with file matching partitions replaced",
         ValidationException.class,
-        "Found conflicting files in an unpartitioned table: [/path/to/data-a.parquet]",
+        "Found conflicting files that can contain records matching true: [/path/to/data-a.parquet]",
         () ->
             unpartitioned.newReplacePartitions()
                 .validateFromSnapshot(replaceBaseId)

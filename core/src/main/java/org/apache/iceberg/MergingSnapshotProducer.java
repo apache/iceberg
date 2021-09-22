@@ -25,8 +25,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+<<<<<<< HEAD
 import java.util.Objects;
 import java.util.Optional;
+=======
+>>>>>>> Address review comments- add SparkWrite property validate-from-snapshot and add unit test
 import java.util.Set;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -275,9 +278,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * @param base table metadata to validate
    * @param startingSnapshotId id of the snapshot current at the start of the operation
    * @param conflictDetectionFilter an expression used to find new conflicting data files
+   * @param partitionSet a set of partitions to check against
    */
-  protected void validateAddedDataFiles(TableMetadata base, Long startingSnapshotId,
-                                        Optional<PartitionSet> partitionSet) {
+  protected void validateAddedDataFiles(TableMetadata base, Long startingSnapshotId, PartitionSet partitionSet) {
     // if there is no current table state, no files have been added
     if (base.currentSnapshot() == null) {
       return;
@@ -295,21 +298,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         .ignoreExisting();
 
     try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictGroup.entries().iterator()) {
-      if (partitionSet.isPresent()) {
-        // Partitioned table, check against given partitions
-        CloseableIterable<ManifestEntry<DataFile>> filtered = CloseableIterable.filter(conflictGroup.entries(),
-            f -> partitionSet.get().contains(f.file().specId(), f.file().partition()));
-        if (filtered.iterator().hasNext()) {
-          throw new ValidationException("Found conflicting files that can contain records matching partitions %s: %s",
-              partitionSet.get(),
-              Iterators.toString(Iterators.transform(conflicts, entry -> entry.file().path().toString())));
-        }
-      } else {
-        if (conflicts.hasNext()) {
-          // Unpartitioned table, check against all files
-          throw new ValidationException("Found conflicting files in an unpartitioned table: %s",
-              Iterators.toString(Iterators.transform(conflicts, entry -> entry.file().path().toString())));
-        }
+      CloseableIterable<ManifestEntry<DataFile>> filtered = CloseableIterable.filter(conflictGroup.entries(),
+          f -> partitionSet.contains(f.file().specId(), f.file().partition()));
+      if (filtered.iterator().hasNext()) {
+        throw new ValidationException("Found conflicting files that can contain records matching partitions %s: %s",
+            partitionSet,
+            Iterators.toString(Iterators.transform(conflicts, entry -> entry.file().path().toString())));
       }
     } catch (IOException e) {
       throw new UncheckedIOException(String.format("Failed to validate no appends matching %s", partitionSet), e);

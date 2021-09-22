@@ -113,6 +113,7 @@ class SparkWrite {
   private final StructType dsSchema;
   private final Map<String, String> extraSnapshotMetadata;
   private final boolean partitionedFanoutEnabled;
+  private final long validateFromSnapshotId;
 
   SparkWrite(SparkSession spark, Table table, SparkWriteConf writeConf,
              LogicalWriteInfo writeInfo, String applicationId,
@@ -128,6 +129,24 @@ class SparkWrite {
     this.dsSchema = dsSchema;
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.partitionedFanoutEnabled = writeConf.fanoutWriterEnabled();
+    this.extraSnapshotMetadata = Maps.newHashMap();
+
+    writeInfo.options().forEach((key, value) -> {
+      if (key.startsWith(SnapshotSummary.EXTRA_METADATA_PREFIX)) {
+        extraSnapshotMetadata.put(key.substring(SnapshotSummary.EXTRA_METADATA_PREFIX.length()), value);
+      }
+    });
+
+    long tableTargetFileSize = PropertyUtil.propertyAsLong(
+        table.properties(), WRITE_TARGET_FILE_SIZE_BYTES, WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+    this.targetFileSize = writeInfo.options().getLong(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, tableTargetFileSize);
+
+    boolean tablePartitionedFanoutEnabled = PropertyUtil.propertyAsBoolean(
+        table.properties(), SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT);
+    this.partitionedFanoutEnabled = writeInfo.options()
+        .getBoolean(SparkWriteOptions.FANOUT_ENABLED, tablePartitionedFanoutEnabled);
+    this.validateFromSnapshotId = writeInfo.options().getLong(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, 0);
+>>>>>>> Address review comments- add SparkWrite property validate-from-snapshot and add unit test
   }
 
   BatchWrite asBatchAppend() {
@@ -138,7 +157,7 @@ class SparkWrite {
     String isolationLevelAsString = table.properties().getOrDefault(REPLACE_PARTITION_LEVEL,
         REPLACE_PARTITION_LEVEL_DEFAULT);
     IsolationLevel level = IsolationLevel.valueOf(isolationLevelAsString.toUpperCase(Locale.ROOT));
-    return new DynamicOverwrite(level, table.currentSnapshot().snapshotId());
+    return new DynamicOverwrite(level, validateFromSnapshotId);
   }
 
   BatchWrite asOverwriteByFilter(Expression overwriteExpr) {
@@ -253,7 +272,6 @@ class SparkWrite {
   }
 
   private class DynamicOverwrite extends BaseBatchWrite {
-
     private final IsolationLevel isolationLevel;
     private final long startingSnapshotId;
 
@@ -283,6 +301,7 @@ class SparkWrite {
       if (isolationLevel == SERIALIZABLE) {
         dynamicOverwrite.validateNoConflictingAppends();
       }
+
       commitOperation(dynamicOverwrite, String.format("dynamic partition overwrite with %d new data files", numFiles));
     }
   }

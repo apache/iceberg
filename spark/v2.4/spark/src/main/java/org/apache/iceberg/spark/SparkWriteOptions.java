@@ -53,4 +53,7 @@ public class SparkWriteOptions {
 
   // Controls whether to allow writing timestamps without zone info
   public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE = "handle-timestamp-without-timezone";
+
+  // Identifies snapshot from which to start validating conflicting changes
+  public static final String VALIDATE_FROM_SNAPSHOT_ID = "validate-from-snapshot";
 }

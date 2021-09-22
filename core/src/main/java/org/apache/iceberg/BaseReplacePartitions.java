@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import java.util.List;
-import java.util.Optional;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.util.PartitionSet;
@@ -28,13 +27,14 @@ import org.apache.iceberg.util.PartitionSet;
 public class BaseReplacePartitions
     extends MergingSnapshotProducer<ReplacePartitions> implements ReplacePartitions {
 
-  private final PartitionSet deletedPartitions = PartitionSet.create(super.getSpecsById());
+  private final PartitionSet deletedPartitions;
   private Long startingSnapshotId = null;
   private boolean validateNoConflictingAppends = false;
 
   BaseReplacePartitions(String tableName, TableOperations ops) {
     super(tableName, ops);
     set(SnapshotSummary.REPLACE_PARTITIONS_PROP, "true");
+    deletedPartitions = PartitionSet.create(super.getSpecsById());
   }
 
   @Override
@@ -77,9 +77,9 @@ public class BaseReplacePartitions
   public void validate(TableMetadata currentMetadata) {
     if (validateNoConflictingAppends) {
       if (writeSpec().isUnpartitioned()) {
-        validateAddedDataFiles(currentMetadata, startingSnapshotId, Optional.empty());
+        validateAddedDataFiles(currentMetadata, startingSnapshotId, Expressions.alwaysTrue(), false);
       } else {
-        validateAddedDataFiles(currentMetadata, startingSnapshotId, Optional.of(deletedPartitions));
+        validateAddedDataFiles(currentMetadata, startingSnapshotId, deletedPartitions);
       }
     }
   }
