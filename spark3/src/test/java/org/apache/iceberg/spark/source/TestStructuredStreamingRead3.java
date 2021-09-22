@@ -176,6 +176,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     table.refresh();
     long streamStartTimestamp = table.currentSnapshot().timestampMillis() + 1;
+    waitUntilAfter(streamStartTimestamp);
 
     List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
     appendDataAsMultipleSnapshots(expected, tableIdentifier);
@@ -208,16 +209,18 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     table.refresh();
     long streamStartTimestamp = table.currentSnapshot().timestampMillis();
 
+    // Start stream
+    Dataset<Row> df = spark.readStream()
+            .format("iceberg")
+            .option(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(streamStartTimestamp))
+            .load(tableIdentifier);
+
     // Append rest of expected data
     for (int i = 1; i < expected.size(); i++) {
       appendData(expected.get(i), tableIdentifier, "parquet");
     }
 
     table.refresh();
-    Dataset<Row> df = spark.readStream()
-            .format("iceberg")
-            .option(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(streamStartTimestamp))
-            .load(tableIdentifier);
     List<SimpleRecord> actual = processAvailable(df);
 
     Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
@@ -234,6 +237,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     table.refresh();
     long streamStartTimestamp = table.currentSnapshot().timestampMillis() + 1;
+    waitUntilAfter(streamStartTimestamp);
 
     Dataset<Row> df = spark.readStream()
         .format("iceberg")
