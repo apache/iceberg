@@ -90,7 +90,7 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   private FileIO fileIO;
   private boolean suppressPermissionError = false;
 
-  public HadoopCatalog(){
+  public HadoopCatalog() {
   }
 
   @Override
@@ -111,11 +111,10 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
   /**
    * The constructor of the HadoopCatalog. It uses the passed location as its warehouse directory.
    *
-   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
-   * v0.13.0
-   *
    * @param conf The Hadoop configuration
    * @param warehouseLocation The location used as warehouse directory
+   * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
+   * v0.13.0
    */
   @Deprecated
   public HadoopCatalog(Configuration conf, String warehouseLocation) {
@@ -128,10 +127,9 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
    * from the passed Hadoop configuration as its default file system, and use the default directory
    * <code>iceberg/warehouse</code> as the warehouse directory.
    *
+   * @param conf The Hadoop configuration
    * @deprecated please use the no-arg constructor, setConf and initialize to construct the catalog. Will be removed in
    * v0.13.0
-   *
-   * @param conf The Hadoop configuration
    */
   @Deprecated
   public HadoopCatalog(Configuration conf) {
@@ -252,21 +250,19 @@ public class HadoopCatalog extends BaseMetastoreCatalog implements Closeable, Su
 
     Path tablePath = new Path(defaultWarehouseLocation(identifier));
     TableOperations ops = newTableOps(identifier);
-    TableMetadata lastMetadata;
-    if (purge && ops.current() != null) {
-      lastMetadata = ops.current();
-    } else {
-      lastMetadata = null;
-    }
-
+    TableMetadata lastMetadata = ops.current();
     try {
-      if (purge && lastMetadata != null) {
-        // Since the data files and the metadata files may store in different locations,
-        // so it has to call dropTableData to force delete the data file.
-        CatalogUtil.dropTableData(ops.io(), lastMetadata);
+      if (lastMetadata == null) {
+        LOG.debug("Not an iceberg table: {}", identifier);
+        return false;
+      } else {
+        if (purge) {
+          // Since the data files and the metadata files may store in different locations,
+          // so it has to call dropTableData to force delete the data file.
+          CatalogUtil.dropTableData(ops.io(), lastMetadata);
+        }
+        return fs.delete(tablePath, true /* recursive */);
       }
-      fs.delete(tablePath, true /* recursive */);
-      return true;
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to delete file: %s", tablePath);
     }

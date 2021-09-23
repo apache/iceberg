@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.LongStream;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
@@ -431,6 +432,26 @@ public class TableTestBase {
     }
 
     Assert.assertFalse("Should find all files in the manifest", expectedFiles.hasNext());
+  }
+
+  protected DataFile newDataFile(String partitionPath) {
+    return DataFiles.builder(table.spec())
+        .withPath("/path/to/data-" + UUID.randomUUID() + ".parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath(partitionPath)
+        .withRecordCount(1)
+        .build();
+  }
+
+  protected DeleteFile newDeleteFile(int specId, String partitionPath) {
+    PartitionSpec spec = table.specs().get(specId);
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofPositionDeletes()
+        .withPath("/path/to/delete-" + UUID.randomUUID() + ".parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath(partitionPath)
+        .withRecordCount(1)
+        .build();
   }
 
   static void validateManifestEntries(ManifestFile manifest,

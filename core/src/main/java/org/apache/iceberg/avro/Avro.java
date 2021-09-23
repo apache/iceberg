@@ -118,6 +118,7 @@ public class Avro {
     public WriteBuilder forTable(Table table) {
       schema(table.schema());
       setAll(table.properties());
+      metricsConfig(MetricsConfig.forTable(table));
       return this;
     }
 
@@ -256,7 +257,7 @@ public class Avro {
       schema(table.schema());
       withSpec(table.spec());
       setAll(table.properties());
-      metricsConfig(MetricsConfig.fromProperties(table.properties()));
+      metricsConfig(MetricsConfig.forTable(table));
       return this;
     }
 

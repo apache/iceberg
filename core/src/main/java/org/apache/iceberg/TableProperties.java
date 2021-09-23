@@ -132,17 +132,36 @@ public class TableProperties {
   public static final String ORC_VECTORIZATION_ENABLED = "read.orc.vectorization.enabled";
   public static final boolean ORC_VECTORIZATION_ENABLED_DEFAULT = false;
 
+  public static final String ORC_BATCH_SIZE = "read.orc.vectorization.batch-size";
+  public static final int ORC_BATCH_SIZE_DEFAULT = 5000;
+
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
 
+  /**
+   * @deprecated Use {@link #WRITE_DATA_LOCATION} instead.
+   */
+  @Deprecated
   public static final String OBJECT_STORE_PATH = "write.object-storage.path";
 
   public static final String WRITE_LOCATION_PROVIDER_IMPL = "write.location-provider.impl";
 
+  /**
+   * @deprecated Use {@link #WRITE_DATA_LOCATION} instead.
+   */
+  @Deprecated
+  public static final String WRITE_FOLDER_STORAGE_LOCATION = "write.folder-storage.path";
+
+  /**
+   * @deprecated will be removed in 0.14.0, use {@link #WRITE_DATA_LOCATION} instead
+   */
+  @Deprecated
+  public static final String WRITE_NEW_DATA_LOCATION = "write.folder-storage.path";
+
   // This only applies to files written after this property is set. Files previously written aren't
   // relocated to reflect this parameter.
   // If not set, defaults to a "data" folder underneath the root path of the table.
-  public static final String WRITE_NEW_DATA_LOCATION = "write.folder-storage.path";
+  public static final String WRITE_DATA_LOCATION = "write.data.path";
 
   // This only applies to files written after this property is set. Files previously written aren't
   // relocated to reflect this parameter.
@@ -222,4 +241,7 @@ public class TableProperties {
 
   public static final String MERGE_CARDINALITY_CHECK_ENABLED = "write.merge.cardinality-check.enabled";
   public static final boolean MERGE_CARDINALITY_CHECK_ENABLED_DEFAULT = true;
+
+  public static final String UPSERT_MODE_ENABLE = "write.upsert.enable";
+  public static final boolean UPSERT_MODE_ENABLE_DEFAULT = false;
 }

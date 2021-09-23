@@ -39,16 +39,26 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 /**
  * Test Metrics for ORC.
  */
+@RunWith(Parameterized.class)
 public class TestOrcMetrics extends TestMetrics {
 
   static final ImmutableSet<Object> BINARY_TYPES = ImmutableSet.of(Type.TypeID.BINARY,
       Type.TypeID.FIXED, Type.TypeID.UUID);
+
+  @Parameterized.Parameters(name = "formatVersion = {0}")
+  public static Object[] parameters() {
+    return new Object[] { 1, 2 };
+  }
+
+  public TestOrcMetrics(int formatVersion) {
+    super(formatVersion);
+  }
 
   @Override
   protected OutputFile createOutputFile() throws IOException {
@@ -56,9 +66,6 @@ public class TestOrcMetrics extends TestMetrics {
     String filename = UUID.randomUUID().toString();
     return Files.localOutput(new File(tmpFolder, FileFormat.ORC.addExtension(filename)));
   }
-
-  @Rule
-  public TemporaryFolder temp = new TemporaryFolder();
 
   @Override
   public FileFormat fileFormat() {

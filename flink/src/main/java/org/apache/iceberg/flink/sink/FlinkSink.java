@@ -42,6 +42,7 @@ import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
@@ -59,6 +60,8 @@ import org.slf4j.LoggerFactory;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
+import static org.apache.iceberg.TableProperties.UPSERT_MODE_ENABLE;
+import static org.apache.iceberg.TableProperties.UPSERT_MODE_ENABLE_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
@@ -126,6 +129,7 @@ public class FlinkSink {
     private boolean overwrite = false;
     private DistributionMode distributionMode = null;
     private Integer writeParallelism = null;
+    private boolean upsert = false;
     private List<String> equalityFieldColumns = null;
     private String uidPrefix = null;
 
@@ -215,6 +219,20 @@ public class FlinkSink {
     }
 
     /**
+     * All INSERT/UPDATE_AFTER events from input stream will be transformed to UPSERT events, which means it will
+     * DELETE the old records and then INSERT the new records. In partitioned table, the partition fields should be
+     * a subset of equality fields, otherwise the old row that located in partition-A could not be deleted by the
+     * new row that located in partition-B.
+     *
+     * @param enable indicate whether it should transform all INSERT/UPDATE_AFTER events to UPSERT.
+     * @return {@link Builder} to connect the iceberg table.
+     */
+    public Builder upsert(boolean enable) {
+      this.upsert = enable;
+      return this;
+    }
+
+    /**
      * Configuring the equality field columns for iceberg table that accept CDC or UPSERT events.
      *
      * @param columns defines the iceberg table's key.
@@ -251,7 +269,7 @@ public class FlinkSink {
       return this;
     }
 
-    public DataStreamSink<RowData> build() {
+    private <T> DataStreamSink<T> chainIcebergOperators() {
       Preconditions.checkArgument(inputCreator != null,
           "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
       Preconditions.checkNotNull(tableLoader, "Table loader shouldn't be null");
@@ -296,12 +314,34 @@ public class FlinkSink {
       return appendDummySink(committerStream);
     }
 
+    /**
+     * Append the iceberg sink operators to write records to iceberg table.
+     *
+     * @return {@link DataStreamSink} for sink.
+     * @deprecated this will be removed in 0.14.0; use {@link #append()} because its returned {@link DataStreamSink}
+     * has a more correct data type.
+     */
+    @Deprecated
+    public DataStreamSink<RowData> build() {
+      return chainIcebergOperators();
+    }
+
+    /**
+     * Append the iceberg sink operators to write records to iceberg table.
+     *
+     * @return {@link DataStreamSink} for sink.
+     */
+    public DataStreamSink<Void> append() {
+      return chainIcebergOperators();
+    }
+
     private String operatorName(String suffix) {
       return uidPrefix != null ? uidPrefix + "-" + suffix : suffix;
     }
 
-    private DataStreamSink<RowData> appendDummySink(SingleOutputStreamOperator<Void> committerStream) {
-      DataStreamSink<RowData> resultStream = committerStream
+    @SuppressWarnings("unchecked")
+    private <T> DataStreamSink<T> appendDummySink(SingleOutputStreamOperator<Void> committerStream) {
+      DataStreamSink<T> resultStream = committerStream
           .addSink(new DiscardingSink())
           .name(operatorName(String.format("IcebergSink %s", this.table.name())))
           .setParallelism(1);
@@ -324,8 +364,28 @@ public class FlinkSink {
     }
 
     private SingleOutputStreamOperator<WriteResult> appendWriter(DataStream<RowData> input, RowType flinkRowType,
-        List<Integer> equalityFieldIds) {
-      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds);
+                                                                 List<Integer> equalityFieldIds) {
+
+      // Fallback to use upsert mode parsed from table properties if don't specify in job level.
+      boolean upsertMode = upsert || PropertyUtil.propertyAsBoolean(table.properties(),
+          UPSERT_MODE_ENABLE, UPSERT_MODE_ENABLE_DEFAULT);
+
+      // Validate the equality fields and partition fields if we enable the upsert mode.
+      if (upsertMode) {
+        Preconditions.checkState(!overwrite,
+            "OVERWRITE mode shouldn't be enable when configuring to use UPSERT data stream.");
+        Preconditions.checkState(!equalityFieldIds.isEmpty(),
+            "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
+        if (!table.spec().isUnpartitioned()) {
+          for (PartitionField partitionField : table.spec().fields()) {
+            Preconditions.checkState(equalityFieldIds.contains(partitionField.sourceId()),
+                "In UPSERT mode, partition field '%s' should be included in equality fields: '%s'",
+                partitionField, equalityFieldColumns);
+          }
+        }
+      }
+
+      IcebergStreamWriter<RowData> streamWriter = createStreamWriter(table, flinkRowType, equalityFieldIds, upsertMode);
 
       int parallelism = writeParallelism == null ? input.getParallelism() : writeParallelism;
       SingleOutputStreamOperator<WriteResult> writerStream = input
@@ -415,7 +475,9 @@ public class FlinkSink {
 
   static IcebergStreamWriter<RowData> createStreamWriter(Table table,
                                                          RowType flinkRowType,
-                                                         List<Integer> equalityFieldIds) {
+                                                         List<Integer> equalityFieldIds,
+                                                         boolean upsert) {
+    Preconditions.checkArgument(table != null, "Iceberg table should't be null");
     Map<String, String> props = table.properties();
     long targetFileSize = getTargetFileSizeBytes(props);
     FileFormat fileFormat = getFileFormat(props);
@@ -423,7 +485,7 @@ public class FlinkSink {
     Table serializableTable = SerializableTable.copyOf(table);
     TaskWriterFactory<RowData> taskWriterFactory = new RowDataTaskWriterFactory(
         serializableTable, flinkRowType, targetFileSize,
-        fileFormat, equalityFieldIds);
+        fileFormat, equalityFieldIds, upsert);
 
     return new IcebergStreamWriter<>(table.name(), taskWriterFactory);
   }

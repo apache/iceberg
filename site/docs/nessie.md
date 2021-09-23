@@ -94,7 +94,7 @@ to the set of single table transactions currently available.
 
 Further operations such as merges, viewing the commit log or diffs are performed by direct interaction with the
 `NessieClient` in java or by using the python client or cli. See [Nessie CLI](https://projectnessie.org/tools/cli/) for
-more details on the CLI and [Spark Guide](https://projectnessie.org/tools/spark/) for a more complete description of 
+more details on the CLI and [Spark Guide](https://projectnessie.org/tools/iceberg/spark/) for a more complete description of 
 Nessie functionality.
 
 ## Nessie and Iceberg

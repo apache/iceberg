@@ -114,8 +114,8 @@ abstract class TestTables {
 
   /**
    * The table properties string needed for the CREATE TABLE ... commands,
-   * like "TBLPROPERTIES('iceberg.catalog'='mycatalog')
-   * @return
+   * like {@code TBLPROPERTIES('iceberg.catalog'='mycatalog')}
+   * @return the tables properties string, such as {@code TBLPROPERTIES('iceberg.catalog'='mycatalog')}
    */
   public String propertiesForCreateTableSQL(Map<String, String> tableProperties) {
     Map<String, String> properties = new HashMap<>(tableProperties);
