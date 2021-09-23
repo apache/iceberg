@@ -39,7 +39,7 @@ import org.apache.iceberg.util.StructLikeMap;
  */
 abstract class FanoutWriter<T, R> implements PartitioningWriter<T, R> {
 
-  private final Map<Integer, Map<StructLike, FileWriter<T, R>>> writers = Maps.newHashMap();
+  private final Map<Integer, StructLikeMap<FileWriter<T, R>>> writers = Maps.newHashMap();
   private boolean closed = false;
 
   protected abstract FileWriter<T, R> newWriter(PartitionSpec spec, StructLike partition);
@@ -98,6 +98,8 @@ abstract class FanoutWriter<T, R> implements PartitioningWriter<T, R> {
   }
 
   protected EncryptedOutputFile newOutputFile(OutputFileFactory fileFactory, PartitionSpec spec, StructLike partition) {
+    Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
+        "Partition must not be null when creating output file for partitioned spec");
     return partition == null ? fileFactory.newOutputFile() : fileFactory.newOutputFile(spec, partition);
   }
 }

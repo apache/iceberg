@@ -41,6 +41,11 @@ import org.apache.iceberg.util.StructLikeSet;
  */
 abstract class ClusteredWriter<T, R> implements PartitioningWriter<T, R> {
 
+  private static final String NOT_CLUSTERED_ROWS_ERROR_MSG_TEMPLATE =
+      "Incoming records violate the writer assumption that records are clustered by spec and " +
+      "by partition within each spec. Either cluster the incoming records or switch to fanout writers.\n" +
+      "Encountered records that belong to already closed files:\n";
+
   private final Set<Integer> completedSpecIds = Sets.newHashSet();
 
   private PartitionSpec currentSpec = null;
@@ -67,31 +72,31 @@ abstract class ClusteredWriter<T, R> implements PartitioningWriter<T, R> {
       }
 
       if (completedSpecIds.contains(spec.specId())) {
-        throw new IllegalStateException("Already closed files for spec: " + spec.specId());
+        String errorCtx = String.format("spec %s", spec);
+        throw new IllegalStateException(NOT_CLUSTERED_ROWS_ERROR_MSG_TEMPLATE + errorCtx);
       }
 
       StructType partitionType = spec.partitionType();
 
-      currentSpec = spec;
-      partitionComparator = Comparators.forType(partitionType);
-      completedPartitions = StructLikeSet.create(partitionType);
+      this.currentSpec = spec;
+      this.partitionComparator = Comparators.forType(partitionType);
+      this.completedPartitions = StructLikeSet.create(partitionType);
       // copy the partition key as the key object may be reused
-      currentPartition = StructCopy.copy(partition);
-      currentWriter = newWriter(currentSpec, currentPartition);
+      this.currentPartition = StructCopy.copy(partition);
+      this.currentWriter = newWriter(currentSpec, currentPartition);
 
     } else if (partition != currentPartition && partitionComparator.compare(partition, currentPartition) != 0) {
       closeCurrentWriter();
       completedPartitions.add(currentPartition);
 
       if (completedPartitions.contains(partition)) {
-        String path = spec.partitionToPath(partition);
-        String errMsg = String.format("Already closed files for partition '%s' in spec %d", path, spec.specId());
-        throw new IllegalStateException(errMsg);
+        String errorCtx = String.format("partition '%s' in spec %s", spec.partitionToPath(partition), spec);
+        throw new IllegalStateException(NOT_CLUSTERED_ROWS_ERROR_MSG_TEMPLATE + errorCtx);
       }
 
       // copy the partition key as the key object may be reused
-      currentPartition = StructCopy.copy(partition);
-      currentWriter = newWriter(currentSpec, currentPartition);
+      this.currentPartition = StructCopy.copy(partition);
+      this.currentWriter = newWriter(currentSpec, currentPartition);
     }
 
     currentWriter.write(row);
@@ -122,6 +127,8 @@ abstract class ClusteredWriter<T, R> implements PartitioningWriter<T, R> {
   }
 
   protected EncryptedOutputFile newOutputFile(OutputFileFactory fileFactory, PartitionSpec spec, StructLike partition) {
+    Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
+        "Partition must not be null when creating output file for partitioned spec");
     return partition == null ? fileFactory.newOutputFile() : fileFactory.newOutputFile(spec, partition);
   }
 }

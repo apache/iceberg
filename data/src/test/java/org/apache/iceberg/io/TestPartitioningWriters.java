@@ -151,7 +151,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     writer.write(toRow(5, "ccc"), spec, partitionKey(spec, "ccc"));
 
     AssertHelpers.assertThrows("Should fail to write out of order partitions",
-        IllegalStateException.class, "Already closed files for partition",
+        IllegalStateException.class, "Encountered records that belong to already closed files",
         () -> {
           try {
             writer.write(toRow(6, "aaa"), spec, partitionKey(spec, "aaa"));
@@ -302,7 +302,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     writer.write(toRow(6, "ddd"), identitySpec, partitionKey(identitySpec, "ddd"));
 
     AssertHelpers.assertThrows("Should fail to write out of order partitions",
-        IllegalStateException.class, "Already closed files for partition",
+        IllegalStateException.class, "Encountered records that belong to already closed files",
         () -> {
           try {
             writer.write(toRow(7, "ccc"), identitySpec, partitionKey(identitySpec, "ccc"));
@@ -312,7 +312,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
         });
 
     AssertHelpers.assertThrows("Should fail to write out of order specs",
-        IllegalStateException.class, "Already closed files for spec",
+        IllegalStateException.class, "Encountered records that belong to already closed files",
         () -> {
           try {
             writer.write(toRow(7, "aaa"), unpartitionedSpec, null);
@@ -457,7 +457,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     writer.write(positionDelete("file-4.parquet", 0L, null), identitySpec, partitionKey(identitySpec, "ddd"));
 
     AssertHelpers.assertThrows("Should fail to write out of order partitions",
-        IllegalStateException.class, "Already closed files for partition",
+        IllegalStateException.class, "Encountered records that belong to already closed files",
         () -> {
           try {
             PositionDelete<T> positionDelete = positionDelete("file-5.parquet", 1L, null);
@@ -468,7 +468,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
         });
 
     AssertHelpers.assertThrows("Should fail to write out of order specs",
-        IllegalStateException.class, "Already closed files for spec",
+        IllegalStateException.class, "Encountered records that belong to already closed files",
         () -> {
           try {
             PositionDelete<T> positionDelete = positionDelete("file-1.parquet", 3L, null);
