@@ -174,7 +174,7 @@ public abstract class DeleteReadTests {
         .addDeletes(eqDeletes)
         .commit();
 
-    StructLikeSet expected = rowSetWithoutIds(29, 89, 122);
+    StructLikeSet expected = rowSetWithoutIds(table, records, 29, 89, 122);
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
@@ -208,7 +208,7 @@ public abstract class DeleteReadTests {
         .addDeletes(eqDeletes3)
         .commit();
 
-    StructLikeSet expected = rowSetWithoutIds(Sets.newHashSet(1, 2, 3), dateTable, dateRecords);
+    StructLikeSet expected = rowSetWithoutIds(dateTable, dateRecords, 1, 2, 3);
 
     StructLikeSet actual = rowSet(dateTableName, dateTable, "*");
 
@@ -232,7 +232,7 @@ public abstract class DeleteReadTests {
         .addDeletes(eqDeletes)
         .commit();
 
-    StructLikeSet expected = selectColumns(rowSetWithoutIds(29, 89, 122), "id");
+    StructLikeSet expected = selectColumns(rowSetWithoutIds(table, records, 29, 89, 122), "id");
     StructLikeSet actual = rowSet(tableName, table, "id");
 
     if (expectPruned()) {
@@ -270,7 +270,7 @@ public abstract class DeleteReadTests {
         .addDeletes(eqDeletes)
         .commit();
 
-    StructLikeSet expected = rowSetWithoutIds(29, 89, 122, 144);
+    StructLikeSet expected = rowSetWithoutIds(table, records, 29, 89, 122, 144);
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
@@ -292,7 +292,7 @@ public abstract class DeleteReadTests {
         .validateDataFilesExist(posDeletes.second())
         .commit();
 
-    StructLikeSet expected = rowSetWithoutIds(29, 89, 122);
+    StructLikeSet expected = rowSetWithoutIds(table, records, 29, 89, 122);
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
@@ -325,7 +325,7 @@ public abstract class DeleteReadTests {
         .validateDataFilesExist(posDeletes.second())
         .commit();
 
-    StructLikeSet expected = rowSetWithoutIds(29, 89, 121, 122);
+    StructLikeSet expected = rowSetWithoutIds(table, records, 29, 89, 121, 122);
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
@@ -359,7 +359,7 @@ public abstract class DeleteReadTests {
         .addDeletes(idEqDeletes)
         .commit();
 
-    StructLikeSet expected = rowSetWithoutIds(29, 89, 121, 122);
+    StructLikeSet expected = rowSetWithoutIds(table, records, 29, 89, 121, 122);
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
@@ -396,7 +396,7 @@ public abstract class DeleteReadTests {
         .addDeletes(eqDeletes)
         .commit();
 
-    StructLikeSet expected = rowSetWithoutIds(131);
+    StructLikeSet expected = rowSetWithoutIds(table, records, 131);
     StructLikeSet actual = rowSet(tableName, table, "*");
 
     Assert.assertEquals("Table should contain expected rows", expected, actual);
@@ -411,19 +411,11 @@ public abstract class DeleteReadTests {
     return set;
   }
 
-  private StructLikeSet rowSetWithoutIds(int... idsToRemove) {
+  private StructLikeSet rowSetWithoutIds(Table iTable, List<Record> recordList, int... idsToRemove) {
     Set<Integer> deletedIds = Sets.newHashSet(ArrayUtil.toIntList(idsToRemove));
-    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
-    records.stream()
-        .filter(row -> !deletedIds.contains(row.getField("id")))
-        .forEach(set::add);
-    return set;
-  }
-
-  private StructLikeSet rowSetWithoutIds(Set<Integer> idSet, Table iTable, List<Record> recordList) {
     StructLikeSet set = StructLikeSet.create(iTable.schema().asStruct());
     recordList.stream()
-        .filter(row -> !idSet.contains(row.getField("id")))
+        .filter(row -> !deletedIds.contains(row.getField("id")))
         .map(record -> new InternalRecordWrapper(iTable.schema().asStruct()).wrap(record))
         .forEach(set::add);
     return set;
