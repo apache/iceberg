@@ -26,14 +26,11 @@ import java.util.Map;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.TableTestBase;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
@@ -59,7 +56,7 @@ import static org.apache.iceberg.MetadataColumns.DELETE_FILE_POS;
 import static org.apache.iceberg.MetadataColumns.DELETE_FILE_ROW_FIELD_NAME;
 
 @RunWith(Parameterized.class)
-public abstract class TestFileWriterFactory<T> extends TableTestBase {
+public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
   @Parameterized.Parameters(name = "FileFormat={0}, Partitioned={1}")
   public static Object[] parameters() {
     return new Object[][] {
@@ -73,6 +70,7 @@ public abstract class TestFileWriterFactory<T> extends TableTestBase {
   }
 
   private static final int TABLE_FORMAT_VERSION = 2;
+  private static final String PARTITION_VALUE = "aaa";
 
   private final FileFormat fileFormat;
   private final boolean partitioned;
@@ -94,12 +92,6 @@ public abstract class TestFileWriterFactory<T> extends TableTestBase {
     );
   }
 
-  protected abstract FileWriterFactory<T> newWriterFactory(Schema dataSchema, List<Integer> equalityFieldIds,
-                                                           Schema equalityDeleteRowSchema,
-                                                           Schema positionDeleteRowSchema);
-
-  protected abstract T toRow(Integer id, String data);
-
   protected abstract StructLikeSet toSet(Iterable<T> records);
 
   protected FileFormat format() {
@@ -115,7 +107,7 @@ public abstract class TestFileWriterFactory<T> extends TableTestBase {
 
     if (partitioned) {
       this.table = create(SCHEMA, SPEC);
-      this.partition = initPartitionKey();
+      this.partition = partitionKey(table.spec(), PARTITION_VALUE);
     } else {
       this.table = create(SCHEMA, PartitionSpec.unpartitioned());
       this.partition = null;
@@ -222,7 +214,7 @@ public abstract class TestFileWriterFactory<T> extends TableTestBase {
         .addField("data")
         .commit();
 
-    partition = initPartitionKey();
+    partition = partitionKey(table.spec(), PARTITION_VALUE);
 
     // write a partitioned data file
     DataFile secondDataFile = writeData(writerFactory, dataRows, table.spec(), partition);
@@ -259,9 +251,9 @@ public abstract class TestFileWriterFactory<T> extends TableTestBase {
 
     // write a position delete file
     List<PositionDelete<T>> deletes = ImmutableList.of(
-        new PositionDelete<T>().set(dataFile.path(), 0L, null),
-        new PositionDelete<T>().set(dataFile.path(), 2L, null),
-        new PositionDelete<T>().set(dataFile.path(), 4L, null)
+        positionDelete(dataFile.path(), 0L, null),
+        positionDelete(dataFile.path(), 2L, null),
+        positionDelete(dataFile.path(), 4L, null)
     );
     Pair<DeleteFile, CharSequenceSet> result = writePositionDeletes(writerFactory, deletes, table.spec(), partition);
     DeleteFile deleteFile = result.first();
@@ -305,7 +297,7 @@ public abstract class TestFileWriterFactory<T> extends TableTestBase {
 
     // write a position delete file and persist the deleted row
     List<PositionDelete<T>> deletes = ImmutableList.of(
-        new PositionDelete<T>().set(dataFile.path(), 0, dataRows.get(0))
+        positionDelete(dataFile.path(), 0, dataRows.get(0))
     );
     Pair<DeleteFile, CharSequenceSet> result = writePositionDeletes(writerFactory, deletes, table.spec(), partition);
     DeleteFile deleteFile = result.first();
@@ -341,28 +333,6 @@ public abstract class TestFileWriterFactory<T> extends TableTestBase {
         toRow(5, "aaa")
     );
     Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
-  }
-
-  private PartitionKey initPartitionKey() {
-    Record record = GenericRecord.create(table.schema()).copy(ImmutableMap.of("data", "aaa"));
-
-    PartitionKey partitionKey = new PartitionKey(table.spec(), table.schema());
-    partitionKey.partition(record);
-
-    return partitionKey;
-  }
-
-  private FileWriterFactory<T> newWriterFactory(Schema dataSchema) {
-    return newWriterFactory(dataSchema, null, null, null);
-  }
-
-  private FileWriterFactory<T> newWriterFactory(Schema dataSchema, List<Integer> equalityFieldIds,
-                                                Schema equalityDeleteRowSchema) {
-    return newWriterFactory(dataSchema, equalityFieldIds, equalityDeleteRowSchema, null);
-  }
-
-  private FileWriterFactory<T> newWriterFactory(Schema dataSchema, Schema positionDeleteRowSchema) {
-    return newWriterFactory(dataSchema, null, null, positionDeleteRowSchema);
   }
 
   private DataFile writeData(FileWriterFactory<T> writerFactory, List<T> rows,
@@ -433,14 +403,6 @@ public abstract class TestFileWriterFactory<T> extends TableTestBase {
       default:
         throw new UnsupportedOperationException("Unsupported read file format: " + fileFormat);
     }
-  }
-
-  private StructLikeSet actualRowSet(String... columns) throws IOException {
-    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
-    try (CloseableIterable<Record> reader = IcebergGenerics.read(table).select(columns).build()) {
-      reader.forEach(set::add);
-    }
-    return set;
   }
 
   private EncryptedOutputFile newOutputFile(PartitionSpec spec, StructLike partitionKey) {

@@ -23,16 +23,11 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.TableTestBase;
-import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -42,7 +37,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
-public abstract class TestRollingFileWriters<T> extends TableTestBase {
+public abstract class TestRollingFileWriters<T> extends WriterTestBase<T> {
 
   // TODO: add ORC once we support ORC rolling file writers
 
@@ -73,11 +68,6 @@ public abstract class TestRollingFileWriters<T> extends TableTestBase {
     this.partitioned = partitioned;
   }
 
-  protected abstract FileWriterFactory<T> newWriterFactory(Schema dataSchema, List<Integer> equalityFieldIds,
-                                                           Schema equalityDeleteRowSchema);
-
-  protected abstract T toRow(Integer id, String data);
-
   protected FileFormat format() {
     return fileFormat;
   }
@@ -91,22 +81,13 @@ public abstract class TestRollingFileWriters<T> extends TableTestBase {
 
     if (partitioned) {
       this.table = create(SCHEMA, SPEC);
-      this.partition = initPartitionKey();
+      this.partition = partitionKey(table.spec(), PARTITION_VALUE);
     } else {
       this.table = create(SCHEMA, PartitionSpec.unpartitioned());
       this.partition = null;
     }
 
     this.fileFactory = OutputFileFactory.builderFor(table, 1, 1).format(fileFormat).build();
-  }
-
-  private PartitionKey initPartitionKey() {
-    Record record = GenericRecord.create(table.schema()).copy(ImmutableMap.of("data", PARTITION_VALUE));
-
-    PartitionKey partitionKey = new PartitionKey(table.spec(), table.schema());
-    partitionKey.partition(record);
-
-    return partitionKey;
   }
 
   @Test
@@ -221,7 +202,7 @@ public abstract class TestRollingFileWriters<T> extends TableTestBase {
 
     List<PositionDelete<T>> deletes = Lists.newArrayListWithExpectedSize(4 * FILE_SIZE_CHECK_ROWS_DIVISOR);
     for (int index = 0; index < 4 * FILE_SIZE_CHECK_ROWS_DIVISOR; index++) {
-      deletes.add(new PositionDelete<T>().set("path/to/data/file-1.parquet", index, null));
+      deletes.add(positionDelete("path/to/data/file-1.parquet", index, null));
     }
 
     try (RollingPositionDeleteWriter<T> closeableWriter = writer) {
@@ -235,9 +216,5 @@ public abstract class TestRollingFileWriters<T> extends TableTestBase {
     Assert.assertEquals(4, result.deleteFiles().size());
     Assert.assertEquals(1, result.referencedDataFiles().size());
     Assert.assertTrue(result.referencesDataFiles());
-  }
-
-  private FileWriterFactory<T> newWriterFactory(Schema dataSchema) {
-    return newWriterFactory(dataSchema, null, null);
   }
 }
