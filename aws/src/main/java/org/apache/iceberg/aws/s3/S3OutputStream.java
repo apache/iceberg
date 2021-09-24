@@ -175,8 +175,15 @@ class S3OutputStream extends PositionOutputStream {
       stream.close();
     }
 
+    boolean createStagingDirectory = false;
+    if (!stagingDirectory.exists()) {
+      createStagingDirectory = stagingDirectory.mkdirs();
+    }
     currentStagingFile = File.createTempFile("s3fileio-", ".tmp", stagingDirectory);
     currentStagingFile.deleteOnExit();
+    if (createStagingDirectory) {
+      stagingDirectory.deleteOnExit();
+    }
     stagingFiles.add(currentStagingFile);
 
     stream = new CountingOutputStream(new BufferedOutputStream(new FileOutputStream(currentStagingFile)));
