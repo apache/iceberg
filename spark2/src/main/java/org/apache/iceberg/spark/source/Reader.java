@@ -574,7 +574,7 @@ class Reader implements DataSourceReader, SupportsScanColumnarBatch, SupportsPus
 
   private static class RowReader extends RowDataReader implements InputPartitionReader<InternalRow> {
     RowReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
-      super(task, table, expectedSchema, caseSensitive);
+      super(task, table, expectedSchema, caseSensitive, table.properties());
     }
   }
 

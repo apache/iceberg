@@ -19,9 +19,11 @@
 
 package org.apache.iceberg.data;
 
+import com.github.benmanes.caffeine.cache.Cache;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 import org.apache.iceberg.Accessor;
@@ -41,6 +43,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -92,7 +95,7 @@ public abstract class DeleteFilter<T> {
     this.eqDeletes = eqDeleteBuilder.build();
     this.requiredSchema = fileProjection(tableSchema, requestedSchema, posDeletes, eqDeletes);
     this.posAccessor = requiredSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
-    this.deleteFilterCache = DeleteFilterCache.create(properties);
+    this.deleteFilterCache = DeleteFilterCache.create(Optional.ofNullable(properties).orElse(ImmutableMap.of()));
   }
 
   public Schema requiredSchema() {

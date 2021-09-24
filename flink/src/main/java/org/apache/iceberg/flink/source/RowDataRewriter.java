@@ -22,6 +22,7 @@ package org.apache.iceberg.flink.source;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.configuration.Configuration;
@@ -68,6 +69,7 @@ public class RowDataRewriter {
     this.encryptionManager = encryptionManager;
     this.nameMapping = PropertyUtil.propertyAsString(table.properties(), DEFAULT_NAME_MAPPING, null);
     this.tableName = table.name();
+    this.properties = table.properties();
 
     String formatString = PropertyUtil.propertyAsString(table.properties(), TableProperties.DEFAULT_FILE_FORMAT,
         TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
@@ -83,7 +85,8 @@ public class RowDataRewriter {
   }
 
   public List<DataFile> rewriteDataForTasks(DataStream<CombinedScanTask> dataStream, int parallelism) throws Exception {
-    RewriteMap map = new RewriteMap(schema, nameMapping, io, caseSensitive, encryptionManager, taskWriterFactory);
+    RewriteMap map = new RewriteMap(schema, nameMapping, io, caseSensitive, encryptionManager, taskWriterFactory,
+        properties);
     DataStream<List<DataFile>> ds = dataStream.map(map).setParallelism(parallelism);
     return Lists.newArrayList(ds.executeAndCollect("Rewrite table :" + tableName)).stream().flatMap(Collection::stream)
         .collect(Collectors.toList());
@@ -102,7 +105,6 @@ public class RowDataRewriter {
     private final EncryptionManager encryptionManager;
     private final TaskWriterFactory<RowData> taskWriterFactory;
     private final RowDataFileScanTaskReader rowDataReader;
-    private final Map<String, String> properties;
 
     public RewriteMap(Schema schema, String nameMapping, FileIO io, boolean caseSensitive,
                       EncryptionManager encryptionManager, TaskWriterFactory<RowData> taskWriterFactory,
@@ -113,8 +115,7 @@ public class RowDataRewriter {
       this.caseSensitive = caseSensitive;
       this.encryptionManager = encryptionManager;
       this.taskWriterFactory = taskWriterFactory;
-      this.rowDataReader = new RowDataFileScanTaskReader(schema, schema, nameMapping, caseSensitive);
-      this.properties = properties;
+      this.rowDataReader = new RowDataFileScanTaskReader(schema, schema, nameMapping, caseSensitive, properties);
     }
 
     @Override

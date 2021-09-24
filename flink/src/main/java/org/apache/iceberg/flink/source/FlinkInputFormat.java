@@ -50,7 +50,6 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
 
   private transient DataIterator<RowData> iterator;
   private transient long currentReadCount = 0L;
-  private Map<String, String> properties;
 
   FlinkInputFormat(TableLoader tableLoader, Schema tableSchema, FileIO io, EncryptionManager encryption,
                    ScanContext context, Map<String, String> properties) {
@@ -59,8 +58,7 @@ public class FlinkInputFormat extends RichInputFormat<RowData, FlinkInputSplit> 
     this.encryption = encryption;
     this.context = context;
     this.rowDataReader = new RowDataFileScanTaskReader(tableSchema,
-        context.project(), context.nameMapping(), context.caseSensitive());
-    this.properties = properties;
+        context.project(), context.nameMapping(), context.caseSensitive(), properties);
   }
 
   @VisibleForTesting

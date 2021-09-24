@@ -54,18 +54,21 @@ class RowDataReader extends BaseDataReader<InternalRow> {
   private final Schema expectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
+  private final Map<String, String> properties;
 
-  RowDataReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
+  RowDataReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive,
+      Map<String, String> properties) {
     super(task, table.io(), table.encryption());
     this.tableSchema = table.schema();
     this.expectedSchema = expectedSchema;
     this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     this.caseSensitive = caseSensitive;
+    this.properties = properties;
   }
 
   @Override
   CloseableIterator<InternalRow> open(FileScanTask task) {
-    SparkDeleteFilter deletes = new SparkDeleteFilter(task, tableSchema, expectedSchema);
+    SparkDeleteFilter deletes = new SparkDeleteFilter(task, tableSchema, expectedSchema, properties);
 
     // schema or rows returned by readers
     Schema requiredSchema = deletes.requiredSchema();
@@ -182,8 +185,8 @@ class RowDataReader extends BaseDataReader<InternalRow> {
   protected class SparkDeleteFilter extends DeleteFilter<InternalRow> {
     private final InternalRowWrapper asStructLike;
 
-    SparkDeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema) {
-      super(task, tableSchema, requestedSchema);
+    SparkDeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema, Map<String, String> properties) {
+      super(task, tableSchema, requestedSchema, properties);
       this.asStructLike = new InternalRowWrapper(SparkSchemaUtil.convert(requiredSchema()));
     }
 
