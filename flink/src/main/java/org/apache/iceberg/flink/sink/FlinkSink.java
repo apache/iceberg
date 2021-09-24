@@ -299,11 +299,12 @@ public class FlinkSink {
       RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
 
       // Distribute the records from input data stream based on the write.distribution-mode and equality fields.
-      rowDataInput = distributeDataStream(rowDataInput, table.properties(), equalityFieldIds, table.spec(),
-          table.schema(), flinkRowType);
+      DataStream<RowData> distributeStream = distributeDataStream(
+          rowDataInput, table.properties(), equalityFieldIds, table.spec(), table.schema(), flinkRowType);
 
       // Add parallel writers that append rows to files
-      SingleOutputStreamOperator<WriteResult> writerStream = appendWriter(rowDataInput, flinkRowType, equalityFieldIds);
+      SingleOutputStreamOperator<WriteResult> writerStream = appendWriter(distributeStream, flinkRowType,
+          equalityFieldIds);
 
       // Add single-parallelism committer that commits files
       // after successful checkpoint or end of input
