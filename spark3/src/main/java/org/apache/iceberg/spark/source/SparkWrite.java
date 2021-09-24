@@ -576,10 +576,9 @@ class SparkWrite {
     }
   }
 
-  // TODO: why the old implementation throws throwFailureWhenFinished()?
   private static <T extends ContentFile<T>> void deleteFiles(FileIO io, List<T> files) {
     Tasks.foreach(files)
-        .suppressFailureWhenFinished()
+        .throwFailureWhenFinished()
         .noRetry()
         .run(file -> io.deleteFile(file.path().toString()));
   }
