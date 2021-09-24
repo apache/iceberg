@@ -274,7 +274,7 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
 
   private static class RowReader extends RowDataReader implements PartitionReader<InternalRow> {
     RowReader(ReadTask task) {
-      super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive());
+      super(task.task, task.table(), task.expectedSchema(), task.isCaseSensitive(), task.table().properties());
     }
   }
 

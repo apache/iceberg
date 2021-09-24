@@ -20,6 +20,7 @@
 package org.apache.iceberg.data;
 
 import java.io.IOException;
+import java.util.Map;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.io.CloseableGroup;
@@ -29,11 +30,13 @@ import org.apache.iceberg.io.CloseableIterator;
 class TableScanIterable extends CloseableGroup implements CloseableIterable<Record> {
   private final GenericReader reader;
   private final CloseableIterable<CombinedScanTask> tasks;
+  private final Map<String, String> properties;
 
-  TableScanIterable(TableScan scan, boolean reuseContainers) {
-    this.reader = new GenericReader(scan, reuseContainers);
+  TableScanIterable(TableScan scan, boolean reuseContainers, Map<String, String> properties) {
+    this.reader = new GenericReader(scan, reuseContainers, properties);
     // start planning tasks in the background
     this.tasks = scan.planTasks();
+    this.properties = properties;
   }
 
   @Override

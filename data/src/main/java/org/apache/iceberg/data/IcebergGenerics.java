@@ -19,11 +19,13 @@
 
 package org.apache.iceberg.data;
 
+import java.util.Map;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 public class IcebergGenerics {
   private IcebergGenerics() {
@@ -42,6 +44,7 @@ public class IcebergGenerics {
   public static class ScanBuilder {
     private TableScan tableScan;
     private boolean reuseContainers = false;
+    private Map<String, String> properties = ImmutableMap.of();
 
     public ScanBuilder(Table table) {
       this.tableScan = table.newScan();
@@ -87,10 +90,17 @@ public class IcebergGenerics {
       return this;
     }
 
+    @SuppressWarnings("checkstyle:HiddenField")
+    public ScanBuilder properties(Map<String, String> properties) {
+      this.properties = properties;
+      return this;
+    }
+
     public CloseableIterable<Record> build() {
       return new TableScanIterable(
           tableScan,
-          reuseContainers
+          reuseContainers,
+          properties
       );
     }
   }

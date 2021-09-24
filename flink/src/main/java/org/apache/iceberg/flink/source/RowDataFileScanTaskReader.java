@@ -53,13 +53,15 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
   private final Schema projectedSchema;
   private final String nameMapping;
   private final boolean caseSensitive;
+  private final Map<String, String> properties;
 
   public RowDataFileScanTaskReader(Schema tableSchema, Schema projectedSchema,
-                                   String nameMapping, boolean caseSensitive) {
+                                   String nameMapping, boolean caseSensitive, Map<String, String> properties) {
     this.tableSchema = tableSchema;
     this.projectedSchema = projectedSchema;
     this.nameMapping = nameMapping;
     this.caseSensitive = caseSensitive;
+    this.properties = properties;
   }
 
   @Override
@@ -69,7 +71,8 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     Map<Integer, ?> idToConstant = partitionSchema.columns().isEmpty() ? ImmutableMap.of() :
         PartitionUtil.constantsMap(task, RowDataUtil::convertConstant);
 
-    FlinkDeleteFilter deletes = new FlinkDeleteFilter(task, tableSchema, projectedSchema, inputFilesDecryptor);
+    FlinkDeleteFilter deletes = new FlinkDeleteFilter(task, tableSchema, projectedSchema, inputFilesDecryptor,
+        properties);
     return deletes
         .filter(newIterable(task, deletes.requiredSchema(), idToConstant, inputFilesDecryptor))
         .iterator();
@@ -160,8 +163,8 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     private final InputFilesDecryptor inputFilesDecryptor;
 
     FlinkDeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema,
-                      InputFilesDecryptor inputFilesDecryptor) {
-      super(task, tableSchema, requestedSchema);
+                      InputFilesDecryptor inputFilesDecryptor, Map<String, String> properties) {
+      super(task, tableSchema, requestedSchema, properties);
       this.asStructLike = new RowDataWrapper(FlinkSchemaUtil.convert(requiredSchema()), requiredSchema().asStruct());
       this.inputFilesDecryptor = inputFilesDecryptor;
     }

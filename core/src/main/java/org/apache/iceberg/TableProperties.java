@@ -244,4 +244,10 @@ public class TableProperties {
 
   public static final String UPSERT_MODE_ENABLE = "write.upsert.enable";
   public static final boolean UPSERT_MODE_ENABLE_DEFAULT = false;
+
+  public static final String DELETE_FILTER_CACHE_EXPIRE = "delete.filter.cache-expire-time";
+  public static final long DELETE_FILTER_CACHE_EXPIRE_TIME_DEFAULT = 5 * 60 * 60;
+
+  public static final String DELETE_FILTER_CACHE_CAPACITY = "delete.filter.cache-capacity";
+  public static final long DELETE_FILTER_CACHE_CAPACITY_DEFAULT = 12000;
 }

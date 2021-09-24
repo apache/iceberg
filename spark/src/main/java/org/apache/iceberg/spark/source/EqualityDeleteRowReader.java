@@ -32,15 +32,18 @@ import org.apache.spark.sql.catalyst.InternalRow;
 
 public class EqualityDeleteRowReader extends RowDataReader {
   private final Schema expectedSchema;
+  private final Map<String, String> properties;
 
-  public EqualityDeleteRowReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
-    super(task, table, table.schema(), caseSensitive);
+  public EqualityDeleteRowReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive,
+      Map<String, String> properties) {
+    super(task, table, table.schema(), caseSensitive, properties);
     this.expectedSchema = expectedSchema;
+    this.properties = properties;
   }
 
   @Override
   CloseableIterator<InternalRow> open(FileScanTask task) {
-    SparkDeleteFilter matches = new SparkDeleteFilter(task, tableSchema(), expectedSchema);
+    SparkDeleteFilter matches = new SparkDeleteFilter(task, tableSchema(), expectedSchema, properties);
 
     // schema or rows returned by readers
     Schema requiredSchema = matches.requiredSchema();
