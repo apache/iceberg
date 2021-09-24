@@ -49,7 +49,7 @@ abstract class FanoutWriter<T, R> implements PartitioningWriter<T, R> {
   protected abstract R aggregatedResult();
 
   @Override
-  public void write(T row, PartitionSpec spec, StructLike partition) throws IOException {
+  public void write(T row, PartitionSpec spec, StructLike partition) {
     FileWriter<T, R> writer = writer(spec, partition);
     writer.write(row);
   }

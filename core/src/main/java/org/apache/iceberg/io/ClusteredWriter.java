@@ -20,6 +20,7 @@
 package org.apache.iceberg.io;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Comparator;
 import java.util.Set;
 import org.apache.iceberg.PartitionSpec;
@@ -63,7 +64,7 @@ abstract class ClusteredWriter<T, R> implements PartitioningWriter<T, R> {
   protected abstract R aggregatedResult();
 
   @Override
-  public void write(T row, PartitionSpec spec, StructLike partition) throws IOException {
+  public void write(T row, PartitionSpec spec, StructLike partition) {
     if (!spec.equals(currentSpec)) {
       if (currentSpec != null) {
         closeCurrentWriter();
@@ -110,9 +111,13 @@ abstract class ClusteredWriter<T, R> implements PartitioningWriter<T, R> {
     }
   }
 
-  private void closeCurrentWriter() throws IOException {
+  private void closeCurrentWriter() {
     if (currentWriter != null) {
-      currentWriter.close();
+      try {
+        currentWriter.close();
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to close current writer", e);
+      }
 
       addResult(currentWriter.result());
 

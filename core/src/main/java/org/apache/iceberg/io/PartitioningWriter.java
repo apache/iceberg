@@ -20,7 +20,6 @@
 package org.apache.iceberg.io;
 
 import java.io.Closeable;
-import java.io.IOException;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.PartitionSpec;
@@ -46,9 +45,8 @@ public interface PartitioningWriter<T, R> extends Closeable {
    * @param row a data or delete record
    * @param spec a partition spec
    * @param partition a partition or null if the spec is unpartitioned
-   * @throws IOException in case of an error during the write process
    */
-  void write(T row, PartitionSpec spec, StructLike partition) throws IOException;
+  void write(T row, PartitionSpec spec, StructLike partition);
 
   /**
    * Returns a result that contains information about written {@link DataFile}s or {@link DeleteFile}s.
