@@ -58,7 +58,7 @@ public class EqualityDeleteWriter<T> implements FileWriter<T, DeleteWriteResult>
   }
 
   @Override
-  public void write(T row) throws IOException {
+  public void write(T row) {
     appender.add(row);
   }
 

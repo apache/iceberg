@@ -21,7 +21,6 @@ package org.apache.iceberg.io;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
@@ -152,13 +151,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
     AssertHelpers.assertThrows("Should fail to write out of order partitions",
         IllegalStateException.class, "Encountered records that belong to already closed files",
-        () -> {
-          try {
-            writer.write(toRow(6, "aaa"), spec, partitionKey(spec, "aaa"));
-          } catch (IOException e) {
-            throw new UncheckedIOException(e);
-          }
-        });
+        () -> writer.write(toRow(6, "aaa"), spec, partitionKey(spec, "aaa")));
 
     writer.close();
   }
@@ -303,23 +296,11 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
     AssertHelpers.assertThrows("Should fail to write out of order partitions",
         IllegalStateException.class, "Encountered records that belong to already closed files",
-        () -> {
-          try {
-            writer.write(toRow(7, "ccc"), identitySpec, partitionKey(identitySpec, "ccc"));
-          } catch (IOException e) {
-            throw new UncheckedIOException(e);
-          }
-        });
+        () -> writer.write(toRow(7, "ccc"), identitySpec, partitionKey(identitySpec, "ccc")));
 
     AssertHelpers.assertThrows("Should fail to write out of order specs",
         IllegalStateException.class, "Encountered records that belong to already closed files",
-        () -> {
-          try {
-            writer.write(toRow(7, "aaa"), unpartitionedSpec, null);
-          } catch (IOException e) {
-            throw new UncheckedIOException(e);
-          }
-        });
+        () -> writer.write(toRow(7, "aaa"), unpartitionedSpec, null));
 
     writer.close();
   }
@@ -459,23 +440,15 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     AssertHelpers.assertThrows("Should fail to write out of order partitions",
         IllegalStateException.class, "Encountered records that belong to already closed files",
         () -> {
-          try {
-            PositionDelete<T> positionDelete = positionDelete("file-5.parquet", 1L, null);
-            writer.write(positionDelete, identitySpec, partitionKey(identitySpec, "ccc"));
-          } catch (IOException e) {
-            throw new UncheckedIOException(e);
-          }
+          PositionDelete<T> positionDelete = positionDelete("file-5.parquet", 1L, null);
+          writer.write(positionDelete, identitySpec, partitionKey(identitySpec, "ccc"));
         });
 
     AssertHelpers.assertThrows("Should fail to write out of order specs",
         IllegalStateException.class, "Encountered records that belong to already closed files",
         () -> {
-          try {
-            PositionDelete<T> positionDelete = positionDelete("file-1.parquet", 3L, null);
-            writer.write(positionDelete, unpartitionedSpec, null);
-          } catch (IOException e) {
-            throw new UncheckedIOException(e);
-          }
+          PositionDelete<T> positionDelete = positionDelete("file-1.parquet", 3L, null);
+          writer.write(positionDelete, unpartitionedSpec, null);
         });
 
     writer.close();
