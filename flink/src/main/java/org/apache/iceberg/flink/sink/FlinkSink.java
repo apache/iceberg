@@ -28,7 +28,6 @@ import java.util.function.Function;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
-import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -417,14 +416,14 @@ public class FlinkSink {
 
       switch (writeMode) {
         case NONE:
-          if (equalityFieldIds != null) {
+          if (!equalityFieldIds.isEmpty()) {
             return input.keyBy(new EqualityFieldKeySelector(equalityFieldIds, iSchema, flinkRowType));
           }
           return input;
 
         case HASH:
           if (partitionSpec.isUnpartitioned()) {
-            if (equalityFieldIds != null) {
+            if (!equalityFieldIds.isEmpty()) {
               return input.keyBy(new EqualityFieldKeySelector(equalityFieldIds, iSchema, flinkRowType));
             }
             return input;
