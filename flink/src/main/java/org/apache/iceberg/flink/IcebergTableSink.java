@@ -59,14 +59,12 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
         .map(UniqueConstraint::getColumns)
         .orElseGet(ImmutableList::of);
 
-    return (DataStreamSinkProvider) dataStream -> {
-      return FlinkSink.forRowData(dataStream)
-          .tableLoader(tableLoader)
-          .tableSchema(tableSchema)
-          .equalityFieldColumns(equalityColumns)
-          .overwrite(overwrite)
-          .build();
-    };
+    return (DataStreamSinkProvider) dataStream -> FlinkSink.forRowData(dataStream)
+        .tableLoader(tableLoader)
+        .tableSchema(tableSchema)
+        .equalityFieldColumns(equalityColumns)
+        .overwrite(overwrite)
+        .build();
   }
 
   @Override
