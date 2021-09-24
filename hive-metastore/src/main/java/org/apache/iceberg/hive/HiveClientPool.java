@@ -34,7 +34,7 @@ public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException>
 
   // use appropriate ctor depending on whether we're working with Hive1, Hive2, or Hive3 dependencies
   // we need to do this because there is a breaking API change between Hive1, Hive2, and Hive3
-  private static final DynMethods.StaticMethod CLIENT_CTOR = DynMethods.builder("getProxy")
+  private static final DynMethods.StaticMethod GET_CLIENT = DynMethods.builder("getProxy")
       .impl(RetryingMetaStoreClient.class, HiveConf.class)
       .impl(RetryingMetaStoreClient.class, HiveConf.class, Boolean.TYPE)
       .impl(RetryingMetaStoreClient.class, Configuration.class, Boolean.TYPE)
@@ -43,21 +43,17 @@ public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException>
   private final HiveConf hiveConf;
 
   public HiveClientPool(int poolSize, Configuration conf) {
-    super(poolSize, TTransportException.class);
+    // Do not allow retry by default as we rely on RetryingHiveClient
+    super(poolSize, TTransportException.class, false);
     this.hiveConf = new HiveConf(conf, HiveClientPool.class);
     this.hiveConf.addResource(conf);
-  }
-
-  @Override
-  protected boolean shouldRetry() {
-    return false; // Already use RetryingMetaStoreClient
   }
 
   @Override
   protected IMetaStoreClient newClient()  {
     try {
       try {
-        return CLIENT_CTOR.invoke(hiveConf, true);
+        return GET_CLIENT.invoke(hiveConf, true);
       } catch (RuntimeException e) {
         // any MetaException would be wrapped into RuntimeException during reflection, so let's double-check type here
         if (e.getCause() instanceof MetaException) {
