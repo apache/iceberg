@@ -145,8 +145,8 @@ public class FlinkSink {
                                             MapFunction<T, RowData> mapper,
                                             TypeInformation<RowData> outputType) {
       this.inputCreator = newUidPrefix -> {
-        // Input stream order is crucial for some situation(e.g. in cdc case), So we need to set the map opr
-        // parallelism as it's input to keep map opr chain to input, and ensure input stream will not be rebalanced.
+        // Input stream order is crucial for some situation(e.g. in cdc case). Therefore, we need to set the parallelism
+        // of map operator same as it's input to keep map operator chaining it's input, and avoid rebalanced by default.
         SingleOutputStreamOperator<RowData> inputStream = input.map(mapper, outputType)
             .setParallelism(input.getParallelism());
         if (newUidPrefix != null) {
@@ -415,15 +415,22 @@ public class FlinkSink {
         writeMode = distributionMode;
       }
 
-      KeySelector<RowData, String> keySelector;
       switch (writeMode) {
         case NONE:
-          keySelector = getKeySelector(equalityFieldIds, null, iSchema, flinkRowType);
-          break;
+          if (equalityFieldIds != null) {
+            return input.keyBy(new EqualityFieldKeySelector(equalityFieldIds, iSchema, flinkRowType));
+          }
+          return input;
 
         case HASH:
-          keySelector = getKeySelector(equalityFieldIds, partitionSpec, iSchema, flinkRowType);
-          break;
+          if (partitionSpec.isUnpartitioned()) {
+            if (equalityFieldIds != null) {
+              return input.keyBy(new EqualityFieldKeySelector(equalityFieldIds, iSchema, flinkRowType));
+            }
+            return input;
+          } else {
+            return input.keyBy(new PartitionKeySelector(partitionSpec, iSchema, flinkRowType));
+          }
 
         case RANGE:
           LOG.warn("Fallback to use 'none' distribution mode, because {}={} is not supported in flink now",
@@ -432,27 +439,6 @@ public class FlinkSink {
 
         default:
           throw new RuntimeException("Unrecognized write.distribution-mode: " + writeMode);
-      }
-
-      if (keySelector != null) {
-        return input.keyBy(keySelector);
-      }
-      return input;
-    }
-
-    private KeySelector<RowData, String> getKeySelector(List<Integer> equalityFieldIds, PartitionSpec partitionSpec,
-        Schema schema, RowType rowType) {
-      boolean hasPrimaryKey = equalityFieldIds != null && !equalityFieldIds.isEmpty();
-      boolean hasPartitionKey = partitionSpec != null && !partitionSpec.isUnpartitioned();
-
-      if (hasPrimaryKey && hasPartitionKey) {
-        return new CombinedKeySelector(partitionSpec, equalityFieldIds, schema, rowType);
-      } else if (hasPartitionKey) {
-        return new PartitionKeySelector(partitionSpec, schema, rowType);
-      } else if (hasPrimaryKey) {
-        return new EqualityFieldKeySelector(equalityFieldIds, schema, rowType);
-      } else {
-        return null;
       }
     }
   }

@@ -21,7 +21,6 @@ package org.apache.iceberg.flink;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.constraints.UniqueConstraint;
 import org.apache.flink.table.connector.ChangelogMode;
@@ -39,7 +38,6 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
   private final TableSchema tableSchema;
 
   private boolean overwrite = false;
-  private ChangelogMode inputChangelogMode = ChangelogMode.insertOnly();
 
   private IcebergTableSink(IcebergTableSink toCopy) {
     this.tableLoader = toCopy.tableLoader;
@@ -61,15 +59,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
         .map(UniqueConstraint::getColumns)
         .orElseGet(ImmutableList::of);
 
-    return (DataStreamSinkProvider) dataStream ->  {
-      // For CDC case in FlinkSQL, change log will be rebalanced(default partition strategy) distributed to Filter opr
-      // when set job default parallelism greater than 1. That will make change log data disorder and produce a wrong
-      // result for iceberg(e.g. +U comes before -U). Here try to specific the Filter opr parallelism same as it's
-      // input to keep Filter chaining it's input and avoid rebalance.
-      Transformation<?> forwardOpr = dataStream.getTransformation();
-      if (!inputChangelogMode.containsOnly(RowKind.INSERT) && forwardOpr.getInputs().size() == 1) {
-        forwardOpr.setParallelism(forwardOpr.getInputs().get(0).getParallelism());
-      }
+    return (DataStreamSinkProvider) dataStream -> {
       return FlinkSink.forRowData(dataStream)
           .tableLoader(tableLoader)
           .tableSchema(tableSchema)
@@ -86,7 +76,6 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
 
   @Override
   public ChangelogMode getChangelogMode(ChangelogMode requestedMode) {
-    this.inputChangelogMode = requestedMode;
     ChangelogMode.Builder builder = ChangelogMode.newBuilder();
     for (RowKind kind : requestedMode.getContainedKinds()) {
       builder.addContainedKind(kind);
