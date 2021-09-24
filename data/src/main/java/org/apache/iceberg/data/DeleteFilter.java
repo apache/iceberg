@@ -66,8 +66,10 @@ public abstract class DeleteFilter<T> {
   private final List<DeleteFile> eqDeletes;
   private final Schema requiredSchema;
   private final Accessor<StructLike> posAccessor;
+  private final Cache<String, StructLikeSet> deleteFilterCache;
 
-  protected DeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema) {
+  protected DeleteFilter(FileScanTask task, Schema tableSchema, Schema requestedSchema,
+                         Map<String, String> properties) {
     this.setFilterThreshold = DEFAULT_SET_FILTER_THRESHOLD;
     this.dataFile = task.file();
 
@@ -90,6 +92,7 @@ public abstract class DeleteFilter<T> {
     this.eqDeletes = eqDeleteBuilder.build();
     this.requiredSchema = fileProjection(tableSchema, requestedSchema, posDeletes, eqDeletes);
     this.posAccessor = requiredSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
+    this.deleteFilterCache = DeleteFilterCache.create(properties);
   }
 
   public Schema requiredSchema() {
@@ -134,16 +137,26 @@ public abstract class DeleteFilter<T> {
 
       Iterable<CloseableIterable<Record>> deleteRecords = Iterables.transform(deletes,
           delete -> openDeletes(delete, deleteSchema));
-      StructLikeSet deleteSet = Deletes.toEqualitySet(
-          // copy the delete records because they will be held in a set
-          CloseableIterable.transform(CloseableIterable.concat(deleteRecords), Record::copy),
-          deleteSchema.asStruct());
+      StructLikeSet deleteSet = StructLikeSet.create(deleteSchema.asStruct());
+      toEqualityDeleteSet(deletes, deleteSchema).forEach(deleteSet::addAll);
 
       Predicate<T> isInDeleteSet = record -> deleteSet.contains(projectRow.wrap(asStructLike(record)));
       isInDeleteSets.add(isInDeleteSet);
     }
 
     return isInDeleteSets;
+  }
+
+  private Iterable<StructLikeSet> toEqualityDeleteSet(Iterable<DeleteFile> deleteFiles, Schema deleteSchema) {
+    return Iterables.transform(deleteFiles, delete -> {
+      StructLikeSet records = deleteFilterCache.getIfPresent(delete.path().toString());
+      if (records == null) {
+        records = Deletes.toEqualitySet(CloseableIterable.transform(openDeletes(delete, deleteSchema), Record::copy),
+            deleteSchema.asStruct());
+        deleteFilterCache.put(delete.path().toString(), records);
+      }
+      return records;
+    });
   }
 
   public CloseableIterable<T> findEqualityDeleteRows(CloseableIterable<T> records) {
