@@ -19,6 +19,8 @@
 
 package org.apache.iceberg;
 
+import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -27,6 +29,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
+
+import static org.apache.iceberg.SnapshotSummary.ADDED_DELETE_FILES_PROP;
+import static org.apache.iceberg.SnapshotSummary.ADDED_FILES_PROP;
+import static org.apache.iceberg.SnapshotSummary.ADDED_POS_DELETES_PROP;
+import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_COUNT_PROP;
+import static org.apache.iceberg.SnapshotSummary.CHANGED_PARTITION_PREFIX;
+import static org.apache.iceberg.SnapshotSummary.TOTAL_DATA_FILES_PROP;
+import static org.apache.iceberg.SnapshotSummary.TOTAL_DELETE_FILES_PROP;
+import static org.apache.iceberg.SnapshotSummary.TOTAL_POS_DELETES_PROP;
 
 public class TestRowDelta extends V2TableTestBase {
   @Test
@@ -749,5 +760,247 @@ public class TestRowDelta extends V2TableTestBase {
     AssertHelpers.assertThrows("Should fail to add deletes because data file is missing",
         ValidationException.class, "Cannot commit, missing data files",
         rowDelta::commit);
+  }
+
+  @Test
+  public void testAddDeleteFilesMultipleSpecs() {
+    // enable partition summaries
+    table.updateProperties()
+        .set(TableProperties.WRITE_PARTITION_SUMMARY_LIMIT, "10")
+        .commit();
+
+    // append a partitioned data file
+    DataFile firstSnapshotDataFile = newDataFile("data_bucket=0");
+    table.newAppend()
+        .appendFile(firstSnapshotDataFile)
+        .commit();
+
+    // remove the only partition field to make the spec unpartitioned
+    table.updateSpec()
+        .removeField(Expressions.bucket("data", 16))
+        .commit();
+
+    Assert.assertTrue("Spec must be unpartitioned", table.spec().isUnpartitioned());
+
+    // append an unpartitioned data file
+    DataFile secondSnapshotDataFile = newDataFile("");
+    table.newAppend()
+        .appendFile(secondSnapshotDataFile)
+        .commit();
+
+    // evolve the spec and add a new partition field
+    table.updateSpec()
+        .addField("data")
+        .commit();
+
+    // append a data file with the new spec
+    DataFile thirdSnapshotDataFile = newDataFile("data=abc");
+    table.newAppend()
+        .appendFile(thirdSnapshotDataFile)
+        .commit();
+
+    Assert.assertEquals("Should have 3 specs", 3, table.specs().size());
+
+    // commit a row delta with 1 data file and 3 delete files where delete files have different specs
+    DataFile dataFile = newDataFile("data=xyz");
+    DeleteFile firstDeleteFile = newDeleteFile(firstSnapshotDataFile.specId(), "data_bucket=0");
+    DeleteFile secondDeleteFile = newDeleteFile(secondSnapshotDataFile.specId(), "");
+    DeleteFile thirdDeleteFile = newDeleteFile(thirdSnapshotDataFile.specId(), "data=abc");
+
+    table.newRowDelta()
+        .addRows(dataFile)
+        .addDeletes(firstDeleteFile)
+        .addDeletes(secondDeleteFile)
+        .addDeletes(thirdDeleteFile)
+        .commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    Assert.assertEquals("Commit should produce sequence number 4", 4, snapshot.sequenceNumber());
+    Assert.assertEquals("Last sequence number should be 4", 4, table.ops().current().lastSequenceNumber());
+    Assert.assertEquals("Delta commit should be 'overwrite'", DataOperations.OVERWRITE, snapshot.operation());
+
+    Map<String, String> summary = snapshot.summary();
+
+    Assert.assertEquals("Should change 4 partitions", "4", summary.get(CHANGED_PARTITION_COUNT_PROP));
+    Assert.assertEquals("Should add 1 data file", "1", summary.get(ADDED_FILES_PROP));
+    Assert.assertEquals("Should have 4 data files", "4", summary.get(TOTAL_DATA_FILES_PROP));
+    Assert.assertEquals("Should add 3 delete files", "3", summary.get(ADDED_DELETE_FILES_PROP));
+    Assert.assertEquals("Should have 3 delete files", "3", summary.get(TOTAL_DELETE_FILES_PROP));
+    Assert.assertEquals("Should add 3 position deletes", "3", summary.get(ADDED_POS_DELETES_PROP));
+    Assert.assertEquals("Should have 3 position deletes", "3", summary.get(TOTAL_POS_DELETES_PROP));
+
+    Assert.assertTrue("Partition metrics must be correct",
+        summary.get(CHANGED_PARTITION_PREFIX).contains(ADDED_DELETE_FILES_PROP + "=1"));
+    Assert.assertTrue("Partition metrics must be correct",
+        summary.get(CHANGED_PARTITION_PREFIX + "data_bucket=0").contains(ADDED_DELETE_FILES_PROP + "=1"));
+    Assert.assertTrue("Partition metrics must be correct",
+        summary.get(CHANGED_PARTITION_PREFIX + "data=abc").contains(ADDED_DELETE_FILES_PROP + "=1"));
+    Assert.assertTrue("Partition metrics must be correct",
+        summary.get(CHANGED_PARTITION_PREFIX + "data=xyz").contains(ADDED_FILES_PROP + "=1"));
+
+    // 3 appends + 1 row delta
+    Assert.assertEquals("Should have 4 data manifest", 4, snapshot.dataManifests().size());
+    validateManifest(
+        snapshot.dataManifests().get(0),
+        seqs(4),
+        ids(snapshot.snapshotId()),
+        files(dataFile),
+        statuses(Status.ADDED));
+
+    // each delete file goes into a separate manifest as the specs are different
+    Assert.assertEquals("Should produce 3 delete manifest", 3, snapshot.deleteManifests().size());
+
+    ManifestFile firstDeleteManifest = snapshot.deleteManifests().get(2);
+    Assert.assertEquals("Spec must match", firstSnapshotDataFile.specId(), firstDeleteManifest.partitionSpecId());
+    validateDeleteManifest(
+        firstDeleteManifest,
+        seqs(4),
+        ids(snapshot.snapshotId()),
+        files(firstDeleteFile),
+        statuses(Status.ADDED));
+
+    ManifestFile secondDeleteManifest = snapshot.deleteManifests().get(1);
+    Assert.assertEquals("Spec must match", secondSnapshotDataFile.specId(), secondDeleteManifest.partitionSpecId());
+    validateDeleteManifest(
+        secondDeleteManifest,
+        seqs(4),
+        ids(snapshot.snapshotId()),
+        files(secondDeleteFile),
+        statuses(Status.ADDED));
+
+    ManifestFile thirdDeleteManifest = snapshot.deleteManifests().get(0);
+    Assert.assertEquals("Spec must match", thirdSnapshotDataFile.specId(), thirdDeleteManifest.partitionSpecId());
+    validateDeleteManifest(
+        thirdDeleteManifest,
+        seqs(4),
+        ids(snapshot.snapshotId()),
+        files(thirdDeleteFile),
+        statuses(Status.ADDED));
+  }
+
+  @Test
+  public void testManifestMergingMultipleSpecs() {
+    // make sure we enable manifest merging
+    table.updateProperties()
+        .set(TableProperties.MANIFEST_MERGE_ENABLED, "true")
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "2")
+        .commit();
+
+    // append a partitioned data file
+    DataFile firstSnapshotDataFile = newDataFile("data_bucket=0");
+    table.newAppend()
+        .appendFile(firstSnapshotDataFile)
+        .commit();
+
+    // remove the only partition field to make the spec unpartitioned
+    table.updateSpec()
+        .removeField(Expressions.bucket("data", 16))
+        .commit();
+
+    Assert.assertTrue("Spec must be unpartitioned", table.spec().isUnpartitioned());
+
+    // append an unpartitioned data file
+    DataFile secondSnapshotDataFile = newDataFile("");
+    table.newAppend()
+        .appendFile(secondSnapshotDataFile)
+        .commit();
+
+    // commit two delete files to two specs in a single operation
+    DeleteFile firstDeleteFile = newDeleteFile(firstSnapshotDataFile.specId(), "data_bucket=0");
+    DeleteFile secondDeleteFile = newDeleteFile(secondSnapshotDataFile.specId(), "");
+
+    table.newRowDelta()
+        .addDeletes(firstDeleteFile)
+        .addDeletes(secondDeleteFile)
+        .commit();
+
+    Snapshot thirdSnapshot = table.currentSnapshot();
+
+    // 2 appends and 1 row delta where delete files belong to different specs
+    Assert.assertEquals("Should have 2 data manifest", 2, thirdSnapshot.dataManifests().size());
+    Assert.assertEquals("Should have 2 delete manifest", 2, thirdSnapshot.deleteManifests().size());
+
+    // commit two more delete files to the same specs to trigger merging
+    DeleteFile thirdDeleteFile = newDeleteFile(firstSnapshotDataFile.specId(), "data_bucket=0");
+    DeleteFile fourthDeleteFile = newDeleteFile(secondSnapshotDataFile.specId(), "");
+
+    table.newRowDelta()
+        .addDeletes(thirdDeleteFile)
+        .addDeletes(fourthDeleteFile)
+        .commit();
+
+    Snapshot fourthSnapshot = table.currentSnapshot();
+
+    // make sure merging respects spec boundaries
+    Assert.assertEquals("Should have 2 data manifest", 2, fourthSnapshot.dataManifests().size());
+    Assert.assertEquals("Should have 2 delete manifest", 2, fourthSnapshot.deleteManifests().size());
+
+    ManifestFile firstDeleteManifest = fourthSnapshot.deleteManifests().get(1);
+    Assert.assertEquals("Spec must match", firstSnapshotDataFile.specId(), firstDeleteManifest.partitionSpecId());
+    validateDeleteManifest(
+        firstDeleteManifest,
+        seqs(4, 3),
+        ids(fourthSnapshot.snapshotId(), thirdSnapshot.snapshotId()),
+        files(thirdDeleteFile, firstDeleteFile),
+        statuses(Status.ADDED, Status.EXISTING));
+
+    ManifestFile secondDeleteManifest = fourthSnapshot.deleteManifests().get(0);
+    Assert.assertEquals("Spec must match", secondSnapshotDataFile.specId(), secondDeleteManifest.partitionSpecId());
+    validateDeleteManifest(
+        secondDeleteManifest,
+        seqs(4, 3),
+        ids(fourthSnapshot.snapshotId(), thirdSnapshot.snapshotId()),
+        files(fourthDeleteFile, secondDeleteFile),
+        statuses(Status.ADDED, Status.EXISTING));
+  }
+
+  @Test
+  public void testAbortMultipleSpecs() {
+    // append a partitioned data file
+    DataFile firstSnapshotDataFile = newDataFile("data_bucket=0");
+    table.newAppend()
+        .appendFile(firstSnapshotDataFile)
+        .commit();
+
+    // remove the only partition field to make the spec unpartitioned
+    table.updateSpec()
+        .removeField(Expressions.bucket("data", 16))
+        .commit();
+
+    Assert.assertTrue("Spec must be unpartitioned", table.spec().isUnpartitioned());
+
+    // append an unpartitioned data file
+    DataFile secondSnapshotDataFile = newDataFile("");
+    table.newAppend()
+        .appendFile(secondSnapshotDataFile)
+        .commit();
+
+    // prepare two delete files that belong to different specs
+    DeleteFile firstDeleteFile = newDeleteFile(firstSnapshotDataFile.specId(), "data_bucket=0");
+    DeleteFile secondDeleteFile = newDeleteFile(secondSnapshotDataFile.specId(), "");
+
+    // capture all deletes
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    RowDelta rowDelta = table.newRowDelta()
+        .addDeletes(firstDeleteFile)
+        .addDeletes(secondDeleteFile)
+        .deleteWith(deletedFiles::add)
+        .validateDeletedFiles()
+        .validateDataFilesExist(ImmutableList.of(firstSnapshotDataFile.path()));
+
+    rowDelta.apply();
+
+    // perform a conflicting concurrent operation
+    table.newDelete()
+        .deleteFile(firstSnapshotDataFile)
+        .commit();
+
+    AssertHelpers.assertThrows("Should fail to commit row delta",
+        ValidationException.class, "Cannot commit, missing data files",
+        rowDelta::commit);
+
+    // we should clean up 1 manifest list and 2 delete manifests
+    Assert.assertEquals("Should delete 3 files", 3, deletedFiles.size());
   }
 }

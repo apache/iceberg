@@ -22,13 +22,16 @@ package org.apache.iceberg.deletes;
 import org.apache.iceberg.StructLike;
 
 public class PositionDelete<R> implements StructLike {
-  static <T> PositionDelete<T> create() {
+  public static <T> PositionDelete<T> create() {
     return new PositionDelete<>();
   }
 
   private CharSequence path;
   private long pos;
   private R row;
+
+  private PositionDelete() {
+  }
 
   public PositionDelete<R> set(CharSequence newPath, long newPos, R newRow) {
     this.path = newPath;

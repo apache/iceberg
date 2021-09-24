@@ -22,8 +22,8 @@ package org.apache.iceberg.spark.source;
 import java.util.List;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.io.TestWriterFactory;
-import org.apache.iceberg.io.WriterFactory;
+import org.apache.iceberg.io.FileWriterFactory;
+import org.apache.iceberg.io.TestPartitioningWriters;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.StructLikeSet;
@@ -32,17 +32,17 @@ import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 
-public class TestSparkWriterFactory extends TestWriterFactory<InternalRow> {
+public class TestSparkPartitioningWriters extends TestPartitioningWriters<InternalRow> {
 
-  public TestSparkWriterFactory(FileFormat fileFormat, boolean partitioned) {
-    super(fileFormat, partitioned);
+  public TestSparkPartitioningWriters(FileFormat fileFormat) {
+    super(fileFormat);
   }
 
   @Override
-  protected WriterFactory<InternalRow> newWriterFactory(Schema dataSchema, List<Integer> equalityFieldIds,
-                                                        Schema equalityDeleteRowSchema,
-                                                        Schema positionDeleteRowSchema) {
-    return SparkWriterFactory.builderFor(table)
+  protected FileWriterFactory<InternalRow> newWriterFactory(Schema dataSchema, List<Integer> equalityFieldIds,
+                                                            Schema equalityDeleteRowSchema,
+                                                            Schema positionDeleteRowSchema) {
+    return SparkFileWriterFactory.builderFor(table)
         .dataSchema(table.schema())
         .dataFileFormat(format())
         .deleteFileFormat(format())
