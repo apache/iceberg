@@ -76,6 +76,111 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
   }
 
   @Test
+  public void testPositionDeltaInsertOnly() throws IOException {
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
+
+    ClusteredDataWriter<T> dataWriter = new ClusteredDataWriter<>(
+        writerFactory, fileFactory, table.io(),
+        fileFormat, TARGET_FILE_SIZE);
+    ClusteredPositionDeleteWriter<T> deleteWriter = new ClusteredPositionDeleteWriter<>(
+        writerFactory, fileFactory, table.io(),
+        fileFormat, TARGET_FILE_SIZE);
+    PositionDeltaWriter<T> deltaWriter = new BasePositionDeltaWriter<>(dataWriter, deleteWriter);
+
+    deltaWriter.insert(toRow(1, "aaa"), table.spec(), null);
+    deltaWriter.close();
+
+    WriteResult result = deltaWriter.result();
+    DataFile[] dataFiles = result.dataFiles();
+    DeleteFile[] deleteFiles = result.deleteFiles();
+    CharSequence[] referencedDataFiles = result.referencedDataFiles();
+
+    Assert.assertEquals("Must be 1 data files", 1, dataFiles.length);
+    Assert.assertEquals("Must be no delete files", 0, deleteFiles.length);
+    Assert.assertEquals("Must not reference data files", 0, referencedDataFiles.length);
+
+    RowDelta rowDelta = table.newRowDelta();
+    for (DataFile dataFile : dataFiles) {
+      rowDelta.addRows(dataFile);
+    }
+    rowDelta.commit();
+
+    List<T> expectedRows = ImmutableList.of(
+        toRow(1, "aaa")
+    );
+    Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
+  }
+
+  @Test
+  public void testPositionDeltaDeleteOnly() throws IOException {
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
+
+    // add an unpartitioned data file
+    ImmutableList<T> rows1 = ImmutableList.of(
+        toRow(1, "aaa"),
+        toRow(2, "aaa"),
+        toRow(11, "aaa")
+    );
+    DataFile dataFile1 = writeData(writerFactory, fileFactory, rows1, table.spec(), null);
+    table.newFastAppend()
+        .appendFile(dataFile1)
+        .commit();
+
+    // partition by data
+    table.updateSpec()
+        .addField(Expressions.ref("data"))
+        .commit();
+
+    // add a data file partitioned by data
+    ImmutableList<T> rows2 = ImmutableList.of(
+        toRow(3, "bbb"),
+        toRow(4, "bbb")
+    );
+    DataFile dataFile2 = writeData(writerFactory, fileFactory, rows2, table.spec(), partitionKey(table.spec(), "bbb"));
+    table.newFastAppend()
+        .appendFile(dataFile2)
+        .commit();
+
+    PartitionSpec unpartitionedSpec = table.specs().get(0);
+    PartitionSpec partitionedSpec = table.specs().get(1);
+
+    ClusteredDataWriter<T> dataWriter = new ClusteredDataWriter<>(
+        writerFactory, fileFactory, table.io(),
+        fileFormat, TARGET_FILE_SIZE);
+    ClusteredPositionDeleteWriter<T> deleteWriter = new ClusteredPositionDeleteWriter<>(
+        writerFactory, fileFactory, table.io(),
+        fileFormat, TARGET_FILE_SIZE);
+    PositionDeltaWriter<T> deltaWriter = new BasePositionDeltaWriter<>(dataWriter, deleteWriter);
+
+    deltaWriter.delete(dataFile1.path(), 2L, unpartitionedSpec, null);
+    deltaWriter.delete(dataFile2.path(), 1L, partitionedSpec, partitionKey(partitionedSpec, "bbb"));
+
+    deltaWriter.close();
+
+    WriteResult result = deltaWriter.result();
+    DataFile[] dataFiles = result.dataFiles();
+    DeleteFile[] deleteFiles = result.deleteFiles();
+    CharSequence[] referencedDataFiles = result.referencedDataFiles();
+
+    Assert.assertEquals("Must be 0 data files", 0, dataFiles.length);
+    Assert.assertEquals("Must be 2 delete files", 2, deleteFiles.length);
+    Assert.assertEquals("Must reference 2 data files", 2, referencedDataFiles.length);
+
+    RowDelta rowDelta = table.newRowDelta();
+    for (DeleteFile deleteFile : deleteFiles) {
+      rowDelta.addDeletes(deleteFile);
+    }
+    rowDelta.commit();
+
+    List<T> expectedRows = ImmutableList.of(
+        toRow(1, "aaa"),
+        toRow(2, "aaa"),
+        toRow(3, "bbb")
+    );
+    Assert.assertEquals("Records should match", toSet(expectedRows), actualRowSet("*"));
+  }
+
+  @Test
   public void testPositionDeltaMultipleSpecs() throws IOException {
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 

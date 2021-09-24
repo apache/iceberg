@@ -55,7 +55,7 @@ public interface EqualityDeltaWriter<T> extends Closeable {
   /**
    * Deletes a key from the provided spec/partition.
    * <p>
-   * This method assumes the delete key schema matches the equality field IDs.
+   * This method assumes the delete key contains values only for equality fields.
    *
    * @param key a delete key
    * @param spec a partition spec

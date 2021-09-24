@@ -42,7 +42,7 @@ public interface PositionDeltaWriter<T> extends Closeable {
   void insert(T row, PartitionSpec spec, StructLike partition);
 
   /**
-   * Deletes a position in the provided spec/partition without persisting the old row.
+   * Deletes a position in the provided spec/partition.
    *
    * @param path a data file path
    * @param pos  a position
@@ -54,7 +54,7 @@ public interface PositionDeltaWriter<T> extends Closeable {
   }
 
   /**
-   * Deletes a position in the provided spec/partition and persists the old row.
+   * Deletes a position in the provided spec/partition and records the deleted row in the delete file.
    *
    * @param path a data file path
    * @param pos a position
