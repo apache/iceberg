@@ -354,6 +354,7 @@ public class Avro {
       rowSchema(table.schema());
       withSpec(table.spec());
       setAll(table.properties());
+      metricsConfig(MetricsConfig.forTable(table));
       return this;
     }
 
@@ -383,6 +384,11 @@ public class Avro {
 
     public DeleteWriteBuilder overwrite(boolean enabled) {
       appenderBuilder.overwrite(enabled);
+      return this;
+    }
+
+    public DeleteWriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
+      appenderBuilder.metricsConfig(newMetricsConfig);
       return this;
     }
 
