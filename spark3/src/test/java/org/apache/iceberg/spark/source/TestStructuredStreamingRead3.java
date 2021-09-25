@@ -62,6 +62,7 @@ import org.junit.runners.Parameterized;
 
 import static org.apache.iceberg.expressions.Expressions.ref;
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @RunWith(Parameterized.class)
 public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
@@ -190,6 +191,27 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     List<SimpleRecord> actual = processAvailable(df);
 
     Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testReadingStreamAfterLatestTimestamp() throws Exception {
+    List<SimpleRecord> dataBeforeTimestamp = Lists.newArrayList(
+            new SimpleRecord(-2, "minustwo"),
+            new SimpleRecord(-1, "minusone"),
+            new SimpleRecord(0, "zero"));
+    appendData(dataBeforeTimestamp, tableIdentifier, "parquet");
+
+    table.refresh();
+    long streamStartTimestamp = table.currentSnapshot().timestampMillis() + 1;
+    waitUntilAfter(streamStartTimestamp);
+
+    Dataset<Row> df = spark.readStream()
+            .format("iceberg")
+            .option(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(streamStartTimestamp))
+            .load(tableIdentifier);
+    List<SimpleRecord> actual = processAvailable(df);
+    assertTrue(actual.isEmpty());
   }
 
   @SuppressWarnings("unchecked")
