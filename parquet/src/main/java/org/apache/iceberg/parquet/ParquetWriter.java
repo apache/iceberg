@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -167,7 +168,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       return length;
 
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to get file length");
+      throw new UncheckedIOException("Failed to get file length", e);
     }
   }
 
@@ -189,7 +190,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       } else {
         long remainingSpace = targetRowGroupSize - bufferedSize;
         long remainingRecords = (long) (remainingSpace / avgRecordSize);
-        this.nextCheckRecordCount = recordCount + Math.min(Math.max(remainingRecords / 2, 100), 10000);
+        this.nextCheckRecordCount = recordCount + Math.min(Math.max(remainingRecords / 2,
+            props.getMinRowCountForPageSizeCheck()), props.getMaxRowCountForPageSizeCheck());
       }
     }
   }
@@ -207,14 +209,15 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
         }
       }
     } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to flush row group");
+      throw new UncheckedIOException("Failed to flush row group", e);
     }
   }
 
   private void startRowGroup() {
     Preconditions.checkState(!closed, "Writer is closed");
 
-    this.nextCheckRecordCount = Math.min(Math.max(recordCount / 2, 100), 10000);
+    this.nextCheckRecordCount = Math.min(Math.max(recordCount / 2,
+        props.getMinRowCountForPageSizeCheck()), props.getMaxRowCountForPageSizeCheck());
     this.recordCount = 0;
 
     PageWriteStore pageStore = pageStoreCtorParquet.newInstance(
