@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.MetricsModes.MetricsMode;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SortOrderUtil;
 import org.slf4j.Logger;
@@ -37,6 +38,7 @@ import static org.apache.iceberg.TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX
 public class MetricsConfig implements Serializable {
 
   private static final Logger LOG = LoggerFactory.getLogger(MetricsConfig.class);
+  private static final Joiner DOT = Joiner.on('.');
 
   private Map<String, MetricsMode> columnModes = Maps.newHashMap();
   private MetricsMode defaultMode;
@@ -94,6 +96,28 @@ public class MetricsConfig implements Serializable {
    */
   public static MetricsConfig forTable(Table table) {
     return from(table.properties(), table.sortOrder());
+  }
+
+  /**
+   * Creates a metrics config for a position delete file.
+   *
+   * @param table an Iceberg table
+   */
+  public static MetricsConfig forPositionDelete(Table table) {
+    MetricsConfig config = new MetricsConfig();
+
+    config.columnModes.put(MetadataColumns.DELETE_FILE_PATH.name(), MetricsModes.Full.get());
+    config.columnModes.put(MetadataColumns.DELETE_FILE_POS.name(), MetricsModes.Full.get());
+
+    MetricsConfig tableConfig = forTable(table);
+
+    config.defaultMode = tableConfig.defaultMode;
+    tableConfig.columnModes.forEach((columnAlias, mode) -> {
+      String positionDeleteColumnAlias = DOT.join(MetadataColumns.DELETE_FILE_ROW_FIELD_NAME, columnAlias);
+      config.columnModes.put(positionDeleteColumnAlias, mode);
+    });
+
+    return config;
   }
 
   private static MetricsConfig from(Map<String, String> props, SortOrder order) {
