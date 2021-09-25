@@ -25,13 +25,10 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
-import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.runtime.util.HadoopUtils;
 import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.factories.CatalogFactory;
-import org.apache.flink.table.factories.FactoryUtil;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CatalogProperties;
@@ -40,7 +37,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 /**
  * A Flink Catalog factory implementation that creates {@link FlinkCatalog}.
@@ -73,7 +69,6 @@ public class FlinkCatalogFactory implements CatalogFactory {
   public static final String BASE_NAMESPACE = "base-namespace";
   public static final String CACHE_ENABLED = "cache-enabled";
 
-  public static final String IDENTIFIER = "iceberg";
   public static final String TYPE = "type";
   public static final String PROPERTY_VERSION = "property-version";
 
@@ -109,23 +104,6 @@ public class FlinkCatalogFactory implements CatalogFactory {
   }
 
   @Override
-  public String factoryIdentifier() {
-    return IDENTIFIER;
-  }
-
-  @Override
-  public Set<ConfigOption<?>> requiredOptions() {
-    return Sets.newHashSet();
-  }
-
-  @Override
-  public Set<ConfigOption<?>> optionalOptions() {
-    final Set<ConfigOption<?>> options = Sets.newHashSet();
-    options.add(FactoryUtil.PROPERTY_VERSION);
-    return options;
-  }
-
-  @Override
   public Map<String, String> requiredContext() {
     Map<String, String> context = Maps.newHashMap();
     context.put(TYPE, "iceberg");
@@ -141,11 +119,6 @@ public class FlinkCatalogFactory implements CatalogFactory {
   @Override
   public Catalog createCatalog(String name, Map<String, String> properties) {
     return createCatalog(name, properties, clusterHadoopConf());
-  }
-
-  @Override
-  public Catalog createCatalog(Context context) {
-    return createCatalog(context.getName(), context.getOptions(), clusterHadoopConf());
   }
 
   protected Catalog createCatalog(String name, Map<String, String> properties, Configuration hadoopConf) {

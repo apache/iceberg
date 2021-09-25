@@ -160,9 +160,9 @@ public class AssertHelpers {
    * Same as {@link AssertHelpers#assertThrowsCause}, but this method compares root cause.
    */
   public static void assertThrowsRootCause(String message,
-                                       Class<? extends Exception> expected,
-                                       String containedInMessage,
-                                       Runnable runnable) {
+                                           Class<? extends Exception> expected,
+                                           String containedInMessage,
+                                           Runnable runnable) {
     Assertions.assertThatThrownBy(runnable::run)
         .as(message)
         .getRootCause()

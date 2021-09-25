@@ -14,4 +14,3 @@
 # limitations under the License.
 
 org.apache.iceberg.flink.FlinkDynamicTableFactory
-org.apache.iceberg.flink.FlinkCatalogFactory
