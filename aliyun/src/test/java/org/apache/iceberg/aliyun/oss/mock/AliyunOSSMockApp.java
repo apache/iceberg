@@ -66,7 +66,7 @@ public class AliyunOSSMockApp {
 
     Banner.Mode bannerMode = Banner.Mode.CONSOLE;
 
-    if (Boolean.parseBoolean(String.valueOf(properties.remove("silent")))) {
+    if (Boolean.parseBoolean(String.valueOf(properties.remove(PROP_SILENT)))) {
       defaults.put("logging.level.root", "WARN");
       bannerMode = Banner.Mode.OFF;
     }
