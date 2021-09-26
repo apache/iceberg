@@ -115,12 +115,16 @@ public class TableProperties {
   public static final String DELETE_PARQUET_COMPRESSION_LEVEL = "write.delete.parquet.compression-level";
   public static final String PARQUET_COMPRESSION_LEVEL_DEFAULT = null;
 
-  public static final String PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT = "write.parquet.row-group-check-min-record-count";
-  public static final String DELETE_PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT = "write.delete.parquet.row-group-check-min-record-count";
+  public static final String PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT =
+      "write.parquet.row-group-check-min-record-count";
+  public static final String DELETE_PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT =
+      "write.delete.parquet.row-group-check-min-record-count";
   public static final String PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT_DEFAULT = "100";
 
-  public static final String PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT = "write.parquet.row-group-check-max-record-count";
-  public static final String DELETE_PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT = "write.delete.parquet.row-group-check-max-record-count";
+  public static final String PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT =
+      "write.parquet.row-group-check-max-record-count";
+  public static final String DELETE_PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT =
+      "write.delete.parquet.row-group-check-max-record-count";
   public static final String PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT_DEFAULT = "10000";
 
   public static final String AVRO_COMPRESSION = "write.avro.compression-codec";
