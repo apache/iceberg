@@ -232,6 +232,9 @@ The set of metadata columns is:
 |-----------------------------|---------------|-------------|
 | **`2147483646  _file`**     | `string`      | Path of the file in which a row is stored |
 | **`2147483645  _pos`**      | `long`        | Ordinal position of a row in the source data file |
+| **`2147483644  _deleted`**  | `boolean`     | Whether the row has been deleted |
+| **`2147483643  _spec_id`**  | `int`         | Spec ID used to track the file containing a row |
+| **`2147483642  _partition`** | `struct`     | Partition to which a row belongs |
 | **`2147483546  file_path`** | `string`      | Path of a file, used in position-based delete files |
 | **`2147483545  pos`**       | `long`        | Ordinal position of a row, used in position-based delete files |
 | **`2147483544  row`**       | `struct<...>` | Deleted row values, used in position-based delete files |
