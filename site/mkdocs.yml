@@ -50,6 +50,7 @@ markdown_extensions:
 nav:
   - Project:
     - About: index.md
+    - Roadmap: roadmap.md
     - Community: community.md
     - Releases: releases.md
     - Blogs: blogs.md
@@ -75,7 +76,9 @@ nav:
       - Maintenance Procedures: spark-procedures.md
       - Structured Streaming: spark-structured-streaming.md
       - Time Travel: spark-queries/#time-travel
-    - Flink: flink.md
+    - Flink:
+      - Getting Started: flink.md
+      - Flink Connector: flink-connector.md
     - Hive: hive.md
     - Trino: https://trino.io/docs/current/connector/iceberg.html
     - PrestoDB: https://prestodb.io/docs/current/connector/iceberg.html

@@ -153,10 +153,9 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
     try {
       switch (deleteFileFormat) {
         case AVRO:
-          // TODO: support metrics configs in Avro equality delete writer
-
           Avro.DeleteWriteBuilder avroBuilder = Avro.writeDeletes(outputFile)
               .setAll(properties)
+              .metricsConfig(metricsConfig)
               .rowSchema(equalityDeleteRowSchema)
               .equalityFieldIds(equalityFieldIds)
               .withSpec(spec)
@@ -199,14 +198,14 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
     OutputFile outputFile = file.encryptingOutputFile();
     EncryptionKeyMetadata keyMetadata = file.keyMetadata();
     Map<String, String> properties = table.properties();
-
-    // TODO: build and pass a correct metrics config for position deletes
+    MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
 
     try {
       switch (deleteFileFormat) {
         case AVRO:
           Avro.DeleteWriteBuilder avroBuilder = Avro.writeDeletes(outputFile)
               .setAll(properties)
+              .metricsConfig(metricsConfig)
               .rowSchema(positionDeleteRowSchema)
               .withSpec(spec)
               .withPartition(partition)
@@ -220,6 +219,7 @@ public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
         case PARQUET:
           Parquet.DeleteWriteBuilder parquetBuilder = Parquet.writeDeletes(outputFile)
               .setAll(properties)
+              .metricsConfig(metricsConfig)
               .rowSchema(positionDeleteRowSchema)
               .withSpec(spec)
               .withPartition(partition)

@@ -20,20 +20,28 @@
 package org.apache.iceberg.io;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestTables;
+import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -140,6 +148,57 @@ public abstract class TestWriterMetrics<T> {
     Assert.assertEquals(3L, (long) Conversions.fromByteBuffer(Types.LongType.get(), lowerBounds.get(5)));
 
     Map<Integer, ByteBuffer> upperBounds = dataFile.upperBounds();
+    Assert.assertEquals(3, (int) Conversions.fromByteBuffer(Types.IntegerType.get(), upperBounds.get(1)));
+    Assert.assertFalse(upperBounds.containsKey(2));
+    Assert.assertFalse(upperBounds.containsKey(3));
+    Assert.assertFalse(upperBounds.containsKey(4));
+    Assert.assertEquals(3L, (long) Conversions.fromByteBuffer(Types.LongType.get(), upperBounds.get(5)));
+  }
+
+  @Test
+  public void testPositionDeleteMetrics() throws IOException {
+    Assume.assumeTrue(fileFormat == FileFormat.PARQUET);
+
+    FileWriterFactory<T> writerFactory = newWriterFactory(SCHEMA);
+    EncryptedOutputFile outputFile = fileFactory.newOutputFile();
+    PositionDeleteWriter<T> deleteWriter = writerFactory.newPositionDeleteWriter(outputFile, table.spec(), null);
+
+    try {
+      T deletedRow = toRow(3, "3", true, 3L);
+      PositionDelete<T> positionDelete = PositionDelete.create();
+      positionDelete.set("File A", 1, deletedRow);
+      deleteWriter.write(positionDelete);
+    } finally {
+      deleteWriter.close();
+    }
+
+    DeleteFile deleteFile = deleteWriter.toDeleteFile();
+
+    int pathFieldId = MetadataColumns.DELETE_FILE_PATH.fieldId();
+    int posFieldId = MetadataColumns.DELETE_FILE_POS.fieldId();
+
+    // should have metrics for _file and _pos as well as two sorted fields (id, structField.longValue)
+
+    Map<Integer, ByteBuffer> lowerBounds = deleteFile.lowerBounds();
+
+    Assert.assertEquals(
+        CharBuffer.wrap("File A"),
+        Conversions.fromByteBuffer(Types.StringType.get(), lowerBounds.get(pathFieldId)));
+    Assert.assertEquals(1L, (long) Conversions.fromByteBuffer(Types.LongType.get(), lowerBounds.get(posFieldId)));
+
+    Assert.assertEquals(3, (int) Conversions.fromByteBuffer(Types.IntegerType.get(), lowerBounds.get(1)));
+    Assert.assertFalse(lowerBounds.containsKey(2));
+    Assert.assertFalse(lowerBounds.containsKey(3));
+    Assert.assertFalse(lowerBounds.containsKey(4));
+    Assert.assertEquals(3L, (long) Conversions.fromByteBuffer(Types.LongType.get(), lowerBounds.get(5)));
+
+    Map<Integer, ByteBuffer> upperBounds = deleteFile.upperBounds();
+
+    Assert.assertEquals(
+        CharBuffer.wrap("File A"),
+        Conversions.fromByteBuffer(Types.StringType.get(), upperBounds.get(pathFieldId)));
+    Assert.assertEquals(1L, (long) Conversions.fromByteBuffer(Types.LongType.get(), upperBounds.get(posFieldId)));
+
     Assert.assertEquals(3, (int) Conversions.fromByteBuffer(Types.IntegerType.get(), upperBounds.get(1)));
     Assert.assertFalse(upperBounds.containsKey(2));
     Assert.assertFalse(upperBounds.containsKey(3));

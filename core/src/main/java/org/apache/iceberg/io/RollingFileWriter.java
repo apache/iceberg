@@ -20,6 +20,7 @@
 package org.apache.iceberg.io;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
@@ -81,7 +82,7 @@ abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements Fi
   }
 
   @Override
-  public void write(T row) throws IOException {
+  public void write(T row) {
     currentWriter.write(row);
     currentFileRows++;
 
@@ -111,9 +112,13 @@ abstract class RollingFileWriter<T, W extends FileWriter<T, R>, R> implements Fi
     }
   }
 
-  private void closeCurrentWriter() throws IOException {
+  private void closeCurrentWriter() {
     if (currentWriter != null) {
-      currentWriter.close();
+      try {
+        currentWriter.close();
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to close current writer", e);
+      }
 
       if (currentFileRows == 0L) {
         io.deleteFile(currentFile.encryptingOutputFile());

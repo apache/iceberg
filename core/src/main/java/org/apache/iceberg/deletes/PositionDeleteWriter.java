@@ -57,7 +57,7 @@ public class PositionDeleteWriter<T> implements FileWriter<PositionDelete<T>, De
   }
 
   @Override
-  public void write(PositionDelete<T> positionDelete) throws IOException {
+  public void write(PositionDelete<T> positionDelete) {
     referencedDataFiles.add(positionDelete.path());
     appender.add(positionDelete);
   }

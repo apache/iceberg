@@ -273,9 +273,9 @@ public abstract class TestAppenderFactory<T> extends TableTestBase {
     DataFile dataFile = prepareDataFile(rowSet, appenderFactory);
 
     List<PositionDelete<T>> deletes = Lists.newArrayList(
-        new PositionDelete<T>().set(dataFile.path(), 0, rowSet.get(0)),
-        new PositionDelete<T>().set(dataFile.path(), 2, rowSet.get(2)),
-        new PositionDelete<T>().set(dataFile.path(), 4, rowSet.get(4))
+        positionDelete(dataFile.path(), 0, rowSet.get(0)),
+        positionDelete(dataFile.path(), 2, rowSet.get(2)),
+        positionDelete(dataFile.path(), 4, rowSet.get(4))
     );
 
     EncryptedOutputFile out = createEncryptedOutputFile();
