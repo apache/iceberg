@@ -21,10 +21,15 @@ package org.apache.iceberg.flink.source.reader;
 
 import java.io.Serializable;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
+import org.apache.flink.connector.base.source.reader.splitreader.SplitReader;
 import org.apache.flink.connector.file.src.util.RecordAndPosition;
 import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.io.CloseableIterator;
 
+/**
+ * Batcher converts iterator of T into iterator of batched {@code RecordsWithSplitIds<RecordAndPosition<T>>},
+ * which is what FLIP-27's {@link SplitReader#fetch()} returns.
+ */
 @FunctionalInterface
 public interface DataIteratorBatcher<T> extends Serializable {
   CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> apply(String splitId, DataIterator<T> inputIterator);

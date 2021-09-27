@@ -104,12 +104,12 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
     currentReader = readerFunction.apply(nextSplit);
   }
 
-  private FileRecords<T> finishSplit() throws IOException {
+  private SplitRecords<T> finishSplit() throws IOException {
     if (currentReader != null) {
       currentReader.close();
       currentReader = null;
     }
-    final FileRecords<T> finishRecords = FileRecords.finishedSplit(currentSplitId);
+    final SplitRecords<T> finishRecords = SplitRecords.finishedSplit(currentSplitId);
     LOG.debug("Split reader {} finished split: {}", indexOfSubtask, currentSplitId);
     currentSplitId = null;
     metrics.incrementFinishedSplits(1L);

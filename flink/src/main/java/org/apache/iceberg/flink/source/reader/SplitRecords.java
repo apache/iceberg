@@ -29,10 +29,10 @@ import org.apache.flink.connector.file.src.util.RecordAndPosition;
 import org.apache.iceberg.io.CloseableIterator;
 
 /**
- * A batch of recrods for one split
+ * A batch of records for one split
  */
 @Internal
-public class FileRecords<T> implements RecordsWithSplitIds<RecordAndPosition<T>> {
+public class SplitRecords<T> implements RecordsWithSplitIds<RecordAndPosition<T>> {
 
   @Nullable
   private final CloseableIterator<RecordAndPosition<T>> recordsForSplit;
@@ -43,7 +43,7 @@ public class FileRecords<T> implements RecordsWithSplitIds<RecordAndPosition<T>>
   @Nullable
   private CloseableIterator<RecordAndPosition<T>> recordsForSplitCurrent;
 
-  private FileRecords(
+  private SplitRecords(
       @Nullable String splitId,
       @Nullable CloseableIterator<RecordAndPosition<T>> recordsForSplit,
       Set<String> finishedSplits) {
@@ -92,12 +92,12 @@ public class FileRecords<T> implements RecordsWithSplitIds<RecordAndPosition<T>>
     return finishedSplits;
   }
 
-  public static <T> FileRecords<T> forRecords(
+  public static <T> SplitRecords<T> forRecords(
       final String splitId, final CloseableIterator<RecordAndPosition<T>> recordsForSplit) {
-    return new FileRecords<>(splitId, recordsForSplit, Collections.emptySet());
+    return new SplitRecords<>(splitId, recordsForSplit, Collections.emptySet());
   }
 
-  public static <T> FileRecords<T> finishedSplit(String splitId) {
-    return new FileRecords<>(null, null, Collections.singleton(splitId));
+  public static <T> SplitRecords<T> finishedSplit(String splitId) {
+    return new SplitRecords<>(null, null, Collections.singleton(splitId));
   }
 }

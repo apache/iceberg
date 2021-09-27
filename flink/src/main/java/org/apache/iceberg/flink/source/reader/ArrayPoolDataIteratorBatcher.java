@@ -83,7 +83,7 @@ class ArrayPoolDataIteratorBatcher<T> implements DataIteratorBatcher<T> {
         return null;
       } else {
         Position position = inputIterator.position();
-        return FileRecords.forRecords(splitId, new RecyclableArrayIterator<>(
+        return SplitRecords.forRecords(splitId, new RecyclableArrayIterator<>(
             pool.recycler(), batch, num, position.fileOffset(), position.recordOffset() - num));
       }
     }

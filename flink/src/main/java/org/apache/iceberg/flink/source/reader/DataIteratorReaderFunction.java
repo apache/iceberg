@@ -25,6 +25,9 @@ import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.CloseableIterator;
 
+/**
+ * A {@link ReaderFunction} implementation that uses {@link DataIterator}.
+ */
 public abstract class DataIteratorReaderFunction<T> implements ReaderFunction<T> {
   private final DataIteratorBatcher<T> batcher;
 

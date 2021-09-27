@@ -70,11 +70,11 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
     return position;
   }
 
-  public byte[] serializedFormCache() {
+  byte[] serializedFormCache() {
     return serializedFormCache;
   }
 
-  public void serializedFormCache(byte[] cachedBytes) {
+  void serializedFormCache(byte[] cachedBytes) {
     this.serializedFormCache = cachedBytes;
   }
 
