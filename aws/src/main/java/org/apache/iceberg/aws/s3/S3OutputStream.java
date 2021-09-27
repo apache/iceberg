@@ -335,8 +335,6 @@ class S3OutputStream extends PositionOutputStream {
       boolean createdStagingDirectory = stagingDirectory.mkdirs();
       if (createdStagingDirectory) {
         LOG.info("Successfully created staging directory: {}", stagingDirectory.getAbsolutePath());
-      } else {
-        LOG.error("Staging directory: {} creation failed", stagingDirectory.getAbsolutePath());
       }
     }
   }
