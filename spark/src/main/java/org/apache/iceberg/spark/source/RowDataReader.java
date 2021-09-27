@@ -44,7 +44,6 @@ import org.apache.iceberg.spark.data.SparkAvroReader;
 import org.apache.iceberg.spark.data.SparkOrcReader;
 import org.apache.iceberg.spark.data.SparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 
@@ -56,7 +55,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
   private final boolean caseSensitive;
 
   RowDataReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive) {
-    super(task, table.io(), table.encryption());
+    super(table, task);
     this.tableSchema = table.schema();
     this.expectedSchema = expectedSchema;
     this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
@@ -69,7 +68,7 @@ class RowDataReader extends BaseDataReader<InternalRow> {
 
     // schema or rows returned by readers
     Schema requiredSchema = deletes.requiredSchema();
-    Map<Integer, ?> idToConstant = PartitionUtil.constantsMap(task, RowDataReader::convertConstant);
+    Map<Integer, ?> idToConstant = constantsMap(task, expectedSchema);
     DataFile file = task.file();
 
     // update the current file for Spark's filename() function
