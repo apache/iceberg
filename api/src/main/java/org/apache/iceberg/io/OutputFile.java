@@ -20,6 +20,7 @@
 package org.apache.iceberg.io;
 
 import java.io.IOException;
+import java.security.AccessControlException;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 
@@ -48,6 +49,7 @@ public interface OutputFile {
    *
    * @return an output stream that can report its position
    * @throws RuntimeIOException If the implementation throws an {@link IOException}
+   * @throws AccessControlException If the implementation throws an {@link SecurityException}
    */
   PositionOutputStream createOrOverwrite();
 

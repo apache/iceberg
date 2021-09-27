@@ -86,7 +86,8 @@ class S3OutputStream extends PositionOutputStream {
   private boolean closed = false;
 
   @SuppressWarnings("StaticAssignmentInConstructor")
-  S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties) throws IOException {
+  S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties)
+      throws IOException, SecurityException {
     if (executorService == null) {
       synchronized (S3OutputStream.class) {
         if (executorService == null) {
@@ -170,20 +171,14 @@ class S3OutputStream extends PositionOutputStream {
     }
   }
 
-  private void newStream() throws IOException {
+  private void newStream() throws IOException, SecurityException {
     if (stream != null) {
       stream.close();
     }
 
-    boolean createStagingDirectory = false;
-    if (!stagingDirectory.exists()) {
-      createStagingDirectory = stagingDirectory.mkdirs();
-    }
+    createStagingDirectoryIfNotExists();
     currentStagingFile = File.createTempFile("s3fileio-", ".tmp", stagingDirectory);
     currentStagingFile.deleteOnExit();
-    if (createStagingDirectory) {
-      stagingDirectory.deleteOnExit();
-    }
     stagingFiles.add(currentStagingFile);
 
     stream = new CountingOutputStream(new BufferedOutputStream(new FileOutputStream(currentStagingFile)));
@@ -332,6 +327,17 @@ class S3OutputStream extends PositionOutputStream {
       return new FileInputStream(file);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
+    }
+  }
+
+  private void createStagingDirectoryIfNotExists() throws SecurityException {
+    if (!stagingDirectory.exists()) {
+      boolean createdStagingDirectory = stagingDirectory.mkdirs();
+      if (createdStagingDirectory) {
+        LOG.info("Successfully created staging directory: {}", stagingDirectory.getAbsolutePath());
+      } else {
+        LOG.error("Staging directory: {} creation failed", stagingDirectory.getAbsolutePath());
+      }
     }
   }
 
