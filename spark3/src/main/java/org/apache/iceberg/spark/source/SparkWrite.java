@@ -45,14 +45,17 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.ClusteredDataWriter;
 import org.apache.iceberg.io.DataWriteResult;
 import org.apache.iceberg.io.FanoutDataWriter;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileWriter;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitioningWriter;
+import org.apache.iceberg.io.RollingDataWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -556,22 +559,12 @@ class SparkWrite {
           .build();
 
       if (spec.isUnpartitioned()) {
-        ClusteredDataWriter<InternalRow> dataWriter = new ClusteredDataWriter<>(
-            writerFactory, fileFactory, io,
-            format, targetFileSize);
-        return new UnpartitionedDataWriter(dataWriter, io, spec);
-
-      } else if (partitionedFanoutEnabled) {
-        FanoutDataWriter<InternalRow> dataWriter = new FanoutDataWriter<>(
-            writerFactory, fileFactory, io,
-            format, targetFileSize);
-        return new PartitionedDataWriter(dataWriter, io, spec, writeSchema, dsSchema);
+        return new UnpartitionedDataWriter(writerFactory, fileFactory, io, spec, format, targetFileSize);
 
       } else {
-        ClusteredDataWriter<InternalRow> dataWriter = new ClusteredDataWriter<>(
-            writerFactory, fileFactory, io,
-            format, targetFileSize);
-        return new PartitionedDataWriter(dataWriter, io, spec, writeSchema, dsSchema);
+        return new PartitionedDataWriter(
+            writerFactory, fileFactory, io, spec, writeSchema, dsSchema,
+            format, targetFileSize, partitionedFanoutEnabled);
       }
     }
   }
@@ -584,20 +577,24 @@ class SparkWrite {
   }
 
   private static class UnpartitionedDataWriter implements DataWriter<InternalRow> {
-    private final PartitioningWriter<InternalRow, DataWriteResult> delegate;
+    private final FileWriter<InternalRow, DataWriteResult> delegate;
     private final FileIO io;
-    private final PartitionSpec spec;
 
-    private UnpartitionedDataWriter(PartitioningWriter<InternalRow, DataWriteResult> delegate,
-                                    FileIO io, PartitionSpec spec) {
-      this.delegate = delegate;
+    private UnpartitionedDataWriter(SparkFileWriterFactory writerFactory, OutputFileFactory fileFactory,
+                                    FileIO io, PartitionSpec spec, FileFormat format, long targetFileSize) {
+      // TODO: support ORC rolling writers
+      if (format == FileFormat.ORC) {
+        EncryptedOutputFile outputFile = fileFactory.newOutputFile();
+        delegate = writerFactory.newDataWriter(outputFile, spec, null);
+      } else {
+        delegate = new RollingDataWriter<>(writerFactory, fileFactory, io, targetFileSize, spec, null);
+      }
       this.io = io;
-      this.spec = spec;
     }
 
     @Override
     public void write(InternalRow record) throws IOException {
-      delegate.write(record, spec, null);
+      delegate.write(record);
     }
 
     @Override
@@ -629,10 +626,15 @@ class SparkWrite {
     private final PartitionKey partitionKey;
     private final InternalRowWrapper internalRowWrapper;
 
-    private PartitionedDataWriter(PartitioningWriter<InternalRow, DataWriteResult> delegate,
+    private PartitionedDataWriter(SparkFileWriterFactory writerFactory, OutputFileFactory fileFactory,
                                   FileIO io, PartitionSpec spec, Schema dataSchema,
-                                  StructType dataSparkType) {
-      this.delegate = delegate;
+                                  StructType dataSparkType, FileFormat format,
+                                  long targetFileSize, boolean fanoutEnabled) {
+      if (fanoutEnabled) {
+        this.delegate = new FanoutDataWriter<>(writerFactory, fileFactory, io, format, targetFileSize);
+      } else {
+        this.delegate = new ClusteredDataWriter<>(writerFactory, fileFactory, io, format, targetFileSize);
+      }
       this.io = io;
       this.spec = spec;
       this.partitionKey = new PartitionKey(spec, dataSchema);
