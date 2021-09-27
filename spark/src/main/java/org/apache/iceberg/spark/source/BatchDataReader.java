@@ -41,7 +41,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
@@ -52,7 +51,7 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
   private final int batchSize;
 
   BatchDataReader(CombinedScanTask task, Table table, Schema expectedSchema, boolean caseSensitive, int size) {
-    super(task, table.io(), table.encryption());
+    super(table, task);
     this.expectedSchema = expectedSchema;
     this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     this.caseSensitive = caseSensitive;
@@ -66,7 +65,7 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(file.path().toString(), task.start(), task.length());
 
-    Map<Integer, ?> idToConstant = PartitionUtil.constantsMap(task, BatchDataReader::convertConstant);
+    Map<Integer, ?> idToConstant = constantsMap(task, expectedSchema);
 
     CloseableIterable<ColumnarBatch> iter;
     InputFile location = getInputFile(task);

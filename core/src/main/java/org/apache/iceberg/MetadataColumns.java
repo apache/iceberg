@@ -38,6 +38,12 @@ public class MetadataColumns {
       Integer.MAX_VALUE - 2, "_pos", Types.LongType.get(), "Ordinal position of a row in the source data file");
   public static final NestedField IS_DELETED = NestedField.required(
       Integer.MAX_VALUE - 3, "_deleted", Types.BooleanType.get(), "Whether the row has been deleted");
+  public static final NestedField SPEC_ID = NestedField.required(
+      Integer.MAX_VALUE - 4, "_spec_id", Types.IntegerType.get(), "Spec ID used to track the file containing a row");
+  // the partition column type is not static and depends on all specs in the table
+  public static final int PARTITION_COLUMN_ID = Integer.MAX_VALUE - 5;
+  public static final String PARTITION_COLUMN_NAME = "_partition";
+  public static final String PARTITION_COLUMN_DOC = "Partition to which a row belongs to";
 
   // IDs Integer.MAX_VALUE - (101-200) are used for reserved columns
   public static final NestedField DELETE_FILE_PATH = NestedField.required(
@@ -51,24 +57,39 @@ public class MetadataColumns {
   private static final Map<String, NestedField> META_COLUMNS = ImmutableMap.of(
       FILE_PATH.name(), FILE_PATH,
       ROW_POSITION.name(), ROW_POSITION,
-      IS_DELETED.name(), IS_DELETED);
+      IS_DELETED.name(), IS_DELETED,
+      SPEC_ID.name(), SPEC_ID
+  );
 
-  private static final Set<Integer> META_IDS = META_COLUMNS.values().stream().map(NestedField::fieldId)
-      .collect(ImmutableSet.toImmutableSet());
+  private static final Set<Integer> META_IDS = ImmutableSet.of(
+      FILE_PATH.fieldId(),
+      ROW_POSITION.fieldId(),
+      IS_DELETED.fieldId(),
+      SPEC_ID.fieldId(),
+      PARTITION_COLUMN_ID
+  );
 
   public static Set<Integer> metadataFieldIds() {
     return META_IDS;
   }
 
-  public static NestedField get(String name) {
-    return META_COLUMNS.get(name);
+  public static NestedField metadataColumn(Table table, String name) {
+    if (name.equals(PARTITION_COLUMN_NAME)) {
+      return Types.NestedField.optional(
+          PARTITION_COLUMN_ID,
+          PARTITION_COLUMN_NAME,
+          Partitioning.partitionType(table),
+          PARTITION_COLUMN_DOC);
+    } else {
+      return META_COLUMNS.get(name);
+    }
   }
 
   public static boolean isMetadataColumn(String name) {
-    return META_COLUMNS.containsKey(name);
+    return name.equals(PARTITION_COLUMN_NAME) || META_COLUMNS.containsKey(name);
   }
 
   public static boolean nonMetadataColumn(String name) {
-    return !META_COLUMNS.containsKey(name);
+    return !isMetadataColumn(name);
   }
 }

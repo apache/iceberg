@@ -149,7 +149,7 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
     // metadata columns
     List<Types.NestedField> fields = metaColumns.stream()
         .distinct()
-        .map(MetadataColumns::get)
+        .map(name -> MetadataColumns.metadataColumn(table, name))
         .collect(Collectors.toList());
     Schema meta = new Schema(fields);
 
