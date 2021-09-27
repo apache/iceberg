@@ -125,12 +125,13 @@ abstract class BaseRewriteDataFilesSparkAction
 
     Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition = planFileGroups(startingSnapshotId);
     RewriteExecutionContext ctx = new RewriteExecutionContext(fileGroupsByPartition);
-    Stream<RewriteFileGroup> groupStream = toGroupStream(ctx, fileGroupsByPartition);
 
     if (ctx.totalGroupCount() == 0) {
       LOG.info("Nothing found to rewrite in {}", table.name());
       return new BaseRewriteDataFilesResult(Collections.emptyList());
     }
+
+    Stream<RewriteFileGroup> groupStream = toGroupStream(ctx, fileGroupsByPartition);
 
     RewriteDataFilesCommitManager commitManager = commitManager(startingSnapshotId);
     if (partialProgressEnabled) {
