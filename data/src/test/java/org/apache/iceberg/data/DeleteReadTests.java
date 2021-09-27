@@ -411,12 +411,12 @@ public abstract class DeleteReadTests {
     return set;
   }
 
-  private StructLikeSet rowSetWithoutIds(Table iTable, List<Record> recordList, int... idsToRemove) {
+  private static StructLikeSet rowSetWithoutIds(Table table, List<Record> recordList, int... idsToRemove) {
     Set<Integer> deletedIds = Sets.newHashSet(ArrayUtil.toIntList(idsToRemove));
-    StructLikeSet set = StructLikeSet.create(iTable.schema().asStruct());
+    StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
     recordList.stream()
         .filter(row -> !deletedIds.contains(row.getField("id")))
-        .map(record -> new InternalRecordWrapper(iTable.schema().asStruct()).wrap(record))
+        .map(record -> new InternalRecordWrapper(table.schema().asStruct()).wrap(record))
         .forEach(set::add);
     return set;
   }
