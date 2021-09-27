@@ -79,8 +79,7 @@ public abstract class IcebergSourceBenchmark {
 
   protected String dataLocation() {
     Map<String, String> properties = table.properties();
-    return properties.getOrDefault(TableProperties.WRITE_FOLDER_STORAGE_LOCATION,
-        String.format("%s/data", table.location()));
+    return properties.getOrDefault(TableProperties.WRITE_DATA_LOCATION, String.format("%s/data", table.location()));
   }
 
   protected void cleanupFiles() throws IOException {

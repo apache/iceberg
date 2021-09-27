@@ -35,15 +35,15 @@ import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.WriterFactory;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 
 /**
  * A base writer factory to be extended by query engine integrations.
  */
-public abstract class BaseWriterFactory<T> implements WriterFactory<T> {
+public abstract class BaseFileWriterFactory<T> implements FileWriterFactory<T> {
   private final Table table;
   private final FileFormat dataFileFormat;
   private final Schema dataSchema;
@@ -54,10 +54,10 @@ public abstract class BaseWriterFactory<T> implements WriterFactory<T> {
   private final SortOrder equalityDeleteSortOrder;
   private final Schema positionDeleteRowSchema;
 
-  protected BaseWriterFactory(Table table, FileFormat dataFileFormat, Schema dataSchema,
-                              SortOrder dataSortOrder, FileFormat deleteFileFormat,
-                              int[] equalityFieldIds, Schema equalityDeleteRowSchema,
-                              SortOrder equalityDeleteSortOrder, Schema positionDeleteRowSchema) {
+  protected BaseFileWriterFactory(Table table, FileFormat dataFileFormat, Schema dataSchema,
+                                  SortOrder dataSortOrder, FileFormat deleteFileFormat,
+                                  int[] equalityFieldIds, Schema equalityDeleteRowSchema,
+                                  SortOrder equalityDeleteSortOrder, Schema positionDeleteRowSchema) {
     this.table = table;
     this.dataFileFormat = dataFileFormat;
     this.dataSchema = dataSchema;
@@ -85,7 +85,7 @@ public abstract class BaseWriterFactory<T> implements WriterFactory<T> {
     OutputFile outputFile = file.encryptingOutputFile();
     EncryptionKeyMetadata keyMetadata = file.keyMetadata();
     Map<String, String> properties = table.properties();
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(properties);
+    MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
       switch (dataFileFormat) {
@@ -148,15 +148,14 @@ public abstract class BaseWriterFactory<T> implements WriterFactory<T> {
     OutputFile outputFile = file.encryptingOutputFile();
     EncryptionKeyMetadata keyMetadata = file.keyMetadata();
     Map<String, String> properties = table.properties();
-    MetricsConfig metricsConfig = MetricsConfig.fromProperties(properties);
+    MetricsConfig metricsConfig = MetricsConfig.forTable(table);
 
     try {
       switch (deleteFileFormat) {
         case AVRO:
-          // TODO: support metrics configs in Avro equality delete writer
-
           Avro.DeleteWriteBuilder avroBuilder = Avro.writeDeletes(outputFile)
               .setAll(properties)
+              .metricsConfig(metricsConfig)
               .rowSchema(equalityDeleteRowSchema)
               .equalityFieldIds(equalityFieldIds)
               .withSpec(spec)
@@ -199,14 +198,14 @@ public abstract class BaseWriterFactory<T> implements WriterFactory<T> {
     OutputFile outputFile = file.encryptingOutputFile();
     EncryptionKeyMetadata keyMetadata = file.keyMetadata();
     Map<String, String> properties = table.properties();
-
-    // TODO: build and pass a correct metrics config for position deletes
+    MetricsConfig metricsConfig = MetricsConfig.forPositionDelete(table);
 
     try {
       switch (deleteFileFormat) {
         case AVRO:
           Avro.DeleteWriteBuilder avroBuilder = Avro.writeDeletes(outputFile)
               .setAll(properties)
+              .metricsConfig(metricsConfig)
               .rowSchema(positionDeleteRowSchema)
               .withSpec(spec)
               .withPartition(partition)
@@ -220,6 +219,7 @@ public abstract class BaseWriterFactory<T> implements WriterFactory<T> {
         case PARQUET:
           Parquet.DeleteWriteBuilder parquetBuilder = Parquet.writeDeletes(outputFile)
               .setAll(properties)
+              .metricsConfig(metricsConfig)
               .rowSchema(positionDeleteRowSchema)
               .withSpec(spec)
               .withPartition(partition)

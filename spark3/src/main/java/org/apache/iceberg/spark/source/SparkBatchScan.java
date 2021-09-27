@@ -72,7 +72,6 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private final boolean localityPreferred;
   private final Schema expectedSchema;
   private final List<Expression> filterExpressions;
-  private final int batchSize;
   private final boolean readTimestampWithoutZone;
   private final CaseInsensitiveStringMap options;
 
@@ -87,7 +86,6 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     this.expectedSchema = expectedSchema;
     this.filterExpressions = filters != null ? filters : Collections.emptyList();
     this.localityPreferred = Spark3Util.isLocalityEnabled(table.io(), table.location(), options);
-    this.batchSize = Spark3Util.batchSize(table.properties(), options);
     this.options = options;
 
     RuntimeConfig sessionConf = SparkSession.active().conf();
@@ -180,7 +178,9 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     boolean readUsingBatch = batchReadsEnabled && hasNoDeleteFiles && (allOrcFileScanTasks ||
         (allParquetFileScanTasks && atLeastOneColumn && onlyPrimitives));
 
-    return new ReaderFactory(readUsingBatch ? batchSize : 0);
+    int batchSize = readUsingBatch ? batchSize(allParquetFileScanTasks, allOrcFileScanTasks) : 0;
+
+    return new ReaderFactory(batchSize);
   }
 
   private boolean batchReadsEnabled(boolean isParquetOnly, boolean isOrcOnly) {
@@ -192,6 +192,17 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
       return Spark3Util.isVectorizationEnabled(FileFormat.ORC, properties, sessionConf, options);
     } else {
       return false;
+    }
+  }
+
+  private int batchSize(boolean isParquetOnly, boolean isOrcOnly) {
+    Map<String, String> properties = table.properties();
+    if (isParquetOnly) {
+      return Spark3Util.batchSize(FileFormat.PARQUET, properties, options);
+    } else if (isOrcOnly) {
+      return Spark3Util.batchSize(FileFormat.ORC, properties, options);
+    } else {
+      return 0;
     }
   }
 
@@ -207,22 +218,20 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
       LOG.debug("using table metadata to estimate table statistics");
       long totalRecords = PropertyUtil.propertyAsLong(table.currentSnapshot().summary(),
           SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
-      Schema projectedSchema = expectedSchema != null ? expectedSchema : table.schema();
       return new Stats(
-          SparkSchemaUtil.estimateSize(SparkSchemaUtil.convert(projectedSchema), totalRecords),
+          SparkSchemaUtil.estimateSize(readSchema(), totalRecords),
           totalRecords);
     }
 
-    long sizeInBytes = 0L;
     long numRows = 0L;
 
     for (CombinedScanTask task : tasks()) {
       for (FileScanTask file : task.files()) {
-        sizeInBytes += file.length();
         numRows += file.file().recordCount();
       }
     }
 
+    long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), numRows);
     return new Stats(sizeInBytes, numRows);
   }
 

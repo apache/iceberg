@@ -23,11 +23,13 @@ on:
     paths-ignore:
     - '.github/workflows/python-ci.yml'
     - 'python/**'
+    - 'python_legacy/**'
     - 'site/**'
   pull_request:
     paths-ignore:
     - '.github/workflows/python-ci.yml'
     - 'python/**'
+    - 'python_legacy/**'
     - 'site/**'
 
 jobs:

@@ -29,8 +29,6 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 
-import static org.apache.iceberg.TableProperties.OBJECT_STORE_PATH;
-
 public class LocationProviders {
 
   private LocationProviders() {
@@ -68,16 +66,22 @@ public class LocationProviders {
     }
   }
 
-  private static String defaultDataLocation(String tableLocation, Map<String, String> properties) {
-    return properties.getOrDefault(TableProperties.WRITE_FOLDER_STORAGE_LOCATION,
-        String.format("%s/data", tableLocation));
-  }
-
   static class DefaultLocationProvider implements LocationProvider {
     private final String dataLocation;
 
     DefaultLocationProvider(String tableLocation, Map<String, String> properties) {
-      this.dataLocation = stripTrailingSlash(defaultDataLocation(tableLocation, properties));
+      this.dataLocation = stripTrailingSlash(dataLocation(properties, tableLocation));
+    }
+
+    private static String dataLocation(Map<String, String> properties, String tableLocation) {
+      String dataLocation = properties.get(TableProperties.WRITE_DATA_LOCATION);
+      if (dataLocation == null) {
+        dataLocation = properties.get(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+        if (dataLocation == null) {
+          dataLocation = String.format("%s/data", tableLocation);
+        }
+      }
+      return dataLocation;
     }
 
     @Override
@@ -99,9 +103,22 @@ public class LocationProviders {
     private final String context;
 
     ObjectStoreLocationProvider(String tableLocation, Map<String, String> properties) {
-      this.storageLocation = stripTrailingSlash(properties.getOrDefault(OBJECT_STORE_PATH,
-          defaultDataLocation(tableLocation, properties)));
+      this.storageLocation = stripTrailingSlash(dataLocation(properties, tableLocation));
       this.context = pathContext(tableLocation);
+    }
+
+    private static String dataLocation(Map<String, String> properties, String tableLocation) {
+      String dataLocation = properties.get(TableProperties.WRITE_DATA_LOCATION);
+      if (dataLocation == null) {
+        dataLocation = properties.get(TableProperties.OBJECT_STORE_PATH);
+        if (dataLocation == null) {
+          dataLocation = properties.get(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+          if (dataLocation == null) {
+            dataLocation = String.format("%s/data", tableLocation);
+          }
+        }
+      }
+      return dataLocation;
     }
 
     @Override

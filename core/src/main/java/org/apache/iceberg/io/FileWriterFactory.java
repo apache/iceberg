@@ -28,7 +28,7 @@ import org.apache.iceberg.encryption.EncryptedOutputFile;
 /**
  * A factory for creating data and delete writers.
  */
-public interface WriterFactory<T> {
+public interface FileWriterFactory<T> {
 
   /**
    * Creates a new {@link DataWriter}.

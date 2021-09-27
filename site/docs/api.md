@@ -43,6 +43,8 @@ Tables also provide `refresh` to update the table to the latest version, and exp
 
 ### Scanning
 
+#### File level
+
 Iceberg table scans start by creating a `TableScan` object with `newScan`.
 
 ```java
@@ -70,6 +72,28 @@ Iterable<CombinedScanTask> tasks = scan.planTasks();
 
 Use `asOfTime` or `useSnapshot` to configure the table snapshot for time travel queries.
 
+#### Row level
+
+Iceberg table scans start by creating a `ScanBuilder` object with `IcebergGenerics.read`.
+
+```java
+ScanBuilder scanBuilder = IcebergGenerics.read(table)
+```
+
+To configure a scan, call `where` and `select` on the `ScanBuilder` to get a new `ScanBuilder` with those changes.
+
+```java
+scanBuilder.where(Expressions.equal("id", 5))
+```
+
+When a scan is configured, call method `build` to execute scan. `build` return `CloseableIterable<Record>`
+
+```java
+CloseableIterable<Record> result = IcebergGenerics.read(table)
+        .where(Expressions.lessThan("id", 5))
+        .build();
+```
+where `Record` is Iceberg record for iceberg-data module `org.apache.iceberg.data.Record`.
 
 ### Update operations
 

@@ -40,6 +40,8 @@ import org.apache.iceberg.types.Types;
  *     <li>{@link Types.BinaryType}</li>
  *     <li>{@link Types.TimestampType} (with and without timezone)</li>
  *     <li>{@link Types.DateType}</li>
+ *     <li>{@link Types.TimeType}</li>
+ *     <li>{@link Types.UUIDType}</li>
  *   </ul>
  */
 public class ColumnVector implements AutoCloseable {
