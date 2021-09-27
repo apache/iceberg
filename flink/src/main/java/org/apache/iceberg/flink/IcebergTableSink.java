@@ -64,7 +64,7 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
         .tableSchema(tableSchema)
         .equalityFieldColumns(equalityColumns)
         .overwrite(overwrite)
-        .build();
+        .append();
   }
 
   @Override

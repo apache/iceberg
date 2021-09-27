@@ -305,18 +305,6 @@ public class FlinkSink {
      * Append the iceberg sink operators to write records to iceberg table.
      *
      * @return {@link DataStreamSink} for sink.
-     * @deprecated this will be removed in 0.14.0; use {@link #append()} because its returned {@link DataStreamSink}
-     * has a more correct data type.
-     */
-    @Deprecated
-    public DataStreamSink<RowData> build() {
-      return chainIcebergOperators();
-    }
-
-    /**
-     * Append the iceberg sink operators to write records to iceberg table.
-     *
-     * @return {@link DataStreamSink} for sink.
      */
     public DataStreamSink<Void> append() {
       return chainIcebergOperators();
