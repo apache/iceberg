@@ -62,12 +62,14 @@ public class PartitionUtil {
         convertConstant.apply(Types.IntegerType.get(), task.file().specId()));
 
     // add _partition
-    if (partitionType != null && partitionType.fields().size() > 0) {
-      StructLike coercedPartition = coercePartition(partitionType, spec, partitionData);
-      idToConstant.put(MetadataColumns.PARTITION_COLUMN_ID, convertConstant.apply(partitionType, coercedPartition));
-    } else if (partitionType != null) {
-      // use null as some query engines may not be able to handle empty structs
-      idToConstant.put(MetadataColumns.PARTITION_COLUMN_ID, null);
+    if (partitionType != null) {
+      if (partitionType.fields().size() > 0) {
+        StructLike coercedPartition = coercePartition(partitionType, spec, partitionData);
+        idToConstant.put(MetadataColumns.PARTITION_COLUMN_ID, convertConstant.apply(partitionType, coercedPartition));
+      } else {
+        // use null as some query engines may not be able to handle empty structs
+        idToConstant.put(MetadataColumns.PARTITION_COLUMN_ID, null);
+      }
     }
 
     List<Types.NestedField> partitionFields = spec.partitionType().fields();
@@ -85,7 +87,7 @@ public class PartitionUtil {
 
   // adapts the provided partition data to match the table partition type
   private static StructLike coercePartition(Types.StructType partitionType, PartitionSpec spec, StructLike partition) {
-    StructProjection projection = StructProjection.create(spec.partitionType(), partitionType, true);
+    StructProjection projection = StructProjection.createAllowMissing(spec.partitionType(), partitionType);
     projection.wrap(partition);
     return projection;
   }

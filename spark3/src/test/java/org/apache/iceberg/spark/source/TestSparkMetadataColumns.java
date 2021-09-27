@@ -117,6 +117,8 @@ public class TestSparkMetadataColumns extends SparkTestBase {
     TestTables.clearTables();
   }
 
+  // TODO: remove testing workarounds once we compile against Spark 3.2
+
   @Test
   public void testSpecAndPartitionMetadataColumns() {
     // TODO: support metadata structs in vectorized ORC reads

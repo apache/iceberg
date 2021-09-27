@@ -61,16 +61,14 @@ public class StructProjection implements StructLike {
   /**
    * Creates a projecting wrapper for {@link StructLike} rows.
    * <p>
-   * This projection does not work with repeated types like lists and maps.
+   * This projection allows missing fields and does not work with repeated types like lists and maps.
    *
    * @param structType type of rows wrapped by this projection
    * @param projectedStructType result type of the projected rows
-   * @param projectMissingFieldsAsNulls a flag whether to project missing fields as nulls
    * @return a wrapper to project rows
    */
-  public static StructProjection create(StructType structType, StructType projectedStructType,
-                                        boolean projectMissingFieldsAsNulls) {
-    return new StructProjection(structType, projectedStructType, projectMissingFieldsAsNulls);
+  public static StructProjection createAllowMissing(StructType structType, StructType projectedStructType) {
+    return new StructProjection(structType, projectedStructType, true);
   }
 
   private final StructType type;
@@ -83,7 +81,7 @@ public class StructProjection implements StructLike {
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  private StructProjection(StructType structType, StructType projection, boolean projectMissingFieldsAsNulls) {
+  private StructProjection(StructType structType, StructType projection, boolean allowMissing) {
     this.type = projection;
     this.positionMap = new int[projection.fields().size()];
     this.nestedProjections = new StructProjection[projection.fields().size()];
@@ -136,8 +134,9 @@ public class StructProjection implements StructLike {
         }
       }
 
-      if (!found && projectedField.isOptional() && projectMissingFieldsAsNulls) {
+      if (!found && projectedField.isOptional() && allowMissing) {
         positionMap[pos] = -1;
+        nestedProjections[pos] = null;
       } else if (!found) {
         throw new IllegalArgumentException(String.format("Cannot find field %s in %s", projectedField, structType));
       }

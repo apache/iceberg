@@ -39,7 +39,7 @@ public class MetadataColumns {
   public static final NestedField IS_DELETED = NestedField.required(
       Integer.MAX_VALUE - 3, "_deleted", Types.BooleanType.get(), "Whether the row has been deleted");
   public static final NestedField SPEC_ID = NestedField.required(
-      Integer.MAX_VALUE - 4, "_spec_id", Types.IntegerType.get(), "Spec ID to which a row belongs to");
+      Integer.MAX_VALUE - 4, "_spec_id", Types.IntegerType.get(), "Spec ID used to track the file containing a row");
   // the partition column type is not static and depends on all specs in the table
   public static final int PARTITION_COLUMN_ID = Integer.MAX_VALUE - 5;
   public static final String PARTITION_COLUMN_NAME = "_partition";

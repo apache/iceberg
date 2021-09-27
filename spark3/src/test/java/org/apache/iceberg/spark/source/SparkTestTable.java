@@ -27,6 +27,7 @@ import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
+// TODO: remove this class once we compile against Spark 3.2
 public class SparkTestTable extends SparkTable {
 
   private final String[] metadataColumnNames;
