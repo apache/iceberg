@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.actions;
 
-import java.util.Set;
-import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.expressions.Expression;
 
 /**
@@ -56,13 +54,13 @@ public interface RewriteDeleteFiles extends SnapshotUpdate<RewriteDeleteFiles, R
    */
   interface Result {
     /**
-     * Returns the delete files to rewrite.
+     * Returns the count of the deletes that been rewritten.
      */
-    Set<DeleteFile> deleteFilesToReplace();
+    int rewrittenDeleteFilesCount();
 
     /**
-     * Returns the added delete files.
+     * Returns the count of the added delete files.
      */
-    Set<DeleteFile> deleteFilesToAdd();
+    int addedDeleteFilesCount();
   }
 }
