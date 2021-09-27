@@ -525,6 +525,8 @@ class SparkWrite {
     private final StructType dsSchema;
     private final boolean partitionedFanoutEnabled;
 
+    private transient volatile SparkFileWriterFactory lazyWriterFactory = null;
+
     protected WriterFactory(Broadcast<Table> tableBroadcast, FileFormat format, long targetFileSize,
                             Schema writeSchema, StructType dsSchema, boolean partitionedFanoutEnabled) {
       this.tableBroadcast = tableBroadcast;
@@ -549,30 +551,42 @@ class SparkWrite {
       OutputFileFactory fileFactory = OutputFileFactory.builderFor(table, partitionId, taskId)
           .format(format)
           .build();
-      SparkFileWriterFactory writerFactory = SparkFileWriterFactory.builderFor(table)
-          .dataFileFormat(format)
-          .dataSchema(writeSchema)
-          .dataSparkType(dsSchema)
-          .build();
 
       if (spec.isUnpartitioned()) {
         ClusteredDataWriter<InternalRow> dataWriter = new ClusteredDataWriter<>(
-            writerFactory, fileFactory, io,
+            writerFactory(), fileFactory, io,
             format, targetFileSize);
         return new UnpartitionedDataWriter(dataWriter, io, spec);
 
       } else if (partitionedFanoutEnabled) {
         FanoutDataWriter<InternalRow> dataWriter = new FanoutDataWriter<>(
-            writerFactory, fileFactory, io,
+            writerFactory(), fileFactory, io,
             format, targetFileSize);
         return new PartitionedDataWriter(dataWriter, io, spec, writeSchema, dsSchema);
 
       } else {
         ClusteredDataWriter<InternalRow> dataWriter = new ClusteredDataWriter<>(
-            writerFactory, fileFactory, io,
+            writerFactory(), fileFactory, io,
             format, targetFileSize);
         return new PartitionedDataWriter(dataWriter, io, spec, writeSchema, dsSchema);
       }
+    }
+
+    private SparkFileWriterFactory writerFactory() {
+      if (lazyWriterFactory == null) {
+        synchronized (this) {
+          if (lazyWriterFactory == null) {
+            Table table = tableBroadcast.value();
+            this.lazyWriterFactory = SparkFileWriterFactory.builderFor(table)
+                .dataFileFormat(format)
+                .dataSchema(writeSchema)
+                .dataSparkType(dsSchema)
+                .build();
+          }
+        }
+      }
+
+      return lazyWriterFactory;
     }
   }
 
