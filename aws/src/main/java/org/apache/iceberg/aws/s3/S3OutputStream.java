@@ -86,8 +86,7 @@ class S3OutputStream extends PositionOutputStream {
   private boolean closed = false;
 
   @SuppressWarnings("StaticAssignmentInConstructor")
-  S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties)
-      throws IOException, SecurityException {
+  S3OutputStream(S3Client s3, S3URI location, AwsProperties awsProperties) throws IOException {
     if (executorService == null) {
       synchronized (S3OutputStream.class) {
         if (executorService == null) {
@@ -171,7 +170,7 @@ class S3OutputStream extends PositionOutputStream {
     }
   }
 
-  private void newStream() throws IOException, SecurityException {
+  private void newStream() throws IOException {
     if (stream != null) {
       stream.close();
     }
@@ -339,12 +338,12 @@ class S3OutputStream extends PositionOutputStream {
         LOG.info("Successfully created staging directory: {}", stagingDirectory.getAbsolutePath());
       } else {
         if (stagingDirectory.exists()) {
-          LOG.info("Staging directory: {} is created by another process",
+          LOG.info("Successfully created staging directory by another process: {}",
               stagingDirectory.getAbsolutePath());
         } else {
-          throw new IOException(String
-              .format("Staging directory: %s creation failed due to some unknown reason",
-                  stagingDirectory.getAbsolutePath()));
+          throw new IOException(
+              "Failed to create staging directory due to some unknown reason: " + stagingDirectory
+                  .getAbsolutePath());
         }
       }
     }
