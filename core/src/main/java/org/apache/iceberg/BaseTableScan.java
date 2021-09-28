@@ -19,10 +19,6 @@
 
 package org.apache.iceberg;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -47,8 +43,6 @@ import org.slf4j.LoggerFactory;
  */
 abstract class BaseTableScan implements TableScan {
   private static final Logger LOG = LoggerFactory.getLogger(BaseTableScan.class);
-
-  private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
   private final TableOperations ops;
   private final Table table;
@@ -124,14 +118,8 @@ abstract class BaseTableScan implements TableScan {
         "Cannot override snapshot, already set to id=%s", context.snapshotId());
     Preconditions.checkArgument(ops.current().snapshot(scanSnapshotId) != null,
         "Cannot find snapshot with ID %s", scanSnapshotId);
-    if (this instanceof DataTableScan) {
-      Schema snapshotSchema = SnapshotUtil.schemaFor(table, scanSnapshotId);
-      return newRefinedScan(
-          ops, table, snapshotSchema, context.useSnapshotId(scanSnapshotId));
-    } else {
-      return newRefinedScan(
-          ops, table, schema, context.useSnapshotId(scanSnapshotId));
-    }
+    return newRefinedScan(
+        ops, table, schema, context.useSnapshotId(scanSnapshotId));
   }
 
   @Override
@@ -139,19 +127,7 @@ abstract class BaseTableScan implements TableScan {
     Preconditions.checkArgument(context.snapshotId() == null,
         "Cannot override snapshot, already set to id=%s", context.snapshotId());
 
-    Long lastSnapshotId = null;
-    for (HistoryEntry logEntry : ops.current().snapshotLog()) {
-      if (logEntry.timestampMillis() <= timestampMillis) {
-        lastSnapshotId = logEntry.snapshotId();
-      }
-    }
-
-    // the snapshot ID could be null if no entries were older than the requested time. in that case,
-    // there is no valid snapshot to read.
-    Preconditions.checkArgument(lastSnapshotId != null,
-        "Cannot find a snapshot older than %s", formatTimestampMillis(timestampMillis));
-
-    return useSnapshot(lastSnapshotId);
+    return useSnapshot(SnapshotUtil.snapshotIdAsOfTime(table(), timestampMillis));
   }
 
   @Override
@@ -206,7 +182,7 @@ abstract class BaseTableScan implements TableScan {
     Snapshot snapshot = snapshot();
     if (snapshot != null) {
       LOG.info("Scanning table {} snapshot {} created at {} with filter {}", table,
-          snapshot.snapshotId(), formatTimestampMillis(snapshot.timestampMillis()),
+          snapshot.snapshotId(), SnapshotUtil.formatTimestampMillis(snapshot.timestampMillis()),
           context.rowFilter());
 
       Listeners.notifyAll(
@@ -310,9 +286,5 @@ abstract class BaseTableScan implements TableScan {
     }
 
     return schema;
-  }
-
-  private static String formatTimestampMillis(long millis) {
-    return DATE_FORMAT.format(LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC));
   }
 }
