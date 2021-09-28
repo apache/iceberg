@@ -26,6 +26,7 @@ github:
   labels:
     - iceberg
     - apache
+    - hacktoberfest
   features:
     wiki: true
     issues: true
