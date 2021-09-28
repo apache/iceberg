@@ -107,23 +107,29 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
   OverwriteFiles caseSensitive(boolean caseSensitive);
 
   /**
-   * Enables validation that files added concurrently do not conflict with this commit's operation.
+   * Enables validation that data files added concurrently do not conflict with this commit's operation.
    * <p>
-   * This method should be called when the table is queried to determine which files to delete/append.
+   * This method should be called while committing non-idempotent overwrite operations.
    * If a concurrent operation commits a new file after the data was read and that file might
    * contain rows matching the specified conflict detection filter, the overwrite operation
    * will detect this during retries and fail.
    * <p>
    * Calling this method with a correct conflict detection filter is required to maintain
-   * serializable isolation for eager update/delete operations. Otherwise, the isolation level
+   * serializable isolation for overwrite operations. Otherwise, the isolation level
    * will be snapshot isolation.
    * <p>
    * Validation applies to files added to the table since the snapshot passed to {@link #validateFromSnapshot(long)}.
    *
    * @param conflictDetectionFilter an expression on rows in the table
    * @return this for method chaining
+   * @deprecated since 0.13.0, will be removed in 0.14.0; use {@link #conflictDetectionFilter(Expression)} and
+   *             {@link #validateNoConflictingDataFiles()} instead.
    */
-  OverwriteFiles validateNoConflictingAppends(Expression conflictDetectionFilter);
+  @Deprecated
+  default OverwriteFiles validateNoConflictingAppends(Expression conflictDetectionFilter) {
+    conflictDetectionFilter(conflictDetectionFilter);
+    return validateNoConflictingDataFiles();
+  }
 
   /**
    * Enables validation that files added concurrently do not conflict with this commit's operation.
@@ -145,4 +151,50 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
    */
   @Deprecated
   OverwriteFiles validateNoConflictingAppends(Long readSnapshotId, Expression conflictDetectionFilter);
+
+  /**
+   * Sets a conflict detection filter used to validate concurrently added data and delete files.
+   * <p>
+   * If not called, a true literal will be used as the conflict detection filter.
+   *
+   * @param conflictDetectionFilter an expression on rows in the table
+   * @return this for method chaining
+   */
+  OverwriteFiles conflictDetectionFilter(Expression conflictDetectionFilter);
+
+  /**
+   * Enables validation that data files added concurrently do not conflict with this commit's operation.
+   * <p>
+   * This method should be called while committing non-idempotent overwrite operations.
+   * If a concurrent operation commits a new file after the data was read and that file might
+   * contain rows matching the specified conflict detection filter, the overwrite operation
+   * will detect this during retries and fail.
+   * <p>
+   * Calling this method with a correct conflict detection filter is required to maintain
+   * serializable isolation for overwrite operations. Otherwise, the isolation level
+   * will be snapshot isolation.
+   * <p>
+   * Validation uses the conflict detection filter passed to {@link #conflictDetectionFilter(Expression)} and
+   * applies to operations that happened after the snapshot passed to {@link #validateFromSnapshot(long)}.
+   *
+   * @return this for method chaining
+   */
+  OverwriteFiles validateNoConflictingDataFiles();
+
+  /**
+   * Enables validation that delete files added concurrently do not conflict with this commit's operation.
+   * <p>
+   * Validating concurrently added delete files is required during non-idempotent overwrite operations.
+   * If a concurrent operation adds a new delete file that applies to one of the data files being overwritten,
+   * the overwrite operation must be aborted as it may undelete rows that were removed concurrently.
+   * <p>
+   * Calling this method with a correct conflict detection filter is required to maintain
+   * serializable isolation for overwrite operations.
+   * <p>
+   * Validation uses the conflict detection filter passed to {@link #conflictDetectionFilter(Expression)} and
+   * applies to operations that happened after the snapshot passed to {@link #validateFromSnapshot(long)}.
+   *
+   * @return this for method chaining
+   */
+  OverwriteFiles validateNoConflictingDeleteFiles();
 }
