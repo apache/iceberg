@@ -331,7 +331,7 @@ class S3OutputStream extends PositionOutputStream {
 
   private void createStagingDirectoryIfNotExists() throws IOException, SecurityException {
     if (!stagingDirectory.exists()) {
-      LOG.info("Staging directory: {} does not exist, trying to create one",
+      LOG.info("Staging directory does not exist, trying to create one: {}",
           stagingDirectory.getAbsolutePath());
       boolean createdStagingDirectory = stagingDirectory.mkdirs();
       if (createdStagingDirectory) {
