@@ -66,7 +66,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private static final Set<String> VALIDATE_DATA_FILES_EXIST_SKIP_DELETE_OPERATIONS =
       ImmutableSet.of(DataOperations.OVERWRITE, DataOperations.REPLACE);
   // delete files can be added in "overwrite" or "delete" operations
-  private static final Set<String> VALIDATE_REPLACED_DATA_FILES_OPERATIONS =
+  private static final Set<String> VALIDATE_ADDED_DELETE_FILES_OPERATIONS =
       ImmutableSet.of(DataOperations.OVERWRITE, DataOperations.DELETE);
 
   private final String tableName;
@@ -297,20 +297,33 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateNoNewDeletesForDataFiles(TableMetadata base, Long startingSnapshotId,
                                                   Iterable<DataFile> dataFiles) {
+    validateNoNewDeletesForDataFiles(base, startingSnapshotId, null, dataFiles, true);
+  }
+
+  /**
+   * Validates that no new delete files that must be applied to the given data files have been added to the table since
+   * a starting snapshot.
+   *
+   * @param base table metadata to validate
+   * @param startingSnapshotId id of the snapshot current at the start of the operation
+   * @param dataFilter a data filter
+   * @param dataFiles data files to validate have no new row deletes
+   * @param caseSensitive whether expression binding should be case-sensitive
+   */
+  protected void validateNoNewDeletesForDataFiles(TableMetadata base, Long startingSnapshotId,
+                                                  Expression dataFilter, Iterable<DataFile> dataFiles,
+                                                  boolean caseSensitive) {
     // if there is no current table state, no files have been added
-    if (base.currentSnapshot() == null) {
+    if (base.currentSnapshot() == null || base.formatVersion() < 2) {
       return;
     }
 
     Pair<List<ManifestFile>, Set<Long>> history =
-        validationHistory(base, startingSnapshotId, VALIDATE_REPLACED_DATA_FILES_OPERATIONS, ManifestContent.DELETES);
+        validationHistory(base, startingSnapshotId, VALIDATE_ADDED_DELETE_FILES_OPERATIONS, ManifestContent.DELETES);
     List<ManifestFile> deleteManifests = history.first();
 
-    long startingSequenceNumber = startingSnapshotId == null ? 0 : base.snapshot(startingSnapshotId).sequenceNumber();
-    DeleteFileIndex deletes = DeleteFileIndex.builderFor(ops.io(), deleteManifests)
-        .afterSequenceNumber(startingSequenceNumber)
-        .specsById(ops.current().specsById())
-        .build();
+    long startingSequenceNumber = startingSequenceNumber(base, startingSnapshotId);
+    DeleteFileIndex deletes = buildDeleteFileIndex(deleteManifests, startingSequenceNumber, dataFilter, caseSensitive);
 
     for (DataFile dataFile : dataFiles) {
       // if any delete is found that applies to files written in or before the starting snapshot, fail
@@ -318,6 +331,56 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         throw new ValidationException("Cannot commit, found new delete for replaced data file: %s", dataFile);
       }
     }
+  }
+
+  /**
+   * Validates that no delete files matching a filter have been added to the table since a starting snapshot.
+   *
+   * @param base table metadata to validate
+   * @param startingSnapshotId id of the snapshot current at the start of the operation
+   * @param dataFilter an expression used to find new conflicting delete files
+   * @param caseSensitive whether expression evaluation should be case-sensitive
+   */
+  protected void validateNoNewDeleteFiles(TableMetadata base, Long startingSnapshotId,
+                                          Expression dataFilter, boolean caseSensitive) {
+    // if there is no current table state, no files have been added
+    if (base.currentSnapshot() == null || base.formatVersion() < 2) {
+      return;
+    }
+
+    Pair<List<ManifestFile>, Set<Long>> history =
+        validationHistory(base, startingSnapshotId, VALIDATE_ADDED_DELETE_FILES_OPERATIONS, ManifestContent.DELETES);
+    List<ManifestFile> deleteManifests = history.first();
+
+    long startingSequenceNumber = startingSequenceNumber(base, startingSnapshotId);
+    DeleteFileIndex deletes = buildDeleteFileIndex(deleteManifests, startingSequenceNumber, dataFilter, caseSensitive);
+
+    ValidationException.check(deletes.isEmpty(),
+        "Found new conflicting delete files that can apply to records matching %s: %s",
+        dataFilter, Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::path));
+  }
+
+  private long startingSequenceNumber(TableMetadata metadata, Long staringSnapshotId) {
+    if (staringSnapshotId != null && metadata.snapshot(staringSnapshotId) != null) {
+      Snapshot startingSnapshot = metadata.snapshot(staringSnapshotId);
+      return startingSnapshot.sequenceNumber();
+    } else {
+      return TableMetadata.INITIAL_SEQUENCE_NUMBER;
+    }
+  }
+
+  private DeleteFileIndex buildDeleteFileIndex(List<ManifestFile> deleteManifests, long startingSequenceNumber,
+                                               Expression dataFilter, boolean caseSensitive) {
+    DeleteFileIndex.Builder builder = DeleteFileIndex.builderFor(ops.io(), deleteManifests)
+        .afterSequenceNumber(startingSequenceNumber)
+        .caseSensitive(caseSensitive)
+        .specsById(ops.current().specsById());
+
+    if (dataFilter != null) {
+      builder.filterData(dataFilter);
+    }
+
+    return builder.build();
   }
 
   @SuppressWarnings("CollectionUndefinedEquality")
