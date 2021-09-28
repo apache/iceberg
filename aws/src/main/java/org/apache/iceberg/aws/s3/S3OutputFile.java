@@ -21,7 +21,6 @@ package org.apache.iceberg.aws.s3;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.security.AccessControlException;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.InputFile;
@@ -63,9 +62,6 @@ public class S3OutputFile extends BaseS3File implements OutputFile {
       return new S3OutputStream(client(), uri(), awsProperties());
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create output stream for location: " + uri(), e);
-    } catch (SecurityException e) {
-      throw new AccessControlException(
-          "Access denied while creating staging directory for output stream: " + uri());
     }
   }
 
