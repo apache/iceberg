@@ -19,6 +19,10 @@
 
 package org.apache.iceberg.util;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.DataFile;
@@ -34,6 +38,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 public class SnapshotUtil {
   private SnapshotUtil() {
   }
+
+  private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
   /**
    * Returns whether ancestorSnapshotId is an ancestor of snapshotId.
@@ -165,7 +171,7 @@ public class SnapshotUtil {
     }
 
     Preconditions.checkArgument(snapshotId != null,
-        "Cannot find a snapshot older than %s", timestampMillis);
+        "Cannot find a snapshot older than %s", formatTimestampMillis(timestampMillis));
     return snapshotId;
   }
 
@@ -178,14 +184,14 @@ public class SnapshotUtil {
    */
   public static Schema schemaFor(Table table, long snapshotId) {
     Snapshot snapshot = table.snapshot(snapshotId);
-    Preconditions.checkArgument(snapshot != null, "Cannot find snapshot %s", snapshotId);
+    Preconditions.checkArgument(snapshot != null, "Cannot find snapshot with ID %s", snapshotId);
     Integer schemaId = snapshot.schemaId();
 
     // schemaId could be null, if snapshot was created before Iceberg added schema id to snapshot
     if (schemaId != null) {
       Schema schema = table.schemas().get(schemaId);
       Preconditions.checkState(schema != null,
-          "Cannot find schema for snapshot %s", schemaId);
+          "Cannot find schema with schema id %s", schemaId);
       return schema;
     }
 
@@ -206,7 +212,7 @@ public class SnapshotUtil {
    */
   public static Schema schemaFor(Table table, Long snapshotId, Long timestampMillis) {
     Preconditions.checkArgument(snapshotId == null || timestampMillis == null,
-        "snapshot id and timestamp cannot both be used to find a schema");
+        "Cannot use both snapshot id and timestamp to find a schema");
 
     if (snapshotId != null) {
       return schemaFor(table, snapshotId);
@@ -217,5 +223,9 @@ public class SnapshotUtil {
     }
 
     return table.schema();
+  }
+
+  public static String formatTimestampMillis(long millis) {
+    return DATE_FORMAT.format(LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC));
   }
 }
