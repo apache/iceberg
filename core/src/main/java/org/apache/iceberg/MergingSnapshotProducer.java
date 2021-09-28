@@ -314,7 +314,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                                                   Expression dataFilter, Iterable<DataFile> dataFiles,
                                                   boolean caseSensitive) {
     // if there is no current table state, no files have been added
-    if (base.currentSnapshot() == null) {
+    if (base.currentSnapshot() == null || base.formatVersion() < 2) {
       return;
     }
 
@@ -344,7 +344,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   protected void validateNoNewDeleteFiles(TableMetadata base, Long startingSnapshotId,
                                           Expression dataFilter, boolean caseSensitive) {
     // if there is no current table state, no files have been added
-    if (base.currentSnapshot() == null) {
+    if (base.currentSnapshot() == null || base.formatVersion() < 2) {
       return;
     }
 

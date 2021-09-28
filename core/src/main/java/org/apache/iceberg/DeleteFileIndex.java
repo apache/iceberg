@@ -24,6 +24,7 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -86,16 +87,16 @@ class DeleteFileIndex {
     return (globalDeletes == null || globalDeletes.length == 0) && sortedDeletesByPartition.isEmpty();
   }
 
-  public List<DeleteFile> referencedDeleteFiles() {
-    List<DeleteFile> deleteFiles = Lists.newArrayList();
+  public Iterable<DeleteFile> referencedDeleteFiles() {
+    Iterable<DeleteFile> deleteFiles = Collections.emptyList();
 
     if (globalDeletes != null) {
-      deleteFiles.addAll(Arrays.asList(globalDeletes));
+      deleteFiles = Iterables.concat(deleteFiles, Arrays.asList(globalDeletes));
     }
 
-    sortedDeletesByPartition.forEach((key, partitionDeletes) -> {
-      deleteFiles.addAll(Arrays.asList(partitionDeletes.second()));
-    });
+    for (Pair<long[], DeleteFile[]> partitionDeletes : sortedDeletesByPartition.values()) {
+      deleteFiles = Iterables.concat(deleteFiles, Arrays.asList(partitionDeletes.second()));
+    }
 
     return deleteFiles;
   }
