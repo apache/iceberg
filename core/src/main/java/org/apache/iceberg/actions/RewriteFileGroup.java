@@ -24,10 +24,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 /**
  * Container class representing a set of files to be rewritten by a RewriteAction and the new files which have been
@@ -36,12 +38,34 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 public class RewriteFileGroup {
   private final FileGroupInfo info;
   private final List<FileScanTask> fileScanTasks;
+  private final Set<DeleteFile> removedDeletes;
 
   private Set<DataFile> addedFiles = Collections.emptySet();
 
-  public RewriteFileGroup(FileGroupInfo info, List<FileScanTask> fileScanTasks) {
+  public RewriteFileGroup(FileGroupInfo info, List<FileScanTask> fileScanTasks,
+                          boolean removePartitionDeletes, boolean removeGlobalDeletes) {
     this.info = info;
     this.fileScanTasks = fileScanTasks;
+    this.removedDeletes = Sets.newHashSet();
+    for (FileScanTask task : fileScanTasks) {
+      if (task.spec().isUnpartitioned()) {
+        if (removePartitionDeletes) {
+          removedDeletes.addAll(task.deletes());
+        }
+      } else {
+        for (DeleteFile delete : task.deletes()) {
+          if (delete.partition().size() == 0) {
+            if (removeGlobalDeletes) {
+              removedDeletes.add(delete);
+            }
+          } else {
+            if (removePartitionDeletes) {
+              removedDeletes.add(delete);
+            }
+          }
+        }
+      }
+    }
   }
 
   public FileGroupInfo info() {
@@ -64,9 +88,13 @@ public class RewriteFileGroup {
     return addedFiles;
   }
 
+  public Set<DeleteFile> removedDeletes() {
+    return removedDeletes;
+  }
+
   public RewriteDataFiles.FileGroupRewriteResult asResult() {
     Preconditions.checkState(addedFiles != null, "Cannot get result, Group was never rewritten");
-    return new BaseFileGroupRewriteResult(info, addedFiles.size(), fileScanTasks.size());
+    return new BaseFileGroupRewriteResult(info, addedFiles.size(), fileScanTasks.size(), removedDeletes.size());
   }
 
   @Override

@@ -25,12 +25,15 @@ import org.apache.iceberg.actions.RewriteDataFiles.FileGroupRewriteResult;
 public class BaseFileGroupRewriteResult implements FileGroupRewriteResult {
   private final int addedDataFilesCount;
   private final int rewrittenDataFilesCount;
+  private final int removedDeleteFilesCount;
   private final FileGroupInfo info;
 
-  public BaseFileGroupRewriteResult(FileGroupInfo info, int addedFilesCount, int rewrittenFilesCount) {
+  public BaseFileGroupRewriteResult(FileGroupInfo info, int addedFilesCount,
+                                    int rewrittenFilesCount, int removedDeleteFilesCount) {
     this.info = info;
     this.addedDataFilesCount = addedFilesCount;
     this.rewrittenDataFilesCount = rewrittenFilesCount;
+    this.removedDeleteFilesCount = removedDeleteFilesCount;
   }
 
   @Override
@@ -46,5 +49,10 @@ public class BaseFileGroupRewriteResult implements FileGroupRewriteResult {
   @Override
   public int rewrittenDataFilesCount() {
     return rewrittenDataFilesCount;
+  }
+
+  @Override
+  public int removedDeleteFilesCount() {
+    return removedDeleteFilesCount;
   }
 }

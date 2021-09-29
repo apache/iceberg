@@ -20,18 +20,25 @@
 package org.apache.iceberg.spark.actions;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.ContentFile;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -41,10 +48,18 @@ import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFiles.Result;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
+import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.encryption.EncryptedFiles;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -57,9 +72,12 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.assertj.core.util.Sets;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -149,6 +167,52 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     List<Object[]> actualRecords = currentData();
 
     assertEquals("Rows must match", expectedRecords, actualRecords);
+  }
+
+  @Test
+  public void testBinPackPartitionedTableAndRemovePartitionDeletes() throws Exception {
+    Table table = createTablePartitioned(4, 2);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
+    shouldHaveFiles(table, 8);
+    table.refresh();
+
+    // remove the first row of each data file
+    CloseableIterable<FileScanTask> tasks = table.newScan().planFiles();
+    List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+    GenericAppenderFactory appenderFactory = new GenericAppenderFactory(table.schema(), table.spec(),
+        null, null, null);
+    int total = (int) dataFiles.stream().mapToLong(ContentFile::recordCount).sum();
+
+    RowDelta rowDelta = table.newRowDelta();
+    for (DataFile dataFile : dataFiles) {
+      EncryptedOutputFile outputFile = EncryptedFiles.encryptedOutput(
+          table.io().newOutputFile(table.locationProvider().newDataLocation(UUID.randomUUID().toString())),
+          EncryptionKeyMetadata.EMPTY);
+      PositionDeleteWriter<Record> posDeleteWriter = appenderFactory.newPosDeleteWriter(
+          outputFile, FileFormat.PARQUET, dataFile.partition());
+      posDeleteWriter.delete(dataFile.path(), 0);
+      posDeleteWriter.close();
+      rowDelta.addDeletes(posDeleteWriter.toDeleteFile());
+    }
+
+    rowDelta.commit();
+    table.refresh();
+    List<Object[]> expectedRecords = currentData();
+    Result result = actions().rewriteDataFiles(table)
+        .option(BinPackStrategy.MIN_INPUT_FILES, "1")
+        .option(RewriteDataFiles.REMOVE_PARTITION_DELETES, "true")
+        .execute();
+    Assert.assertEquals("Action should rewrite 8 data files", 8, result.rewrittenDataFilesCount());
+    Assert.assertEquals("Action should remove 8 delete files", 8, result.removedDeleteFilesCount());
+
+    table.refresh();
+    for (FileScanTask task : table.newScan().planFiles()) {
+      Assert.assertEquals("Should have no delete files", 0, task.deletes().size());
+    }
+
+    List<Object[]> actualRecords = currentData();
+    assertEquals("Rows must match", expectedRecords, actualRecords);
+    Assert.assertEquals("8 rows are removed", total - 8, actualRecords.size());
   }
 
   @Test

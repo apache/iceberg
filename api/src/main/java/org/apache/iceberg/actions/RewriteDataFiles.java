@@ -77,6 +77,22 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
   String TARGET_FILE_SIZE_BYTES = "target-file-size-bytes";
 
   /**
+   * Determines if the data rewrite action should also remove non-global deletes associated with the data files.
+   * By enabling this option, any data filter specified through {@link #filter(Expression)} will be converted to
+   * an inclusive partition filter based on all the historical partition specs of the table.
+   */
+  String REMOVE_PARTITION_DELETES = "remove-partition-deletes";
+  boolean REMOVE_PARTITION_DELETES_DEFAULT = false;
+
+  /**
+   * Determines if the data rewrite action should also remove global deletes.
+   * When enabling this option, specify a data filter would result in {@link IllegalArgumentException}
+   * because a full table scan planning must be performed to safely remove global deletes.
+   */
+  String REMOVE_GLOBAL_DELETES = "remove-global-deletes";
+  boolean REMOVE_GLOBAL_DELETES_DEFAULT = false;
+
+  /**
    * Choose BINPACK as a strategy for this rewrite operation
    * @return this for method chaining
    */
@@ -109,6 +125,10 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
     default int rewrittenDataFilesCount() {
       return rewriteResults().stream().mapToInt(FileGroupRewriteResult::rewrittenDataFilesCount).sum();
     }
+
+    default int removedDeleteFilesCount() {
+      return rewriteResults().stream().mapToInt(FileGroupRewriteResult::removedDeleteFilesCount).sum();
+    }
   }
 
   /**
@@ -121,6 +141,8 @@ public interface RewriteDataFiles extends SnapshotUpdate<RewriteDataFiles, Rewri
     int addedDataFilesCount();
 
     int rewrittenDataFilesCount();
+
+    int removedDeleteFilesCount();
   }
 
   /**

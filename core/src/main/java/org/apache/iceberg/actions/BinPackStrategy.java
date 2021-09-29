@@ -60,7 +60,9 @@ public abstract class BinPackStrategy implements RewriteStrategy {
    * {@link #MIN_FILE_SIZE_BYTES} will be considered for rewriting. This functions independently
    * of {@link #MAX_FILE_SIZE_BYTES}.
    * <p>
-   * Defaults to 75% of the target file size
+   * Defaults to 75% of the target file size when {@link RewriteDataFiles#REMOVE_PARTITION_DELETES} and
+   * {@link RewriteDataFiles#REMOVE_GLOBAL_DELETES} are turned off.
+   * Otherwise all files are considered for rewriting.
    */
   public static final String MIN_FILE_SIZE_BYTES = "min-file-size-bytes";
   public static final double MIN_FILE_SIZE_DEFAULT_RATIO = 0.75d;
@@ -70,7 +72,9 @@ public abstract class BinPackStrategy implements RewriteStrategy {
    * {@link #MAX_FILE_SIZE_BYTES} will be considered for rewriting. This functions independently
    * of {@link #MIN_FILE_SIZE_BYTES}.
    * <p>
-   * Defaults to 180% of the target file size
+   * Defaults to 180% of the target file size when {@link RewriteDataFiles#REMOVE_PARTITION_DELETES} and
+   * {@link RewriteDataFiles#REMOVE_GLOBAL_DELETES} are turned off.
+   * Otherwise all files are considered for rewriting.
    */
   public static final String MAX_FILE_SIZE_BYTES = "max-file-size-bytes";
   public static final double MAX_FILE_SIZE_DEFAULT_RATIO = 1.80d;
@@ -80,6 +84,7 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   private long maxFileSize;
   private long targetFileSize;
   private long maxGroupSize;
+  private boolean removeDeletes;
 
   @Override
   public String name() {
@@ -120,6 +125,11 @@ public abstract class BinPackStrategy implements RewriteStrategy {
         MIN_INPUT_FILES,
         MIN_INPUT_FILES_DEFAULT);
 
+    removeDeletes = PropertyUtil.propertyAsBoolean(
+        options, RewriteDataFiles.REMOVE_GLOBAL_DELETES, RewriteDataFiles.REMOVE_GLOBAL_DELETES_DEFAULT) ||
+        PropertyUtil.propertyAsBoolean(options, RewriteDataFiles.REMOVE_PARTITION_DELETES,
+            RewriteDataFiles.REMOVE_PARTITION_DELETES_DEFAULT);
+
     validateOptions();
     return this;
   }
@@ -127,7 +137,7 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   @Override
   public Iterable<FileScanTask> selectFilesToRewrite(Iterable<FileScanTask> dataFiles) {
     return FluentIterable.from(dataFiles)
-        .filter(scanTask -> scanTask.length() < minFileSize || scanTask.length() > maxFileSize);
+        .filter(scanTask -> removeDeletes || scanTask.length() < minFileSize || scanTask.length() > maxFileSize);
   }
 
   @Override

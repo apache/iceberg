@@ -28,6 +28,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -66,15 +67,17 @@ public class RewriteDataFilesCommitManager {
    */
   public void commitFileGroups(Set<RewriteFileGroup> fileGroups) {
     Set<DataFile> rewrittenDataFiles = Sets.newHashSet();
+    Set<DeleteFile> removedDeleteFiles = Sets.newHashSet();
     Set<DataFile> addedDataFiles = Sets.newHashSet();
     for (RewriteFileGroup group : fileGroups) {
       rewrittenDataFiles = Sets.union(rewrittenDataFiles, group.rewrittenFiles());
       addedDataFiles = Sets.union(addedDataFiles, group.addedFiles());
+      removedDeleteFiles = Sets.union(removedDeleteFiles, group.removedDeletes());
     }
 
     RewriteFiles rewrite = table.newRewrite()
         .validateFromSnapshot(startingSnapshotId)
-        .rewriteFiles(rewrittenDataFiles, addedDataFiles);
+        .rewriteFiles(rewrittenDataFiles, removedDeleteFiles, addedDataFiles, Sets.newHashSet());
     rewrite.commit();
   }
 

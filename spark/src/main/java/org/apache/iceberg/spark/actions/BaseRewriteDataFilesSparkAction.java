@@ -34,6 +34,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BaseRewriteDataFilesFileGroupInfo;
@@ -47,6 +48,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -74,7 +76,9 @@ abstract class BaseRewriteDataFilesSparkAction
       MAX_FILE_GROUP_SIZE_BYTES,
       PARTIAL_PROGRESS_ENABLED,
       PARTIAL_PROGRESS_MAX_COMMITS,
-      TARGET_FILE_SIZE_BYTES
+      TARGET_FILE_SIZE_BYTES,
+      REMOVE_PARTITION_DELETES,
+      REMOVE_GLOBAL_DELETES
   );
 
   private final Table table;
@@ -83,6 +87,8 @@ abstract class BaseRewriteDataFilesSparkAction
   private int maxConcurrentFileGroupRewrites;
   private int maxCommits;
   private boolean partialProgressEnabled;
+  private boolean removePartitionDeletes;
+  private boolean removeGlobalDeletes;
   private RewriteStrategy strategy;
 
   protected BaseRewriteDataFilesSparkAction(SparkSession spark, Table table) {
@@ -114,6 +120,7 @@ abstract class BaseRewriteDataFilesSparkAction
 
   @Override
   public RewriteDataFiles.Result execute() {
+
     if (table.currentSnapshot() == null) {
       return new BaseRewriteDataFilesResult(ImmutableList.of());
     }
@@ -298,7 +305,7 @@ abstract class BaseRewriteDataFilesSparkAction
             int globalIndex = ctx.currentGlobalIndex();
             int partitionIndex = ctx.currentPartitionIndex(partition);
             FileGroupInfo info = new BaseRewriteDataFilesFileGroupInfo(globalIndex, partitionIndex, partition);
-            return new RewriteFileGroup(info, tasks);
+            return new RewriteFileGroup(info, tasks, removePartitionDeletes, removeGlobalDeletes);
           });
         });
   }
@@ -326,6 +333,14 @@ abstract class BaseRewriteDataFilesSparkAction
         PARTIAL_PROGRESS_ENABLED,
         PARTIAL_PROGRESS_ENABLED_DEFAULT);
 
+    removePartitionDeletes = PropertyUtil.propertyAsBoolean(options(),
+        REMOVE_PARTITION_DELETES,
+        REMOVE_PARTITION_DELETES_DEFAULT);
+
+    removeGlobalDeletes = PropertyUtil.propertyAsBoolean(options(),
+        REMOVE_GLOBAL_DELETES,
+        REMOVE_GLOBAL_DELETES_DEFAULT);
+
     Preconditions.checkArgument(maxConcurrentFileGroupRewrites >= 1,
         "Cannot set %s to %s, the value must be positive.",
         MAX_CONCURRENT_FILE_GROUP_REWRITES, maxConcurrentFileGroupRewrites);
@@ -333,6 +348,20 @@ abstract class BaseRewriteDataFilesSparkAction
     Preconditions.checkArgument(!partialProgressEnabled || partialProgressEnabled && maxCommits > 0,
         "Cannot set %s to %s, the value must be positive when %s is true",
         PARTIAL_PROGRESS_MAX_COMMITS, maxCommits, PARTIAL_PROGRESS_ENABLED);
+
+    Preconditions.checkArgument(removePartitionDeletes || !removeGlobalDeletes,
+        "Cannot only remove global deletes without removing partition deletes");
+
+    if (removeGlobalDeletes) {
+      Preconditions.checkArgument(Expressions.alwaysTrue().equals(filter),
+          "Cannot use filter when global deletes must be removed");
+    }
+
+    if (removePartitionDeletes && !Expressions.alwaysTrue().equals(filter)) {
+      for (PartitionSpec spec : table.specs().values()) {
+        filter = Projections.inclusive(spec).project(filter);
+      }
+    }
   }
 
   private String jobDesc(RewriteFileGroup group, RewriteExecutionContext ctx) {
