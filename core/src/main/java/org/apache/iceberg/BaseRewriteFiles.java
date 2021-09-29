@@ -26,7 +26,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements RewriteFiles {
   private final Set<DataFile> replacedDataFiles = Sets.newHashSet();
   private Long startingSnapshotId = null;
-  private Long sequenceNumber = null;
+  private Long replaceSequenceNumber = null;
 
   BaseRewriteFiles(String tableName, TableOperations ops) {
     super(tableName, ops);
@@ -47,7 +47,7 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
 
   @Override
   protected Long sequenceNumber() {
-    return sequenceNumber;
+    return replaceSequenceNumber;
   }
 
   private void verifyInputAndOutputFiles(Set<DataFile> dataFilesToDelete, Set<DeleteFile> deleteFilesToDelete,
@@ -105,7 +105,7 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
 
   @Override
   public RewriteFiles setSequenceNumber(long sequenceNumber) {
-    this.sequenceNumber = sequenceNumber;
+    this.replaceSequenceNumber = sequenceNumber;
     return this;
   }
 
