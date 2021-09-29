@@ -137,7 +137,8 @@ public abstract class BinPackStrategy implements RewriteStrategy {
   @Override
   public Iterable<FileScanTask> selectFilesToRewrite(Iterable<FileScanTask> dataFiles) {
     return FluentIterable.from(dataFiles)
-        .filter(scanTask -> removeDeletes || scanTask.length() < minFileSize || scanTask.length() > maxFileSize);
+        .filter(scanTask -> (removeDeletes && !scanTask.deletes().isEmpty()) ||
+            scanTask.length() < minFileSize || scanTask.length() > maxFileSize);
   }
 
   @Override
