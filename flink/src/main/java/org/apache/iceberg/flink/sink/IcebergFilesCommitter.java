@@ -46,6 +46,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.EndCheckpoint;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -59,8 +60,8 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class IcebergFilesCommitter extends AbstractStreamOperator<Void>
-    implements OneInputStreamOperator<WriteResult, Void>, BoundedOneInput {
+class IcebergFilesCommitter extends AbstractStreamOperator<EndCheckpoint>
+    implements OneInputStreamOperator<WriteResult, EndCheckpoint>, BoundedOneInput {
 
   private static final long serialVersionUID = 1L;
   private static final long INITIAL_CHECKPOINT_ID = -1L;
@@ -188,6 +189,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     if (checkpointId > maxCommittedCheckpointId) {
       commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, checkpointId);
       this.maxCommittedCheckpointId = checkpointId;
+      emit(new EndCheckpoint(
+          checkpointId,
+          getRuntimeContext().getIndexOfThisSubtask(),
+          getRuntimeContext().getNumberOfParallelSubtasks()));
     }
   }
 
@@ -375,5 +380,9 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     }
 
     return lastCommittedCheckpointId;
+  }
+
+  private void emit(EndCheckpoint result) {
+    output.collect(new StreamRecord<>(result));
   }
 }

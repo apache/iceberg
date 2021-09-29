@@ -19,6 +19,8 @@
 
 package org.apache.iceberg;
 
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -104,6 +106,17 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
 
   @Override
   protected void validate(TableMetadata base) {
+    // update startingSnapshotId.
+    if (!base.snapshots().isEmpty()) {
+      Map<Long, Snapshot> snapshotById = base.snapshots().stream()
+          .collect(Collectors.toMap(Snapshot::snapshotId, snapshot -> snapshot));
+      Snapshot snapshot = base.snapshots().get(0);
+      while (snapshot != null && snapshot.parentId() != null) {
+        startingSnapshotId = snapshot.parentId();
+        snapshot = snapshotById.get(snapshot.parentId());
+      }
+    }
+
     if (base.currentSnapshot() != null) {
       if (!referencedDataFiles.isEmpty()) {
         validateDataFilesExist(

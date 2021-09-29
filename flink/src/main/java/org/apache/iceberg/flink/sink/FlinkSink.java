@@ -48,6 +48,13 @@ import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.sink.compact.CompactFileCommitter;
+import org.apache.iceberg.flink.sink.compact.CompactFileGenerator;
+import org.apache.iceberg.flink.sink.compact.CompactFileOperator;
+import org.apache.iceberg.flink.sink.compact.ExpireSnapshotGenerator;
+import org.apache.iceberg.flink.sink.compact.ExpireSnapshotOperator;
+import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.CommonControllerMessage;
+import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.EndCheckpoint;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -71,6 +78,11 @@ public class FlinkSink {
 
   private static final String ICEBERG_STREAM_WRITER_NAME = IcebergStreamWriter.class.getSimpleName();
   private static final String ICEBERG_FILES_COMMITTER_NAME = IcebergFilesCommitter.class.getSimpleName();
+  private static final String COMPACT_FILE_GENERATOR = CompactFileGenerator.class.getSimpleName();
+  private static final String COMPACT_FILE_OPERATOR = CompactFileOperator.class.getSimpleName();
+  private static final String COMPACT_FILE_COMMITTER = CompactFileCommitter.class.getSimpleName();
+  private static final String EXPIRE_SNAPSHOT_GENERATOR = ExpireSnapshotGenerator.class.getSimpleName();
+  private static final String EXPIRE_SNAPSHOT_OPERATOR = ExpireSnapshotOperator.class.getSimpleName();
 
   private FlinkSink() {
   }
@@ -295,10 +307,27 @@ public class FlinkSink {
 
       // Add single-parallelism committer that commits files
       // after successful checkpoint or end of input
-      SingleOutputStreamOperator<Void> committerStream = appendCommitter(writerStream);
+      SingleOutputStreamOperator<EndCheckpoint> committerStream = appendCommitter(writerStream);
+
+      //  Add single-parallelism compact task generator
+      SingleOutputStreamOperator<CommonControllerMessage> compactStream = appendCompactGenerator(committerStream);
+
+      //  Add parallel rewrite task operator
+      SingleOutputStreamOperator<CommonControllerMessage> rewriteStream =
+          appendCompactOperator(compactStream.broadcast());
+
+      //  Add single-parallelism compact committer operator
+      SingleOutputStreamOperator<EndCheckpoint> compactCommitterStream = appendCompactCommitter(rewriteStream);
+
+      //  Add single-parallelism expire snapshots generator
+      SingleOutputStreamOperator<CommonControllerMessage> expireSnapshotStream =
+          appendExpireGenerator(compactCommitterStream);
+
+      //  Add parallel delete expire snapshots files operator
+      SingleOutputStreamOperator<Void> deleteStream = appendExpireOperator(expireSnapshotStream.broadcast());
 
       // Add dummy discard sink
-      return appendDummySink(committerStream);
+      return appendDummySink(deleteStream);
     }
 
     /**
@@ -338,10 +367,107 @@ public class FlinkSink {
       return resultStream;
     }
 
-    private SingleOutputStreamOperator<Void> appendCommitter(SingleOutputStreamOperator<WriteResult> writerStream) {
+    private SingleOutputStreamOperator<Void> appendExpireOperator(
+        DataStream<CommonControllerMessage> snapshotStream) {
+      ExpireSnapshotOperator expireSnapshotOperator = new ExpireSnapshotOperator(tableLoader);
+      SingleOutputStreamOperator<Void> deleteStream = snapshotStream
+          .transform(
+          operatorName(EXPIRE_SNAPSHOT_OPERATOR),
+          Types.VOID,
+          expireSnapshotOperator
+      );
+
+      if (uidPrefix != null) {
+        deleteStream = deleteStream.uid(uidPrefix + "-delete_snapshot");
+      }
+      return deleteStream;
+    }
+
+    private SingleOutputStreamOperator<CommonControllerMessage> appendExpireGenerator(
+        SingleOutputStreamOperator<EndCheckpoint> committerStream) {
+      ExpireSnapshotGenerator expireSnapshotGenerator = new ExpireSnapshotGenerator(tableLoader);
+      SingleOutputStreamOperator<CommonControllerMessage> snapshotStream = committerStream
+          .transform(operatorName(EXPIRE_SNAPSHOT_GENERATOR),
+              TypeInformation.of(CommonControllerMessage.class),
+              expireSnapshotGenerator
+          )
+          .setParallelism(1)
+          .setMaxParallelism(1);
+
+      if (uidPrefix != null) {
+        snapshotStream = snapshotStream.uid(uidPrefix + "-expire-snapshot-generator");
+      }
+      return snapshotStream;
+    }
+
+    private SingleOutputStreamOperator<EndCheckpoint> appendCompactCommitter(
+        SingleOutputStreamOperator<CommonControllerMessage> rewriteStream) {
+      CompactFileCommitter compactFileCommitter = new CompactFileCommitter(tableLoader);
+      SingleOutputStreamOperator<EndCheckpoint> committerStream = rewriteStream
+          .transform(
+              operatorName(COMPACT_FILE_COMMITTER),
+              TypeInformation.of(EndCheckpoint.class),
+              compactFileCommitter
+          )
+          .setParallelism(1)
+          .setMaxParallelism(1);
+
+      if (uidPrefix != null) {
+        committerStream = committerStream.uid(uidPrefix + "-compact_committer");
+      }
+      return committerStream;
+    }
+
+    private SingleOutputStreamOperator<CommonControllerMessage> appendCompactOperator(
+        DataStream<CommonControllerMessage> compactorStream) {
+      // Find out the equality field id list based on the user-provided equality field column names.
+      List<Integer> equalityFieldIds = Lists.newArrayList();
+      if (equalityFieldColumns != null && equalityFieldColumns.size() > 0) {
+        for (String column : equalityFieldColumns) {
+          org.apache.iceberg.types.Types.NestedField field = table.schema().findField(column);
+          Preconditions.checkNotNull(field, "Missing required equality field column '%s' in table schema %s",
+              column, table.schema());
+          equalityFieldIds.add(field.fieldId());
+        }
+      }
+      CompactFileOperator compactFileOperator = new CompactFileOperator(tableLoader, equalityFieldIds);
+      SingleOutputStreamOperator<CommonControllerMessage> rewriteStream = compactorStream
+          .transform(
+          operatorName(COMPACT_FILE_OPERATOR),
+          TypeInformation.of(CommonControllerMessage.class),
+          compactFileOperator
+      );
+
+      if (uidPrefix != null) {
+        rewriteStream = rewriteStream.uid(uidPrefix + "-rewriter");
+      }
+      return rewriteStream;
+    }
+
+    private SingleOutputStreamOperator<CommonControllerMessage> appendCompactGenerator(
+        SingleOutputStreamOperator<EndCheckpoint> committerStream) {
+      CompactFileGenerator compactFileGenerator = new CompactFileGenerator(tableLoader);
+      SingleOutputStreamOperator<CommonControllerMessage> compactStream = committerStream
+          .transform(
+              operatorName(COMPACT_FILE_GENERATOR),
+              TypeInformation.of(CommonControllerMessage.class),
+              compactFileGenerator
+          )
+          .setParallelism(1)
+          .setMaxParallelism(1);
+
+      if (uidPrefix != null) {
+        compactStream = compactStream.uid(uidPrefix + "-compact-generator");
+      }
+      return compactStream;
+    }
+
+    private SingleOutputStreamOperator<EndCheckpoint> appendCommitter(
+        SingleOutputStreamOperator<WriteResult> writerStream) {
       IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
-      SingleOutputStreamOperator<Void> committerStream = writerStream
-          .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
+      SingleOutputStreamOperator<EndCheckpoint> committerStream = writerStream
+          .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME),
+              TypeInformation.of(EndCheckpoint.class), filesCommitter)
           .setParallelism(1)
           .setMaxParallelism(1);
       if (uidPrefix != null) {

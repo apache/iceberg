@@ -244,4 +244,41 @@ public class TableProperties {
 
   public static final String UPSERT_MODE_ENABLE = "write.upsert.enable";
   public static final boolean UPSERT_MODE_ENABLE_DEFAULT = false;
+
+  //  compact small files
+  public static final String WRITE_AUTO_COMPACT_ENABLED = "write.auto-compact.enabled";
+  public static final boolean WRITE_AUTO_COMPACT_ENABLED_DEFAULT = false;
+
+  public static final String WRITE_COMPACT_LAST_REWRITE_MS = "write.compact.last-rewrite-ms";
+  public static final long WRITE_COMPACT_LAST_REWRITE_MS_DEFAULT = -1;
+
+  public static final String WRITE_COMPACT_INTERVAL_MS = "write.compact.interval-ms";
+  public static final long WRITE_COMPACT_INTERVAL_MS_DEFAULT = 5 * 60 * 1000;
+
+  public static final String WRITE_COMPACT_TARGET_FILE_SIZE_BYTES = "write.compact.target-file-size-bytes";
+
+  public static final String WRITE_COMPACT_SMALL_FILE_SIZE_BYTES = "write.compact.small-file-size-bytes";
+  public static final long WRITE_COMPACT_SMALL_FILE_SIZE_BYTES_DEFAULT = 128 * 1024 * 1024; // 128 MB
+
+  public static final String WRITE_COMPACT_SMALL_FILE_NUMS = "write.compact.small-file-nums";
+  public static final long WRITE_COMPACT_SMALL_FILE_NUMS_DEFAULT = 1;
+
+  //  expire snapshot
+  public static final String SNAPSHOT_AUTO_EXPIRE_ENABLED = "snapshot.auto-expire.enabled";
+  public static final boolean SNAPSHOT_AUTO_EXPIRE_ENABLED_DEFAULT = false;
+
+  public static final String AUTO_EXPIRE_LAST_REMOVE_SNAPSHOTS_MS = "snapshot.auto-expire.last-expire-snapshot-ms";
+  public static final long AUTO_EXPIRE_LAST_REMOVE_SNAPSHOTS_MS_DEFAULT = -1;
+
+  public static final String SNAPSHOT_AUTO_EXPIRE_INTERVAL_MS = "snapshot.auto-expire.interval-ms";
+  public static final long SNAPSHOT_AUTO_EXPIRE_INTERVAL_MS_DEFAULT = 10 * 60 * 1000;
+
+  public static final String AUTO_EXPIRE_MAX_SNAPSHOT_AGE_MS = "snapshot.auto-expire.max-snapshot-age-ms";
+  public static final long AUTO_EXPIRE_MAX_SNAPSHOT_AGE_MS_DEFAULT = 5 * 24 * 60 * 60 * 1000; // 5 days
+
+  public static final String AUTO_EXPIRE_MIN_SNAPSHOTS_TO_KEEP = "snapshot.auto-expire.min-snapshots-to-keep";
+  public static final int AUTO_EXPIRE_MIN_SNAPSHOTS_TO_KEEP_DEFAULT = 5;
+
+  public static final String AUTO_EXPIRE_SNAPSHOTS_GROUP_NUMS = "snapshot.auto-expire.snapshots-group-nums";
+  public static final int AUTO_EXPIRE_SNAPSHOTS_GROUP_NUMS_DEFAULT = 5;
 }
