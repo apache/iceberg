@@ -24,6 +24,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import org.apache.iceberg.actions.Actions;
 import org.apache.iceberg.actions.ExpireSnapshots;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
@@ -86,6 +87,9 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
     Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtil.microsToMillis(args.getLong(1));
     Integer retainLastNum = args.isNullAt(2) ? null : args.getInt(2);
     Integer maxConcurrentDeletes = args.isNullAt(3) ? null : args.getInt(3);
+
+    Preconditions.checkArgument(maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
+        "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
 
     return modifyIcebergTable(tableIdent, table -> {
       ExpireSnapshots action = actions().expireSnapshots(table);

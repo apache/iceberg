@@ -207,4 +207,21 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
         catalogName, currentTimestamp, tableIdent, 4);
     assertEquals("Expiring snapshots concurrently should succeed", ImmutableList.of(row(0L, 0L, 3L)), output);
   }
+
+  @Test
+  public void testConcurrentExpireSnapshotsWithInvalidInput() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+
+    AssertHelpers.assertThrows("Should throw an error when max_concurrent_deletes = 0",
+        IllegalArgumentException.class, "max_concurrent_deletes should have value > 0",
+        () -> sql("CALL %s.system.expire_snapshots(table => '%s', max_concurrent_deletes => %s)",
+            catalogName, tableIdent, 0));
+
+    AssertHelpers.assertThrows("Should throw an error when max_concurrent_deletes < 0 ",
+        IllegalArgumentException.class, "max_concurrent_deletes should have value > 0",
+        () -> sql(
+            "CALL %s.system.expire_snapshots(table => '%s', max_concurrent_deletes => %s)",
+            catalogName, tableIdent, -1));
+
+  }
 }
