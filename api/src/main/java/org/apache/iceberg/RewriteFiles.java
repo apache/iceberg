@@ -76,8 +76,9 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
 
   /**
    * Set the sequenceNumber write in manifest-list file.
-   * @param sequenceNumber
-   * @return
+   *
+   * @param sequenceNumber a sequenceNumber
+   * @return this for method chaining
    */
   RewriteFiles setSequenceNumber(long sequenceNumber);
 }

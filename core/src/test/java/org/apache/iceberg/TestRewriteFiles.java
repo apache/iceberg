@@ -612,33 +612,4 @@ public class TestRewriteFiles extends TableTestBase {
     Assert.assertEquals("Only 3 manifests should exist", 3, listManifestFiles().size());
   }
 
-  @Test
-  public void testNewDeleteFile() {
-    Assume.assumeTrue("Delete files are only supported in v2", formatVersion > 1);
-
-    table.newAppend()
-        .appendFile(FILE_A)
-        .commit();
-
-    long snapshotBeforeDeletes = table.currentSnapshot().snapshotId();
-
-    table.newRowDelta()
-        .addDeletes(FILE_A_DELETES)
-        .commit();
-
-    long snapshotAfterDeletes = table.currentSnapshot().snapshotId();
-
-    AssertHelpers.assertThrows("Should fail because deletes were added after the starting snapshot",
-        ValidationException.class, "Cannot commit, found new delete for replaced data file",
-        () -> table.newRewrite()
-            .validateFromSnapshot(snapshotBeforeDeletes)
-            .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_A2))
-            .apply());
-
-    // the rewrite should be valid when validating from the snapshot after the deletes
-    table.newRewrite()
-        .validateFromSnapshot(snapshotAfterDeletes)
-        .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_A2))
-        .apply();
-  }
 }
