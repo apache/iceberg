@@ -97,7 +97,7 @@
           <option name="ASSIGNMENT_WRAP" value="1" />
           <option name="BINARY_OPERATION_SIGN_ON_NEXT_LINE" value="false" />
           <option name="BINARY_OPERATION_WRAP" value="1" />
-          <option name="BLANK_LINES_AROUND_METHOD_IN_INTERFACE" value="0" />
+          <option name="BLANK_LINES_AROUND_METHOD_IN_INTERFACE" value="1" />
           <option name="CALL_PARAMETERS_LPAREN_ON_NEXT_LINE" value="true" />
           <option name="CALL_PARAMETERS_WRAP" value="5" />
           <option name="DOWHILE_BRACE_FORCE" value="3" />
@@ -451,7 +451,7 @@
           <option name="KEEP_FIRST_COLUMN_COMMENT" value="false" />
           <option name="KEEP_CONTROL_STATEMENT_IN_ONE_LINE" value="false" />
           <option name="KEEP_BLANK_LINES_BEFORE_RBRACE" value="1" />
-          <option name="BLANK_LINES_AROUND_METHOD_IN_INTERFACE" value="0" />
+          <option name="BLANK_LINES_AROUND_METHOD_IN_INTERFACE" value="1" />
           <option name="SPACE_WITHIN_BRACES" value="false" />
           <option name="CALL_PARAMETERS_WRAP" value="1" />
           <option name="METHOD_PARAMETERS_WRAP" value="1" />
