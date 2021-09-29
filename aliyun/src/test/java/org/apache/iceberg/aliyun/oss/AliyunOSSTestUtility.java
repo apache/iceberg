@@ -27,29 +27,30 @@ import org.slf4j.LoggerFactory;
 
 public class AliyunOSSTestUtility {
   private static final Logger LOG = LoggerFactory.getLogger(AliyunOSSTestUtility.class);
-  private static final String ALIYUN_OSS_TEST_RULE_CLASS = "ALIYUN_OSS_TEST_RULE_CLASS";
+  private static final String ALIYUN_TEST_OSS_TEST_RULE_CLASS = "ALIYUN_TEST_OSS_TEST_RULE_CLASS";
 
   private AliyunOSSTestUtility() {
   }
 
   public static AliyunOSSTestRule initialize() {
-    String implClass = System.getenv(ALIYUN_OSS_TEST_RULE_CLASS);
     AliyunOSSTestRule testRule;
 
+    String implClass = System.getenv(ALIYUN_TEST_OSS_TEST_RULE_CLASS);
     if (!Strings.isNullOrEmpty(implClass)) {
-      DynConstructors.Ctor<AliyunOSSTestRule> ctor;
       LOG.info("The initializing AliyunOSSTestRule implementation is: {}", implClass);
       try {
+        DynConstructors.Ctor<AliyunOSSTestRule> ctor;
         ctor = DynConstructors.builder(AliyunOSSTestRule.class).impl(implClass).buildChecked();
         testRule = ctor.newInstance();
       } catch (NoSuchMethodException e) {
         throw new IllegalArgumentException(String.format(
             "Cannot initialize AliyunOSSTestRule, missing no-arg constructor: %s", implClass), e);
       } catch (ClassCastException e) {
-        throw new IllegalArgumentException(
-            String.format("Cannot initialize AliyunOSSTestRule, %s does not implement it.", implClass), e);
+        throw new IllegalArgumentException(String.format(
+            "Cannot initialize AliyunOSSTestRule, %s does not implement it.", implClass), e);
       }
     } else {
+      LOG.info("Initializing AliyunOSSTestRule implementation with default AliyunOSSMockRule");
       testRule = AliyunOSSMockRule.builder().silent().build();
     }
 
