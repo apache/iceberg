@@ -26,6 +26,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements RewriteFiles {
   private final Set<DataFile> replacedDataFiles = Sets.newHashSet();
   private Long startingSnapshotId = null;
+  private Long sequenceNumber = null;
 
   BaseRewriteFiles(String tableName, TableOperations ops) {
     super(tableName, ops);
@@ -42,6 +43,11 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
   @Override
   protected String operation() {
     return DataOperations.REPLACE;
+  }
+
+  @Override
+  protected Long sequenceNumber() {
+    return sequenceNumber;
   }
 
   private void verifyInputAndOutputFiles(Set<DataFile> dataFilesToDelete, Set<DeleteFile> deleteFilesToDelete,
@@ -98,10 +104,12 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
   }
 
   @Override
+  public RewriteFiles setSequenceNumber(long sequenceNumber) {
+    this.sequenceNumber = sequenceNumber;
+    return this;
+  }
+
+  @Override
   protected void validate(TableMetadata base) {
-    if (replacedDataFiles.size() > 0) {
-      // if there are replaced data files, there cannot be any new row-level deletes for those data files
-      validateNoNewDeletesForDataFiles(base, startingSnapshotId, replacedDataFiles);
-    }
   }
 }

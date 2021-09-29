@@ -243,11 +243,12 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
       return RewriteDataFilesActionResult.empty();
     }
 
+    long sequenceNumber = table.currentSnapshot().sequenceNumber();
     List<DataFile> addedDataFiles = rewriteDataForTasks(combinedScanTasks);
     List<DataFile> currentDataFiles = combinedScanTasks.stream()
         .flatMap(tasks -> tasks.files().stream().map(FileScanTask::file))
         .collect(Collectors.toList());
-    replaceDataFiles(currentDataFiles, addedDataFiles, startingSnapshotId);
+    replaceDataFiles(currentDataFiles, addedDataFiles, startingSnapshotId, sequenceNumber);
 
     return new RewriteDataFilesActionResult(currentDataFiles, addedDataFiles);
   }
@@ -269,10 +270,11 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
   }
 
   private void replaceDataFiles(Iterable<DataFile> deletedDataFiles, Iterable<DataFile> addedDataFiles,
-                                long startingSnapshotId) {
+                                long startingSnapshotId, long sequenceNumber) {
     try {
       RewriteFiles rewriteFiles = table.newRewrite()
           .validateFromSnapshot(startingSnapshotId)
+          .setSequenceNumber(sequenceNumber)
           .rewriteFiles(Sets.newHashSet(deletedDataFiles), Sets.newHashSet(addedDataFiles));
       commit(rewriteFiles);
     } catch (Exception e) {
