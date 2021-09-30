@@ -22,6 +22,7 @@ package org.apache.iceberg.actions;
 import java.io.File;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -132,6 +133,24 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
         .olderThan(System.currentTimeMillis() + 1000).execute();
     Assert.assertTrue("trash file should be removed",
         results.contains("file:" + location + "/data/trashfile"));
+  }
+
+  @Test
+  public void testSparkSessionCatalogHiveWrongConfig() {
+    spark.conf().set("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog");
+    spark.conf().set("spark.sql.catalog.spark_catalog.type", "hive");
+    spark.conf().set("spark.sql.catalog.spark_catalog.uri", "thrift://localhost:9083");
+    if (spark.version().equalsIgnoreCase("3.0.3")) {
+      AssertHelpers.assertThrows("Expects config error",
+              ClassCastException.class,
+          () -> (SparkSessionCatalog) spark.sessionState().catalogManager().v2SessionCatalog()
+      );
+    } else {
+      AssertHelpers.assertThrows("Expects config error",
+              UnsupportedOperationException.class,
+          () -> (SparkSessionCatalog) spark.sessionState().catalogManager().v2SessionCatalog()
+      );
+    }
   }
 
   @Test

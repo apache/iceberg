@@ -21,6 +21,8 @@ package org.apache.iceberg.spark;
 
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.spark.SparkContext;
+import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -38,6 +40,8 @@ import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A Spark catalog that can also load non-Iceberg tables.
@@ -47,6 +51,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
     extends BaseCatalog implements CatalogExtension {
   private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
+  private static final Logger LOG = LoggerFactory.getLogger(SparkSessionCatalog.class);
 
   private String catalogName = null;
   private TableCatalog icebergCatalog = null;
@@ -249,8 +254,38 @@ public class SparkSessionCatalog<T extends TableCatalog & SupportsNamespaces>
     }
   }
 
+  public boolean isHiveCatalogConfigValid(CaseInsensitiveStringMap options, StringBuilder errorMsg) {
+    String hadoopConfUri = SparkSession.active().sparkContext().conf().contains("spark.hadoop.hive.metastore.uris") ?
+            SparkSession.active().sparkContext().conf().get("spark.hadoop.hive.metastore.uris") : null;
+    String catalogConfUri = options.get("uri");
+
+    if (hadoopConfUri == null) {
+      errorMsg.append("Hive uri config is missing");
+    } else if (catalogConfUri != null) {
+      LOG.warn("Don't set uri for SparkSessionCatalog" +
+              "set it only in hive conf");
+      if (!hadoopConfUri.equalsIgnoreCase(catalogConfUri)) {
+        errorMsg.append("Cannot set uri for SparkSessionCatalog: " +
+                "conflicts with Hive conf URI");
+      }
+    }
+
+    if (errorMsg.length() != 0) {
+      return false;
+    }
+
+    return true;
+  }
+
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
+    if (options.containsKey("type") && options.get("type").equalsIgnoreCase("hive")) {
+      StringBuilder errorMsg = new StringBuilder();
+      if (!isHiveCatalogConfigValid(options, errorMsg)) {
+        throw new UnsupportedOperationException(errorMsg.toString());
+      }
+    }
+
     this.catalogName = name;
     this.icebergCatalog = buildSparkCatalog(name, options);
     if (icebergCatalog instanceof StagingTableCatalog) {
