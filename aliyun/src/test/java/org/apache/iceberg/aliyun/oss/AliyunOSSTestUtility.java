@@ -39,8 +39,8 @@ public class AliyunOSSTestUtility {
     if (!Strings.isNullOrEmpty(implClass)) {
       LOG.info("The initializing AliyunOSSTestRule implementation is: {}", implClass);
       try {
-        DynConstructors.Ctor<AliyunOSSTestRule> ctor;
-        ctor = DynConstructors.builder(AliyunOSSTestRule.class).impl(implClass).buildChecked();
+        DynConstructors.Ctor<AliyunOSSTestRule> ctor =
+            DynConstructors.builder(AliyunOSSTestRule.class).impl(implClass).buildChecked();
         testRule = ctor.newInstance();
       } catch (NoSuchMethodException e) {
         throw new IllegalArgumentException(String.format(
