@@ -65,8 +65,9 @@ public class DataTableScan extends BaseTableScan {
 
   @Override
   public TableScan useSnapshot(long scanSnapshotId) {
-    Preconditions.checkArgument(snapshotId() == null,
-        "Cannot override snapshot, already set to id=%s", snapshotId());
+    // call method in superclass just for the side effect of argument validation;
+    // we do not use its return value
+    super.useSnapshot(scanSnapshotId);
     Schema snapshotSchema = SnapshotUtil.schemaFor(table(), scanSnapshotId);
     return newRefinedScan(tableOps(), table(), snapshotSchema, context().useSnapshotId(scanSnapshotId));
   }
