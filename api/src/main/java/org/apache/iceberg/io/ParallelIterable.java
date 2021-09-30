@@ -31,12 +31,21 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
-class ParallelIterable<T> extends CloseableGroup implements CloseableIterable<T> {
+/**
+ * Run iterables in parallel.
+ * @deprecated use {@link CloseableIterable#combine(Iterable, ExecutorService, int)} instead.
+ */
+@Deprecated
+public class ParallelIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   private final Iterable<? extends Iterable<T>> iterables;
   private final ExecutorService workerPool;
   private final int workerPoolSize;
 
-  ParallelIterable(Iterable<? extends Iterable<T>> iterables,
+  /**
+   * @deprecated use {@link CloseableIterable#combine(Iterable, ExecutorService, int)} instead.
+   */
+  @Deprecated
+  public ParallelIterable(Iterable<? extends Iterable<T>> iterables,
                           ExecutorService workerPool,
                           int workerPoolSize) {
     this.iterables = iterables;
@@ -73,7 +82,7 @@ class ParallelIterable<T> extends CloseableGroup implements CloseableIterable<T>
             }
           }).iterator();
       this.workerPool = workerPool;
-      // In default, we submit 2 tasks per worker at a time.
+      // submit 2 tasks per worker at a time.
       this.taskFutures = new Future[workerPoolSize * 2];
     }
 

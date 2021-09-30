@@ -124,7 +124,9 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
     if (workerPool == null) {
       return concat(iterable);
     }
+
     Preconditions.checkArgument(workerPoolSize > 0, "Invalid workerPoolSize (not positive): " + workerPoolSize);
+
     return new ParallelIterable<>(iterable, workerPool, workerPoolSize);
   }
 
