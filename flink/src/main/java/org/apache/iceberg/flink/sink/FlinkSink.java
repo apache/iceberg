@@ -145,7 +145,7 @@ public class FlinkSink {
                                             TypeInformation<RowData> outputType) {
       this.inputCreator = newUidPrefix -> {
         // Input stream order is crucial for some situation(e.g. in cdc case). Therefore, we need to set the parallelism
-        // of map operator same as it's input to keep map operator chaining it's input, and avoid rebalanced by default.
+        // of map operator same as its input to keep map operator chaining its input, and avoid rebalanced by default.
         SingleOutputStreamOperator<RowData> inputStream = input.map(mapper, outputType)
             .setParallelism(input.getParallelism());
         if (newUidPrefix != null) {
@@ -435,6 +435,9 @@ public class FlinkSink {
         case RANGE:
           LOG.warn("Fallback to use 'none' distribution mode, because {}={} is not supported in flink now",
               WRITE_DISTRIBUTION_MODE, DistributionMode.RANGE.modeName());
+          if (!equalityFieldIds.isEmpty()) {
+            return input.keyBy(new EqualityFieldKeySelector(equalityFieldIds, iSchema, flinkRowType));
+          }
           return input;
 
         default:

@@ -100,6 +100,7 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         new Object[] {"parquet", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
         new Object[] {"parquet", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
         new Object[] {"parquet", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+
         new Object[] {"avro", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
         new Object[] {"avro", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
         new Object[] {"avro", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
@@ -107,7 +108,16 @@ public class TestFlinkIcebergSinkV2 extends TableTestBase {
         new Object[] {"parquet", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
         new Object[] {"parquet", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
         new Object[] {"parquet", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
-        new Object[] {"parquet", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH}
+        new Object[] {"parquet", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+
+        new Object[] {"avro", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
+        new Object[] {"avro", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
+        new Object[] {"avro", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
+        new Object[] {"avro", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
+        new Object[] {"parquet", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
+        new Object[] {"parquet", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
+        new Object[] {"parquet", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
+        new Object[] {"parquet", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE}
     };
   }
 
