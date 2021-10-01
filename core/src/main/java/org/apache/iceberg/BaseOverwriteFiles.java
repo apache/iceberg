@@ -33,7 +33,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
   private final Set<DataFile> deletedDataFiles = Sets.newHashSet();
   private boolean validateAddedFilesMatchOverwriteFilter = false;
   private Long startingSnapshotId = null;
-  private Expression conflictDetectionFilter = Expressions.alwaysTrue();
+  private Expression conflictDetectionFilter = null;
   private boolean validateNewDataFiles = false;
   private boolean validateNewDeleteFiles = false;
   private boolean caseSensitive = true;
@@ -107,14 +107,14 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
   }
 
   @Override
-  public OverwriteFiles validateNoConflictingDataFiles() {
+  public OverwriteFiles validateNoConflictingData() {
     this.validateNewDataFiles = true;
     failMissingDeletePaths();
     return this;
   }
 
   @Override
-  public OverwriteFiles validateNoConflictingDeleteFiles() {
+  public OverwriteFiles validateNoConflictingDeletes() {
     this.validateNewDeleteFiles = true;
     failMissingDeletePaths();
     return this;
@@ -148,28 +148,30 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
     }
 
 
-    if (validateNewDataFiles && base.currentSnapshot() != null) {
-      validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter(), caseSensitive);
+    if (validateNewDataFiles) {
+      validateAddedDataFiles(base, startingSnapshotId, dataConflictDetectionFilter(), caseSensitive);
     }
 
-    if (validateNewDeleteFiles && base.currentSnapshot() != null) {
+    if (validateNewDeleteFiles) {
       if (rowFilter() != Expressions.alwaysFalse()) {
-        validateNoNewDeleteFiles(base, startingSnapshotId, conflictDetectionFilter(), caseSensitive);
-      } else if (deletedDataFiles.size() > 0) {
-        // it is sufficient to ensure there are no new delete files only for overwritten data files
+        validateNoNewDeleteFiles(base, startingSnapshotId, rowFilter(), caseSensitive);
+      }
+
+      if (deletedDataFiles.size() > 0) {
         validateNoNewDeletesForDataFiles(
-            base, startingSnapshotId, conflictDetectionFilter(),
+            base, startingSnapshotId, conflictDetectionFilter,
             deletedDataFiles, caseSensitive);
       }
     }
   }
 
-  private Expression conflictDetectionFilter() {
-    boolean overwriteByFilter = rowFilter() != Expressions.alwaysFalse() && deletedDataFiles.isEmpty();
-    if (conflictDetectionFilter == Expressions.alwaysTrue() && overwriteByFilter) {
+  private Expression dataConflictDetectionFilter() {
+    if (conflictDetectionFilter != null) {
+      return conflictDetectionFilter;
+    } else if (rowFilter() != Expressions.alwaysFalse() && deletedDataFiles.isEmpty()) {
       return rowFilter();
     } else {
-      return conflictDetectionFilter;
+      return Expressions.alwaysTrue();
     }
   }
 }

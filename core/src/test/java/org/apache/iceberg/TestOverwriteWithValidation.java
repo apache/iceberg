@@ -670,8 +670,8 @@ public class TestOverwriteWithValidation extends TableTestBase {
         .addFile(FILE_DAY_2_MODIFIED)
         .validateFromSnapshot(firstSnapshot.snapshotId())
         .conflictDetectionFilter(EXPRESSION_DAY_2)
-        .validateNoConflictingDataFiles()
-        .validateNoConflictingDeleteFiles();
+        .validateNoConflictingData()
+        .validateNoConflictingDeletes();
 
     table.newRowDelta()
         .addDeletes(FILE_DAY_2_POS_DELETES)
@@ -700,8 +700,8 @@ public class TestOverwriteWithValidation extends TableTestBase {
         .addFile(FILE_DAY_2_MODIFIED)
         .validateFromSnapshot(firstSnapshot.snapshotId())
         .conflictDetectionFilter(EXPRESSION_DAY_2)
-        .validateNoConflictingDataFiles()
-        .validateNoConflictingDeleteFiles();
+        .validateNoConflictingData()
+        .validateNoConflictingDeletes();
 
     table.newRowDelta()
         .addDeletes(FILE_DAY_2_POS_DELETES)
@@ -730,8 +730,8 @@ public class TestOverwriteWithValidation extends TableTestBase {
         .addFile(FILE_DAY_2_MODIFIED)
         .validateFromSnapshot(firstSnapshot.snapshotId())
         .conflictDetectionFilter(EXPRESSION_DAY_2)
-        .validateNoConflictingDataFiles()
-        .validateNoConflictingDeleteFiles();
+        .validateNoConflictingData()
+        .validateNoConflictingDeletes();
 
     table.newRowDelta()
         .addDeletes(FILE_DAY_1_POS_DELETES)
@@ -761,8 +761,8 @@ public class TestOverwriteWithValidation extends TableTestBase {
         .addFile(FILE_DAY_2_MODIFIED)
         .validateFromSnapshot(firstSnapshot.snapshotId())
         .conflictDetectionFilter(EXPRESSION_DAY_2)
-        .validateNoConflictingDataFiles()
-        .validateNoConflictingDeleteFiles();
+        .validateNoConflictingData()
+        .validateNoConflictingDeletes();
 
     table.newRowDelta()
         .addDeletes(FILE_DAY_1_POS_DELETES)
@@ -792,8 +792,8 @@ public class TestOverwriteWithValidation extends TableTestBase {
         .addFile(FILE_DAY_2_MODIFIED)
         .validateFromSnapshot(firstSnapshot.snapshotId())
         .conflictDetectionFilter(EXPRESSION_DAY_2)
-        .validateNoConflictingDataFiles()
-        .validateNoConflictingDeleteFiles();
+        .validateNoConflictingData()
+        .validateNoConflictingDeletes();
 
     table.newRowDelta()
         .addDeletes(FILE_DAY_2_EQ_DELETES)
@@ -822,8 +822,8 @@ public class TestOverwriteWithValidation extends TableTestBase {
         .addFile(FILE_DAY_2_MODIFIED)
         .validateFromSnapshot(firstSnapshot.snapshotId())
         .conflictDetectionFilter(EXPRESSION_DAY_2_ID_RANGE)
-        .validateNoConflictingDataFiles()
-        .validateNoConflictingDeleteFiles();
+        .validateNoConflictingData()
+        .validateNoConflictingDeletes();
 
     table.newRowDelta()
         .addDeletes(FILE_DAY_2_ANOTHER_RANGE_EQ_DELETES)
@@ -853,8 +853,8 @@ public class TestOverwriteWithValidation extends TableTestBase {
         .validateAddedFilesMatchOverwriteFilter()
         .addFile(FILE_DAY_2_MODIFIED)
         .validateFromSnapshot(firstSnapshot.snapshotId())
-        .validateNoConflictingDataFiles()
-        .validateNoConflictingDeleteFiles();
+        .validateNoConflictingData()
+        .validateNoConflictingDeletes();
 
     table.newRowDelta()
         .addDeletes(FILE_DAY_1_POS_DELETES)

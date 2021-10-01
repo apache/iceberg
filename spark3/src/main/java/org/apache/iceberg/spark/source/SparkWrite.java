@@ -373,8 +373,8 @@ class SparkWrite {
 
       Expression conflictDetectionFilter = conflictDetectionFilter();
       overwriteFiles.conflictDetectionFilter(conflictDetectionFilter);
-      overwriteFiles.validateNoConflictingDataFiles();
-      overwriteFiles.validateNoConflictingDeleteFiles();
+      overwriteFiles.validateNoConflictingData();
+      overwriteFiles.validateNoConflictingDeletes();
 
       String commitMsg = String.format(
           "overwrite of %d data files with %d new data files, scanSnapshotId: %d, conflictDetectionFilter: %s",
@@ -392,7 +392,7 @@ class SparkWrite {
 
       Expression conflictDetectionFilter = conflictDetectionFilter();
       overwriteFiles.conflictDetectionFilter(conflictDetectionFilter);
-      overwriteFiles.validateNoConflictingDeleteFiles();
+      overwriteFiles.validateNoConflictingDeletes();
 
       String commitMsg = String.format(
           "overwrite of %d data files with %d new data files",
