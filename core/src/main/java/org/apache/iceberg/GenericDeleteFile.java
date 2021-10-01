@@ -21,6 +21,8 @@ package org.apache.iceberg;
 
 
 import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Map;
 import org.apache.avro.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -40,6 +42,17 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
     super(specId, content, filePath, format, partition, fileSizeInBytes, metrics.recordCount(),
         metrics.columnSizes(), metrics.valueCounts(), metrics.nullValueCounts(), metrics.nanValueCounts(),
         metrics.lowerBounds(), metrics.upperBounds(), null, equalityFieldIds, sortOrderId, keyMetadata);
+  }
+
+  GenericDeleteFile(int specId, FileContent content, String filePath, FileFormat format, PartitionData partition,
+                    long fileSizeInBytes, long recordCount, Map<Integer, Long> columnSizes,
+                    Map<Integer, Long> valueCounts, Map<Integer, Long> nullValueCounts,
+                    Map<Integer, Long> nanValueCounts, Map<Integer, ByteBuffer> lowerBounds,
+                    Map<Integer, ByteBuffer> upperBounds, List<Long> splitOffsets, int[] equalityFieldIds,
+                    Integer sortOrderId, ByteBuffer keyMetadata) {
+    super(specId, content, filePath, format, partition, fileSizeInBytes, recordCount, columnSizes, valueCounts,
+        nullValueCounts, nanValueCounts, lowerBounds, upperBounds, splitOffsets, equalityFieldIds, sortOrderId,
+        keyMetadata);
   }
 
   /**
