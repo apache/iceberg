@@ -127,8 +127,7 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
    */
   @Deprecated
   default OverwriteFiles validateNoConflictingAppends(Expression conflictDetectionFilter) {
-    conflictDetectionFilter(conflictDetectionFilter);
-    return validateNoConflictingData();
+    return conflictDetectionFilter(conflictDetectionFilter).validateNoConflictingData();
   }
 
   /**

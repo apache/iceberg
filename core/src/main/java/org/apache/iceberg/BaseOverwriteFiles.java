@@ -154,7 +154,8 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
 
     if (validateNewDeleteFiles) {
       if (rowFilter() != Expressions.alwaysFalse()) {
-        validateNoNewDeleteFiles(base, startingSnapshotId, rowFilter(), caseSensitive);
+        Expression filter = conflictDetectionFilter != null ? conflictDetectionFilter : rowFilter();
+        validateNoNewDeleteFiles(base, startingSnapshotId, filter, caseSensitive);
       }
 
       if (deletedDataFiles.size() > 0) {
