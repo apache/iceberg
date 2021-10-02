@@ -21,8 +21,8 @@ package org.apache.iceberg.flink.source;
 
 import java.util.Map;
 import java.util.function.Consumer;
-import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.UpdatableRowData;
 import org.apache.iceberg.CombinedScanTask;
