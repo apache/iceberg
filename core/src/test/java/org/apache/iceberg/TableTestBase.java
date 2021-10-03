@@ -79,7 +79,7 @@ public class TableTestBase {
       .build();
   // Equality delete files.
   static final DeleteFile FILE_A2_DELETES = FileMetadata.deleteFileBuilder(SPEC)
-      .ofEqualityDeletes(3)
+      .ofEqualityDeletes(1)
       .withPath("/path/to/data-a2-deletes.parquet")
       .withFileSizeInBytes(10)
       .withPartitionPath("data_bucket=0")
@@ -364,6 +364,20 @@ public class TableTestBase {
       actualFilePaths.add(task.file().path());
     }
     Assert.assertEquals("Files should match", expectedFilePaths, actualFilePaths);
+  }
+
+  void validateTableDeleteFiles(Table tbl, DeleteFile... expectedFiles) {
+    Set<CharSequence> expectedFilePaths = Sets.newHashSet();
+    for (DeleteFile file : expectedFiles) {
+      expectedFilePaths.add(file.path());
+    }
+    Set<CharSequence> actualFilePaths = Sets.newHashSet();
+    for (FileScanTask task : tbl.newScan().planFiles()) {
+      for (DeleteFile file : task.deletes()) {
+        actualFilePaths.add(file.path());
+      }
+    }
+    Assert.assertEquals("Delete files should match", expectedFilePaths, actualFilePaths);
   }
 
   List<String> paths(DataFile... dataFiles) {

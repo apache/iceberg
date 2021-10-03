@@ -144,7 +144,7 @@ public class TestFlinkIcebergSink {
         .table(table)
         .tableLoader(tableLoader)
         .writeParallelism(parallelism)
-        .build();
+        .append();
 
     // Execute the program.
     env.execute("Test Iceberg DataStream");
@@ -177,7 +177,7 @@ public class TestFlinkIcebergSink {
         .tableSchema(tableSchema)
         .writeParallelism(parallelism)
         .distributionMode(distributionMode)
-        .build();
+        .append();
 
     // Execute the program.
     env.execute("Test Iceberg DataStream.");
@@ -296,7 +296,7 @@ public class TestFlinkIcebergSink {
         .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
         .distributionMode(DistributionMode.NONE)
         .uidPrefix("leftIcebergSink")
-        .build();
+        .append();
 
     List<Row> rightRows = createRows("right-");
     DataStream<Row> rightStream = env.addSource(createBoundedSource(rightRows), ROW_TYPE_INFO)
@@ -309,7 +309,7 @@ public class TestFlinkIcebergSink {
         .writeParallelism(parallelism)
         .distributionMode(DistributionMode.HASH)
         .uidPrefix("rightIcebergSink")
-        .build();
+        .append();
 
     // Execute the program.
     env.execute("Test Iceberg DataStream.");

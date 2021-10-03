@@ -1003,4 +1003,135 @@ public class TestRowDelta extends V2TableTestBase {
     // we should clean up 1 manifest list and 2 delete manifests
     Assert.assertEquals("Should delete 3 files", 3, deletedFiles.size());
   }
+
+  @Test
+  public void testConcurrentConflictingRowDelta() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    Expression conflictDetectionFilter = Expressions.alwaysTrue();
+
+    // mock a MERGE operation with serializable isolation
+    RowDelta rowDelta = table.newRowDelta()
+        .addRows(FILE_B)
+        .addDeletes(FILE_A_DELETES)
+        .validateFromSnapshot(firstSnapshot.snapshotId())
+        .conflictDetectionFilter(conflictDetectionFilter)
+        .validateNoConflictingDataFiles()
+        .validateNoConflictingDeleteFiles();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .validateFromSnapshot(firstSnapshot.snapshotId())
+        .validateNoConflictingAppends(conflictDetectionFilter)
+        .commit();
+
+    AssertHelpers.assertThrows("Should reject commit",
+        ValidationException.class, "Found new conflicting delete files",
+        rowDelta::commit);
+  }
+
+  @Test
+  public void testConcurrentConflictingRowDeltaWithoutAppendValidation() {
+    table.newAppend()
+        .appendFile(FILE_A)
+        .commit();
+
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    Expression conflictDetectionFilter = Expressions.alwaysTrue();
+
+    // mock a MERGE operation with snapshot isolation (i.e. no append validation)
+    RowDelta rowDelta = table.newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .validateFromSnapshot(firstSnapshot.snapshotId())
+        .conflictDetectionFilter(conflictDetectionFilter)
+        .validateNoConflictingDeleteFiles();
+
+    table.newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .validateFromSnapshot(firstSnapshot.snapshotId())
+        .conflictDetectionFilter(conflictDetectionFilter)
+        .validateNoConflictingDataFiles()
+        .commit();
+
+    AssertHelpers.assertThrows("Should reject commit",
+        ValidationException.class, "Found new conflicting delete files",
+        rowDelta::commit);
+  }
+
+  @Test
+  public void testConcurrentNonConflictingRowDelta() {
+    // change the spec to be partitioned by data
+    table.updateSpec()
+        .removeField(Expressions.bucket("data", 16))
+        .addField(Expressions.ref("data"))
+        .commit();
+
+    // add a data file to partition A
+    DataFile dataFile1 = DataFiles.builder(table.spec())
+        .withPath("/path/to/data-a.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data=a")
+        .withRecordCount(1)
+        .build();
+
+    table.newAppend()
+        .appendFile(dataFile1)
+        .commit();
+
+    // add a data file to partition B
+    DataFile dataFile2 = DataFiles.builder(table.spec())
+        .withPath("/path/to/data-b.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data=b")
+        .withRecordCount(1)
+        .build();
+
+    table.newAppend()
+        .appendFile(dataFile2)
+        .commit();
+
+    Snapshot baseSnapshot = table.currentSnapshot();
+
+    Expression conflictDetectionFilter = Expressions.equal("data", "a");
+
+    // add a delete file for partition A
+    DeleteFile deleteFile1 = FileMetadata.deleteFileBuilder(table.spec())
+        .ofPositionDeletes()
+        .withPath("/path/to/data-a-deletes.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data=a")
+        .withRecordCount(1)
+        .build();
+
+    // mock a DELETE operation with serializable isolation
+    RowDelta rowDelta = table.newRowDelta()
+        .addDeletes(deleteFile1)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .conflictDetectionFilter(conflictDetectionFilter)
+        .validateNoConflictingDataFiles()
+        .validateNoConflictingDeleteFiles();
+
+    // add a delete file for partition B
+    DeleteFile deleteFile2 = FileMetadata.deleteFileBuilder(table.spec())
+        .ofPositionDeletes()
+        .withPath("/path/to/data-b-deletes.parquet")
+        .withFileSizeInBytes(10)
+        .withPartitionPath("data=b")
+        .withRecordCount(1)
+        .build();
+
+    table.newRowDelta()
+        .addDeletes(deleteFile2)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
+        .commit();
+
+    rowDelta.commit();
+
+    validateTableDeleteFiles(table, deleteFile1, deleteFile2);
+  }
 }
