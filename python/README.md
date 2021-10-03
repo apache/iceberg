@@ -40,12 +40,4 @@ tox
 ```
 
 ## Get in Touch
-- Slack:
-    * [Join apache-iceberg slack workspace](https://apache-iceberg.slack.com/)
-
-- Email:
-    * [dev@iceberg.apache.org](mailto:dev@iceberg.apache.org)
-
-- Issues
-    * [File a github issue](https://github.com/apache/iceberg/issues)
-
+- [Iceberg community](https://iceberg.apache.org/community/)

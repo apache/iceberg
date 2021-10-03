@@ -22,12 +22,10 @@ on:
   push:
     paths:
     - '.github/workflows/python-ci.yml'
-    - 'python_legacy/**'
     - 'python/**'
   pull_request:
     paths:
     - '.github/workflows/python-ci.yml'
-    - 'python_legacy/**'
     - 'python/**'
 
 jobs:
