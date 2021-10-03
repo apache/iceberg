@@ -115,30 +115,30 @@ public class TypeUtil {
   }
 
   public static Set<Integer> getProjectedIds(Schema schema) {
-    return ImmutableSet.copyOf(getIdsInternal(schema.asStruct()));
+    return ImmutableSet.copyOf(getIdsInternal(schema.asStruct(), true));
   }
 
   public static Set<Integer> getProjectedIds(Type type) {
     if (type.isPrimitiveType()) {
       return ImmutableSet.of();
     }
-    return ImmutableSet.copyOf(getIdsInternal(type));
+    return ImmutableSet.copyOf(getIdsInternal(type, true));
   }
 
-  private static Set<Integer> getIdsInternal(Type type) {
-    return visit(type, new GetProjectedIds());
+  private static Set<Integer> getIdsInternal(Type type, boolean includeStructIds) {
+    return visit(type, new GetProjectedIds(includeStructIds));
   }
 
   public static Types.StructType selectNot(Types.StructType struct, Set<Integer> fieldIds) {
-    Set<Integer> projectedIds = getIdsInternal(struct);
+    Set<Integer> projectedIds = getIdsInternal(struct, false);
     projectedIds.removeAll(fieldIds);
-    return select(struct, projectedIds);
+    return project(struct, projectedIds);
   }
 
   public static Schema selectNot(Schema schema, Set<Integer> fieldIds) {
-    Set<Integer> projectedIds = getIdsInternal(schema.asStruct());
+    Set<Integer> projectedIds = getIdsInternal(schema.asStruct(), false);
     projectedIds.removeAll(fieldIds);
-    return select(schema, projectedIds);
+    return project(schema, projectedIds);
   }
 
   public static Schema join(Schema left, Schema right) {
