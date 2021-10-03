@@ -296,7 +296,7 @@ abstract class BaseTableScan implements TableScan {
       }
       requiredFieldIds.addAll(selectedIds);
 
-      return TypeUtil.select(schema, requiredFieldIds);
+      return TypeUtil.project(schema, requiredFieldIds);
 
     } else if (context.projectedSchema() != null) {
       return context.projectedSchema();
