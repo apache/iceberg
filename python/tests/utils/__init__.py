@@ -1,4 +1,3 @@
-#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,35 +14,3 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#
-
-name: "Python CI"
-on:
-  push:
-    paths:
-    - '.github/workflows/python-ci.yml'
-    - 'python/**'
-  pull_request:
-    paths:
-    - '.github/workflows/python-ci.yml'
-    - 'python/**'
-
-jobs:
-  tox:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python: [3.7, 3.8, 3.9]
-
-    steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python }}
-    - working-directory: ./python
-      run: |
-        pip install -e .[dev]
-        pip install -U tox-gh-actions
-    - working-directory: ./python
-      run: tox
-

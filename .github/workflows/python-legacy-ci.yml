@@ -17,16 +17,16 @@
 # under the License.
 #
 
-name: "Python CI"
+name: "Python Legacy CI"
 on:
   push:
     paths:
-    - '.github/workflows/python-ci.yml'
-    - 'python/**'
+    - '.github/workflows/python-legacy-ci.yml'
+    - 'python_legacy/**'
   pull_request:
     paths:
-    - '.github/workflows/python-ci.yml'
-    - 'python/**'
+    - '.github/workflows/python-legacy-ci.yml'
+    - 'python_legacy/**'
 
 jobs:
   tox:
@@ -40,10 +40,10 @@ jobs:
     - uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python }}
-    - working-directory: ./python
+    - working-directory: ./python_legacy
       run: |
         pip install -e .[dev]
         pip install -U tox-gh-actions
-    - working-directory: ./python
+    - working-directory: ./python_legacy
       run: tox
 
