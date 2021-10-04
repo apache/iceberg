@@ -61,8 +61,8 @@ object PlanUtils {
     if (Spark3VersionUtil.isSpark30) {
       repartitionByExpressionCtor.newInstance(partitionExpressions, child, Integer.valueOf(numPartitions))
     } else {
-      // SPARK-32056: Coalesce partitions for repartition by expressions when AQE is enabled
-      repartitionByExpressionCtor.newInstance(partitionExpressions, child)
+      // Do not pass numPartitions because it is set automatically for AQE
+      repartitionByExpressionCtor.newInstance(partitionExpressions, child, None)
     }
   }
 }
