@@ -22,22 +22,23 @@ package org.apache.iceberg.actions;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 
-public interface RewriteDeleteStrategy {
+public interface ConvertDeleteStrategy {
 
   /**
-   * Returns the name of this rewrite deletes strategy
+   * Returns the name of this convert deletes strategy
    */
   String name();
 
   /**
-   * Returns the table being modified by this rewrite strategy
+   * Returns the table being modified by this convert strategy
    */
   Table table();
 
   /**
-   * Returns a set of options which this rewrite strategy can use. This is an allowed-list and any options not
+   * Returns a set of options which this convert strategy can use. This is an allowed-list and any options not
    * specified here will be rejected at runtime.
    */
   Set<String> validOptions();
@@ -48,27 +49,27 @@ public interface RewriteDeleteStrategy {
   RewriteDeleteStrategy options(Map<String, String> options);
 
   /**
-   * Select the delete files to rewrite.
+   * Select the delete files to convert.
    *
-   * @return iterable of original delete file to be replaced.
+   * @return iterable of original delete file to be converted.
    */
   Iterable<DeleteFile> selectDeleteFiles();
 
   /**
-   * Define how to rewrite the deletes.
+   * Define how to convert the deletes.
    *
-   * @param deleteFilesToRewrite a group of files to be rewritten together
+   * @param deleteFilesToConvert a group of files to be converted together
    * @return iterable of delete files used to replace the original delete files.
    */
-  Iterable<DeleteFile> rewriteDeleteFiles(Iterable<DeleteFile> deleteFilesToRewrite);
+  Iterable<DeleteFile> convertDeleteFiles(Iterable<DeleteFile> deleteFilesToConvert);
 
   /**
-   * Groups into lists which will be processed in a single executable unit. Each group will end up being
+   * Groups delete files into lists which will be processed in a single executable unit. Each group will end up being
    * committed as an independent set of changes. This creates the jobs which will eventually be run as by the underlying
    * Action.
    *
-   * @param deleteFiles iterable of DeleteFile to be rewritten
+   * @param dataFiles iterable of data files that contain the DeleteFile to be converted
    * @return iterable of lists of FileScanTasks which will be processed together
    */
-  Iterable<Iterable<DeleteFile>> planDeleteFileGroups(Iterable<DeleteFile> deleteFiles);
+  Iterable<Iterable<FileScanTask>> planDeleteFileGroups(Iterable<FileScanTask> dataFiles);
 }
