@@ -543,7 +543,7 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class PositionDeleteWriter implements OrcRowWriter<PositionDelete<Record>> {
+  private static class PositionDeleteWriter implements OrcRowWriter<PositionDelete<?>> {
     private final OrcRowWriter<Record> rowWriter;
     private final GenericRecord record;
 
@@ -554,7 +554,7 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public void write(PositionDelete<Record> row, VectorizedRowBatch output) throws IOException {
+    public void write(PositionDelete<?> row, VectorizedRowBatch output) throws IOException {
       record.set(0, row.path());
       record.set(1, row.pos());
       if (record.size() > 2) {

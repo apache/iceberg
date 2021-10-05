@@ -76,10 +76,10 @@ public class TestOrcRowIterator {
         .createWriterFunc(GenericOrcWriter::buildWriter)
         .schema(DATA_SCHEMA)
         // write in such a way that the file contains 2 stripes each with 4 row groups of 1000 rows
-        .config("iceberg.orc.vectorbatch.size", "1000")
-        .config(OrcConf.ROW_INDEX_STRIDE.getAttribute(), "1000")
-        .config(OrcConf.ROWS_BETWEEN_CHECKS.getAttribute(), "4000")
-        .config(OrcConf.STRIPE_SIZE.getAttribute(), "1")
+        .set("iceberg.orc.vectorbatch.size", "1000")
+        .set(OrcConf.ROW_INDEX_STRIDE.getAttribute(), "1000")
+        .set(OrcConf.ROWS_BETWEEN_CHECKS.getAttribute(), "4000")
+        .set(OrcConf.STRIPE_SIZE.getAttribute(), "1")
         .build()) {
       writer.addAll(DATA_ROWS);
     }

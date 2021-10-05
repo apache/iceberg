@@ -96,7 +96,19 @@ public class ORC {
       return this;
     }
 
+    /**
+     * Setting a specific configuration value for the writer.
+     * @param property The property to set
+     * @param value The value to set
+     * @return The resulting builder for chaining purposes
+     * @deprecated Please use #set(String, String) instead
+     */
+    @Deprecated
     public WriteBuilder config(String property, String value) {
+      return set(property, value);
+    }
+
+    public WriteBuilder set(String property, String value) {
       conf.set(property, value);
       return this;
     }
@@ -169,7 +181,7 @@ public class ORC {
     }
 
     public DataWriteBuilder set(String property, String value) {
-      appenderBuilder.config(property, value);
+      appenderBuilder.set(property, value);
       return this;
     }
 
@@ -261,7 +273,7 @@ public class ORC {
     }
 
     public DeleteWriteBuilder set(String property, String value) {
-      appenderBuilder.config(property, value);
+      appenderBuilder.set(property, value);
       return this;
     }
 
