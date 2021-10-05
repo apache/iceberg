@@ -46,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.StagedSparkTable;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
@@ -384,9 +385,8 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
-    this.cacheEnabled = Boolean.parseBoolean(options.getOrDefault("cache-enabled", "true"));
     Catalog catalog = buildIcebergCatalog(name, options);
-
+    this.cacheEnabled = PropertyUtil.propertyAsBoolean(options, "cache-enabled", catalog.defaultCachingEnabled());
     this.catalogName = name;
     SparkSession sparkSession = SparkSession.active();
     this.useTimestampsWithoutZone = SparkUtil.useTimestampWithoutZoneInNewTables(sparkSession.conf());

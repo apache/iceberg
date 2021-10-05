@@ -87,6 +87,11 @@ public class NessieCatalog extends BaseMetastoreCatalog implements AutoCloseable
   }
 
   @Override
+  public boolean defaultCachingEnabled() {
+    return false;
+  }
+
+  @Override
   public void initialize(String inputName, Map<String, String> options) {
     this.catalogOptions = ImmutableMap.copyOf(options);
     String fileIOImpl = options.get(CatalogProperties.FILE_IO_IMPL);

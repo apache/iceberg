@@ -365,6 +365,15 @@ public interface Catalog {
   }
 
   /**
+   * Determines the default caching behavior for the catalog if "cache-enabled" is not set.
+   *
+   * @return The default caching behavior for this given catalog if "cache-enabled" is not set.
+   */
+  default boolean defaultCachingEnabled() {
+    return true;
+  }
+
+  /**
    * A builder used to create valid {@link Table tables} or start create/replace {@link Transaction transactions}.
    * <p>
    * Call {@link #buildTable(TableIdentifier, Schema)} to create a new builder.
