@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
-
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.orc.ORCSchemaUtil;
@@ -167,7 +166,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
     }
   }
 
-   static FieldGetter<?> createFieldGetter(TypeDescription fieldType, int fieldPos, int fieldCount) {
+  static FieldGetter<?> createFieldGetter(TypeDescription fieldType, int fieldPos, int fieldCount) {
     final FieldGetter<?> fieldGetter;
     switch (fieldType.getCategory()) {
       case BOOLEAN:
@@ -200,7 +199,8 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
         // being changed behind our back.
         break;
       case DECIMAL:
-        fieldGetter = (row, offset) -> row.getDecimal(fieldPos + offset, fieldType.getPrecision(), fieldType.getScale());
+        fieldGetter = (row, offset) ->
+            row.getDecimal(fieldPos + offset, fieldType.getPrecision(), fieldType.getScale());
         break;
       case STRING:
       case CHAR:
@@ -238,7 +238,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
      *
      * @param row Spark's data representation
      * @param offset added to ordinal before being passed to respective getter method - used for complex types only
-     * @return
+     * @return field value at ordinal and offset
      */
     @Nullable
     T getFieldOrNull(SpecializedGetters row, int offset);
