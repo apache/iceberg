@@ -24,7 +24,7 @@ import org.apache.iceberg.FieldMetrics;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
 
-interface SparkOrcValueWriter {
+interface SparkOrcValueWriter<T> {
 
   /**
    * Take a value from the data and add it to the ORC output.
@@ -34,17 +34,17 @@ interface SparkOrcValueWriter {
    * @param data   the data value to write.
    * @param output the ColumnVector to put the value into.
    */
-  default void write(int rowId, int column, SpecializedGetters data, ColumnVector output) {
-    if (data.isNullAt(column)) {
+  default void write(int rowId, T data, ColumnVector output) {
+    if (data == null) {
       output.noNulls = false;
       output.isNull[rowId] = true;
     } else {
       output.isNull[rowId] = false;
-      nonNullWrite(rowId, column, data, output);
+      nonNullWrite(rowId, data, output);
     }
   }
 
-  void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output);
+  void nonNullWrite(int rowId, T data, ColumnVector output);
 
   /**
    * Returns a stream of {@link FieldMetrics} that this SparkOrcValueWriter keeps track of.
