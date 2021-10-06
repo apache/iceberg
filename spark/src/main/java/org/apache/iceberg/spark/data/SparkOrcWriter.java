@@ -164,6 +164,12 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
     public Class<?> getJavaClass() {
       return InternalRow.class;
     }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      return writers.stream().flatMap(OrcValueWriter::metrics);
+    }
+
   }
 
   static FieldGetter<?> createFieldGetter(TypeDescription fieldType, int fieldPos, int fieldCount) {
