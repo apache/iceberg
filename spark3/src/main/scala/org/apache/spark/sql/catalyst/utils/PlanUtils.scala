@@ -61,7 +61,8 @@ object PlanUtils {
     if (Spark3VersionUtil.isSpark30) {
       repartitionByExpressionCtor.newInstance(partitionExpressions, child, Integer.valueOf(numPartitions))
     } else {
-      repartitionByExpressionCtor.newInstance(partitionExpressions, child, Some(numPartitions))
+      // Do not pass numPartitions because it is set automatically for AQE
+      repartitionByExpressionCtor.newInstance(partitionExpressions, child, None)
     }
   }
 }
