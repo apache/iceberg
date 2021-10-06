@@ -30,6 +30,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcRowWriter;
 import org.apache.iceberg.orc.OrcSchemaWithTypeVisitor;
+import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
@@ -47,7 +48,7 @@ import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
  */
 public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
 
-  private final SparkOrcValueWriter writer;
+  private final OrcValueWriter writer;
 
   public SparkOrcWriter(Schema iSchema, TypeDescription orcSchema) {
     Preconditions.checkArgument(orcSchema.getCategory() == TypeDescription.Category.STRUCT,
@@ -72,30 +73,30 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
     return writer.metrics();
   }
 
-  private static class WriteBuilder extends OrcSchemaWithTypeVisitor<SparkOrcValueWriter> {
+  private static class WriteBuilder extends OrcSchemaWithTypeVisitor<OrcValueWriter> {
     private WriteBuilder() {
     }
 
     @Override
-    public SparkOrcValueWriter record(Types.StructType iStruct, TypeDescription record,
-                                      List<String> names, List<SparkOrcValueWriter> fields) {
+    public OrcValueWriter record(Types.StructType iStruct, TypeDescription record,
+                                      List<String> names, List<OrcValueWriter> fields) {
       return new StructWriter(fields, record.getChildren());
     }
 
     @Override
-    public SparkOrcValueWriter list(Types.ListType iList, TypeDescription array,
-                                    SparkOrcValueWriter element) {
+    public OrcValueWriter list(Types.ListType iList, TypeDescription array,
+        OrcValueWriter element) {
       return SparkOrcValueWriters.list(element, array.getChildren());
     }
 
     @Override
-    public SparkOrcValueWriter map(Types.MapType iMap, TypeDescription map,
-                                   SparkOrcValueWriter key, SparkOrcValueWriter value) {
+    public OrcValueWriter map(Types.MapType iMap, TypeDescription map,
+        OrcValueWriter key, OrcValueWriter value) {
       return SparkOrcValueWriters.map(key, value, map.getChildren());
     }
 
     @Override
-    public SparkOrcValueWriter primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
+    public OrcValueWriter primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
       switch (primitive.getCategory()) {
         case BOOLEAN:
           return SparkOrcValueWriters.booleans();
@@ -129,11 +130,11 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
     }
   }
 
-  private static class StructWriter implements SparkOrcValueWriter<InternalRow> {
-    private final List<SparkOrcValueWriter> writers;
+  private static class StructWriter implements OrcValueWriter<InternalRow> {
+    private final List<OrcValueWriter> writers;
     private final List<FieldGetter> fieldGetters;
 
-    StructWriter(List<SparkOrcValueWriter> writers, List<TypeDescription> orcTypes) {
+    StructWriter(List<OrcValueWriter> writers, List<TypeDescription> orcTypes) {
       this.writers = writers;
       this.fieldGetters = Lists.newArrayListWithExpectedSize(orcTypes.size());
       for (int i = 0; i < orcTypes.size(); i++) {
@@ -141,7 +142,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
       }
     }
 
-    List<SparkOrcValueWriter> writers() {
+    List<OrcValueWriter> writers() {
       return writers;
     }
 
@@ -162,6 +163,10 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
       }
     }
 
+    @Override
+    public Class<?> getJavaClass() {
+      return InternalRow.class;
+    }
   }
 
    static FieldGetter createFieldGetter(TypeDescription fieldType, int fieldPos, int fieldCount) {
