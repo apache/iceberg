@@ -48,7 +48,7 @@ import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
  */
 public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
 
-  private final OrcValueWriter writer;
+  private final OrcValueWriter<?> writer;
 
   public SparkOrcWriter(Schema iSchema, TypeDescription orcSchema) {
     Preconditions.checkArgument(orcSchema.getCategory() == TypeDescription.Category.STRUCT,
@@ -73,30 +73,30 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
     return writer.metrics();
   }
 
-  private static class WriteBuilder extends OrcSchemaWithTypeVisitor<OrcValueWriter> {
+  private static class WriteBuilder extends OrcSchemaWithTypeVisitor<OrcValueWriter<?>> {
     private WriteBuilder() {
     }
 
     @Override
-    public OrcValueWriter record(Types.StructType iStruct, TypeDescription record,
-                                      List<String> names, List<OrcValueWriter> fields) {
+    public OrcValueWriter<?> record(Types.StructType iStruct, TypeDescription record,
+                                      List<String> names, List<OrcValueWriter<?>> fields) {
       return new StructWriter(fields, record.getChildren());
     }
 
     @Override
-    public OrcValueWriter list(Types.ListType iList, TypeDescription array,
-        OrcValueWriter element) {
+    public OrcValueWriter<?> list(Types.ListType iList, TypeDescription array,
+        OrcValueWriter<?> element) {
       return SparkOrcValueWriters.list(element, array.getChildren());
     }
 
     @Override
-    public OrcValueWriter map(Types.MapType iMap, TypeDescription map,
-        OrcValueWriter key, OrcValueWriter value) {
+    public OrcValueWriter<?> map(Types.MapType iMap, TypeDescription map,
+        OrcValueWriter<?> key, OrcValueWriter<?> value) {
       return SparkOrcValueWriters.map(key, value, map.getChildren());
     }
 
     @Override
-    public OrcValueWriter primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
+    public OrcValueWriter<?> primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
       switch (primitive.getCategory()) {
         case BOOLEAN:
           return SparkOrcValueWriters.booleans();
@@ -132,18 +132,16 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
 
   private static class StructWriter implements OrcValueWriter<InternalRow> {
     private final List<OrcValueWriter> writers;
-    private final List<FieldGetter> fieldGetters;
+    private final List<FieldGetter<?>> fieldGetters;
 
-    StructWriter(List<OrcValueWriter> writers, List<TypeDescription> orcTypes) {
-      this.writers = writers;
+    StructWriter(List<OrcValueWriter<?>> writers, List<TypeDescription> orcTypes) {
+      this.writers = Lists.newArrayListWithExpectedSize(writers.size());
       this.fieldGetters = Lists.newArrayListWithExpectedSize(orcTypes.size());
+
       for (int i = 0; i < orcTypes.size(); i++) {
+        this.writers.add(writers.get(i));
         fieldGetters.add(createFieldGetter(orcTypes.get(i), i, orcTypes.size()));
       }
-    }
-
-    List<OrcValueWriter> writers() {
-      return writers;
     }
 
     @Override
@@ -169,8 +167,8 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
     }
   }
 
-   static FieldGetter createFieldGetter(TypeDescription fieldType, int fieldPos, int fieldCount) {
-    final FieldGetter fieldGetter;
+   static FieldGetter<?> createFieldGetter(TypeDescription fieldType, int fieldPos, int fieldCount) {
+    final FieldGetter<?> fieldGetter;
     switch (fieldType.getCategory()) {
       case BOOLEAN:
         fieldGetter = (row, offset) -> row.getBoolean(fieldPos + offset);
@@ -230,9 +228,9 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
     };
   }
 
-  interface FieldGetter extends Serializable {
+  interface FieldGetter<T> extends Serializable {
     @Nullable
-    default Object getFieldOrNull(SpecializedGetters row) {
+    default T getFieldOrNull(SpecializedGetters row) {
       return getFieldOrNull(row, 0);
     }
 
@@ -243,6 +241,6 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
      * @return
      */
     @Nullable
-    Object getFieldOrNull(SpecializedGetters row, int offset);
+    T getFieldOrNull(SpecializedGetters row, int offset);
   }
 }

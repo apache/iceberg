@@ -46,59 +46,59 @@ class SparkOrcValueWriters {
   private SparkOrcValueWriters() {
   }
 
-  static OrcValueWriter booleans() {
+  static OrcValueWriter<?> booleans() {
     return BooleanWriter.INSTANCE;
   }
 
-  static OrcValueWriter bytes() {
+  static OrcValueWriter<?> bytes() {
     return ByteWriter.INSTANCE;
   }
 
-  static OrcValueWriter shorts() {
+  static OrcValueWriter<?> shorts() {
     return ShortWriter.INSTANCE;
   }
 
-  static OrcValueWriter ints() {
+  static OrcValueWriter<?> ints() {
     return IntWriter.INSTANCE;
   }
 
-  static OrcValueWriter longs() {
+  static OrcValueWriter<?> longs() {
     return LongWriter.INSTANCE;
   }
 
-  static OrcValueWriter floats(int id) {
+  static OrcValueWriter<?> floats(int id) {
     return new FloatWriter(id);
   }
 
-  static OrcValueWriter doubles(int id) {
+  static OrcValueWriter<?> doubles(int id) {
     return new DoubleWriter(id);
   }
 
-  static OrcValueWriter byteArrays() {
+  static OrcValueWriter<?> byteArrays() {
     return BytesWriter.INSTANCE;
   }
 
-  static OrcValueWriter strings() {
+  static OrcValueWriter<?> strings() {
     return StringWriter.INSTANCE;
   }
 
-  static OrcValueWriter timestampTz() {
+  static OrcValueWriter<?> timestampTz() {
     return TimestampTzWriter.INSTANCE;
   }
 
-  static OrcValueWriter decimal(int precision, int scale) {
+  static OrcValueWriter<?> decimal(int precision, int scale) {
     if (precision <= 18) {
-      return new Decimal18Writer(precision, scale);
+      return new Decimal18Writer(scale);
     } else {
-      return new Decimal38Writer(precision, scale);
+      return new Decimal38Writer();
     }
   }
 
-  static OrcValueWriter list(OrcValueWriter element, List<TypeDescription> orcType) {
+  static OrcValueWriter<?> list(OrcValueWriter<?> element, List<TypeDescription> orcType) {
     return new ListWriter(element, orcType);
   }
 
-  static OrcValueWriter map(OrcValueWriter keyWriter, OrcValueWriter valueWriter,
+  static OrcValueWriter<?> map(OrcValueWriter<?> keyWriter, OrcValueWriter<?> valueWriter,
       List<TypeDescription> orcType) {
     return new MapWriter(keyWriter, valueWriter, orcType);
   }
@@ -266,11 +266,9 @@ class SparkOrcValueWriters {
   }
 
   private static class Decimal18Writer implements OrcValueWriter<Decimal> {
-    private final int precision;
     private final int scale;
 
-    Decimal18Writer(int precision, int scale) {
-      this.precision = precision;
+    Decimal18Writer(int scale) {
       this.scale = scale;
     }
 
@@ -287,13 +285,6 @@ class SparkOrcValueWriters {
   }
 
   private static class Decimal38Writer implements OrcValueWriter<Decimal> {
-    private final int precision;
-    private final int scale;
-
-    Decimal38Writer(int precision, int scale) {
-      this.precision = precision;
-      this.scale = scale;
-    }
 
     @Override
     public void nonNullWrite(int rowId, Decimal decimal, ColumnVector output) {
@@ -311,7 +302,7 @@ class SparkOrcValueWriters {
     private final OrcValueWriter writer;
     private final SparkOrcWriter.FieldGetter fieldGetter;
 
-    ListWriter(OrcValueWriter writer, List<TypeDescription> orcTypes) {
+    ListWriter(OrcValueWriter<?> writer, List<TypeDescription> orcTypes) {
       if (orcTypes.size() != 1) {
         throw new IllegalArgumentException("Expected one (and same) ORC type for list elements, got: " + orcTypes);
       }
@@ -351,7 +342,7 @@ class SparkOrcValueWriters {
     private final SparkOrcWriter.FieldGetter keyFieldGetter;
     private final SparkOrcWriter.FieldGetter valueFieldGetter;
 
-    MapWriter(OrcValueWriter keyWriter, OrcValueWriter valueWriter, List<TypeDescription> orcTypes) {
+    MapWriter(OrcValueWriter<?> keyWriter, OrcValueWriter<?> valueWriter, List<TypeDescription> orcTypes) {
       if (orcTypes.size() != 2) {
         throw new IllegalArgumentException("Expected two ORC type descriptions for a map, got: " + orcTypes);
       }
