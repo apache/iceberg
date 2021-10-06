@@ -20,6 +20,8 @@
 package org.apache.iceberg.mr.hive;
 
 import java.util.Objects;
+import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.ql.exec.Utilities;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.JobContext;
 import org.apache.hadoop.mapred.JobContextImpl;
@@ -27,6 +29,7 @@ import org.apache.hadoop.mapred.TaskAttemptContext;
 import org.apache.hadoop.mapred.TaskAttemptContextImpl;
 import org.apache.hadoop.mapred.TaskAttemptID;
 import org.apache.hadoop.mapreduce.JobID;
+import org.apache.iceberg.mr.InputFormatConfig;
 
 public class TezUtil {
 
@@ -76,6 +79,37 @@ public class TezUtil {
       return new JobID(jobID.getJtIdentifier() + vertexId, jobID.getId());
     } else {
       return jobID;
+    }
+  }
+
+  public static boolean isVectorized(JobConf job) {
+    return HiveConf.getBoolVar(job, HiveConf.ConfVars.HIVE_VECTORIZATION_ENABLED) &&
+        Utilities.getVectorizedRowBatchCtx(job) != null;
+  }
+
+  public static void setInMemoryDataModel(JobConf job) {
+    // If hive vectorization it's enabled, the data model need to be InMemoryDataModel.HIVE
+    // else if hive can not use vectorization, the data model need to be InMemoryDataModel.GENERIC
+    // else we keep the current value
+    if (isVectorized(job)) {
+      job.setEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL,
+          InputFormatConfig.InMemoryDataModel.HIVE);
+    } else if (HiveConf.getBoolVar(job, HiveConf.ConfVars.HIVE_VECTORIZATION_ENABLED) &&
+        Utilities.getVectorizedRowBatchCtx(job) == null) {
+      job.setEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL,
+          InputFormatConfig.InMemoryDataModel.GENERIC);
+    }
+  }
+
+  public static void skipResidualFiltering(JobConf job) {
+    // If hive vectorization is enabled, skip filtering need to be enabled
+    // else if hive can not use vectorization, skip filtering need to be disabled
+    // else we keep the current value
+    if (isVectorized(job)) {
+      job.setBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, true);
+    } else if (HiveConf.getBoolVar(job, HiveConf.ConfVars.HIVE_VECTORIZATION_ENABLED) &&
+            Utilities.getVectorizedRowBatchCtx(job) == null) {
+      job.setBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, false);
     }
   }
 

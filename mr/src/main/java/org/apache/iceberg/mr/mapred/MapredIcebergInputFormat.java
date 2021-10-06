@@ -37,6 +37,7 @@ import org.apache.hadoop.mapreduce.task.JobContextImpl;
 import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.mr.InputFormatConfig;
+import org.apache.iceberg.mr.hive.TezUtil;
 import org.apache.iceberg.mr.mapreduce.IcebergSplit;
 import org.apache.iceberg.mr.mapreduce.IcebergSplitContainer;
 
@@ -66,6 +67,8 @@ public class MapredIcebergInputFormat<T> implements InputFormat<Void, Container<
 
   @Override
   public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
+    TezUtil.setInMemoryDataModel(job);
+    TezUtil.skipResidualFiltering(job);
     return innerInputFormat.getSplits(newJobContext(job))
                            .stream()
                            .map(InputSplit.class::cast)

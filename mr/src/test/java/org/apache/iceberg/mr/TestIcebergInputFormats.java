@@ -29,6 +29,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.ql.exec.Utilities;
+import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatchCtx;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TaskAttemptID;
@@ -68,6 +71,8 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -190,11 +195,18 @@ public class TestIcebergInputFormats {
     builder.filter(Expressions.and(
             Expressions.equal("date", "2020-03-20"),
             Expressions.equal("id", 123)));
+
     testInputFormat.create(builder.conf()).validate(expectedRecords);
 
     // skip residual filtering
     builder.skipResidualFiltering();
-    testInputFormat.create(builder.conf()).validate(writeRecords);
+
+    VectorizedRowBatchCtx vectorizedRowBatchCtx = Mockito.mock(VectorizedRowBatchCtx.class);
+    try (MockedStatic<Utilities> utilities = Mockito.mockStatic(Utilities.class)) {
+      utilities.when(() -> Utilities.getVectorizedRowBatchCtx(Mockito.any()))
+              .thenReturn(vectorizedRowBatchCtx);
+      testInputFormat.create(builder.conf()).validate(writeRecords);
+    }
   }
 
   @Test
@@ -222,7 +234,18 @@ public class TestIcebergInputFormats {
     AssertHelpers.assertThrows(
         "Residuals are not evaluated today for Iceberg Generics In memory model of PIG",
         UnsupportedOperationException.class, "Filter expression ref(name=\"id\") == 0 is not completely satisfied.",
-        () -> testInputFormat.create(builder.conf()));
+        () -> testInputFormat.create(conf));
+
+    VectorizedRowBatchCtx vectorizedRowBatchCtx = Mockito.mock(VectorizedRowBatchCtx.class);
+    try (MockedStatic<Utilities> utilities = Mockito.mockStatic(Utilities.class)) {
+      final Configuration confVectorizationEnabled = builder.conf();
+      confVectorizationEnabled.setBoolean(HiveConf.ConfVars.HIVE_VECTORIZATION_ENABLED.name(),
+              "orc".equals(fileFormat.name()));
+      if ("orc".equals(fileFormat.name())) {
+        utilities.when(() -> Utilities.getVectorizedRowBatchCtx(Mockito.any()))
+                .thenReturn(vectorizedRowBatchCtx);
+      }
+    }
   }
 
   @Test
@@ -377,7 +400,7 @@ public class TestIcebergInputFormats {
     private final List<IcebergSplit> splits;
     private final List<T> records;
 
-    private TestInputFormat(List<IcebergSplit> splits, List<T> records) {
+    public TestInputFormat(List<IcebergSplit> splits, List<T> records) {
       this.splits = splits;
       this.records = records;
     }

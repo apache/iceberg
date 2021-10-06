@@ -112,6 +112,7 @@ public class InputFormatConfig {
       conf.setBoolean(CASE_SENSITIVE, CASE_SENSITIVE_DEFAULT);
       conf.setBoolean(REUSE_CONTAINERS, false);
       conf.setBoolean(LOCALITY, false);
+      conf.setBoolean(LOCALITY, false);
     }
 
     public Configuration conf() {

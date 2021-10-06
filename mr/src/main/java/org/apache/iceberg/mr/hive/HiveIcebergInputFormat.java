@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.SerializationUtilities;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedInputFormatInterface;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedSupport;
@@ -60,6 +59,7 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
   private static final String HIVE_VECTORIZED_RECORDREADER_CLASS =
           "org.apache.iceberg.mr.hive.vector.HiveIcebergVectorizedRecordReader";
   private static final DynConstructors.Ctor<AbstractMapredIcebergRecordReader> HIVE_VECTORIZED_RECORDREADER_CTOR;
+  private static final Boolean HIVE_3_PRESENT_ON_CLASSPATH;
 
   static {
     if (MetastoreUtil.hive3PresentOnClasspath()) {
@@ -73,6 +73,7 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
     } else {
       HIVE_VECTORIZED_RECORDREADER_CTOR = null;
     }
+    HIVE_3_PRESENT_ON_CLASSPATH = MetastoreUtil.hive3PresentOnClasspath();
   }
 
   @Override
@@ -105,10 +106,11 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
                                                                Reporter reporter) throws IOException {
     String[] selectedColumns = ColumnProjectionUtils.getReadColumnNames(job);
     job.setStrings(InputFormatConfig.SELECTED_COLUMNS, selectedColumns);
-
-    if (HiveConf.getBoolVar(job, HiveConf.ConfVars.HIVE_VECTORIZATION_ENABLED)) {
-      Preconditions.checkArgument(MetastoreUtil.hive3PresentOnClasspath(), "Vectorization only supported for Hive 3+");
-
+    TezUtil.setInMemoryDataModel(job);
+    TezUtil.skipResidualFiltering(job);
+    // Testing if vectorization was enabled and ok for hive
+    if (TezUtil.isVectorized(job)) {
+      Preconditions.checkArgument(HIVE_3_PRESENT_ON_CLASSPATH, "Vectorization only supported for Hive 3+");
       IcebergSplit icebergSplit = ((IcebergSplitContainer) split).icebergSplit();
       // bogus cast for favouring code reuse over syntax
       return (RecordReader) HIVE_VECTORIZED_RECORDREADER_CTOR.newInstance(
