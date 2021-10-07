@@ -78,7 +78,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     // Project the RowData to remove the extra meta columns.
     if (!projectedSchema.sameSchema(deletes.requiredSchema())) {
       RowDataProjection rowDataProjection = RowDataProjection.create(deletes.requiredSchema(), projectedSchema);
-      iterable = CloseableIterable.transform(iterable, rowDataProjection::project);
+      iterable = CloseableIterable.transform(iterable, rowDataProjection::wrap);
     }
 
     return iterable.iterator();
