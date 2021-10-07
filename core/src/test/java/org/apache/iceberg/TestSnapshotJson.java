@@ -37,25 +37,19 @@ public class TestSnapshotJson {
 
   public TableOperations ops = new LocalTableOperations(temp);
 
-  public String tableLocation = "/tmp";
-
-  // To test with relative paths enabled and disabled
-  Boolean[] propertyValues = {true, false};
-
   @Test
   public void testJsonConversion() {
-    for (Boolean propertyValue : propertyValues) {
-      Snapshot expected = new BaseSnapshot(ops.io(), System.currentTimeMillis(), tableLocation, propertyValue,
-          "file:/tmp/manifest1.avro", "file:/tmp/manifest2.avro");
-      String json = SnapshotParser.toJson(expected);
-      Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json, tableLocation, propertyValue);
+    Snapshot expected = new BaseSnapshot(ops.io(), System.currentTimeMillis(), 1,
+        "file:/tmp/manifest1.avro", "file:/tmp/manifest2.avro");
+    String json = SnapshotParser.toJson(expected);
+    Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json);
 
-      Assert.assertEquals("Snapshot ID should match",
-          expected.snapshotId(), snapshot.snapshotId());
-      Assert.assertEquals("Files should match",
-          expected.allManifests(), snapshot.allManifests());
-      Assert.assertNull("Operation should be null", snapshot.operation());
-      Assert.assertNull("Summary should be null", snapshot.summary());
+    Assert.assertEquals("Snapshot ID should match",
+        expected.snapshotId(), snapshot.snapshotId());
+    Assert.assertEquals("Files should match",
+        expected.allManifests(), snapshot.allManifests());
+    Assert.assertNull("Operation should be null", snapshot.operation());
+    Assert.assertNull("Summary should be null", snapshot.summary());
     Assert.assertEquals("Schema ID should match", Integer.valueOf(1), snapshot.schemaId());
   }
 
@@ -73,7 +67,6 @@ public class TestSnapshotJson {
     Assert.assertNull("Operation should be null", snapshot.operation());
     Assert.assertNull("Summary should be null", snapshot.summary());
     Assert.assertNull("Schema ID should be null", snapshot.schemaId());
-    }
   }
 
   @Test
@@ -84,33 +77,31 @@ public class TestSnapshotJson {
         new GenericManifestFile(localInput("file:/tmp/manifest1.avro"), 0),
         new GenericManifestFile(localInput("file:/tmp/manifest2.avro"), 0));
 
-    for (Boolean propertyValue : propertyValues) {
-      Snapshot expected = new BaseSnapshot(ops.io(), id, parentId, System.currentTimeMillis(),
-          DataOperations.REPLACE, ImmutableMap.of("files-added", "4", "files-deleted", "100"),
-        3, manifests, tableLocation, properties);
+    Snapshot expected = new BaseSnapshot(ops.io(), id, parentId, System.currentTimeMillis(),
+        DataOperations.REPLACE, ImmutableMap.of("files-added", "4", "files-deleted", "100"),
+        3, manifests);
 
-      String json = SnapshotParser.toJson(expected);
-      Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json, tableLocation, propertyValue);
+    String json = SnapshotParser.toJson(expected);
+    Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json);
 
-      Assert.assertEquals("Sequence number should default to 0 for v1",
-          0, snapshot.sequenceNumber());
-      Assert.assertEquals("Snapshot ID should match",
-          expected.snapshotId(), snapshot.snapshotId());
-      Assert.assertEquals("Timestamp should match",
-          expected.timestampMillis(), snapshot.timestampMillis());
-      Assert.assertEquals("Parent ID should match",
-          expected.parentId(), snapshot.parentId());
-      Assert.assertEquals("Manifest list should match",
-          expected.manifestListLocation(), snapshot.manifestListLocation());
-      Assert.assertEquals("Files should match",
-          expected.allManifests(), snapshot.allManifests());
-      Assert.assertEquals("Operation should match",
-          expected.operation(), snapshot.operation());
-      Assert.assertEquals("Summary should match",
-          expected.summary(), snapshot.summary());
+    Assert.assertEquals("Sequence number should default to 0 for v1",
+        0, snapshot.sequenceNumber());
+    Assert.assertEquals("Snapshot ID should match",
+        expected.snapshotId(), snapshot.snapshotId());
+    Assert.assertEquals("Timestamp should match",
+        expected.timestampMillis(), snapshot.timestampMillis());
+    Assert.assertEquals("Parent ID should match",
+        expected.parentId(), snapshot.parentId());
+    Assert.assertEquals("Manifest list should match",
+        expected.manifestListLocation(), snapshot.manifestListLocation());
+    Assert.assertEquals("Files should match",
+        expected.allManifests(), snapshot.allManifests());
+    Assert.assertEquals("Operation should match",
+        expected.operation(), snapshot.operation());
+    Assert.assertEquals("Summary should match",
+        expected.summary(), snapshot.summary());
     Assert.assertEquals("Schema ID should match",
         expected.schemaId(), snapshot.schemaId());
-    }
   }
 
   @Test
@@ -125,40 +116,36 @@ public class TestSnapshotJson {
     Assert.assertTrue(manifestList.delete());
     manifestList.deleteOnExit();
 
-    for (Boolean propertyValue : propertyValues) {
+    try (ManifestListWriter writer = ManifestLists.write(1, Files.localOutput(manifestList), id, parentId, 0)) {
+      writer.addAll(manifests);
+    }
 
-      try (ManifestListWriter writer = ManifestLists.write(1, Files.localOutput(manifestList), id, parentId, 0,
-          tableLocation, propertyValue)) {
-        writer.addAll(manifests);
-      }
-
-      Snapshot expected = new BaseSnapshot(
+    Snapshot expected = new BaseSnapshot(
         ops.io(), id, 34, parentId, System.currentTimeMillis(),
-          tableLocation, propertyValue);
-      Snapshot inMemory = new BaseSnapshot(
-        ops.io(), id, parentId, expected.timestampMillis(), null, null, 4, manifests,
-          tableLocation, propertyValue);
+        null, null, 4, localInput(manifestList).location(), null, false);
+    Snapshot inMemory = new BaseSnapshot(
+        ops.io(), id, parentId, expected.timestampMillis(), null, null, 4, manifests, null, false);
 
-      Assert.assertEquals("Files should match in memory list",
-          inMemory.allManifests(), expected.allManifests());
+    Assert.assertEquals("Files should match in memory list",
+        inMemory.allManifests(), expected.allManifests());
 
-      String json = SnapshotParser.toJson(expected);
-      Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json, tableLocation, propertyValue);
+    String json = SnapshotParser.toJson(expected);
+    Snapshot snapshot = SnapshotParser.fromJson(ops.io(), json);
 
-      Assert.assertEquals("Sequence number should default to 0",
-          expected.sequenceNumber(), snapshot.sequenceNumber());
-      Assert.assertEquals("Snapshot ID should match",
-          expected.snapshotId(), snapshot.snapshotId());
-      Assert.assertEquals("Timestamp should match",
-          expected.timestampMillis(), snapshot.timestampMillis());
-      Assert.assertEquals("Parent ID should match",
-          expected.parentId(), snapshot.parentId());
-      Assert.assertEquals("Manifest list should match",
-          expected.manifestListLocation(), snapshot.manifestListLocation());
-      Assert.assertEquals("Files should match",
-          expected.allManifests(), snapshot.allManifests());
-      Assert.assertNull("Operation should be null", snapshot.operation());
-      Assert.assertNull("Summary should be null", snapshot.summary());
+    Assert.assertEquals("Sequence number should default to 0",
+        expected.sequenceNumber(), snapshot.sequenceNumber());
+    Assert.assertEquals("Snapshot ID should match",
+        expected.snapshotId(), snapshot.snapshotId());
+    Assert.assertEquals("Timestamp should match",
+        expected.timestampMillis(), snapshot.timestampMillis());
+    Assert.assertEquals("Parent ID should match",
+        expected.parentId(), snapshot.parentId());
+    Assert.assertEquals("Manifest list should match",
+        expected.manifestListLocation(), snapshot.manifestListLocation());
+    Assert.assertEquals("Files should match",
+        expected.allManifests(), snapshot.allManifests());
+    Assert.assertNull("Operation should be null", snapshot.operation());
+    Assert.assertNull("Summary should be null", snapshot.summary());
     Assert.assertEquals("Schema ID should match", expected.schemaId(), snapshot.schemaId());
   }
 }

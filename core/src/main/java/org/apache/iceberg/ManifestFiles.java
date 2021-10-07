@@ -73,8 +73,8 @@ public class ManifestFiles {
   }
 
   public static ManifestReader<DataFile> read(ManifestFile manifest, FileIO io, String tableLocation,
-      boolean shouldUseRelativePaths) {
-    return read(manifest, io, null, tableLocation, shouldUseRelativePaths);
+      boolean useRelativePaths) {
+    return read(manifest, io, null, tableLocation, useRelativePaths);
   }
 
   /**
@@ -179,12 +179,12 @@ public class ManifestFiles {
   public static ManifestReader<DeleteFile> readDeleteManifest(ManifestFile manifest, FileIO io,
                                                               Map<Integer, PartitionSpec> specsById,
                                                               String tableLocation,
-                                                              boolean shouldUseRelativePaths) {
+                                                              boolean useRelativePaths) {
     Preconditions.checkArgument(manifest.content() == ManifestContent.DELETES,
         "Cannot read a data manifest with a DeleteManifestReader: %s", manifest);
-    InputFile file = io.newInputFile(updateManifestPathIfNecessary(manifest, tableLocation, shouldUseRelativePaths));
+    InputFile file = io.newInputFile(updateManifestPathIfNecessary(manifest, tableLocation, useRelativePaths));
     InheritableMetadata inheritableMetadata = InheritableMetadataFactory.fromManifest(manifest, tableLocation,
-        shouldUseRelativePaths);
+        useRelativePaths);
     return new ManifestReader<>(file, specsById, inheritableMetadata, FileType.DELETE_FILES);
   }
 

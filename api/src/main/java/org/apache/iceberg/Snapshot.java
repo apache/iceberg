@@ -136,13 +136,10 @@ public interface Snapshot extends Serializable {
   default Integer schemaId() {
     return null;
   }
-  
+
    /**
    *
    * @return file io used for this snapshot
    */
-   
   FileIO io();
-  
-  
 }

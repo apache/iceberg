@@ -244,7 +244,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     OutputFile newManifestPath = newManifestOutput();
     return ManifestFiles.copyAppendManifest(
         current.formatVersion(), toCopy, current.specsById(), newManifestPath, snapshotId(),
-            appendedManifestsSummary, current.location(), current.shouldUseRelativePaths());
+            appendedManifestsSummary, current.location(), current.useRelativePaths());
   }
 
   /**
@@ -268,7 +268,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     Set<Long> newSnapshots = history.second();
 
     ManifestGroup conflictGroup = new ManifestGroup(ops.io(), manifests, ImmutableList.of(), ops.current().location(),
-        ops.current().shouldUseRelativePaths())
+        ops.current().useRelativePaths())
         .caseSensitive(caseSensitive)
         .filterManifestEntries(entry -> newSnapshots.contains(entry.snapshotId()))
         .filterData(conflictDetectionFilter)
@@ -453,7 +453,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             }
           }
         }
-        ops.current().location(), ops.current().shouldUseRelativePaths())
       }
 
       currentSnapshotId = currentSnapshot.parentId();

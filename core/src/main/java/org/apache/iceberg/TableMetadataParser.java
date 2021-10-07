@@ -122,7 +122,7 @@ public class TableMetadataParser {
          OutputStreamWriter writer = new OutputStreamWriter(ou, StandardCharsets.UTF_8)) {
       JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
       generator.useDefaultPrettyPrinter();
-      if (metadata.shouldUseRelativePaths()) {
+      if (metadata.useRelativePaths()) {
         // If relative paths are enabled on this table, convert the paths to relative paths if necessary before
         // flushing
         TableMetadata updatedMetadata = metadata.convertAbsolutePathsToRelativePaths();
@@ -258,7 +258,7 @@ public class TableMetadataParser {
     try (InputStream is = codec == Codec.GZIP ? new GZIPInputStream(file.newStream()) : file.newStream()) {
       TableMetadata tableMetadata =  fromJson(io, file, JsonUtil.mapper().readValue(is, JsonNode.class));
       // If use relative paths is enabled on this table, convert the relative paths to absolute paths if necessary
-      return tableMetadata.shouldUseRelativePaths() ?
+      return tableMetadata.useRelativePaths() ?
           tableMetadata.convertRelativePathToAbsolutePaths() : tableMetadata;
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read file: %s", file);
