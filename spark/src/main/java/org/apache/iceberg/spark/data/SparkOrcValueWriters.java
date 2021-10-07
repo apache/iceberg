@@ -21,18 +21,15 @@ package org.apache.iceberg.spark.data;
 
 import java.util.List;
 import java.util.stream.Stream;
-import org.apache.iceberg.DoubleFieldMetrics;
 import org.apache.iceberg.FieldMetrics;
-import org.apache.iceberg.FloatFieldMetrics;
+import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.common.type.HiveDecimal;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 import org.apache.orc.storage.ql.exec.vector.DecimalColumnVector;
-import org.apache.orc.storage.ql.exec.vector.DoubleColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ListColumnVector;
-import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 import org.apache.spark.sql.catalyst.util.ArrayData;
@@ -45,23 +42,23 @@ class SparkOrcValueWriters {
   }
 
   static OrcValueWriter<?> booleans() {
-    return BooleanWriter.INSTANCE;
+    return GenericOrcWriters.booleans();
   }
 
   static OrcValueWriter<?> bytes() {
-    return ByteWriter.INSTANCE;
+    return GenericOrcWriters.bytes();
   }
 
   static OrcValueWriter<?> shorts() {
-    return ShortWriter.INSTANCE;
+    return GenericOrcWriters.shorts();
   }
 
   static OrcValueWriter<?> ints() {
-    return IntWriter.INSTANCE;
+    return GenericOrcWriters.ints();
   }
 
   static OrcValueWriter<?> longs() {
-    return LongWriter.INSTANCE;
+    return GenericOrcWriters.longs();
   }
 
   static OrcValueWriter<?> floats(int id) {
@@ -73,7 +70,7 @@ class SparkOrcValueWriters {
   }
 
   static OrcValueWriter<?> byteArrays() {
-    return BytesWriter.INSTANCE;
+    return GenericOrcWriters.byteArrays();
   }
 
   static OrcValueWriter<?> strings() {
@@ -101,135 +98,30 @@ class SparkOrcValueWriters {
     return new MapWriter(keyWriter, valueWriter, orcType);
   }
 
-  private static class BooleanWriter implements OrcValueWriter<Boolean> {
-    private static final BooleanWriter INSTANCE = new BooleanWriter();
-
-    @Override
-    public void nonNullWrite(int rowId, Boolean data, ColumnVector output) {
-      ((LongColumnVector) output).vector[rowId] = data ? 1 : 0;
-    }
-
-    @Override
-    public Class<?> getJavaClass() {
-      return Boolean.class;
-    }
-  }
-
-  private static class ByteWriter implements OrcValueWriter<Byte> {
-    private static final ByteWriter INSTANCE = new ByteWriter();
-
-    @Override
-    public void nonNullWrite(int rowId, Byte data, ColumnVector output) {
-      ((LongColumnVector) output).vector[rowId] = data;
-    }
-
-    @Override
-    public Class<?> getJavaClass() {
-      return Byte.class;
-    }
-  }
-
-  private static class ShortWriter implements OrcValueWriter<Short> {
-    private static final ShortWriter INSTANCE = new ShortWriter();
-
-    @Override
-    public void nonNullWrite(int rowId, Short data, ColumnVector output) {
-      ((LongColumnVector) output).vector[rowId] = data;
-    }
-
-    @Override
-    public Class<?> getJavaClass() {
-      return Short.class;
-    }
-  }
-
-  private static class IntWriter implements OrcValueWriter<Integer> {
-    private static final IntWriter INSTANCE = new IntWriter();
-
-    @Override
-    public void nonNullWrite(int rowId, Integer data, ColumnVector output) {
-      ((LongColumnVector) output).vector[rowId] = data;
-    }
-
-    @Override
-    public Class<?> getJavaClass() {
-      return Integer.class;
-    }
-  }
-
-  private static class LongWriter implements OrcValueWriter<Long> {
-    private static final LongWriter INSTANCE = new LongWriter();
-
-    @Override
-    public void nonNullWrite(int rowId, Long data, ColumnVector output) {
-      ((LongColumnVector) output).vector[rowId] = data;
-    }
-
-    @Override
-    public Class<?> getJavaClass() {
-      return Long.class;
-    }
-  }
-
-  private static class FloatWriter implements OrcValueWriter<Float> {
-    private final FloatFieldMetrics.Builder floatFieldMetricsBuilder;
+  private static class FloatWriter extends GenericOrcWriters.FloatWriter {
 
     private FloatWriter(int id) {
-      this.floatFieldMetricsBuilder = new FloatFieldMetrics.Builder(id);
-    }
-
-    @Override
-    public void nonNullWrite(int rowId, Float floatValue, ColumnVector output) {
-      ((DoubleColumnVector) output).vector[rowId] = floatValue;
-      floatFieldMetricsBuilder.addValue(floatValue);
+      super(id);
     }
 
     @Override
     public Stream<FieldMetrics<?>> metrics() {
-      return Stream.of(floatFieldMetricsBuilder.build());
+      return Stream.of(getFloatFieldMetricsBuilder().build());
     }
-    @Override
-    public Class<?> getJavaClass() {
-      return Float.class;
-    }
+
   }
 
-  private static class DoubleWriter implements OrcValueWriter<Double> {
-    private final DoubleFieldMetrics.Builder doubleFieldMetricsBuilder;
+  private static class DoubleWriter extends GenericOrcWriters.DoubleWriter {
 
     private DoubleWriter(int id) {
-      this.doubleFieldMetricsBuilder = new DoubleFieldMetrics.Builder(id);
-    }
-
-    @Override
-    public void nonNullWrite(int rowId, Double doubleValue, ColumnVector output) {
-      ((DoubleColumnVector) output).vector[rowId] = doubleValue;
-      doubleFieldMetricsBuilder.addValue(doubleValue);
+      super(id);
     }
 
     @Override
     public Stream<FieldMetrics<?>> metrics() {
-      return Stream.of(doubleFieldMetricsBuilder.build());
+      return Stream.of(getDoubleFieldMetricsBuilder().build());
     }
 
-    @Override
-    public Class<?> getJavaClass() {
-      return Double.class;
-    }
-  }
-
-  private static class BytesWriter implements OrcValueWriter<byte[]> {
-    private static final BytesWriter INSTANCE = new BytesWriter();
-
-    @Override
-    public void nonNullWrite(int rowId, byte[] value, ColumnVector output) {
-      ((BytesColumnVector) output).setRef(rowId, value, 0, value.length);
-    }
-
-    @Override
-    public Class<?> getJavaClass() {
-      return byte[].class;
-    }
   }
 
   private static class StringWriter implements OrcValueWriter<UTF8String> {
