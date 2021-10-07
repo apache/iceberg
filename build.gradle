@@ -71,6 +71,9 @@ allprojects {
   }
 }
 
+println "Build Spark ${project.ext.SparkBuildVersion} with Scala ${project.ext.ScalaVersion} " +
+        "against source ${project.ext.SparkSrcVersion}"
+
 subprojects {
   apply plugin: 'nebula.dependency-recommender'
   apply plugin: 'java-library'
@@ -934,6 +937,7 @@ project(':iceberg-arrow') {
 }
 
 project(':iceberg-spark-common') {
+
   configurations.all {
     resolutionStrategy {
       // Spark 2.4.4 can only use the below datanucleus version, the versions introduced
@@ -958,7 +962,7 @@ project(':iceberg-spark-common') {
 
     compileOnly "com.google.errorprone:error_prone_annotations"
     compileOnly "org.apache.avro:avro"
-    compileOnly("org.apache.spark:spark-hive_2.11") {
+    compileOnly("org.apache.spark:spark-hive_${project.ext.ScalaVersion}:${project.ext.SparkBuildVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
@@ -1122,21 +1126,6 @@ project(':iceberg-spark-common') {
 project(':iceberg-spark') {
   apply plugin: 'scala'
 
-  sourceSets {
-    // Compile test source against Spark 3.1 and main classes compiled against Spark 3.0
-    spark31 {
-      java.srcDir "$projectDir/src/test/java"
-      resources.srcDir "$projectDir/src/test/resources"
-      compileClasspath += sourceSets.test.output + sourceSets.main.output
-      runtimeClasspath += sourceSets.test.output
-    }
-  }
-
-  configurations {
-    spark31Implementation.extendsFrom testImplementation
-    spark31RuntimeOnly.extendsFrom testRuntimeOnly
-  }
-
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -1170,12 +1159,6 @@ project(':iceberg-spark') {
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
     testImplementation "org.xerial:sqlite-jdbc"
-
-    spark31Implementation("org.apache.spark:spark-hive_${project.ext.ScalaVersion}:${project.ext.SparkBuildVersion}") {
-      exclude group: 'org.apache.avro', module: 'avro'
-      exclude group: 'org.apache.arrow'
-      exclude group: 'junit'
-    }
   }
 
   tasks.withType(Test) {
@@ -1189,15 +1172,6 @@ project(':iceberg-spark') {
     // Vectorized reads need more memory
     maxHeapSize '2560m'
   }
-
-  task testSpark31(type: Test) {
-    dependsOn classes
-    group = "verification"
-    description = "Test against Spark 3.1"
-    testClassesDirs = sourceSets.spark31.output.classesDirs
-    classpath = sourceSets.spark31.runtimeClasspath + sourceSets.main.output
-  }
-  check.dependsOn testSpark31
 }
 
 project(":iceberg-spark-extensions") {
@@ -1205,21 +1179,7 @@ project(":iceberg-spark-extensions") {
   apply plugin: 'scala'
   apply plugin: 'antlr'
 
-  sourceSets {
-    // Compile test source against Spark 3.1 and main classes compiled against Spark 3.0
-    spark31 {
-      // Main source is in scala, but test source is only in java
-      java.srcDir "$projectDir/src/test/java"
-      resources.srcDir "$projectDir/src/test/resources"
-      compileClasspath += sourceSets.test.output + sourceSets.main.output
-      runtimeClasspath += sourceSets.test.output
-    }
-  }
-
   configurations {
-    spark31Implementation.extendsFrom testImplementation
-    spark31RuntimeOnly.extendsFrom testRuntimeOnly
-
     /*
      The Gradle Antlr plugin erroneously adds both antlr-build and runtime dependencies to the runtime path. This
      bug https://github.com/gradle/gradle/issues/820 exists because older versions of Antlr do not have separate
@@ -1253,11 +1213,6 @@ project(":iceberg-spark-extensions") {
     testImplementation project(path: ':iceberg-spark-common', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-spark', configuration: 'testArtifacts')
 
-    spark31Implementation("org.apache.spark:spark-hive_${project.ext.ScalaVersion}:${project.ext.SparkBuildVersion}") {
-      exclude group: 'org.apache.avro', module: 'avro'
-      exclude group: 'org.apache.arrow'
-    }
-
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
     // We shade this in Spark3 Runtime to avoid issues with Spark's Antlr Runtime
     runtimeOnly "org.antlr:antlr4-runtime:4.7.1"
@@ -1268,15 +1223,6 @@ project(":iceberg-spark-extensions") {
     maxHeapSize = "64m"
     arguments += ['-visitor', '-package', 'org.apache.spark.sql.catalyst.parser.extensions']
   }
-
-  task testSpark31(type: Test) {
-    dependsOn classes
-    group = "verification"
-    description = "Test against Spark 3.1"
-    testClassesDirs = sourceSets.spark31.output.classesDirs
-    classpath = sourceSets.spark31.runtimeClasspath + sourceSets.main.output
-  }
-  check.dependsOn testSpark31
 }
 
 project(':iceberg-spark-runtime') {
@@ -1288,12 +1234,6 @@ project(':iceberg-spark-runtime') {
     integration {
       java.srcDir "$projectDir/src/integration/java"
       resources.srcDir "$projectDir/src/integration/resources"
-    }
-    spark31 {
-      java.srcDir "$projectDir/src/integration/java"
-      resources.srcDir "$projectDir/src/integration/resources"
-      compileClasspath += sourceSets.integration.output
-      runtimeClasspath += sourceSets.integration.output
     }
   }
 
@@ -1315,8 +1255,6 @@ project(':iceberg-spark-runtime') {
       exclude group: 'org.antlr', module: 'ST4'
       exclude group: 'org.antlr', module: 'antlr4'
     }
-    spark31Implementation.extendsFrom integrationImplementation
-    spark31CompileOnly.extendsFrom integrationCompileOnly
   }
 
   dependencies {
@@ -1340,8 +1278,6 @@ project(':iceberg-spark-runtime') {
     integrationCompileOnly project(':iceberg-spark-extensions')
     integrationCompileOnly project(':iceberg-spark')
     integrationCompileOnly project(':iceberg-api')
-
-    spark31Implementation "org.apache.spark:spark-hive_${project.ext.ScalaVersion}:${project.ext.SparkBuildVersion}"
   }
 
   shadowJar {
@@ -1387,16 +1323,7 @@ project(':iceberg-spark-runtime') {
   }
   integrationTest.dependsOn shadowJar
 
-  task spark31IntegrationTest(type: Test) {
-    dependsOn classes
-    description = "Test Spark3 Runtime Jar against Spark 3.1"
-    group = "verification"
-    testClassesDirs = sourceSets.spark31.output.classesDirs
-    classpath = sourceSets.spark31.runtimeClasspath + files(shadowJar.archiveFile.get().asFile.path)
-  }
-  spark31IntegrationTest.dependsOn shadowJar
-
-  check.dependsOn integrationTest, spark31IntegrationTest
+  check.dependsOn integrationTest
 
   jar {
     enabled = false
