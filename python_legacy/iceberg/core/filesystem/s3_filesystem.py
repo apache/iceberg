@@ -17,6 +17,7 @@
 
 import io
 import logging
+import os
 import re
 import time
 from urllib.parse import urlparse
@@ -38,7 +39,7 @@ BOTO_STS_CLIENT = boto3.client('sts')
 CONF = None
 ROLE_ARN = "default"
 AUTOREFRESH_SESSION = None
-
+ENDPOINT_OVERRIDE = os.getenv('S3_ENDPOINT_URL')
 
 @retry(wait_incrementing_start=100, wait_exponential_multiplier=4,
        wait_exponential_max=5000, stop_max_delay=600000, stop_max_attempt_number=7)
@@ -51,8 +52,14 @@ def get_s3(obj="resource"):
     if ROLE_ARN == "default":
         if AUTOREFRESH_SESSION is None:
             AUTOREFRESH_SESSION = boto3.Session()
-        S3_CLIENT["default"]["resource"] = AUTOREFRESH_SESSION.resource('s3')
-        S3_CLIENT["default"]["client"] = AUTOREFRESH_SESSION.client('s3')
+
+        kwargs = {}
+        if ENDPOINT_OVERRIDE:
+            kwargs['endpoint_url'] = ENDPOINT_OVERRIDE
+
+        S3_CLIENT["default"]["resource"] = AUTOREFRESH_SESSION.resource('s3', **kwargs)
+        S3_CLIENT["default"]["client"] = AUTOREFRESH_SESSION.client('s3', **kwargs)
+
     else:
         if AUTOREFRESH_SESSION is None:
             sess = get_session()
