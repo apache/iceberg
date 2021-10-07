@@ -67,6 +67,9 @@ allprojects {
   project.ext {
     Spark30Version = '3.0.3'
     Spark31Version = '3.1.1'
+    SparkBuildVersion = project.hasProperty("sparkBuild") ? project.getProperty("sparkBuild") : '3.1.1'
+    SparkSrcVersion = project.hasProperty("sparkSrc") ? project.getProperty("sparkSrc") : '3_0'
+    ScalaVersion = project.hasProperty("scala") ? project.getProperty("scala") : '2.12'
   }
 }
 
@@ -932,7 +935,7 @@ project(':iceberg-arrow') {
   }
 }
 
-project(':iceberg-spark') {
+project(':iceberg-spark-common') {
   configurations.all {
     resolutionStrategy {
       // Spark 2.4.4 can only use the below datanucleus version, the versions introduced
@@ -1021,7 +1024,7 @@ if (jdkVersion == '8') {
       implementation project(':iceberg-parquet')
       implementation project(':iceberg-arrow')
       implementation project(':iceberg-hive-metastore')
-      implementation project(':iceberg-spark')
+      implementation project(':iceberg-spark-common')
       implementation "com.github.ben-manes.caffeine:caffeine"
 
       compileOnly "org.apache.avro:avro"
@@ -1029,7 +1032,7 @@ if (jdkVersion == '8') {
         exclude group: 'org.apache.avro', module: 'avro'
       }
 
-      testImplementation project(path: ':iceberg-spark', configuration: 'testArtifacts')
+      testImplementation project(path: ':iceberg-spark-common', configuration: 'testArtifacts')
 
       testImplementation("org.apache.hadoop:hadoop-minicluster") {
         exclude group: 'org.apache.avro', module: 'avro'
@@ -1146,7 +1149,7 @@ project(':iceberg-spark3') {
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-arrow')
     implementation project(':iceberg-hive-metastore')
-    implementation project(':iceberg-spark')
+    implementation project(':iceberg-spark-common')
 
     compileOnly "org.apache.avro:avro"
     compileOnly("org.apache.spark:spark-hive_2.12:${project.ext.Spark30Version}") {
@@ -1160,7 +1163,7 @@ project(':iceberg-spark3') {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
-    testImplementation project(path: ':iceberg-spark', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-spark-common', configuration: 'testArtifacts')
 
     testImplementation("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -1237,7 +1240,7 @@ project(":iceberg-spark3-extensions") {
     compileOnly project(':iceberg-api')
     compileOnly project(':iceberg-core')
     compileOnly project(':iceberg-common')
-    compileOnly project(':iceberg-spark')
+    compileOnly project(':iceberg-spark-common')
     compileOnly project(':iceberg-spark3')
     compileOnly project(':iceberg-hive-metastore')
     compileOnly("org.apache.spark:spark-hive_2.12:${project.ext.Spark30Version}") {
@@ -1249,7 +1252,7 @@ project(":iceberg-spark3-extensions") {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-spark', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-spark-common', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-spark3', configuration: 'testArtifacts')
 
     spark31Implementation("org.apache.spark:spark-hive_2.12:${project.ext.Spark31Version}") {
@@ -1332,7 +1335,7 @@ project(':iceberg-spark3-runtime') {
     integrationImplementation 'org.slf4j:slf4j-simple'
     integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-spark', configuration: 'testArtifacts')
+    integrationImplementation project(path: ':iceberg-spark-common', configuration: 'testArtifacts')
     integrationImplementation project(path: ':iceberg-spark3', configuration: 'testArtifacts')
     integrationImplementation project(path: ':iceberg-spark3-extensions', configuration: 'testArtifacts')
     // Not allowed on our classpath, only the runtime jar is allowed
