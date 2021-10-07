@@ -38,6 +38,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -368,8 +369,7 @@ public class ORC {
 
     public <T> PositionDeleteWriter<T> buildPositionWriter() {
       Preconditions.checkState(equalityFieldIds == null, "Cannot create position delete file using delete field ids");
-      Preconditions.checkArgument(spec != null,
-          "Spec must not be null when creating position delete writer");
+      Preconditions.checkArgument(spec != null, "Spec must not be null when creating position delete writer");
       Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
           "Partition must not be null for partitioned writes");
 
@@ -381,10 +381,11 @@ public class ORC {
       if (createWriterFunc != null) {
         appenderBuilder.createWriterFunc((schema, typeDescription) -> {
           OrcRowWriter<?> writer = createWriterFunc.apply(deleteSchema, typeDescription);
-          return GenericOrcWriters.positionDelete(deleteSchema, writer);
+          return GenericOrcWriters.positionDelete(writer);
         });
       } else {
-        appenderBuilder.createWriterFunc((schema, type) -> GenericOrcWriters.positionDelete(deleteSchema, null));
+        appenderBuilder.createWriterFunc((schema, type) -> GenericOrcWriters.positionDelete(
+            GenericOrcWriter.buildWriter(deleteSchema, ORCSchemaUtil.convert(deleteSchema))));
       }
 
       return new PositionDeleteWriter<>(

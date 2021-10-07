@@ -37,11 +37,7 @@ import java.util.stream.Stream;
 import org.apache.iceberg.DoubleFieldMetrics;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FloatFieldMetrics;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
-import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcRowWriter;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -143,8 +139,8 @@ public class GenericOrcWriters {
     return new MapWriter<>(key, value);
   }
 
-  public static PositionDeleteWriter positionDelete(Schema schema, OrcRowWriter writer) {
-    return new PositionDeleteWriter(schema, writer);
+  public static PositionDeleteWriter positionDelete(OrcRowWriter writer) {
+    return new PositionDeleteWriter(writer);
   }
 
   private static class BooleanWriter implements OrcValueWriter<Boolean> {
@@ -543,24 +539,24 @@ public class GenericOrcWriters {
     }
   }
 
-  private static class PositionDeleteWriter implements OrcRowWriter<PositionDelete<?>> {
-    private final OrcRowWriter<Record> rowWriter;
-    private final GenericRecord record;
+  private static class PositionDeleteWriter<T> implements OrcRowWriter<PositionDelete<T>> {
+    private final OrcRowWriter<T> rowWriter;
 
-    PositionDeleteWriter(Schema deleteSchema, OrcRowWriter rowWriter) {
-      this.rowWriter = rowWriter != null ?
-          rowWriter : GenericOrcWriter.buildWriter(deleteSchema, ORCSchemaUtil.convert(deleteSchema));
-      this.record = GenericRecord.create(deleteSchema);
+    PositionDeleteWriter(OrcRowWriter rowWriter) {
+      this.rowWriter = rowWriter;
     }
 
     @Override
-    public void write(PositionDelete<?> row, VectorizedRowBatch output) throws IOException {
-      record.set(0, row.path());
-      record.set(1, row.pos());
-      if (record.size() > 2) {
-        record.set(2, row.row());
+    public void write(PositionDelete<T> row, VectorizedRowBatch output) throws IOException {
+      int rowId = output.size;
+
+      GenericOrcWriters.strings().write(rowId, row.path().toString(), output.cols[0]);
+      GenericOrcWriters.longs().write(rowId, row.pos(), output.cols[1]);
+      if (row.row() != null) {
+        rowWriter.write(row.row(), output);
+      } else {
+        output.size += 1;
       }
-      rowWriter.write(record, output);
     }
 
     @Override

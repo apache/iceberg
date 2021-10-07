@@ -109,6 +109,16 @@ class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> implements S
     builder.createWriterFunc((iSchema, typDesc) -> FlinkOrcWriter.buildWriter(dataFlinkType(), iSchema));
   }
 
+  @Override
+  protected void configureEqualityDelete(ORC.DeleteWriteBuilder builder) {
+    builder.createWriterFunc((iSchema, typDesc) -> FlinkOrcWriter.buildWriter(equalityDeleteFlinkType(), iSchema));
+  }
+
+  @Override
+  protected void configurePositionDelete(ORC.DeleteWriteBuilder builder) {
+    builder.createWriterFunc((iSchema, typDesc) -> FlinkOrcWriter.buildWriter(positionDeleteFlinkType(), iSchema));
+  }
+
   private RowType dataFlinkType() {
     if (dataFlinkType == null) {
       Preconditions.checkNotNull(dataSchema(), "Data schema must not be null");
