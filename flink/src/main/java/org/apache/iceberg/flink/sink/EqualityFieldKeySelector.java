@@ -39,8 +39,8 @@ class EqualityFieldKeySelector extends BaseKeySelector<RowData, StructLikeWrappe
   private final Schema schema;
   private final Schema deleteSchema;
 
-  private transient StructProjection projection;
-  private transient StructLikeWrapper wrapper;
+  private transient StructProjection structProjection;
+  private transient StructLikeWrapper structLikeWrapper;
 
   EqualityFieldKeySelector(List<Integer> equalityFieldIds, Schema schema, RowType flinkSchema) {
     super(schema, flinkSchema);
@@ -48,11 +48,28 @@ class EqualityFieldKeySelector extends BaseKeySelector<RowData, StructLikeWrappe
     this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
   }
 
+  /**
+   * Construct the {@link StructProjection} lazily because it is not serializable.
+   */
+  protected StructProjection lazyStructProjection() {
+    if (structProjection == null) {
+      structProjection = StructProjection.create(schema, deleteSchema);
+    }
+    return structProjection;
+  }
+
+  /**
+   * Construct the {@link StructLikeWrapper} lazily because it is not serializable.
+   */
+  protected StructLikeWrapper lazyStructLikeWrapper() {
+    if (structLikeWrapper == null) {
+      structLikeWrapper = StructLikeWrapper.forType(deleteSchema.asStruct());
+    }
+    return structLikeWrapper;
+  }
+
   @Override
   public StructLikeWrapper getKey(RowData row) {
-    // lazily construct because projection and wrapper are not serializable.
-    projection = projection == null ? StructProjection.create(schema, deleteSchema) : projection;
-    wrapper = wrapper == null ? StructLikeWrapper.forType(deleteSchema.asStruct()) : wrapper;
-    return wrapper.set(projection.wrap(lazyRowDataWrapper().wrap(row)));
+    return lazyStructLikeWrapper().set(lazyStructProjection().wrap(lazyRowDataWrapper().wrap(row)));
   }
 }
