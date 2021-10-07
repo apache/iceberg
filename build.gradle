@@ -65,11 +65,9 @@ allprojects {
     mavenLocal()
   }
   project.ext {
-    Spark30Version = '3.0.3'
-    Spark31Version = '3.1.1'
-    SparkBuildVersion = project.hasProperty("sparkBuild") ? project.getProperty("sparkBuild") : '3.1.1'
-    SparkSrcVersion = project.hasProperty("sparkSrc") ? project.getProperty("sparkSrc") : '3_0'
-    ScalaVersion = project.hasProperty("scala") ? project.getProperty("scala") : '2.12'
+    SparkBuildVersion = System.getProperty("sparkBuild") != null ? System.getProperty("sparkBuild") : '3.1.1'
+    SparkSrcVersion = System.getProperty("sparkSrc") != null ? System.getProperty("sparkSrc") : '3_0'
+    ScalaVersion = System.getProperty("scala") != null ? System.getProperty("scala") : '2.12'
   }
 }
 
@@ -1152,7 +1150,7 @@ project(':iceberg-spark') {
     implementation project(':iceberg-spark-common')
 
     compileOnly "org.apache.avro:avro"
-    compileOnly("org.apache.spark:spark-hive_2.12:${project.ext.Spark30Version}") {
+    compileOnly("org.apache.spark:spark-hive_${project.ext.ScalaVersion}:${project.ext.SparkBuildVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
     }
@@ -1173,7 +1171,7 @@ project(':iceberg-spark') {
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
     testImplementation "org.xerial:sqlite-jdbc"
 
-    spark31Implementation("org.apache.spark:spark-hive_2.12:${project.ext.Spark31Version}") {
+    spark31Implementation("org.apache.spark:spark-hive_${project.ext.ScalaVersion}:${project.ext.SparkBuildVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
       exclude group: 'junit'
@@ -1243,7 +1241,7 @@ project(":iceberg-spark-extensions") {
     compileOnly project(':iceberg-spark-common')
     compileOnly project(':iceberg-spark')
     compileOnly project(':iceberg-hive-metastore')
-    compileOnly("org.apache.spark:spark-hive_2.12:${project.ext.Spark30Version}") {
+    compileOnly("org.apache.spark:spark-hive_${project.ext.ScalaVersion}:${project.ext.SparkBuildVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
     }
@@ -1255,7 +1253,7 @@ project(":iceberg-spark-extensions") {
     testImplementation project(path: ':iceberg-spark-common', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-spark', configuration: 'testArtifacts')
 
-    spark31Implementation("org.apache.spark:spark-hive_2.12:${project.ext.Spark31Version}") {
+    spark31Implementation("org.apache.spark:spark-hive_${project.ext.ScalaVersion}:${project.ext.SparkBuildVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
     }
@@ -1330,7 +1328,7 @@ project(':iceberg-spark-runtime') {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
-    integrationImplementation "org.apache.spark:spark-hive_2.12:${project.ext.Spark30Version}"
+    integrationImplementation "org.apache.spark:spark-hive_${project.ext.ScalaVersion}:${project.ext.SparkBuildVersion}"
     integrationImplementation 'org.junit.vintage:junit-vintage-engine'
     integrationImplementation 'org.slf4j:slf4j-simple'
     integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
@@ -1343,7 +1341,7 @@ project(':iceberg-spark-runtime') {
     integrationCompileOnly project(':iceberg-spark')
     integrationCompileOnly project(':iceberg-api')
 
-    spark31Implementation "org.apache.spark:spark-hive_2.12:${project.ext.Spark31Version}"
+    spark31Implementation "org.apache.spark:spark-hive_${project.ext.ScalaVersion}:${project.ext.SparkBuildVersion}"
   }
 
   shadowJar {
