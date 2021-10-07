@@ -22,7 +22,6 @@ package org.apache.iceberg.spark.data;
 import java.util.List;
 import java.util.stream.Stream;
 import org.apache.iceberg.FieldMetrics;
-import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.common.type.HiveDecimal;
@@ -39,38 +38,6 @@ import org.apache.spark.unsafe.types.UTF8String;
 
 class SparkOrcValueWriters {
   private SparkOrcValueWriters() {
-  }
-
-  static OrcValueWriter<?> booleans() {
-    return GenericOrcWriters.booleans();
-  }
-
-  static OrcValueWriter<?> bytes() {
-    return GenericOrcWriters.bytes();
-  }
-
-  static OrcValueWriter<?> shorts() {
-    return GenericOrcWriters.shorts();
-  }
-
-  static OrcValueWriter<?> ints() {
-    return GenericOrcWriters.ints();
-  }
-
-  static OrcValueWriter<?> longs() {
-    return GenericOrcWriters.longs();
-  }
-
-  static OrcValueWriter<?> floats(int id) {
-    return new FloatWriter(id);
-  }
-
-  static OrcValueWriter<?> doubles(int id) {
-    return new DoubleWriter(id);
-  }
-
-  static OrcValueWriter<?> byteArrays() {
-    return GenericOrcWriters.byteArrays();
   }
 
   static OrcValueWriter<?> strings() {
@@ -96,32 +63,6 @@ class SparkOrcValueWriters {
   static OrcValueWriter<?> map(OrcValueWriter<?> keyWriter, OrcValueWriter<?> valueWriter,
       List<TypeDescription> orcType) {
     return new MapWriter(keyWriter, valueWriter, orcType);
-  }
-
-  private static class FloatWriter extends GenericOrcWriters.FloatWriter {
-
-    private FloatWriter(int id) {
-      super(id);
-    }
-
-    @Override
-    public Stream<FieldMetrics<?>> metrics() {
-      return Stream.of(getFloatFieldMetricsBuilder().build());
-    }
-
-  }
-
-  private static class DoubleWriter extends GenericOrcWriters.DoubleWriter {
-
-    private DoubleWriter(int id) {
-      super(id);
-    }
-
-    @Override
-    public Stream<FieldMetrics<?>> metrics() {
-      return Stream.of(getDoubleFieldMetricsBuilder().build());
-    }
-
   }
 
   private static class StringWriter implements OrcValueWriter<UTF8String> {
@@ -197,7 +138,7 @@ class SparkOrcValueWriters {
         throw new IllegalArgumentException("Expected one (and same) ORC type for list elements, got: " + orcTypes);
       }
       this.writer = writer;
-      this.fieldGetter = SparkOrcWriter.createFieldGetter(orcTypes.get(0), 0, 1);
+      this.fieldGetter = SparkOrcWriter.createFieldGetter(orcTypes.get(0), 1);
     }
 
     @Override
@@ -238,8 +179,8 @@ class SparkOrcValueWriters {
       }
       this.keyWriter = keyWriter;
       this.valueWriter = valueWriter;
-      this.keyFieldGetter = SparkOrcWriter.createFieldGetter(orcTypes.get(0), 0, 1);
-      this.valueFieldGetter = SparkOrcWriter.createFieldGetter(orcTypes.get(1), 0, 1);
+      this.keyFieldGetter = SparkOrcWriter.createFieldGetter(orcTypes.get(0), 1);
+      this.valueFieldGetter = SparkOrcWriter.createFieldGetter(orcTypes.get(1), 1);
     }
 
     @Override

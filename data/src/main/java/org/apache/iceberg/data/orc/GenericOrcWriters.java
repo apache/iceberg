@@ -219,11 +219,11 @@ public class GenericOrcWriters {
     }
   }
 
-  public static class FloatWriter implements OrcValueWriter<Float> {
+  private static class FloatWriter implements OrcValueWriter<Float> {
     private final FloatFieldMetrics.Builder floatFieldMetricsBuilder;
     private long nullValueCount = 0;
 
-    protected FloatWriter(int id) {
+    private FloatWriter(int id) {
       this.floatFieldMetricsBuilder = new FloatFieldMetrics.Builder(id);
     }
 
@@ -251,17 +251,13 @@ public class GenericOrcWriters {
           nullValueCount, metricsWithoutNullCount.nanValueCount(),
           metricsWithoutNullCount.lowerBound(), metricsWithoutNullCount.upperBound()));
     }
-
-    protected FloatFieldMetrics.Builder getFloatFieldMetricsBuilder() {
-      return floatFieldMetricsBuilder;
-    }
   }
 
-  public static class DoubleWriter implements OrcValueWriter<Double> {
+  private static class DoubleWriter implements OrcValueWriter<Double> {
     private final DoubleFieldMetrics.Builder doubleFieldMetricsBuilder;
     private long nullValueCount = 0;
 
-    protected DoubleWriter(Integer id) {
+    private DoubleWriter(Integer id) {
       this.doubleFieldMetricsBuilder = new DoubleFieldMetrics.Builder(id);
     }
 
@@ -288,10 +284,6 @@ public class GenericOrcWriters {
           metricsWithoutNullCount.valueCount() + nullValueCount,
           nullValueCount, metricsWithoutNullCount.nanValueCount(),
           metricsWithoutNullCount.lowerBound(), metricsWithoutNullCount.upperBound()));
-    }
-
-    public DoubleFieldMetrics.Builder getDoubleFieldMetricsBuilder() {
-      return doubleFieldMetricsBuilder;
     }
   }
 

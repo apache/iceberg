@@ -26,6 +26,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcRowWriter;
 import org.apache.iceberg.orc.OrcSchemaWithTypeVisitor;
@@ -98,22 +99,22 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
     public OrcValueWriter<?> primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
       switch (primitive.getCategory()) {
         case BOOLEAN:
-          return SparkOrcValueWriters.booleans();
+          return GenericOrcWriters.booleans();
         case BYTE:
-          return SparkOrcValueWriters.bytes();
+          return GenericOrcWriters.bytes();
         case SHORT:
-          return SparkOrcValueWriters.shorts();
+          return GenericOrcWriters.shorts();
         case DATE:
         case INT:
-          return SparkOrcValueWriters.ints();
+          return GenericOrcWriters.ints();
         case LONG:
-          return SparkOrcValueWriters.longs();
+          return GenericOrcWriters.longs();
         case FLOAT:
-          return SparkOrcValueWriters.floats(ORCSchemaUtil.fieldId(primitive));
+          return GenericOrcWriters.floats(ORCSchemaUtil.fieldId(primitive));
         case DOUBLE:
-          return SparkOrcValueWriters.doubles(ORCSchemaUtil.fieldId(primitive));
+          return GenericOrcWriters.doubles(ORCSchemaUtil.fieldId(primitive));
         case BINARY:
-          return SparkOrcValueWriters.byteArrays();
+          return GenericOrcWriters.byteArrays();
         case STRING:
         case CHAR:
         case VARCHAR:
@@ -139,7 +140,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
 
       for (int i = 0; i < orcTypes.size(); i++) {
         this.writers.add(writers.get(i));
-        fieldGetters.add(createFieldGetter(orcTypes.get(i), i, orcTypes.size()));
+        fieldGetters.add(createFieldGetter(orcTypes.get(i), orcTypes.size()));
       }
     }
 
@@ -156,7 +157,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
 
     private void write(int rowId, InternalRow value, Function<Integer, ColumnVector> colVectorAtFunc) {
       for (int c = 0; c < writers.size(); ++c) {
-        writers.get(c).write(rowId, fieldGetters.get(c).getFieldOrNull(value), colVectorAtFunc.apply(c));
+        writers.get(c).write(rowId, fieldGetters.get(c).getFieldOrNull(value, c), colVectorAtFunc.apply(c));
       }
     }
 
@@ -172,81 +173,78 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
 
   }
 
-  static FieldGetter<?> createFieldGetter(TypeDescription fieldType, int fieldPos, int fieldCount) {
+  static FieldGetter<?> createFieldGetter(TypeDescription fieldType, int fieldCount) {
     final FieldGetter<?> fieldGetter;
     switch (fieldType.getCategory()) {
       case BOOLEAN:
-        fieldGetter = (row, offset) -> row.getBoolean(fieldPos + offset);
+        fieldGetter = (row, ordinal) -> row.getBoolean(ordinal);
         break;
       case BYTE:
-        fieldGetter = (row, offset) -> row.getByte(fieldPos + offset);
+        fieldGetter = (row, ordinal) -> row.getByte(ordinal);
         break;
       case SHORT:
-        fieldGetter = (row, offset) -> row.getShort(fieldPos + offset);
+        fieldGetter = (row, ordinal) -> row.getShort(ordinal);
         break;
       case DATE:
       case INT:
-        fieldGetter = (row, offset) -> row.getInt(fieldPos + offset);
+        fieldGetter = (row, ordinal) -> row.getInt(ordinal);
         break;
       case LONG:
       case TIMESTAMP:
       case TIMESTAMP_INSTANT:
-        fieldGetter = (row, offset) -> row.getLong(fieldPos + offset);
+        fieldGetter = (row, ordinal) -> row.getLong(ordinal);
         break;
       case FLOAT:
-        fieldGetter = (row, offset) -> row.getFloat(fieldPos + offset);
+        fieldGetter = (row, ordinal) -> row.getFloat(ordinal);
         break;
       case DOUBLE:
-        fieldGetter = (row, offset) -> row.getDouble(fieldPos + offset);
+        fieldGetter = (row, ordinal) -> row.getDouble(ordinal);
         break;
       case BINARY:
-        fieldGetter = (row, offset) -> row.getBinary(fieldPos + offset);
+        fieldGetter = (row, ordinal) -> row.getBinary(ordinal);
         // getBinary always makes a copy, so we don't need to worry about it
         // being changed behind our back.
         break;
       case DECIMAL:
-        fieldGetter = (row, offset) ->
-            row.getDecimal(fieldPos + offset, fieldType.getPrecision(), fieldType.getScale());
+        fieldGetter = (row, ordinal) ->
+            row.getDecimal(ordinal, fieldType.getPrecision(), fieldType.getScale());
         break;
       case STRING:
       case CHAR:
       case VARCHAR:
-        fieldGetter = (row, offset) -> row.getUTF8String(fieldPos + offset);
+        fieldGetter = (row, ordinal) -> row.getUTF8String(ordinal);
         break;
       case STRUCT:
-        fieldGetter = (row, offset) -> row.getStruct(fieldPos + offset, fieldCount);
+        fieldGetter = (row, ordinal) -> row.getStruct(ordinal, fieldCount);
         break;
       case LIST:
-        fieldGetter = (row, offset) -> row.getArray(fieldPos + offset);
+        fieldGetter = (row, ordinal) -> row.getArray(ordinal);
         break;
       case MAP:
-        fieldGetter = (row, offset) -> row.getMap(fieldPos + offset);
+        fieldGetter = (row, ordinal) -> row.getMap(ordinal);
         break;
       default:
         throw new IllegalArgumentException();
     }
 
-    return (row, offset) -> {
-      if (row.isNullAt(fieldPos + offset)) {
+    return (row, ordinal) -> {
+      if (row.isNullAt(ordinal)) {
         return null;
       }
-      return fieldGetter.getFieldOrNull(row, offset);
+      return fieldGetter.getFieldOrNull(row, ordinal);
     };
   }
 
   interface FieldGetter<T> extends Serializable {
-    @Nullable
-    default T getFieldOrNull(SpecializedGetters row) {
-      return getFieldOrNull(row, 0);
-    }
 
     /**
-     *
+     * Returns a value from a complex Spark data holder such ArrayData, InternalRow, etc...
+     * Calls the appropriate getter for the expected data type.
      * @param row Spark's data representation
-     * @param offset added to ordinal before being passed to respective getter method - used for complex types only
-     * @return field value at ordinal and offset
+     * @param ordinal index in the data structure (e.g. column index for InterRow, list index in ArrayData, etc..)
+     * @return field value at ordinal
      */
     @Nullable
-    T getFieldOrNull(SpecializedGetters row, int offset);
+    T getFieldOrNull(SpecializedGetters row, int ordinal);
   }
 }
