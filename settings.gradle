@@ -56,23 +56,30 @@ project(':nessie').name = 'iceberg-nessie'
 
 // spark
 include 'spark-common'
-include 'spark3'
-include 'spark3-extensions'
-include 'spark3-runtime'
+include 'spark'
+include 'spark-extensions'
+include 'spark-runtime'
+
+SparkBuildVersion = System.getProperty("sparkBuild") == null ? System.getProperty("sparkBuild") : '3.1.1'
+SparkSrcVersion = System.getProperty("sparkSrc") == null ? System.getProperty("sparkSrc") : '3_0'
+ScalaVersion = System.getProperty("scala") == null ? System.getProperty("scala") : '2.12'
+
+if ('2_4' == SparkSrcVersion && JavaVersion.current() == JavaVersion.VERSION_1_8) {
+  throw new Exception("Expected java8 to build Spark 2.4, but got ${SparkSrcVersion}")
+}
 
 project(':spark-common').name = 'iceberg-spark-common'
-project(':spark3').name = 'iceberg-spark3'
-project(':spark3-extensions').name = 'iceberg-spark3-extensions'
-project(':spark3-runtime').name = 'iceberg-spark3-runtime'
+project(':spark').name = 'iceberg-spark'
+project(':spark').projectDir = file("spark/${SparkSrcVersion}/core")
+project(':spark-extensions').name = 'iceberg-spark-extensions'
+project(':spark-extensions').projectDir = file("spark/${SparkSrcVersion}/extensions")
+project(':spark-runtime').name = 'iceberg-spark-runtime'
+project(':spark-runtime').projectDir = file("spark/${SparkSrcVersion}/runtime")
 
 if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
-  include 'spark2'
-  include 'spark-runtime'
   include 'hive3'
   include 'hive3-orc-bundle'
 
-  project(':spark2').name = 'iceberg-spark2'
-  project(':spark-runtime').name = 'iceberg-spark-runtime'
   project(':hive3').name = 'iceberg-hive3'
   project(':hive3-orc-bundle').name = 'iceberg-hive3-orc-bundle'
 }
