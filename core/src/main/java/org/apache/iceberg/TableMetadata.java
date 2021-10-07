@@ -133,7 +133,7 @@ public class TableMetadata implements Serializable {
   /**
    * @return true if relative paths are enabled for this table, false otherwise.
    */
-  public boolean shouldUseRelativePaths() {
+  public boolean useRelativePaths() {
     return propertyAsBoolean(TableProperties.WRITE_METADATA_USE_RELATIVE_PATH,
         TableProperties.WRITE_METADATA_USE_RELATIVE_PATH_DEFAULT);
   }
@@ -642,10 +642,10 @@ public class TableMetadata implements Serializable {
     List<Snapshot> newUpdatedSnapshots = Lists.newArrayListWithCapacity(snapshots.size());
     for (Snapshot snapshot : snapshots) {
       String manifestListLocation = MetadataPathUtils.toRelativePath(snapshot.manifestListLocation(), location,
-          shouldUseRelativePaths());
+          useRelativePaths());
       newUpdatedSnapshots.add(new BaseSnapshot(snapshot.io(), snapshot.sequenceNumber(),
           snapshot.snapshotId(), snapshot.parentId(), snapshot.timestampMillis(), snapshot.operation(),
-          snapshot.summary(), manifestListLocation, location, shouldUseRelativePaths()));
+          snapshot.summary(), snapshot.schemaId(), manifestListLocation, location, useRelativePaths()));
     }
     return new TableMetadata(file, formatVersion, uuid, location,
         lastSequenceNumber, lastUpdatedMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
@@ -661,10 +661,10 @@ public class TableMetadata implements Serializable {
     List<Snapshot> newUpdatedSnapshots = Lists.newArrayListWithCapacity(snapshots.size());
     for (Snapshot snapshot : snapshots) {
       String newManifestListLocation = MetadataPathUtils.toAbsolutePath(snapshot.manifestListLocation(),
-          location, shouldUseRelativePaths());
+          location, useRelativePaths());
       newUpdatedSnapshots.add(new BaseSnapshot(snapshot.io(), snapshot.sequenceNumber(),
           snapshot.snapshotId(), snapshot.parentId(), snapshot.timestampMillis(), snapshot.operation(),
-          snapshot.summary(), newManifestListLocation, location, shouldUseRelativePaths()));
+          snapshot.summary(), snapshot.schemaId(), newManifestListLocation, location, useRelativePaths()));
     }
 
     return new TableMetadata(file, formatVersion, uuid, location,
@@ -944,7 +944,7 @@ public class TableMetadata implements Serializable {
       newMetadataLog = Lists.newArrayList(previousFiles);
     }
     newMetadataLog.add(new MetadataLogEntry(timestampMillis,
-        MetadataPathUtils.toRelativePath(previousFile.location(), location, shouldUseRelativePaths())));
+        MetadataPathUtils.toRelativePath(previousFile.location(), location, useRelativePaths())));
 
     return newMetadataLog;
   }

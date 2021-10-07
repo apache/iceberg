@@ -250,11 +250,11 @@ public class TableTestBase {
     if (entries[0].file() instanceof DataFile) {
       writer = (ManifestWriter<F>) ManifestFiles.write(
               formatVersion, table.spec(), outputFile, snapshotId, this.table.location(),
-              this.table.ops().current().shouldUseRelativePaths());
+              this.table.ops().current().useRelativePaths());
     } else {
       writer = (ManifestWriter<F>) ManifestFiles.writeDeleteManifest(
               formatVersion, table.spec(), outputFile, snapshotId, this.table.location(),
-              this.table.ops().current().shouldUseRelativePaths());
+              this.table.ops().current().useRelativePaths());
     }
     try {
       for (ManifestEntry<?> entry : entries) {
