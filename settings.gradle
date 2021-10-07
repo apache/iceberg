@@ -60,19 +60,21 @@ include 'spark'
 include 'spark-extensions'
 include 'spark-runtime'
 
-var SparkBuildVersion = System.getProperty("sparkBuild") != null ? System.getProperty("sparkBuild") : '3.1.1'
 var SparkSrcVersion = System.getProperty("sparkSrc") != null ? System.getProperty("sparkSrc") : '3_0'
-var ScalaVersion = System.getProperty("scala") != null ? System.getProperty("scala") : '2.12'
 
-if ('2_4' == SparkSrcVersion && JavaVersion.current() == JavaVersion.VERSION_1_8) {
+if (SparkSrcVersion == '2_4' && JavaVersion.current() != JavaVersion.VERSION_1_8) {
   throw new Exception("Expected java8 to build Spark 2.4, but got ${SparkSrcVersion}")
 }
 
 project(':spark-common').name = 'iceberg-spark-common'
 project(':spark').projectDir = file("spark/${SparkSrcVersion}/core")
 project(':spark').name = 'iceberg-spark'
-project(':spark-extensions').projectDir = file("spark/${SparkSrcVersion}/extensions")
-project(':spark-extensions').name = 'iceberg-spark-extensions'
+
+if (SparkSrcVersion != '2_4') {
+  project(':spark-extensions').projectDir = file("spark/${SparkSrcVersion}/extensions")
+  project(':spark-extensions').name = 'iceberg-spark-extensions'
+}
+
 project(':spark-runtime').projectDir = file("spark/${SparkSrcVersion}/runtime")
 project(':spark-runtime').name = 'iceberg-spark-runtime'
 
