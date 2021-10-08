@@ -121,7 +121,8 @@ public class GenericArrowVectorAccessorFactory<
     boolean isVectorDictEncoded = holder.isDictionaryEncoded();
     FieldVector vector = holder.vector();
     ColumnDescriptor desc = holder.descriptor();
-    PrimitiveType primitive = desc.getPrimitiveType();
+    // desc could be null when the holder is PositionVectorHolder
+    PrimitiveType primitive = desc == null ? null : desc.getPrimitiveType();
     if (isVectorDictEncoded) {
       return getDictionaryVectorAccessor(dictionary, desc, vector, primitive);
     } else {
@@ -135,6 +136,7 @@ public class GenericArrowVectorAccessorFactory<
           ColumnDescriptor desc,
           FieldVector vector,
           PrimitiveType primitive) {
+    Preconditions.checkState(primitive != null, "Primitive should not be null");
     Preconditions.checkState(
         vector instanceof IntVector, "Dictionary ids should be stored in IntVectors only");
     if (primitive.getOriginalType() != null) {
@@ -193,12 +195,14 @@ public class GenericArrowVectorAccessorFactory<
     if (vector instanceof BitVector) {
       return new BooleanAccessor<>((BitVector) vector);
     } else if (vector instanceof IntVector) {
-      if (OriginalType.DECIMAL.equals(primitive.getOriginalType()) && useIntVectorForIntBackedDecimal) {
+      if (primitive != null && OriginalType.DECIMAL.equals(primitive.getOriginalType()) &&
+          useIntVectorForIntBackedDecimal) {
         return new IntBackedDecimalAccessor<>((IntVector) vector, decimalFactorySupplier.get());
       }
       return new IntAccessor<>((IntVector) vector);
     } else if (vector instanceof BigIntVector) {
-      if (OriginalType.DECIMAL.equals(primitive.getOriginalType()) && useLongVectorForLongBackedDecimal) {
+      if (primitive != null && OriginalType.DECIMAL.equals(primitive.getOriginalType()) &&
+          useLongVectorForLongBackedDecimal) {
         return new LongBackedDecimalAccessor<>((BigIntVector) vector, decimalFactorySupplier.get());
       }
       return new LongAccessor<>((BigIntVector) vector);
