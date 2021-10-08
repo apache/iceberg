@@ -32,6 +32,7 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.iceberg.FieldMetrics;
+import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -42,7 +43,6 @@ import org.apache.orc.storage.ql.exec.vector.DecimalColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ListColumnVector;
 import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
-import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 
 class FlinkOrcWriters {
@@ -90,7 +90,7 @@ class FlinkOrcWriters {
   }
 
   static OrcValueWriter<RowData> struct(List<OrcValueWriter<?>> writers, List<LogicalType> types) {
-    return new StructWriter(writers, types);
+    return new RowDataWriter(writers, types);
   }
 
   private static class StringWriter implements OrcValueWriter<StringData> {
@@ -311,21 +311,16 @@ class FlinkOrcWriters {
     }
   }
 
-  static class StructWriter implements OrcValueWriter<RowData> {
-    private final List<OrcValueWriter<?>> writers;
+  static class RowDataWriter extends GenericOrcWriter.StructWriter<RowData> {
     private final List<RowData.FieldGetter> fieldGetters;
 
-    StructWriter(List<OrcValueWriter<?>> writers, List<LogicalType> types) {
-      this.writers = writers;
+    RowDataWriter(List<OrcValueWriter<?>> writers, List<LogicalType> types) {
+      super(writers);
 
       this.fieldGetters = Lists.newArrayListWithExpectedSize(types.size());
       for (int i = 0; i < types.size(); i++) {
         fieldGetters.add(RowData.createFieldGetter(types.get(i), i));
       }
-    }
-
-    List<OrcValueWriter<?>> writers() {
-      return writers;
     }
 
     @Override
@@ -334,19 +329,10 @@ class FlinkOrcWriters {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public void nonNullWrite(int rowId, RowData data, ColumnVector output) {
-      StructColumnVector cv = (StructColumnVector) output;
-      for (int c = 0; c < writers.size(); ++c) {
-        OrcValueWriter writer = writers.get(c);
-        writer.write(rowId, fieldGetters.get(c).getFieldOrNull(data), cv.fields[c]);
-      }
+    protected Object get(RowData struct, int index) {
+      return fieldGetters.get(index).getFieldOrNull(struct);
     }
 
-    @Override
-    public Stream<FieldMetrics<?>> metrics() {
-      return writers.stream().flatMap(OrcValueWriter::metrics);
-    }
   }
 
   private static void growColumnVector(ColumnVector cv, int requestedSize) {

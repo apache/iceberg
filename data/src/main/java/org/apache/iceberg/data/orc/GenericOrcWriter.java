@@ -20,6 +20,7 @@
 package org.apache.iceberg.data.orc;
 
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Schema;
@@ -37,13 +38,13 @@ import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 public class GenericOrcWriter implements OrcRowWriter<Record> {
-  private final OrcValueWriter writer;
+  private final RecordWriter writer;
 
   private GenericOrcWriter(Schema expectedSchema, TypeDescription orcSchema) {
     Preconditions.checkArgument(orcSchema.getCategory() == TypeDescription.Category.STRUCT,
         "Top level must be a struct " + orcSchema);
 
-    writer = OrcSchemaWithTypeVisitor.visit(expectedSchema, orcSchema, new WriteBuilder());
+    writer = (RecordWriter) OrcSchemaWithTypeVisitor.visit(expectedSchema, orcSchema, new WriteBuilder());
   }
 
   public static OrcRowWriter<Record> buildWriter(Schema expectedSchema, TypeDescription fileSchema) {
@@ -115,17 +116,13 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
   }
 
   @Override
-  @SuppressWarnings("unchecked")
   public void write(Record value, VectorizedRowBatch output) {
-    Preconditions.checkArgument(writer instanceof RecordWriter, "writer must be a RecordWriter.");
+    Preconditions.checkArgument(value != null, "value must not be null");
 
     int row = output.size;
     output.size += 1;
-    List<OrcValueWriter<?>> writers = ((RecordWriter) writer).writers();
-    for (int c = 0; c < writers.size(); ++c) {
-      OrcValueWriter child = writers.get(c);
-      child.write(row, value.get(c, child.getJavaClass()), output.cols[c]);
-    }
+
+    writer.rootNonNullWrite(row, value, output);
   }
 
   @Override
@@ -133,15 +130,47 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
     return writer.metrics();
   }
 
-  private static class RecordWriter implements OrcValueWriter<Record> {
+  public abstract static class StructWriter<S> implements OrcValueWriter<S> {
     private final List<OrcValueWriter<?>> writers;
 
-    RecordWriter(List<OrcValueWriter<?>> writers) {
+    protected StructWriter(List<OrcValueWriter<?>> writers) {
       this.writers = writers;
     }
 
-    List<OrcValueWriter<?>> writers() {
-      return writers;
+    public List<OrcValueWriter<?>> writers() {
+      return this.writers;
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      return writers.stream().flatMap(OrcValueWriter::metrics);
+    }
+
+    @Override
+    public void nonNullWrite(int rowId, S value, ColumnVector output) {
+      StructColumnVector cv = (StructColumnVector) output;
+      write(rowId, value, c -> cv.fields[c]);
+    }
+
+    // Special case of writing the root struct
+    public void rootNonNullWrite(int rowId, S value, VectorizedRowBatch output) {
+      write(rowId, value, c -> output.cols[c]);
+    }
+
+    private void write(int rowId, S value, Function<Integer, ColumnVector> colVectorAtFunc) {
+      for (int c = 0; c < writers.size(); ++c) {
+        OrcValueWriter writer = writers.get(c);
+        writer.write(rowId, get(value, c), colVectorAtFunc.apply(c));
+      }
+    }
+
+    protected abstract Object get(S struct, int index);
+  }
+
+  private static class RecordWriter extends StructWriter<Record> {
+
+    RecordWriter(List<OrcValueWriter<?>> writers) {
+      super(writers);
     }
 
     @Override
@@ -150,18 +179,9 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public void nonNullWrite(int rowId, Record data, ColumnVector output) {
-      StructColumnVector cv = (StructColumnVector) output;
-      for (int c = 0; c < writers.size(); ++c) {
-        OrcValueWriter child = writers.get(c);
-        child.write(rowId, data.get(c, child.getJavaClass()), cv.fields[c]);
-      }
+    protected Object get(Record struct, int index) {
+      return struct.get(index, writers().get(index).getJavaClass());
     }
 
-    @Override
-    public Stream<FieldMetrics<?>> metrics() {
-      return writers.stream().flatMap(OrcValueWriter::metrics);
-    }
   }
 }
