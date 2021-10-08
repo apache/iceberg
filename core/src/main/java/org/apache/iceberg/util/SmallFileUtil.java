@@ -49,23 +49,23 @@ public class SmallFileUtil {
     Map<String, String> props = table.properties();
     boolean autoMergeEnable = PropertyUtil.propertyAsBoolean(
         props,
-        TableProperties.WRITE_AUTO_COMPACT_ENABLED,
-        TableProperties.WRITE_AUTO_COMPACT_ENABLED_DEFAULT);
+        TableProperties.WRITE_FLINK_AUTO_COMPACT_ENABLED,
+        TableProperties.WRITE_FLINK_AUTO_COMPACT_ENABLED_DEFAULT);
 
     long mergeIntervalMillis = PropertyUtil.propertyAsLong(
         props,
-        TableProperties.WRITE_COMPACT_INTERVAL_MS,
-        TableProperties.WRITE_COMPACT_INTERVAL_MS_DEFAULT);
+        TableProperties.WRITE_FLINK_COMPACT_INTERVAL_MS,
+        TableProperties.WRITE_FLINK_COMPACT_INTERVAL_MS_DEFAULT);
 
     long lastCommittedTimestamp = PropertyUtil.propertyAsLong(
         props,
-        TableProperties.WRITE_COMPACT_LAST_REWRITE_MS,
-        TableProperties.WRITE_COMPACT_LAST_REWRITE_MS_DEFAULT);
+        TableProperties.WRITE_FLINK_COMPACT_LAST_REWRITE_MS,
+        TableProperties.WRITE_FLINK_COMPACT_LAST_REWRITE_MS_DEFAULT);
 
     long smallFileThreshold = PropertyUtil.propertyAsLong(
         props,
-        TableProperties.WRITE_COMPACT_SMALL_FILE_NUMS,
-        TableProperties.WRITE_COMPACT_SMALL_FILE_NUMS_DEFAULT);
+        TableProperties.WRITE_FLINK_COMPACT_SMALL_FILE_NUMS,
+        TableProperties.WRITE_FLINK_COMPACT_SMALL_FILE_NUMS_DEFAULT);
 
     LOG.info("Summary: actual compact interval: {}s, compact.auto.enabled: {}, " +
             "compact.interval: {}s, current time: {}, last compact time: {}, small-file-nums: {}",
@@ -91,8 +91,8 @@ public class SmallFileUtil {
     Map<String, String> props = table.properties();
     long smallFileSize = PropertyUtil.propertyAsLong(
         props,
-        TableProperties.WRITE_COMPACT_SMALL_FILE_SIZE_BYTES,
-        TableProperties.WRITE_COMPACT_SMALL_FILE_SIZE_BYTES_DEFAULT);
+        TableProperties.WRITE_FLINK_COMPACT_SMALL_FILE_SIZE_BYTES,
+        TableProperties.WRITE_FLINK_COMPACT_SMALL_FILE_SIZE_BYTES_DEFAULT);
 
     CloseableIterable<FileScanTask> tasks = table.newScan().ignoreResiduals().planFiles();
     List<DataFile> dataFiles = Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));

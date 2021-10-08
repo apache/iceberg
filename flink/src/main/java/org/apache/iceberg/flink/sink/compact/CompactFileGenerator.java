@@ -98,7 +98,7 @@ public class CompactFileGenerator extends AbstractStreamOperator<CommonControlle
         TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
     long targetMergeFileSize = PropertyUtil.propertyAsLong(
         table.properties(),
-        TableProperties.WRITE_COMPACT_TARGET_FILE_SIZE_BYTES,
+        TableProperties.WRITE_FLINK_COMPACT_TARGET_FILE_SIZE_BYTES,
         targetFileSize);
     this.targetSizeInBytes = Math.min(splitSize, targetMergeFileSize);
     this.splitLookback = PropertyUtil.propertyAsInt(

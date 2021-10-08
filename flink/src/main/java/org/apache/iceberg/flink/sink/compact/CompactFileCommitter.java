@@ -120,7 +120,7 @@ public class CompactFileCommitter extends AbstractStreamOperator<Void>
           .rewriteFiles(Sets.newHashSet(currentDataFiles), Sets.newHashSet(dataFiles));
       rewriteFiles.commit();
       table.updateProperties()
-          .set(TableProperties.WRITE_COMPACT_LAST_REWRITE_MS, Long.toString(System.currentTimeMillis()))
+          .set(TableProperties.WRITE_FLINK_COMPACT_LAST_REWRITE_MS, Long.toString(System.currentTimeMillis()))
           .commit();
       LOG.info("Compaction transaction has been committed successfully, total delete files: {}, total add files: {}",
           currentDataFiles, dataFiles);

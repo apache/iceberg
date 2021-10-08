@@ -347,13 +347,13 @@ public class TestIcebergStreamWriter {
     }
     // Adjust table properties.
     table.updateProperties()
-        .set(TableProperties.WRITE_AUTO_COMPACT_ENABLED, "true")
-        .set(TableProperties.WRITE_COMPACT_INTERVAL_MS, "10000")
-        .set(TableProperties.WRITE_COMPACT_LAST_REWRITE_MS, "-1")
-        .set(TableProperties.WRITE_COMPACT_SMALL_FILE_SIZE_BYTES, "10")
-        .set(TableProperties.WRITE_COMPACT_SMALL_FILE_NUMS, "1")
+        .set(TableProperties.WRITE_FLINK_AUTO_COMPACT_ENABLED, "true")
+        .set(TableProperties.WRITE_FLINK_COMPACT_INTERVAL_MS, "10000")
+        .set(TableProperties.WRITE_FLINK_COMPACT_LAST_REWRITE_MS, "-1")
+        .set(TableProperties.WRITE_FLINK_COMPACT_SMALL_FILE_SIZE_BYTES, "10")
+        .set(TableProperties.WRITE_FLINK_COMPACT_SMALL_FILE_NUMS, "1")
         .set(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES, "4") // ~4 bytes; low enough to trigger
-        .set(TableProperties.WRITE_COMPACT_TARGET_FILE_SIZE_BYTES, "400000000")
+        .set(TableProperties.WRITE_FLINK_COMPACT_TARGET_FILE_SIZE_BYTES, "400000000")
         .commit();
 
     List<RowData> rows = Lists.newArrayListWithCapacity(8000);
