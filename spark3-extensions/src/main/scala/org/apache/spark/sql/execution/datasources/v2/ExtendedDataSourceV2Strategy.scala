@@ -33,6 +33,7 @@ import org.apache.spark.sql.catalyst.expressions.NamedExpression
 import org.apache.spark.sql.catalyst.planning.PhysicalOperation
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.Call
+import org.apache.spark.sql.catalyst.plans.logical.CreateTableEncKey
 import org.apache.spark.sql.catalyst.plans.logical.DropIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.DynamicFileFilter
@@ -100,6 +101,9 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy {
 
     case MergeInto(mergeIntoParams, output, child) =>
       MergeIntoExec(mergeIntoParams, output, planLater(child)) :: Nil
+
+    case CreateTableEncKey(IcebergCatalogAndIdentifier(catalog, ident), isKEK, keyId) =>
+      CreateTableEncKeyExec(catalog, ident, isKEK, keyId) :: Nil
 
     case _ => Nil
   }
