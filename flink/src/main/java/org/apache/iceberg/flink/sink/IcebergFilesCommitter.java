@@ -50,7 +50,6 @@ import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
@@ -282,9 +281,14 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         // txn2, the equality-delete files of txn2 are required to be applied to data files from txn1. Committing the
         // merged one will lead to the incorrect delete semantic.
         WriteResult result = e.getValue();
-        RowDelta rowDelta = table.newRowDelta()
-            .validateDataFilesExist(ImmutableList.copyOf(result.referencedDataFiles()))
-            .validateDeletedFiles();
+
+        // row delta validations are not needed for streaming changes that write equality deletes. Equality deletes
+        // are applied to data in all previous sequence numbers, so retries may push deletes further in the future,
+        // but do not affect correctness. Position deletes committed to the table in this path are used only to delete
+        // rows from data files that are being added in this commit. There is no way for data files added along with
+        // the delete files to be concurrently removed, so there is no need to validate the files referenced by the
+        // position delete files that are being committed.
+        RowDelta rowDelta = table.newRowDelta();
 
         int numDataFiles = result.dataFiles().length;
         Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
