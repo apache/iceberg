@@ -1019,7 +1019,7 @@ String getJavadocVersion() {
   }
 }
 
-// apply from: 'jmh.gradle'
+apply from: 'jmh.gradle'
 apply from: 'baseline.gradle'
 apply from: 'deploy.gradle'
 apply from: 'tasks.gradle'
