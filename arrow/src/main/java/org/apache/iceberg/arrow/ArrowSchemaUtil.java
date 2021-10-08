@@ -141,7 +141,6 @@ public class ArrowSchemaUtil {
   }
 
   public static Field convertToInt(final NestedField field) {
-
     final ArrowType arrowType = new ArrowType.Int(Integer.SIZE, true /* signed */);
     return new Field(field.name(), new FieldType(field.isOptional(), arrowType, null, null), Lists.newArrayList());
   }
