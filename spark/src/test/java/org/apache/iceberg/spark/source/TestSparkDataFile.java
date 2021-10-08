@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestReader;
@@ -160,7 +161,10 @@ public abstract class TestSparkDataFile {
 
     List<DataFile> dataFiles = Lists.newArrayList();
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifests.get(0), table.io())) {
-      reader.forEach(dataFile -> dataFiles.add(dataFile.copy()));
+      for (DataFile dataFile : reader) {
+        checkDataFile(dataFile.copy(), DataFiles.builder(table.spec()).copy(dataFile).build());
+        dataFiles.add(dataFile.copy());
+      }
     }
 
     Dataset<Row> dataFileDF = spark.read().format("iceberg").load(tableLocation + "#files");

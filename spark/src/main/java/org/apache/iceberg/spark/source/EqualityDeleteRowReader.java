@@ -26,7 +26,6 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.util.PartitionUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 
@@ -44,7 +43,7 @@ public class EqualityDeleteRowReader extends RowDataReader {
 
     // schema or rows returned by readers
     Schema requiredSchema = matches.requiredSchema();
-    Map<Integer, ?> idToConstant = PartitionUtil.constantsMap(task, RowDataReader::convertConstant);
+    Map<Integer, ?> idToConstant = constantsMap(task, expectedSchema);
     DataFile file = task.file();
 
     // update the current file for Spark's filename() function

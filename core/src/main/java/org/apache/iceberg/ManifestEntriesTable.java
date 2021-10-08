@@ -29,6 +29,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.StructProjection;
 
 /**
  * A {@link Table} implementation that exposes a table's manifest entries as rows, for both delete and data files.
@@ -53,8 +55,9 @@ public class ManifestEntriesTable extends BaseMetadataTable {
 
   @Override
   public Schema schema() {
-    Schema schema = ManifestEntry.getSchema(table().spec().partitionType());
-    if (table().spec().fields().size() < 1) {
+    StructType partitionType = Partitioning.partitionType(table());
+    Schema schema = ManifestEntry.getSchema(partitionType);
+    if (partitionType.fields().size() < 1) {
       // avoid returning an empty struct, which is not always supported. instead, drop the partition field (id 102)
       return TypeUtil.selectNot(schema, Sets.newHashSet(102));
     } else {
@@ -107,44 +110,53 @@ public class ManifestEntriesTable extends BaseMetadataTable {
         boolean ignoreResiduals, boolean caseSensitive, boolean colStats) {
       // return entries from both data and delete manifests
       CloseableIterable<ManifestFile> manifests = CloseableIterable.withNoopClose(snapshot.allManifests());
-      Type fileProjection = schema().findType("data_file");
-      Schema fileSchema = fileProjection != null ? new Schema(fileProjection.asStructType().fields()) : new Schema();
       String schemaString = SchemaParser.toJson(schema());
       String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
       Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
       return CloseableIterable.transform(manifests, manifest ->
-          new ManifestReadTask(ops.io(), manifest, fileSchema, schemaString, specString, residuals,
+          new ManifestReadTask(ops.io(), manifest, schema(), schemaString, specString, residuals,
               ops.current().specsById()));
     }
   }
 
   static class ManifestReadTask extends BaseFileScanTask implements DataTask {
+    private final Schema schema;
     private final Schema fileSchema;
     private final FileIO io;
     private final ManifestFile manifest;
     private final Map<Integer, PartitionSpec> specsById;
 
-    ManifestReadTask(FileIO io, ManifestFile manifest, Schema fileSchema, String schemaString,
+    ManifestReadTask(FileIO io, ManifestFile manifest, Schema schema, String schemaString,
                      String specString, ResidualEvaluator residuals, Map<Integer, PartitionSpec> specsById) {
       super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
-      this.fileSchema = fileSchema;
+      this.schema = schema;
       this.io = io;
       this.manifest = manifest;
       this.specsById = specsById;
+
+      Type fileProjection = schema.findType("data_file");
+      this.fileSchema = fileProjection != null ? new Schema(fileProjection.asStructType().fields()) : new Schema();
     }
 
     @Override
     public CloseableIterable<StructLike> rows() {
+      // Project data-file fields
+      CloseableIterable<StructLike> prunedRows;
       if (manifest.content() == ManifestContent.DATA) {
-        return CloseableIterable.transform(ManifestFiles.read(manifest, io).project(fileSchema).entries(),
+        prunedRows = CloseableIterable.transform(ManifestFiles.read(manifest, io).project(fileSchema).entries(),
             file -> (GenericManifestEntry<DataFile>) file);
       } else {
-        return CloseableIterable.transform(ManifestFiles.readDeleteManifest(manifest, io, specsById)
+        prunedRows = CloseableIterable.transform(ManifestFiles.readDeleteManifest(manifest, io, specsById)
                 .project(fileSchema).entries(),
             file -> (GenericManifestEntry<DeleteFile>) file);
       }
+
+      // Project non-readable fields
+      Schema readSchema = ManifestEntry.wrapFileSchema(fileSchema.asStruct());
+      StructProjection projection = StructProjection.create(readSchema, schema);
+      return CloseableIterable.transform(prunedRows, projection::wrap);
     }
 
     @Override

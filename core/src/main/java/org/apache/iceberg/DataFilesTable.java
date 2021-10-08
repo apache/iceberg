@@ -21,12 +21,16 @@ package org.apache.iceberg;
 
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.ManifestEvaluator;
+import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types.StructType;
 
 /**
  * A {@link Table} implementation that exposes a table's data files as rows.
@@ -48,8 +52,9 @@ public class DataFilesTable extends BaseMetadataTable {
 
   @Override
   public Schema schema() {
-    Schema schema = new Schema(DataFile.getType(table().spec().partitionType()).fields());
-    if (table().spec().fields().size() < 1) {
+    StructType partitionType = Partitioning.partitionType(table());
+    Schema schema = new Schema(DataFile.getType(partitionType).fields());
+    if (partitionType.fields().size() < 1) {
       // avoid returning an empty struct, which is not always supported. instead, drop the partition field
       return TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));
     } else {
@@ -109,12 +114,23 @@ public class DataFilesTable extends BaseMetadataTable {
       Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
+      // use an inclusive projection to remove the partition name prefix and filter out any non-partition expressions
+      Expression partitionFilter = Projections
+          .inclusive(
+              transformSpec(fileSchema, table().spec(), PARTITION_FIELD_PREFIX),
+              caseSensitive)
+          .project(rowFilter);
+
+      ManifestEvaluator manifestEval = ManifestEvaluator.forPartitionFilter(
+          partitionFilter, table().spec(), caseSensitive);
+      CloseableIterable<ManifestFile> filtered = CloseableIterable.filter(manifests, manifestEval::eval);
+
       // Data tasks produce the table schema, not the projection schema and projection is done by processing engines.
       // This data task needs to use the table schema, which may not include a partition schema to avoid having an
       // empty struct in the schema for unpartitioned tables. Some engines, like Spark, can't handle empty structs in
       // all cases.
-      return CloseableIterable.transform(manifests, manifest ->
-          new ManifestReadTask(ops.io(), manifest, fileSchema, schemaString, specString, residuals));
+      return CloseableIterable.transform(filtered, manifest ->
+          new ManifestReadTask(ops.io(), manifest, schema(), schemaString, specString, residuals));
     }
   }
 
@@ -141,6 +157,11 @@ public class DataFilesTable extends BaseMetadataTable {
     @Override
     public Iterable<FileScanTask> split(long splitSize) {
       return ImmutableList.of(this); // don't split
+    }
+
+    @VisibleForTesting
+    ManifestFile manifest() {
+      return manifest;
     }
   }
 }

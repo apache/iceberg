@@ -118,7 +118,13 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     table = catalog.loadTable(tableIdent);
     Assert.assertNull(table.currentSnapshot());
-    Assert.assertTrue(table.spec().isUnpartitioned());
+    PartitionSpec v1Expected = PartitionSpec.builderFor(table.schema())
+        .alwaysNull("data", "data_bucket")
+        .withSpecId(1)
+        .build();
+    Assert.assertEquals("Table should have a spec with one void field",
+        v1Expected, table.spec());
+
     Assert.assertEquals("value1", table.properties().get("key1"));
     Assert.assertEquals("value2", table.properties().get("key2"));
   }
@@ -229,6 +235,24 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
 
     catalog.dropTable(testTable);
     Assert.assertFalse(fs.isDirectory(new Path(metaLocation)));
+  }
+
+  @Test
+  public void testDropNonIcebergTable() throws Exception {
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+    HadoopCatalog catalog = new HadoopCatalog(conf, warehousePath);
+    TableIdentifier testTable = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    String metaLocation = catalog.defaultWarehouseLocation(testTable);
+    // testing with non existent directory
+    Assert.assertFalse(catalog.dropTable(testTable));
+
+    FileSystem fs = Util.getFs(new Path(metaLocation), conf);
+    fs.mkdirs(new Path(metaLocation));
+    Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
+
+    Assert.assertFalse(catalog.dropTable(testTable));
+    Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
   }
 
   @Test

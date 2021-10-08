@@ -33,6 +33,18 @@ The `iceberg-nessie` module is bundled with Spark and Flink runtimes for all ver
 with Nessie and Iceberg simply add the Iceberg runtime to your process. Eg: `spark-sql --packages
 org.apache.iceberg:iceberg-spark3-runtiume:{{ versions.iceberg }}`. 
 
+## Spark SQL Extensions
+
+From spark, Nessie SQL extensions can be used to manage the Nessie repo as shown below. 
+
+```
+bin/spark-sql 
+  --packages "org.apache.iceberg:iceberg-spark3-runtime:{{ versions.iceberg }},org.projectnessie:nessie-spark-extensions:{{ versions.nessie }}"
+  --conf spark.sql.extensions="org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions,org.projectnessie.spark.extensions.NessieSparkSessionExtensions"
+  --conf <other settings>
+```
+Please refer [Nessie SQL extension document](https://projectnessie.org/tools/sql/) to learn more about it.
+
 ## Nessie Catalog
 
 One major feature introduced in release `0.11.0` is the ability to easily interact with a [Custom
@@ -63,6 +75,7 @@ conf.set("spark.sql.catalog.nessie.uri", "http://localhost:19120/api/v1")
 conf.set("spark.sql.catalog.nessie.ref", "main")
 conf.set("spark.sql.catalog.nessie.catalog-impl", "org.apache.iceberg.nessie.NessieCatalog")
 conf.set("spark.sql.catalog.nessie", "org.apache.iceberg.spark.SparkCatalog")
+conf.set("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions,org.projectnessie.spark.extensions.NessieSparkSessionExtensions")
 ```
 This is how it looks in Flink via the Python API (additional details can be found [here](flink.md)):
 ```python
@@ -71,7 +84,7 @@ from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.table import StreamTableEnvironment
 
 env = StreamExecutionEnvironment.get_execution_environment()
-iceberg_flink_runtime_jar = os.path.join(os.getcwd(), "iceberg-flink-runtime-0.11.1.jar")
+iceberg_flink_runtime_jar = os.path.join(os.getcwd(), "iceberg-flink-runtime-{{ versions.iceberg }}.jar")
 env.add_jars("file://{}".format(iceberg_flink_runtime_jar))
 table_env = StreamTableEnvironment.create(env)
 
@@ -94,7 +107,7 @@ to the set of single table transactions currently available.
 
 Further operations such as merges, viewing the commit log or diffs are performed by direct interaction with the
 `NessieClient` in java or by using the python client or cli. See [Nessie CLI](https://projectnessie.org/tools/cli/) for
-more details on the CLI and [Spark Guide](https://projectnessie.org/tools/spark/) for a more complete description of 
+more details on the CLI and [Spark Guide](https://projectnessie.org/tools/iceberg/spark/) for a more complete description of 
 Nessie functionality.
 
 ## Nessie and Iceberg
@@ -140,5 +153,4 @@ for different examples of Nessie and Iceberg in action together.
 
 ## Future Improvements
 
-* Nessie SQL extensions to manage the Nessie repo from Spark SQL
 * Iceberg multi-table transactions. Changes to multiple Iceberg tables in the same transaction, isolation levels etc

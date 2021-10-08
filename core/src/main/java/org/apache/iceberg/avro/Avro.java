@@ -118,6 +118,7 @@ public class Avro {
     public WriteBuilder forTable(Table table) {
       schema(table.schema());
       setAll(table.properties());
+      metricsConfig(MetricsConfig.forTable(table));
       return this;
     }
 
@@ -256,7 +257,7 @@ public class Avro {
       schema(table.schema());
       withSpec(table.spec());
       setAll(table.properties());
-      metricsConfig(MetricsConfig.fromProperties(table.properties()));
+      metricsConfig(MetricsConfig.forTable(table));
       return this;
     }
 
@@ -321,6 +322,8 @@ public class Avro {
 
     public <T> DataWriter<T> build() throws IOException {
       Preconditions.checkArgument(spec != null, "Cannot create data writer without spec");
+      Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
+          "Partition must not be null when creating data writer for partitioned spec");
 
       FileAppender<T> fileAppender = appenderBuilder.build();
       return new DataWriter<>(fileAppender, FileFormat.AVRO, location, spec, partition, keyMetadata, sortOrder);
@@ -351,6 +354,7 @@ public class Avro {
       rowSchema(table.schema());
       withSpec(table.spec());
       setAll(table.properties());
+      metricsConfig(MetricsConfig.forTable(table));
       return this;
     }
 
@@ -380,6 +384,11 @@ public class Avro {
 
     public DeleteWriteBuilder overwrite(boolean enabled) {
       appenderBuilder.overwrite(enabled);
+      return this;
+    }
+
+    public DeleteWriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
+      appenderBuilder.metricsConfig(newMetricsConfig);
       return this;
     }
 
@@ -428,6 +437,10 @@ public class Avro {
       Preconditions.checkState(equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
       Preconditions.checkState(createWriterFunc != null,
           "Cannot create equality delete file unless createWriterFunc is set");
+      Preconditions.checkArgument(spec != null,
+          "Spec must not be null when creating equality delete writer");
+      Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
+          "Partition must not be null for partitioned writes");
 
       meta("delete-type", "equality");
       meta("delete-field-ids", IntStream.of(equalityFieldIds)
@@ -446,6 +459,10 @@ public class Avro {
 
     public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {
       Preconditions.checkState(equalityFieldIds == null, "Cannot create position delete file using delete field ids");
+      Preconditions.checkArgument(spec != null,
+          "Spec must not be null when creating position delete writer");
+      Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
+          "Partition must not be null for partitioned writes");
 
       meta("delete-type", "position");
 

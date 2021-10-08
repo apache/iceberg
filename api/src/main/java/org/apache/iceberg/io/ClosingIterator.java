@@ -23,35 +23,38 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
 
+/**
+ * A convenience wrapper around {@link CloseableIterator}, providing auto-close
+ * functionality when all of the elements in the iterator are consumed.
+ */
 public class ClosingIterator<T> implements Iterator<T> {
   private final CloseableIterator<T> iterator;
-  private boolean shouldClose = false;
+  private boolean isClosed;
 
   public ClosingIterator(CloseableIterator<T> iterator) {
     this.iterator = iterator;
-
   }
 
   @Override
   public boolean hasNext() {
     boolean hasNext = iterator.hasNext();
-    this.shouldClose = !hasNext;
+    if (!hasNext && !isClosed) {
+      close();
+    }
     return hasNext;
   }
 
   @Override
   public T next() {
-    T next = iterator.next();
+    return iterator.next();
+  }
 
-    if (shouldClose) {
-      // this will only be called once because iterator.next would throw NoSuchElementException
-      try {
-        iterator.close();
-      } catch (IOException e) {
-        throw new UncheckedIOException(e);
-      }
+  private void close() {
+    try {
+      iterator.close();
+      isClosed = true;
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
     }
-
-    return next;
   }
 }

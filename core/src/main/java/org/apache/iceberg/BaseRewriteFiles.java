@@ -21,8 +21,12 @@ package org.apache.iceberg;
 
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements RewriteFiles {
+  private final Set<DataFile> replacedDataFiles = Sets.newHashSet();
+  private Long startingSnapshotId = null;
+
   BaseRewriteFiles(String tableName, TableOperations ops) {
     super(tableName, ops);
 
@@ -63,15 +67,16 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
   }
 
   @Override
-  public RewriteFiles rewriteFiles(Set<DataFile> dataFilesToDelete, Set<DeleteFile> deleteFilesToDelete,
+  public RewriteFiles rewriteFiles(Set<DataFile> dataFilesToReplace, Set<DeleteFile> deleteFilesToReplace,
                                    Set<DataFile> dataFilesToAdd, Set<DeleteFile> deleteFilesToAdd) {
-    verifyInputAndOutputFiles(dataFilesToDelete, deleteFilesToDelete, dataFilesToAdd, deleteFilesToAdd);
+    verifyInputAndOutputFiles(dataFilesToReplace, deleteFilesToReplace, dataFilesToAdd, deleteFilesToAdd);
+    replacedDataFiles.addAll(dataFilesToReplace);
 
-    for (DataFile dataFile : dataFilesToDelete) {
+    for (DataFile dataFile : dataFilesToReplace) {
       delete(dataFile);
     }
 
-    for (DeleteFile deleteFile : deleteFilesToDelete) {
+    for (DeleteFile deleteFile : deleteFilesToReplace) {
       delete(deleteFile);
     }
 
@@ -84,5 +89,19 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
     }
 
     return this;
+  }
+
+  @Override
+  public RewriteFiles validateFromSnapshot(long snapshotId) {
+    this.startingSnapshotId = snapshotId;
+    return this;
+  }
+
+  @Override
+  protected void validate(TableMetadata base) {
+    if (replacedDataFiles.size() > 0) {
+      // if there are replaced data files, there cannot be any new row-level deletes for those data files
+      validateNoNewDeletesForDataFiles(base, startingSnapshotId, replacedDataFiles);
+    }
   }
 }

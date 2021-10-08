@@ -19,15 +19,25 @@
 
 This is a specification for the Iceberg table format that is designed to manage a large, slow-changing collection of files in a distributed file system or key-value store as a table.
 
+## Format Versioning
+
+Versions 1 and 2 of the Iceberg spec are complete and adopted by the community.
+
+The format version number is incremented when new features are added that will break forward-compatibility---that is, when older readers would not read newer table features correctly. Tables may continue to be written with an older version of the spec to ensure compatibility by not using features that are not yet implemented by processing engines.
+
 #### Version 1: Analytic Data Tables
 
-**Iceberg format version 1 is the current version**. It defines how to manage large analytic tables using immutable file formats, like Parquet, Avro, and ORC.
+Version 1 of the Iceberg spec defines how to manage large analytic tables using immutable file formats: Parquet, Avro, and ORC.
+
+All version 1 data and metadata files are valid after upgrading a table to version 2. [Appendix E](#version-2) documents how to default version 2 fields when reading version 1 metadata.
 
 #### Version 2: Row-level Deletes
 
-The Iceberg community is currently working on version 2 of the Iceberg format that supports encoding row-level deletes. **The v2 specification is incomplete and may change until it is finished and adopted.** This document includes tentative v2 format requirements, but there are currently no compatibility guarantees with the unfinished v2 spec.
+Version 2 of the Iceberg spec adds row-level updates and deletes for analytic tables with immutable files.
 
-The primary goal of version 2 is to provide a way to encode row-level deletes. This update can be used to delete or replace individual rows in an immutable data file without rewriting the file.
+The primary change in version 2 adds delete files to encode that rows that are deleted in existing data files. This version can be used to delete or replace individual rows in immutable data files without rewriting the files.
+
+In addition to row-level deletes, version 2 makes some requirements stricter for writers. The full set of changes are listed in [Appendix E](#version-2).
 
 
 ## Goals
@@ -222,6 +232,9 @@ The set of metadata columns is:
 |-----------------------------|---------------|-------------|
 | **`2147483646  _file`**     | `string`      | Path of the file in which a row is stored |
 | **`2147483645  _pos`**      | `long`        | Ordinal position of a row in the source data file |
+| **`2147483644  _deleted`**  | `boolean`     | Whether the row has been deleted |
+| **`2147483643  _spec_id`**  | `int`         | Spec ID used to track the file containing a row |
+| **`2147483642  _partition`** | `struct`     | Partition to which a row belongs |
 | **`2147483546  file_path`** | `string`      | Path of a file, used in position-based delete files |
 | **`2147483545  pos`**       | `long`        | Ordinal position of a row, used in position-based delete files |
 | **`2147483544  row`**       | `struct<...>` | Deleted row values, used in position-based delete files |
@@ -253,7 +266,7 @@ Partition specs capture the transform from table data to partition values. This 
 | **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`                                                                        | `int`       |
 | **`month`**       | Extract a date or timestamp month, as months from 1970-01-01 | `date`, `timestamp`, `timestamptz`                                                                        | `int`       |
 | **`day`**         | Extract a date or timestamp day, as days from 1970-01-01     | `date`, `timestamp`, `timestamptz`                                                                        | `date`      |
-| **`hour`**        | Extract a timestamp hour, as hours from 1970-01-01 00:00:00  | `timestamp(tz)`                                                                                           | `int`       |
+| **`hour`**        | Extract a timestamp hour, as hours from 1970-01-01 00:00:00  | `timestamp`, `timestamptz`                                                                                        | `int`       |
 | **`void`**        | Always produces `null`                                       | Any                                                                                                       | Source type or `int` |
 
 All transforms must return `null` for a `null` input value.
@@ -375,7 +388,7 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 | _optional_ | _optional_ | **`109  value_counts`**           | `map<119: int, 120: long>`   | Map from column id to number of values in the column (including null and NaN values) |
 | _optional_ | _optional_ | **`110  null_value_counts`**      | `map<121: int, 122: long>`   | Map from column id to number of null values in the column |
 | _optional_ | _optional_ | **`137  nan_value_counts`**       | `map<138: int, 139: long>`   | Map from column id to number of NaN values in the column |
-| _optional_ |            | ~~**`111 distinct_counts`**~~     | `map<123: int, 124: long>`   | **Deprecated. Do not write.** |
+| _optional_ | _optional_ | **`111  distinct_counts`**        | `map<123: int, 124: long>`   | Map from column id to number of distinct values in the column; distinct counts must be derived using values in the file by counting or using sketches, but not using methods like merging existing distinct counts |
 | _optional_ | _optional_ | **`125  lower_bounds`**           | `map<126: int, 127: binary>` | Map from column id to lower bound in the column serialized as binary [1]. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2] |
 | _optional_ | _optional_ | **`128  upper_bounds`**           | `map<129: int, 130: binary>` | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file [2] |
 | _optional_ | _optional_ | **`131  key_metadata`**           | `binary`                     | Implementation-specific key metadata for encryption |
@@ -490,7 +503,7 @@ Manifest list files store `manifest_file`, a struct with the following fields:
 | v1         | v2         | Field id, name          | Type          | Description |
 | ---------- | ---------- |-------------------------|---------------|-------------|
 | _required_ | _required_ | **`509 contains_null`** | `boolean`     | Whether the manifest contains at least one partition with a null value for the field |
-| _optional_ | _required_ | **`518 contains_nan`**  | `boolean`     | Whether the manifest contains at least one partition with a NaN value for the field |
+| _optional_ | _optional_ | **`518 contains_nan`**  | `boolean`     | Whether the manifest contains at least one partition with a NaN value for the field |
 | _optional_ | _optional_ | **`510 lower_bound`**   | `bytes`   [1] | Lower bound for the non-null, non-NaN values in the partition field, or null if all values are null or NaN [2] |
 | _optional_ | _optional_ | **`511 upper_bound`**   | `bytes`   [1] | Upper bound for the non-null, non-NaN values in the partition field, or null if all values are null or NaN [2] |
 
@@ -548,7 +561,7 @@ Table metadata consists of the following fields:
 
 | v1         | v2         | Field | Description |
 | ---------- | ---------- | ----- | ----------- |
-| _required_ | _required_ | **`format-version`** | An integer version number for the format. Currently, this is always 1. Implementations must throw an exception if a table's version is higher than the supported version. |
+| _required_ | _required_ | **`format-version`** | An integer version number for the format. Currently, this can be 1 or 2 based on the spec. Implementations must throw an exception if a table's version is higher than the supported version. |
 | _optional_ | _required_ | **`table-uuid`** | A UUID that identifies the table, generated when the table is created. Implementations must throw an exception if a table's UUID does not match the expected UUID after refreshing metadata. |
 | _required_ | _required_ | **`location`**| The table's base location. This is used by writers to determine where to store data files, manifest files, and table metadata files. |
 |            | _required_ | **`last-sequence-number`**| The table's highest assigned sequence number, a monotonically increasing long that tracks the order of snapshots in a table. |
@@ -1002,7 +1015,7 @@ This serialization scheme is for storing single values as individual binary valu
 | **`map`**                    | Not supported                                                                                                |
 
 
-## Format version changes
+## Appendix E: Format version changes
 
 ### Version 2
 
@@ -1054,8 +1067,6 @@ Writing v2 metadata:
     * `added_rows_count` is now required
     * `existing_rows_count` is now required
     * `deleted_rows_count` is now required
-* Manifest list `field_summary`:
-    * `contains_nan` is now required
 * Manifest key-value metadata:
     * `schema-id` is now required
     * `partition-spec-id` is now required
@@ -1070,6 +1081,5 @@ Writing v2 metadata:
     * `block_size_in_bytes` was removed (breaks v1 reader compatibility)
     * `file_ordinal` was removed
     * `sort_columns` was removed
-    * `distinct_counts` was removed
 
 Note that these requirements apply when writing data to a v2 table. Tables that are upgraded from v1 may contain metadata that does not follow these requirements. Implementations should remain backward-compatible with v1 metadata requirements.

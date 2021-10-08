@@ -32,6 +32,7 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -52,7 +53,6 @@ public class RowDataRewriter {
   private static final Logger LOG = LoggerFactory.getLogger(RowDataRewriter.class);
 
   private final Schema schema;
-  private final FileFormat format;
   private final String nameMapping;
   private final FileIO io;
   private final boolean caseSensitive;
@@ -70,19 +70,15 @@ public class RowDataRewriter {
 
     String formatString = PropertyUtil.propertyAsString(table.properties(), TableProperties.DEFAULT_FILE_FORMAT,
         TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
-    this.format = FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
+    FileFormat format = FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
     RowType flinkSchema = FlinkSchemaUtil.convert(table.schema());
     this.taskWriterFactory = new RowDataTaskWriterFactory(
-        table.schema(),
+        SerializableTable.copyOf(table),
         flinkSchema,
-        table.spec(),
-        table.locationProvider(),
-        io,
-        encryptionManager,
         Long.MAX_VALUE,
         format,
-        table.properties(),
-        null);
+        null,
+        false);
   }
 
   public List<DataFile> rewriteDataForTasks(DataStream<CombinedScanTask> dataStream, int parallelism) throws Exception {
@@ -104,6 +100,7 @@ public class RowDataRewriter {
     private final boolean caseSensitive;
     private final EncryptionManager encryptionManager;
     private final TaskWriterFactory<RowData> taskWriterFactory;
+    private final RowDataFileScanTaskReader rowDataReader;
 
     public RewriteMap(Schema schema, String nameMapping, FileIO io, boolean caseSensitive,
                       EncryptionManager encryptionManager, TaskWriterFactory<RowData> taskWriterFactory) {
@@ -113,6 +110,7 @@ public class RowDataRewriter {
       this.caseSensitive = caseSensitive;
       this.encryptionManager = encryptionManager;
       this.taskWriterFactory = taskWriterFactory;
+      this.rowDataReader = new RowDataFileScanTaskReader(schema, schema, nameMapping, caseSensitive);
     }
 
     @Override
@@ -127,8 +125,8 @@ public class RowDataRewriter {
     public List<DataFile> map(CombinedScanTask task) throws Exception {
       // Initialize the task writer.
       this.writer = taskWriterFactory.create();
-      try (RowDataIterator iterator =
-               new RowDataIterator(task, io, encryptionManager, schema, schema, nameMapping, caseSensitive)) {
+      try (DataIterator<RowData> iterator =
+               new DataIterator<>(rowDataReader, task, io, encryptionManager)) {
         while (iterator.hasNext()) {
           RowData rowData = iterator.next();
           writer.write(rowData);

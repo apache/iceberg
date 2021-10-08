@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.io;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Comparator;
@@ -28,15 +27,17 @@ import java.util.Map;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.CharSequenceWrapper;
 
-class SortedPosDeleteWriter<T> implements Closeable {
+class SortedPosDeleteWriter<T> implements FileWriter<PositionDelete<T>, DeleteWriteResult> {
   private static final long DEFAULT_RECORDS_NUM_THRESHOLD = 100_000L;
 
   private final Map<CharSequenceWrapper, List<PosRow<T>>> posDeletes = Maps.newHashMap();
@@ -51,6 +52,7 @@ class SortedPosDeleteWriter<T> implements Closeable {
   private final long recordsNumThreshold;
 
   private int records = 0;
+  private boolean closed = false;
 
   SortedPosDeleteWriter(FileAppenderFactory<T> appenderFactory,
                         OutputFileFactory fileFactory,
@@ -69,6 +71,16 @@ class SortedPosDeleteWriter<T> implements Closeable {
                         FileFormat format,
                         StructLike partition) {
     this(appenderFactory, fileFactory, format, partition, DEFAULT_RECORDS_NUM_THRESHOLD);
+  }
+
+  @Override
+  public long length() {
+    throw new UnsupportedOperationException(this.getClass().getName() + " does not implement length");
+  }
+
+  @Override
+  public void write(PositionDelete<T> payload) {
+    delete(payload.path(), payload.pos(), payload.row());
   }
 
   public void delete(CharSequence path, long pos) {
@@ -103,7 +115,16 @@ class SortedPosDeleteWriter<T> implements Closeable {
 
   @Override
   public void close() throws IOException {
-    flushDeletes();
+    if (!closed) {
+      flushDeletes();
+      this.closed = true;
+    }
+  }
+
+  @Override
+  public DeleteWriteResult result() {
+    Preconditions.checkState(closed, "Cannot get result from unclosed writer");
+    return new DeleteWriteResult(completedFiles, referencedDataFiles);
   }
 
   private void flushDeletes() {

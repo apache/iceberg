@@ -20,6 +20,7 @@
 package org.apache.iceberg.aws.s3;
 
 import com.adobe.testing.s3mock.junit4.S3MockRule;
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -29,6 +30,7 @@ import java.util.UUID;
 import java.util.stream.Stream;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -72,6 +74,7 @@ public class S3OutputStreamTest {
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3));
   private final Random random = new Random(1);
   private final Path tmpDir = Files.createTempDirectory("s3fileio-test-");
+  private final String newTmpDirectory = "/tmp/newStagingDirectory";
 
   private final AwsProperties properties = new AwsProperties(ImmutableMap.of(
       AwsProperties.S3FILEIO_MULTIPART_SIZE, Integer.toString(5 * 1024 * 1024),
@@ -83,6 +86,14 @@ public class S3OutputStreamTest {
   @Before
   public void before() {
     s3.createBucket(CreateBucketRequest.builder().bucket(BUCKET).build());
+  }
+
+  @After
+  public void after() {
+    File newStagingDirectory = new File(newTmpDirectory);
+    if (newStagingDirectory.exists()) {
+      newStagingDirectory.delete();
+    }
   }
 
   @Test
@@ -137,6 +148,14 @@ public class S3OutputStreamTest {
   public void testMultipleClose() throws IOException {
     S3OutputStream stream = new S3OutputStream(s3, randomURI(), properties);
     stream.close();
+    stream.close();
+  }
+
+  @Test
+  public void testStagingDirectoryCreation() throws IOException {
+    AwsProperties newStagingDirectoryAwsProperties = new AwsProperties(ImmutableMap.of(
+        AwsProperties.S3FILEIO_STAGING_DIRECTORY, newTmpDirectory));
+    S3OutputStream stream = new S3OutputStream(s3, randomURI(), newStagingDirectoryAwsProperties);
     stream.close();
   }
 

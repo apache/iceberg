@@ -19,10 +19,40 @@
 
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
+### [Apache Iceberg: An Architectural Look Under the Covers](https://www.dremio.com/apache-iceberg-an-architectural-look-under-the-covers/)
+**Date**: July 6th, 2021, **Company**: Dremio
+
+**Author**: [Jason Hughes](https://www.linkedin.com/in/jasonhhughes/)
+
 ### [Migrating to Apache Iceberg at Adobe Experience Platform](https://medium.com/adobetech/migrating-to-apache-iceberg-at-adobe-experience-platform-40fa80f8b8de)
 **Date**: Jun 17th, 2021, **Company**: Adobe
 
 **Author**: [Romin Parekh](https://www.linkedin.com/in/rominparekh/), [Miao Wang](https://www.linkedin.com/in/miao-wang-0406a74/), [Shone Sadler](https://www.linkedin.com/in/shonesadler/)
+
+### [Flink + Iceberg: How to Construct a Whole-scenario Real-time Data Warehouse](https://www.alibabacloud.com/blog/flink-%2B-iceberg-how-to-construct-a-whole-scenario-real-time-data-warehouse_597824)
+**Date**: Jun 8th, 2021, **Company**: Tencent
+
+**Author** [Shu (Simon Su) Su](https://www.linkedin.com/in/shu-su-62944994/)
+
+### [Trino on Ice III: Iceberg Concurrency Model, Snapshots, and the Iceberg Spec](https://blog.starburst.io/trino-on-ice-iii-iceberg-concurrency-model-snapshots-and-the-iceberg-spec)
+**Date**: May 25th, 2021, **Company**: Starburst
+
+**Author**: [Brian Olsen](https://www.linkedin.com/in/bitsondatadev)
+
+### [Trino on Ice II: In-Place Table Evolution and Cloud Compatibility with Iceberg](https://blog.starburst.io/trino-on-ice-ii-in-place-table-evolution-and-cloud-compatibility-with-iceberg)
+**Date**: May 11th, 2021, **Company**: Starburst
+
+**Author**: [Brian Olsen](https://www.linkedin.com/in/bitsondatadev)
+
+### [Trino On Ice I: A Gentle Introduction To Iceberg](https://blog.starburst.io/trino-on-ice-i-a-gentle-introduction-to-iceberg)
+**Date**: Apr 27th, 2021, **Company**: Starburst
+
+**Author**: [Brian Olsen](https://www.linkedin.com/in/bitsondatadev)
+
+### [Apache Iceberg: A Different Table Design for Big Data](https://thenewstack.io/apache-iceberg-a-different-table-design-for-big-data/)
+**Date**: Feb 1st, 2021, **Company**: thenewstack.io
+
+**Author**: [Susan Hall](https://thenewstack.io/author/susanhall/)
 
 ### [A Short Introduction to Apache Iceberg](https://medium.com/expedia-group-tech/a-short-introduction-to-apache-iceberg-d34f628b6799)
 **Date**: Jan 26th, 2021, **Company**: Expedia

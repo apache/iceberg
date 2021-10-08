@@ -21,7 +21,7 @@ package org.apache.iceberg;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
@@ -44,6 +44,7 @@ public class FindFiles {
     private final Table table;
     private final TableOperations ops;
     private boolean caseSensitive = true;
+    private boolean includeColumnStats = false;
     private Long snapshotId = null;
     private Expression rowFilter = Expressions.alwaysTrue();
     private Expression fileFilter = Expressions.alwaysTrue();
@@ -61,6 +62,11 @@ public class FindFiles {
 
     public Builder caseSensitive(boolean findCaseSensitive) {
       this.caseSensitive = findCaseSensitive;
+      return this;
+    }
+
+    public Builder includeColumnStats() {
+      this.includeColumnStats = true;
       return this;
     }
 
@@ -103,7 +109,7 @@ public class FindFiles {
       // case, there is no valid snapshot to read.
       Preconditions.checkArgument(lastSnapshotId != null,
           "Cannot find a snapshot older than %s",
-          DATE_FORMAT.format(LocalDateTime.ofInstant(Instant.ofEpochMilli(timestampMillis), ZoneId.systemDefault())));
+          DATE_FORMAT.format(LocalDateTime.ofInstant(Instant.ofEpochMilli(timestampMillis), ZoneOffset.UTC)));
       return inSnapshot(lastSnapshotId);
     }
 
@@ -206,7 +212,8 @@ public class FindFiles {
           .caseSensitive(caseSensitive)
           .entries();
 
-      return CloseableIterable.transform(entries, entry -> entry.file().copyWithoutStats());
+      return CloseableIterable.transform(entries,
+          entry -> includeColumnStats ? entry.file().copy() : entry.file().copyWithoutStats());
     }
   }
 }

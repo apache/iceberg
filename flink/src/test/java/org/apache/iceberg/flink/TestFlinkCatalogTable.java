@@ -35,6 +35,7 @@ import org.apache.flink.table.catalog.CatalogTable;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -44,6 +45,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -237,6 +239,44 @@ public class TestFlinkCatalogTable extends FlinkCatalogTestBase {
         catalogTable.getSchema());
     Assert.assertEquals(Maps.newHashMap(), catalogTable.getOptions());
     Assert.assertEquals(Collections.singletonList("dt"), catalogTable.getPartitionKeys());
+  }
+
+  @Test
+  public void testCreateTableWithFormatV2ThroughTableProperty() throws Exception {
+    sql("CREATE TABLE tl(id BIGINT) WITH ('format-version'='2')");
+
+    Table table = table("tl");
+    Assert.assertEquals("should create table using format v2",
+        2, ((BaseTable) table).operations().current().formatVersion());
+  }
+
+  @Test
+  public void testUpgradeTableWithFormatV2ThroughTableProperty() throws Exception {
+    sql("CREATE TABLE tl(id BIGINT) WITH ('format-version'='1')");
+
+    Table table = table("tl");
+    TableOperations ops = ((BaseTable) table).operations();
+    Assert.assertEquals("should create table using format v1",
+        1, ops.refresh().formatVersion());
+
+    sql("ALTER TABLE tl SET('format-version'='2')");
+    Assert.assertEquals("should update table to use format v2",
+        2, ops.refresh().formatVersion());
+  }
+
+  @Test
+  public void testDowngradeTableToFormatV1ThroughTablePropertyFails() throws Exception {
+    sql("CREATE TABLE tl(id BIGINT) WITH ('format-version'='2')");
+
+    Table table = table("tl");
+    TableOperations ops = ((BaseTable) table).operations();
+    Assert.assertEquals("should create table using format v2",
+        2, ops.refresh().formatVersion());
+
+    AssertHelpers.assertThrowsRootCause("should fail to downgrade to v1",
+        IllegalArgumentException.class,
+        "Cannot downgrade v2 table to v1",
+        () -> sql("ALTER TABLE tl SET('format-version'='1')"));
   }
 
   @Test

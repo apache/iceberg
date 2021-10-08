@@ -80,8 +80,7 @@ public class TestGenericSortedPosDeleteWriter extends TableTestBase {
     this.table = create(SCHEMA, PartitionSpec.unpartitioned());
     this.gRecord = GenericRecord.create(SCHEMA);
 
-    this.fileFactory = new OutputFileFactory(table.spec(), format, table.locationProvider(), table.io(),
-        table.encryption(), 1, 1);
+    this.fileFactory = OutputFileFactory.builderFor(table, 1, 1).format(format).build();
 
     table.updateProperties()
         .defaultFormat(format)

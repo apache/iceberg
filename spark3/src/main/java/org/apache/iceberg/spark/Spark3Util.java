@@ -32,9 +32,11 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.UpdateSchema;
@@ -59,7 +61,6 @@ import org.apache.iceberg.transforms.SortOrderVisitor;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SortOrderUtil;
@@ -530,10 +531,29 @@ public class Spark3Util {
     }
   }
 
-  public static int batchSize(Map<String, String> properties, CaseInsensitiveStringMap readOptions) {
-    return readOptions.getInt(SparkReadOptions.VECTORIZATION_BATCH_SIZE,
-        PropertyUtil.propertyAsInt(properties,
-            TableProperties.PARQUET_BATCH_SIZE, TableProperties.PARQUET_BATCH_SIZE_DEFAULT));
+  public static int batchSize(FileFormat fileFormat, Map<String, String> properties,
+                              CaseInsensitiveStringMap readOptions) {
+    String readOptionValue = readOptions.get(SparkReadOptions.VECTORIZATION_BATCH_SIZE);
+    if (readOptionValue != null) {
+      return Integer.parseInt(readOptionValue);
+    }
+
+    switch (fileFormat) {
+      case PARQUET:
+        return PropertyUtil.propertyAsInt(
+            properties,
+            TableProperties.PARQUET_BATCH_SIZE,
+            TableProperties.PARQUET_BATCH_SIZE_DEFAULT);
+
+      case ORC:
+        return PropertyUtil.propertyAsInt(
+            properties,
+            TableProperties.ORC_BATCH_SIZE,
+            TableProperties.ORC_BATCH_SIZE_DEFAULT);
+
+      default:
+        throw new IllegalArgumentException("File format does not support batch reads: " + fileFormat);
+    }
   }
 
   public static Long propertyAsLong(CaseInsensitiveStringMap options, String property, Long defaultValue) {
@@ -726,33 +746,34 @@ public class Spark3Util {
   }
 
   /**
-   * Returns a Metadata Table Dataset if it can be loaded from a Spark V2 Catalog
+   * Returns a metadata table as a Dataset based on the given Iceberg table.
    *
-   * Because Spark does not allow more than 1 piece in the namespace for a Session Catalog table, we circumvent
-   * the entire resolution path for tables and instead look up the table directly ourselves. This lets us correctly
-   * get metadata tables for the SessionCatalog, if we didn't have to work around this we could just use spark.table.
+   * @param spark SparkSession where the Dataset will be created
+   * @param table an Iceberg table
+   * @param type the type of metadata table
+   * @return a Dataset that will read the metadata table
+   */
+  private static Dataset<Row> loadMetadataTable(SparkSession spark, org.apache.iceberg.Table table,
+                                                MetadataTableType type) {
+    Table metadataTable = new SparkTable(MetadataTableUtils.createMetadataTableInstance(table, type), false);
+    return Dataset.ofRows(spark, DataSourceV2Relation.create(metadataTable, Some.empty(), Some.empty()));
+  }
+
+  /**
+   * Returns an Iceberg Table by its name from a Spark V2 Catalog. If cache is enabled in {@link SparkCatalog},
+   * the {@link TableOperations} of the table may be stale, please refresh the table to get the latest one.
    *
    * @param spark SparkSession used for looking up catalog references and tables
-   * @param name The multipart identifier of the base Iceberg table
-   * @param type The type of metadata table to load
-   * @return null if we cannot find the Metadata Table, a Dataset of rows otherwise
+   * @param name  The multipart identifier of the Iceberg table
+   * @return an Iceberg table
    */
-  private static Dataset<Row> loadCatalogMetadataTable(SparkSession spark, String name, MetadataTableType type) {
-    try {
-      CatalogAndIdentifier catalogAndIdentifier = catalogAndIdentifier(spark, name);
-      if (catalogAndIdentifier.catalog instanceof BaseCatalog) {
-        BaseCatalog catalog = (BaseCatalog) catalogAndIdentifier.catalog;
-        Identifier baseId = catalogAndIdentifier.identifier;
-        Identifier metaId = Identifier.of(ArrayUtil.add(baseId.namespace(), baseId.name()), type.name());
-        Table metaTable = catalog.loadTable(metaId);
-        return Dataset.ofRows(spark, DataSourceV2Relation.create(metaTable, Some.apply(catalog), Some.apply(metaId)));
-      }
-    } catch (NoSuchTableException | ParseException e) {
-      // Could not find table
-      return null;
-    }
-    // Could not find table
-    return null;
+  public static org.apache.iceberg.Table loadIcebergTable(SparkSession spark, String name)
+      throws ParseException, NoSuchTableException {
+    CatalogAndIdentifier catalogAndIdentifier = catalogAndIdentifier(spark, name);
+
+    TableCatalog catalog = asTableCatalog(catalogAndIdentifier.catalog);
+    Table sparkTable = catalog.loadTable(catalogAndIdentifier.identifier);
+    return toIcebergTable(sparkTable);
   }
 
   public static CatalogAndIdentifier catalogAndIdentifier(SparkSession spark, String name) throws ParseException {
@@ -816,6 +837,15 @@ public class Spark3Util {
         currentNamespace
     );
     return new CatalogAndIdentifier(catalogIdentifier);
+  }
+
+  private static TableCatalog asTableCatalog(CatalogPlugin catalog) {
+    if (catalog instanceof TableCatalog) {
+      return (TableCatalog) catalog;
+    }
+
+    throw new IllegalArgumentException(String.format(
+        "Cannot use catalog %s(%s): not a TableCatalog", catalog.name(), catalog.getClass().getName()));
   }
 
   /**

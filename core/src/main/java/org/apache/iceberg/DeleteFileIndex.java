@@ -24,6 +24,7 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -84,6 +85,20 @@ class DeleteFileIndex {
 
   public boolean isEmpty() {
     return (globalDeletes == null || globalDeletes.length == 0) && sortedDeletesByPartition.isEmpty();
+  }
+
+  public Iterable<DeleteFile> referencedDeleteFiles() {
+    Iterable<DeleteFile> deleteFiles = Collections.emptyList();
+
+    if (globalDeletes != null) {
+      deleteFiles = Iterables.concat(deleteFiles, Arrays.asList(globalDeletes));
+    }
+
+    for (Pair<long[], DeleteFile[]> partitionDeletes : sortedDeletesByPartition.values()) {
+      deleteFiles = Iterables.concat(deleteFiles, Arrays.asList(partitionDeletes.second()));
+    }
+
+    return deleteFiles;
   }
 
   private StructLikeWrapper newWrapper(int specId) {
@@ -312,6 +327,7 @@ class DeleteFileIndex {
   static class Builder {
     private final FileIO io;
     private final Set<ManifestFile> deleteManifests;
+    private long minSequenceNumber = 0L;
     private Map<Integer, PartitionSpec> specsById = null;
     private Expression dataFilter = Expressions.alwaysTrue();
     private Expression partitionFilter = Expressions.alwaysTrue();
@@ -321,6 +337,11 @@ class DeleteFileIndex {
     Builder(FileIO io, Set<ManifestFile> deleteManifests) {
       this.io = io;
       this.deleteManifests = Sets.newHashSet(deleteManifests);
+    }
+
+    Builder afterSequenceNumber(long seq) {
+      this.minSequenceNumber = seq;
+      return this;
     }
 
     Builder specsById(Map<Integer, PartitionSpec> newSpecsById) {
@@ -357,8 +378,10 @@ class DeleteFileIndex {
           .run(deleteFile -> {
             try (CloseableIterable<ManifestEntry<DeleteFile>> reader = deleteFile) {
               for (ManifestEntry<DeleteFile> entry : reader) {
-                // copy with stats for better filtering against data file stats
-                deleteEntries.add(entry.copy());
+                if (entry.sequenceNumber() > minSequenceNumber) {
+                  // copy with stats for better filtering against data file stats
+                  deleteEntries.add(entry.copy());
+                }
               }
             } catch (IOException e) {
               throw new RuntimeIOException(e, "Failed to close");

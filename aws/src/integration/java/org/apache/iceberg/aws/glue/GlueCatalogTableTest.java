@@ -67,6 +67,8 @@ public class GlueCatalogTableTest extends GlueTestBase {
     Assert.assertEquals(BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ENGLISH),
         response.table().parameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP));
     Assert.assertTrue(response.table().parameters().containsKey(BaseMetastoreTableOperations.METADATA_LOCATION_PROP));
+    Assert.assertEquals(schema.columns().size(), response.table().storageDescriptor().columns().size());
+    Assert.assertEquals(partitionSpec.fields().size(), response.table().partitionKeys().size());
     // verify metadata file exists in S3
     String metaLocation = response.table().parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
     String key = metaLocation.split(testBucketName, -1)[1].substring(1);
@@ -142,6 +144,8 @@ public class GlueCatalogTableTest extends GlueTestBase {
     GetTableResponse response = glue.getTable(GetTableRequest.builder()
         .databaseName(namespace).name(tableName).build());
     Assert.assertEquals("external table type is set after update", "EXTERNAL_TABLE", response.table().tableType());
+    Assert.assertEquals(schema.columns().size(), response.table().storageDescriptor().columns().size());
+    Assert.assertEquals(partitionSpec.fields().size(), response.table().partitionKeys().size());
   }
 
   @Test

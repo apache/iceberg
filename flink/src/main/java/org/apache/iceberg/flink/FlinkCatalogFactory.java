@@ -28,7 +28,6 @@ import java.util.Map;
 import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.runtime.util.HadoopUtils;
 import org.apache.flink.table.catalog.Catalog;
-import org.apache.flink.table.descriptors.CatalogDescriptorValidator;
 import org.apache.flink.table.factories.CatalogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -66,8 +65,12 @@ public class FlinkCatalogFactory implements CatalogFactory {
 
   public static final String HIVE_CONF_DIR = "hive-conf-dir";
   public static final String DEFAULT_DATABASE = "default-database";
+  public static final String DEFAULT_DATABASE_NAME = "default";
   public static final String BASE_NAMESPACE = "base-namespace";
   public static final String CACHE_ENABLED = "cache-enabled";
+
+  public static final String TYPE = "type";
+  public static final String PROPERTY_VERSION = "property-version";
 
   /**
    * Create an Iceberg {@link org.apache.iceberg.catalog.Catalog} loader to be used by this Flink catalog adapter.
@@ -77,7 +80,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
    * @param hadoopConf Hadoop configuration for catalog
    * @return an Iceberg catalog loader
    */
-  protected CatalogLoader createCatalogLoader(String name, Map<String, String> properties, Configuration hadoopConf) {
+  static CatalogLoader createCatalogLoader(String name, Map<String, String> properties, Configuration hadoopConf) {
     String catalogImpl = properties.get(CatalogProperties.CATALOG_IMPL);
     if (catalogImpl != null) {
       return CatalogLoader.custom(name, properties, hadoopConf, catalogImpl);
@@ -103,8 +106,8 @@ public class FlinkCatalogFactory implements CatalogFactory {
   @Override
   public Map<String, String> requiredContext() {
     Map<String, String> context = Maps.newHashMap();
-    context.put(CatalogDescriptorValidator.CATALOG_TYPE, "iceberg");
-    context.put(CatalogDescriptorValidator.CATALOG_PROPERTY_VERSION, "1");
+    context.put(TYPE, "iceberg");
+    context.put(PROPERTY_VERSION, "1");
     return context;
   }
 
@@ -120,7 +123,7 @@ public class FlinkCatalogFactory implements CatalogFactory {
 
   protected Catalog createCatalog(String name, Map<String, String> properties, Configuration hadoopConf) {
     CatalogLoader catalogLoader = createCatalogLoader(name, properties, hadoopConf);
-    String defaultDatabase = properties.getOrDefault(DEFAULT_DATABASE, "default");
+    String defaultDatabase = properties.getOrDefault(DEFAULT_DATABASE, DEFAULT_DATABASE_NAME);
 
     Namespace baseNamespace = Namespace.empty();
     if (properties.containsKey(BASE_NAMESPACE)) {

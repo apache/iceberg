@@ -24,13 +24,26 @@ import java.util.Set;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types.ListType;
+import org.apache.iceberg.types.Types.MapType;
+import org.apache.iceberg.types.Types.StructType;
 
 class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   private final Set<Integer> selected;
+  private final boolean selectFullTypes;
 
-  PruneColumns(Set<Integer> selected) {
+  /**
+   * Visits a schema and returns only the fields selected by the id set.
+   * <p>
+   * When selectFullTypes is false selecting list or map types is undefined and forbidden.
+   *
+   * @param selected ids of elements to return
+   * @param selectFullTypes whether to select all subfields of a selected nested type
+   */
+  PruneColumns(Set<Integer> selected, boolean selectFullTypes) {
     Preconditions.checkNotNull(selected, "Selected field ids cannot be null");
     this.selected = selected;
+    this.selectFullTypes = selectFullTypes;
   }
 
   @Override
@@ -77,10 +90,19 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   @Override
   public Type field(Types.NestedField field, Type fieldResult) {
     if (selected.contains(field.fieldId())) {
-      return field.type();
+      if (selectFullTypes) {
+        return field.type();
+      } else if (field.type().isStructType()) {
+        return projectSelectedStruct(fieldResult);
+      } else {
+        Preconditions.checkArgument(!field.type().isNestedType(),
+            "Cannot explicitly project List or Map types, %s:%s of type %s was selected",
+            field.fieldId(), field.name(), field.type());
+        // Selected non-struct field
+        return field.type();
+      }
     } else if (fieldResult != null) {
-      // this isn't necessarily the same as field.type() because a struct may not have all
-      // fields selected.
+      // This field wasn't selected but a subfield was so include that
       return fieldResult;
     }
     return null;
@@ -89,15 +111,19 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   @Override
   public Type list(Types.ListType list, Type elementResult) {
     if (selected.contains(list.elementId())) {
-      return list;
-    } else if (elementResult != null) {
-      if (list.elementType() == elementResult) {
+      if (selectFullTypes) {
         return list;
-      } else if (list.isElementOptional()) {
-        return Types.ListType.ofOptional(list.elementId(), elementResult);
+      } else if (list.elementType().isStructType()) {
+        StructType projectedStruct = projectSelectedStruct(elementResult);
+        return projectList(list, projectedStruct);
       } else {
-        return Types.ListType.ofRequired(list.elementId(), elementResult);
+        Preconditions.checkArgument(list.elementType().isPrimitiveType(),
+            "Cannot explicitly project List or Map types, List element %s of type %s was selected",
+            list.elementId(), list.elementType());
+        return list;
       }
+    } else if (elementResult != null) {
+      return projectList(list, elementResult);
     }
     return null;
   }
@@ -105,15 +131,19 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   @Override
   public Type map(Types.MapType map, Type ignored, Type valueResult) {
     if (selected.contains(map.valueId())) {
-      return map;
-    } else if (valueResult != null) {
-      if (map.valueType() == valueResult) {
+      if (selectFullTypes) {
         return map;
-      } else if (map.isValueOptional()) {
-        return Types.MapType.ofOptional(map.keyId(), map.valueId(), map.keyType(), valueResult);
+      } else if (map.valueType().isStructType()) {
+        Type projectedStruct = projectSelectedStruct(valueResult);
+        return projectMap(map, projectedStruct);
       } else {
-        return Types.MapType.ofRequired(map.keyId(), map.valueId(), map.keyType(), valueResult);
+        Preconditions.checkArgument(map.valueType().isPrimitiveType(),
+            "Cannot explicitly project List or Map types, Map value %s of type %s was selected",
+            map.valueId(), map.valueType());
+        return map;
       }
+    } else if (valueResult != null) {
+      return projectMap(map, valueResult);
     } else if (selected.contains(map.keyId())) {
       // right now, maps can't be selected without values
       return map;
@@ -124,5 +154,45 @@ class PruneColumns extends TypeUtil.SchemaVisitor<Type> {
   @Override
   public Type primitive(Type.PrimitiveType primitive) {
     return null;
+  }
+
+  private ListType projectList(ListType list, Type elementResult) {
+    Preconditions.checkArgument(elementResult != null, "Cannot project a list when the element result is null");
+    if (list.elementType() == elementResult) {
+      return list;
+    } else if (list.isElementOptional()) {
+      return Types.ListType.ofOptional(list.elementId(), elementResult);
+    } else {
+      return Types.ListType.ofRequired(list.elementId(), elementResult);
+    }
+  }
+
+  private MapType projectMap(MapType map, Type valueResult) {
+    Preconditions.checkArgument(valueResult != null, "Attempted to project a map without a defined map value type");
+    if (map.valueType() == valueResult) {
+      return map;
+    } else if (map.isValueOptional()) {
+      return Types.MapType.ofOptional(map.keyId(), map.valueId(), map.keyType(), valueResult);
+    } else {
+      return Types.MapType.ofRequired(map.keyId(), map.valueId(), map.keyType(), valueResult);
+    }
+  }
+
+  /**
+   * If select full types is disabled we need to recreate the struct with only the selected
+   * subfields. If no subfields are selected we return an empty struct.
+   * @param projectedField subfields already selected in this projection
+   * @return projected struct
+   */
+  private StructType projectSelectedStruct(Type projectedField) {
+    Preconditions.checkArgument(projectedField == null || projectedField.isStructType());
+    // the struct was selected, ensure at least an empty struct is returned
+    if (projectedField == null) {
+      // no sub-fields were selected but the struct was, return an empty struct
+      return Types.StructType.of();
+    } else {
+      // sub-fields were selected so return the projected struct
+      return projectedField.asStructType();
+    }
   }
 }

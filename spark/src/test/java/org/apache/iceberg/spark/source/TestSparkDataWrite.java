@@ -33,6 +33,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
@@ -175,6 +176,49 @@ public abstract class TestSparkDataWrite {
         .format("iceberg")
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .mode(SaveMode.Append)
+        .save(location.toString());
+
+    table.refresh();
+
+    Dataset<Row> result = spark.read()
+        .format("iceberg")
+        .load(location.toString());
+
+    List<SimpleRecord> actual = result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
+    Assert.assertEquals("Result rows should match", expected, actual);
+  }
+
+  @Test
+  public void testEmptyOverwrite() throws IOException {
+    File parent = temp.newFolder(format.toString());
+    File location = new File(parent, "test");
+
+    HadoopTables tables = new HadoopTables(CONF);
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
+    Table table = tables.create(SCHEMA, spec, location.toString());
+
+    List<SimpleRecord> records = Lists.newArrayList(
+        new SimpleRecord(1, "a"),
+        new SimpleRecord(2, "b"),
+        new SimpleRecord(3, "c")
+    );
+
+    List<SimpleRecord> expected = records;
+    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+
+    df.select("id", "data").write()
+        .format("iceberg")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Append)
+        .save(location.toString());
+
+    Dataset<Row> empty = spark.createDataFrame(ImmutableList.of(), SimpleRecord.class);
+    empty.select("id", "data").write()
+        .format("iceberg")
+        .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
+        .mode(SaveMode.Overwrite)
+        .option("overwrite-mode", "dynamic")
         .save(location.toString());
 
     table.refresh();

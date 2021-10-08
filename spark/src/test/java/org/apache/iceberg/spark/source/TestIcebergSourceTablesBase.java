@@ -23,6 +23,7 @@ import java.util.Comparator;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
+import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.ManifestFile;
@@ -38,13 +39,16 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.SparkException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -63,6 +67,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
       optional(1, "id", Types.IntegerType.get()),
       optional(2, "data", Types.StringType.get())
   );
+
+  private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).identity("id").build();
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -141,6 +147,114 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Assert.assertEquals("Entries table should have one row", 1, expected.size());
     Assert.assertEquals("Actual results should have one row", 1, actual.size());
     TestHelpers.assertEqualsSafe(entriesTable.schema().asStruct(), expected.get(0), actual.get(0));
+  }
+
+  @Test
+  public void testEntriesTablePartitionedPrune() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_test");
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
+
+    List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "1"));
+
+    Dataset<Row> inputDf = spark.createDataFrame(records, SimpleRecord.class);
+    inputDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+
+    List<Row> actual = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "entries"))
+        .select("status")
+        .collectAsList();
+
+    Assert.assertEquals("Results should contain only one status", 1, actual.size());
+    Assert.assertEquals("That status should be Added (1)", 1, actual.get(0).getInt(0));
+  }
+
+  @Test
+  public void testEntriesTableDataFilePrune() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_test");
+    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
+
+    List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "1"));
+
+    Dataset<Row> inputDf = spark.createDataFrame(records, SimpleRecord.class);
+    inputDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+    DataFile file = table.currentSnapshot().addedFiles().iterator().next();
+
+    List<Object[]> singleActual = rowsToJava(spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "entries"))
+        .select("data_file.file_path")
+        .collectAsList());
+
+    List<Object[]> singleExpected = ImmutableList.of(row(file.path()));
+
+    assertEquals("Should prune a single element from a nested struct", singleExpected, singleActual);
+  }
+
+  @Test
+  public void testEntriesTableDataFilePruneMulti() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_test");
+    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
+
+    List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "1"));
+
+    Dataset<Row> inputDf = spark.createDataFrame(records, SimpleRecord.class);
+    inputDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+    DataFile file = table.currentSnapshot().addedFiles().iterator().next();
+
+    List<Object[]> multiActual = rowsToJava(spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "entries"))
+        .select("data_file.file_path", "data_file.value_counts", "data_file.record_count", "data_file.column_sizes")
+        .collectAsList());
+
+    List<Object[]> multiExpected = ImmutableList.of(
+        row(file.path(), file.valueCounts(), file.recordCount(), file.columnSizes()));
+
+    assertEquals("Should prune a single element from a nested struct", multiExpected, multiActual);
+  }
+
+  @Test
+  public void testFilesSelectMap() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_test");
+    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
+
+    List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "1"));
+
+    Dataset<Row> inputDf = spark.createDataFrame(records, SimpleRecord.class);
+    inputDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+    DataFile file = table.currentSnapshot().addedFiles().iterator().next();
+
+    List<Object[]> multiActual = rowsToJava(spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "files"))
+        .select("file_path", "value_counts", "record_count", "column_sizes")
+        .collectAsList());
+
+    List<Object[]> multiExpected = ImmutableList.of(
+        row(file.path(), file.valueCounts(), file.recordCount(), file.columnSizes()));
+
+    assertEquals("Should prune a single element from a row", multiExpected, multiActual);
   }
 
   @Test
@@ -225,7 +339,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   @Test
   public void testFilesTable() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_test");
-    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table entriesTable = loadTable(tableIdentifier, "entries");
     Table filesTable = loadTable(tableIdentifier, "files");
 
@@ -275,7 +389,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     spark.sql("DROP TABLE IF EXISTS parquet_table");
 
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_inheritance_test");
-    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     table.updateProperties()
         .set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true")
         .commit();
@@ -335,7 +449,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     spark.sql("DROP TABLE IF EXISTS parquet_table");
 
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_inheritance_test");
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
+    PartitionSpec spec = SPEC;
     Table table = createTable(tableIdentifier, SCHEMA, spec);
 
     table.updateProperties()
@@ -436,7 +550,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   @Test
   public void testAllMetadataTablesWithStagedCommits() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "stage_aggregate_table_test");
-    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
 
     table.updateProperties().set(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, "true").commit();
     spark.conf().set("spark.wap.id", "1234567");
@@ -480,7 +594,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   @Test
   public void testAllDataFilesTable() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_test");
-    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table entriesTable = loadTable(tableIdentifier, "entries");
     Table filesTable = loadTable(tableIdentifier, "all_data_files");
 
@@ -678,9 +792,73 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   }
 
   @Test
+  public void testPrunedSnapshotsTable() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "snapshots_test");
+    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
+
+    List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "1"));
+    Dataset<Row> inputDf = spark.createDataFrame(records, SimpleRecord.class);
+
+    inputDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+    long firstSnapshotTimestamp = table.currentSnapshot().timestampMillis();
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+
+    table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
+
+    long secondSnapshotTimestamp = table.currentSnapshot().timestampMillis();
+
+    // rollback the table state to the first snapshot
+    table.rollback().toSnapshotId(firstSnapshotId).commit();
+
+    Dataset<Row> actualDf = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "snapshots"))
+        .select("operation", "committed_at", "summary", "parent_id");
+
+    Schema projectedSchema = SparkSchemaUtil.convert(actualDf.schema());
+
+    List<Row> actual = actualDf.collectAsList();
+
+    GenericRecordBuilder builder = new GenericRecordBuilder(AvroSchemaUtil.convert(projectedSchema, "snapshots"));
+    List<GenericData.Record> expected = Lists.newArrayList(
+        builder.set("committed_at", firstSnapshotTimestamp * 1000)
+            .set("parent_id", null)
+            .set("operation", "append")
+            .set("summary", ImmutableMap.of(
+                "added-records", "1",
+                "added-data-files", "1",
+                "changed-partition-count", "1",
+                "total-data-files", "1",
+                "total-records", "1"
+            ))
+            .build(),
+        builder.set("committed_at", secondSnapshotTimestamp * 1000)
+            .set("parent_id", firstSnapshotId)
+            .set("operation", "delete")
+            .set("summary", ImmutableMap.of(
+                "deleted-records", "1",
+                "deleted-data-files", "1",
+                "changed-partition-count", "1",
+                "total-records", "0",
+                "total-data-files", "0"
+            ))
+            .build()
+    );
+
+    Assert.assertEquals("Snapshots table should have a row for each snapshot", 2, actual.size());
+    TestHelpers.assertEqualsSafe(projectedSchema.asStruct(), expected.get(0), actual.get(0));
+    TestHelpers.assertEqualsSafe(projectedSchema.asStruct(), expected.get(1), actual.get(1));
+  }
+
+  @Test
   public void testManifestsTable() {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "manifests_test");
-    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table manifestTable = loadTable(tableIdentifier, "manifests");
     Dataset<Row> df1 = spark.createDataFrame(
         Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(null, "b")), SimpleRecord.class);
@@ -725,9 +903,69 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   }
 
   @Test
+  public void testPruneManifestsTable() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "manifests_test");
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
+    Table manifestTable = loadTable(tableIdentifier, "manifests");
+    Dataset<Row> df1 = spark.createDataFrame(
+        Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(null, "b")), SimpleRecord.class);
+
+    df1.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    if (!spark.version().startsWith("2")) {
+      // Spark 2 isn't able to actually push down nested struct projections so this will not break
+      AssertHelpers.assertThrows("Can't prune struct inside list", SparkException.class,
+          "Cannot project a partial list element struct",
+          () -> spark.read()
+              .format("iceberg")
+              .load(loadLocation(tableIdentifier, "manifests"))
+              .select("partition_spec_id", "path", "partition_summaries.contains_null")
+              .collectAsList());
+    }
+
+    Dataset<Row> actualDf = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "manifests"))
+        .select("partition_spec_id", "path", "partition_summaries");
+
+    Schema projectedSchema = SparkSchemaUtil.convert(actualDf.schema());
+
+    List<Row> actual = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "manifests"))
+        .select("partition_spec_id", "path", "partition_summaries")
+        .collectAsList();
+
+    table.refresh();
+
+    GenericRecordBuilder builder = new GenericRecordBuilder(AvroSchemaUtil.convert(projectedSchema.asStruct()));
+    GenericRecordBuilder summaryBuilder = new GenericRecordBuilder(AvroSchemaUtil.convert(
+        projectedSchema.findType("partition_summaries.element").asStructType(), "partition_summary"));
+    List<GenericData.Record> expected = Lists.transform(table.currentSnapshot().allManifests(), manifest ->
+        builder.set("partition_spec_id", manifest.partitionSpecId())
+            .set("path", manifest.path())
+            .set("partition_summaries", Lists.transform(manifest.partitions(), partition ->
+                summaryBuilder
+                    .set("contains_null", true)
+                    .set("contains_nan", false)
+                    .set("lower_bound", "1")
+                    .set("upper_bound", "1")
+                    .build()
+            ))
+            .build()
+    );
+
+    Assert.assertEquals("Manifests table should have one manifest row", 1, actual.size());
+    TestHelpers.assertEqualsSafe(projectedSchema.asStruct(), expected.get(0), actual.get(0));
+  }
+
+  @Test
   public void testAllManifestsTable() {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "manifests_test");
-    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table manifestTable = loadTable(tableIdentifier, "all_manifests");
     Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
 
@@ -823,7 +1061,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   @Test
   public void testPartitionsTable() {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "partitions_test");
-    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table partitionsTable = loadTable(tableIdentifier, "partitions");
     Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
     Dataset<Row> df2 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(2, "b")), SimpleRecord.class);
