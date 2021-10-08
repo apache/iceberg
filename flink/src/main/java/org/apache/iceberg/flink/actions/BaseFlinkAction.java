@@ -1,15 +1,20 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package org.apache.iceberg.flink.actions;
@@ -21,6 +26,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.EnvironmentSettings;
+import org.apache.flink.table.api.Expressions;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.Collector;
@@ -39,8 +45,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.apache.flink.table.api.Expressions.$;
 
 abstract class BaseFlinkAction<ThisT, R> implements Action<ThisT, R> {
   private static final Logger LOG = LoggerFactory.getLogger(BaseFlinkAction.class);
@@ -89,12 +93,12 @@ abstract class BaseFlinkAction<ThisT, R> implements Action<ThisT, R> {
   protected org.apache.flink.table.api.Table buildValidDataFileTable(BaseTable table) {
     DataStream<RowData> allManifests = loadMetadataTable(table, MetadataTableType.ALL_MANIFESTS);
     DataStream<String> dataFilePaths = allManifests.flatMap(new ReadManifest(table.schema(), table.io()));
-    return tEnv.fromDataStream(dataFilePaths, $("file_path"));
+    return tEnv.fromDataStream(dataFilePaths, Expressions.$("file_path"));
   }
 
   protected org.apache.flink.table.api.Table buildManifestFileTable(BaseTable table) {
     DataStream<RowData> allManifests = loadMetadataTable(table, MetadataTableType.ALL_MANIFESTS);
-    return tEnv.fromDataStream(allManifests).select($("f0").cast(DataTypes.STRING()).as("file_path"));
+    return tEnv.fromDataStream(allManifests).select(Expressions.$("f0").cast(DataTypes.STRING()).as("file_path"));
   }
 
   protected org.apache.flink.table.api.Table buildManifestListTable(BaseTable table) {
@@ -106,8 +110,8 @@ abstract class BaseFlinkAction<ThisT, R> implements Action<ThisT, R> {
     return MetadataTableSource.builder()
         .env(env)
         .tableName(table.name())
-        .ops(table.operations())
-        .type(type)
+        .tableOperations(table.operations())
+        .metadataTableType(type)
         .maxParallelism(PropertyUtil.propertyAsInt(options(), MAX_PARALLELISM, Integer.MAX_VALUE))
         .build();
   }

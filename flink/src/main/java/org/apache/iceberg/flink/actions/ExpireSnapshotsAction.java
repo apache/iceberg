@@ -1,15 +1,20 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package org.apache.iceberg.flink.actions;
@@ -20,6 +25,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.Expressions;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.HasTableOperations;
@@ -37,9 +43,6 @@ import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.flink.table.api.Expressions.$;
-import static org.apache.flink.table.api.Expressions.and;
-import static org.apache.flink.table.api.Expressions.lit;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
@@ -103,8 +106,8 @@ public class ExpireSnapshotsAction
   }
 
   @Override
-  public ExpireSnapshots deleteWith(Consumer<String> deleteFunc) {
-    this.deleteFunc = deleteFunc;
+  public ExpireSnapshots deleteWith(Consumer<String> newDeleteFunc) {
+    this.deleteFunc = newDeleteFunc;
     return this;
   }
 
@@ -121,9 +124,17 @@ public class ExpireSnapshotsAction
 
   private org.apache.flink.table.api.Table buildValidFileTable(TableMetadata metadata) {
     BaseTable staticTable = newStaticTable(metadata, this.table.io());
-    return buildValidDataFileTable(staticTable).select($("file_path"), lit(DATA_FILE).as("file_type"))
-        .unionAll(buildManifestFileTable(staticTable).select($("file_path"), lit(MANIFEST).as("file_type")))
-        .unionAll(buildManifestListTable(staticTable).select($("file_path"), lit(MANIFEST_LIST).as("file_type")));
+
+    org.apache.flink.table.api.Table dataFileTable =  buildValidDataFileTable(staticTable).select(
+        Expressions.$("file_path"), Expressions.lit(DATA_FILE).as("file_type"));
+
+    org.apache.flink.table.api.Table manifestTable =  buildManifestFileTable(staticTable).select(
+        Expressions.$("file_path"), Expressions.lit(MANIFEST).as("file_type"));
+
+    org.apache.flink.table.api.Table manifestListTable =  buildManifestListTable(staticTable).select(
+        Expressions.$("file_path"), Expressions.lit(MANIFEST_LIST).as("file_type"));
+
+    return dataFileTable.unionAll(manifestTable).unionAll(manifestListTable);
   }
 
   /**
@@ -161,19 +172,19 @@ public class ExpireSnapshotsAction
 
       // determine expired files
       org.apache.flink.table.api.Table left = originalFiles.select(
-          $("file_path").as("origin_file_path"), $("file_type").as("origin_file_type")
+          Expressions.$("file_path").as("origin_file_path"), Expressions.$("file_type").as("origin_file_type")
       );
 
       org.apache.flink.table.api.Table right = validFiles.select(
-          $("file_path").as("valid_file_path"), $("file_type").as("valid_file_type")
+          Expressions.$("file_path").as("valid_file_path"), Expressions.$("file_type").as("valid_file_type")
       );
 
-      this.expiredFiles = left.leftOuterJoin(right, and(
-          $("origin_file_path").isEqual($("valid_file_path")),
-          $("origin_file_type").isEqual($("valid_file_type"))
+      this.expiredFiles = left.leftOuterJoin(right, Expressions.and(
+          Expressions.$("origin_file_path").isEqual(Expressions.$("valid_file_path")),
+          Expressions.$("origin_file_type").isEqual(Expressions.$("valid_file_type"))
       ))
-          .where($("valid_file_path").isNull())
-          .select($("origin_file_path").as("file_path"), $("origin_file_type").as("file_type"))
+          .where(Expressions.$("valid_file_path").isNull())
+          .select(Expressions.$("origin_file_path").as("file_path"), Expressions.$("origin_file_type").as("file_type"))
           .execute()
           .collect();
     }
@@ -196,13 +207,13 @@ public class ExpireSnapshotsAction
         .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
         .executeWith(deleteExecutorService)
         .onFailure((fileInfo, exc) -> {
-          String file = fileInfo.getField(0).toString();
-          String type = fileInfo.getField(1).toString();
+          String file = fileInfo.getFieldAs(0);
+          String type = fileInfo.getFieldAs(1);
           LOG.warn("Delete failed for {}: {}", type, file, exc);
         })
         .run(fileInfo -> {
-          String file = fileInfo.getField(0).toString();
-          String type = fileInfo.getField(1).toString();
+          String file = fileInfo.getFieldAs(0);
+          String type = fileInfo.getFieldAs(1);
           deleteFunc.accept(file);
           switch (type) {
             case DATA_FILE:
