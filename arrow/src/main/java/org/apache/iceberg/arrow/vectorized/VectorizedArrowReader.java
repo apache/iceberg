@@ -67,6 +67,9 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   private final Types.NestedField icebergField;
   private final BufferAllocator rootAlloc;
 
+  private final boolean useIntVectorForIntBackedDecimal;
+  private final boolean useLongVectorForLongBackedDecimal;
+
   private int batchSize;
   private FieldVector vec;
   private Integer typeWidth;
@@ -89,6 +92,23 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     this.columnDescriptor = desc;
     this.rootAlloc = ra;
     this.vectorizedColumnIterator = new VectorizedColumnIterator(desc, "", setArrowValidityVector);
+    this.useIntVectorForIntBackedDecimal = false;
+    this.useLongVectorForLongBackedDecimal = false;
+  }
+
+  public VectorizedArrowReader(
+      ColumnDescriptor desc,
+      Types.NestedField icebergField,
+      BufferAllocator ra,
+      boolean setArrowValidityVector,
+      boolean useIntVectorForIntBackedDecimal,
+      boolean useLongVectorForLongBackedDecimal) {
+    this.icebergField = icebergField;
+    this.columnDescriptor = desc;
+    this.rootAlloc = ra;
+    this.vectorizedColumnIterator = new VectorizedColumnIterator(desc, "", setArrowValidityVector);
+    this.useIntVectorForIntBackedDecimal = useIntVectorForIntBackedDecimal;
+    this.useLongVectorForLongBackedDecimal = useLongVectorForLongBackedDecimal;
   }
 
   private VectorizedArrowReader() {
@@ -97,6 +117,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     this.columnDescriptor = null;
     this.rootAlloc = null;
     this.vectorizedColumnIterator = null;
+    this.useIntVectorForIntBackedDecimal = false;
+    this.useLongVectorForLongBackedDecimal = false;
   }
 
   private enum ReadType {
@@ -146,14 +168,18 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
                 .nextBatch(vec, typeWidth, nullabilityHolder);
             break;
           case INT_BACKED_DECIMAL:
-            vectorizedColumnIterator
-                .intBackedDecimalBatchReader()
-                .nextBatch(vec, -1, nullabilityHolder);
+            if (useIntVectorForIntBackedDecimal) {
+              vectorizedColumnIterator.integerBatchReader().nextBatch(vec, typeWidth, nullabilityHolder);
+            } else {
+              vectorizedColumnIterator.intBackedDecimalBatchReader().nextBatch(vec, -1, nullabilityHolder);
+            }
             break;
           case LONG_BACKED_DECIMAL:
-            vectorizedColumnIterator
-                .longBackedDecimalBatchReader()
-                .nextBatch(vec, -1, nullabilityHolder);
+            if (useLongVectorForLongBackedDecimal) {
+              vectorizedColumnIterator.longBatchReader().nextBatch(vec, typeWidth, nullabilityHolder);
+            } else {
+              vectorizedColumnIterator.longBackedDecimalBatchReader().nextBatch(vec, -1, nullabilityHolder);
+            }
             break;
           case VARBINARY:
           case VARCHAR:
@@ -291,19 +317,35 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         this.typeWidth = (int) TimeMicroVector.TYPE_WIDTH;
         break;
       case DECIMAL:
-        this.vec = arrowField.createVector(rootAlloc);
-        ((DecimalVector) vec).allocateNew(batchSize);
         switch (primitive.getPrimitiveTypeName()) {
           case BINARY:
           case FIXED_LEN_BYTE_ARRAY:
+            this.vec = arrowField.createVector(rootAlloc);
+            ((DecimalVector) vec).allocateNew(batchSize);
             this.readType = ReadType.FIXED_LENGTH_DECIMAL;
             this.typeWidth = primitive.getTypeLength();
             break;
           case INT64:
+            if (useLongVectorForLongBackedDecimal) {
+              Field field = ArrowSchemaUtil.convertToLong(icebergField);
+              this.vec = field.createVector(rootAlloc);
+              ((BigIntVector) vec).allocateNew(batchSize);
+            } else {
+              this.vec = arrowField.createVector(rootAlloc);
+              ((DecimalVector) vec).allocateNew(batchSize);
+            }
             this.readType = ReadType.LONG_BACKED_DECIMAL;
             this.typeWidth = (int) BigIntVector.TYPE_WIDTH;
             break;
           case INT32:
+            if (useIntVectorForIntBackedDecimal) {
+              Field field = ArrowSchemaUtil.convertToInt(icebergField);
+              this.vec = field.createVector(rootAlloc);
+              ((IntVector) vec).allocateNew(batchSize);
+            } else {
+              this.vec = arrowField.createVector(rootAlloc);
+              ((DecimalVector) vec).allocateNew(batchSize);
+            }
             this.readType = ReadType.INT_BACKED_DECIMAL;
             this.typeWidth = (int) IntVector.TYPE_WIDTH;
             break;

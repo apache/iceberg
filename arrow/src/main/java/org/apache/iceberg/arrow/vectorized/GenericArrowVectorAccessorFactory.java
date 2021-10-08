@@ -45,6 +45,7 @@ import org.apache.arrow.vector.util.DecimalUtility;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
+import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType;
 
 /**
@@ -76,6 +77,9 @@ public class GenericArrowVectorAccessorFactory<
   private final Supplier<StructChildFactory<ChildVectorT>> structChildFactorySupplier;
   private final Supplier<ArrayFactory<ChildVectorT, ArrayT>> arrayFactorySupplier;
 
+  private final boolean useIntVectorForIntBackedDecimal;
+  private final boolean useLongVectorForLongBackedDecimal;
+
   /**
    * The constructor is parameterized using the decimal, string, struct and array factories. If a
    * specific type is not supported, the factory supplier can raise an {@link
@@ -90,6 +94,25 @@ public class GenericArrowVectorAccessorFactory<
     this.stringFactorySupplier = stringFactorySupplier;
     this.structChildFactorySupplier = structChildFactorySupplier;
     this.arrayFactorySupplier = arrayFactorySupplier;
+
+    this.useIntVectorForIntBackedDecimal = false;
+    this.useLongVectorForLongBackedDecimal = false;
+  }
+
+  protected GenericArrowVectorAccessorFactory(
+      Supplier<DecimalFactory<DecimalT>> decimalFactorySupplier,
+      Supplier<StringFactory<Utf8StringT>> stringFactorySupplier,
+      Supplier<StructChildFactory<ChildVectorT>> structChildFactorySupplier,
+      Supplier<ArrayFactory<ChildVectorT, ArrayT>> arrayFactorySupplier,
+      boolean useIntVectorForIntBackedDecimal,
+      boolean useLongVectorForLongBackedDecimal) {
+    this.decimalFactorySupplier = decimalFactorySupplier;
+    this.stringFactorySupplier = stringFactorySupplier;
+    this.structChildFactorySupplier = structChildFactorySupplier;
+    this.arrayFactorySupplier = arrayFactorySupplier;
+
+    this.useIntVectorForIntBackedDecimal = useIntVectorForIntBackedDecimal;
+    this.useLongVectorForLongBackedDecimal = useLongVectorForLongBackedDecimal;
   }
 
   public ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> getVectorAccessor(
@@ -97,12 +120,12 @@ public class GenericArrowVectorAccessorFactory<
     Dictionary dictionary = holder.dictionary();
     boolean isVectorDictEncoded = holder.isDictionaryEncoded();
     FieldVector vector = holder.vector();
+    ColumnDescriptor desc = holder.descriptor();
+    PrimitiveType primitive = desc.getPrimitiveType();
     if (isVectorDictEncoded) {
-      ColumnDescriptor desc = holder.descriptor();
-      PrimitiveType primitive = desc.getPrimitiveType();
       return getDictionaryVectorAccessor(dictionary, desc, vector, primitive);
     } else {
-      return getPlainVectorAccessor(vector);
+      return getPlainVectorAccessor(vector, primitive);
     }
   }
 
@@ -165,13 +188,19 @@ public class GenericArrowVectorAccessorFactory<
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  private ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> getPlainVectorAccessor(
-      FieldVector vector) {
+  private ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT>
+      getPlainVectorAccessor(FieldVector vector, PrimitiveType primitive) {
     if (vector instanceof BitVector) {
       return new BooleanAccessor<>((BitVector) vector);
     } else if (vector instanceof IntVector) {
+      if (OriginalType.DECIMAL.equals(primitive.getOriginalType()) && useIntVectorForIntBackedDecimal) {
+        return new IntBackedDecimalAccessor<>((IntVector) vector, decimalFactorySupplier.get());
+      }
       return new IntAccessor<>((IntVector) vector);
     } else if (vector instanceof BigIntVector) {
+      if (OriginalType.DECIMAL.equals(primitive.getOriginalType()) && useLongVectorForLongBackedDecimal) {
+        return new LongBackedDecimalAccessor<>((BigIntVector) vector, decimalFactorySupplier.get());
+      }
       return new LongAccessor<>((BigIntVector) vector);
     } else if (vector instanceof Float4Vector) {
       return new FloatAccessor<>((Float4Vector) vector);
@@ -577,6 +606,42 @@ public class GenericArrowVectorAccessorFactory<
               vector.getDataBuffer(), rowId, scale, DecimalVector.TYPE_WIDTH),
           precision,
           scale);
+    }
+  }
+
+  private static class IntBackedDecimalAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+
+    private final IntVector vector;
+    private final DecimalFactory<DecimalT> decimalFactory;
+
+    IntBackedDecimalAccessor(IntVector vector, DecimalFactory<DecimalT> decimalFactory) {
+      super(vector);
+      this.vector = vector;
+      this.decimalFactory = decimalFactory;
+    }
+
+    @Override
+    public final DecimalT getDecimal(int rowId, int precision, int scale) {
+      return decimalFactory.ofLong(vector.get(rowId), precision, scale);
+    }
+  }
+
+  private static class LongBackedDecimalAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+
+    private final BigIntVector vector;
+    private final DecimalFactory<DecimalT> decimalFactory;
+
+    LongBackedDecimalAccessor(BigIntVector vector, DecimalFactory<DecimalT> decimalFactory) {
+      super(vector);
+      this.vector = vector;
+      this.decimalFactory = decimalFactory;
+    }
+
+    @Override
+    public final DecimalT getDecimal(int rowId, int precision, int scale) {
+      return decimalFactory.ofLong(vector.get(rowId), precision, scale);
     }
   }
 

@@ -46,6 +46,9 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
   private final boolean setArrowValidityVector;
   private final Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory;
 
+  private final boolean useIntVectorForIntBackedDecimal;
+  private final boolean useLongVectorForLongBackedDecimal;
+
   public VectorizedReaderBuilder(
       Schema expectedSchema,
       MessageType parquetSchema,
@@ -60,6 +63,28 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
     this.setArrowValidityVector = setArrowValidityVector;
     this.idToConstant = idToConstant;
     this.readerFactory = readerFactory;
+
+    this.useIntVectorForIntBackedDecimal = false;
+    this.useLongVectorForLongBackedDecimal = false;
+  }
+
+  public VectorizedReaderBuilder(
+      Schema expectedSchema,
+      MessageType parquetSchema,
+      boolean setArrowValidityVector, Map<Integer, ?> idToConstant,
+      Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory,
+      boolean useIntVectorForIntBackedDecimal,
+      boolean useLongVectorForLongBackedDecimal) {
+    this.parquetSchema = parquetSchema;
+    this.icebergSchema = expectedSchema;
+    this.rootAllocator = ArrowAllocation.rootAllocator()
+        .newChildAllocator("VectorizedReadBuilder", 0, Long.MAX_VALUE);
+    this.setArrowValidityVector = setArrowValidityVector;
+    this.idToConstant = idToConstant;
+    this.readerFactory = readerFactory;
+
+    this.useIntVectorForIntBackedDecimal = useIntVectorForIntBackedDecimal;
+    this.useLongVectorForLongBackedDecimal = useLongVectorForLongBackedDecimal;
   }
 
   @Override
@@ -134,6 +159,7 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
       return null;
     }
     // Set the validity buffer if null checking is enabled in arrow
-    return new VectorizedArrowReader(desc, icebergField, rootAllocator, setArrowValidityVector);
+    return new VectorizedArrowReader(desc, icebergField, rootAllocator, setArrowValidityVector,
+        useIntVectorForIntBackedDecimal, useLongVectorForLongBackedDecimal);
   }
 }

@@ -39,7 +39,8 @@ final class ArrowVectorAccessorFactory
         DecimalFactoryImpl::new,
         StringFactoryImpl::new,
         StructChildFactoryImpl::new,
-        ArrayFactoryImpl::new);
+        ArrayFactoryImpl::new,
+        true, true);
   }
 
   private static final class DecimalFactoryImpl implements DecimalFactory<Decimal> {
