@@ -50,14 +50,10 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.sink.compact.CompactFileGenerator;
-import org.apache.iceberg.flink.sink.compact.ExpireSnapshotGenerator;
-import org.apache.iceberg.flink.sink.compact.ExpireSnapshotOperator;
 import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.CommonControllerMessage;
 import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.CompactionUnit;
 import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.EndCheckpoint;
 import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.EndCompaction;
-import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.EndExpireSnapshot;
-import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.SnapshotsUnit;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -400,117 +396,8 @@ public class TestIcebergStreamWriter {
       harness.processElement(endCheckpoint, currentTimestamp);
       List<CommonControllerMessage> outputMessages = harness.extractOutputValues();
 
-      Assert.assertTrue(outputMessages.get(0) instanceof EndCheckpoint);
-      Assert.assertTrue(outputMessages.get(1) instanceof CompactionUnit);
+      Assert.assertTrue(outputMessages.get(0) instanceof CompactionUnit);
       Assert.assertTrue(outputMessages.get(outputMessages.size() - 1) instanceof EndCompaction);
-    }
-  }
-
-  @Test
-  public void testExpireSnapshotOperator() throws Exception {
-    try (OneInputStreamOperatorTestHarness<CommonControllerMessage, Void> harness = createExpireSnapshotOperator()) {
-      Set<String> deletedFiles = Sets.newHashSet();
-      File deleteFile1 = tempFolder.newFile("deleteFile_1");
-      File deleteFile2 = tempFolder.newFile("deleteFile_2");
-      File deleteFile3 = tempFolder.newFile("deleteFile_3");
-      deletedFiles.add(deleteFile1.getAbsolutePath());
-      deletedFiles.add(deleteFile2.getAbsolutePath());
-      deletedFiles.add(deleteFile3.getAbsolutePath());
-
-      deletedFiles.forEach(f -> Assert.assertTrue("Files exists", new File(f).exists()));
-
-      //  the snapshotsUnit whose index is 1 belongs to this task
-      long currentTimestamp = System.currentTimeMillis();
-      SnapshotsUnit snapshotsUnit = new SnapshotsUnit(deletedFiles, 1);
-      harness.processElement(snapshotsUnit, currentTimestamp);
-      deletedFiles.forEach(f -> Assert.assertFalse("All files has been deleted", new File(f).exists()));
-
-      deletedFiles.clear();
-      File deleteFile4 = tempFolder.newFile("deleteFile_4");
-      File deleteFile5 = tempFolder.newFile("deleteFile_5");
-      File deleteFile6 = tempFolder.newFile("deleteFile_6");
-      deletedFiles.add(deleteFile4.getAbsolutePath());
-      deletedFiles.add(deleteFile5.getAbsolutePath());
-      deletedFiles.add(deleteFile6.getAbsolutePath());
-
-      deletedFiles.forEach(f -> Assert.assertTrue("Files exists", new File(f).exists()));
-
-      //  the snapshotsUnit whose index is 2 doesn't belong to this task
-      snapshotsUnit = new SnapshotsUnit(deletedFiles, 2);
-      harness.processElement(snapshotsUnit, currentTimestamp);
-      deletedFiles.forEach(f -> Assert.assertTrue("All files will not be deleted", new File(f).exists()));
-    }
-  }
-
-  @Test
-  public void testExpireSnapshotGenerator() throws Exception {
-    long checkpointId = 1L;
-
-    // Adjust table properties.
-    table.updateProperties()
-        .set(TableProperties.SNAPSHOT_AUTO_EXPIRE_ENABLED, "true")
-        .set(TableProperties.AUTO_EXPIRE_MIN_SNAPSHOTS_TO_KEEP, "1")
-        .set(TableProperties.SNAPSHOT_AUTO_EXPIRE_INTERVAL_MS, "1")
-        .set(TableProperties.AUTO_EXPIRE_MAX_SNAPSHOT_AGE_MS, "1")
-        .set(TableProperties.AUTO_EXPIRE_LAST_REMOVE_SNAPSHOTS_MS, "-1")
-        .commit();
-
-    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness = createIcebergStreamWriter()) {
-      // The first checkpoint
-      testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 1);
-      testHarness.processElement(SimpleDataUtil.createRowData(2, "world"), 1);
-      testHarness.processElement(SimpleDataUtil.createRowData(3, "hello"), 1);
-
-      testHarness.prepareSnapshotPreBarrier(checkpointId);
-      WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
-      Assert.assertEquals(0, result.deleteFiles().length);
-
-      // Commit the iceberg transaction.
-      AppendFiles appendFiles = table.newAppend();
-      Arrays.stream(result.dataFiles()).forEach(appendFiles::appendFile);
-      appendFiles.commit();
-
-      Assert.assertTrue("Should remove expire snapshots", SmallFileUtil.shouldExpireSnapshot(table));
-
-      // The second checkpoint
-      testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 2);
-      testHarness.processElement(SimpleDataUtil.createRowData(2, "world"), 2);
-      testHarness.processElement(SimpleDataUtil.createRowData(3, "hello"), 2);
-
-      testHarness.prepareSnapshotPreBarrier(checkpointId++);
-      WriteResult result1 = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
-      Assert.assertEquals(0, result1.deleteFiles().length);
-
-      // Commit the iceberg transaction.
-      AppendFiles appendFiles1 = table.newAppend();
-      Arrays.stream(result1.dataFiles()).forEach(appendFiles1::appendFile);
-      appendFiles1.commit();
-
-      // The third checkpoint
-      testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 3);
-      testHarness.processElement(SimpleDataUtil.createRowData(2, "world"), 3);
-      testHarness.processElement(SimpleDataUtil.createRowData(3, "hello"), 3);
-
-      testHarness.prepareSnapshotPreBarrier(checkpointId++);
-      WriteResult result2 = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
-      Assert.assertEquals(0, result2.deleteFiles().length);
-
-      // Commit the iceberg transaction.
-      AppendFiles appendFiles2 = table.newAppend();
-      Arrays.stream(result2.dataFiles()).forEach(appendFiles2::appendFile);
-      appendFiles2.commit();
-
-      OneInputStreamOperatorTestHarness<EndCheckpoint, CommonControllerMessage> harness =
-          createExpireSnapshotGenerator();
-
-      EndCheckpoint endCheckpoint = new EndCheckpoint(1, 1, 16);
-
-      long currentTimestamp = System.currentTimeMillis();
-      harness.processElement(endCheckpoint, currentTimestamp);
-      List<CommonControllerMessage> outputMessages = harness.extractOutputValues();
-
-      Assert.assertTrue(outputMessages.get(0) instanceof SnapshotsUnit);
-      Assert.assertTrue(outputMessages.get(outputMessages.size() - 1) instanceof EndExpireSnapshot);
     }
   }
 
@@ -539,30 +426,6 @@ public class TestIcebergStreamWriter {
 
     OneInputStreamOperatorTestHarness<EndCheckpoint, CommonControllerMessage> harness =
         new OneInputStreamOperatorTestHarness<>(compactFileGenerator, 1, 1, 0);
-    harness.setup();
-    harness.open();
-    return harness;
-  }
-
-  private OneInputStreamOperatorTestHarness<EndCheckpoint, CommonControllerMessage> createExpireSnapshotGenerator()
-      throws Exception {
-    TableLoader tableLoader = TableLoader.fromHadoopTable(tablePath);
-    ExpireSnapshotGenerator expireSnapshotGenerator = new ExpireSnapshotGenerator(tableLoader);
-
-    OneInputStreamOperatorTestHarness<EndCheckpoint, CommonControllerMessage> harness =
-        new OneInputStreamOperatorTestHarness<>(expireSnapshotGenerator, 1, 1, 0);
-    harness.setup();
-    harness.open();
-    return harness;
-  }
-
-  private OneInputStreamOperatorTestHarness<CommonControllerMessage, Void> createExpireSnapshotOperator()
-      throws Exception {
-    TableLoader tableLoader = TableLoader.fromHadoopTable(tablePath);
-    ExpireSnapshotOperator expireSnapshotOperator = new ExpireSnapshotOperator(tableLoader);
-
-    OneInputStreamOperatorTestHarness<CommonControllerMessage, Void> harness =
-        new OneInputStreamOperatorTestHarness<>(expireSnapshotOperator, 5, 5, 1);
     harness.setup();
     harness.open();
     return harness;

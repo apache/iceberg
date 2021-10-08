@@ -45,7 +45,6 @@ import org.apache.iceberg.flink.sink.TaskWriterFactory;
 import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.CommonControllerMessage;
 import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.CompactCommitInfo;
 import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.CompactionUnit;
-import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.EndCheckpoint;
 import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.EndCompaction;
 import org.apache.iceberg.flink.source.RowDataRewriter;
 import org.apache.iceberg.flink.source.RowDataRewriter.RewriteMap;
@@ -126,69 +125,62 @@ public class CompactFileOperator extends AbstractStreamOperator<CommonController
   public void processElement(StreamRecord<CommonControllerMessage> element) throws Exception {
     LOG.debug("Received primary keys：{}", this.equalityFieldIds);
     CommonControllerMessage value = element.getValue();
-
-    //  received a normal EndCheckpoint message
-    if (value instanceof EndCheckpoint) {
-      EndCheckpoint endCheckpoint = (EndCheckpoint) value;
-      long endCheckpointId = endCheckpoint.getCheckpointId();
-      LOG.info("Received EndCheckpoint {}", endCheckpointId);
-      //  transform the EndCheckpoint message to downStream operator
-      emit(new EndCheckpoint(
-          endCheckpointId,
-          getRuntimeContext().getIndexOfThisSubtask(),
-          getRuntimeContext().getIndexOfThisSubtask()));
-    } else if (value instanceof CompactionUnit) {
+    if (value instanceof CompactionUnit) {
       CompactionUnit unit = (CompactionUnit) value;
 
       if (unit.isTaskMessage(
-          getRuntimeContext().getNumberOfParallelSubtasks(),
-          getRuntimeContext().getIndexOfThisSubtask())) {
+              getRuntimeContext().getNumberOfParallelSubtasks(),
+              getRuntimeContext().getIndexOfThisSubtask())) {
         RowDataRewriter.RewriteMap rewriteMap = new RewriteMap(
-            schema,
-            nameMapping,
-            io,
-            caseSensitive,
-            encryptionManager,
-            taskWriterFactory);
+                schema,
+                nameMapping,
+                io,
+                caseSensitive,
+                encryptionManager,
+                taskWriterFactory);
 
         List<DataFile> addedDataFiles = rewriteMap.map(unit.getCombinedScanTask());
         dataFiles.addAll(addedDataFiles);
 
         List<DataFile> existDataFiles = unit.getCombinedScanTask()
-            .files()
-            .stream()
-            .map(FileScanTask::file)
-            .collect(Collectors.toList());
+                .files()
+                .stream()
+                .map(FileScanTask::file)
+                .collect(Collectors.toList());
         currentDataFiles.addAll(existDataFiles);
 
         LOG.info("Rewrite CompactionUnit (id: {}, to delete {} files: {}, to add {} files: {})",
-            unit.getUnitId(),
-            existDataFiles.size(),
-            Joiner.on(", ").join(existDataFiles.stream()
-                .map(s -> s.content() + "=>" + s.fileSizeInBytes() / 1024 / 1024 + "M").collect(Collectors.toList())),
-            addedDataFiles.size(),
-            Joiner.on(",").join(addedDataFiles.stream()
-                .map(s -> s.content() + "=>" + s.fileSizeInBytes() / 1024 / 1024 + "M").collect(Collectors.toList())));
+                unit.getUnitId(),
+                existDataFiles.size(),
+                Joiner.on(", ").join(existDataFiles.stream()
+                        .map(s -> s.content() + "=>" + s.fileSizeInBytes() / 1024 / 1024 + "M")
+                        .collect(Collectors.toList())),
+                addedDataFiles.size(),
+                Joiner.on(",").join(addedDataFiles.stream()
+                        .map(s -> s.content() + "=>" + s.fileSizeInBytes() / 1024 / 1024 + "M")
+                        .collect(Collectors.toList())));
       }
     } else if (value instanceof EndCompaction) {
       EndCompaction endTaskCompact = (EndCompaction) value;
       long endCheckpointId = endTaskCompact.getCheckpointId();
       long startingSnapshotId = endTaskCompact.getStartingSnapshotId();
       emit(new CompactCommitInfo(endCheckpointId,
-          getRuntimeContext().getIndexOfThisSubtask(),
-          getRuntimeContext().getNumberOfParallelSubtasks(),
-          startingSnapshotId,
-          new ArrayList<>(this.dataFiles),
-          new ArrayList<>(this.currentDataFiles)));
+              getRuntimeContext().getIndexOfThisSubtask(),
+              getRuntimeContext().getNumberOfParallelSubtasks(),
+              startingSnapshotId,
+              new ArrayList<>(this.dataFiles),
+              new ArrayList<>(this.currentDataFiles)));
 
       LOG.info("Summary: checkpoint {}, emit CompactCommitInfo (total delete {} files: {}, total add {} files: {})",
-          endCheckpointId,
-          currentDataFiles.size(),
-          Joiner.on(", ").join(currentDataFiles.stream()
-              .map(s -> s.content() + "=>" + s.fileSizeInBytes() / 1024 / 1024 + "M").collect(Collectors.toList())),
-          dataFiles.size(),
-          Joiner.on(",").join(dataFiles.stream()
-              .map(s -> s.content() + "=>" + s.fileSizeInBytes() / 1024 / 1024 + "M").collect(Collectors.toList())));
+              endCheckpointId,
+              currentDataFiles.size(),
+              Joiner.on(", ").join(currentDataFiles.stream()
+                      .map(s -> s.content() + "=>" + s.fileSizeInBytes() / 1024 / 1024 + "M")
+                      .collect(Collectors.toList())),
+              dataFiles.size(),
+              Joiner.on(",").join(dataFiles.stream()
+                      .map(s -> s.content() + "=>" + s.fileSizeInBytes() / 1024 / 1024 + "M")
+                      .collect(Collectors.toList())));
 
       this.dataFiles.clear();
       this.currentDataFiles.clear();

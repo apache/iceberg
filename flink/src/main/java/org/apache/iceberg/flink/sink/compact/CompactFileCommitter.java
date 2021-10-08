@@ -34,7 +34,6 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.CommonControllerMessage;
 import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.CompactCommitInfo;
-import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.EndCheckpoint;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -43,14 +42,13 @@ import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class CompactFileCommitter extends AbstractStreamOperator<EndCheckpoint>
-    implements OneInputStreamOperator<CommonControllerMessage, EndCheckpoint>, BoundedOneInput {
+public class CompactFileCommitter extends AbstractStreamOperator<Void>
+    implements OneInputStreamOperator<CommonControllerMessage, Void>, BoundedOneInput {
   private static final Logger LOG = LoggerFactory.getLogger(CompactFileCommitter.class);
 
   private final TableLoader tableLoader;
   private transient Table table;
   private transient TaskTracker taskTracker;
-  private transient TaskTracker endCheckpointTracker;
 
   private final List<DataFile> deletedDataFiles = Lists.newArrayList();
   private final List<DataFile> addedDataFiles = Lists.newArrayList();
@@ -70,45 +68,30 @@ public class CompactFileCommitter extends AbstractStreamOperator<EndCheckpoint>
   @Override
   public void processElement(StreamRecord<CommonControllerMessage> element) throws Exception {
     CommonControllerMessage value = element.getValue();
-    //  received a normal EndCheckpoint message
-    if (value instanceof EndCheckpoint) {
-      EndCheckpoint message = (EndCheckpoint) value;
-      LOG.info("Received an EndCheckpoint {}", message.getCheckpointId());
-
-      long endCheckpointId = message.getCheckpointId();
-      //  tracking EndCheckpoint message
-      if (endCheckpointTracker == null) {
-        endCheckpointTracker = new TaskTracker(message.getNumberOfTasks());
-      }
-      boolean needEmitEndCheckpoint = endCheckpointTracker.add(message.getCheckpointId(), message.getTaskId());
-      if (needEmitEndCheckpoint) {
-        emit(new EndCheckpoint(
-            endCheckpointId,
-            getRuntimeContext().getIndexOfThisSubtask(),
-            getRuntimeContext().getIndexOfThisSubtask()));
-        LOG.info("Emit a EndCheckpoint {} message to downstream operator", endCheckpointId);
-      }
-
-    } else if (value instanceof CompactCommitInfo) {
+    if (value instanceof CompactCommitInfo) {
       CompactCommitInfo message = (CompactCommitInfo) value;
       if (taskTracker == null) {
         taskTracker = new TaskTracker(message.getNumberOfTasks());
       }
-      LOG.info("Receive a CompactCommitInfo (checkpoint {}, total delete {} files: {}, total add {} files: {})",
+      LOG.info(
+          "Receive a CompactCommitInfo (checkpoint {}, total delete {} files: {}, total add {} files: {})",
           message.getCheckpointId(),
           message.getCurrentDataFiles().size(),
           Joiner.on(", ").join(message.getCurrentDataFiles().stream()
-              .map(s -> s.content() + "=>" + s.fileSizeInBytes() / 1024 / 1024 + "M").collect(Collectors.toList())),
+              .map(s -> s.content() + "=>" + s.fileSizeInBytes() / 1024 / 1024 + "M")
+              .collect(Collectors.toList())),
           message.getDataFiles().size(),
           Joiner.on(", ").join(message.getDataFiles().stream()
-              .map(s -> s.content() + "=>" + s.fileSizeInBytes() / 1024 / 1024 + "M").collect(Collectors.toList())));
+              .map(s -> s.content() + "=>" + s.fileSizeInBytes() / 1024 / 1024 + "M")
+              .collect(Collectors.toList())));
 
       this.deletedDataFiles.addAll(message.getCurrentDataFiles());
       this.addedDataFiles.addAll(message.getDataFiles());
 
       boolean needCommit = taskTracker.add(message.getCheckpointId(), message.getTaskId());
       if (needCommit) {
-        LOG.info("Need to commit: checkpoint {}, total delete {} files: {}, total add {} files: {}]",
+        LOG.info(
+            "Need to commit: checkpoint {}, total delete {} files: {}, total add {} files: {}]",
             message.getCheckpointId(),
             this.deletedDataFiles.size(),
             Joiner.on(", ").join(this.deletedDataFiles.stream()
@@ -128,8 +111,9 @@ public class CompactFileCommitter extends AbstractStreamOperator<EndCheckpoint>
     }
   }
 
-  private void replaceDataFiles(Iterable<DataFile> currentDataFiles, Iterable<DataFile> dataFiles,
-                                long startingSnapshotId) {
+  private void replaceDataFiles(
+      Iterable<DataFile> currentDataFiles, Iterable<DataFile> dataFiles,
+      long startingSnapshotId) {
     try {
       RewriteFiles rewriteFiles = table.newRewrite();
       rewriteFiles.validateFromSnapshot(startingSnapshotId)
@@ -140,7 +124,6 @@ public class CompactFileCommitter extends AbstractStreamOperator<EndCheckpoint>
           .commit();
       LOG.info("Compaction transaction has been committed successfully, total delete files: {}, total add files: {}",
           currentDataFiles, dataFiles);
-
     } catch (Exception e) {
       Tasks.foreach(Iterables.transform(dataFiles, f -> f.path().toString()))
           .noRetry()
@@ -163,9 +146,5 @@ public class CompactFileCommitter extends AbstractStreamOperator<EndCheckpoint>
     if (tableLoader != null) {
       tableLoader.close();
     }
-  }
-
-  private void emit(EndCheckpoint result) {
-    output.collect(new StreamRecord<>(result));
   }
 }

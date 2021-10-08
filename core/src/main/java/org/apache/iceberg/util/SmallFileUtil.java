@@ -104,42 +104,4 @@ public class SmallFileUtil {
 
     return filterDataFiles.size();
   }
-
-  /**
-   * Returns whether expire snapshot files should be removed.
-   */
-  public static boolean shouldExpireSnapshot(Table table) {
-    boolean shouldExpire = false;
-    long currentTimeMillis = System.currentTimeMillis();
-    Map<String, String> props = table.properties();
-    boolean autoExpireSnapshotEnable = PropertyUtil.propertyAsBoolean(
-        props,
-        TableProperties.SNAPSHOT_AUTO_EXPIRE_ENABLED,
-        TableProperties.SNAPSHOT_AUTO_EXPIRE_ENABLED_DEFAULT);
-
-    long expireIntervalMillis = PropertyUtil.propertyAsLong(
-        props,
-        TableProperties.SNAPSHOT_AUTO_EXPIRE_INTERVAL_MS,
-        TableProperties.SNAPSHOT_AUTO_EXPIRE_INTERVAL_MS_DEFAULT);
-
-    long lastExpireTimestamp = PropertyUtil.propertyAsLong(
-        props,
-        TableProperties.AUTO_EXPIRE_LAST_REMOVE_SNAPSHOTS_MS,
-        TableProperties.AUTO_EXPIRE_LAST_REMOVE_SNAPSHOTS_MS_DEFAULT);
-
-    LOG.info("Summary: actual expire interval: {}s, expire.auto.enabled: {}, " +
-            "expire.interval: {}s, current time: {}, last expire time: {}",
-        (currentTimeMillis - lastExpireTimestamp) / 1000,
-        autoExpireSnapshotEnable,
-        expireIntervalMillis / 1000,
-        new Date(currentTimeMillis),
-        new Date(lastExpireTimestamp));
-
-    if (autoExpireSnapshotEnable &&
-        currentTimeMillis - lastExpireTimestamp >= expireIntervalMillis) {
-      LOG.info("Should expire snapshot");
-      shouldExpire = true;
-    }
-    return shouldExpire;
-  }
 }

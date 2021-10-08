@@ -63,7 +63,7 @@ public class CompactFileGenerator extends AbstractStreamOperator<CommonControlle
     implements OneInputStreamOperator<EndCheckpoint, CommonControllerMessage>, BoundedOneInput {
   private static final Logger LOG = LoggerFactory.getLogger(CompactFileGenerator.class);
 
-  private  long startingSnapshotId;
+  private long startingSnapshotId;
   private final TableLoader tableLoader;
   private transient Table table;
   private boolean caseSensitive;
@@ -115,12 +115,6 @@ public class CompactFileGenerator extends AbstractStreamOperator<CommonControlle
   public void processElement(StreamRecord<EndCheckpoint> element) throws Exception {
     EndCheckpoint endCheckpoint = element.getValue();
     LOG.info("Received an EndCheckpoint {}, begin to compute CompactionUnit", endCheckpoint.getCheckpointId());
-    emit(new EndCheckpoint(
-        endCheckpoint.getCheckpointId(),
-        getRuntimeContext().getIndexOfThisSubtask(),
-        getRuntimeContext().getIndexOfThisSubtask())
-    );
-
     if (SmallFileUtil.shouldMergeSmallFiles(table)) {
       table.refresh();
       AtomicInteger index = new AtomicInteger();
@@ -132,7 +126,8 @@ public class CompactFileGenerator extends AbstractStreamOperator<CommonControlle
       if (!tasks.isEmpty()) {
         tasks.forEach(task -> {
           emit(task);
-          LOG.info("Emit CompactionUnit(id: {}, files: {}, total: {}, checkpoint: {})",
+          LOG.info(
+              "Emit CompactionUnit(id: {}, files: {}, total: {}, checkpoint: {})",
               task.getUnitId(),
               Joiner.on(", ").join(task.getCombinedScanTask().files().stream()
                   .map(t -> t.file().content() + "=>" + t.file().fileSizeInBytes() / 1024 / 1024 + "M")
