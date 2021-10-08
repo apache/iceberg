@@ -244,4 +244,23 @@ public class TableProperties {
 
   public static final String UPSERT_MODE_ENABLE = "write.upsert.enable";
   public static final boolean UPSERT_MODE_ENABLE_DEFAULT = false;
+
+  //  expire snapshot
+  public static final String SNAPSHOT_FLINK_AUTO_EXPIRE_ENABLED = "snapshot.flink.auto-expire.enabled";
+  public static final boolean SNAPSHOT_FLINK_AUTO_EXPIRE_ENABLED_DEFAULT = false;
+
+  public static final String FLINK_LAST_EXPIRE_SNAPSHOT_MS = "snapshot.flink.auto-expire.last-expire-snapshot-ms";
+  public static final long FLINK_LAST_EXPIRE_SNAPSHOT_MS_DEFAULT = -1;
+
+  public static final String SNAPSHOT_FLINK_AUTO_EXPIRE_INTERVAL_MS = "snapshot.flink.auto-expire.interval-ms";
+  public static final long SNAPSHOT_FLINK_AUTO_EXPIRE_INTERVAL_MS_DEFAULT = 10 * 60 * 1000;
+
+  public static final String FLINK_AUTO_MAX_SNAPSHOT_AGE_MS = "snapshot.flink.auto-expire.max-snapshot-age-ms";
+  public static final long FLINK_AUTO_MAX_SNAPSHOT_AGE_MS_DEFAULT = 5 * 24 * 60 * 60 * 1000; // 5 days
+
+  public static final String FLINK_AUTO_MIN_SNAPSHOTS_TO_KEEP = "snapshot.flink.auto-expire.min-snapshots-to-keep";
+  public static final int FLINK_AUTO_MIN_SNAPSHOTS_TO_KEEP_DEFAULT = 5;
+
+  public static final String FLINK_AUTO_SNAPSHOTS_GROUP_NUMS = "snapshot.flink.auto-expire.snapshots-group-nums";
+  public static final int FLINK_AUTO_SNAPSHOTS_GROUP_NUMS_DEFAULT = 5;
 }
