@@ -215,7 +215,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     boolean isAppendOp = op.equals(DataOperations.APPEND);
     Preconditions.checkState(
         isAppendOp || op.equals(DataOperations.REPLACE) ||
-        skipDelete || !op.equals(DataOperations.DELETE),
+        skipDelete || !op.equals(DataOperations.DELETE)),
         "Cannot process %s snapshot: %s", op.toLowerCase(Locale.ROOT), snapshot.snapshotId());
     return isAppendOp;
   }
