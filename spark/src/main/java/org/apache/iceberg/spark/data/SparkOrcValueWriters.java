@@ -138,7 +138,7 @@ class SparkOrcValueWriters {
         throw new IllegalArgumentException("Expected one (and same) ORC type for list elements, got: " + orcTypes);
       }
       this.writer = writer;
-      this.fieldGetter = SparkOrcWriter.createFieldGetter(orcTypes.get(0), 1);
+      this.fieldGetter = SparkOrcWriter.createFieldGetter(orcTypes.get(0));
     }
 
     @Override
@@ -179,8 +179,8 @@ class SparkOrcValueWriters {
       }
       this.keyWriter = keyWriter;
       this.valueWriter = valueWriter;
-      this.keyFieldGetter = SparkOrcWriter.createFieldGetter(orcTypes.get(0), 1);
-      this.valueFieldGetter = SparkOrcWriter.createFieldGetter(orcTypes.get(1), 1);
+      this.keyFieldGetter = SparkOrcWriter.createFieldGetter(orcTypes.get(0));
+      this.valueFieldGetter = SparkOrcWriter.createFieldGetter(orcTypes.get(1));
     }
 
     @Override

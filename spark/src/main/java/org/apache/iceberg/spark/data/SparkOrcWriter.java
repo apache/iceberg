@@ -135,7 +135,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
       this.fieldGetters = Lists.newArrayListWithExpectedSize(orcTypes.size());
 
       for (int i = 0; i < orcTypes.size(); i++) {
-        fieldGetters.add(createFieldGetter(orcTypes.get(i), orcTypes.size()));
+        fieldGetters.add(createFieldGetter(orcTypes.get(i)));
       }
     }
 
@@ -155,7 +155,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
     }
   }
 
-  static FieldGetter<?> createFieldGetter(TypeDescription fieldType, int fieldCount) {
+  static FieldGetter<?> createFieldGetter(TypeDescription fieldType) {
     final FieldGetter<?> fieldGetter;
     switch (fieldType.getCategory()) {
       case BOOLEAN:
@@ -197,7 +197,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
         fieldGetter = (row, ordinal) -> row.getUTF8String(ordinal);
         break;
       case STRUCT:
-        fieldGetter = (row, ordinal) -> row.getStruct(ordinal, fieldCount);
+        fieldGetter = (row, ordinal) -> row.getStruct(ordinal, fieldType.getChildren().size());
         break;
       case LIST:
         fieldGetter = (row, ordinal) -> row.getArray(ordinal);
