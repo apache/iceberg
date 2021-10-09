@@ -212,12 +212,12 @@ public class SparkMicroBatchStream implements MicroBatchStream {
 
   private boolean shouldProcess(Snapshot snapshot) {
     String op = snapshot.operation();
-    Preconditions.checkState(!op.equals(DataOperations.DELETE) || skipDelete,
-        "Cannot process delete snapshot: %s", snapshot.snapshotId());
+    boolean isAppendOp = op.equals(DataOperations.APPEND);
     Preconditions.checkState(
-        op.equals(DataOperations.DELETE) || op.equals(DataOperations.APPEND) || op.equals(DataOperations.REPLACE),
+        isAppendOp || op.equals(DataOperations.REPLACE) ||
+        skipDelete || !op.equals(DataOperations.DELETE),
         "Cannot process %s snapshot: %s", op.toLowerCase(Locale.ROOT), snapshot.snapshotId());
-    return op.equals(DataOperations.APPEND);
+    return isAppendOp;
   }
 
   private static class InitialOffsetStore {
