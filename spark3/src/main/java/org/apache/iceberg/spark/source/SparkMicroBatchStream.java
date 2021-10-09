@@ -86,6 +86,7 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final boolean localityPreferred;
   private final StreamingOffset initialOffset;
   private final boolean skipDelete;
+  private final boolean resendOverwrite;
 
   SparkMicroBatchStream(JavaSparkContext sparkContext, Table table, boolean caseSensitive,
                         Schema expectedSchema, CaseInsensitiveStringMap options, String checkpointLocation) {
@@ -110,6 +111,8 @@ public class SparkMicroBatchStream implements MicroBatchStream {
     this.initialOffset = initialOffsetStore.initialOffset();
 
     this.skipDelete = Spark3Util.propertyAsBoolean(options, SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS, false);
+    this.resendOverwrite = Spark3Util.propertyAsBoolean(options, SparkReadOptions.STREAMING_RESEND_OVERWRITE_SNAPSHOTS,
+            false);
   }
 
   @Override
@@ -213,11 +216,17 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private boolean shouldProcess(Snapshot snapshot) {
     String op = snapshot.operation();
     Preconditions.checkState(!op.equals(DataOperations.DELETE) || skipDelete,
-        "Cannot process delete snapshot: %s", snapshot.snapshotId());
-    Preconditions.checkState(
-        op.equals(DataOperations.DELETE) || op.equals(DataOperations.APPEND) || op.equals(DataOperations.REPLACE),
+        "Cannot process delete snapshot: %s. If you want to skip delete snapshot please set the" +
+                " read option streaming-skip-delete-snapshot to true", snapshot.snapshotId());
+    Preconditions.checkState(!op.equals(DataOperations.OVERWRITE) || (table.formatVersion() == 1 &&
+                    resendOverwrite),
+            "Cannot process overwrite snapshot: %s. If you want to resend overwrite snapshots" +
+                    " please set the streaming-resend-overwrite-snapshotsread option" +
+                    " streaming-resend-overwrite-snapshots to true.", snapshot.snapshotId());
+    Preconditions.checkState(op.equals(DataOperations.DELETE) || op.equals(DataOperations.APPEND) ||
+                    op.equals(DataOperations.REPLACE) || op.equals(DataOperations.OVERWRITE),
         "Cannot process %s snapshot: %s", op.toLowerCase(Locale.ROOT), snapshot.snapshotId());
-    return op.equals(DataOperations.APPEND);
+    return op.equals(DataOperations.APPEND) || op.equals(DataOperations.OVERWRITE);
   }
 
   private static class InitialOffsetStore {

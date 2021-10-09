@@ -53,4 +53,7 @@ public class SparkReadOptions {
 
   // skip snapshots of type delete while reading stream out of iceberg table
   public static final String STREAMING_SKIP_DELETE_SNAPSHOTS = "streaming-skip-delete-snapshots";
+
+  // resend snapshots of type overwrite while reading stream out of iceberg table
+  public static final String STREAMING_RESEND_OVERWRITE_SNAPSHOTS = "streaming-resend-overwrite-snapshots";
 }

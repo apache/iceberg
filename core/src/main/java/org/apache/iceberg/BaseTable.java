@@ -55,6 +55,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public int formatVersion() {
+    return ops.current().formatVersion();
+  }
+
+  @Override
   public void refresh() {
     ops.refresh();
   }

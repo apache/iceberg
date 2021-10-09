@@ -40,6 +40,13 @@ public interface Table {
   }
 
   /**
+   * Return the version for this table.
+   *
+   * @return this table's version
+   */
+  int formatVersion();
+
+  /**
    * Refresh the current table metadata.
    */
   void refresh();
