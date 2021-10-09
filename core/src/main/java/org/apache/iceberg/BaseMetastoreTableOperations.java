@@ -58,7 +58,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
 
   private TableMetadata currentMetadata = null;
   private String currentMetadataLocation = null;
-  private boolean shouldRefresh = true;
+  private volatile boolean shouldRefresh = true;
   private int version = -1;
 
   protected BaseMetastoreTableOperations() {
@@ -74,7 +74,11 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   @Override
   public TableMetadata current() {
     if (shouldRefresh) {
-      return refresh();
+      synchronized (this) {
+        if (shouldRefresh) {
+          return refresh();
+        }
+      }
     }
     return currentMetadata;
   }
@@ -90,18 +94,20 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
   @Override
   public TableMetadata refresh() {
     boolean currentMetadataWasAvailable = currentMetadata != null;
-    try {
-      doRefresh();
-    } catch (NoSuchTableException e) {
-      if (currentMetadataWasAvailable) {
-        LOG.warn("Could not find the table during refresh, setting current metadata to null", e);
-        shouldRefresh = true;
-      }
+    synchronized (this) {
+      try {
+        doRefresh();
+      } catch (NoSuchTableException e) {
+        if (currentMetadataWasAvailable) {
+          LOG.warn("Could not find the table during refresh, setting current metadata to null", e);
+          shouldRefresh = true;
+        }
 
-      currentMetadata = null;
-      currentMetadataLocation = null;
-      version = -1;
-      throw e;
+        currentMetadata = null;
+        currentMetadataLocation = null;
+        version = -1;
+        throw e;
+      }
     }
     return current();
   }
