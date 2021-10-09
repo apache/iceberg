@@ -22,6 +22,7 @@ package org.apache.iceberg.flink.source;
 import java.util.Map;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
+import org.apache.iceberg.DataTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
@@ -31,6 +32,7 @@ import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
+import org.apache.iceberg.flink.StructRecordWrapper;
 import org.apache.iceberg.flink.data.FlinkAvroReader;
 import org.apache.iceberg.flink.data.FlinkOrcReader;
 import org.apache.iceberg.flink.data.FlinkParquetReaders;
@@ -79,7 +81,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
       FileScanTask task, Schema schema, Map<Integer, ?> idToConstant, InputFilesDecryptor inputFilesDecryptor) {
     CloseableIterable<RowData> iter;
     if (task.isDataTask()) {
-      throw new UnsupportedOperationException("Cannot read data task.");
+      iter = newDataIterable(task.asDataTask(), schema);
     } else {
       switch (task.file().format()) {
         case PARQUET:
@@ -101,6 +103,11 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     }
 
     return iter;
+  }
+
+  private CloseableIterable<RowData> newDataIterable(DataTask task, Schema schema) {
+    StructRecordWrapper recordWrapper = new StructRecordWrapper(schema.asStruct());
+    return CloseableIterable.transform(task.asDataTask().rows(), recordWrapper::wrap);
   }
 
   private CloseableIterable<RowData> newAvroIterable(
