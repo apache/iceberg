@@ -40,7 +40,7 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
 
   @Override
   public Type message(MessageType message, List<Type> fields) {
-    Types.MessageTypeBuilder builder = org.apache.parquet.schema.Types.buildMessage();
+    Types.MessageTypeBuilder builder = Types.buildMessage();
     fields.stream().filter(Objects::nonNull).forEach(builder::addField);
 
     return builder.named(message.getName());
@@ -61,7 +61,7 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
         "List type must have element field");
 
     MappedField field = nameMapping.find(currentPath());
-    Type listType = org.apache.parquet.schema.Types.list(list.getRepetition())
+    Type listType = Types.list(list.getRepetition())
         .element(elementType)
         .named(list.getName());
 
@@ -74,7 +74,7 @@ class ApplyNameMapping extends ParquetTypeVisitor<Type> {
         "Map type must have both key field and value field");
 
     MappedField field = nameMapping.find(currentPath());
-    Type mapType = org.apache.parquet.schema.Types.map(map.getRepetition())
+    Type mapType = Types.map(map.getRepetition())
         .key(keyType)
         .value(valueType)
         .named(map.getName());
