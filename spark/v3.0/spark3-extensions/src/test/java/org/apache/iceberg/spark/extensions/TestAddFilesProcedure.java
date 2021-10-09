@@ -25,7 +25,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
@@ -103,6 +114,55 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     assertEquals("Iceberg table contains correct data",
         sql("SELECT * FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void addDataUnpartitionedAvroFile() throws Exception {
+    final Schema SCHEMA = new Schema(
+        Types.NestedField.required(1, "id", Types.LongType.get()),
+        Types.NestedField.optional(2, "data", Types.StringType.get()));
+
+    GenericRecord baseRecord = GenericRecord.create(SCHEMA);
+
+    ImmutableList.Builder<Record> builder = ImmutableList.builder();
+    builder.add(baseRecord.copy(ImmutableMap.of("id", 1L, "data", "a")));
+    builder.add(baseRecord.copy(ImmutableMap.of("id", 2L, "data", "b")));
+    List<Record> records = builder.build();
+
+    OutputFile file = Files.localOutput(temp.newFile());
+
+    DataWriter<Record> dataWriter = Avro.writeData(file)
+        .schema(SCHEMA)
+        .createWriterFunc(org.apache.iceberg.data.avro.DataWriter::create)
+        .overwrite()
+        .withSpec(PartitionSpec.unpartitioned())
+        .build();
+
+    try {
+      for (Record record : records) {
+        dataWriter.add(record);
+      }
+    } finally {
+      dataWriter.close();
+    }
+
+    String path = dataWriter.toDataFile().path().toString();
+
+    String createIceberg =
+        "CREATE TABLE %s (id Long, data String) USING iceberg";
+    sql(createIceberg, tableName);
+
+    Object result = scalarSql("CALL %s.system.add_files('%s', '`avro`.`%s`')",
+        catalogName, tableName, path);
+    Assert.assertEquals(1L, result);
+
+    List<Object[]> expected = Lists.newArrayList(
+        new Object[]{1L, "a"},
+        new Object[]{2L, "b"}
+    );
+    assertEquals("Iceberg table contains correct data",
+        expected,
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 

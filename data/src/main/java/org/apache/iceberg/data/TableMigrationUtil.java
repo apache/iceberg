@@ -103,6 +103,7 @@ public class TableMigrationUtil {
                 .withFileSizeInBytes(stat.getLen())
                 .withMetrics(metrics)
                 .withPartitionPath(partitionKey)
+                .withRecordCount(0)
                 .build();
 
           }).collect(Collectors.toList());
