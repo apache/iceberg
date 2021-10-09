@@ -98,7 +98,7 @@ public class ExpireSnapshotGenerator extends AbstractStreamOperator<CommonContro
           .set(TableProperties.FLINK_LAST_EXPIRE_SNAPSHOT_MS, Long.toString(currentTimeMillis))
           .commit();
 
-      ExpireSnapshotResult result = removeSnapshots.getExpiredSnapshotResult();
+      ExpireSnapshotResult result = removeSnapshots.findExpiredSnapshotResult();
       if (result != null) {
         Set<String> manifestFiles = result.getManifestsToDelete();
         Set<String> manifestListFiles = result.getManifestListsToDelete();

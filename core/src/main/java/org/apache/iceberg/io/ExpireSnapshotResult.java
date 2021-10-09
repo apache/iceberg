@@ -115,4 +115,8 @@ public class ExpireSnapshotResult implements Serializable {
       return new ExpireSnapshotResult(manifestsToDelete, manifestListsToDelete, filesToDelete);
     }
   }
+
+  public boolean isEmpty() {
+    return this.filesToDelete.isEmpty() && this.manifestsToDelete.isEmpty() && this.manifestListsToDelete.isEmpty();
+  }
 }
