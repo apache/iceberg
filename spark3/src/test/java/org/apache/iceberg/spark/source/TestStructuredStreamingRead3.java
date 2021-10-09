@@ -288,6 +288,42 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     );
   }
 
+  @Test
+  public void testReadStreamWithSnapshotTypeOverwriteAndSkipDeleteOption() throws Exception {
+    // upgrade table to version 2 - to facilitate creation of Snapshot of type OVERWRITE.
+    TableOperations ops = ((BaseTable) table).operations();
+    TableMetadata meta = ops.current();
+    ops.commit(meta, meta.upgradeToFormatVersion(2));
+
+    // fill table with some initial data
+    List<List<SimpleRecord>> dataAcrossSnapshots = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(dataAcrossSnapshots, tableIdentifier);
+
+    Schema deleteRowSchema = table.schema().select("data");
+    Record dataDelete = GenericRecord.create(deleteRowSchema);
+    List<Record> dataDeletes = Lists.newArrayList(
+        dataDelete.copy("data", "one") // id = 1
+    );
+
+    DeleteFile eqDeletes = FileHelpers.writeDeleteFile(
+        table, Files.localOutput(temp.newFile()), TestHelpers.Row.of(0), dataDeletes, deleteRowSchema);
+
+    table.newRowDelta()
+        .addDeletes(eqDeletes)
+        .commit();
+
+    // check pre-condition - that the above Delete file write - actually resulted in snapshot of type OVERWRITE
+    Assert.assertEquals(DataOperations.OVERWRITE, table.currentSnapshot().operation());
+
+    Dataset<Row> df = spark.readStream()
+        .format("iceberg")
+        .option(SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS, "true")
+        .load(tableIdentifier);
+
+    Assertions.assertThat(processAvailable(df))
+        .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
+  }
+
   @SuppressWarnings("unchecked")
   @Test
   public void testReadStreamWithSnapshotTypeReplaceIgnoresReplace() throws Exception {
