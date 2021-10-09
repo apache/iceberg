@@ -26,7 +26,6 @@ import java.util.Objects;
 import java.util.Set;
 import org.apache.avro.JsonProperties;
 import org.apache.avro.Schema;
-import org.apache.avro.Schema.Type;
 import org.apache.avro.SchemaNormalization;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -274,9 +273,9 @@ class PruneColumns extends AvroSchemaVisitor<Schema> {
 
   private boolean isRecord(Schema field) {
     if (AvroSchemaUtil.isOptionSchema(field)) {
-      return AvroSchemaUtil.fromOption(field).getType().equals(Type.RECORD);
+      return AvroSchemaUtil.fromOption(field).getType().equals(Schema.Type.RECORD);
     } else {
-      return field.getType().equals(Type.RECORD);
+      return field.getType().equals(Schema.Type.RECORD);
     }
   }
 
