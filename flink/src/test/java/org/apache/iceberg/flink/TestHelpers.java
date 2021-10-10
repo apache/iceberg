@@ -214,7 +214,7 @@ public class TestHelpers {
         assertMapValues(type.asMapType(), logicalType, (Map<?, ?>) expected, (MapData) actual);
         break;
       case STRUCT:
-        Assertions.assertThat(expected).as("Should expect a Record").isInstanceOf(StructLike.class);
+        Assertions.assertThat(expected).as("Should expect a StructLike").isInstanceOf(StructLike.class);
         assertRowData(type.asStructType(), logicalType, (StructLike) expected, (RowData) actual);
         break;
       case UUID:

@@ -27,11 +27,8 @@ import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.MetadataTableType;
-import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -44,35 +41,19 @@ public class MetadataTableSource {
   private MetadataTableSource() {
   }
 
-  public static Builder builder() {
-    return new Builder();
+  public static Builder builder(StreamExecutionEnvironment env, Table metadataTable) {
+    return new Builder(env, metadataTable);
   }
 
   public static class Builder {
-    private StreamExecutionEnvironment env;
-    private String tableName;
-    private TableOperations tableOps;
-    private MetadataTableType metadataTableType;
+    private final StreamExecutionEnvironment env;
+    private final Table metadataTable;
+
     private int maxParallelism = Integer.MAX_VALUE;
 
-    public Builder env(StreamExecutionEnvironment environment) {
-      this.env = environment;
-      return this;
-    }
-
-    public Builder tableName(String name) {
-      this.tableName = name;
-      return this;
-    }
-
-    public Builder tableOperations(TableOperations ops) {
-      this.tableOps = ops;
-      return this;
-    }
-
-    public Builder metadataTableType(MetadataTableType type) {
-      this.metadataTableType = type;
-      return this;
+    private Builder(StreamExecutionEnvironment env, Table metadataTable) {
+      this.env = env;
+      this.metadataTable = metadataTable;
     }
 
     public Builder maxParallelism(int parallelism) {
@@ -82,18 +63,8 @@ public class MetadataTableSource {
     }
 
     public DataStream<RowData> build() {
-      Preconditions.checkNotNull(env, "StreamExecutionEnvironment should not be null");
-      Preconditions.checkNotNull(tableName, "TableName should not be null");
-
-      Table metadataTable = MetadataTableUtils.createMetadataTableInstance(tableOps, tableName,
-          metadataTableType.name(), metadataTableType);
-
-      Schema schema = metadataTable.schema();
-      FileIO io = metadataTable.io();
-      EncryptionManager encryptionManager = metadataTable.encryption();
-      String nameMapping = null;
-      boolean caseSensitive = false;
-      MetadataTableMap map = new MetadataTableMap(tableName, schema, io, encryptionManager, nameMapping, caseSensitive);
+      MetadataTableMap map = new MetadataTableMap(metadataTable.name(), metadataTable.schema(), metadataTable.io(),
+          metadataTable.encryption(), null, false);
 
       List<CombinedScanTask> combinedScanTasks = Lists.newArrayList(metadataTable.newScan().planTasks().iterator());
       int parallelism = Math.min(combinedScanTasks.size(), maxParallelism);

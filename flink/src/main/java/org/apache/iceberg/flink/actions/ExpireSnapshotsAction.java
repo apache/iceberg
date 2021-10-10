@@ -25,9 +25,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.Expressions;
+import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
@@ -119,22 +120,24 @@ public class ExpireSnapshotsAction
 
   @Override
   public Result execute() {
-    return deleteFiles(expire());
+    expire().forEachRemaining(System.out::println);
+    return null;
+//    return deleteFiles(expire());
   }
 
   private org.apache.flink.table.api.Table buildValidFileTable(TableMetadata metadata) {
-    BaseTable staticTable = newStaticTable(metadata, this.table.io());
+    Table staticTable = newStaticTable(metadata, table.io());
 
-    org.apache.flink.table.api.Table dataFileTable =  buildValidDataFileTable(staticTable).select(
+    org.apache.flink.table.api.Table dataFileTable =  buildValidDataFileTable(staticTable, ops).select(
         Expressions.$("file_path"), Expressions.lit(DATA_FILE).as("file_type"));
 
-    org.apache.flink.table.api.Table manifestTable =  buildManifestFileTable(staticTable).select(
+    org.apache.flink.table.api.Table manifestTable =  buildManifestFileTable(staticTable, ops).select(
         Expressions.$("file_path"), Expressions.lit(MANIFEST).as("file_type"));
 
-    org.apache.flink.table.api.Table manifestListTable =  buildManifestListTable(staticTable).select(
+    org.apache.flink.table.api.Table manifestListTable =  buildManifestListTable(staticTable, ops).select(
         Expressions.$("file_path"), Expressions.lit(MANIFEST_LIST).as("file_type"));
 
-    return dataFileTable.unionAll(manifestTable).unionAll(manifestListTable);
+    return dataFileTable.unionAll(manifestTable).unionAll(manifestListTable).distinct();
   }
 
   /**
@@ -171,24 +174,17 @@ public class ExpireSnapshotsAction
       org.apache.flink.table.api.Table validFiles = buildValidFileTable(ops.refresh());
 
       // determine expired files
-      org.apache.flink.table.api.Table left = originalFiles.select(
-          Expressions.$("file_path").as("origin_file_path"), Expressions.$("file_type").as("origin_file_type")
-      );
+      EnvironmentSettings settings = EnvironmentSettings.newInstance().useBlinkPlanner().inBatchMode().build();
+      TableEnvironment batchTableEnv = TableEnvironment.create(settings);
 
-      org.apache.flink.table.api.Table right = validFiles.select(
-          Expressions.$("file_path").as("valid_file_path"), Expressions.$("file_type").as("valid_file_type")
-      );
+      org.apache.flink.table.api.Table originalFileTable = batchTableEnv.fromValues(
+          (Iterable<Row>) () -> originalFiles.select(Expressions.$("*")).execute().collect());
 
-      this.expiredFiles = left.leftOuterJoin(right, Expressions.and(
-          Expressions.$("origin_file_path").isEqual(Expressions.$("valid_file_path")),
-          Expressions.$("origin_file_type").isEqual(Expressions.$("valid_file_type"))
-      ))
-          .where(Expressions.$("valid_file_path").isNull())
-          .select(Expressions.$("origin_file_path").as("file_path"), Expressions.$("origin_file_type").as("file_type"))
-          .execute()
-          .collect();
+      org.apache.flink.table.api.Table validFileTable = batchTableEnv.fromValues(
+          (Iterable<Row>) () -> validFiles.select(Expressions.$("*")).execute().collect());
+
+      expiredFiles = originalFileTable.minus(validFileTable).execute().collect();
     }
-
     return expiredFiles;
   }
 

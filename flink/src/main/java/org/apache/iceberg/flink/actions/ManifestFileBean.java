@@ -24,8 +24,10 @@ import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
 
 public class ManifestFileBean implements ManifestFile {
-
   private String path = null;
+  private Long length = null;
+  private Integer partitionSpecId = null;
+  private Long addedSnapshotId = null;
 
   public String getPath() {
     return path;
@@ -35,6 +37,30 @@ public class ManifestFileBean implements ManifestFile {
     this.path = path;
   }
 
+  public Long getLength() {
+    return length;
+  }
+
+  public void setLength(Long length) {
+    this.length = length;
+  }
+
+  public Integer getPartitionSpecId() {
+    return partitionSpecId;
+  }
+
+  public void setPartitionSpecId(Integer partitionSpecId) {
+    this.partitionSpecId = partitionSpecId;
+  }
+
+  public Long getAddedSnapshotId() {
+    return addedSnapshotId;
+  }
+
+  public void setAddedSnapshotId(Long addedSnapshotId) {
+    this.addedSnapshotId = addedSnapshotId;
+  }
+
   @Override
   public String path() {
     return path;
@@ -42,12 +68,12 @@ public class ManifestFileBean implements ManifestFile {
 
   @Override
   public long length() {
-    return 0;
+    return length;
   }
 
   @Override
   public int partitionSpecId() {
-    return 0;
+    return partitionSpecId;
   }
 
   @Override
@@ -67,7 +93,7 @@ public class ManifestFileBean implements ManifestFile {
 
   @Override
   public Long snapshotId() {
-    return null;
+    return addedSnapshotId;
   }
 
   @Override

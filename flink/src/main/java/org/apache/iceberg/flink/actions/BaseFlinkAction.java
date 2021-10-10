@@ -24,20 +24,24 @@ import java.util.Map;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.Expressions;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.util.Collector;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.ReachableFileUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StaticTableOperations;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.Action;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.source.MetadataTableSource;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
@@ -84,52 +88,59 @@ abstract class BaseFlinkAction<ThisT, R> implements Action<ThisT, R> {
     return options;
   }
 
-  protected BaseTable newStaticTable(TableMetadata metadata, FileIO io) {
+  protected Table newStaticTable(TableMetadata metadata, FileIO io) {
     String metadataFileLocation = metadata.metadataFileLocation();
     StaticTableOperations ops = new StaticTableOperations(metadataFileLocation, io);
     return new BaseTable(ops, metadataFileLocation);
   }
 
-  protected org.apache.flink.table.api.Table buildValidDataFileTable(BaseTable table) {
-    DataStream<RowData> allManifests = loadMetadataTable(table, MetadataTableType.ALL_MANIFESTS);
-    DataStream<String> dataFilePaths = allManifests.flatMap(new ReadManifest(table.schema(), table.io()));
+  protected Table newMetadataTable(Table table, TableOperations ops, MetadataTableType type) {
+    return MetadataTableUtils.createMetadataTableInstance(ops, table.name(), type.name(), type);
+  }
+
+  protected org.apache.flink.table.api.Table buildValidDataFileTable(Table table, TableOperations ops) {
+    Table metadataTable = newMetadataTable(table, ops, MetadataTableType.ALL_MANIFESTS);
+    DataStream<RowData> allManifests = loadMetadataTable(metadataTable);
+    DataStream<String> dataFilePaths = allManifests.flatMap(
+        new ReadManifest(metadataTable.schema(), metadataTable.io()));
     return tEnv.fromDataStream(dataFilePaths, Expressions.$("file_path"));
   }
 
-  protected org.apache.flink.table.api.Table buildManifestFileTable(BaseTable table) {
-    DataStream<RowData> allManifests = loadMetadataTable(table, MetadataTableType.ALL_MANIFESTS);
-    return tEnv.fromDataStream(allManifests).select(Expressions.$("f0").cast(DataTypes.STRING()).as("file_path"));
+  protected org.apache.flink.table.api.Table buildManifestFileTable(Table table, TableOperations ops) {
+    Table metadataTable = newMetadataTable(table, ops, MetadataTableType.ALL_MANIFESTS);
+    int pathPos = FlinkSchemaUtil.convert(metadataTable.schema()).getFieldIndex("path");
+    DataStream<RowData> allManifests = loadMetadataTable(metadataTable);
+    DataStream<String> manifestPaths = allManifests.map((row) -> row.getString(pathPos).toString());
+    return tEnv.fromDataStream(manifestPaths, Expressions.$("file_path"));
   }
 
-  protected org.apache.flink.table.api.Table buildManifestListTable(BaseTable table) {
+  protected org.apache.flink.table.api.Table buildManifestListTable(Table table, TableOperations ops) {
     List<String> manifestLists = ReachableFileUtil.manifestListLocations(table);
     return tEnv.fromValues(manifestLists).as("file_path");
   }
 
-  private DataStream<RowData> loadMetadataTable(BaseTable table, MetadataTableType type) {
-    return MetadataTableSource.builder()
-        .env(env)
-        .tableName(table.name())
-        .tableOperations(table.operations())
-        .metadataTableType(type)
+  private DataStream<RowData> loadMetadataTable(Table metadataTable) {
+    return MetadataTableSource.builder(env, metadataTable)
         .maxParallelism(PropertyUtil.propertyAsInt(options(), MAX_PARALLELISM, Integer.MAX_VALUE))
         .build();
   }
 
   private static class ReadManifest extends RichFlatMapFunction<RowData, String> {
-
-    private final Schema schema;
+    private final RowType rowType;
     private final FileIO io;
 
     private ReadManifest(Schema schema, FileIO io) {
-      this.schema = schema;
+      this.rowType = FlinkSchemaUtil.convert(schema);
       this.io = io;
     }
 
     @Override
     public void flatMap(RowData row, Collector<String> out) throws Exception {
       ManifestFileBean manifestFileBean = new ManifestFileBean();
-      manifestFileBean.setPath(row.getString(schema.aliasToId("path")).toString());
+      manifestFileBean.setPath(row.getString(rowType.getFieldIndex("path")).toString());
+      manifestFileBean.setLength(row.getLong(rowType.getFieldIndex("length")));
+      manifestFileBean.setPartitionSpecId(row.getInt(rowType.getFieldIndex("partition_spec_id")));
+      manifestFileBean.setAddedSnapshotId(row.getLong(rowType.getFieldIndex("added_snapshot_id")));
 
       try (CloseableIterator<String> iterator = ManifestFiles.readPaths(manifestFileBean, io).iterator()) {
         while (iterator.hasNext()) {
