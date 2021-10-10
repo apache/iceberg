@@ -19,9 +19,14 @@
 
 package org.apache.iceberg.util;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -30,7 +35,32 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class SnapshotUtil {
+  private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+
   private SnapshotUtil() {
+  }
+
+  /**
+   * Returns the ID of the most recent snapshot for the table as of the timestamp.
+   *
+   * @param table a {@link Table}
+   * @param timestampMillis the timestamp in millis since the Unix epoch
+   * @return the snapshot ID
+   * @throws IllegalArgumentException when no snapshot is found in the table
+   * older than the timestamp
+   */
+  public static long snapshotIdAsOfTime(Table table, long timestampMillis) {
+    Long snapshotId = null;
+    for (HistoryEntry logEntry : table.history()) {
+      if (logEntry.timestampMillis() <= timestampMillis) {
+        snapshotId = logEntry.snapshotId();
+      }
+    }
+
+    Preconditions.checkArgument(snapshotId != null,
+        "Cannot find a snapshot older than %s", formatTimestampMillis(timestampMillis));
+
+    return snapshotId;
   }
 
   /**
@@ -143,5 +173,9 @@ public class SnapshotUtil {
 
     throw new IllegalStateException(
         String.format("Cannot find snapshot after %s: not an ancestor of table's current snapshot", snapshotId));
+  }
+
+  private static String formatTimestampMillis(long millis) {
+    return DATE_FORMAT.format(LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC));
   }
 }
