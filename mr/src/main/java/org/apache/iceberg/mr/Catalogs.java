@@ -19,7 +19,6 @@
 
 package org.apache.iceberg.mr;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
@@ -39,6 +38,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 
 /**
@@ -150,7 +150,7 @@ public final class Catalogs {
     String catalogName = props.getProperty(InputFormatConfig.CATALOG_NAME);
 
     // Create a table property map without the controlling properties
-    Map<String, String> map = new HashMap<>(props.size());
+    Map<String, String> map = Maps.newHashMapWithExpectedSize(props.size());
     for (Object key : props.keySet()) {
       if (!PROPERTIES_TO_REMOVE.contains(key)) {
         map.put(key.toString(), props.get(key).toString());
