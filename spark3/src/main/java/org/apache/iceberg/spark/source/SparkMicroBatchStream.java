@@ -219,8 +219,8 @@ public class SparkMicroBatchStream implements MicroBatchStream {
         return false;
       case DataOperations.DELETE:
         Preconditions.checkState(skipDelete,
-            "Cannot process %s snapshot when read option %s is %b : %s", op.toLowerCase(Locale.ROOT),
-            SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS, skipDelete, snapshot.snapshotId());
+            "Cannot process delete snapshot : %s. Set read option %s to allow skipping snapshots of type delete",
+            snapshot.snapshotId(), SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS);
         return false;
       default:
         throw new IllegalStateException(String.format(
