@@ -38,7 +38,7 @@ public class GenericOrcReader implements OrcRowReader<Record> {
   private final OrcValueReader<?> reader;
 
   public GenericOrcReader(
-      org.apache.iceberg.Schema expectedSchema, TypeDescription readOrcSchema, Map<Integer, ?> idToConstant) {
+      Schema expectedSchema, TypeDescription readOrcSchema, Map<Integer, ?> idToConstant) {
     this.reader = OrcSchemaWithTypeVisitor.visit(expectedSchema, readOrcSchema, new ReadBuilder(idToConstant));
   }
 
