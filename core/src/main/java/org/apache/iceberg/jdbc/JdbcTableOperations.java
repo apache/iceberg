@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -82,7 +83,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
       }
     }
 
-    String newMetadataLocation = table.get(JdbcUtil.METADATA_LOCATION);
+    String newMetadataLocation = table.get(JdbcCatalogTable.METADATA_LOCATION);
     Preconditions.checkState(newMetadataLocation != null, "Invalid table %s: metadata location is null",
         tableIdentifier);
     refreshFromMetadataLocation(newMetadataLocation);
@@ -133,7 +134,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   private void updateTable(String newMetadataLocation, String oldMetadataLocation)
       throws SQLException, InterruptedException {
     int updatedRecords = connections.run(conn -> {
-      try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.DO_COMMIT_SQL)) {
+      try (PreparedStatement sql = conn.prepareStatement(JdbcCatalogTable.DO_COMMIT_SQL)) {
         // UPDATE
         sql.setString(1, newMetadataLocation);
         sql.setString(2, oldMetadataLocation);
@@ -155,10 +156,11 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   }
 
   private void createTable(String newMetadataLocation) throws SQLException, InterruptedException {
+    Namespace tableNamespace = tableIdentifier.namespace();
     int insertRecord = connections.run(conn -> {
-      try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.DO_COMMIT_CREATE_TABLE_SQL)) {
+      try (PreparedStatement sql = conn.prepareStatement(JdbcCatalogTable.DO_COMMIT_CREATE_TABLE_SQL)) {
         sql.setString(1, catalogName);
-        sql.setString(2, JdbcUtil.namespaceToString(tableIdentifier.namespace()));
+        sql.setString(2, JdbcUtil.namespaceToString(tableNamespace));
         sql.setString(3, tableIdentifier.name());
         sql.setString(4, newMetadataLocation);
         return sql.executeUpdate();
@@ -173,7 +175,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   }
 
   private void validateMetadataLocation(Map<String, String> table, TableMetadata base) {
-    String catalogMetadataLocation = table.get(JdbcUtil.METADATA_LOCATION);
+    String catalogMetadataLocation = table.get(JdbcCatalogTable.METADATA_LOCATION);
     String baseMetadataLocation = base != null ? base.metadataFileLocation() : null;
 
     if (!Objects.equals(baseMetadataLocation, catalogMetadataLocation)) {
@@ -196,18 +198,19 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
     return connections.run(conn -> {
       Map<String, String> table = Maps.newHashMap();
 
-      try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.GET_TABLE_SQL)) {
+      try (PreparedStatement sql = conn.prepareStatement(JdbcCatalogTable.GET_TABLE_SQL)) {
         sql.setString(1, catalogName);
         sql.setString(2, JdbcUtil.namespaceToString(tableIdentifier.namespace()));
         sql.setString(3, tableIdentifier.name());
         ResultSet rs = sql.executeQuery();
 
         if (rs.next()) {
-          table.put(JdbcUtil.CATALOG_NAME, rs.getString(JdbcUtil.CATALOG_NAME));
-          table.put(JdbcUtil.TABLE_NAMESPACE, rs.getString(JdbcUtil.TABLE_NAMESPACE));
-          table.put(JdbcUtil.TABLE_NAME, rs.getString(JdbcUtil.TABLE_NAME));
-          table.put(JdbcUtil.METADATA_LOCATION, rs.getString(JdbcUtil.METADATA_LOCATION));
-          table.put(JdbcUtil.PREVIOUS_METADATA_LOCATION, rs.getString(JdbcUtil.PREVIOUS_METADATA_LOCATION));
+          table.put(JdbcCatalogTable.CATALOG_NAME, rs.getString(JdbcCatalogTable.CATALOG_NAME));
+          table.put(JdbcCatalogTable.TABLE_NAMESPACE, rs.getString(JdbcCatalogTable.TABLE_NAMESPACE));
+          table.put(JdbcCatalogTable.TABLE_NAME, rs.getString(JdbcCatalogTable.TABLE_NAME));
+          table.put(JdbcCatalogTable.METADATA_LOCATION, rs.getString(JdbcCatalogTable.METADATA_LOCATION));
+          table.put(JdbcCatalogTable.PREVIOUS_METADATA_LOCATION,
+                  rs.getString(JdbcCatalogTable.PREVIOUS_METADATA_LOCATION));
         }
 
         rs.close();
