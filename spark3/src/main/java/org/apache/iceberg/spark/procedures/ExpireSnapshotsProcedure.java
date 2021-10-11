@@ -19,8 +19,14 @@
 
 package org.apache.iceberg.spark.procedures;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import org.apache.iceberg.actions.Actions;
 import org.apache.iceberg.actions.ExpireSnapshots;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -42,7 +48,8 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
   private static final ProcedureParameter[] PARAMETERS = new ProcedureParameter[] {
       ProcedureParameter.required("table", DataTypes.StringType),
       ProcedureParameter.optional("older_than", DataTypes.TimestampType),
-      ProcedureParameter.optional("retain_last", DataTypes.IntegerType)
+      ProcedureParameter.optional("retain_last", DataTypes.IntegerType),
+      ProcedureParameter.optional("max_concurrent_deletes", DataTypes.IntegerType)
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[]{
@@ -79,6 +86,10 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     Long olderThanMillis = args.isNullAt(1) ? null : DateTimeUtil.microsToMillis(args.getLong(1));
     Integer retainLastNum = args.isNullAt(2) ? null : args.getInt(2);
+    Integer maxConcurrentDeletes = args.isNullAt(3) ? null : args.getInt(3);
+
+    Preconditions.checkArgument(maxConcurrentDeletes == null || maxConcurrentDeletes > 0,
+        "max_concurrent_deletes should have value > 0,  value: " + maxConcurrentDeletes);
 
     return modifyIcebergTable(tableIdent, table -> {
       ExpireSnapshots action = actions().expireSnapshots(table);
@@ -89,6 +100,10 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
 
       if (retainLastNum != null) {
         action.retainLast(retainLastNum);
+      }
+
+      if (maxConcurrentDeletes != null && maxConcurrentDeletes > 0) {
+        action.executeDeleteWith(expireService(maxConcurrentDeletes));
       }
 
       ExpireSnapshots.Result result = action.execute();
@@ -109,5 +124,14 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
   @Override
   public String description() {
     return "ExpireSnapshotProcedure";
+  }
+
+  private ExecutorService expireService(int concurrentDeletes) {
+    return MoreExecutors.getExitingExecutorService(
+        (ThreadPoolExecutor) Executors.newFixedThreadPool(
+            concurrentDeletes,
+            new ThreadFactoryBuilder()
+                .setNameFormat("expire-snapshots-%d")
+                .build()));
   }
 }
