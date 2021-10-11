@@ -285,9 +285,16 @@ project(':iceberg-aliyun') {
     implementation project(':iceberg-common')
 
     compileOnly 'com.aliyun.oss:aliyun-sdk-oss'
-    compileOnly 'javax.xml.bind:jaxb-api'
-    compileOnly 'javax.activation:activation'
-    compileOnly 'org.glassfish.jaxb:jaxb-runtime'
+    if (jdkVersion <= '8') {
+      compileOnly 'javax.xml.bind:jaxb-api'
+      compileOnly 'javax.activation:activation'
+      compileOnly 'org.glassfish.jaxb:jaxb-runtime'
+    } else {
+      implementation 'javax.xml.bind:jaxb-api'
+      implementation 'javax.activation:activation'
+      implementation 'org.glassfish.jaxb:jaxb-runtime'
+    }
+
     compileOnly("org.apache.hadoop:hadoop-common") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
