@@ -288,8 +288,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       throw new RuntimeException("Interrupted during commit", e);
 
     } finally {
-      cleanupMetadataAndUnlock(commitStatus, newMetadataLocation, lockId);
-      tableLevelMutex.unlock();
+      cleanupMetadataAndUnlock(commitStatus, newMetadataLocation, lockId, tableLevelMutex);
     }
   }
 
@@ -471,7 +470,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
     return lockId;
   }
 
-  private void cleanupMetadataAndUnlock(CommitStatus commitStatus, String metadataLocation, Optional<Long> lockId) {
+  private void cleanupMetadataAndUnlock(CommitStatus commitStatus, String metadataLocation, Optional<Long> lockId,
+      ReentrantLock tableLevelMutex) {
     try {
       if (commitStatus == CommitStatus.FAILURE) {
         // If we are sure the commit failed, clean up the uncommitted metadata file
@@ -482,6 +482,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
       throw e;
     } finally {
       unlock(lockId);
+      tableLevelMutex.unlock();
     }
   }
 
