@@ -34,6 +34,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -67,11 +68,14 @@ public class TestJdbcTableConcurrency {
     Map<String, String> properties = new HashMap<>();
     this.tableDir = temp.newFolder();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, tableDir.getAbsolutePath());
-    String sqliteDb = "jdbc:sqlite:" + tableDir.getAbsolutePath() + "concurentFastAppend.db";
+    String sqliteDb = "jdbc:sqlite:file::memory:?concurentFastAppendDb" +
+            UUID.randomUUID().toString().replace("-", "");
     properties.put(CatalogProperties.URI, sqliteDb);
-    JdbcCatalog catalog = new JdbcCatalog();
+    JdbcCatalog catalog = new JdbcCatalog(properties);
     catalog.setConf(new Configuration());
-    catalog.initialize("jdbc", properties);
+    catalog.initialize("test_jdbc", properties);
+    catalog.createNamespace(TABLE_IDENTIFIER.namespace(), null);
+    Assert.assertTrue(catalog.namespaceExists(TABLE_IDENTIFIER.namespace()));
     catalog.createTable(TABLE_IDENTIFIER, SCHEMA);
 
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
@@ -107,6 +111,9 @@ public class TestJdbcTableConcurrency {
 
     icebergTable.refresh();
     Assert.assertEquals(20, icebergTable.currentSnapshot().allManifests().size());
+
+    catalog.dropTable(TABLE_IDENTIFIER);
+    catalog.dropNamespace(TABLE_IDENTIFIER.namespace());
   }
 
   @Test
@@ -114,12 +121,15 @@ public class TestJdbcTableConcurrency {
     Map<String, String> properties = new HashMap<>();
     this.tableDir = temp.newFolder();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, tableDir.getAbsolutePath());
-    String sqliteDb = "jdbc:sqlite:" + tableDir.getAbsolutePath() + "concurentConnections.db";
+    String sqliteDb = "jdbc:sqlite:file::memory:?concurentConnectionsDb" +
+            UUID.randomUUID().toString().replace("-", "");
     properties.put(CatalogProperties.URI, sqliteDb);
-    JdbcCatalog catalog = new JdbcCatalog();
+    JdbcCatalog catalog = new JdbcCatalog(properties);
     catalog.setConf(new Configuration());
-    catalog.initialize("jdbc", properties);
-    catalog.createTable(TABLE_IDENTIFIER, SCHEMA);
+    catalog.initialize("test_jdbc", properties);
+    catalog.createNamespace(TABLE_IDENTIFIER.namespace(), null);
+    Assert.assertTrue(catalog.namespaceExists(TABLE_IDENTIFIER.namespace()));
+    catalog.createTable(TABLE_IDENTIFIER, SCHEMA, PartitionSpec.unpartitioned());
 
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
@@ -137,7 +147,7 @@ public class TestJdbcTableConcurrency {
         .build();
 
     ExecutorService executorService = MoreExecutors.getExitingExecutorService(
-        (ThreadPoolExecutor) Executors.newFixedThreadPool(7));
+        (ThreadPoolExecutor) Executors.newFixedThreadPool(10));
 
     for (int i = 0; i < 7; i++) {
       executorService.submit(() -> icebergTable.newAppend().appendFile(file).commit());
@@ -146,5 +156,8 @@ public class TestJdbcTableConcurrency {
     executorService.shutdown();
     Assert.assertTrue("Timeout", executorService.awaitTermination(3, TimeUnit.MINUTES));
     Assert.assertEquals(7, Iterables.size(icebergTable.snapshots()));
+
+    catalog.dropTable(TABLE_IDENTIFIER);
+    catalog.dropNamespace(TABLE_IDENTIFIER.namespace());
   }
 }

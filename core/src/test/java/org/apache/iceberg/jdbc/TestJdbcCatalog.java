@@ -26,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -114,9 +115,22 @@ public class TestJdbcCatalog {
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
     warehouseLocation = this.tableDir.getAbsolutePath();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
-    catalog = new JdbcCatalog();
+    catalog = new JdbcCatalog(properties);
     catalog.setConf(conf);
     catalog.initialize("test_jdbc_catalog", properties);
+
+    // Create the namespaces needed for tests.
+    Set<Namespace> testNamespaces = new HashSet<Namespace>() {{
+        add(Namespace.of("db", "ns1", "ns2"));
+        add(Namespace.of("db", "ns2", "ns3"));
+        add(Namespace.of("ns1", "ns2"));
+        add(Namespace.of("db", "ns3"));
+        add(Namespace.of("db2"));
+      }};
+
+    for (Namespace namespace : testNamespaces) {
+      catalog.createNamespace(namespace, null);
+    }
   }
 
   @Test
@@ -124,12 +138,28 @@ public class TestJdbcCatalog {
     Map<String, String> properties = new HashMap<>();
     properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.getAbsolutePath());
     properties.put(CatalogProperties.URI, "jdbc:sqlite:file::memory:?icebergDB");
-    JdbcCatalog jdbcCatalog = new JdbcCatalog();
+    JdbcCatalog jdbcCatalog = new JdbcCatalog(properties);
     jdbcCatalog.setConf(conf);
     jdbcCatalog.initialize("test_jdbc_catalog", properties);
     // second initialization should not fail even if tables are already created
     jdbcCatalog.initialize("test_jdbc_catalog", properties);
     jdbcCatalog.initialize("test_jdbc_catalog", properties);
+  }
+
+  @Test
+  public void testCreateNamespace() {
+    Set<Namespace> namespaces = new HashSet<Namespace>() {{
+        add(Namespace.of("testdb1"));
+        add(Namespace.of("testdb2", "ns1", "ns2"));
+        add(Namespace.of("testdb3", "ns1", "ns2", "ns3"));
+      }};
+
+    for (Namespace namespace : namespaces) {
+      catalog.createNamespace(namespace, null);
+      Assert.assertTrue(catalog.namespaceExists(namespace));
+      catalog.dropNamespace(namespace);
+      Assert.assertFalse(catalog.namespaceExists(namespace));
+    }
   }
 
   @Test
@@ -254,18 +284,11 @@ public class TestJdbcCatalog {
   }
 
   @Test
-  public void testCreateAndDropTableWithoutNamespace() throws Exception {
+  public void testCreateWithoutNamespace() throws Exception {
     TableIdentifier testTable = TableIdentifier.of("tbl");
-    Table table = catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned());
-
-    Assert.assertEquals(table.schema().toString(), SCHEMA.toString());
-    Assert.assertEquals(catalog.name() + ".tbl", table.name());
-    String metaLocation = catalog.defaultWarehouseLocation(testTable);
-
-    FileSystem fs = Util.getFs(new Path(metaLocation), conf);
-    Assert.assertTrue(fs.isDirectory(new Path(metaLocation)));
-
-    catalog.dropTable(testTable, true);
+    AssertHelpers.assertThrows("Should fail", IllegalArgumentException.class,
+            "Invalid namespace value", () -> catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned())
+    );
   }
 
   @Test
@@ -353,7 +376,7 @@ public class TestJdbcCatalog {
     Assert.assertFalse(catalog.listTables(testTable.namespace()).contains(testTable));
     catalog.dropTable(testTable2);
     AssertHelpers.assertThrows("should throw exception", NoSuchNamespaceException.class,
-        "not exist", () -> catalog.listTables(testTable2.namespace())
+        "not exist", () -> catalog.listTables(Namespace.of("db", "ns1", "ns4"))
     );
 
     Assert.assertFalse(catalog.dropTable(TableIdentifier.of("db", "tbl-not-exists")));
@@ -405,7 +428,7 @@ public class TestJdbcCatalog {
     Assert.assertEquals("tbl3", tbls2.get(0).name());
 
     AssertHelpers.assertThrows("should throw exception", NoSuchNamespaceException.class,
-        "does not exist", () -> catalog.listTables(Namespace.of("db", "ns1", "ns2")));
+        "does not exist", () -> catalog.listTables(Namespace.of("db", "ns1", "ns4")));
   }
 
   @Test
@@ -458,7 +481,7 @@ public class TestJdbcCatalog {
     TableIdentifier tbl3 = TableIdentifier.of("db", "ns3", "tbl4");
     TableIdentifier tbl4 = TableIdentifier.of("db", "metadata");
     TableIdentifier tbl5 = TableIdentifier.of("db2", "metadata");
-    TableIdentifier tbl6 = TableIdentifier.of("tbl6");
+    TableIdentifier tbl6 = TableIdentifier.of("db2", "tbl6");
 
     Lists.newArrayList(tbl1, tbl2, tbl3, tbl4, tbl5, tbl6).forEach(t ->
         catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())
@@ -478,18 +501,17 @@ public class TestJdbcCatalog {
 
     List<Namespace> nsp3 = catalog.listNamespaces();
     Set<String> tblSet2 = Sets.newHashSet(nsp3.stream().map(Namespace::toString).iterator());
-    System.out.println(tblSet2.toString());
     Assert.assertEquals(tblSet2.size(), 3);
     Assert.assertTrue(tblSet2.contains("db"));
     Assert.assertTrue(tblSet2.contains("db2"));
-    Assert.assertTrue(tblSet2.contains(""));
+    Assert.assertTrue(tblSet2.contains("ns1"));
 
     List<Namespace> nsp4 = catalog.listNamespaces();
     Set<String> tblSet3 = Sets.newHashSet(nsp4.stream().map(Namespace::toString).iterator());
     Assert.assertEquals(tblSet3.size(), 3);
     Assert.assertTrue(tblSet3.contains("db"));
     Assert.assertTrue(tblSet3.contains("db2"));
-    Assert.assertTrue(tblSet3.contains(""));
+    Assert.assertTrue(tblSet3.contains("ns1"));
 
     AssertHelpers.assertThrows("Should fail to list namespace doesn't exist", NoSuchNamespaceException.class,
         "Namespace does not exist", () -> catalog.listNamespaces(Namespace.of("db", "db2", "ns2")
@@ -560,6 +582,57 @@ public class TestJdbcCatalog {
     Namespace ns = Namespace.of("db", "db2", "ns2");
     String nsString = JdbcUtil.namespaceToString(ns);
     Assert.assertEquals(ns, JdbcUtil.stringToNamespace(nsString));
+  }
+
+  @Test
+  public void testSetProperties() {
+    Namespace testNamespace = Namespace.of("testdb1", "ns1", "ns2");
+    Map<String, String> properties = new HashMap<String, String>() {{
+        put("key1", "value1");
+        put("key2", "value2");
+        put("key3", "value3");
+        put("key4", "value4");
+        put("key5", "value5");
+      }};
+    catalog.createNamespace(testNamespace, null);
+    catalog.setProperties(testNamespace, properties);
+
+    Map<String, String> actualProperties = catalog.getProperties(testNamespace);
+
+    Assert.assertEquals(actualProperties.size(), properties.size());
+    for (String key : actualProperties.keySet()) {
+      Assert.assertEquals(properties.get(key), actualProperties.get(key));
+    }
+    catalog.dropNamespace(testNamespace);
+  }
+
+  @Test
+  public void testRemoveProperties() {
+    Namespace testNamespace = Namespace.of("testdb1", "ns1", "ns2");
+    Map<String, String> properties = new HashMap<String, String>() {{
+        put("key1", "value1");
+        put("key2", "value2");
+        put("key3", "value3");
+        put("key4", "value4");
+        put("key5", "value5");
+      }};
+    catalog.createNamespace(testNamespace, null);
+    catalog.setProperties(testNamespace, properties);
+
+    Set<String> propertiesToRemove = new HashSet<String>() {{
+        add("key1");
+        add("key4");
+        add("key5");
+      }};
+
+    catalog.removeProperties(testNamespace, propertiesToRemove);
+
+    Map<String, String> remainderProperties = catalog.getProperties(testNamespace);
+
+    Assert.assertEquals(remainderProperties.size(), 2);
+    Assert.assertTrue(remainderProperties.containsKey("key2"));
+    Assert.assertTrue(remainderProperties.containsKey("key3"));
+    catalog.dropNamespace(testNamespace);
   }
 
 }
