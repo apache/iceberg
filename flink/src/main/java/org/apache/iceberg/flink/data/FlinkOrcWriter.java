@@ -50,11 +50,7 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
   @Override
   public void write(RowData row, VectorizedRowBatch output) {
     Preconditions.checkArgument(row != null, "value must not be null");
-
-    int rowId = output.size;
-    output.size += 1;
-
-    writer.rootNonNullWrite(rowId, row, output);
+    writer.rootNonNullWrite(row, output);
   }
 
   @Override

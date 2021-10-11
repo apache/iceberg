@@ -32,6 +32,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.iceberg.DoubleFieldMetrics;
 import org.apache.iceberg.FieldMetrics;
@@ -48,7 +49,9 @@ import org.apache.orc.storage.ql.exec.vector.DoubleColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ListColumnVector;
 import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
+import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
+import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 public class GenericOrcWriters {
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
@@ -529,6 +532,46 @@ public class GenericOrcWriters {
     public Stream<FieldMetrics<?>> metrics() {
       return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
     }
+  }
+
+  public abstract static class StructWriter<S> implements OrcValueWriter<S> {
+    private final List<OrcValueWriter<?>> writers;
+
+    protected StructWriter(List<OrcValueWriter<?>> writers) {
+      this.writers = writers;
+    }
+
+    public List<OrcValueWriter<?>> writers() {
+      return writers;
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      return writers.stream().flatMap(OrcValueWriter::metrics);
+    }
+
+    @Override
+    public void nonNullWrite(int rowId, S value, ColumnVector output) {
+      StructColumnVector cv = (StructColumnVector) output;
+      write(rowId, value, c -> cv.fields[c]);
+    }
+
+    // Special case of writing the root struct
+    public void rootNonNullWrite(S value, VectorizedRowBatch output) {
+      int rowId = output.size;
+      output.size += 1;
+      write(rowId, value, c -> output.cols[c]);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private void write(int rowId, S value, Function<Integer, ColumnVector> colVectorAtFunc) {
+      for (int c = 0; c < writers.size(); ++c) {
+        OrcValueWriter writer = writers.get(c);
+        writer.write(rowId, get(value, c), colVectorAtFunc.apply(c));
+      }
+    }
+
+    protected abstract Object get(S struct, int index);
   }
 
   private static void growColumnVector(ColumnVector cv, int requestedSize) {

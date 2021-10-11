@@ -32,7 +32,7 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.iceberg.FieldMetrics;
-import org.apache.iceberg.data.orc.GenericOrcWriter;
+import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -311,7 +311,7 @@ class FlinkOrcWriters {
     }
   }
 
-  static class RowDataWriter extends GenericOrcWriter.StructWriter<RowData> {
+  static class RowDataWriter extends GenericOrcWriters.StructWriter<RowData> {
     private final List<RowData.FieldGetter> fieldGetters;
 
     RowDataWriter(List<OrcValueWriter<?>> writers, List<LogicalType> types) {

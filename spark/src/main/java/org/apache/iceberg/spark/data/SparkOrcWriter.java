@@ -25,7 +25,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcRowWriter;
@@ -58,11 +57,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
   @Override
   public void write(InternalRow value, VectorizedRowBatch output) {
     Preconditions.checkArgument(value != null, "value must not be null");
-
-    int row = output.size;
-    output.size += 1;
-
-    writer.rootNonNullWrite(row, value, output);
+    writer.rootNonNullWrite(value, output);
   }
 
   @Override
@@ -127,7 +122,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
     }
   }
 
-  private static class InternalRowWriter extends GenericOrcWriter.StructWriter<InternalRow> {
+  private static class InternalRowWriter extends GenericOrcWriters.StructWriter<InternalRow> {
     private final List<FieldGetter<?>> fieldGetters;
 
     InternalRowWriter(List<OrcValueWriter<?>> writers, List<TypeDescription> orcTypes) {
@@ -159,31 +154,31 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
     final FieldGetter<?> fieldGetter;
     switch (fieldType.getCategory()) {
       case BOOLEAN:
-        fieldGetter = (row, ordinal) -> row.getBoolean(ordinal);
+        fieldGetter = SpecializedGetters::getBoolean;
         break;
       case BYTE:
-        fieldGetter = (row, ordinal) -> row.getByte(ordinal);
+        fieldGetter = SpecializedGetters::getByte;
         break;
       case SHORT:
-        fieldGetter = (row, ordinal) -> row.getShort(ordinal);
+        fieldGetter = SpecializedGetters::getShort;
         break;
       case DATE:
       case INT:
-        fieldGetter = (row, ordinal) -> row.getInt(ordinal);
+        fieldGetter = SpecializedGetters::getInt;
         break;
       case LONG:
       case TIMESTAMP:
       case TIMESTAMP_INSTANT:
-        fieldGetter = (row, ordinal) -> row.getLong(ordinal);
+        fieldGetter = SpecializedGetters::getLong;
         break;
       case FLOAT:
-        fieldGetter = (row, ordinal) -> row.getFloat(ordinal);
+        fieldGetter = SpecializedGetters::getFloat;
         break;
       case DOUBLE:
-        fieldGetter = (row, ordinal) -> row.getDouble(ordinal);
+        fieldGetter = SpecializedGetters::getDouble;
         break;
       case BINARY:
-        fieldGetter = (row, ordinal) -> row.getBinary(ordinal);
+        fieldGetter = SpecializedGetters::getBinary;
         // getBinary always makes a copy, so we don't need to worry about it
         // being changed behind our back.
         break;
@@ -194,19 +189,19 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
       case STRING:
       case CHAR:
       case VARCHAR:
-        fieldGetter = (row, ordinal) -> row.getUTF8String(ordinal);
+        fieldGetter = SpecializedGetters::getUTF8String;
         break;
       case STRUCT:
         fieldGetter = (row, ordinal) -> row.getStruct(ordinal, fieldType.getChildren().size());
         break;
       case LIST:
-        fieldGetter = (row, ordinal) -> row.getArray(ordinal);
+        fieldGetter = SpecializedGetters::getArray;
         break;
       case MAP:
-        fieldGetter = (row, ordinal) -> row.getMap(ordinal);
+        fieldGetter = SpecializedGetters::getMap;
         break;
       default:
-        throw new IllegalArgumentException();
+        throw new IllegalArgumentException("Encountered an unsupported ORC type during a write from Spark.");
     }
 
     return (row, ordinal) -> {

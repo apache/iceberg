@@ -20,7 +20,6 @@
 package org.apache.iceberg.data.orc;
 
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Schema;
@@ -33,8 +32,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
-import org.apache.orc.storage.ql.exec.vector.ColumnVector;
-import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 public class GenericOrcWriter implements OrcRowWriter<Record> {
@@ -118,11 +115,7 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
   @Override
   public void write(Record value, VectorizedRowBatch output) {
     Preconditions.checkArgument(value != null, "value must not be null");
-
-    int row = output.size;
-    output.size += 1;
-
-    writer.rootNonNullWrite(row, value, output);
+    writer.rootNonNullWrite(value, output);
   }
 
   @Override
@@ -130,44 +123,7 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
     return writer.metrics();
   }
 
-  public abstract static class StructWriter<S> implements OrcValueWriter<S> {
-    private final List<OrcValueWriter<?>> writers;
-
-    protected StructWriter(List<OrcValueWriter<?>> writers) {
-      this.writers = writers;
-    }
-
-    public List<OrcValueWriter<?>> writers() {
-      return this.writers;
-    }
-
-    @Override
-    public Stream<FieldMetrics<?>> metrics() {
-      return writers.stream().flatMap(OrcValueWriter::metrics);
-    }
-
-    @Override
-    public void nonNullWrite(int rowId, S value, ColumnVector output) {
-      StructColumnVector cv = (StructColumnVector) output;
-      write(rowId, value, c -> cv.fields[c]);
-    }
-
-    // Special case of writing the root struct
-    public void rootNonNullWrite(int rowId, S value, VectorizedRowBatch output) {
-      write(rowId, value, c -> output.cols[c]);
-    }
-
-    private void write(int rowId, S value, Function<Integer, ColumnVector> colVectorAtFunc) {
-      for (int c = 0; c < writers.size(); ++c) {
-        OrcValueWriter writer = writers.get(c);
-        writer.write(rowId, get(value, c), colVectorAtFunc.apply(c));
-      }
-    }
-
-    protected abstract Object get(S struct, int index);
-  }
-
-  private static class RecordWriter extends StructWriter<Record> {
+  private static class RecordWriter extends GenericOrcWriters.StructWriter<Record> {
 
     RecordWriter(List<OrcValueWriter<?>> writers) {
       super(writers);
@@ -182,6 +138,5 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
     protected Object get(Record struct, int index) {
       return struct.get(index, writers().get(index).getJavaClass());
     }
-
   }
 }
