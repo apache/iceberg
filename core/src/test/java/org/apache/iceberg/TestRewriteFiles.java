@@ -616,6 +616,8 @@ public class TestRewriteFiles extends TableTestBase {
   public void testNewDeleteFile() {
       Assume.assumeTrue("Delete files are only supported in v2", formatVersion > 1);
 
+    table.properties().put("compact.new.delete.file.validate", "true");
+
     table.newAppend()
         .appendFile(FILE_A)
         .commit();

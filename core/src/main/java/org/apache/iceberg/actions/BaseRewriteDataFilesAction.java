@@ -202,6 +202,7 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
     }
 
     long startingSnapshotId = table.currentSnapshot().snapshotId();
+    long sequenceNumber = table.currentSnapshot().sequenceNumber();
     try {
       fileScanTasks = table.newScan()
           .useSnapshot(startingSnapshotId)
@@ -243,7 +244,6 @@ public abstract class BaseRewriteDataFilesAction<ThisT>
       return RewriteDataFilesActionResult.empty();
     }
 
-    long sequenceNumber = table.currentSnapshot().sequenceNumber();
     List<DataFile> addedDataFiles = rewriteDataForTasks(combinedScanTasks);
     List<DataFile> currentDataFiles = combinedScanTasks.stream()
         .flatMap(tasks -> tasks.files().stream().map(FileScanTask::file))

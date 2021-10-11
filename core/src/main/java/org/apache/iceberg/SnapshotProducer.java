@@ -177,7 +177,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
       try (ManifestListWriter writer = ManifestLists.write(
           ops.current().formatVersion(), manifestList, snapshotId(), parentSnapshotId,
-          operation().equals(DataOperations.REPLACE) && sequenceNumberOverride() != null ? sequenceNumberOverride() : sequenceNumber)) {
+          operation().equals(DataOperations.REPLACE) && sequenceNumberOverride() != null ?
+              sequenceNumberOverride() :
+              sequenceNumber)) {
 
         // keep track of the manifest lists created
         manifestLists.add(manifestList.location());
