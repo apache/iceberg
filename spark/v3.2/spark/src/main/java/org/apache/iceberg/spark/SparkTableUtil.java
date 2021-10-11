@@ -605,15 +605,31 @@ public class SparkTableUtil {
       .orNoop()
       .build();
 
+  private static final DynMethods.UnboundMethod LOAD_METADATA_TABLE_ASOF = DynMethods.builder("loadMetadataTable")
+      .hiddenImpl("org.apache.iceberg.spark.Spark3Util", SparkSession.class, Table.class, MetadataTableType.class, Long.class)
+      .orNoop()
+      .build();
+
   public static Dataset<Row> loadCatalogMetadataTable(SparkSession spark, Table table, MetadataTableType type) {
     Preconditions.checkArgument(!LOAD_METADATA_TABLE.isNoop(), "Cannot find Spark3Util class but Spark3 is in use");
     return LOAD_METADATA_TABLE.asStatic().invoke(spark, table, type);
   }
 
+  public static Dataset<Row> loadCatalogMetadataTable(SparkSession spark, Table table, MetadataTableType type, Long snapshotId) {
+    Preconditions.checkArgument(!LOAD_METADATA_TABLE.isNoop(), "Cannot find Spark3Util class but Spark3 is in use");
+    return LOAD_METADATA_TABLE_ASOF.asStatic().invoke(spark, table, type, snapshotId);
+  }
+
   public static Dataset<Row> loadMetadataTable(SparkSession spark, Table table, MetadataTableType type) {
+    return loadMetadataTable(spark, table, type, null);
+  }
+
+  public static Dataset<Row> loadMetadataTable(SparkSession spark, Table table, MetadataTableType type, Long snapshot) {
     if (spark.version().startsWith("3")) {
       // construct the metadata table instance directly
-      Dataset<Row> catalogMetadataTable = loadCatalogMetadataTable(spark, table, type);
+      Dataset<Row> catalogMetadataTable = snapshot == null ?
+          loadCatalogMetadataTable(spark, table, type) :
+          loadCatalogMetadataTable(spark, table, type, snapshot);
       if (catalogMetadataTable != null) {
         return catalogMetadataTable;
       }
@@ -623,6 +639,11 @@ public class SparkTableUtil {
     String tableLocation = table.location();
 
     DataFrameReader dataFrameReader = spark.read().format("iceberg");
+
+    if (snapshot != null) {
+      dataFrameReader.option("snapshot-id", snapshot);
+    }
+
     if (tableName.contains("/")) {
       // Hadoop Table or Metadata location passed, load without a catalog
       return dataFrameReader.load(tableName + "#" + type);

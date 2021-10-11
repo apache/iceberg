@@ -632,6 +632,22 @@ public class Spark3Util {
   }
 
   /**
+   * Returns a metadata table as a Dataset based on the given Iceberg table.
+   *
+   * @param spark SparkSession where the Dataset will be created
+   * @param table an Iceberg table
+   * @param type the type of metadata table
+   * @param snapshotId snapshot id
+   * @return a Dataset that will read the metadata table
+   */
+  private static Dataset<Row> loadMetadataTable(SparkSession spark, org.apache.iceberg.Table table,
+                                                MetadataTableType type, Long snapshotId) {
+    Table metadataTable = new SparkTable(MetadataTableUtils.createMetadataTableInstance(table, type), snapshotId,
+        false);
+    return Dataset.ofRows(spark, DataSourceV2Relation.create(metadataTable, Some.empty(), Some.empty()));
+  }
+
+  /**
    * Returns an Iceberg Table by its name from a Spark V2 Catalog. If cache is enabled in {@link SparkCatalog},
    * the {@link TableOperations} of the table may be stale, please refresh the table to get the latest one.
    *
