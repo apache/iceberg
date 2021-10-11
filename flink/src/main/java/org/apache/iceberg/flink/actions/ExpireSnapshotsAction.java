@@ -120,9 +120,7 @@ public class ExpireSnapshotsAction
 
   @Override
   public Result execute() {
-    expire().forEachRemaining(System.out::println);
-    return null;
-//    return deleteFiles(expire());
+    return deleteFiles(expire());
   }
 
   private org.apache.flink.table.api.Table buildValidFileTable(TableMetadata metadata) {
