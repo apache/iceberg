@@ -75,7 +75,7 @@ public interface RewriteFiles extends SnapshotUpdate<RewriteFiles> {
   RewriteFiles validateFromSnapshot(long snapshotId);
 
   /**
-   * Set the sequenceNumber write in manifest-list file.
+   * Set one older sequenceNumber for rewriteaction snapshot in manifest-list file.
    *
    * @param sequenceNumber a sequenceNumber
    * @return this for method chaining
