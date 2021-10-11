@@ -111,6 +111,7 @@ public class TestHiveClientPool {
             "Another meta exception", () -> clients.run(client -> client.getTables("default", "t")));
   }
 
+  @Test
   public void testConnectionFailureRestoreForMetaException() throws Exception {
     HiveMetaStoreClient hmsClient = newClient();
 

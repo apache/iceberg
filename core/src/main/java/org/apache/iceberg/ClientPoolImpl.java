@@ -58,7 +58,7 @@ public abstract class ClientPoolImpl<C, E extends Exception> implements Closeabl
       return action.run(client);
 
     } catch (Exception exc) {
-      if (isConnectionException(exc) && retry) {
+      if (retry && isConnectionException(exc)) {
         try {
           client = reconnect(client);
         } catch (Exception ignored) {
