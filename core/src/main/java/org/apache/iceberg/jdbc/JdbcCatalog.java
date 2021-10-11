@@ -266,7 +266,6 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
 
   @Override
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
-    LOG.info("Incoming namespace to create {}", namespace);
     if (namespaceExists(namespace)) {
       throw new AlreadyExistsException("Namespace already exists: %s", namespace);
     }
