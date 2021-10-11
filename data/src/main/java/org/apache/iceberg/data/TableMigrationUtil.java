@@ -103,9 +103,7 @@ public class TableMigrationUtil {
                 .withFileSizeInBytes(stat.getLen())
                 .withMetrics(metrics)
                 .withPartitionPath(partitionKey)
-                .withRecordCount(0)
                 .build();
-
           }).collect(Collectors.toList());
     } catch (IOException e) {
       throw new RuntimeException("Unable to list files in partition: " + partitionUri, e);

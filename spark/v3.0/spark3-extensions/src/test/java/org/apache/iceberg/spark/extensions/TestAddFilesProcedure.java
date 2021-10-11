@@ -119,11 +119,11 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void addDataUnpartitionedAvroFile() throws Exception {
-    final Schema SCHEMA = new Schema(
+    Schema schema = new Schema(
         Types.NestedField.required(1, "id", Types.LongType.get()),
         Types.NestedField.optional(2, "data", Types.StringType.get()));
 
-    GenericRecord baseRecord = GenericRecord.create(SCHEMA);
+    GenericRecord baseRecord = GenericRecord.create(schema);
 
     ImmutableList.Builder<Record> builder = ImmutableList.builder();
     builder.add(baseRecord.copy(ImmutableMap.of("id", 1L, "data", "a")));
@@ -133,7 +133,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     OutputFile file = Files.localOutput(temp.newFile());
 
     DataWriter<Record> dataWriter = Avro.writeData(file)
-        .schema(SCHEMA)
+        .schema(schema)
         .createWriterFunc(org.apache.iceberg.data.avro.DataWriter::create)
         .overwrite()
         .withSpec(PartitionSpec.unpartitioned())
