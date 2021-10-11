@@ -614,33 +614,35 @@ public class TestRewriteFiles extends TableTestBase {
 
   @Test
   public void testNewDeleteFile() {
-      Assume.assumeTrue("Delete files are only supported in v2", formatVersion > 1);
+    Assume.assumeTrue("Delete files are only supported in v2", formatVersion > 1);
 
-    table.properties().put("compact.new.delete.file.validate", "true");
+    table.updateProperties()
+            .set(TableProperties.COMPACT_NEW_DELETE_FILE_VALIDATE, "true")
+            .commit();
 
     table.newAppend()
         .appendFile(FILE_A)
         .commit();
 
-  long snapshotBeforeDeletes = table.currentSnapshot().snapshotId();
+    long snapshotBeforeDeletes = table.currentSnapshot().snapshotId();
 
     table.newRowDelta()
         .addDeletes(FILE_A_DELETES)
         .commit();
 
-  long snapshotAfterDeletes = table.currentSnapshot().snapshotId();
+    long snapshotAfterDeletes = table.currentSnapshot().snapshotId();
 
     AssertHelpers.assertThrows("Should fail because deletes were added after the starting snapshot",
-  ValidationException.class, "Cannot commit, found new delete for replaced data file",
-      () -> table.newRewrite()
-      .validateFromSnapshot(snapshotBeforeDeletes)
+        ValidationException.class, "Cannot commit, found new delete for replaced data file",
+        () -> table.newRewrite()
+            .validateFromSnapshot(snapshotBeforeDeletes)
             .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_A2))
-      .apply());
+            .apply());
 
-  // the rewrite should be valid when validating from the snapshot after the deletes
+    // the rewrite should be valid when validating from the snapshot after the deletes
     table.newRewrite()
         .validateFromSnapshot(snapshotAfterDeletes)
         .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_A2))
-      .apply();
+        .apply();
   }
 }
