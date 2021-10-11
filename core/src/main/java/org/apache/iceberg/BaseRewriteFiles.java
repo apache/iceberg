@@ -23,6 +23,9 @@ import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
+import static org.apache.iceberg.TableProperties.COMPACT_NEW_DELETE_FILE_VALIDATE;
+import static org.apache.iceberg.TableProperties.COMPACT_NEW_DELETE_FILE_VALIDATE_DEFAULT;
+
 class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements RewriteFiles {
   private final Set<DataFile> replacedDataFiles = Sets.newHashSet();
   private Long startingSnapshotId = null;
@@ -111,6 +114,9 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
 
   @Override
   protected void validate(TableMetadata base) {
+    if (!base.propertyAsBoolean(COMPACT_NEW_DELETE_FILE_VALIDATE, COMPACT_NEW_DELETE_FILE_VALIDATE_DEFAULT)) {
+      return;
+    }
     if (replacedDataFiles.size() > 0) {
       // if there are replaced data files, there cannot be any new row-level deletes for those data files
       validateNoNewDeletesForDataFiles(base, startingSnapshotId, replacedDataFiles);

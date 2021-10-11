@@ -244,4 +244,7 @@ public class TableProperties {
 
   public static final String UPSERT_MODE_ENABLE = "write.upsert.enable";
   public static final boolean UPSERT_MODE_ENABLE_DEFAULT = false;
+
+  public static final String COMPACT_NEW_DELETE_FILE_VALIDATE = "compact.new.delete.file.validate";
+  public static final boolean COMPACT_NEW_DELETE_FILE_VALIDATE_DEFAULT = false;
 }
