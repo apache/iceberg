@@ -166,9 +166,11 @@ class ParquetIO {
 
   private static class ParquetInputFile implements InputFile {
     private final org.apache.iceberg.io.InputFile file;
+    private org.apache.iceberg.io.SeekableInputStream icebergHadoopStream;
 
     private ParquetInputFile(org.apache.iceberg.io.InputFile file) {
       this.file = file;
+      this.icebergHadoopStream = null;
     }
 
     @Override
@@ -178,7 +180,8 @@ class ParquetIO {
 
     @Override
     public SeekableInputStream newStream() throws IOException {
-      return stream(file.newStream());
+      icebergHadoopStream = file.newStream();
+      return stream(icebergHadoopStream);
     }
   }
 }
