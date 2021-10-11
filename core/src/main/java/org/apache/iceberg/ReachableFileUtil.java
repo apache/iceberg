@@ -19,12 +19,15 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -103,15 +106,25 @@ public class ReachableFileUtil {
    * @return the location of manifest Lists
    */
   public static List<String> manifestListLocations(Table table) {
-    Iterable<Snapshot> snapshots = table.snapshots();
-    List<String> manifestListLocations = Lists.newArrayList();
-    for (Snapshot snapshot : snapshots) {
-      String manifestListLocation = snapshot.manifestListLocation();
-      if (manifestListLocation != null) {
-        manifestListLocations.add(manifestListLocation);
-      }
+    return manifestListLocations(table, null);
+  }
+
+  /**
+   * Returns locations of manifest lists in a table.
+   *
+   * @param table table for which manifestList needs to be fetched
+   * @param snapshots ids of snapshots for which manifest lists will be returned
+   * @return the location of manifest Lists
+   */
+  public static List<String> manifestListLocations(Table table, Set<Long> snapshots) {
+    Stream<Snapshot> snapshotStream = StreamSupport.stream(table.snapshots().spliterator(), false);
+    if (snapshots != null) {
+      snapshotStream = snapshotStream.filter(s -> snapshots.contains(s.snapshotId()));
     }
-    return manifestListLocations;
+    return snapshotStream
+        .map(Snapshot::manifestListLocation)
+        .filter(Objects::nonNull)
+        .collect(Collectors.toList());
   }
 
   /**

@@ -25,11 +25,13 @@ import static org.apache.spark.sql.functions.lit;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.apache.iceberg.AllManifestsTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
@@ -137,14 +139,21 @@ abstract class BaseSparkAction<ThisT> {
     return new BaseTable(ops, metadataFileLocation);
   }
 
-  // builds a DF of delete and data file path and type by reading all manifests
   protected Dataset<FileInfo> contentFileDS(Table table) {
-    Table serializableTable = SerializableTableWithSize.copyOf(table);
-    Broadcast<Table> tableBroadcast = sparkContext.broadcast(serializableTable);
+    return contentFileDS(table, null);
+  }
+
+  protected Dataset<FileInfo> contentFileDS(Table table, Set<Long> snapshots) {
+    Broadcast<Table> tableBroadcast =
+        sparkContext.broadcast(SerializableTableWithSize.copyOf(table));
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
 
-    Dataset<ManifestFileBean> allManifests =
-        loadMetadataTable(table, ALL_MANIFESTS)
+    Dataset<Row> allManifests = loadMetadataTable(table, ALL_MANIFESTS);
+    if (snapshots != null) {
+      allManifests = filterAllManifests(allManifests, snapshots);
+    }
+    Dataset<ManifestFileBean> allManifestsBean =
+        allManifests
             .selectExpr(
                 "content",
                 "path",
@@ -155,17 +164,27 @@ abstract class BaseSparkAction<ThisT> {
             .repartition(numShufflePartitions) // avoid adaptive execution combining tasks
             .as(ManifestFileBean.ENCODER);
 
-    return allManifests.flatMap(new ReadManifest(tableBroadcast), FileInfo.ENCODER);
+    return allManifestsBean.flatMap(new ReadManifest(tableBroadcast), FileInfo.ENCODER);
   }
 
   protected Dataset<FileInfo> manifestDS(Table table) {
-    return loadMetadataTable(table, ALL_MANIFESTS)
-        .select(col("path"), lit(MANIFEST).as("type"))
-        .as(FileInfo.ENCODER);
+    return manifestDS(table, null);
+  }
+
+  protected Dataset<FileInfo> manifestDS(Table table, Set<Long> snapshots) {
+    Dataset<Row> allManifests = loadMetadataTable(table, ALL_MANIFESTS);
+    if (snapshots != null) {
+      allManifests = filterAllManifests(allManifests, snapshots);
+    }
+    return allManifests.select(col("path"), lit(MANIFEST).as("type")).as(FileInfo.ENCODER);
   }
 
   protected Dataset<FileInfo> manifestListDS(Table table) {
-    List<String> manifestLists = ReachableFileUtil.manifestListLocations(table);
+    return manifestListDS(table, null);
+  }
+
+  protected Dataset<FileInfo> manifestListDS(Table table, Set<Long> snapshotIds) {
+    List<String> manifestLists = ReachableFileUtil.manifestListLocations(table, snapshotIds);
     return toFileInfoDS(manifestLists, MANIFEST_LIST);
   }
 
@@ -299,6 +318,11 @@ abstract class BaseSparkAction<ThisT> {
           + manifestListsCount()
           + otherFilesCount();
     }
+  }
+
+  protected Dataset<Row> filterAllManifests(Dataset<Row> allManifestDF, Set<Long> snapshots) {
+    return allManifestDF.filter(
+        col(AllManifestsTable.REF_SNAPSHOT_ID.name()).isInCollection(snapshots));
   }
 
   private static class ReadManifest implements FlatMapFunction<ManifestFileBean, FileInfo> {

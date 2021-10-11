@@ -26,7 +26,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -164,8 +166,9 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
    */
   public Dataset<FileInfo> expireFiles() {
     if (expiredFileDS == null) {
-      // fetch metadata before expiration
-      Dataset<FileInfo> originalFileDS = validFileDS(ops.current());
+
+      // Save old metadata
+      TableMetadata originalTable = ops.current();
 
       // perform expiration
       org.apache.iceberg.ExpireSnapshots expireSnapshots = table.expireSnapshots();
@@ -184,11 +187,21 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
       expireSnapshots.cleanExpiredFiles(false).commit();
 
-      // fetch metadata after expiration
-      Dataset<FileInfo> validFileDS = validFileDS(ops.refresh());
+      // determine expired files
+      TableMetadata updatedTable = ops.refresh();
+      Set<Long> retainedSnapshots =
+          updatedTable.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
+      Set<Long> expiredSnapshots =
+          originalTable.snapshots().stream()
+              .map(Snapshot::snapshotId)
+              .filter(id -> !retainedSnapshots.contains(id))
+              .collect(Collectors.toSet());
+
+      Dataset<FileInfo> validFileDS = fileDS(updatedTable);
+      Dataset<FileInfo> deleteCandidateFileDS = fileDS(originalTable, expiredSnapshots);
 
       // determine expired files
-      this.expiredFileDS = originalFileDS.except(validFileDS);
+      this.expiredFileDS = deleteCandidateFileDS.except(validFileDS);
     }
 
     return expiredFileDS;
@@ -236,11 +249,18 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
     return PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, STREAM_RESULTS_DEFAULT);
   }
 
-  private Dataset<FileInfo> validFileDS(TableMetadata metadata) {
+  private Dataset<FileInfo> fileDS(TableMetadata metadata) {
     Table staticTable = newStaticTable(metadata, table.io());
     return contentFileDS(staticTable)
         .union(manifestDS(staticTable))
         .union(manifestListDS(staticTable));
+  }
+
+  private Dataset<FileInfo> fileDS(TableMetadata metadata, Set<Long> snapshots) {
+    Table staticTable = newStaticTable(metadata, table.io());
+    return contentFileDS(staticTable, snapshots)
+        .union(manifestDS(staticTable, snapshots))
+        .union(manifestListDS(staticTable, snapshots));
   }
 
   private ExpireSnapshots.Result deleteFiles(Iterator<FileInfo> files) {

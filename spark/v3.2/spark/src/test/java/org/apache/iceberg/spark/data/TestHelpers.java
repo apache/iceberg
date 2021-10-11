@@ -37,6 +37,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Record;
@@ -807,5 +809,12 @@ public class TestHelpers {
     }
 
     return deleteFiles;
+  }
+
+  public static Set<String> reachableManifestPaths(Table table) {
+    return StreamSupport.stream(table.snapshots().spliterator(), false)
+        .flatMap(s -> s.allManifests(table.io()).stream())
+        .map(ManifestFile::path)
+        .collect(Collectors.toSet());
   }
 }
