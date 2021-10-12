@@ -270,15 +270,15 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     if (namespaceExists(namespace)) {
       throw new AlreadyExistsException("Namespace already exists: %s", namespace);
     }
+
     String namespaceName = JdbcUtil.namespaceToString(namespace);
     try {
       int insertRecord = connections.run(conn -> {
         try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.DO_COMMIT_CREATE_NAMESPACE_SQL)) {
           sql.setString(1, catalogName);
           sql.setString(2, namespaceName);
-          sql.setString(3, null);
-          sql.setString(4, JdbcUtil.convertMapToJsonString(metadata));
-          sql.setString(5, null);
+          sql.setString(3, JdbcUtil.convertMapToJsonString(metadata));
+          sql.setString(4, null);
           return sql.executeUpdate();
         }
       });

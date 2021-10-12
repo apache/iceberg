@@ -209,8 +209,7 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
           table.put(JdbcUtil.TABLE_NAMESPACE, rs.getString(JdbcUtil.TABLE_NAMESPACE));
           table.put(JdbcUtil.TABLE_NAME, rs.getString(JdbcUtil.TABLE_NAME));
           table.put(JdbcUtil.METADATA_LOCATION, rs.getString(JdbcUtil.METADATA_LOCATION));
-          table.put(JdbcUtil.PREVIOUS_METADATA_LOCATION,
-                  rs.getString(JdbcUtil.PREVIOUS_METADATA_LOCATION));
+          table.put(JdbcUtil.PREVIOUS_METADATA_LOCATION, rs.getString(JdbcUtil.PREVIOUS_METADATA_LOCATION));
         }
 
         rs.close();
