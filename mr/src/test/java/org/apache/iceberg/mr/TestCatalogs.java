@@ -257,6 +257,17 @@ public class TestCatalogs {
   }
 
   @Test
+  public void testLegacyLoadCustomCatalogWithHiveCatalogTypeSet() {
+    String catalogName = "barCatalog";
+    conf.set(InputFormatConfig.catalogPropertyConfigKey(catalogName, CatalogUtil.ICEBERG_CATALOG_TYPE),
+            CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE);
+    conf.set(InputFormatConfig.CATALOG_LOADER_CLASS, CustomHadoopCatalog.class.getName());
+    conf.set(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION, "/tmp/mylocation");
+    AssertHelpers.assertThrows("Should complain about both configs being set", IllegalArgumentException.class,
+            "both type and catalog-impl are set", () -> Catalogs.loadCatalog(conf, catalogName));
+  }
+
+  @Test
   public void testLoadCatalogHadoop() {
     String catalogName = "barCatalog";
     conf.set(InputFormatConfig.catalogPropertyConfigKey(catalogName, CatalogUtil.ICEBERG_CATALOG_TYPE),

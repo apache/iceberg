@@ -98,8 +98,8 @@ To globally register different catalogs, set the following Hadoop configurations
 
 | Config Key                                    | Description                                            |
 | --------------------------------------------- | ------------------------------------------------------ |
-| iceberg.catalog.<catalog_name\>.type          | type of catalog: `hive` or `hadoop`                    |
-| iceberg.catalog.<catalog_name\>.catalog-impl  | catalog implementation, must not be null if type is null |
+| iceberg.catalog.<catalog_name\>.type          | type of catalog: `hive`, `hadoop`, or left unset if using a custom catalog  |
+| iceberg.catalog.<catalog_name\>.catalog-impl  | catalog implementation, must not be null if type is empty |
 | iceberg.catalog.<catalog_name\>.<key\>        | any config key and value pairs for the catalog         |
 
 Here are some examples using Hive CLI:
