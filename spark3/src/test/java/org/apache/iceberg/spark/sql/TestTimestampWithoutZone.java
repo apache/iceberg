@@ -32,6 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Type;
@@ -94,7 +95,7 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
   public void testWriteTimestampWithoutZoneError() {
     AssertHelpers.assertThrows(
         String.format("Write operation performed on a timestamp without timezone field while " +
-            "'%s' set to false should throw exception", SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE),
+            "'%s' set to false should throw exception", SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE),
         IllegalArgumentException.class,
         SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR,
         () -> sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values)));
@@ -102,7 +103,7 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
 
   @Test
   public void testAppendTimestampWithoutZone() {
-    withSQLConf(ImmutableMap.of(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"), () -> {
+    withSQLConf(ImmutableMap.of(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"), () -> {
       sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
 
       Assert.assertEquals("Should have " + values.size() + " row",
@@ -115,7 +116,7 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
 
   @Test
   public void testCreateAsSelectWithTimestampWithoutZone() {
-    withSQLConf(ImmutableMap.of(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"), () -> {
+    withSQLConf(ImmutableMap.of(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"), () -> {
       sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
 
       sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", newTableName, tableName);
@@ -131,7 +132,7 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
 
   @Test
   public void testCreateNewTableShouldHaveTimestampWithZoneIcebergType() {
-    withSQLConf(ImmutableMap.of(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"), () -> {
+    withSQLConf(ImmutableMap.of(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"), () -> {
       sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
 
       sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", newTableName, tableName);
@@ -151,8 +152,8 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
   @Test
   public void testCreateNewTableShouldHaveTimestampWithoutZoneIcebergType() {
     withSQLConf(ImmutableMap.of(
-            SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true",
-            SparkUtil.USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES, "true"), () -> {
+            SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true",
+            SparkSQLProperties.USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES, "true"), () -> {
         spark.sessionState().catalogManager().currentCatalog()
               .initialize(catalog.name(), new CaseInsensitiveStringMap(config));
         sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));

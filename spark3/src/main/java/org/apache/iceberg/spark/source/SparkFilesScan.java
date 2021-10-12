@@ -20,7 +20,6 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
@@ -30,43 +29,28 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.FileScanTaskSetManager;
-import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK;
-import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK_DEFAULT;
-import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
-import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT;
-import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
-import static org.apache.iceberg.TableProperties.SPLIT_SIZE_DEFAULT;
-
 class SparkFilesScan extends SparkBatchScan {
   private final String taskSetID;
-  private final Long splitSize;
-  private final Integer splitLookback;
-  private final Long splitOpenFileCost;
+  private final long splitSize;
+  private final int splitLookback;
+  private final long splitOpenFileCost;
 
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
-  SparkFilesScan(SparkSession spark, Table table, boolean caseSensitive, CaseInsensitiveStringMap options) {
-    super(spark, table, caseSensitive, table.schema(), ImmutableList.of(), options);
+  SparkFilesScan(SparkSession spark, Table table, SparkReadConf readConf,
+                 boolean caseSensitive, CaseInsensitiveStringMap options) {
+    super(spark, table, readConf, caseSensitive, table.schema(), ImmutableList.of(), options);
 
     this.taskSetID = options.get(SparkReadOptions.FILE_SCAN_TASK_SET_ID);
-
-    Map<String, String> props = table.properties();
-
-    long tableSplitSize = PropertyUtil.propertyAsLong(props, SPLIT_SIZE, SPLIT_SIZE_DEFAULT);
-    this.splitSize = Spark3Util.propertyAsLong(options, SparkReadOptions.SPLIT_SIZE, tableSplitSize);
-
-    int tableSplitLookback = PropertyUtil.propertyAsInt(props, SPLIT_LOOKBACK, SPLIT_LOOKBACK_DEFAULT);
-    this.splitLookback = Spark3Util.propertyAsInt(options, SparkReadOptions.LOOKBACK, tableSplitLookback);
-
-    long tableOpenFileCost = PropertyUtil.propertyAsLong(props, SPLIT_OPEN_FILE_COST, SPLIT_OPEN_FILE_COST_DEFAULT);
-    this.splitOpenFileCost = Spark3Util.propertyAsLong(options, SparkReadOptions.FILE_OPEN_COST, tableOpenFileCost);
+    this.splitSize = readConf.splitSize();
+    this.splitLookback = readConf.splitLookback();
+    this.splitOpenFileCost = readConf.splitOpenFileCost();
   }
 
   @Override

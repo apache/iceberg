@@ -28,8 +28,8 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.sources.v2.DataSourceOptions;
 import org.apache.spark.sql.sources.v2.writer.WriterCommitMessage;
 import org.apache.spark.sql.sources.v2.writer.streaming.StreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
@@ -46,9 +46,9 @@ public class StreamingWriter extends Writer implements StreamWriter {
   private final String queryId;
   private final OutputMode mode;
 
-  StreamingWriter(SparkSession spark, Table table, DataSourceOptions options, String queryId,
+  StreamingWriter(SparkSession spark, Table table, SparkWriteConf writeConf, String queryId,
                   OutputMode mode, String applicationId, Schema writeSchema, StructType dsSchema) {
-    super(spark, table, options, false, applicationId, writeSchema, dsSchema);
+    super(spark, table, writeConf, false, applicationId, writeSchema, dsSchema);
     this.queryId = queryId;
     this.mode = mode;
   }

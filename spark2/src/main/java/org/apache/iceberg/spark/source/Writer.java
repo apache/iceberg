@@ -21,9 +21,7 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -40,15 +38,13 @@ import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.sources.v2.DataSourceOptions;
 import org.apache.spark.sql.sources.v2.writer.DataSourceWriter;
 import org.apache.spark.sql.sources.v2.writer.DataWriter;
 import org.apache.spark.sql.sources.v2.writer.DataWriterFactory;
@@ -65,12 +61,6 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
-import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
-import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT;
-import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES;
-import static org.apache.iceberg.TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT;
 
 // TODO: parameterize DataSourceWriter with subclass of WriterCommitMessage
 class Writer implements DataSourceWriter {
@@ -88,43 +78,24 @@ class Writer implements DataSourceWriter {
   private final Map<String, String> extraSnapshotMetadata;
   private final boolean partitionedFanoutEnabled;
 
-  Writer(SparkSession spark, Table table, DataSourceOptions options, boolean replacePartitions,
+  Writer(SparkSession spark, Table table, SparkWriteConf writeConf, boolean replacePartitions,
          String applicationId, Schema writeSchema, StructType dsSchema) {
-    this(spark, table, options, replacePartitions, applicationId, null, writeSchema, dsSchema);
+    this(spark, table, writeConf, replacePartitions, applicationId, null, writeSchema, dsSchema);
   }
 
-  Writer(SparkSession spark, Table table, DataSourceOptions options, boolean replacePartitions,
+  Writer(SparkSession spark, Table table, SparkWriteConf writeConf, boolean replacePartitions,
          String applicationId, String wapId, Schema writeSchema, StructType dsSchema) {
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
-    this.format = getFileFormat(table.properties(), options);
+    this.format = writeConf.dataFileFormat();
     this.replacePartitions = replacePartitions;
     this.applicationId = applicationId;
     this.wapId = wapId;
+    this.targetFileSize = writeConf.targetDataFileSize();
     this.writeSchema = writeSchema;
     this.dsSchema = dsSchema;
-    this.extraSnapshotMetadata = Maps.newHashMap();
-
-    options.asMap().forEach((key, value) -> {
-      if (key.startsWith(SnapshotSummary.EXTRA_METADATA_PREFIX)) {
-        extraSnapshotMetadata.put(key.substring(SnapshotSummary.EXTRA_METADATA_PREFIX.length()), value);
-      }
-    });
-
-    long tableTargetFileSize = PropertyUtil.propertyAsLong(
-        table.properties(), WRITE_TARGET_FILE_SIZE_BYTES, WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
-    this.targetFileSize = options.getLong(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, tableTargetFileSize);
-
-    boolean tablePartitionedFanoutEnabled = PropertyUtil.propertyAsBoolean(
-        table.properties(), SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT);
-    this.partitionedFanoutEnabled = options.getBoolean(SparkWriteOptions.FANOUT_ENABLED, tablePartitionedFanoutEnabled);
-  }
-
-  private FileFormat getFileFormat(Map<String, String> tableProperties, DataSourceOptions options) {
-    Optional<String> formatOption = options.get(SparkWriteOptions.WRITE_FORMAT);
-    String formatString = formatOption
-        .orElseGet(() -> tableProperties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT));
-    return FileFormat.valueOf(formatString.toUpperCase(Locale.ENGLISH));
+    this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
+    this.partitionedFanoutEnabled = writeConf.fanoutWriterEnabled();
   }
 
   private boolean isWapTable() {

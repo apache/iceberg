@@ -47,10 +47,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.source.SparkBatchScan.ReadTask;
 import org.apache.iceberg.spark.source.SparkBatchScan.ReaderFactory;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.iceberg.util.Tasks;
@@ -64,13 +64,6 @@ import org.apache.spark.sql.connector.read.streaming.Offset;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK;
-import static org.apache.iceberg.TableProperties.SPLIT_LOOKBACK_DEFAULT;
-import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
-import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST_DEFAULT;
-import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
-import static org.apache.iceberg.TableProperties.SPLIT_SIZE_DEFAULT;
 
 public class SparkMicroBatchStream implements MicroBatchStream {
   private static final Joiner SLASH = Joiner.on("/");
@@ -87,24 +80,16 @@ public class SparkMicroBatchStream implements MicroBatchStream {
   private final StreamingOffset initialOffset;
   private final boolean skipDelete;
 
-  SparkMicroBatchStream(JavaSparkContext sparkContext, Table table, boolean caseSensitive,
+  SparkMicroBatchStream(JavaSparkContext sparkContext, Table table, SparkReadConf readConf, boolean caseSensitive,
                         Schema expectedSchema, CaseInsensitiveStringMap options, String checkpointLocation) {
     this.table = table;
     this.caseSensitive = caseSensitive;
     this.expectedSchema = SchemaParser.toJson(expectedSchema);
-    this.localityPreferred = Spark3Util.isLocalityEnabled(table.io(), table.location(), options);
+    this.localityPreferred = readConf.localityEnabled();
     this.tableBroadcast = sparkContext.broadcast(SerializableTable.copyOf(table));
-
-    long tableSplitSize = PropertyUtil.propertyAsLong(table.properties(), SPLIT_SIZE, SPLIT_SIZE_DEFAULT);
-    this.splitSize = Spark3Util.propertyAsLong(options, SparkReadOptions.SPLIT_SIZE, tableSplitSize);
-
-    int tableSplitLookback = PropertyUtil.propertyAsInt(table.properties(), SPLIT_LOOKBACK, SPLIT_LOOKBACK_DEFAULT);
-    this.splitLookback = Spark3Util.propertyAsInt(options, SparkReadOptions.LOOKBACK, tableSplitLookback);
-
-    long tableSplitOpenFileCost = PropertyUtil.propertyAsLong(
-        table.properties(), SPLIT_OPEN_FILE_COST, SPLIT_OPEN_FILE_COST_DEFAULT);
-    this.splitOpenFileCost = Spark3Util.propertyAsLong(
-        options, SparkReadOptions.FILE_OPEN_COST, tableSplitOpenFileCost);
+    this.splitSize = readConf.splitSize();
+    this.splitLookback = readConf.splitLookback();
+    this.splitOpenFileCost = readConf.splitOpenFileCost();
 
     InitialOffsetStore initialOffsetStore = new InitialOffsetStore(table, checkpointLocation);
     this.initialOffset = initialOffsetStore.initialOffset();

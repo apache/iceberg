@@ -26,7 +26,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.ListType;
@@ -193,7 +193,7 @@ public abstract class AvroDataTest {
 
   @Test
   public void testTimestampWithoutZone() throws IOException {
-    withSQLConf(ImmutableMap.of(SparkUtil.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"), () -> {
+    withSQLConf(ImmutableMap.of(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"), () -> {
       Schema schema = TypeUtil.assignIncreasingFreshIds(new Schema(
               required(0, "id", LongType.get()),
               optional(1, "ts_without_zone", Types.TimestampType.withoutZone())));

@@ -32,6 +32,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
@@ -48,21 +49,21 @@ class SparkBatchQueryScan extends SparkBatchScan {
 
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
-  SparkBatchQueryScan(SparkSession spark, Table table, boolean caseSensitive, Schema expectedSchema,
-                      List<Expression> filters, CaseInsensitiveStringMap options) {
+  SparkBatchQueryScan(SparkSession spark, Table table, SparkReadConf readConf, boolean caseSensitive,
+                      Schema expectedSchema, List<Expression> filters, CaseInsensitiveStringMap options) {
 
-    super(spark, table, caseSensitive, expectedSchema, filters, options);
+    super(spark, table, readConf, caseSensitive, expectedSchema, filters, options);
 
-    this.snapshotId = Spark3Util.propertyAsLong(options, SparkReadOptions.SNAPSHOT_ID, null);
-    this.asOfTimestamp = Spark3Util.propertyAsLong(options, SparkReadOptions.AS_OF_TIMESTAMP, null);
+    this.snapshotId = readConf.snapshotId();
+    this.asOfTimestamp = readConf.asOfTimestamp();
 
     if (snapshotId != null && asOfTimestamp != null) {
       throw new IllegalArgumentException(
           "Cannot scan using both snapshot-id and as-of-timestamp to select the table snapshot");
     }
 
-    this.startSnapshotId = Spark3Util.propertyAsLong(options, "start-snapshot-id", null);
-    this.endSnapshotId = Spark3Util.propertyAsLong(options, "end-snapshot-id", null);
+    this.startSnapshotId = readConf.startSnapshotId();
+    this.endSnapshotId = readConf.endSnapshotId();
     if (snapshotId != null || asOfTimestamp != null) {
       if (startSnapshotId != null || endSnapshotId != null) {
         throw new IllegalArgumentException(

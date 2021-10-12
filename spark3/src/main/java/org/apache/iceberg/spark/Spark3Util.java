@@ -30,7 +30,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DistributionMode;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.NullOrder;
@@ -46,9 +45,6 @@ import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Term;
 import org.apache.iceberg.expressions.UnboundPredicate;
-import org.apache.iceberg.hadoop.HadoopInputFile;
-import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -62,11 +58,9 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SortOrderUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.CatalystTypeConverters;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -105,7 +99,6 @@ import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
 
 public class Spark3Util {
 
-  private static final Set<String> LOCALITY_WHITELIST_FS = ImmutableSet.of("hdfs");
   private static final Set<String> RESERVED_PROPERTIES = ImmutableSet.of(
       TableCatalog.PROP_LOCATION, TableCatalog.PROP_PROVIDER);
   private static final Joiner DOT = Joiner.on(".");
@@ -489,71 +482,6 @@ public class Spark3Util {
 
   public static String describe(org.apache.iceberg.SortOrder order) {
     return Joiner.on(", ").join(SortOrderVisitor.visit(order, DescribeSortOrderVisitor.INSTANCE));
-  }
-
-  public static boolean isLocalityEnabled(FileIO io, String location, CaseInsensitiveStringMap readOptions) {
-    InputFile in = io.newInputFile(location);
-    if (in instanceof HadoopInputFile) {
-      String scheme = ((HadoopInputFile) in).getFileSystem().getScheme();
-      return readOptions.getBoolean("locality", LOCALITY_WHITELIST_FS.contains(scheme));
-    }
-    return false;
-  }
-
-  public static boolean isVectorizationEnabled(FileFormat fileFormat,
-                                               Map<String, String> properties,
-                                               RuntimeConfig sessionConf,
-                                               CaseInsensitiveStringMap readOptions) {
-
-    String readOptionValue = readOptions.get(SparkReadOptions.VECTORIZATION_ENABLED);
-    if (readOptionValue != null) {
-      return Boolean.parseBoolean(readOptionValue);
-    }
-
-    String sessionConfValue = sessionConf.get("spark.sql.iceberg.vectorization.enabled", null);
-    if (sessionConfValue != null) {
-      return Boolean.parseBoolean(sessionConfValue);
-    }
-
-    switch (fileFormat) {
-      case PARQUET:
-        return PropertyUtil.propertyAsBoolean(
-            properties,
-            TableProperties.PARQUET_VECTORIZATION_ENABLED,
-            TableProperties.PARQUET_VECTORIZATION_ENABLED_DEFAULT);
-      case ORC:
-        return PropertyUtil.propertyAsBoolean(
-            properties,
-            TableProperties.ORC_VECTORIZATION_ENABLED,
-            TableProperties.ORC_VECTORIZATION_ENABLED_DEFAULT);
-      default:
-        return false;
-    }
-  }
-
-  public static int batchSize(FileFormat fileFormat, Map<String, String> properties,
-                              CaseInsensitiveStringMap readOptions) {
-    String readOptionValue = readOptions.get(SparkReadOptions.VECTORIZATION_BATCH_SIZE);
-    if (readOptionValue != null) {
-      return Integer.parseInt(readOptionValue);
-    }
-
-    switch (fileFormat) {
-      case PARQUET:
-        return PropertyUtil.propertyAsInt(
-            properties,
-            TableProperties.PARQUET_BATCH_SIZE,
-            TableProperties.PARQUET_BATCH_SIZE_DEFAULT);
-
-      case ORC:
-        return PropertyUtil.propertyAsInt(
-            properties,
-            TableProperties.ORC_BATCH_SIZE,
-            TableProperties.ORC_BATCH_SIZE_DEFAULT);
-
-      default:
-        throw new IllegalArgumentException("File format does not support batch reads: " + fileFormat);
-    }
   }
 
   public static Long propertyAsLong(CaseInsensitiveStringMap options, String property, Long defaultValue) {

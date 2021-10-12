@@ -28,7 +28,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
-import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
@@ -83,19 +83,21 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
         "Save mode %s is not supported", mode);
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
-    boolean handleTimestampWithoutZone =
-            SparkUtil.canHandleTimestampWithoutZone(options.asMap(), lazySparkSession().conf());
-    Preconditions.checkArgument(handleTimestampWithoutZone || !SparkUtil.hasTimestampWithoutZone(table.schema()),
-            SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
+    SparkWriteConf writeConf = new SparkWriteConf(lazySparkSession(), table, options.asMap());
+
+    Preconditions.checkArgument(
+        writeConf.handleTimestampWithoutZone() || !SparkUtil.hasTimestampWithoutZone(table.schema()),
+        SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
+
     Schema writeSchema = SparkSchemaUtil.convert(table.schema(), dsStruct);
-    TypeUtil.validateWriteSchema(table.schema(), writeSchema, checkNullability(options), checkOrdering(options));
+    TypeUtil.validateWriteSchema(table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
     SparkUtil.validatePartitionTransforms(table.spec());
     String appId = lazySparkSession().sparkContext().applicationId();
-    String wapId = lazySparkSession().conf().get("spark.wap.id", null);
+    String wapId = writeConf.wapId();
     boolean replacePartitions = mode == SaveMode.Overwrite;
 
     return Optional.of(new Writer(
-        lazySparkSession(), table, options, replacePartitions, appId, wapId, writeSchema, dsStruct));
+        lazySparkSession(), table, writeConf, replacePartitions, appId, wapId, writeSchema, dsStruct));
   }
 
   @Override
@@ -106,15 +108,21 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
         "Output mode %s is not supported", mode);
     Configuration conf = new Configuration(lazyBaseConf());
     Table table = getTableAndResolveHadoopConfiguration(options, conf);
+    SparkWriteConf writeConf = new SparkWriteConf(lazySparkSession(), table, options.asMap());
+
+    Preconditions.checkArgument(
+        writeConf.handleTimestampWithoutZone() || !SparkUtil.hasTimestampWithoutZone(table.schema()),
+        SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
+
     Schema writeSchema = SparkSchemaUtil.convert(table.schema(), dsStruct);
-    TypeUtil.validateWriteSchema(table.schema(), writeSchema, checkNullability(options), checkOrdering(options));
+    TypeUtil.validateWriteSchema(table.schema(), writeSchema, writeConf.checkNullability(), writeConf.checkOrdering());
     SparkUtil.validatePartitionTransforms(table.spec());
     // Spark 2.4.x passes runId to createStreamWriter instead of real queryId,
     // so we fetch it directly from sparkContext to make writes idempotent
     String queryId = lazySparkSession().sparkContext().getLocalProperty(StreamExecution.QUERY_ID_KEY());
     String appId = lazySparkSession().sparkContext().applicationId();
 
-    return new StreamingWriter(lazySparkSession(), table, options, queryId, mode, appId, writeSchema, dsStruct);
+    return new StreamingWriter(lazySparkSession(), table, writeConf, queryId, mode, appId, writeSchema, dsStruct);
   }
 
   protected Table findTable(DataSourceOptions options, Configuration conf) {
@@ -160,19 +168,5 @@ public class IcebergSource implements DataSourceV2, ReadSupport, WriteSupport, D
     options.keySet().stream()
         .filter(key -> key.startsWith("hadoop."))
         .forEach(key -> baseConf.set(key.replaceFirst("hadoop.", ""), options.get(key)));
-  }
-
-  private boolean checkNullability(DataSourceOptions options) {
-    boolean sparkCheckNullability = Boolean.parseBoolean(lazySpark.conf()
-        .get("spark.sql.iceberg.check-nullability", "true"));
-    boolean dataFrameCheckNullability = options.getBoolean(SparkWriteOptions.CHECK_NULLABILITY, true);
-    return sparkCheckNullability && dataFrameCheckNullability;
-  }
-
-  private boolean checkOrdering(DataSourceOptions options) {
-    boolean sparkCheckOrdering = Boolean.parseBoolean(lazySpark.conf()
-            .get("spark.sql.iceberg.check-ordering", "true"));
-    boolean dataFrameCheckOrdering = options.getBoolean(SparkWriteOptions.CHECK_ORDERING, true);
-    return sparkCheckOrdering && dataFrameCheckOrdering;
   }
 }
