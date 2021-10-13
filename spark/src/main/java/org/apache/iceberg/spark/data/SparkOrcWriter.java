@@ -57,7 +57,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
   @Override
   public void write(InternalRow value, VectorizedRowBatch output) {
     Preconditions.checkArgument(value != null, "value must not be null");
-    writer.rootNonNullWrite(value, output);
+    writer.writeRow(value, output);
   }
 
   @Override
@@ -132,16 +132,6 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
       for (int i = 0; i < orcTypes.size(); i++) {
         fieldGetters.add(createFieldGetter(orcTypes.get(i)));
       }
-    }
-
-    @Override
-    public Class<?> getJavaClass() {
-      return InternalRow.class;
-    }
-
-    @Override
-    public Stream<FieldMetrics<?>> metrics() {
-      return writers().stream().flatMap(OrcValueWriter::metrics);
     }
 
     @Override

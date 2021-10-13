@@ -97,11 +97,6 @@ class FlinkOrcWriters {
     private static final StringWriter INSTANCE = new StringWriter();
 
     @Override
-    public Class<?> getJavaClass() {
-      return StringData.class;
-    }
-
-    @Override
     public void nonNullWrite(int rowId, StringData data, ColumnVector output) {
       byte[] value = data.toBytes();
       ((BytesColumnVector) output).setRef(rowId, value, 0, value.length);
@@ -110,11 +105,6 @@ class FlinkOrcWriters {
 
   private static class DateWriter implements OrcValueWriter<Integer> {
     private static final DateWriter INSTANCE = new DateWriter();
-
-    @Override
-    public Class<?> getJavaClass() {
-      return Integer.class;
-    }
 
     @Override
     public void nonNullWrite(int rowId, Integer data, ColumnVector output) {
@@ -126,11 +116,6 @@ class FlinkOrcWriters {
     private static final TimeWriter INSTANCE = new TimeWriter();
 
     @Override
-    public Class<?> getJavaClass() {
-      return Integer.class;
-    }
-
-    @Override
     public void nonNullWrite(int rowId, Integer millis, ColumnVector output) {
       // The time in flink is in millisecond, while the standard time in iceberg is microsecond.
       // So we need to transform it to microsecond.
@@ -140,11 +125,6 @@ class FlinkOrcWriters {
 
   private static class TimestampWriter implements OrcValueWriter<TimestampData> {
     private static final TimestampWriter INSTANCE = new TimestampWriter();
-
-    @Override
-    public Class<?> getJavaClass() {
-      return TimestampData.class;
-    }
 
     @Override
     public void nonNullWrite(int rowId, TimestampData data, ColumnVector output) {
@@ -160,11 +140,6 @@ class FlinkOrcWriters {
 
   private static class TimestampTzWriter implements OrcValueWriter<TimestampData> {
     private static final TimestampTzWriter INSTANCE = new TimestampTzWriter();
-
-    @Override
-    public Class<TimestampData> getJavaClass() {
-      return TimestampData.class;
-    }
 
     @Override
     public void nonNullWrite(int rowId, TimestampData data, ColumnVector output) {
@@ -184,11 +159,6 @@ class FlinkOrcWriters {
     Decimal18Writer(int precision, int scale) {
       this.precision = precision;
       this.scale = scale;
-    }
-
-    @Override
-    public Class<?> getJavaClass() {
-      return DecimalData.class;
     }
 
     @Override
@@ -212,11 +182,6 @@ class FlinkOrcWriters {
     }
 
     @Override
-    public Class<?> getJavaClass() {
-      return DecimalData.class;
-    }
-
-    @Override
     public void nonNullWrite(int rowId, DecimalData data, ColumnVector output) {
       Preconditions.checkArgument(scale == data.scale(),
           "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, data);
@@ -234,11 +199,6 @@ class FlinkOrcWriters {
     ListWriter(OrcValueWriter<T> elementWriter, LogicalType elementType) {
       this.elementWriter = elementWriter;
       this.elementGetter = ArrayData.createElementGetter(elementType);
-    }
-
-    @Override
-    public Class<?> getJavaClass() {
-      return ArrayData.class;
     }
 
     @Override
@@ -279,11 +239,6 @@ class FlinkOrcWriters {
     }
 
     @Override
-    public Class<?> getJavaClass() {
-      return MapData.class;
-    }
-
-    @Override
     @SuppressWarnings("unchecked")
     public void nonNullWrite(int rowId, MapData data, ColumnVector output) {
       MapColumnVector cv = (MapColumnVector) output;
@@ -321,11 +276,6 @@ class FlinkOrcWriters {
       for (int i = 0; i < types.size(); i++) {
         fieldGetters.add(RowData.createFieldGetter(types.get(i), i));
       }
-    }
-
-    @Override
-    public Class<?> getJavaClass() {
-      return RowData.class;
     }
 
     @Override

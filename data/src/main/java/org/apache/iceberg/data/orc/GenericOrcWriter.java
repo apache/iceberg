@@ -115,7 +115,7 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
   @Override
   public void write(Record value, VectorizedRowBatch output) {
     Preconditions.checkArgument(value != null, "value must not be null");
-    writer.rootNonNullWrite(value, output);
+    writer.writeRow(value, output);
   }
 
   @Override
@@ -130,13 +130,8 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
     }
 
     @Override
-    public Class<Record> getJavaClass() {
-      return Record.class;
-    }
-
-    @Override
     protected Object get(Record struct, int index) {
-      return struct.get(index, writers().get(index).getJavaClass());
+      return struct.get(index);
     }
   }
 }
