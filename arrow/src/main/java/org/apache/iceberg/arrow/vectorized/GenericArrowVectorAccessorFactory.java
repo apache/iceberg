@@ -77,9 +77,6 @@ public class GenericArrowVectorAccessorFactory<
   private final Supplier<StructChildFactory<ChildVectorT>> structChildFactorySupplier;
   private final Supplier<ArrayFactory<ChildVectorT, ArrayT>> arrayFactorySupplier;
 
-  private final boolean useIntVectorForIntBackedDecimal;
-  private final boolean useLongVectorForLongBackedDecimal;
-
   /**
    * The constructor is parameterized using the decimal, string, struct and array factories. If a
    * specific type is not supported, the factory supplier can raise an {@link
@@ -94,25 +91,6 @@ public class GenericArrowVectorAccessorFactory<
     this.stringFactorySupplier = stringFactorySupplier;
     this.structChildFactorySupplier = structChildFactorySupplier;
     this.arrayFactorySupplier = arrayFactorySupplier;
-
-    this.useIntVectorForIntBackedDecimal = false;
-    this.useLongVectorForLongBackedDecimal = false;
-  }
-
-  protected GenericArrowVectorAccessorFactory(
-      Supplier<DecimalFactory<DecimalT>> decimalFactorySupplier,
-      Supplier<StringFactory<Utf8StringT>> stringFactorySupplier,
-      Supplier<StructChildFactory<ChildVectorT>> structChildFactorySupplier,
-      Supplier<ArrayFactory<ChildVectorT, ArrayT>> arrayFactorySupplier,
-      boolean useIntVectorForIntBackedDecimal,
-      boolean useLongVectorForLongBackedDecimal) {
-    this.decimalFactorySupplier = decimalFactorySupplier;
-    this.stringFactorySupplier = stringFactorySupplier;
-    this.structChildFactorySupplier = structChildFactorySupplier;
-    this.arrayFactorySupplier = arrayFactorySupplier;
-
-    this.useIntVectorForIntBackedDecimal = useIntVectorForIntBackedDecimal;
-    this.useLongVectorForLongBackedDecimal = useLongVectorForLongBackedDecimal;
   }
 
   public ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> getVectorAccessor(
@@ -195,14 +173,12 @@ public class GenericArrowVectorAccessorFactory<
     if (vector instanceof BitVector) {
       return new BooleanAccessor<>((BitVector) vector);
     } else if (vector instanceof IntVector) {
-      if (primitive != null && OriginalType.DECIMAL.equals(primitive.getOriginalType()) &&
-          useIntVectorForIntBackedDecimal) {
+      if (primitive != null && OriginalType.DECIMAL.equals(primitive.getOriginalType())) {
         return new IntBackedDecimalAccessor<>((IntVector) vector, decimalFactorySupplier.get());
       }
       return new IntAccessor<>((IntVector) vector);
     } else if (vector instanceof BigIntVector) {
-      if (primitive != null && OriginalType.DECIMAL.equals(primitive.getOriginalType()) &&
-          useLongVectorForLongBackedDecimal) {
+      if (primitive != null && OriginalType.DECIMAL.equals(primitive.getOriginalType())) {
         return new LongBackedDecimalAccessor<>((BigIntVector) vector, decimalFactorySupplier.get());
       }
       return new LongAccessor<>((BigIntVector) vector);
@@ -231,6 +207,10 @@ public class GenericArrowVectorAccessorFactory<
     } else if (vector instanceof TimeMicroVector) {
       return new TimeMicroAccessor<>((TimeMicroVector) vector);
     } else if (vector instanceof FixedSizeBinaryVector) {
+      if (primitive != null && OriginalType.DECIMAL.equals(primitive.getOriginalType())) {
+        return new FixedSizeBinaryBackedDecimalAccessor<>(
+            (FixedSizeBinaryVector) vector, decimalFactorySupplier.get());
+      }
       return new FixedSizeBinaryAccessor<>((FixedSizeBinaryVector) vector);
     }
     throw new UnsupportedOperationException("Unsupported vector: " + vector.getClass());
@@ -646,6 +626,27 @@ public class GenericArrowVectorAccessorFactory<
     @Override
     public final DecimalT getDecimal(int rowId, int precision, int scale) {
       return decimalFactory.ofLong(vector.get(rowId), precision, scale);
+    }
+  }
+
+  private static class FixedSizeBinaryBackedDecimalAccessor<DecimalT, Utf8StringT, ArrayT,
+      ChildVectorT extends AutoCloseable> extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+
+    private final FixedSizeBinaryVector vector;
+    private final DecimalFactory<DecimalT> decimalFactory;
+
+    FixedSizeBinaryBackedDecimalAccessor(FixedSizeBinaryVector vector, DecimalFactory<DecimalT> decimalFactory) {
+      super(vector);
+      this.vector = vector;
+      this.decimalFactory = decimalFactory;
+    }
+
+    @Override
+    public final DecimalT getDecimal(int rowId, int precision, int scale) {
+      byte[] bytes = vector.get(rowId);
+      BigInteger bigInteger = new BigInteger(bytes);
+      BigDecimal javaDecimal = new BigDecimal(bigInteger, scale);
+      return decimalFactory.ofBigDecimal(javaDecimal, precision, scale);
     }
   }
 

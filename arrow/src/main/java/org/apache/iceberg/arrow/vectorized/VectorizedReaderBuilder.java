@@ -35,6 +35,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
@@ -45,9 +46,6 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
   private final Map<Integer, ?> idToConstant;
   private final boolean setArrowValidityVector;
   private final Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory;
-
-  private final boolean useIntVectorForIntBackedDecimal;
-  private final boolean useLongVectorForLongBackedDecimal;
 
   public VectorizedReaderBuilder(
       Schema expectedSchema,
@@ -63,28 +61,6 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
     this.setArrowValidityVector = setArrowValidityVector;
     this.idToConstant = idToConstant;
     this.readerFactory = readerFactory;
-
-    this.useIntVectorForIntBackedDecimal = false;
-    this.useLongVectorForLongBackedDecimal = false;
-  }
-
-  public VectorizedReaderBuilder(
-      Schema expectedSchema,
-      MessageType parquetSchema,
-      boolean setArrowValidityVector, Map<Integer, ?> idToConstant,
-      Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory,
-      boolean useIntVectorForIntBackedDecimal,
-      boolean useLongVectorForLongBackedDecimal) {
-    this.parquetSchema = parquetSchema;
-    this.icebergSchema = expectedSchema;
-    this.rootAllocator = ArrowAllocation.rootAllocator()
-        .newChildAllocator("VectorizedReadBuilder", 0, Long.MAX_VALUE);
-    this.setArrowValidityVector = setArrowValidityVector;
-    this.idToConstant = idToConstant;
-    this.readerFactory = readerFactory;
-
-    this.useIntVectorForIntBackedDecimal = useIntVectorForIntBackedDecimal;
-    this.useLongVectorForLongBackedDecimal = useLongVectorForLongBackedDecimal;
   }
 
   @Override
@@ -154,12 +130,29 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
     if (desc.getMaxRepetitionLevel() > 0) {
       return null;
     }
-    Types.NestedField icebergField = icebergSchema.findField(parquetFieldId);
-    if (icebergField == null) {
+    Types.NestedField originalField = icebergSchema.findField(parquetFieldId);
+    if (originalField == null) {
       return null;
     }
+
+    Types.NestedField icebergField = originalField;
+    PrimitiveType.PrimitiveTypeName typeName = primitive.getPrimitiveTypeName();
+    if (OriginalType.DECIMAL.equals(primitive.getOriginalType())) {
+      org.apache.iceberg.types.Type type;
+      if (PrimitiveType.PrimitiveTypeName.INT64.equals(typeName)) {
+        // We use BigIntVector for long backed decimal
+        type = Types.LongType.get();
+      } else if (PrimitiveType.PrimitiveTypeName.INT32.equals(typeName)) {
+        // We use IntVector for int backed decimal
+        type = Types.IntegerType.get();
+      } else {
+        // We use FixedSizeBinaryVector for binary backed decimal
+        type = Types.FixedType.ofLength(primitive.getTypeLength());
+      }
+      icebergField = Types.NestedField.of(
+          originalField.fieldId(), originalField.isOptional(), originalField.name(), type);
+    }
     // Set the validity buffer if null checking is enabled in arrow
-    return new VectorizedArrowReader(desc, icebergField, rootAllocator, setArrowValidityVector,
-        useIntVectorForIntBackedDecimal, useLongVectorForLongBackedDecimal);
+    return new VectorizedArrowReader(desc, icebergField, originalField, rootAllocator, setArrowValidityVector);
   }
 }

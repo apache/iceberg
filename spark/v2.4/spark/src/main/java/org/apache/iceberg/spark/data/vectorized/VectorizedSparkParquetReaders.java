@@ -50,19 +50,4 @@ public class VectorizedSparkParquetReaders {
                 idToConstant,
                 ColumnarBatchReader::new));
   }
-
-  public static ColumnarBatchReader buildReader(
-      Schema expectedSchema,
-      MessageType fileSchema,
-      boolean setArrowValidityVector,
-      Map<Integer, ?> idToConstant,
-      boolean useIntVectorForIntBackedDecimal,
-      boolean useLongVectorForLongBackedDecimal) {
-    return (ColumnarBatchReader)
-        TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-            new VectorizedReaderBuilder(
-                expectedSchema, fileSchema, setArrowValidityVector,
-                idToConstant, ColumnarBatchReader::new,
-                useIntVectorForIntBackedDecimal, useLongVectorForLongBackedDecimal));
-  }
 }

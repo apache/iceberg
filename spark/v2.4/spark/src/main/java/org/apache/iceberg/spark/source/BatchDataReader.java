@@ -81,9 +81,7 @@ class BatchDataReader extends BaseDataReader<ColumnarBatch> {
                           expectedSchema,
                           fileSchema, /* setArrowValidityVector */
                           NullCheckingForGet.NULL_CHECKING_ENABLED,
-                          idToConstant,
-                          true,
-                          true))
+                          idToConstant))
               .recordsPerBatch(batchSize)
               .filter(task.residual())
               .caseSensitive(caseSensitive)

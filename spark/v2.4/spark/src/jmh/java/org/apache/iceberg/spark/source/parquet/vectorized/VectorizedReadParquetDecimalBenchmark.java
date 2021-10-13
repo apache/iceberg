@@ -40,8 +40,6 @@ import org.openjdk.jmh.annotations.Threads;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.spark.sql.functions.col;
-import static org.apache.spark.sql.functions.current_date;
-import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 import static org.apache.spark.sql.functions.lit;
 import static org.apache.spark.sql.functions.pmod;

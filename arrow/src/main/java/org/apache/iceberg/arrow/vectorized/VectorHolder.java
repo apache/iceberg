@@ -35,6 +35,7 @@ public class VectorHolder {
   private final Dictionary dictionary;
   private final NullabilityHolder nullabilityHolder;
   private final Type icebergType;
+  private final Type originalIcebergType;
 
   public VectorHolder(
       ColumnDescriptor columnDescriptor,
@@ -54,6 +55,25 @@ public class VectorHolder {
     this.dictionary = dictionary;
     this.nullabilityHolder = holder;
     this.icebergType = type;
+    this.originalIcebergType = type;
+  }
+
+  public VectorHolder(
+      ColumnDescriptor columnDescriptor, FieldVector vector, boolean isDictionaryEncoded,
+      Dictionary dictionary, NullabilityHolder holder, Type type, Type originalIcebergType) {
+    // All the fields except dictionary are not nullable unless it is a dummy holder
+    Preconditions.checkNotNull(columnDescriptor, "ColumnDescriptor cannot be null");
+    Preconditions.checkNotNull(vector, "Vector cannot be null");
+    Preconditions.checkNotNull(holder, "NullabilityHolder cannot be null");
+    Preconditions.checkNotNull(type, "IcebergType cannot be null");
+    Preconditions.checkNotNull(originalIcebergType, "OriginalIcebergType cannot be null");
+    this.columnDescriptor = columnDescriptor;
+    this.vector = vector;
+    this.isDictionaryEncoded = isDictionaryEncoded;
+    this.dictionary = dictionary;
+    this.nullabilityHolder = holder;
+    this.icebergType = type;
+    this.originalIcebergType = originalIcebergType;
   }
 
   // Only used for returning dummy holder
@@ -64,6 +84,7 @@ public class VectorHolder {
     dictionary = null;
     nullabilityHolder = null;
     icebergType = null;
+    originalIcebergType = null;
   }
 
   private VectorHolder(FieldVector vec, Type type, NullabilityHolder nulls) {
@@ -73,6 +94,7 @@ public class VectorHolder {
     dictionary = null;
     nullabilityHolder = nulls;
     icebergType = type;
+    originalIcebergType = type;
   }
 
   public ColumnDescriptor descriptor() {
@@ -97,6 +119,10 @@ public class VectorHolder {
 
   public Type icebergType() {
     return icebergType;
+  }
+
+  public Type originalIcebergType() {
+    return originalIcebergType;
   }
 
   public int numValues() {

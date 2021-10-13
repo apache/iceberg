@@ -66,9 +66,11 @@ public class ArrowSchemaUtil {
 
     switch (field.type().typeId()) {
       case BINARY:
-        // Spark doesn't support BYTE(fixed_size) type, so cast it to VarBinary
-      case FIXED:
         arrowType = ArrowType.Binary.INSTANCE;
+        break;
+      case FIXED:
+        final Types.FixedType fixedType = (Types.FixedType) field.type();
+        arrowType = new ArrowType.FixedSizeBinary(fixedType.length());
         break;
       case BOOLEAN:
         arrowType = ArrowType.Bool.INSTANCE;
@@ -138,15 +140,5 @@ public class ArrowSchemaUtil {
 
     return new Field(
         field.name(), new FieldType(field.isOptional(), arrowType, null, metadata), children);
-  }
-
-  public static Field convertToInt(final NestedField field) {
-    final ArrowType arrowType = new ArrowType.Int(Integer.SIZE, true /* signed */);
-    return new Field(field.name(), new FieldType(field.isOptional(), arrowType, null, null), Lists.newArrayList());
-  }
-
-  public static Field convertToLong(final NestedField field) {
-    final ArrowType arrowType = new ArrowType.Int(Long.SIZE, true /* signed */);
-    return new Field(field.name(), new FieldType(field.isOptional(), arrowType, null, null), Lists.newArrayList());
   }
 }
