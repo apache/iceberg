@@ -379,7 +379,7 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 | _required_ | _required_ | **`100  file_path`**              | `string`                     | Full URI for the file with FS scheme |
 | _required_ | _required_ | **`101  file_format`**            | `string`                     | String file format name, avro, orc or parquet |
 | _required_ | _required_ | **`102  partition`**              | `struct<...>`                | Partition data tuple, schema based on the partition spec output using partition field ids for the struct field ids |
-| _required_ | _required_ | **`103  record_count`**           | `long`                       | Number of records in this file. -1 if the count is unknown, for example when importing files directly from row-oriented formats (Avro) |
+| _required_ | _required_ | **`103  record_count`**           | `long`                       | Number of records in this file. -1 if the count is unknown |
 | _required_ | _required_ | **`104  file_size_in_bytes`**     | `long`                       | Total file size in bytes |
 | _required_ |            | ~~**`105 block_size_in_bytes`**~~ | `long`                       | **Deprecated. Always write a default in v1. Do not write in v2.** |
 | _optional_ |            | ~~**`106  file_ordinal`**~~       | `int`                        | **Deprecated. Do not write.** |
