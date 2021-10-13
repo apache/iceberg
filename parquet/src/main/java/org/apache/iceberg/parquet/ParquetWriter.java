@@ -66,16 +66,18 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final CodecFactory.BytesCompressor compressor;
   private final MessageType parquetSchema;
   private final ParquetValueWriter<T> model;
-  private final ParquetFileWriter writer;
   private final MetricsConfig metricsConfig;
   private final int columnIndexTruncateLength;
+  private final ParquetFileWriter.Mode writeMode;
+  private final OutputFile output;
+  private final Configuration conf;
 
   private DynMethods.BoundMethod flushPageStoreToWriter;
   private ColumnWriteStore writeStore;
-  private long nextRowGroupSize = 0;
   private long recordCount = 0;
   private long nextCheckRecordCount = 10;
   private boolean closed;
+  private ParquetFileWriter fileWriter;
 
   private static final String COLUMN_INDEX_TRUNCATE_LENGTH = "parquet.columnindex.truncate.length";
   private static final int DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH = 64;
@@ -96,21 +98,30 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.model = (ParquetValueWriter<T>) createWriterFunc.apply(parquetSchema);
     this.metricsConfig = metricsConfig;
     this.columnIndexTruncateLength = conf.getInt(COLUMN_INDEX_TRUNCATE_LENGTH, DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH);
-
-    try {
-      this.writer = new ParquetFileWriter(ParquetIO.file(output, conf), parquetSchema,
-         writeMode, rowGroupSize, 0);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to create Parquet file");
-    }
-
-    try {
-      writer.start();
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to start Parquet file writer");
-    }
+    this.writeMode = writeMode;
+    this.output = output;
+    this.conf = conf;
 
     startRowGroup();
+  }
+
+  private ParquetFileWriter writer() {
+    if (this.fileWriter == null) {
+      try {
+        this.fileWriter = new ParquetFileWriter(ParquetIO.file(output, conf), parquetSchema,
+           writeMode, targetRowGroupSize, 0);
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to create Parquet file");
+      }
+
+      try {
+        fileWriter.start();
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to start Parquet file writer");
+      }
+    }
+
+    return fileWriter;
   }
 
   @Override
@@ -123,7 +134,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   @Override
   public Metrics metrics() {
-    return ParquetUtil.footerMetrics(writer.getFooter(), model.metrics(), metricsConfig);
+    return ParquetUtil.footerMetrics(writer().getFooter(), model.metrics(), metricsConfig);
   }
 
   /**
@@ -139,9 +150,9 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   public long length() {
     try {
       if (closed) {
-        return writer.getPos();
+        return writer().getPos();
       } else {
-        return writer.getPos() + (writeStore.isColumnFlushNeeded() ? writeStore.getBufferedSize() : 0);
+        return writer().getPos() + (writeStore.isColumnFlushNeeded() ? writeStore.getBufferedSize() : 0);
       }
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to get file length");
@@ -150,7 +161,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   @Override
   public List<Long> splitOffsets() {
-    return ParquetUtil.getSplitOffsets(writer.getFooter());
+    return ParquetUtil.getSplitOffsets(writer().getFooter());
   }
 
   private void checkSize() {
@@ -158,10 +169,10 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       long bufferedSize = writeStore.getBufferedSize();
       double avgRecordSize = ((double) bufferedSize) / recordCount;
 
-      if (bufferedSize > (nextRowGroupSize - 2 * avgRecordSize)) {
+      if (bufferedSize > (targetRowGroupSize - 2 * avgRecordSize)) {
         flushRowGroup(false);
       } else {
-        long remainingSpace = nextRowGroupSize - bufferedSize;
+        long remainingSpace = targetRowGroupSize - bufferedSize;
         long remainingRecords = (long) (remainingSpace / avgRecordSize);
         this.nextCheckRecordCount = recordCount + Math.min(Math.max(remainingRecords / 2, 100), 10000);
       }
@@ -171,10 +182,10 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private void flushRowGroup(boolean finished) {
     try {
       if (recordCount > 0) {
-        writer.startBlock(recordCount);
+        writer().startBlock(recordCount);
         writeStore.flush();
-        flushPageStoreToWriter.invoke(writer);
-        writer.endBlock();
+        flushPageStoreToWriter.invoke(writer());
+        writer().endBlock();
         if (!finished) {
           startRowGroup();
         }
@@ -187,11 +198,6 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private void startRowGroup() {
     Preconditions.checkState(!closed, "Writer is closed");
 
-    try {
-      this.nextRowGroupSize = Math.min(writer.getNextRowGroupSize(), targetRowGroupSize);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
     this.nextCheckRecordCount = Math.min(Math.max(recordCount / 2, 100), 10000);
     this.recordCount = 0;
 
@@ -210,7 +216,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       this.closed = true;
       flushRowGroup(true);
       writeStore.close();
-      writer.end(metadata);
+      writer().end(metadata);
     }
   }
 }
