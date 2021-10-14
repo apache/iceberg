@@ -118,7 +118,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void addDataUnpartitionedAvroFile() throws Exception {
+  public void addAvroFile() throws Exception {
     Schema schema = new Schema(
         Types.NestedField.required(1, "id", Types.LongType.get()),
         Types.NestedField.optional(2, "data", Types.StringType.get()));
@@ -164,6 +164,12 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Iceberg table contains correct data",
         expected,
         sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    List<Object[]> expectedCount = Lists.newArrayList();
+    expectedCount.add(new Object[]{2L});
+    assertEquals("Iceberg table has correct count",
+        expectedCount,
+        sql("SELECT COUNT(*) FROM %s", tableName));
   }
 
   // TODO Adding spark-avro doesn't work in tests
