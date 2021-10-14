@@ -36,6 +36,7 @@ import org.apache.spark.sql.SparkSession;
 class SparkFilesScan extends SparkBatchScan {
   private final String taskSetID;
   private final long splitSize;
+  private final long fallbackSplitSize;
   private final int splitLookback;
   private final long splitOpenFileCost;
 
@@ -46,6 +47,7 @@ class SparkFilesScan extends SparkBatchScan {
 
     this.taskSetID = readConf.fileScanTaskSetId();
     this.splitSize = readConf.splitSize();
+    this.fallbackSplitSize = splitSize / 4;
     this.splitLookback = readConf.splitLookback();
     this.splitOpenFileCost = readConf.splitOpenFileCost();
   }
@@ -59,9 +61,9 @@ class SparkFilesScan extends SparkBatchScan {
           "Task set manager has no tasks for table %s with id %s",
           table(), taskSetID);
 
-      CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(
+      CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitOnOffsets(
           CloseableIterable.withNoopClose(files),
-          splitSize);
+          fallbackSplitSize);
       CloseableIterable<CombinedScanTask> scanTasks = TableScanUtil.planTasks(
           splitFiles, splitSize,
           splitLookback, splitOpenFileCost);

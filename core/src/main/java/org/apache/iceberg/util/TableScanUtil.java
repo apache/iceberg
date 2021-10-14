@@ -23,6 +23,7 @@ import java.util.function.Function;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.ContentFile;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.io.CloseableIterable;
@@ -57,6 +58,39 @@ public class TableScanUtil {
     Iterable<FileScanTask> splitTasks = FluentIterable
         .from(tasks)
         .transformAndConcat(input -> input.split(splitSize));
+    // Capture manifests which can be closed after scan planning
+    return CloseableIterable.combine(splitTasks, tasks);
+  }
+
+  /**
+   * Split files into FileScanTasks which only contain a single offset (rowGroup). For files which do not
+   * expose the offsets, use the normal split code.
+   * @param tasks Scan tasks, one per whole file to be split
+   * @param fallbackSplitSize the splitSize to use when the file does not contain explicit offsets to use
+   * @return Scan tasks, one per offset
+   */
+  public static CloseableIterable<FileScanTask> splitOnOffsets(CloseableIterable<FileScanTask> tasks,
+                                                               long fallbackSplitSize) {
+    Preconditions.checkArgument(fallbackSplitSize > 0,
+        "Invalid fallback split size (negative or 0): %s", fallbackSplitSize);
+
+    Iterable<FileScanTask> splitTasks = FluentIterable
+        .from(tasks)
+        .transformAndConcat(input -> {
+          DataFile file = input.file();
+          if (file.format().hasOffsets()) {
+            if (file.splitOffsets() != null) {
+              // Split on offsets, size 0 means 1 task per offset
+              return input.split(0);
+            } else {
+              // File too small to have offsets, take the entire file as a task
+              return CloseableIterable.withNoopClose(input);
+            }
+          } else {
+            // File cannot have offsets, split normally
+            return input.split(fallbackSplitSize);
+          }
+        });
     // Capture manifests which can be closed after scan planning
     return CloseableIterable.combine(splitTasks, tasks);
   }
