@@ -32,6 +32,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.iceberg.DoubleFieldMetrics;
 import org.apache.iceberg.FieldMetrics;
@@ -48,7 +49,9 @@ import org.apache.orc.storage.ql.exec.vector.DoubleColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ListColumnVector;
 import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
+import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
+import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 public class GenericOrcWriters {
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
@@ -139,11 +142,6 @@ public class GenericOrcWriters {
     private static final OrcValueWriter<Boolean> INSTANCE = new BooleanWriter();
 
     @Override
-    public Class<Boolean> getJavaClass() {
-      return Boolean.class;
-    }
-
-    @Override
     public void nonNullWrite(int rowId, Boolean data, ColumnVector output) {
       ((LongColumnVector) output).vector[rowId] = data ? 1 : 0;
     }
@@ -151,11 +149,6 @@ public class GenericOrcWriters {
 
   private static class ByteWriter implements OrcValueWriter<Byte> {
     private static final OrcValueWriter<Byte> INSTANCE = new ByteWriter();
-
-    @Override
-    public Class<Byte> getJavaClass() {
-      return Byte.class;
-    }
 
     @Override
     public void nonNullWrite(int rowId, Byte data, ColumnVector output) {
@@ -167,11 +160,6 @@ public class GenericOrcWriters {
     private static final OrcValueWriter<Short> INSTANCE = new ShortWriter();
 
     @Override
-    public Class<Short> getJavaClass() {
-      return Short.class;
-    }
-
-    @Override
     public void nonNullWrite(int rowId, Short data, ColumnVector output) {
       ((LongColumnVector) output).vector[rowId] = data;
     }
@@ -179,11 +167,6 @@ public class GenericOrcWriters {
 
   private static class IntWriter implements OrcValueWriter<Integer> {
     private static final OrcValueWriter<Integer> INSTANCE = new IntWriter();
-
-    @Override
-    public Class<Integer> getJavaClass() {
-      return Integer.class;
-    }
 
     @Override
     public void nonNullWrite(int rowId, Integer data, ColumnVector output) {
@@ -195,11 +178,6 @@ public class GenericOrcWriters {
     private static final OrcValueWriter<LocalTime> INSTANCE = new TimeWriter();
 
     @Override
-    public Class<LocalTime> getJavaClass() {
-      return LocalTime.class;
-    }
-
-    @Override
     public void nonNullWrite(int rowId, LocalTime data, ColumnVector output) {
       ((LongColumnVector) output).vector[rowId] = data.toNanoOfDay() / 1_000;
     }
@@ -207,11 +185,6 @@ public class GenericOrcWriters {
 
   private static class LongWriter implements OrcValueWriter<Long> {
     private static final OrcValueWriter<Long> INSTANCE = new LongWriter();
-
-    @Override
-    public Class<Long> getJavaClass() {
-      return Long.class;
-    }
 
     @Override
     public void nonNullWrite(int rowId, Long data, ColumnVector output) {
@@ -225,11 +198,6 @@ public class GenericOrcWriters {
 
     private FloatWriter(int id) {
       this.floatFieldMetricsBuilder = new FloatFieldMetrics.Builder(id);
-    }
-
-    @Override
-    public Class<Float> getJavaClass() {
-      return Float.class;
     }
 
     @Override
@@ -262,11 +230,6 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public Class<Double> getJavaClass() {
-      return Double.class;
-    }
-
-    @Override
     public void nonNullWrite(int rowId, Double data, ColumnVector output) {
       ((DoubleColumnVector) output).vector[rowId] = data;
       doubleFieldMetricsBuilder.addValue(data);
@@ -291,11 +254,6 @@ public class GenericOrcWriters {
     private static final OrcValueWriter<String> INSTANCE = new StringWriter();
 
     @Override
-    public Class<String> getJavaClass() {
-      return String.class;
-    }
-
-    @Override
     public void nonNullWrite(int rowId, String data, ColumnVector output) {
       byte[] value = data.getBytes(StandardCharsets.UTF_8);
       ((BytesColumnVector) output).setRef(rowId, value, 0, value.length);
@@ -304,11 +262,6 @@ public class GenericOrcWriters {
 
   private static class ByteBufferWriter implements OrcValueWriter<ByteBuffer> {
     private static final OrcValueWriter<ByteBuffer> INSTANCE = new ByteBufferWriter();
-
-    @Override
-    public Class<ByteBuffer> getJavaClass() {
-      return ByteBuffer.class;
-    }
 
     @Override
     public void nonNullWrite(int rowId, ByteBuffer data, ColumnVector output) {
@@ -326,11 +279,6 @@ public class GenericOrcWriters {
     private static final OrcValueWriter<UUID> INSTANCE = new UUIDWriter();
 
     @Override
-    public Class<UUID> getJavaClass() {
-      return UUID.class;
-    }
-
-    @Override
     @SuppressWarnings("ByteBufferBackingArray")
     public void nonNullWrite(int rowId, UUID data, ColumnVector output) {
       ByteBuffer buffer = ByteBuffer.allocate(16);
@@ -344,11 +292,6 @@ public class GenericOrcWriters {
     private static final OrcValueWriter<byte[]> INSTANCE = new ByteArrayWriter();
 
     @Override
-    public Class<byte[]> getJavaClass() {
-      return byte[].class;
-    }
-
-    @Override
     public void nonNullWrite(int rowId, byte[] data, ColumnVector output) {
       ((BytesColumnVector) output).setRef(rowId, data, 0, data.length);
     }
@@ -358,11 +301,6 @@ public class GenericOrcWriters {
     private static final OrcValueWriter<LocalDate> INSTANCE = new DateWriter();
 
     @Override
-    public Class<LocalDate> getJavaClass() {
-      return LocalDate.class;
-    }
-
-    @Override
     public void nonNullWrite(int rowId, LocalDate data, ColumnVector output) {
       ((LongColumnVector) output).vector[rowId] = ChronoUnit.DAYS.between(EPOCH_DAY, data);
     }
@@ -370,11 +308,6 @@ public class GenericOrcWriters {
 
   private static class TimestampTzWriter implements OrcValueWriter<OffsetDateTime> {
     private static final OrcValueWriter<OffsetDateTime> INSTANCE = new TimestampTzWriter();
-
-    @Override
-    public Class<OffsetDateTime> getJavaClass() {
-      return OffsetDateTime.class;
-    }
 
     @Override
     public void nonNullWrite(int rowId, OffsetDateTime data, ColumnVector output) {
@@ -388,11 +321,6 @@ public class GenericOrcWriters {
 
   private static class TimestampWriter implements OrcValueWriter<LocalDateTime> {
     private static final OrcValueWriter<LocalDateTime> INSTANCE = new TimestampWriter();
-
-    @Override
-    public Class<LocalDateTime> getJavaClass() {
-      return LocalDateTime.class;
-    }
 
     @Override
     public void nonNullWrite(int rowId, LocalDateTime data, ColumnVector output) {
@@ -410,11 +338,6 @@ public class GenericOrcWriters {
     Decimal18Writer(int precision, int scale) {
       this.precision = precision;
       this.scale = scale;
-    }
-
-    @Override
-    public Class<BigDecimal> getJavaClass() {
-      return BigDecimal.class;
     }
 
     @Override
@@ -439,11 +362,6 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public Class<BigDecimal> getJavaClass() {
-      return BigDecimal.class;
-    }
-
-    @Override
     public void nonNullWrite(int rowId, BigDecimal data, ColumnVector output) {
       Preconditions.checkArgument(data.scale() == scale,
           "Cannot write value as decimal(%s,%s), wrong scale: %s", precision, scale, data);
@@ -459,11 +377,6 @@ public class GenericOrcWriters {
 
     ListWriter(OrcValueWriter<T> element) {
       this.element = element;
-    }
-
-    @Override
-    public Class<?> getJavaClass() {
-      return List.class;
     }
 
     @Override
@@ -497,11 +410,6 @@ public class GenericOrcWriters {
     }
 
     @Override
-    public Class<?> getJavaClass() {
-      return Map.class;
-    }
-
-    @Override
     public void nonNullWrite(int rowId, Map<K, V> map, ColumnVector output) {
       List<K> keys = Lists.newArrayListWithExpectedSize(map.size());
       List<V> values = Lists.newArrayListWithExpectedSize(map.size());
@@ -529,6 +437,46 @@ public class GenericOrcWriters {
     public Stream<FieldMetrics<?>> metrics() {
       return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
     }
+  }
+
+  public abstract static class StructWriter<S> implements OrcValueWriter<S> {
+    private final List<OrcValueWriter<?>> writers;
+
+    protected StructWriter(List<OrcValueWriter<?>> writers) {
+      this.writers = writers;
+    }
+
+    public List<OrcValueWriter<?>> writers() {
+      return writers;
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      return writers.stream().flatMap(OrcValueWriter::metrics);
+    }
+
+    @Override
+    public void nonNullWrite(int rowId, S value, ColumnVector output) {
+      StructColumnVector cv = (StructColumnVector) output;
+      write(rowId, value, c -> cv.fields[c]);
+    }
+
+    // Special case of writing the root struct
+    public void writeRow(S value, VectorizedRowBatch output) {
+      int rowId = output.size;
+      output.size += 1;
+      write(rowId, value, c -> output.cols[c]);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private void write(int rowId, S value, Function<Integer, ColumnVector> colVectorAtFunc) {
+      for (int c = 0; c < writers.size(); ++c) {
+        OrcValueWriter writer = writers.get(c);
+        writer.write(rowId, get(value, c), colVectorAtFunc.apply(c));
+      }
+    }
+
+    protected abstract Object get(S struct, int index);
   }
 
   private static void growColumnVector(ColumnVector cv, int requestedSize) {

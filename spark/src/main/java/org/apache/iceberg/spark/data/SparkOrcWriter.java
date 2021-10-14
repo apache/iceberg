@@ -19,19 +19,22 @@
 
 package org.apache.iceberg.spark.data;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.stream.Stream;
+import javax.annotation.Nullable;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcRowWriter;
 import org.apache.iceberg.orc.OrcSchemaWithTypeVisitor;
+import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
-import org.apache.orc.storage.ql.exec.vector.ColumnVector;
-import org.apache.orc.storage.ql.exec.vector.StructColumnVector;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
@@ -42,26 +45,19 @@ import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
  */
 public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
 
-  private final SparkOrcValueWriter writer;
+  private final InternalRowWriter writer;
 
   public SparkOrcWriter(Schema iSchema, TypeDescription orcSchema) {
     Preconditions.checkArgument(orcSchema.getCategory() == TypeDescription.Category.STRUCT,
         "Top level must be a struct " + orcSchema);
 
-    writer = OrcSchemaWithTypeVisitor.visit(iSchema, orcSchema, new WriteBuilder());
+    writer = (InternalRowWriter) OrcSchemaWithTypeVisitor.visit(iSchema, orcSchema, new WriteBuilder());
   }
 
   @Override
   public void write(InternalRow value, VectorizedRowBatch output) {
-    Preconditions.checkArgument(writer instanceof StructWriter, "writer must be StructWriter");
-
-    int row = output.size;
-    output.size += 1;
-    List<SparkOrcValueWriter> writers = ((StructWriter) writer).writers();
-    for (int c = 0; c < writers.size(); c++) {
-      SparkOrcValueWriter child = writers.get(c);
-      child.write(row, c, value, output.cols[c]);
-    }
+    Preconditions.checkArgument(value != null, "value must not be null");
+    writer.writeRow(value, output);
   }
 
   @Override
@@ -69,48 +65,48 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
     return writer.metrics();
   }
 
-  private static class WriteBuilder extends OrcSchemaWithTypeVisitor<SparkOrcValueWriter> {
+  private static class WriteBuilder extends OrcSchemaWithTypeVisitor<OrcValueWriter<?>> {
     private WriteBuilder() {
     }
 
     @Override
-    public SparkOrcValueWriter record(Types.StructType iStruct, TypeDescription record,
-                                      List<String> names, List<SparkOrcValueWriter> fields) {
-      return new StructWriter(fields);
+    public OrcValueWriter<?> record(Types.StructType iStruct, TypeDescription record,
+                                      List<String> names, List<OrcValueWriter<?>> fields) {
+      return new InternalRowWriter(fields, record.getChildren());
     }
 
     @Override
-    public SparkOrcValueWriter list(Types.ListType iList, TypeDescription array,
-                                    SparkOrcValueWriter element) {
-      return SparkOrcValueWriters.list(element);
+    public OrcValueWriter<?> list(Types.ListType iList, TypeDescription array,
+        OrcValueWriter<?> element) {
+      return SparkOrcValueWriters.list(element, array.getChildren());
     }
 
     @Override
-    public SparkOrcValueWriter map(Types.MapType iMap, TypeDescription map,
-                                   SparkOrcValueWriter key, SparkOrcValueWriter value) {
-      return SparkOrcValueWriters.map(key, value);
+    public OrcValueWriter<?> map(Types.MapType iMap, TypeDescription map,
+        OrcValueWriter<?> key, OrcValueWriter<?> value) {
+      return SparkOrcValueWriters.map(key, value, map.getChildren());
     }
 
     @Override
-    public SparkOrcValueWriter primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
+    public OrcValueWriter<?> primitive(Type.PrimitiveType iPrimitive, TypeDescription primitive) {
       switch (primitive.getCategory()) {
         case BOOLEAN:
-          return SparkOrcValueWriters.booleans();
+          return GenericOrcWriters.booleans();
         case BYTE:
-          return SparkOrcValueWriters.bytes();
+          return GenericOrcWriters.bytes();
         case SHORT:
-          return SparkOrcValueWriters.shorts();
+          return GenericOrcWriters.shorts();
         case DATE:
         case INT:
-          return SparkOrcValueWriters.ints();
+          return GenericOrcWriters.ints();
         case LONG:
-          return SparkOrcValueWriters.longs();
+          return GenericOrcWriters.longs();
         case FLOAT:
-          return SparkOrcValueWriters.floats(ORCSchemaUtil.fieldId(primitive));
+          return GenericOrcWriters.floats(ORCSchemaUtil.fieldId(primitive));
         case DOUBLE:
-          return SparkOrcValueWriters.doubles(ORCSchemaUtil.fieldId(primitive));
+          return GenericOrcWriters.doubles(ORCSchemaUtil.fieldId(primitive));
         case BINARY:
-          return SparkOrcValueWriters.byteArrays();
+          return GenericOrcWriters.byteArrays();
         case STRING:
         case CHAR:
         case VARCHAR:
@@ -126,30 +122,96 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
     }
   }
 
-  private static class StructWriter implements SparkOrcValueWriter {
-    private final List<SparkOrcValueWriter> writers;
+  private static class InternalRowWriter extends GenericOrcWriters.StructWriter<InternalRow> {
+    private final List<FieldGetter<?>> fieldGetters;
 
-    StructWriter(List<SparkOrcValueWriter> writers) {
-      this.writers = writers;
-    }
+    InternalRowWriter(List<OrcValueWriter<?>> writers, List<TypeDescription> orcTypes) {
+      super(writers);
+      this.fieldGetters = Lists.newArrayListWithExpectedSize(orcTypes.size());
 
-    List<SparkOrcValueWriter> writers() {
-      return writers;
-    }
-
-    @Override
-    public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
-      InternalRow value = data.getStruct(column, writers.size());
-      StructColumnVector cv = (StructColumnVector) output;
-      for (int c = 0; c < writers.size(); ++c) {
-        writers.get(c).write(rowId, c, value, cv.fields[c]);
+      for (int i = 0; i < orcTypes.size(); i++) {
+        fieldGetters.add(createFieldGetter(orcTypes.get(i)));
       }
     }
 
     @Override
-    public Stream<FieldMetrics<?>> metrics() {
-      return writers.stream().flatMap(SparkOrcValueWriter::metrics);
+    protected Object get(InternalRow struct, int index) {
+      return fieldGetters.get(index).getFieldOrNull(struct, index);
+    }
+  }
+
+  static FieldGetter<?> createFieldGetter(TypeDescription fieldType) {
+    final FieldGetter<?> fieldGetter;
+    switch (fieldType.getCategory()) {
+      case BOOLEAN:
+        fieldGetter = SpecializedGetters::getBoolean;
+        break;
+      case BYTE:
+        fieldGetter = SpecializedGetters::getByte;
+        break;
+      case SHORT:
+        fieldGetter = SpecializedGetters::getShort;
+        break;
+      case DATE:
+      case INT:
+        fieldGetter = SpecializedGetters::getInt;
+        break;
+      case LONG:
+      case TIMESTAMP:
+      case TIMESTAMP_INSTANT:
+        fieldGetter = SpecializedGetters::getLong;
+        break;
+      case FLOAT:
+        fieldGetter = SpecializedGetters::getFloat;
+        break;
+      case DOUBLE:
+        fieldGetter = SpecializedGetters::getDouble;
+        break;
+      case BINARY:
+        fieldGetter = SpecializedGetters::getBinary;
+        // getBinary always makes a copy, so we don't need to worry about it
+        // being changed behind our back.
+        break;
+      case DECIMAL:
+        fieldGetter = (row, ordinal) ->
+            row.getDecimal(ordinal, fieldType.getPrecision(), fieldType.getScale());
+        break;
+      case STRING:
+      case CHAR:
+      case VARCHAR:
+        fieldGetter = SpecializedGetters::getUTF8String;
+        break;
+      case STRUCT:
+        fieldGetter = (row, ordinal) -> row.getStruct(ordinal, fieldType.getChildren().size());
+        break;
+      case LIST:
+        fieldGetter = SpecializedGetters::getArray;
+        break;
+      case MAP:
+        fieldGetter = SpecializedGetters::getMap;
+        break;
+      default:
+        throw new IllegalArgumentException("Encountered an unsupported ORC type during a write from Spark.");
     }
 
+    return (row, ordinal) -> {
+      if (row.isNullAt(ordinal)) {
+        return null;
+      }
+      return fieldGetter.getFieldOrNull(row, ordinal);
+    };
+  }
+
+  interface FieldGetter<T> extends Serializable {
+
+    /**
+     * Returns a value from a complex Spark data holder such ArrayData, InternalRow, etc...
+     * Calls the appropriate getter for the expected data type.
+     * @param row Spark's data representation
+     * @param ordinal index in the data structure (e.g. column index for InterRow, list index in ArrayData, etc..)
+     * @return field value at ordinal
+     */
+    @Nullable
+    T getFieldOrNull(SpecializedGetters row, int ordinal);
   }
 }
