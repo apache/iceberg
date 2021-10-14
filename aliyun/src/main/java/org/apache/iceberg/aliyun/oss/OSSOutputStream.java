@@ -37,12 +37,12 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class AliyunOSSOutputStream extends PositionOutputStream {
-  private static final Logger LOG = LoggerFactory.getLogger(AliyunOSSOutputStream.class);
+public class OSSOutputStream extends PositionOutputStream {
+  private static final Logger LOG = LoggerFactory.getLogger(OSSOutputStream.class);
   private final StackTraceElement[] createStack;
 
   private final OSS client;
-  private final AliyunOSSURI uri;
+  private final OSSURI uri;
   private final AliyunProperties aliyunProperties;
 
   private File currentStagingFile;
@@ -50,7 +50,7 @@ public class AliyunOSSOutputStream extends PositionOutputStream {
   private long pos = 0;
   private boolean closed = false;
 
-  AliyunOSSOutputStream(OSS client, AliyunOSSURI uri, AliyunProperties aliyunProperties) throws IOException {
+  OSSOutputStream(OSS client, OSSURI uri, AliyunProperties aliyunProperties) throws IOException {
     this.client = client;
     this.uri = uri;
     this.aliyunProperties = aliyunProperties;
@@ -117,14 +117,14 @@ public class AliyunOSSOutputStream extends PositionOutputStream {
     long contentLength = currentStagingFile.length();
     LOG.debug("Uploading current staging files to oss, total byte size is: {}", contentLength);
     if (contentLength == 0) {
-      LOG.warn("invalid staging files to oss", contentLength);
+      LOG.warn("Invalid staging files, content length is 0, doesn't upload to oss");
       return;
     }
     InputStream contentStream = uncheckedInputStream(currentStagingFile);
     ObjectMetadata metadata = new ObjectMetadata();
     metadata.setContentLength(contentLength);
 
-    PutObjectRequest request = new PutObjectRequest(uri.getBucket(), uri.getKey(), contentStream, metadata);
+    PutObjectRequest request = new PutObjectRequest(uri.bucket(), uri.key(), contentStream, metadata);
     client.putObject(request);
   }
 

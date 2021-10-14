@@ -34,26 +34,34 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
  * Note: Path-style access is deprecated and not supported by this
  * implementation.
  */
-public class AliyunOSSURI {
+public class OSSURI {
   private static final String SCHEMA_DELIM = "://";
   private static final String PATH_DELIM = "/";
   private static final String QUERY_DELIM = "\\?";
   private static final String FRAGMENT_DELIM = "#";
   private static final Set<String> VALID_SCHEMAS = ImmutableSet.of("https", "oss");
   private final String location;
-  private String bucket;
-  private String key;
+  private final String bucket;
+  private final String key;
 
   /**
-   * Creates a new Aliyun OSSURI based on the bucket and key parsed from the location as below:
-   * [scheme:]scheme-specific-part[#fragment]
+   * Creates a new OSSURI based on the bucket and key parsed from the location
+   * The location in string form has the syntax as below, which refers to RFC2396:
+   * [scheme:][//bucket][object key][#fragment]
    * [scheme:][//bucket][object key][?query][#fragment]
+   *
+   * It specifies precisely which characters are permitted in the various components of a URI reference
+   * in Aliyun OSS documentation as below:
+   * Bucket: https://help.aliyun.com/document_detail/257087.html
+   * Object: https://help.aliyun.com/document_detail/273129.html
+   * Schema: https or oss
+   *
    * <p>
    * Supported access styles are https and oss://... URIs.
    *
    * @param location fully qualified URI.
    */
-  public AliyunOSSURI(String location) {
+  public OSSURI(String location) {
     Preconditions.checkNotNull(location, "OSS location cannot be null.");
 
     this.location = location;
@@ -82,14 +90,14 @@ public class AliyunOSSURI {
   /**
    * Return OSS bucket name.
    */
-  public String getBucket() {
+  public String bucket() {
     return bucket;
   }
 
   /**
    * Return OSS object key name.
    */
-  public String getKey() {
+  public String key() {
     return key;
   }
 

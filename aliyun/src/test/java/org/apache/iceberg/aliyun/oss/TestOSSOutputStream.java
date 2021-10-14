@@ -41,8 +41,8 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class TestAliyunOSSOutputStream extends AliyunOSSTestBase {
-  private static final Logger LOG = LoggerFactory.getLogger(TestAliyunOSSOutputStream.class);
+public class TestOSSOutputStream extends AliyunOSSTestBase {
+  private static final Logger LOG = LoggerFactory.getLogger(TestOSSOutputStream.class);
 
   private final OSS oss = oss().get();
   private final OSS ossMock = mock(OSS.class, delegatesTo(oss));
@@ -54,12 +54,12 @@ public class TestAliyunOSSOutputStream extends AliyunOSSTestBase {
       AliyunProperties.OSS_STAGING_DIRECTORY, tmpDir.toString()
   ));
 
-  public TestAliyunOSSOutputStream() throws IOException {
+  public TestOSSOutputStream() throws IOException {
   }
 
   @Test
   public void testWrite() throws IOException {
-    AliyunOSSURI uri = randomURI();
+    OSSURI uri = randomURI();
 
     for (int i = 0; i < 2; i++) {
       boolean arrayWrite = i % 2 == 0;
@@ -75,12 +75,12 @@ public class TestAliyunOSSOutputStream extends AliyunOSSTestBase {
     }
   }
 
-  private void writeAndVerify(OSS mock, AliyunOSSURI uri, byte[] data, boolean arrayWrite)
+  private void writeAndVerify(OSS mock, OSSURI uri, byte[] data, boolean arrayWrite)
       throws IOException {
     LOG.info("Write and verify for arguments uri: {}, data length: {}, arrayWrite: {}", uri, data.length,
         arrayWrite);
 
-    try (AliyunOSSOutputStream out = new AliyunOSSOutputStream(mock, uri, props)) {
+    try (OSSOutputStream out = new OSSOutputStream(mock, uri, props)) {
       if (arrayWrite) {
         out.write(data);
         Assert.assertEquals(data.length, out.getPos());
@@ -92,20 +92,20 @@ public class TestAliyunOSSOutputStream extends AliyunOSSTestBase {
       }
     }
 
-    Assert.assertTrue(oss.doesObjectExist(uri.getBucket(), uri.getKey()));
+    Assert.assertTrue(oss.doesObjectExist(uri.bucket(), uri.key()));
     Assert.assertEquals(
-        oss.getObject(uri.getBucket(), uri.getKey()).getObjectMetadata().getContentLength(),
+        oss.getObject(uri.bucket(), uri.key()).getObjectMetadata().getContentLength(),
         data.length);
     byte[] actual = new byte[data.length];
-    IOUtils.readFully(oss.getObject(uri.getBucket(), uri.getKey()).getObjectContent(), actual);
+    IOUtils.readFully(oss.getObject(uri.bucket(), uri.key()).getObjectContent(), actual);
     Assert.assertArrayEquals(data, actual);
 
     // Verify all staging files are cleaned up.
     Assert.assertEquals(0, Files.list(Paths.get(props.ossStagingDirectory())).count());
   }
 
-  private AliyunOSSURI randomURI() {
-    return new AliyunOSSURI(location(String.format("%s.dat", UUID.randomUUID())));
+  private OSSURI randomURI() {
+    return new OSSURI(location(String.format("%s.dat", UUID.randomUUID())));
   }
 
   private byte[] data256() {
