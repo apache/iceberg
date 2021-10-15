@@ -38,8 +38,13 @@ import static org.apache.iceberg.TableProperties.ORC_STRIPE_SIZE_BYTES_DEFAULT;
 import static org.apache.iceberg.TableProperties.ORC_WRITE_BATCH_SIZE;
 import static org.apache.iceberg.TableProperties.ORC_WRITE_BATCH_SIZE_DEFAULT;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.net.URI;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -49,7 +54,14 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FSInputStream;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.util.Progressable;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
@@ -73,7 +85,9 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ArrayUtil;
@@ -85,10 +99,15 @@ import org.apache.orc.OrcFile.CompressionStrategy;
 import org.apache.orc.OrcFile.ReaderOptions;
 import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
+import org.apache.orc.Writer;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
+import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("checkstyle:AbbreviationAsWordInName")
 public class ORC {
+  private static final Logger LOG = LoggerFactory.getLogger(ORC.class);
 
   /** @deprecated use {@link TableProperties#ORC_WRITE_BATCH_SIZE} instead */
   @Deprecated private static final String VECTOR_ROW_BATCH_SIZE = "iceberg.orc.vectorbatch.size";
@@ -789,7 +808,210 @@ public class ORC {
     ReaderOptions readerOptions = OrcFile.readerOptions(config).useUTCTimestamp(true);
     if (file instanceof HadoopInputFile) {
       readerOptions.filesystem(((HadoopInputFile) file).getFileSystem());
+    } else {
+      readerOptions.filesystem(new InputFileSystem(file)).maxLength(file.getLength());
     }
     return newFileReader(file.location(), readerOptions);
+  }
+
+  static Writer newFileWriter(
+      OutputFile file, OrcFile.WriterOptions options, Map<String, byte[]> metadata) {
+    if (file instanceof HadoopOutputFile) {
+      options.fileSystem(((HadoopOutputFile) file).getFileSystem());
+    } else {
+      options.fileSystem(new OutputFileSystem(file));
+    }
+    final Path locPath = new Path(file.location());
+    final Writer writer;
+
+    try {
+      writer = OrcFile.createWriter(locPath, options);
+    } catch (IOException ioe) {
+      throw new RuntimeIOException(ioe, "Can't create file %s", locPath);
+    }
+
+    metadata.forEach((key, value) -> writer.addUserMetadata(key, ByteBuffer.wrap(value)));
+
+    return writer;
+  }
+
+  private static class WrappedSeekableInputStream extends FSInputStream {
+    private final SeekableInputStream inputStream;
+    private boolean closed;
+    private final StackTraceElement[] createStack;
+
+    private WrappedSeekableInputStream(SeekableInputStream inputStream) {
+      this.inputStream = inputStream;
+      this.createStack = Thread.currentThread().getStackTrace();
+      this.closed = false;
+    }
+
+    @Override
+    public void seek(long pos) throws IOException {
+      inputStream.seek(pos);
+    }
+
+    @Override
+    public long getPos() throws IOException {
+      return inputStream.getPos();
+    }
+
+    @Override
+    public boolean seekToNewSource(long targetPos) throws IOException {
+      throw new UnsupportedOperationException("seekToNewSource not supported");
+    }
+
+    @Override
+    public int read() throws IOException {
+      return inputStream.read();
+    }
+
+    @Override
+    public int read(@NotNull byte[] b, int off, int len) throws IOException {
+      return inputStream.read(b, off, len);
+    }
+
+    @Override
+    public void close() throws IOException {
+      inputStream.close();
+      closed = true;
+    }
+
+    @SuppressWarnings("checkstyle:NoFinalizer")
+    @Override
+    protected void finalize() throws Throwable {
+      super.finalize();
+      if (!closed) {
+        close(); // releasing resources is more important than printing the warning
+        String trace =
+            Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
+        LOG.warn("Unclosed input stream created by:\n\t{}", trace);
+      }
+    }
+  }
+
+  private static class NullFileSystem extends FileSystem {
+
+    @Override
+    public URI getUri() {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public FSDataInputStream open(Path f) throws IOException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public FSDataInputStream open(Path f, int bufferSize) throws IOException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public FSDataOutputStream create(
+        Path f,
+        FsPermission permission,
+        boolean overwrite,
+        int bufferSize,
+        short replication,
+        long blockSize,
+        Progressable progress)
+        throws IOException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public FSDataOutputStream append(Path f, int bufferSize, Progressable progress)
+        throws IOException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean rename(Path src, Path dst) throws IOException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean delete(Path f, boolean recursive) throws IOException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public FileStatus[] listStatus(Path f) throws FileNotFoundException, IOException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void setWorkingDirectory(Path new_dir) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Path getWorkingDirectory() {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean mkdirs(Path f, FsPermission permission) throws IOException {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public FileStatus getFileStatus(Path f) throws IOException {
+      throw new UnsupportedOperationException();
+    }
+  }
+
+  static class InputFileSystem extends NullFileSystem {
+    private final InputFile inputFile;
+    private final Path inputPath;
+
+    InputFileSystem(InputFile inputFile) {
+      this.inputFile = inputFile;
+      this.inputPath = new Path(inputFile.location());
+    }
+
+    @Override
+    public FSDataInputStream open(Path f) throws IOException {
+      return open(f, 0);
+    }
+
+    @Override
+    public FSDataInputStream open(Path f, int bufferSize) throws IOException {
+      Preconditions.checkArgument(
+          f.equals(inputPath), String.format("Input %s does not equal expected %s", f, inputPath));
+      return new FSDataInputStream(new WrappedSeekableInputStream(inputFile.newStream()));
+    }
+  }
+
+  static class OutputFileSystem extends NullFileSystem {
+    private final OutputFile outputFile;
+    private final Path outPath;
+
+    OutputFileSystem(OutputFile outputFile) {
+      this.outputFile = outputFile;
+      this.outPath = new Path(outputFile.location());
+    }
+
+    @Override
+    public FSDataOutputStream create(Path f) throws IOException {
+      return create(f, null, true, 0, (short) 0, 0, null);
+    }
+
+    @Override
+    public FSDataOutputStream create(
+        Path f,
+        FsPermission permission,
+        boolean overwrite,
+        int bufferSize,
+        short replication,
+        long blockSize,
+        Progressable progress)
+        throws IOException {
+      Preconditions.checkArgument(
+          f.equals(outPath), String.format("Input %s does not equal expected %s", f, outPath));
+      OutputStream outputStream = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
+      return new FSDataOutputStream(outputStream, null);
+    }
   }
 }
