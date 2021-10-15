@@ -129,24 +129,6 @@ class SparkWrite {
     this.dsSchema = dsSchema;
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.partitionedFanoutEnabled = writeConf.fanoutWriterEnabled();
-    this.extraSnapshotMetadata = Maps.newHashMap();
-
-    writeInfo.options().forEach((key, value) -> {
-      if (key.startsWith(SnapshotSummary.EXTRA_METADATA_PREFIX)) {
-        extraSnapshotMetadata.put(key.substring(SnapshotSummary.EXTRA_METADATA_PREFIX.length()), value);
-      }
-    });
-
-    long tableTargetFileSize = PropertyUtil.propertyAsLong(
-        table.properties(), WRITE_TARGET_FILE_SIZE_BYTES, WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
-    this.targetFileSize = writeInfo.options().getLong(SparkWriteOptions.TARGET_FILE_SIZE_BYTES, tableTargetFileSize);
-
-    boolean tablePartitionedFanoutEnabled = PropertyUtil.propertyAsBoolean(
-        table.properties(), SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, SPARK_WRITE_PARTITIONED_FANOUT_ENABLED_DEFAULT);
-    this.partitionedFanoutEnabled = writeInfo.options()
-        .getBoolean(SparkWriteOptions.FANOUT_ENABLED, tablePartitionedFanoutEnabled);
-    this.validateFromSnapshotId = writeInfo.options().getLong(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, 0);
->>>>>>> Address review comments- add SparkWrite property validate-from-snapshot and add unit test
   }
 
   BatchWrite asBatchAppend() {

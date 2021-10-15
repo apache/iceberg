@@ -129,6 +129,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
       }
     }
 
+
     if (validateNewDataFiles) {
       validateAddedDataFiles(base, startingSnapshotId, dataConflictDetectionFilter());
     }
