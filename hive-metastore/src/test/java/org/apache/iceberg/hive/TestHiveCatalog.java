@@ -38,6 +38,7 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
@@ -45,6 +46,7 @@ import org.apache.thrift.TException;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
@@ -116,6 +118,34 @@ public class TestHiveCatalog extends HiveMetastoreTest {
     } finally {
       cachingCatalog.dropTable(tableIdent);
     }
+  }
+
+  @Test
+  public void testInitialize() {
+    Assertions.assertDoesNotThrow(() -> {
+      HiveCatalog catalog = new HiveCatalog();
+      catalog.initialize("hive", Maps.newHashMap());
+    });
+  }
+
+  @Test
+  public void testToStringWithoutSetConf() {
+    Assertions.assertDoesNotThrow(() -> {
+      HiveCatalog catalog = new HiveCatalog();
+      catalog.toString();
+    });
+  }
+
+  @Test
+  public void testInitializeCatalogWithProperties() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("uri", "thrift://examplehost:9083");
+    properties.put("warehouse", "/user/hive/testwarehouse");
+    HiveCatalog catalog = new HiveCatalog();
+    catalog.initialize("hive", properties);
+
+    Assert.assertEquals(catalog.getConf().get("hive.metastore.uris"), "thrift://examplehost:9083");
+    Assert.assertEquals(catalog.getConf().get("hive.metastore.warehouse.dir"), "/user/hive/testwarehouse");
   }
 
   @Test
