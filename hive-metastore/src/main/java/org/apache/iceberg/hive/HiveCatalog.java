@@ -95,6 +95,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   @Override
   public void initialize(String inputName, Map<String, String> properties) {
     this.name = inputName;
+    if (conf == null) {
+      LOG.warn("No Hadoop Configuration was set, using the default environment Configuration");
+      this.conf = new Configuration();
+    }
+
     if (properties.containsKey(CatalogProperties.URI)) {
       this.conf.set(HiveConf.ConfVars.METASTOREURIS.varname, properties.get(CatalogProperties.URI));
     }
