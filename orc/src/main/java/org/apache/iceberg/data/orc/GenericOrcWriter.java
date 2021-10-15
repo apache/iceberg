@@ -120,7 +120,7 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
 
   @Override
   public List<OrcValueWriter<?>> writers() {
-    return this.writer.writers();
+    return writer.writers();
   }
 
   @Override

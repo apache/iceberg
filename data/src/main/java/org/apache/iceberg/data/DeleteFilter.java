@@ -229,6 +229,7 @@ public abstract class DeleteFilter<T> {
         return builder.build();
 
       case ORC:
+        // Reusing containers is automatic for ORC. No need to set 'reuseContainers' here.
         ORC.ReadBuilder orcBuilder = ORC.read(input)
             .project(deleteSchema)
             .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(deleteSchema, fileSchema));

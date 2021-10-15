@@ -38,7 +38,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -349,12 +348,11 @@ public class ORC {
     }
 
     public <T> EqualityDeleteWriter<T> buildEqualityWriter() {
-      Preconditions.checkState(rowSchema != null, "Cannot create equality delete file without a schema`");
+      Preconditions.checkState(rowSchema != null, "Cannot create equality delete file without a schema");
       Preconditions.checkState(equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
       Preconditions.checkState(createWriterFunc != null,
           "Cannot create equality delete file unless createWriterFunc is set");
-      Preconditions.checkArgument(spec != null,
-          "Spec must not be null when creating equality delete writer");
+      Preconditions.checkArgument(spec != null, "Spec must not be null when creating equality delete writer");
       Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
           "Partition must not be null for partitioned writes");
 
@@ -383,12 +381,11 @@ public class ORC {
       Schema deleteSchema = DeleteSchemaUtil.posDeleteSchema(rowSchema);
       appenderBuilder.schema(deleteSchema);
 
-      if (createWriterFunc != null) {
+      if (rowSchema != null && createWriterFunc != null) {
         appenderBuilder.createWriterFunc((schema, typeDescription) ->
             GenericOrcWriters.positionDelete(createWriterFunc.apply(deleteSchema, typeDescription), pathTransformFunc));
       } else {
-        appenderBuilder.createWriterFunc((schema, type) ->
-            GenericOrcWriter.buildWriter(deleteSchema, ORCSchemaUtil.convert(deleteSchema)));
+        appenderBuilder.createWriterFunc((schema, typeDescription) -> GenericOrcWriters.positionDelete());
       }
 
       return new PositionDeleteWriter<>(

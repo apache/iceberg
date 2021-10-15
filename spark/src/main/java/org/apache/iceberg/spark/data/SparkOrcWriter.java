@@ -62,7 +62,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
 
   @Override
   public List<OrcValueWriter<?>> writers() {
-    return this.writer.writers();
+    return writer.writers();
   }
 
   @Override
