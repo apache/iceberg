@@ -56,9 +56,8 @@ project(':pig').name = 'iceberg-pig'
 project(':hive-metastore').name = 'iceberg-hive-metastore'
 project(':nessie').name = 'iceberg-nessie'
 
-String defaultSparkVersions = "2.4,3.0"
-List<String> knownSparkVersions = ["2.4", "3.0"]
-List<String> sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : defaultSparkVersions).split(",")
+List<String> knownSparkVersions = System.getProperty("knownSparkVersions").split(",")
+List<String> sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
 
 if (!knownSparkVersions.containsAll(sparkVersions)) {
   throw new GradleException("Found unsupported Spark versions: " + (sparkVersions - knownSparkVersions))
