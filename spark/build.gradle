@@ -83,7 +83,6 @@ project(':iceberg-spark') {
 }
 
 // add enabled Spark version modules to the build
-def knownSparkVersions = System.getProperty("knownSparkVersions").split(",")
 def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
 
 if (jdkVersion == '8' && sparkVersions.contains("2.4")) {
