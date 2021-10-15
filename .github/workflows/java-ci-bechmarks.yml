@@ -29,18 +29,14 @@ on:
 
 jobs:
   run-benchmark:
-    # if: contains(github.event.pull_request.labels.*.name, 'benchmark-')
+    # if: contains(github.event.pull_request.labels.*.name, 'NESSIE')
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        jvm: [11]
+        benchmark: ${{ github.event.pull_request.labels.*.name }}
     env:
       SPARK_LOCAL_IP: localhost
     steps:
-    - name: Dump GitHub context
-      env:
-        GITHUB_CONTEXT: ${{ toJson(github) }}
-      run: echo "$GITHUB_CONTEXT"
     - uses: actions/checkout@v2
     - uses: actions/setup-java@v1
       with:
@@ -56,52 +52,52 @@ jobs:
       id: get_benchmark
       run: |
         # this first branch is only for testing
-        if [[ "${{ contains(github.event.pull_request.labels.*.name, 'NESSIE') }}" == "true" ]] ; then
+        if [[ "${{ matrix.benchmark }}" == "NESSIE" ]] ; then
           echo ::set-output name=BENCHMARK::VectorizedReadFlatParquetDataBenchmark
-        elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'benchmark-IcebergSourceNestedListParquetDataWriteBenchmark') }}" == "true" ]] ; then
+        elif [[ "${{ matrix.benchmark }}" == "benchmark-IcebergSourceNestedListParquetDataWriteBenchmark" ]] ; then
           echo ::set-output name=BENCHMARK::IcebergSourceNestedListParquetDataWriteBenchmark
-        elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'benchmark-SparkParquetReadersNestedDataBenchmark') }}" == "true" ]] ; then
+        elif [[ "${{ matrix.benchmark }}" == "benchmark-SparkParquetReadersNestedDataBenchmark" ]] ; then
           echo ::set-output name=BENCHMARK::IparkParquetReadersNestedDataBenchmark
-        elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'benchmark-SparkParquetWritersFlatDataBenchmark') }}" == "true" ]] ; then
+        elif [[ "${{ matrix.benchmark }}" == "benchmark-SparkParquetWritersFlatDataBenchmark')" ]] ; then
           echo ::set-output name=BENCHMARK::IparkParquetWritersFlatDataBenchmark
-        elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'benchmark-IcebergSourceFlatORCDataReadBenchmark') }}" == "true" ]] ; then
+        elif [[ "${{ matrix.benchmark }}" == "benchmark-IcebergSourceFlatORCDataReadBenchmark" ]] ; then
           echo ::set-output name=BENCHMARK::IcebergSourceFlatORCDataReadBenchmark
-        elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'benchmark-SparkParquetReadersFlatDataBenchmark') }}" == "true" ]] ; then
+        elif [[ "${{ matrix.benchmark }}" == "benchmark-SparkParquetReadersFlatDataBenchmark" ]] ; then
           echo ::set-output name=BENCHMARK::IparkParquetReadersFlatDataBenchmark
-        elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'benchmark-VectorizedReadDictionaryEncodedFlatParquetDataBenchmark') }}" == "true" ]] ; then
+        elif [[ "${{ matrix.benchmark }}" == "benchmark-VectorizedReadDictionaryEncodedFlatParquetDataBenchmark" ]] ; then
           echo ::set-output name=BENCHMARK::VectorizedReadDictionaryEncodedFlatParquetDataBenchmark
-        elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'benchmark-IcebergSourceNestedListORCDataWriteBenchmark') }}" == "true" ]] ; then
+        elif [[ "${{ matrix.benchmark }}" == "benchmark-IcebergSourceNestedListORCDataWriteBenchmark" ]] ; then
           echo ::set-output name=BENCHMARK::IcebergSourceNestedListORCDataWriteBenchmark
-        elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'benchmark-VectorizedReadFlatParquetDataBenchmark') }}" == "true" ]] ; then
+        elif [[ "${{ matrix.benchmark }}" == "benchmark-VectorizedReadFlatParquetDataBenchmark" ]] ; then
           echo ::set-output name=BENCHMARK::VectorizedReadFlatParquetDataBenchmark
-        elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'benchmark-IcebergSourceFlatParquetDataWriteBenchmark') }}" == "true" ]] ; then
+        elif [[ "${{ matrix.benchmark }}" == "benchmark-IcebergSourceFlatParquetDataWriteBenchmark" ]] ; then
           echo ::set-output name=BENCHMARK::IcebergSourceFlatParquetDataWriteBenchmark
-        elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'benchmark-IcebergSourceNestedAvroDataReadBenchmark') }}" == "true" ]] ; then
+        elif [[ "${{ matrix.benchmark }}" == "benchmark-IcebergSourceNestedAvroDataReadBenchmark" ]] ; then
           echo ::set-output name=BENCHMARK::IcebergSourceNestedAvroDataReadBenchmark
-        elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'benchmark-IcebergSourceFlatAvroDataReadBenchmark') }}" == "true" ]] ; then
+        elif [[ "${{ matrix.benchmark }}" == "benchmark-IcebergSourceFlatAvroDataReadBenchmark" ]] ; then
           echo ::set-output name=BENCHMARK::IcebergSourceFlatAvroDataReadBenchmark
-        elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'benchmark-IcebergSourceNestedParquetDataWriteBenchmark') }}" == "true" ]] ; then
+        elif [[ "${{ matrix.benchmark }}" == "benchmark-IcebergSourceNestedParquetDataWriteBenchmark" ]] ; then
           echo ::set-output name=BENCHMARK::IcebergSourceNestedParquetDataWriteBenchmark
-        elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'benchmark-IcebergSourceNestedORCDataReadBenchmark') }}" == "true" ]] ; then
+        elif [[ "${{ matrix.benchmark }}" == "benchmark-IcebergSourceNestedORCDataReadBenchmark" ]] ; then
           echo ::set-output name=BENCHMARK::IcebergSourceNestedORCDataReadBenchmark
-        elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'benchmark-IcebergSourceFlatParquetDataReadBenchmark') }}" == "true" ]] ; then
+        elif [[ "${{ matrix.benchmark }}" == "benchmark-IcebergSourceFlatParquetDataReadBenchmark" ]] ; then
           echo ::set-output name=BENCHMARK::IcebergSourceFlatParquetDataReadBenchmark
-        elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'benchmark-IcebergSourceFlatParquetDataFilterBenchmark') }}" == "true" ]] ; then
+        elif [[ "${{ matrix.benchmark }}" == "benchmark-IcebergSourceFlatParquetDataFilterBenchmark" ]] ; then
           echo ::set-output name=BENCHMARK::IcebergSourceFlatParquetDataFilterBenchmark
-        elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'benchmark-IcebergSourceNestedParquetDataFilterBenchmark') }}" == "true" ]] ; then
+        elif [[ "${{ matrix.benchmark }}" == "benchmark-IcebergSourceNestedParquetDataFilterBenchmark" ]] ; then
           echo ::set-output name=BENCHMARK::IcebergSourceNestedParquetDataFilterBenchmark
-        elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'benchmark-SparkParquetWritersNestedDataBenchmark') }}" == "true" ]] ; then
+        elif [[ "${{ matrix.benchmark }}" == "benchmark-SparkParquetWritersNestedDataBenchmark" ]] ; then
           echo ::set-output name=BENCHMARK::IparkParquetWritersNestedDataBenchmark
-        elif [[ "${{ contains(github.event.pull_request.labels.*.name, 'benchmark-IcebergSourceNestedParquetDataReadBenchmark') }}" == "true" ]] ; then
+        elif [[ "${{ matrix.benchmark }}" == "benchmark-IcebergSourceNestedParquetDataReadBenchmark" ]] ; then
           echo ::set-output name=BENCHMARK::IcebergSourceNestedParquetDataReadBenchmark
         else
-          echo "Cannot find benchmark to run
-          exit 1
+          echo "Cannot find benchmark to run"
+          exit 0
         fi
 
-    - run: ./gradlew :iceberg-spark3:jmh -PjmhIncludeRegex=${{ steps.get_benchmark.outputs.BENCHMARK }} -PjmhOutputPath=benchmark/benchmark-result.txt
+    - run: ./gradlew :iceberg-spark3:jmh -PjmhIncludeRegex=${{ steps.get_benchmark.outputs.BENCHMARK }} -PjmhOutputPath=benchmark/${{ steps.get_benchmark.outputs.BENCHMARK }}.txt
     - uses: actions/upload-artifact@v2
       with:
-        name: benchmark results
+        name: benchmark-results
         path: |
-          **/benchmark/benchmark-result.txt
+          **/benchmark/benchmark*.txt
