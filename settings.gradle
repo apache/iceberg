@@ -33,9 +33,6 @@ include 'arrow'
 include 'parquet'
 include 'bundled-guava'
 include 'spark'
-include 'spark3'
-include 'spark3-extensions'
-include 'spark3-runtime'
 include 'pig'
 include 'hive-metastore'
 include 'nessie'
@@ -55,21 +52,43 @@ project(':arrow').name = 'iceberg-arrow'
 project(':parquet').name = 'iceberg-parquet'
 project(':bundled-guava').name = 'iceberg-bundled-guava'
 project(':spark').name = 'iceberg-spark'
-project(':spark3').name = 'iceberg-spark3'
-project(':spark3-extensions').name = 'iceberg-spark3-extensions'
-project(':spark3-runtime').name = 'iceberg-spark3-runtime'
 project(':pig').name = 'iceberg-pig'
 project(':hive-metastore').name = 'iceberg-hive-metastore'
 project(':nessie').name = 'iceberg-nessie'
 
+List<String> knownSparkVersions = System.getProperty("knownSparkVersions").split(",")
+List<String> sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
+
+if (!knownSparkVersions.containsAll(sparkVersions)) {
+  throw new GradleException("Found unsupported Spark versions: " + (sparkVersions - knownSparkVersions))
+}
+
+if (sparkVersions.contains("3.0")) {
+  include ':iceberg-spark:spark3'
+  include ':iceberg-spark:spark3-extensions'
+  include ':iceberg-spark:spark3-runtime'
+  project(':iceberg-spark:spark3').projectDir = file('spark/v3.0/spark3')
+  project(':iceberg-spark:spark3').name = 'iceberg-spark3'
+  project(':iceberg-spark:spark3-extensions').projectDir = file('spark/v3.0/spark3-extensions')
+  project(':iceberg-spark:spark3-extensions').name = 'iceberg-spark3-extensions'
+  project(':iceberg-spark:spark3-runtime').projectDir = file('spark/v3.0/spark3-runtime')
+  project(':iceberg-spark:spark3-runtime').name = 'iceberg-spark3-runtime'
+}
+
 if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
-  include 'spark2'
-  include 'spark-runtime'
+  if (sparkVersions.contains("2.4")) {
+    include ':iceberg-spark:spark2'
+    include ':iceberg-spark:spark-runtime'
+
+    project(':iceberg-spark:spark2').projectDir = file('spark/v2.4/spark2')
+    project(':iceberg-spark:spark2').name = 'iceberg-spark2'
+    project(':iceberg-spark:spark-runtime').projectDir = file('spark/v2.4/spark-runtime')
+    project(':iceberg-spark:spark-runtime').name = 'iceberg-spark-runtime'
+  }
+
   include 'hive3'
   include 'hive3-orc-bundle'
 
-  project(':spark2').name = 'iceberg-spark2'
-  project(':spark-runtime').name = 'iceberg-spark-runtime'
   project(':hive3').name = 'iceberg-hive3'
   project(':hive3-orc-bundle').name = 'iceberg-hive3-orc-bundle'
 }

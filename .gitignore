@@ -26,10 +26,10 @@ lib/
 site/site
 
 # benchmark output
-spark2/benchmark/*
-!spark2/benchmark/.gitkeep
-spark3/benchmark/*
-!spark3/benchmark/.gitkeep
+spark/v2.4/spark2/benchmark/*
+!spark/v2.4/spark2/benchmark/.gitkeep
+spark/v3.0/spark3/benchmark/*
+!spark/v3.0/spark3/benchmark/.gitkeep
 
 __pycache__/
 *.py[cod]
