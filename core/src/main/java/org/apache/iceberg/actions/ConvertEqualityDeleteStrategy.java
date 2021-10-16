@@ -25,7 +25,10 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 
-public interface ConvertDeleteStrategy {
+/**
+ * A strategy for the action to convert equality delete to position deletes.
+ */
+public interface ConvertEqualityDeleteStrategy {
 
   /**
    * Returns the name of this convert deletes strategy

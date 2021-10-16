@@ -22,38 +22,31 @@ package org.apache.iceberg.actions;
 import org.apache.iceberg.expressions.Expression;
 
 /**
- * An action for rewriting the position delete files according to a rewrite strategy.
- * Generally used for optimizing the sizing and layout of delete files within a table.
+ * An action for converting the equality delete files to position delete files according to a convert strategy.
  */
-public interface RewriteDeleteFiles extends SnapshotUpdate<RewriteDeleteFiles, RewriteDeleteFiles.Result> {
+public interface ConvertEqualityDeleteFiles
+    extends SnapshotUpdate<ConvertEqualityDeleteFiles, ConvertEqualityDeleteFiles.Result> {
 
   /**
-   * Combine the position deletes.
-   *
-   * @return this for method chaining
-   */
-  RewriteDeleteFiles combinePositionDeletes();
-
-  /**
-   * A filter for choosing deletes to rewrite.
+   * A filter for choosing the equality deletes to convert.
    *
    * @param expression An iceberg expression used to choose deletes.
    * @return this for method chaining
    */
-  RewriteDeleteFiles filter(Expression expression);
+  ConvertEqualityDeleteFiles filter(Expression expression);
 
   /**
    * The action result that contains a summary of the execution.
    */
   interface Result {
     /**
-     * Returns the count of the position deletes that been rewritten.
+     * Returns the count of the deletes that been converted.
      */
-    int rewrittenDeleteFilesCount();
+    int convertedEqualityDeleteFilesCount();
 
     /**
-     * Returns the count of the added delete files.
+     * Returns the count of the added position delete files.
      */
-    int addedDeleteFilesCount();
+    int addedPositionDeleteFilesCount();
   }
 }
