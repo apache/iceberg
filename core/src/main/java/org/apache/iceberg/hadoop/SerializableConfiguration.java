@@ -19,16 +19,25 @@
 
 package org.apache.iceberg.hadoop;
 
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.KryoSerializable;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import org.apache.hadoop.conf.Configuration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Wraps a {@link Configuration} object in a {@link Serializable} layer.
  */
-public class SerializableConfiguration implements Serializable {
+public class SerializableConfiguration implements Serializable, KryoSerializable {
+  private static final Logger LOG = LoggerFactory.getLogger(SerializableConfiguration.class);
 
   private transient Configuration hadoopConf;
 
@@ -45,6 +54,27 @@ public class SerializableConfiguration implements Serializable {
     in.defaultReadObject();
     hadoopConf = new Configuration(false);
     hadoopConf.readFields(in);
+  }
+
+  @Override
+  public void write(Kryo kryo, Output output) {
+    try {
+      hadoopConf.write(new DataOutputStream(output));
+    } catch (IOException e) {
+      LOG.error("Cannot serialize hadoop config by kryo.", e);
+      hadoopConf = null;
+    }
+  }
+
+  @Override
+  public void read(Kryo kryo, Input input) {
+    hadoopConf = new Configuration(false);
+    try {
+      hadoopConf.readFields(new DataInputStream(input));
+    } catch (IOException e) {
+      LOG.error("Cannot deserialize hadoop config by kryo.", e);
+      hadoopConf = null;
+    }
   }
 
   public Configuration get() {
