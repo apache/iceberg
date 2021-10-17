@@ -26,8 +26,6 @@ include 'aliyun'
 include 'aws'
 include 'flink'
 include 'flink-runtime'
-include 'mr'
-include 'hive-runtime'
 include 'orc'
 include 'arrow'
 include 'parquet'
@@ -84,6 +82,9 @@ if (sparkVersions.contains("3.0")) {
 
 // hive 3 depends on hive 2, so always add hive 2 if hive3 is enabled
 if (hiveVersions.contains("2") || hiveVersions.contains("3")) {
+  include 'mr'
+  include 'hive-runtime'
+
   project(':mr').name = 'iceberg-mr'
   project(':hive-runtime').name = 'iceberg-hive-runtime'
 }
