@@ -895,6 +895,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                     .set("upper_bound", "1")
                     .build()
                 ))
+            .set("content", manifest.content().id())
             .build()
     );
 
@@ -1010,6 +1011,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
                     .set("upper_bound", "1")
                     .build()
             ))
+            .set("content", manifest.content().id())
             .build()
     ));
 
