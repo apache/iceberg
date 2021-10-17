@@ -23,29 +23,22 @@ import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.spark.sql.connector.catalog.Identifier;
 
-public class PathIdentifier implements SnapshotAwareIdentifier {
+public class PathIdentifier implements Identifier {
   private static final Splitter SPLIT = Splitter.on("/");
   private static final Joiner JOIN = Joiner.on("/");
   private final String[] namespace;
-  private final String name;
   private final String location;
-  private final Long snapshotId;
-  private final Long asOfTimestamp;
+  private final String name;
 
-  public PathIdentifier(String location, Long snapshotId, Long asOfTimestamp) {
+  public PathIdentifier(String location) {
     this.location = location;
-    this.snapshotId = snapshotId;
-    this.asOfTimestamp = asOfTimestamp;
     List<String> pathParts = SPLIT.splitToList(location);
     name = Iterables.getLast(pathParts);
     namespace = pathParts.size() > 1 ?
         new String[]{JOIN.join(pathParts.subList(0, pathParts.size() - 1))} :
         new String[0];
-  }
-
-  public PathIdentifier(String location) {
-    this(location, null, null);
   }
 
   @Override
@@ -60,15 +53,5 @@ public class PathIdentifier implements SnapshotAwareIdentifier {
 
   public String location() {
     return location;
-  }
-
-  @Override
-  public Long snapshotId() {
-    return snapshotId;
-  }
-
-  @Override
-  public Long asOfTimestamp() {
-    return asOfTimestamp;
   }
 }

@@ -24,9 +24,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.PathIdentifier;
 import org.apache.iceberg.spark.Spark3Util;
-import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSessionCatalog;
-import org.apache.iceberg.spark.SparkTableIdentifier;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
@@ -103,18 +101,13 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     SparkSession spark = SparkSession.active();
     setupDefaultSparkCatalog(spark);
     String path = options.get("path");
-    Long snapshotId = Spark3Util.propertyAsLong(options, SparkReadOptions.SNAPSHOT_ID, null);
-    Long asOfTimestamp = Spark3Util.propertyAsLong(options, SparkReadOptions.AS_OF_TIMESTAMP, null);
     CatalogManager catalogManager = spark.sessionState().catalogManager();
 
     if (path.contains("/")) {
       // contains a path. Return iceberg default catalog and a PathIdentifier
       return new Spark3Util.CatalogAndIdentifier(catalogManager.catalog(DEFAULT_CATALOG_NAME),
-          new PathIdentifier(path, snapshotId, asOfTimestamp));
+          new PathIdentifier(path));
     }
-
-    // Get the CatalogAndIdentifier and swap out the Identifier for a snapshot-aware Identifier
-    // if snapshotId or asOfTimestamp is set.
 
     final Spark3Util.CatalogAndIdentifier catalogAndIdentifier = Spark3Util.catalogAndIdentifier(
         "path or identifier", spark, path);
@@ -122,16 +115,10 @@ public class IcebergSource implements DataSourceRegister, SupportsCatalogOptions
     if (catalogAndIdentifier.catalog().name().equals("spark_catalog") &&
         !(catalogAndIdentifier.catalog() instanceof SparkSessionCatalog)) {
       // catalog is a session catalog but does not support Iceberg. Use Iceberg instead.
-      Identifier ident = catalogAndIdentifier.identifier();
       return new Spark3Util.CatalogAndIdentifier(catalogManager.catalog(DEFAULT_CATALOG_NAME),
-          SparkTableIdentifier.of(ident.namespace(), ident.name(), snapshotId, asOfTimestamp));
-    } else if (snapshotId == null && asOfTimestamp == null) {
-      return catalogAndIdentifier;
+          catalogAndIdentifier.identifier());
     } else {
-      CatalogPlugin catalog = catalogAndIdentifier.catalog();
-      Identifier ident = catalogAndIdentifier.identifier();
-      return new Spark3Util.CatalogAndIdentifier(catalog,
-          SparkTableIdentifier.of(ident.namespace(), ident.name(), snapshotId, asOfTimestamp));
+      return catalogAndIdentifier;
     }
   }
 

@@ -36,7 +36,6 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.SupportsWrite;
@@ -77,21 +76,24 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       TableCapability.OVERWRITE_DYNAMIC);
 
   private final Table icebergTable;
-  private final Long snapshotId;
-  private final Long asOfTimestamp;
+  private final StructType requestedSchema;
   private final boolean refreshEagerly;
   private StructType lazyTableSchema = null;
   private SparkSession lazySpark = null;
 
   public SparkTable(Table icebergTable, boolean refreshEagerly) {
-    this(icebergTable, null, null, refreshEagerly);
+    this(icebergTable, null, refreshEagerly);
   }
 
-  public SparkTable(Table icebergTable, Long snapshotId, Long asOfTimestamp, boolean refreshEagerly) {
+  public SparkTable(Table icebergTable, StructType requestedSchema, boolean refreshEagerly) {
     this.icebergTable = icebergTable;
-    this.snapshotId = snapshotId;
-    this.asOfTimestamp = asOfTimestamp;
+    this.requestedSchema = requestedSchema;
     this.refreshEagerly = refreshEagerly;
+
+    if (requestedSchema != null) {
+      // convert the requested schema to throw an exception if any requested fields are unknown
+      SparkSchemaUtil.convert(icebergTable.schema(), requestedSchema);
+    }
   }
 
   private SparkSession sparkSession() {
@@ -111,14 +113,14 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
     return icebergTable.toString();
   }
 
-  private Schema snapshotSchema() {
-    return SnapshotUtil.schemaFor(icebergTable, snapshotId, asOfTimestamp);
-  }
-
   @Override
   public StructType schema() {
     if (lazyTableSchema == null) {
-      this.lazyTableSchema = SparkSchemaUtil.convert(snapshotSchema());
+      if (requestedSchema != null) {
+        this.lazyTableSchema = SparkSchemaUtil.convert(SparkSchemaUtil.prune(icebergTable.schema(), requestedSchema));
+      } else {
+        this.lazyTableSchema = SparkSchemaUtil.convert(icebergTable.schema());
+      }
     }
 
     return lazyTableSchema;
@@ -169,7 +171,13 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       icebergTable.refresh();
     }
 
-    return new SparkScanBuilder(sparkSession(), icebergTable, options);
+    SparkScanBuilder scanBuilder = new SparkScanBuilder(sparkSession(), icebergTable, options);
+
+    if (requestedSchema != null) {
+      scanBuilder.pruneColumns(requestedSchema);
+    }
+
+    return scanBuilder;
   }
 
   @Override

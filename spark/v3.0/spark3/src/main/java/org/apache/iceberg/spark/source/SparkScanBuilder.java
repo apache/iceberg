@@ -36,7 +36,6 @@ import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
@@ -55,8 +54,6 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
   private final SparkReadConf readConf;
   private final CaseInsensitiveStringMap options;
   private final List<String> metaColumns = Lists.newArrayList();
-  private final Long snapshotId;
-  private final Long asOfTimestamp;
 
   private Schema schema = null;
   private StructType requestedProjection;
@@ -70,22 +67,16 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
     this.table = table;
     this.readConf = new SparkReadConf(spark, table, options);
     this.options = options;
-    this.snapshotId = readConf.snapshotId();
-    this.asOfTimestamp = readConf.asOfTimestamp();
     this.caseSensitive = Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
-  }
-
-  private Schema snapshotSchema() {
-    return SnapshotUtil.schemaFor(table, snapshotId, asOfTimestamp);
   }
 
   private Schema lazySchema() {
     if (schema == null) {
       if (requestedProjection != null) {
         // the projection should include all columns that will be returned, including those only used in filters
-        this.schema = SparkSchemaUtil.prune(snapshotSchema(), requestedProjection, filterExpression(), caseSensitive);
+        this.schema = SparkSchemaUtil.prune(table.schema(), requestedProjection, filterExpression(), caseSensitive);
       } else {
-        this.schema = snapshotSchema();
+        this.schema = table.schema();
       }
     }
     return schema;
@@ -117,7 +108,7 @@ public class SparkScanBuilder implements ScanBuilder, SupportsPushDownFilters, S
       Expression expr = SparkFilters.convert(filter);
       if (expr != null) {
         try {
-          Binder.bind(snapshotSchema().asStruct(), expr, caseSensitive);
+          Binder.bind(table.schema().asStruct(), expr, caseSensitive);
           expressions.add(expr);
           pushed.add(filter);
         } catch (ValidationException e) {
