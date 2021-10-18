@@ -29,7 +29,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.FileScanTaskSetManager;
-import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.util.TableScanUtil;
@@ -53,8 +52,7 @@ class SparkFilesScan extends SparkBatchScan {
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();
     this.splitOpenFileCost = readConf.splitOpenFileCost();
-    this.planTasksIgnoreDeleteFiles =
-        Spark3Util.propertyAsBoolean(options, SparkReadOptions.PLAN_TASKS_IGNORE_DELETE_FILES, false);
+    this.planTasksIgnoreDeleteFiles = options.getBoolean(SparkReadOptions.PLAN_TASKS_IGNORE_DELETE_FILES, false);
   }
 
   @Override
