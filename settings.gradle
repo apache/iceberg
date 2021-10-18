@@ -26,8 +26,6 @@ include 'aliyun'
 include 'aws'
 include 'flink'
 include 'flink-runtime'
-include 'mr'
-include 'hive-runtime'
 include 'orc'
 include 'arrow'
 include 'parquet'
@@ -45,8 +43,6 @@ project(':aliyun').name = 'iceberg-aliyun'
 project(':aws').name = 'iceberg-aws'
 project(':flink').name = 'iceberg-flink'
 project(':flink-runtime').name = 'iceberg-flink-runtime'
-project(':mr').name = 'iceberg-mr'
-project(':hive-runtime').name = 'iceberg-hive-runtime'
 project(':orc').name = 'iceberg-orc'
 project(':arrow').name = 'iceberg-arrow'
 project(':parquet').name = 'iceberg-parquet'
@@ -55,6 +51,14 @@ project(':spark').name = 'iceberg-spark'
 project(':pig').name = 'iceberg-pig'
 project(':hive-metastore').name = 'iceberg-hive-metastore'
 project(':nessie').name = 'iceberg-nessie'
+
+List<String> knownHiveVersions = System.getProperty("knownHiveVersions").split(",")
+String hiveVersionsString = System.getProperty("hiveVersions") != null ? System.getProperty("hiveVersions") : System.getProperty("defaultHiveVersions")
+List<String> hiveVersions = hiveVersionsString != null && !hiveVersionsString.isEmpty() ? hiveVersionsString.split(",") : []
+
+if (!knownHiveVersions.containsAll(hiveVersions)) {
+  throw new GradleException("Found unsupported Hive versions: " + (hiveVersions - knownHiveVersions))
+}
 
 List<String> knownSparkVersions = System.getProperty("knownSparkVersions").split(",")
 String sparkVersionsString = System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")
@@ -76,6 +80,15 @@ if (sparkVersions.contains("3.0")) {
   project(':iceberg-spark:spark3-runtime').name = 'iceberg-spark3-runtime'
 }
 
+// hive 3 depends on hive 2, so always add hive 2 if hive3 is enabled
+if (hiveVersions.contains("2") || hiveVersions.contains("3")) {
+  include 'mr'
+  include 'hive-runtime'
+
+  project(':mr').name = 'iceberg-mr'
+  project(':hive-runtime').name = 'iceberg-hive-runtime'
+}
+
 if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
   if (sparkVersions.contains("2.4")) {
     include ':iceberg-spark:spark2'
@@ -87,10 +100,12 @@ if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
     project(':iceberg-spark:spark-runtime').name = 'iceberg-spark-runtime'
   }
 
-  include 'hive3'
-  include 'hive3-orc-bundle'
+  if (hiveVersions.contains("3")) {
+    include 'hive3'
+    include 'hive3-orc-bundle'
 
-  project(':hive3').name = 'iceberg-hive3'
-  project(':hive3-orc-bundle').name = 'iceberg-hive3-orc-bundle'
+    project(':hive3').name = 'iceberg-hive3'
+    project(':hive3-orc-bundle').name = 'iceberg-hive3-orc-bundle'
+  }
 }
 
