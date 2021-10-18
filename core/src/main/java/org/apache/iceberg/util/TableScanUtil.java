@@ -76,8 +76,8 @@ public class TableScanUtil {
     return planTasks(splitFiles, splitSize, lookback, openFileCost, weightFunc);
   }
 
-  public static CloseableIterable<CombinedScanTask> planTasksIgnoreDeleteFiles(CloseableIterable<FileScanTask> splitFiles,
-                                                              long splitSize, int lookback, long openFileCost) {
+  public static CloseableIterable<CombinedScanTask> planTasksIgnoreDeleteFiles(
+      CloseableIterable<FileScanTask> splitFiles, long splitSize, int lookback, long openFileCost) {
     Function<FileScanTask, Long> weightFunc = file -> Math.max(file.length(), openFileCost);
     return planTasks(splitFiles, splitSize, lookback, openFileCost, weightFunc);
   }
