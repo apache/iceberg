@@ -36,7 +36,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
-import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
+import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.EnvironmentContext;
 import org.apache.hadoop.hive.metastore.api.LockComponent;
@@ -92,10 +92,12 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private static final long HIVE_LOCK_CHECK_MAX_WAIT_MS_DEFAULT = 5 * 1000; // 5 seconds
   private static final long HIVE_TABLE_LEVEL_LOCK_EVICT_MS_DEFAULT = TimeUnit.MINUTES.toMillis(10);
   private static final DynMethods.UnboundMethod ALTER_TABLE = DynMethods.builder("alter_table")
-      .impl(HiveMetaStoreClient.class, "alter_table_with_environmentContext",
+      .impl(IMetaStoreClient.class, "alter_table_with_environmentContext",
           String.class, String.class, Table.class, EnvironmentContext.class)
-      .impl(HiveMetaStoreClient.class, "alter_table",
+      .impl(IMetaStoreClient.class, "alter_table",
           String.class, String.class, Table.class, EnvironmentContext.class)
+      .impl(IMetaStoreClient.class, "alter_table",
+          String.class, String.class, Table.class)
       .build();
   private static final BiMap<String, String> ICEBERG_TO_HMS_TRANSLATION = ImmutableBiMap.of(
       // gc.enabled in Iceberg and external.table.purge in Hive are meant to do the same things but with different names
@@ -143,7 +145,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   private final long lockCheckMinWaitTime;
   private final long lockCheckMaxWaitTime;
   private final FileIO fileIO;
-  private final ClientPool<HiveMetaStoreClient, TException> metaClients;
+  private final ClientPool<IMetaStoreClient, TException> metaClients;
 
   protected HiveTableOperations(Configuration conf, ClientPool metaClients, FileIO fileIO,
                                 String catalogName, String database, String table) {
