@@ -48,7 +48,7 @@ configure(jmhProjects) {
   // Path is relative to either spark2 or spark3 folder, depending on project being tested
   sourceSets {
     jmh {
-      java.srcDirs = ['src/jmh/java', '../spark/src/jmh/java']
+      java.srcDirs = ['src/jmh/java', '../../../spark/src/jmh/java']
       compileClasspath += sourceSets.main.runtimeClasspath
     }
   }
