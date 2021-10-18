@@ -22,18 +22,26 @@ package org.apache.iceberg.actions;
 import org.apache.iceberg.expressions.Expression;
 
 /**
- * An action for converting the equality delete files to position delete files according to a convert strategy.
+ * An action for converting the equality delete files to position delete files.
  */
 public interface ConvertEqualityDeleteFiles
     extends SnapshotUpdate<ConvertEqualityDeleteFiles, ConvertEqualityDeleteFiles.Result> {
 
   /**
-   * A filter for choosing the equality deletes to convert.
+   * A row filter for finding the equality deletes to convert.
    *
-   * @param expression An iceberg expression used to choose deletes.
+   * @param expression An iceberg expression used to find deletes.
    * @return this for method chaining
    */
-  ConvertEqualityDeleteFiles filter(Expression expression);
+  ConvertEqualityDeleteFiles rowFilter(Expression expression);
+
+  /**
+   * A partition filter for finding the equality deletes to convert.
+   *
+   * @param expression An iceberg expression used to find deletes.
+   * @return this for method chaining
+   */
+  ConvertEqualityDeleteFiles partitionFilter(Expression expression);
 
   /**
    * The action result that contains a summary of the execution.
