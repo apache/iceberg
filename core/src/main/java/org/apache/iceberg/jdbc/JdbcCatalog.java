@@ -108,7 +108,8 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     LOG.trace("Creating database tables (if missing) to store iceberg catalog");
     connections.run(conn -> {
       DatabaseMetaData dbMeta = conn.getMetaData();
-      ResultSet tableExists = dbMeta.getTables(null, null, JdbcUtil.CATALOG_TABLE_NAME, null);
+      ResultSet tableExists = dbMeta.getTables(null, null,
+          JdbcUtil.CATALOG_TABLE_NAME, null);
 
       if (tableExists.next()) {
         return true;
@@ -121,7 +122,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
     connections.run(conn -> {
       DatabaseMetaData dbMeta = conn.getMetaData();
       ResultSet tableExists = dbMeta.getTables(null, null,
-              JdbcUtil.CATALOG_NAMESPACE_TABLE_NAME, null);
+          JdbcUtil.CATALOG_NAMESPACE_TABLE_NAME, null);
 
       if (tableExists.next()) {
         return true;

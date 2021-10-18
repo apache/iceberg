@@ -32,7 +32,6 @@ import java.util.Map;
 import java.util.Objects;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -156,11 +155,10 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   }
 
   private void createTable(String newMetadataLocation) throws SQLException, InterruptedException {
-    Namespace tableNamespace = tableIdentifier.namespace();
     int insertRecord = connections.run(conn -> {
       try (PreparedStatement sql = conn.prepareStatement(JdbcUtil.DO_COMMIT_CREATE_TABLE_SQL)) {
         sql.setString(1, catalogName);
-        sql.setString(2, JdbcUtil.namespaceToString(tableNamespace));
+        sql.setString(2, JdbcUtil.namespaceToString(tableIdentifier.namespace()));
         sql.setString(3, tableIdentifier.name());
         sql.setString(4, newMetadataLocation);
         return sql.executeUpdate();
