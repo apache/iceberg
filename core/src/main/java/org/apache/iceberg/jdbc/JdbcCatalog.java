@@ -129,7 +129,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
       }
 
       LOG.debug("Creating table {} to store iceberg catalog namespaces",
-              JdbcUtil.CATALOG_NAMESPACE_TABLE_NAME);
+          JdbcUtil.CATALOG_NAMESPACE_TABLE_NAME);
       return conn.prepareStatement(JdbcUtil.CREATE_NAMESPACE_TABLE).execute();
     });
   }
