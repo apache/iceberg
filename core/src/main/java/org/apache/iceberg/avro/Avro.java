@@ -433,12 +433,11 @@ public class Avro {
     }
 
     public <T> EqualityDeleteWriter<T> buildEqualityWriter() throws IOException {
-      Preconditions.checkState(rowSchema != null, "Cannot create equality delete file without a schema`");
+      Preconditions.checkState(rowSchema != null, "Cannot create equality delete file without a schema");
       Preconditions.checkState(equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
       Preconditions.checkState(createWriterFunc != null,
           "Cannot create equality delete file unless createWriterFunc is set");
-      Preconditions.checkArgument(spec != null,
-          "Spec must not be null when creating equality delete writer");
+      Preconditions.checkArgument(spec != null, "Spec must not be null when creating equality delete writer");
       Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
           "Partition must not be null for partitioned writes");
 
@@ -462,6 +461,8 @@ public class Avro {
       Preconditions.checkArgument(spec != null, "Spec must not be null when creating position delete writer");
       Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
           "Partition must not be null for partitioned writes");
+      Preconditions.checkArgument(rowSchema == null || createWriterFunc != null,
+          "Create function should be provided if we write row data");
 
       meta("delete-type", "position");
 
