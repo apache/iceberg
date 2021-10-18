@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.iceberg.parquet;
+package org.apache.iceberg.orc;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,9 +31,10 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.data.parquet.GenericParquetReaders;
-import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.data.orc.GenericOrcReader;
+import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
@@ -41,17 +42,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.types.Types.NestedField;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-public class TestParquetDeleteWriters {
+public class TestOrcDeleteWriters {
   private static final Schema SCHEMA = new Schema(
-      NestedField.required(1, "id", Types.LongType.get()),
-      NestedField.optional(2, "data", Types.StringType.get()));
+      Types.NestedField.required(1, "id", Types.LongType.get()),
+      Types.NestedField.optional(2, "data", Types.StringType.get()));
 
   private List<Record> records;
 
@@ -77,8 +77,8 @@ public class TestParquetDeleteWriters {
     File deleteFile = temp.newFile();
 
     OutputFile out = Files.localOutput(deleteFile);
-    EqualityDeleteWriter<Record> deleteWriter = Parquet.writeDeletes(out)
-        .createWriterFunc(GenericParquetWriter::buildWriter)
+    EqualityDeleteWriter<Record> deleteWriter = ORC.writeDeletes(out)
+        .createWriterFunc(GenericOrcWriter::buildWriter)
         .overwrite()
         .rowSchema(SCHEMA)
         .withSpec(PartitionSpec.unpartitioned())
@@ -90,16 +90,16 @@ public class TestParquetDeleteWriters {
     }
 
     DeleteFile metadata = deleteWriter.toDeleteFile();
-    Assert.assertEquals("Format should be Parquet", FileFormat.PARQUET, metadata.format());
+    Assert.assertEquals("Format should be ORC", FileFormat.ORC, metadata.format());
     Assert.assertEquals("Should be equality deletes", FileContent.EQUALITY_DELETES, metadata.content());
     Assert.assertEquals("Record count should be correct", records.size(), metadata.recordCount());
     Assert.assertEquals("Partition should be empty", 0, metadata.partition().size());
     Assert.assertNull("Key metadata should be null", metadata.keyMetadata());
 
     List<Record> deletedRecords;
-    try (CloseableIterable<Record> reader = Parquet.read(out.toInputFile())
+    try (CloseableIterable<Record> reader = ORC.read(out.toInputFile())
         .project(SCHEMA)
-        .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(SCHEMA, fileSchema))
+        .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(SCHEMA, fileSchema))
         .build()) {
       deletedRecords = Lists.newArrayList(reader);
     }
@@ -114,24 +114,26 @@ public class TestParquetDeleteWriters {
     Schema deleteSchema = new Schema(
         MetadataColumns.DELETE_FILE_PATH,
         MetadataColumns.DELETE_FILE_POS,
-        NestedField.optional(MetadataColumns.DELETE_FILE_ROW_FIELD_ID, "row", SCHEMA.asStruct()));
+        Types.NestedField.optional(MetadataColumns.DELETE_FILE_ROW_FIELD_ID, "row", SCHEMA.asStruct()));
 
-    String deletePath = "s3://bucket/path/file.parquet";
+    String deletePath = "s3://bucket/path/file.orc";
     GenericRecord posDelete = GenericRecord.create(deleteSchema);
     List<Record> expectedDeleteRecords = Lists.newArrayList();
 
     OutputFile out = Files.localOutput(deleteFile);
-    PositionDeleteWriter<Record> deleteWriter = Parquet.writeDeletes(out)
-        .createWriterFunc(GenericParquetWriter::buildWriter)
+    PositionDeleteWriter<Record> deleteWriter = ORC.writeDeletes(out)
+        .createWriterFunc(GenericOrcWriter::buildWriter)
         .overwrite()
         .rowSchema(SCHEMA)
         .withSpec(PartitionSpec.unpartitioned())
         .buildPositionWriter();
 
+    PositionDelete<Record> positionDelete = PositionDelete.create();
     try (PositionDeleteWriter<Record> writer = deleteWriter) {
       for (int i = 0; i < records.size(); i += 1) {
         int pos = i * 3 + 2;
-        writer.delete(deletePath, pos, records.get(i));
+        positionDelete.set(deletePath, pos, records.get(i));
+        writer.write(positionDelete);
         expectedDeleteRecords.add(posDelete.copy(ImmutableMap.of(
             "file_path", deletePath,
             "pos", (long) pos,
@@ -140,16 +142,16 @@ public class TestParquetDeleteWriters {
     }
 
     DeleteFile metadata = deleteWriter.toDeleteFile();
-    Assert.assertEquals("Format should be Parquet", FileFormat.PARQUET, metadata.format());
+    Assert.assertEquals("Format should be ORC", FileFormat.ORC, metadata.format());
     Assert.assertEquals("Should be position deletes", FileContent.POSITION_DELETES, metadata.content());
     Assert.assertEquals("Record count should be correct", records.size(), metadata.recordCount());
     Assert.assertEquals("Partition should be empty", 0, metadata.partition().size());
     Assert.assertNull("Key metadata should be null", metadata.keyMetadata());
 
     List<Record> deletedRecords;
-    try (CloseableIterable<Record> reader = Parquet.read(out.toInputFile())
+    try (CloseableIterable<Record> reader = ORC.read(out.toInputFile())
         .project(deleteSchema)
-        .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(deleteSchema, fileSchema))
+        .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(deleteSchema, fileSchema))
         .build()) {
       deletedRecords = Lists.newArrayList(reader);
     }
@@ -165,13 +167,13 @@ public class TestParquetDeleteWriters {
         MetadataColumns.DELETE_FILE_PATH,
         MetadataColumns.DELETE_FILE_POS);
 
-    String deletePath = "s3://bucket/path/file.parquet";
+    String deletePath = "s3://bucket/path/file.orc";
     GenericRecord posDelete = GenericRecord.create(deleteSchema);
     List<Record> expectedDeleteRecords = Lists.newArrayList();
 
     OutputFile out = Files.localOutput(deleteFile);
-    PositionDeleteWriter<Void> deleteWriter = Parquet.writeDeletes(out)
-        .createWriterFunc(GenericParquetWriter::buildWriter)
+    PositionDeleteWriter<Void> deleteWriter = ORC.writeDeletes(out)
+        .createWriterFunc(GenericOrcWriter::buildWriter)
         .overwrite()
         .withSpec(PartitionSpec.unpartitioned())
         .transformPaths(path -> {
@@ -179,10 +181,12 @@ public class TestParquetDeleteWriters {
         })
         .buildPositionWriter();
 
+    PositionDelete<Void> positionDelete = PositionDelete.create();
     try (PositionDeleteWriter<Void> writer = deleteWriter) {
       for (int i = 0; i < records.size(); i += 1) {
         int pos = i * 3 + 2;
-        writer.delete(deletePath, pos, null);
+        positionDelete.set(deletePath, pos, null);
+        writer.write(positionDelete);
         expectedDeleteRecords.add(posDelete.copy(ImmutableMap.of(
             "file_path", deletePath,
             "pos", (long) pos)));
@@ -190,16 +194,16 @@ public class TestParquetDeleteWriters {
     }
 
     DeleteFile metadata = deleteWriter.toDeleteFile();
-    Assert.assertEquals("Format should be Parquet", FileFormat.PARQUET, metadata.format());
+    Assert.assertEquals("Format should be ORC", FileFormat.ORC, metadata.format());
     Assert.assertEquals("Should be position deletes", FileContent.POSITION_DELETES, metadata.content());
     Assert.assertEquals("Record count should be correct", records.size(), metadata.recordCount());
     Assert.assertEquals("Partition should be empty", 0, metadata.partition().size());
     Assert.assertNull("Key metadata should be null", metadata.keyMetadata());
 
     List<Record> deletedRecords;
-    try (CloseableIterable<Record> reader = Parquet.read(out.toInputFile())
+    try (CloseableIterable<Record> reader = ORC.read(out.toInputFile())
         .project(deleteSchema)
-        .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(deleteSchema, fileSchema))
+        .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(deleteSchema, fileSchema))
         .build()) {
       deletedRecords = Lists.newArrayList(reader);
     }

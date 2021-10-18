@@ -54,6 +54,11 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
   }
 
   @Override
+  public List<OrcValueWriter<?>> writers() {
+    return writer.writers();
+  }
+
+  @Override
   public Stream<FieldMetrics<?>> metrics() {
     return writer.metrics();
   }

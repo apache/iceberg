@@ -19,6 +19,7 @@
 
 package org.apache.iceberg.data.orc;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -37,6 +38,8 @@ import java.util.stream.Stream;
 import org.apache.iceberg.DoubleFieldMetrics;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FloatFieldMetrics;
+import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.orc.OrcRowWriter;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -136,6 +139,11 @@ public class GenericOrcWriters {
 
   public static <K, V> OrcValueWriter<Map<K, V>> map(OrcValueWriter<K> key, OrcValueWriter<V> value) {
     return new MapWriter<>(key, value);
+  }
+
+  public static <T> OrcRowWriter<PositionDelete<T>> positionDelete(OrcRowWriter<T> writer,
+      Function<CharSequence, ?> pathTransformFunc) {
+    return new PositionDeleteStructWriter<>(writer, pathTransformFunc);
   }
 
   private static class BooleanWriter implements OrcValueWriter<Boolean> {
@@ -477,6 +485,35 @@ public class GenericOrcWriters {
     }
 
     protected abstract Object get(S struct, int index);
+  }
+
+  private static class PositionDeleteStructWriter<T> extends StructWriter<PositionDelete<T>>
+      implements OrcRowWriter<PositionDelete<T>> {
+    private final Function<CharSequence, ?> pathTransformFunc;
+
+    PositionDeleteStructWriter(OrcRowWriter<T> replacedWriter, Function<CharSequence, ?> pathTransformFunc) {
+      super(replacedWriter.writers());
+      this.pathTransformFunc = pathTransformFunc;
+    }
+
+    @Override
+    protected Object get(PositionDelete<T> delete, int index) {
+      switch (index) {
+        case 0:
+          return pathTransformFunc.apply(delete.path());
+        case 1:
+          return delete.pos();
+        case 2:
+          return delete.row();
+      }
+      throw new IllegalArgumentException("Cannot get value for invalid index: " + index);
+    }
+
+    @Override
+    public void write(PositionDelete<T> row, VectorizedRowBatch output) throws IOException {
+      Preconditions.checkArgument(row != null, "value must not be null");
+      writeRow(row, output);
+    }
   }
 
   private static void growColumnVector(ColumnVector cv, int requestedSize) {

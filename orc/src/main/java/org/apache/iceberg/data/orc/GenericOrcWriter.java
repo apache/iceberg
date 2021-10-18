@@ -119,6 +119,11 @@ public class GenericOrcWriter implements OrcRowWriter<Record> {
   }
 
   @Override
+  public List<OrcValueWriter<?>> writers() {
+    return writer.writers();
+  }
+
+  @Override
   public Stream<FieldMetrics<?>> metrics() {
     return writer.metrics();
   }

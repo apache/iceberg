@@ -61,6 +61,11 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
   }
 
   @Override
+  public List<OrcValueWriter<?>> writers() {
+    return writer.writers();
+  }
+
+  @Override
   public Stream<FieldMetrics<?>> metrics() {
     return writer.metrics();
   }

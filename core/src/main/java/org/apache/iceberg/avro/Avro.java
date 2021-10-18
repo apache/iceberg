@@ -459,8 +459,7 @@ public class Avro {
 
     public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {
       Preconditions.checkState(equalityFieldIds == null, "Cannot create position delete file using delete field ids");
-      Preconditions.checkArgument(spec != null,
-          "Spec must not be null when creating position delete writer");
+      Preconditions.checkArgument(spec != null, "Spec must not be null when creating position delete writer");
       Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
           "Partition must not be null for partitioned writes");
 
@@ -476,6 +475,7 @@ public class Avro {
       } else {
         appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
 
+        // We ignore the 'createWriterFunc' and 'rowSchema' even if is provided, since we do not write row data itself
         appenderBuilder.createWriterFunc(ignored -> new PositionDatumWriter());
       }
 
