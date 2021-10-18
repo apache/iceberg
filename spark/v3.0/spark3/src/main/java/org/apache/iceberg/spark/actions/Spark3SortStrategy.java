@@ -19,12 +19,10 @@
 
 package org.apache.iceberg.spark.actions;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
@@ -64,8 +62,6 @@ public class Spark3SortStrategy extends SortStrategy {
    */
   public static final String COMPRESSION_FACTOR = "compression-factor";
 
-  public static final String SHUFFLE_TASKS_PER_FILE = "shuffle-tasks-per-file";
-
   private final Table table;
   private final SparkSession spark;
   private final FileScanTaskSetManager manager = FileScanTaskSetManager.get();
@@ -88,7 +84,6 @@ public class Spark3SortStrategy extends SortStrategy {
     return ImmutableSet.<String>builder()
         .addAll(super.validOptions())
         .add(COMPRESSION_FACTOR)
-        .add(SHUFFLE_TASKS_PER_FILE)
         .build();
   }
 
