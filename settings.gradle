@@ -24,8 +24,6 @@ include 'core'
 include 'data'
 include 'aliyun'
 include 'aws'
-include 'flink'
-include 'flink-runtime'
 include 'orc'
 include 'arrow'
 include 'parquet'
@@ -41,8 +39,6 @@ project(':core').name = 'iceberg-core'
 project(':data').name = 'iceberg-data'
 project(':aliyun').name = 'iceberg-aliyun'
 project(':aws').name = 'iceberg-aws'
-project(':flink').name = 'iceberg-flink'
-project(':flink-runtime').name = 'iceberg-flink-runtime'
 project(':orc').name = 'iceberg-orc'
 project(':arrow').name = 'iceberg-arrow'
 project(':parquet').name = 'iceberg-parquet'
@@ -51,6 +47,14 @@ project(':spark').name = 'iceberg-spark'
 project(':pig').name = 'iceberg-pig'
 project(':hive-metastore').name = 'iceberg-hive-metastore'
 project(':nessie').name = 'iceberg-nessie'
+
+List<String> knownFlinkVersions = System.getProperty("knownFlinkVersions").split(",")
+String flinkVersionsString = System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : System.getProperty("defaultFlinkVersions")
+List<String> flinkVersions = flinkVersionsString != null && !flinkVersionsString.isEmpty() ? flinkVersionsString.split(",") : []
+
+if (!knownFlinkVersions.containsAll(flinkVersions)) {
+  throw new GradleException("Found unsupported Flink versions: " + (flinkVersions - knownFlinkVersions))
+}
 
 List<String> knownHiveVersions = System.getProperty("knownHiveVersions").split(",")
 String hiveVersionsString = System.getProperty("hiveVersions") != null ? System.getProperty("hiveVersions") : System.getProperty("defaultHiveVersions")
@@ -66,6 +70,13 @@ List<String> sparkVersions = sparkVersionsString != null && !sparkVersionsString
 
 if (!knownSparkVersions.containsAll(sparkVersions)) {
   throw new GradleException("Found unsupported Spark versions: " + (sparkVersions - knownSparkVersions))
+}
+
+if (flinkVersions.contains("1.13")) {
+  include 'flink'
+  include 'flink-runtime'
+  project(':flink').name = 'iceberg-flink'
+  project(':flink-runtime').name = 'iceberg-flink-runtime'
 }
 
 if (sparkVersions.contains("3.0")) {
