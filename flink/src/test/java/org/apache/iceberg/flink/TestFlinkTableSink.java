@@ -43,6 +43,7 @@ import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
@@ -245,6 +246,7 @@ public class TestFlinkTableSink extends FlinkCatalogTestBase {
   }
 
   @Test
+  @Ignore
   public void testHashDistributeMode() throws Exception {
     String tableName = "test_hash_distribution_mode";
     Map<String, String> tableProps = ImmutableMap.of(
