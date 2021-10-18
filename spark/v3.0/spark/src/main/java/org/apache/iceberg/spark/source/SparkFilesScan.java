@@ -29,6 +29,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.FileScanTaskSetManager;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.util.TableScanUtil;
@@ -40,6 +41,7 @@ class SparkFilesScan extends SparkBatchScan {
   private final long splitSize;
   private final int splitLookback;
   private final long splitOpenFileCost;
+  private final boolean planTasksIgnoreDeleteFiles;
 
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
@@ -51,6 +53,8 @@ class SparkFilesScan extends SparkBatchScan {
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();
     this.splitOpenFileCost = readConf.splitOpenFileCost();
+    this.planTasksIgnoreDeleteFiles =
+        Spark3Util.propertyAsBoolean(options, SparkReadOptions.PLAN_TASKS_IGNORE_DELETE_FILES, false);
   }
 
   @Override
@@ -65,9 +69,12 @@ class SparkFilesScan extends SparkBatchScan {
       CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(
           CloseableIterable.withNoopClose(files),
           splitSize);
-      CloseableIterable<CombinedScanTask> scanTasks = TableScanUtil.planTasks(
-          splitFiles, splitSize,
-          splitLookback, splitOpenFileCost);
+      CloseableIterable<CombinedScanTask> scanTasks;
+      if (planTasksIgnoreDeleteFiles) {
+        scanTasks = TableScanUtil.planTasksIgnoreDeleteFiles(splitFiles, splitSize, splitLookback, splitOpenFileCost);
+      } else {
+        scanTasks = TableScanUtil.planTasks(splitFiles, splitSize, splitLookback, splitOpenFileCost);
+      }
       this.tasks = Lists.newArrayList(scanTasks);
     }
 

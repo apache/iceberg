@@ -65,6 +65,7 @@ public class Spark3BinPackStrategy extends BinPackStrategy {
           .option(SparkReadOptions.FILE_SCAN_TASK_SET_ID, groupID)
           .option(SparkReadOptions.SPLIT_SIZE, splitSize(inputFileSize(filesToRewrite)))
           .option(SparkReadOptions.FILE_OPEN_COST, "0")
+          .option(SparkReadOptions.PLAN_TASKS_IGNORE_DELETE_FILES, "true")
           .load(table.name());
 
       // write the packed data into new files where each split becomes a new file
