@@ -38,6 +38,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.orc.GenericOrcWriters;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
@@ -378,14 +379,18 @@ public class ORC {
 
       meta("delete-type", "position");
 
-      Schema deleteSchema = DeleteSchemaUtil.posDeleteSchema(rowSchema);
-      appenderBuilder.schema(deleteSchema);
-
       if (rowSchema != null && createWriterFunc != null) {
+        Schema deleteSchema = DeleteSchemaUtil.posDeleteSchema(rowSchema);
+        appenderBuilder.schema(deleteSchema);
+
         appenderBuilder.createWriterFunc((schema, typeDescription) ->
             GenericOrcWriters.positionDelete(createWriterFunc.apply(deleteSchema, typeDescription), pathTransformFunc));
       } else {
-        appenderBuilder.createWriterFunc((schema, typeDescription) -> GenericOrcWriters.positionDelete());
+        appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
+
+        // We ignore the 'createWriterFunc' and 'rowSchema' even if is provided, since we do not write row data itself
+        appenderBuilder.createWriterFunc((schema, typeDescription) -> GenericOrcWriters.positionDelete(
+                GenericOrcWriter.buildWriter(schema, typeDescription), Function.identity()));
       }
 
       return new PositionDeleteWriter<>(

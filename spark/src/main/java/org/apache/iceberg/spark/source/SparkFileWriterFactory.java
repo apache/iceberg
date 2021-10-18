@@ -112,12 +112,12 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
 
   @Override
   protected void configureEqualityDelete(ORC.DeleteWriteBuilder builder) {
-    builder.createWriterFunc((iSchema, typDesc) -> new SparkOrcWriter(iSchema, typDesc));
+    builder.createWriterFunc(SparkOrcWriter::new);
   }
 
   @Override
   protected void configurePositionDelete(ORC.DeleteWriteBuilder builder) {
-    builder.createWriterFunc((iSchema, typDesc) -> new SparkOrcWriter(iSchema, typDesc));
+    builder.createWriterFunc(SparkOrcWriter::new);
     builder.transformPaths(path -> UTF8String.fromString(path.toString()));
   }
 

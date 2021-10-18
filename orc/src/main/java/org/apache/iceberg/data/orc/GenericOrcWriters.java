@@ -38,12 +38,7 @@ import java.util.stream.Stream;
 import org.apache.iceberg.DoubleFieldMetrics;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FloatFieldMetrics;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDelete;
-import org.apache.iceberg.io.DeleteSchemaUtil;
-import org.apache.iceberg.orc.ORCSchemaUtil;
 import org.apache.iceberg.orc.OrcRowWriter;
 import org.apache.iceberg.orc.OrcValueWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -148,11 +143,7 @@ public class GenericOrcWriters {
 
   public static <T> OrcRowWriter<PositionDelete<T>> positionDelete(OrcRowWriter<T> writer,
       Function<CharSequence, ?> pathTransformFunc) {
-    return new PositionDeleteStructWriter(writer, pathTransformFunc);
-  }
-
-  public static <T> OrcRowWriter<PositionDelete<T>> positionDelete() {
-    return new PositionDeleteWriter();
+    return new PositionDeleteStructWriter<>(writer, pathTransformFunc);
   }
 
   private static class BooleanWriter implements OrcValueWriter<Boolean> {
@@ -522,34 +513,6 @@ public class GenericOrcWriters {
     public void write(PositionDelete<T> row, VectorizedRowBatch output) throws IOException {
       Preconditions.checkArgument(row != null, "value must not be null");
       writeRow(row, output);
-    }
-  }
-
-  private static class PositionDeleteWriter<T> implements OrcRowWriter<PositionDelete<T>> {
-    private final OrcRowWriter<Record> rowWriter;
-    private final Record record;
-
-    PositionDeleteWriter() {
-      Schema deleteSchema = DeleteSchemaUtil.pathPosSchema();
-      this.rowWriter = GenericOrcWriter.buildWriter(deleteSchema, ORCSchemaUtil.convert(deleteSchema));
-      this.record = GenericRecord.create(deleteSchema);
-    }
-
-    @Override
-    public void write(PositionDelete<T> row, VectorizedRowBatch output) throws IOException {
-      record.set(0, row.path());
-      record.set(1, row.pos());
-      rowWriter.write(record, output);
-    }
-
-    @Override
-    public List<OrcValueWriter<?>> writers() {
-      return rowWriter.writers();
-    }
-
-    @Override
-    public Stream<FieldMetrics<?>> metrics() {
-      return rowWriter.metrics();
     }
   }
 

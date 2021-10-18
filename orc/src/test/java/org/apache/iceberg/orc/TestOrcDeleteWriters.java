@@ -176,6 +176,9 @@ public class TestOrcDeleteWriters {
         .createWriterFunc(GenericOrcWriter::buildWriter)
         .overwrite()
         .withSpec(PartitionSpec.unpartitioned())
+        .transformPaths(path -> {
+          throw new RuntimeException("Should not be called for performance reasons");
+        })
         .buildPositionWriter();
 
     PositionDelete<Void> positionDelete = PositionDelete.create();
