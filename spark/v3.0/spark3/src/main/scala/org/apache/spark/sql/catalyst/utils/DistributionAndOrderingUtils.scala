@@ -61,7 +61,7 @@ object DistributionAndOrderingUtils {
 
   def prepareQuery(
       requiredDistribution: Distribution,
-      requiredOrdering: Seq[SortOrder],
+      requiredOrdering: Array[SortOrder],
       query: LogicalPlan,
       conf: SQLConf): LogicalPlan = {
 
@@ -87,8 +87,7 @@ object DistributionAndOrderingUtils {
     }
 
     val ordering = requiredOrdering
-      .map(e => toCatalyst(e, query, resolver))
-      .asInstanceOf[Seq[catalyst.expressions.SortOrder]]
+      .map(e => toCatalyst(e, query, resolver).asInstanceOf[catalyst.expressions.SortOrder])
 
     val queryWithDistributionAndOrdering = if (ordering.nonEmpty) {
       Sort(ordering, global = false, queryWithDistribution)

@@ -20,6 +20,13 @@
 project(':iceberg-spark:iceberg-spark3') {
   apply plugin: 'scala'
 
+  sourceSets {
+    main {
+      scala.srcDirs = ['src/main/scala', 'src/main/java']
+      java.srcDirs = []
+    }
+  }
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
