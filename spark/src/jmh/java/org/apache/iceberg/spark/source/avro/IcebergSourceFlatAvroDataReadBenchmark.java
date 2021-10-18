@@ -43,7 +43,7 @@ import static org.apache.spark.sql.functions.expr;
  *
  * To run this benchmark for either spark-2 or spark-3:
  * <code>
- *   ./gradlew :iceberg-spark[2|3]:jmh
+ *   ./gradlew :iceberg-spark:iceberg-spark[2|3]:jmh
  *       -PjmhIncludeRegex=IcebergSourceFlatAvroDataReadBenchmark
  *       -PjmhOutputPath=benchmark/iceberg-source-flat-avro-data-read-benchmark-result.txt
  * </code>
