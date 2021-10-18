@@ -88,12 +88,11 @@ abstract class BaseRewriteDataFilesSparkAction
   private int maxConcurrentFileGroupRewrites;
   private int maxCommits;
   private boolean partialProgressEnabled;
-  private RewriteStrategy strategy;
+  private RewriteStrategy strategy = null;
 
   protected BaseRewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
-    this.strategy = binPackStrategy();
   }
 
   protected Table table() {
@@ -112,18 +111,24 @@ abstract class BaseRewriteDataFilesSparkAction
 
   @Override
   public RewriteDataFiles binPack() {
+    Preconditions.checkArgument(this.strategy == null,
+        "Cannot set strategy to binpack, it has already been set", this.strategy);
     this.strategy = binPackStrategy();
     return this;
   }
 
   @Override
   public RewriteDataFiles sort(SortOrder sortOrder) {
+    Preconditions.checkArgument(this.strategy == null,
+        "Cannot set strategy to sort, it has already been set to %s", this.strategy);
     this.strategy = sortStrategy().sortOrder(sortOrder);
     return this;
   }
 
   @Override
   public RewriteDataFiles sort() {
+    Preconditions.checkArgument(this.strategy == null,
+        "Cannot set strategy to sort, it has already been set to %s", this.strategy);
     this.strategy = sortStrategy();
     return this;
   }
@@ -141,6 +146,11 @@ abstract class BaseRewriteDataFilesSparkAction
     }
 
     long startingSnapshotId = table.currentSnapshot().snapshotId();
+
+    // Default to BinPack if no strategy selected
+    if (this.strategy == null) {
+      this.strategy = binPackStrategy();
+    }
 
     validateAndInitOptions();
     strategy = strategy.options(options());
@@ -176,11 +186,9 @@ abstract class BaseRewriteDataFilesSparkAction
       StructLike emptyStruct = GenericRecord.create(partitionType);
 
       fileScanTasks.forEach(task -> {
-        /*
-        If a task uses an incompatible partition spec the data inside could contain values which
-        belong to multiple partitions in the current spec. Treating all such files as un-partitioned and
-        grouping them together helps to minimize new files made.
-        */
+        // If a task uses an incompatible partition spec the data inside could contain values which
+        // belong to multiple partitions in the current spec. Treating all such files as un-partitioned and
+        // grouping them together helps to minimize new files made.
         StructLike taskPartition = task.file().specId() == table.spec().specId() ?
             task.file().partition() : emptyStruct;
 
@@ -423,30 +431,6 @@ abstract class BaseRewriteDataFilesSparkAction
 
     public int totalGroupCount() {
       return totalGroupCount;
-    }
-  }
-
-  static class EmptyStruct implements StructLike {
-
-    private static final EmptyStruct INSTANCE = new EmptyStruct();
-
-    static EmptyStruct get() {
-      return INSTANCE;
-    }
-
-    @Override
-    public int size() {
-      return 0;
-    }
-
-    @Override
-    public <T> T get(int pos, Class<T> javaClass) {
-      throw new RuntimeException("Cannot call get on an empty struct");
-    }
-
-    @Override
-    public <T> void set(int pos, T value) {
-      throw new RuntimeException("Cannot call set on an empty struct");
     }
   }
 }

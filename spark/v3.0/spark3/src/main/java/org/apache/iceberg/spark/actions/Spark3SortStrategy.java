@@ -39,6 +39,7 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SortOrderUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -107,17 +108,16 @@ public class Spark3SortStrategy extends SortStrategy {
   public Set<DataFile> rewriteFiles(List<FileScanTask> filesToRewrite) {
     String groupID = UUID.randomUUID().toString();
     boolean requiresRepartition = !filesToRewrite.get(0).spec().equals(table.spec());
-    SortOrder[] ordering = Spark3Util.convert(sortOrder());
-    Distribution distribution;
 
+    SortOrder[] ordering;
     if (requiresRepartition) {
-      distribution = Spark3Util.buildRequiredDistribution(table);
-      ordering = Stream.concat(
-          Arrays.stream(Spark3Util.buildRequiredOrdering(distribution, table())),
-          Arrays.stream(ordering)).toArray(SortOrder[]::new);
+      // Build in the requirement for Partition Sorting into our sort order
+      ordering = Spark3Util.convert(SortOrderUtil.buildSortOrder(table.schema(), table.spec(), sortOrder()));
     } else {
-      distribution = Distributions.ordered(ordering);
+      ordering = Spark3Util.convert(sortOrder());
     }
+
+    Distribution distribution = Distributions.ordered(ordering);
 
     try {
       manager.stageTasks(table, groupID, filesToRewrite);
