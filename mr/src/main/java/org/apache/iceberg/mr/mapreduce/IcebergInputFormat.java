@@ -66,6 +66,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.hive.HiveIcebergStorageHandler;
@@ -191,6 +192,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private TaskAttemptContext context;
     private Schema tableSchema;
     private Schema expectedSchema;
+    private String nameMapping;
     private boolean reuseContainers;
     private boolean caseSensitive;
     private InputFormatConfig.InMemoryDataModel inMemoryDataModel;
@@ -211,6 +213,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       this.encryptionManager = table.encryption();
       this.tasks = task.files().iterator();
       this.tableSchema = InputFormatConfig.tableSchema(conf);
+      this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
       this.caseSensitive = conf.getBoolean(InputFormatConfig.CASE_SENSITIVE, InputFormatConfig.CASE_SENSITIVE_DEFAULT);
       this.expectedSchema = readSchema(conf, tableSchema, caseSensitive);
       this.reuseContainers = conf.getBoolean(InputFormatConfig.REUSE_CONTAINERS, false);
@@ -326,6 +329,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       if (reuseContainers) {
         avroReadBuilder.reuseContainers();
       }
+      if (nameMapping != null) {
+        avroReadBuilder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+      }
 
       switch (inMemoryDataModel) {
         case PIG:
@@ -349,6 +355,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           .split(task.start(), task.length());
       if (reuseContainers) {
         parquetReadBuilder.reuseContainers();
+      }
+      if (nameMapping != null) {
+        parquetReadBuilder.withNameMapping(NameMappingParser.fromJson(nameMapping));
       }
 
       switch (inMemoryDataModel) {
@@ -391,6 +400,10 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           orcReadBuilder.createReaderFunc(
               fileSchema -> GenericOrcReader.buildReader(
                   readSchema, fileSchema, idToConstant));
+
+          if (nameMapping != null) {
+            orcReadBuilder.withNameMapping(NameMappingParser.fromJson(nameMapping));
+          }
           orcIterator = orcReadBuilder.build();
       }
 
