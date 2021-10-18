@@ -376,6 +376,8 @@ public class ORC {
       Preconditions.checkArgument(spec != null, "Spec must not be null when creating position delete writer");
       Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
           "Partition must not be null for partitioned writes");
+      Preconditions.checkArgument(rowSchema == null || createWriterFunc != null,
+          "Create function should be provided if we write row data");
 
       meta("delete-type", "position");
 
