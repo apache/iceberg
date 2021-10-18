@@ -35,11 +35,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
  * implementation.
  */
 public class OSSURI {
-  private static final String SCHEMA_DELIM = "://";
+  private static final String SCHEME_DELIM = "://";
   private static final String PATH_DELIM = "/";
   private static final String QUERY_DELIM = "\\?";
   private static final String FRAGMENT_DELIM = "#";
-  private static final Set<String> VALID_SCHEMAS = ImmutableSet.of("https", "oss");
+  private static final Set<String> VALID_SCHEMES = ImmutableSet.of("https", "oss");
   private final String location;
   private final String bucket;
   private final String key;
@@ -54,7 +54,7 @@ public class OSSURI {
    * in Aliyun OSS documentation as below:
    * Bucket: https://help.aliyun.com/document_detail/257087.html
    * Object: https://help.aliyun.com/document_detail/273129.html
-   * Schema: https or oss
+   * Scheme: https or oss
    *
    * <p>
    * Supported access styles are https and oss://... URIs.
@@ -65,13 +65,13 @@ public class OSSURI {
     Preconditions.checkNotNull(location, "OSS location cannot be null.");
 
     this.location = location;
-    String[] schemaSplit = location.split(SCHEMA_DELIM, -1);
-    ValidationException.check(schemaSplit.length == 2, "Invalid OSS location: %s", location);
+    String[] schemeSplit = location.split(SCHEME_DELIM, -1);
+    ValidationException.check(schemeSplit.length == 2, "Invalid OSS location: %s", location);
 
-    String schema = schemaSplit[0];
-    ValidationException.check(VALID_SCHEMAS.contains(schema.toLowerCase()), "Invalid schema: %s", schema);
+    String scheme = schemeSplit[0];
+    ValidationException.check(VALID_SCHEMES.contains(scheme.toLowerCase()), "Invalid scheme: %s", scheme);
 
-    String[] authoritySplit = schemaSplit[1].split(PATH_DELIM, 2);
+    String[] authoritySplit = schemeSplit[1].split(PATH_DELIM, 2);
     ValidationException.check(authoritySplit.length == 2,
             "Invalid bucket or key in OSS location: %s", location);
     ValidationException.check(!authoritySplit[1].trim().isEmpty(),

@@ -25,12 +25,15 @@ import com.aliyun.oss.model.PutObjectRequest;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import org.apache.iceberg.aliyun.AliyunProperties;
+import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -45,18 +48,46 @@ public class OSSOutputStream extends PositionOutputStream {
   private final OSSURI uri;
   private final AliyunProperties aliyunProperties;
 
-  private File currentStagingFile;
-  private BufferedOutputStream stream;
+  private final File currentStagingFile;
+  private final OutputStream stream;
   private long pos = 0;
   private boolean closed = false;
 
-  OSSOutputStream(OSS client, OSSURI uri, AliyunProperties aliyunProperties) throws IOException {
+  OSSOutputStream(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
     this.client = client;
     this.uri = uri;
     this.aliyunProperties = aliyunProperties;
     this.createStack = Thread.currentThread().getStackTrace();
 
-    newStream();
+    this.currentStagingFile = newStagingFile(aliyunProperties.ossStagingDirectory());
+    this.stream = newStream(currentStagingFile);
+  }
+
+  private static File newStagingFile(String ossStagingDirectory) {
+    Preconditions.checkArgument(ossStagingDirectory != null, "Invalid staging directory: null");
+    try {
+      File stagingFile = File.createTempFile("oss-file-io-", ".tmp", new File(ossStagingDirectory));
+      stagingFile.deleteOnExit();
+      return stagingFile;
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  private static OutputStream newStream(File currentStagingFile) {
+    try {
+      return new BufferedOutputStream(new FileOutputStream(currentStagingFile));
+    } catch (FileNotFoundException e) {
+      throw new NotFoundException(e, "Failed to create file: %s", currentStagingFile);
+    }
+  }
+
+  private static InputStream uncheckedInputStream(File file) {
+    try {
+      return new FileInputStream(file);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   @Override
@@ -101,25 +132,14 @@ public class OSSOutputStream extends PositionOutputStream {
     }
   }
 
-  private void newStream() throws IOException {
-    if (stream != null) {
-      stream.close();
-    }
-    Preconditions.checkArgument(aliyunProperties.ossStagingDirectory() != null, "stagingDirectory is null");
-    File stagingDirectory = new File(aliyunProperties.ossStagingDirectory());
-    currentStagingFile = File.createTempFile("oss-file-io-", ".tmp", stagingDirectory);
-    currentStagingFile.deleteOnExit();
-
-    stream = new BufferedOutputStream(new FileOutputStream(currentStagingFile));
-  }
-
   private void completeUploads() {
     long contentLength = currentStagingFile.length();
-    LOG.debug("Uploading current staging files to oss, total byte size is: {}", contentLength);
     if (contentLength == 0) {
-      LOG.warn("Invalid staging files, content length is 0, doesn't upload to oss");
+      LOG.debug("Skipping empty upload to OSS");
       return;
     }
+
+    LOG.debug("Uploading {} staged bytes to OSS", contentLength);
     InputStream contentStream = uncheckedInputStream(currentStagingFile);
     ObjectMetadata metadata = new ObjectMetadata();
     metadata.setContentLength(contentLength);
@@ -128,19 +148,10 @@ public class OSSOutputStream extends PositionOutputStream {
     client.putObject(request);
   }
 
-  private static InputStream uncheckedInputStream(File file) {
-    try {
-      return new FileInputStream(file);
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    }
-  }
-
   private void cleanUpStagingFiles() {
     if (!currentStagingFile.delete()) {
       LOG.warn("Failed to delete staging file: {}", currentStagingFile);
     }
-    LOG.debug("Delete current staging file: {}", currentStagingFile);
   }
 
   @SuppressWarnings("checkstyle:NoFinalizer")
