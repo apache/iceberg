@@ -53,7 +53,7 @@ public class TableScanUtil {
 
   public static CloseableIterable<CombinedScanTask> planTasks(CloseableIterable<FileScanTask> splitFiles,
                                                               long splitSize, int lookback, long openFileCost) {
-    return planTasks(splitFiles, splitSize, lookback, openFileCost, true);
+    return planTasks(splitFiles, splitSize, lookback, openFileCost, false);
   }
 
   public static CloseableIterable<CombinedScanTask> planTasks(
