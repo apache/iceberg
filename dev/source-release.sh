@@ -31,17 +31,15 @@ usage () {
     echo "  -r      Release candidate number"
     echo "  -k      Specify signing key. Defaults to \"GPG default key\""
     echo "  -g      Specify Git remote name. Defaults to \"origin\""
-    echo "  -d      Turn on DEBUG output"
     echo "  -b      Git branch to switch to. No-op action. Acts as a dry-run (as getopts won't support full flag names)."
+    echo "  -d      Turn on DEBUG output"
     exit 1
 }
 
 # Default repository remote name
 remote="apache"
 
-set -x
-
-while getopts "v:r:k:g:r:d:b" opt; do
+while getopts "v:r:k:g:r:b:d" opt; do
   case "${opt}" in
     v)
       version="${OPTARG}"
@@ -132,6 +130,7 @@ shasum -a 512 ${projectdir}/$tarball > ${projectdir}/${tarball}.sha512
 echo "Checking out Iceberg RC subversion repo..."
 svn co --depth=empty https://dist.apache.org/repos/dist/dev/iceberg $tmpdir
 
+# TODO - This part needs to be skipped if you're not a committer (or in any dry-run situation).
 echo "Adding tarball to the Iceberg distribution Subversion repo..."
 mkdir -p $tmpdir/$tagrc
 cp $projectdir/${tarball}* $tmpdir/$tagrc
