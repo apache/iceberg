@@ -19,13 +19,17 @@
 
 name: "Java CI Benchmark"
 on:
-  pull_request:
-    types: [ labeled, opened, synchronize, reopened ]
-    paths-ignore:
-    - '.github/workflows/python-ci.yml'
-    - 'python/**'
-    - 'python_legacy/**'
-    - 'site/**'
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: 'Repo name with owner, such as apache/iceberg'
+        required: true
+      ref:
+        description: 'The branch name'
+        required: true
+      benchmarks:
+        description: 'A list of comma-separated Benchmark names, such as "IcebergSourceFlatParquetDataReadBenchmark, IcebergSourceFlatParquetDataFilterBenchmark"'
+        required: true
 
 jobs:
   matrix:
@@ -37,11 +41,7 @@ jobs:
       - uses: actions/checkout@v2
       - id: set-matrix
         run: |
-          cat <<EOF > labels.json
-          ${{ toJson(github.event.pull_request.labels.*) }}
-          EOF
-          matrix=$(cat labels.json | jq '.[] | select(.name | startswith("benchmark-")) | .name' | jq .)
-          matrix=$(echo $matrix | sed 's/ /,/g' | sed 's/"/\"/g')
+          matrix=$(echo "[${{ github.event.inputs.releaseTag }}]" | jq '.[] | select(.name | endswith("Benchmark")) | .name' | jq .)
           echo "::set-output name=matrix::[$matrix]"
           echo "::set-output name=foundlabel::$(echo "[$matrix]" | jq 'if . | length > 0 then true else false end')"
 
@@ -74,14 +74,8 @@ jobs:
         restore-keys: ${{ runner.os }}-gradle
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
 
-    - name: Get Benchmark to run
-      id: get_benchmark
-      run: |
-        benchmark=$(echo ${{ matrix.benchmark }} | sed 's/benchmark-//g')
-        echo "::set-output name=BENCHMARK::${benchmark}Benchmark"
-
     - name: Run Benchmark
-      run: ./gradlew :iceberg-spark:iceberg-spark3:jmh -PjmhIncludeRegex=${{ steps.get_benchmark.outputs.BENCHMARK }} -PjmhOutputPath=benchmark/${{ steps.get_benchmark.outputs.BENCHMARK }}.txt
+      run: ./gradlew :iceberg-spark:iceberg-spark3:jmh -PjmhIncludeRegex=${{ matrix.benchmark }} -PjmhOutputPath=benchmark/${{ matrix.benchmark }}.txt
 
     - uses: actions/upload-artifact@v2
       with:
