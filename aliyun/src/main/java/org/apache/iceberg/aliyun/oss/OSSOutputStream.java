@@ -46,7 +46,6 @@ public class OSSOutputStream extends PositionOutputStream {
 
   private final OSS client;
   private final OSSURI uri;
-  private final AliyunProperties aliyunProperties;
 
   private final File currentStagingFile;
   private final OutputStream stream;
@@ -56,7 +55,6 @@ public class OSSOutputStream extends PositionOutputStream {
   OSSOutputStream(OSS client, OSSURI uri, AliyunProperties aliyunProperties) {
     this.client = client;
     this.uri = uri;
-    this.aliyunProperties = aliyunProperties;
     this.createStack = Thread.currentThread().getStackTrace();
 
     this.currentStagingFile = newStagingFile(aliyunProperties.ossStagingDirectory());

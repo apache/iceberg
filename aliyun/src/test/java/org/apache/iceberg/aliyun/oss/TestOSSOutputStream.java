@@ -51,7 +51,7 @@ public class TestOSSOutputStream extends AliyunOSSTestBase {
   private final Path tmpDir = Files.createTempDirectory("oss-file-io-test-");
   private static final Random random = ThreadLocalRandom.current();
 
-  private AliyunProperties props = new AliyunProperties(ImmutableMap.of(
+  private final AliyunProperties props = new AliyunProperties(ImmutableMap.of(
       AliyunProperties.OSS_STAGING_DIRECTORY, tmpDir.toString()
   ));
 
@@ -96,6 +96,7 @@ public class TestOSSOutputStream extends AliyunOSSTestBase {
     Assert.assertTrue("OSS object should exist", ossClient.doesObjectExist(uri.bucket(), uri.key()));
     Assert.assertEquals("Object length",
         ossClient.getObject(uri.bucket(), uri.key()).getObjectMetadata().getContentLength(), data.length);
+
     byte[] actual = new byte[data.length];
     IOUtils.readFully(ossClient.getObject(uri.bucket(), uri.key()).getObjectContent(), actual);
     Assert.assertArrayEquals("Object content", data, actual);

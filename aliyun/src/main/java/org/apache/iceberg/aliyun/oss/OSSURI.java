@@ -69,7 +69,8 @@ public class OSSURI {
     ValidationException.check(schemeSplit.length == 2, "Invalid OSS location: %s", location);
 
     String scheme = schemeSplit[0];
-    ValidationException.check(VALID_SCHEMES.contains(scheme.toLowerCase()), "Invalid scheme: %s", scheme);
+    ValidationException.check(VALID_SCHEMES.contains(scheme.toLowerCase()),
+            "Invalid scheme: %s in OSS location %s", scheme, location);
 
     String[] authoritySplit = schemeSplit[1].split(PATH_DELIM, 2);
     ValidationException.check(authoritySplit.length == 2,
