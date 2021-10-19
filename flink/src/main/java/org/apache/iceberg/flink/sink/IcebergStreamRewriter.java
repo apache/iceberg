@@ -181,9 +181,9 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
     if (fileGroup.filesSize() < targetSizeInBytes && fileGroup.filesCount() < maxFilesCount) {
       return;
     }
-    String description = MoreObjects.toStringHelper(this)
+    String description = MoreObjects.toStringHelper(DataFileGroup.class)
         .add("partition", partition)
-        .add("lastSequenceNumber", fileGroup.lastSequenceNumber())
+        .add("latestSequenceNumber", fileGroup.latestSequenceNumber())
         .add("latestSnapshotId", fileGroup.latestSnapshotId())
         .add("filesCount", fileGroup.filesCount())
         .add("filesSize", fileGroup.filesSize())
@@ -251,7 +251,13 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
     List<DataFile> currentDataFiles = Lists.newArrayList();
     scanTasks.iterator().forEachRemaining(tasks -> tasks.files().forEach(task -> currentDataFiles.add(task.file())));
 
-    return new RewriteResult(partition, fileGroup.latestSnapshotId(), addedDataFiles, currentDataFiles);
+    return RewriteResult.builder()
+        .partition(partition)
+        .startingSnapshotSeqNum(fileGroup.latestSequenceNumber())
+        .startingSnapshotId(fileGroup.latestSnapshotId())
+        .addAddedDataFiles(addedDataFiles)
+        .addDeletedDataFiles(currentDataFiles)
+        .build();
   }
 
   @Override

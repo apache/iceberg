@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.flink.sink;
 
-import static org.apache.iceberg.flink.sink.ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -117,7 +115,7 @@ public class TestIcebergStreamRewriter {
     Map<String, String> props = ImmutableMap.of(
         TableProperties.DEFAULT_FILE_FORMAT, format.name(),
         TableProperties.FORMAT_VERSION, String.valueOf(formatVersion),
-        FLINK_MANIFEST_LOCATION, flinkManifestFolder.getAbsolutePath()
+        ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION, flinkManifestFolder.getAbsolutePath()
     );
     table = SimpleDataUtil.createTable(tablePath, props, partitioned);
   }
@@ -140,7 +138,7 @@ public class TestIcebergStreamRewriter {
           SimpleDataUtil.createRowData(2, "bbb"),
           SimpleDataUtil.createRowData(3, "ccc")
       ));
-      DeleteFile deleteFile11 = writePosDeleteFile("pos-delete-ckpt1-1" , ImmutableList.of(
+      DeleteFile deleteFile11 = writePosDeleteFile("pos-delete-ckpt1-1", ImmutableList.of(
           Pair.of(dataFile11.path(), 1L))
       );
       CommitResult commitResult1 = commitData(table.spec().specId(), null,
@@ -155,7 +153,7 @@ public class TestIcebergStreamRewriter {
           SimpleDataUtil.createRowData(3, "xxx"),
           SimpleDataUtil.createRowData(4, "ddd")
       ));
-      DeleteFile deleteFile21 = writeEqDeleteFile("eq-delete-ckpt2-1" , ImmutableList.of(
+      DeleteFile deleteFile21 = writeEqDeleteFile("eq-delete-ckpt2-1", ImmutableList.of(
           SimpleDataUtil.createRowData(3, "ccc")
       ));
       DataFile dataFile22 = writeDataFile("data-ckpt2-2", ImmutableList.of(
@@ -181,7 +179,7 @@ public class TestIcebergStreamRewriter {
       Assert.assertEquals(1, harness.extractOutputValues().size());
       RewriteResult rewriteResult = harness.extractOutputValues().get(0);
 
-      Assert.assertEquals(null, rewriteResult.partition());
+      Assert.assertTrue(rewriteResult.partitions().isEmpty());
       Assert.assertEquals(commitResult3.snapshotId(), rewriteResult.startingSnapshotId());
       Assert.assertEquals(4, Iterables.size(rewriteResult.deletedDataFiles()));
       Assert.assertEquals(1, Iterables.size(rewriteResult.addedDataFiles()));

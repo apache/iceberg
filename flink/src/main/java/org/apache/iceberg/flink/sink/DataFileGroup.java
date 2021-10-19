@@ -36,22 +36,22 @@ import org.slf4j.LoggerFactory;
 class DataFileGroup implements KryoSerializable {
   private static final Logger LOG = LoggerFactory.getLogger(DataFileGroup.class);
 
-  private long lastSequenceNumber;
+  private long latestSequenceNumber;
   private long lastSnapshotId;
   private int filesCount;
   private long filesSize;
   private transient List<DeltaManifests> manifestsList;
 
   DataFileGroup() {
-    this.lastSequenceNumber = 0;
+    this.latestSequenceNumber = 0;
     this.lastSnapshotId = 0;
     this.filesCount = 0;
     this.filesSize = 0;
     this.manifestsList = Lists.newArrayList();
   }
 
-  long lastSequenceNumber() {
-    return lastSequenceNumber;
+  long latestSequenceNumber() {
+    return latestSequenceNumber;
   }
 
   long latestSnapshotId() {
@@ -80,8 +80,8 @@ class DataFileGroup implements KryoSerializable {
       return;
     }
 
-    if (sequenceNumber > lastSequenceNumber) {
-      lastSequenceNumber = sequenceNumber;
+    if (sequenceNumber > latestSequenceNumber) {
+      latestSequenceNumber = sequenceNumber;
       lastSnapshotId = snapshotId;
     }
 
@@ -93,7 +93,7 @@ class DataFileGroup implements KryoSerializable {
   @Override
   public void write(Kryo kryo, Output output) {
     try {
-      output.writeLong(lastSequenceNumber);
+      output.writeLong(latestSequenceNumber);
       output.writeLong(lastSnapshotId);
       output.writeInt(filesCount);
       output.writeLong(filesSize);
@@ -115,7 +115,7 @@ class DataFileGroup implements KryoSerializable {
   public void read(Kryo kryo, Input input) {
 
     try {
-      lastSequenceNumber = input.readLong();
+      latestSequenceNumber = input.readLong();
       lastSnapshotId = input.readLong();
       filesCount = input.readInt();
       filesSize = input.readLong();
@@ -140,7 +140,7 @@ class DataFileGroup implements KryoSerializable {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("lastSequenceNumber", lastSequenceNumber)
+        .add("latestSequenceNumber", latestSequenceNumber)
         .add("lastSnapshotId", lastSnapshotId)
         .add("dataFilesCount", filesCount)
         .add("dataFilesSize", filesSize)

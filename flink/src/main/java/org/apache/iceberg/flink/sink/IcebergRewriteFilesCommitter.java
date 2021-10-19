@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.flink.sink;
 
-import org.apache.flink.runtime.state.StateInitializationContext;
+import java.util.List;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
@@ -29,8 +29,11 @@ import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,37 +45,55 @@ class IcebergRewriteFilesCommitter extends AbstractStreamOperator<Void>
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergRewriteFilesCommitter.class);
 
+  public static final String COMMIT_GROUP_SIZE = "flink.rewrite.commit-groups-size";
+  public static final int COMMIT_GROUP_SIZE_DEFAULT = Integer.MAX_VALUE;
+
   private final TableLoader tableLoader;
   private transient Table table;
   private transient TableOperations ops;
+
+  private transient int commitGroupSize;
+
+  private final List<RewriteResult> rewriteResults = Lists.newArrayList();
 
   IcebergRewriteFilesCommitter(TableLoader tableLoader) {
     this.tableLoader = tableLoader;
   }
 
   @Override
-  public void initializeState(StateInitializationContext context) throws Exception {
-    super.initializeState(context);
-
-    // Open the table loader and load the table.
+  public void open() throws Exception {
     this.tableLoader.open();
     this.table = tableLoader.loadTable();
     this.ops = ((HasTableOperations) table).operations();
+
+    commitGroupSize = PropertyUtil.propertyAsInt(table.properties(), COMMIT_GROUP_SIZE, COMMIT_GROUP_SIZE_DEFAULT);
+    Preconditions.checkArgument(commitGroupSize > 0,
+        "Cannot set %s to a negative number, %d < 0", COMMIT_GROUP_SIZE, commitGroupSize);
+  }
+
+  @Override
+  public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
+    super.prepareSnapshotPreBarrier(checkpointId);
+    commitRewriteGroups();
   }
 
   @Override
   public void processElement(StreamRecord<RewriteResult> record) throws Exception {
-    commit(record.getValue());  // TODO async
+    rewriteResults.add(record.getValue());
+    if (rewriteResults.size() >= commitGroupSize) {
+      commitRewriteGroups();
+    }
   }
 
-  private void commit(RewriteResult result) {
+  private void commitRewriteGroups() {
+    RewriteResult result = RewriteResult.builder().addAll(rewriteResults).build();
     try {
       RewriteFiles rewriteFiles = table.newRewrite()
           .validateFromSnapshot(result.startingSnapshotId())
           .rewriteFiles(Sets.newHashSet(result.deletedDataFiles()), Sets.newHashSet(result.addedDataFiles()));
       rewriteFiles.commit();
     } catch (Exception e) {
-      LOG.error("Cannot commit file group {} and attempting to clean up written files", result, e);
+      LOG.error("Cannot commit {}, attempting to clean up written files", result, e);
 
       Tasks.foreach(Iterables.transform(result.addedDataFiles(), f -> f.path().toString()))
           .noRetry()
@@ -84,6 +105,14 @@ class IcebergRewriteFilesCommitter extends AbstractStreamOperator<Void>
 
   @Override
   public void endInput() throws Exception {
+    commitRewriteGroups();
+  }
 
+  @Override
+  public void dispose() throws Exception {
+    super.dispose();
+    if (tableLoader != null) {
+      tableLoader.close();
+    }
   }
 }
