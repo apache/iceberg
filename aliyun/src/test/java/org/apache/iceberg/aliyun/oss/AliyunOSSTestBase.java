@@ -29,7 +29,7 @@ public abstract class AliyunOSSTestBase {
   @ClassRule
   public static final AliyunOSSTestRule OSS_TEST_RULE = AliyunOSSTestUtility.initialize();
 
-  private final SerializableSupplier<OSS> oss = OSS_TEST_RULE::createOSSClient;
+  private final SerializableSupplier<OSS> ossClient = OSS_TEST_RULE::createOSSClient;
   private final String bucketName = OSS_TEST_RULE.testBucketName();
   private final String keyPrefix = OSS_TEST_RULE.keyPrefix();
 
@@ -47,7 +47,7 @@ public abstract class AliyunOSSTestBase {
     return String.format("oss://%s/%s%s", bucketName, keyPrefix, key);
   }
 
-  protected SerializableSupplier<OSS> oss() {
-    return oss;
+  protected SerializableSupplier<OSS> ossClient() {
+    return ossClient;
   }
 }

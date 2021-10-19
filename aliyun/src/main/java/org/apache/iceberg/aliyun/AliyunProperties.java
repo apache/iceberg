@@ -25,7 +25,7 @@ import org.apache.iceberg.util.PropertyUtil;
 
 public class AliyunProperties implements Serializable {
   /**
-   * Location to put staging files for uploading to OSS, default to temp directory set in java.io.tmpdir.
+   * Location to put staging files for uploading to OSS, defaults to the directory value of java.io.tmpdir.
    */
   public static final String OSS_STAGING_DIRECTORY = "oss.staging-dir";
   private final String ossStagingDirectory;

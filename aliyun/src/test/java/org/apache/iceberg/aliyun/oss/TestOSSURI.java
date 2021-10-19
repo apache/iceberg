@@ -49,7 +49,7 @@ public class TestOSSURI {
   }
 
   @Test
-  public void invalidOBucket() {
+  public void invalidBucket() {
     AssertHelpers.assertThrows("Invalid bucket", IllegalArgumentException.class,
         OSS_RESOURCE_MANAGER.getFormattedString("BucketNameInvalid", "test_bucket"),
         () -> new OSSURI("https://test_bucket/path/to/file"));

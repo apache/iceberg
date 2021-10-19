@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import org.apache.commons.io.IOUtils;
 import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -44,11 +45,11 @@ import static org.mockito.Mockito.verify;
 public class TestOSSOutputStream extends AliyunOSSTestBase {
   private static final Logger LOG = LoggerFactory.getLogger(TestOSSOutputStream.class);
 
-  private final OSS oss = oss().get();
-  private final OSS ossMock = mock(OSS.class, delegatesTo(oss));
+  private final OSS ossClient = ossClient().get();
+  private final OSS ossMock = mock(OSS.class, delegatesTo(ossClient));
 
-  private final Random random = new Random(1);
   private final Path tmpDir = Files.createTempDirectory("oss-file-io-test-");
+  private static final Random random = ThreadLocalRandom.current();
 
   private AliyunProperties props = new AliyunProperties(ImmutableMap.of(
       AliyunProperties.OSS_STAGING_DIRECTORY, tmpDir.toString()
@@ -83,25 +84,25 @@ public class TestOSSOutputStream extends AliyunOSSTestBase {
     try (OSSOutputStream out = new OSSOutputStream(mock, uri, props)) {
       if (arrayWrite) {
         out.write(data);
-        Assert.assertEquals(data.length, out.getPos());
+        Assert.assertEquals("OSSOutputStream position", data.length, out.getPos());
       } else {
         for (int i = 0; i < data.length; i++) {
           out.write(data[i]);
-          Assert.assertEquals(i + 1, out.getPos());
+          Assert.assertEquals("OSSOutputStream position", i + 1, out.getPos());
         }
       }
     }
 
-    Assert.assertTrue(oss.doesObjectExist(uri.bucket(), uri.key()));
-    Assert.assertEquals(
-        oss.getObject(uri.bucket(), uri.key()).getObjectMetadata().getContentLength(),
-        data.length);
+    Assert.assertTrue("OSS object should exist", ossClient.doesObjectExist(uri.bucket(), uri.key()));
+    Assert.assertEquals("Object length",
+        ossClient.getObject(uri.bucket(), uri.key()).getObjectMetadata().getContentLength(), data.length);
     byte[] actual = new byte[data.length];
-    IOUtils.readFully(oss.getObject(uri.bucket(), uri.key()).getObjectContent(), actual);
-    Assert.assertArrayEquals(data, actual);
+    IOUtils.readFully(ossClient.getObject(uri.bucket(), uri.key()).getObjectContent(), actual);
+    Assert.assertArrayEquals("Object content", data, actual);
 
     // Verify all staging files are cleaned up.
-    Assert.assertEquals(0, Files.list(Paths.get(props.ossStagingDirectory())).count());
+    Assert.assertEquals("Staging files should clean up",
+        0, Files.list(Paths.get(props.ossStagingDirectory())).count());
   }
 
   private OSSURI randomURI() {
