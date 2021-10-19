@@ -84,6 +84,7 @@ public class TableMetadataParser {
   // visible for testing
   static final String FORMAT_VERSION = "format-version";
   static final String TABLE_UUID = "table-uuid";
+  static final String LOCATION_PREFIX = "location-prefix";
   static final String LOCATION = "location";
   static final String LAST_SEQUENCE_NUMBER = "last-sequence-number";
   static final String LAST_UPDATED_MILLIS = "last-updated-ms";
@@ -167,6 +168,7 @@ public class TableMetadataParser {
     generator.writeNumberField(FORMAT_VERSION, metadata.formatVersion());
     generator.writeStringField(TABLE_UUID, metadata.uuid());
     generator.writeStringField(LOCATION, metadata.location());
+    generator.writeStringField(LOCATION_PREFIX, metadata.locationPrefix());
     if (metadata.formatVersion() > 1) {
       generator.writeNumberField(LAST_SEQUENCE_NUMBER, metadata.lastSequenceNumber());
     }
@@ -276,6 +278,7 @@ public class TableMetadataParser {
 
     String uuid = JsonUtil.getStringOrNull(TABLE_UUID, node);
     String location = JsonUtil.getString(LOCATION, node);
+    String locationPrefix = JsonUtil.getString(LOCATION_PREFIX, node);
     long lastSequenceNumber;
     if (formatVersion > 1) {
       lastSequenceNumber = JsonUtil.getLong(LAST_SEQUENCE_NUMBER, node);
@@ -386,7 +389,7 @@ public class TableMetadataParser {
     List<Snapshot> snapshots = Lists.newArrayListWithExpectedSize(snapshotArray.size());
     Iterator<JsonNode> iterator = snapshotArray.elements();
     while (iterator.hasNext()) {
-      snapshots.add(SnapshotParser.fromJson(io, iterator.next(), location, shouldUseRelativePaths));
+      snapshots.add(SnapshotParser.fromJson(io, iterator.next(), locationPrefix, location, shouldUseRelativePaths));
     }
 
     ImmutableList.Builder<HistoryEntry> entries = ImmutableList.builder();
@@ -409,7 +412,7 @@ public class TableMetadataParser {
       }
     }
 
-    return new TableMetadata(file, formatVersion, uuid, location,
+    return new TableMetadata(file, formatVersion, uuid, locationPrefix, location,
         lastSequenceNumber, lastUpdatedMillis, lastAssignedColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentVersionId,
         snapshots, entries.build(), metadataEntries.build());

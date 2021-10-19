@@ -103,7 +103,8 @@ public class AllEntriesTable extends BaseMetadataTable {
       ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
 
       return CloseableIterable.transform(manifests, manifest -> new ManifestEntriesTable.ManifestReadTask(
-          ops.io(), manifest, schema(), schemaString, specString, residuals, ops.current().specsById()));
+          ops.io(), manifest, schema(), schemaString, specString, residuals, ops.current().specsById(),
+          ops.current().locationPrefix(), ops.current().location(), ops.current().useRelativePaths()));
     }
   }
 

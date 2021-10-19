@@ -44,6 +44,7 @@ class BaseSnapshot implements Snapshot {
   private final String operation;
   private final Map<String, String> summary;
   private final Integer schemaId;
+  private final String tableLocationPrefix;
   private final String tableLocation;
   private final Boolean useRelativePaths;
 
@@ -61,18 +62,10 @@ class BaseSnapshot implements Snapshot {
       long snapshotId,
       Integer schemaId,
       String... manifestFiles) {
-    this(io, snapshotId, schemaId, null, false, manifestFiles);
-  }
-
-  BaseSnapshot(FileIO io,
-      long snapshotId,
-      Integer schemaId,
-      String tableLocation,
-      Boolean useRelativePaths,
-      String... manifestFiles) {
     this(io, snapshotId, null, System.currentTimeMillis(), null, null,
-        schemaId, Lists.transform(Arrays.asList(manifestFiles),
-            path -> new GenericManifestFile(io.newInputFile(path), 0)), tableLocation, useRelativePaths);
+        schemaId, Lists.transform(
+            Arrays.asList(manifestFiles),
+            path -> new GenericManifestFile(io.newInputFile(path), 0)));
   }
 
   BaseSnapshot(FileIO io,
@@ -84,8 +77,8 @@ class BaseSnapshot implements Snapshot {
       Map<String, String> summary,
       Integer schemaId,
       String manifestList) {
-    this(io, sequenceNumber, snapshotId, parentId, timestampMillis, operation, summary, schemaId, manifestList, null,
-        false);
+    this(io, sequenceNumber, snapshotId, parentId, timestampMillis, operation, summary, schemaId, null, null, false,
+        manifestList);
   }
 
   BaseSnapshot(FileIO io,
@@ -96,9 +89,10 @@ class BaseSnapshot implements Snapshot {
       String operation,
       Map<String, String> summary,
       Integer schemaId,
-      String manifestList,
+      String tableLocationPrefix,
       String tableLocation,
-      boolean useRelativePaths) {
+      boolean useRelativePaths,
+      String manifestList) {
     this.io = io;
     this.sequenceNumber = sequenceNumber;
     this.snapshotId = snapshotId;
@@ -107,9 +101,10 @@ class BaseSnapshot implements Snapshot {
     this.operation = operation;
     this.summary = summary;
     this.schemaId = schemaId;
-    this.manifestListLocation = manifestList;
+    this.tableLocationPrefix = tableLocationPrefix;
     this.tableLocation = tableLocation;
     this.useRelativePaths = useRelativePaths;
+    this.manifestListLocation = manifestList;
   }
 
   BaseSnapshot(FileIO io,
@@ -121,7 +116,7 @@ class BaseSnapshot implements Snapshot {
       Integer schemaId,
       List<ManifestFile> dataManifests) {
     this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, schemaId, null,
-        null, false);
+        null, false, null);
     this.allManifests = dataManifests;
   }
 
@@ -132,11 +127,13 @@ class BaseSnapshot implements Snapshot {
       String operation,
       Map<String, String> summary,
       Integer schemaId,
-      List<ManifestFile> dataManifests,
+      String tableLocationPrefix,
       String tableLocation,
-      Boolean useRelativePaths) {
-    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, schemaId, null,
-        tableLocation, useRelativePaths);
+      Boolean useRelativePaths,
+      List<ManifestFile> dataManifests) {
+    this(io, INITIAL_SEQUENCE_NUMBER, snapshotId, parentId, timestampMillis, operation, summary, schemaId,
+        tableLocationPrefix, tableLocation, useRelativePaths, null);
+    this.allManifests = dataManifests;
   }
 
   @Override
@@ -246,7 +243,8 @@ class BaseSnapshot implements Snapshot {
     // read only manifests that were created by this snapshot
     Iterable<ManifestFile> changedManifests = Iterables.filter(dataManifests(),
         manifest -> Objects.equal(manifest.snapshotId(), snapshotId));
-    try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(io, changedManifests, tableLocation,
+    try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(io, changedManifests,
+        tableLocationPrefix, tableLocation,
         useRelativePaths)
         .ignoreExisting()
         .entries()) {

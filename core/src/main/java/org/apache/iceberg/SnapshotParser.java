@@ -47,6 +47,7 @@ public class SnapshotParser {
   private static final String MANIFESTS = "manifests";
   private static final String MANIFEST_LIST = "manifest-list";
   private static final String SCHEMA_ID = "schema-id";
+  private static final String LOCATION_PREFIX = "location-prefix";
 
   static void toJson(Snapshot snapshot, JsonGenerator generator)
       throws IOException {
@@ -110,7 +111,8 @@ public class SnapshotParser {
     }
   }
 
-  static Snapshot fromJson(FileIO io, JsonNode node, String tableLocation, boolean useRelativePaths) {
+  static Snapshot fromJson(FileIO io, JsonNode node, String tableLocationPrefix, String tableLocation,
+      boolean useRelativePaths) {
     Preconditions.checkArgument(node.isObject(),
         "Cannot parse table version from a non-object: %s", node);
 
@@ -151,30 +153,32 @@ public class SnapshotParser {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
       return new BaseSnapshot(
-          io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary, schemaId, manifestList,
-          tableLocation, useRelativePaths);
+          io, sequenceNumber, snapshotId, parentId, timestamp, operation, summary, schemaId,
+          tableLocationPrefix, tableLocation, useRelativePaths, manifestList);
 
     } else {
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be
       // loaded lazily, if it is needed
       List<ManifestFile> manifests = Lists.transform(JsonUtil.getStringList(MANIFESTS, node),
           location -> new GenericManifestFile(io.newInputFile(location), 0));
-      return new BaseSnapshot(io, snapshotId, parentId, timestamp, operation, summary, schemaId, manifests,
-          tableLocation, useRelativePaths);
+      return new BaseSnapshot(io, snapshotId, parentId, timestamp, operation, summary, schemaId,
+          tableLocationPrefix, tableLocation, useRelativePaths, manifests);
     }
   }
 
   public static Snapshot fromJson(FileIO io, String json) {
     try {
-      return fromJson(io, JsonUtil.mapper().readValue(json, JsonNode.class), null, false);
+      return fromJson(io, JsonUtil.mapper().readValue(json, JsonNode.class), null, null, false);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read version from json: %s", json);
     }
   }
 
-  public static Snapshot fromJson(FileIO io, String json, String tableLocation, Boolean useRelativePaths) {
+  public static Snapshot fromJson(FileIO io, String json, String locationPrefix, String tableLocation,
+      Boolean useRelativePaths) {
     try {
-      return fromJson(io, JsonUtil.mapper().readValue(json, JsonNode.class), tableLocation, useRelativePaths);
+      return fromJson(io, JsonUtil.mapper().readValue(json, JsonNode.class), locationPrefix, tableLocation,
+          useRelativePaths);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read version from json: %s", json);
     }

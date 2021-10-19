@@ -132,16 +132,19 @@ public class HadoopTables implements Tables, Configurable {
    *
    * @param schema iceberg schema used to create the table
    * @param spec partitioning spec, if null the table will be unpartitioned
+   * @param order the sort order
    * @param properties a string map of table properties, initialized to empty if null
+   * @param locationPrefix the prefix for this table location
    * @param location a path URI (e.g. hdfs:///warehouse/my_table)
    * @return newly created table implementation
    */
   @Override
   public Table create(Schema schema, PartitionSpec spec, SortOrder order,
-                      Map<String, String> properties, String location) {
+                      Map<String, String> properties, String locationPrefix, String location) {
     return buildTable(location, schema).withPartitionSpec(spec)
         .withSortOrder(order)
         .withProperties(properties)
+        .withLocationPrefix(locationPrefix)
         .create();
   }
 
@@ -255,13 +258,18 @@ public class HadoopTables implements Tables, Configurable {
 
   private class HadoopTableBuilder implements Catalog.TableBuilder {
     private final String location;
+    private final String locationPrefix;
     private final Schema schema;
     private final ImmutableMap.Builder<String, String> propertiesBuilder = ImmutableMap.builder();
     private PartitionSpec spec = PartitionSpec.unpartitioned();
     private SortOrder sortOrder = SortOrder.unsorted();
 
-
     HadoopTableBuilder(String location, Schema schema) {
+      this(null, location, schema);
+    }
+
+    HadoopTableBuilder(String locationPrefix, String location, Schema schema) {
+      this.locationPrefix = locationPrefix;
       this.location = location;
       this.schema = schema;
     }
@@ -297,6 +305,14 @@ public class HadoopTables implements Tables, Configurable {
     @Override
     public Catalog.TableBuilder withProperty(String key, String value) {
       propertiesBuilder.put(key, value);
+      return this;
+    }
+
+    @Override
+    public Catalog.TableBuilder withLocationPrefix(String newPrefix) {
+      Preconditions.checkArgument(newPrefix == null || locationPrefix.equals(newPrefix),
+          String.format("Table location prefix %s differs from the table location prefix (%s) from the PathIdentifier",
+              newPrefix, locationPrefix));
       return this;
     }
 

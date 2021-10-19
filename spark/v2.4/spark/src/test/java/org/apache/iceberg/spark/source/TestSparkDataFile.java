@@ -32,7 +32,6 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestReader;
-import org.apache.iceberg.MetadataPathUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
@@ -161,8 +160,7 @@ public class TestSparkDataFile {
     Assert.assertEquals("Should have 1 manifest", 1, manifests.size());
 
     List<DataFile> dataFiles = Lists.newArrayList();
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifests.get(0), table.io(),
-        table.location(), MetadataPathUtils.shouldUseRelativePath(table.properties()))) {
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifests.get(0), table.io())) {
       for (DataFile dataFile : reader) {
         checkDataFile(dataFile.copy(), DataFiles.builder(table.spec()).copy(dataFile).build());
         dataFiles.add(dataFile.copy());

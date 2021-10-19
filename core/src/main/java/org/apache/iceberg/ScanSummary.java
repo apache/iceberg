@@ -220,7 +220,8 @@ public class ScanSummary {
           limit, throwIfLimited, Comparators.charSequences());
 
       try (CloseableIterable<ManifestEntry<DataFile>> entries = new ManifestGroup(ops.io(), manifests,
-          ops.current().location(), ops.current().useRelativePaths())
+          ops.current().location(),
+          ops.current().locationPrefix(), ops.current().useRelativePaths())
           .specsById(ops.current().specsById())
           .filterData(rowFilter)
           .ignoreDeleted()

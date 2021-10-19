@@ -346,7 +346,8 @@ public class SparkTableUtil {
 
   private static Iterator<ManifestFile> buildManifest(SerializableConfiguration conf, PartitionSpec spec,
                                                       String basePath, Iterator<Tuple2<String, DataFile>> fileTuples,
-                                                      String tableLocation, boolean shouldUseRelativePaths) {
+                                                      String locationPrefix, String tableLocation,
+      boolean shouldUseRelativePaths) {
     if (fileTuples.hasNext()) {
       FileIO io = new HadoopFileIO(conf.get());
       TaskContext ctx = TaskContext.get();
@@ -354,7 +355,8 @@ public class SparkTableUtil {
       Path location = new Path(basePath, suffix);
       String outputPath = FileFormat.AVRO.addExtension(location.toString());
       OutputFile outputFile = io.newOutputFile(outputPath);
-      ManifestWriter<DataFile> writer = ManifestFiles.write(spec, outputFile, tableLocation, shouldUseRelativePaths);
+      ManifestWriter<DataFile> writer = ManifestFiles.write(spec, outputFile, locationPrefix, tableLocation,
+          shouldUseRelativePaths);
 
       try (ManifestWriter<DataFile> writerRef = writer) {
         fileTuples.forEachRemaining(fileTuple -> writerRef.add(fileTuple._2));
@@ -541,7 +543,8 @@ public class SparkTableUtil {
         .mapPartitions(
             (MapPartitionsFunction<Tuple2<String, DataFile>, ManifestFile>) fileTuple ->
                 buildManifest(serializableConf, spec, stagingDir, fileTuple,
-                targetTable.location(), MetadataPathUtils.shouldUseRelativePath(targetTable.properties())),
+                targetTable.locationPrefix(), targetTable.location(),
+                    MetadataPathUtils.shouldUseRelativePath(targetTable.properties())),
             Encoders.javaSerialization(ManifestFile.class))
         .collectAsList();
 

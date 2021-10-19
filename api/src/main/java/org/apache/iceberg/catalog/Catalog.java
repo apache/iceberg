@@ -395,6 +395,13 @@ public interface Catalog {
     TableBuilder withLocation(String location);
 
     /**
+     * Sets a location prefix for the table.
+     *
+     * @param prefix Location prefix for table location
+     */
+    TableBuilder withLocationPrefix(String prefix);
+
+    /**
      * Adds key/value properties to the table.
      *
      * @param properties key/value properties

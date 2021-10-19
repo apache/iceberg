@@ -558,6 +558,11 @@ class BaseTransaction implements Transaction {
     }
 
     @Override
+    public String locationPrefix() {
+      return current.locationPrefix();
+    }
+
+    @Override
     public String location() {
       return current.location();
     }

@@ -19,6 +19,8 @@
 
 package org.apache.iceberg;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
@@ -37,18 +39,25 @@ public final class MetadataPathUtils {
   /**
    * Convert a given relative path to absolute path for the table by appending the base table location
    * @param path relative path to be converted
-   * @param tableLocation base table location
-   * @param shouldUseRelativePaths whether relative paths should be used
    * @return the absolute path
    */
-  public static String toAbsolutePath(String path, String tableLocation, boolean shouldUseRelativePaths) {
+  public static String toAbsolutePath(String path, String locationPrefix) {
     Preconditions.checkArgument(path != null && path.trim().length() > 0);
-    // TODO: Fix this after tests are changed to always pass the table location. Table location cannot be null.
-    if (tableLocation == null) {
-      return path;
-    }
     // convert to absolute path by appending the table location
-    return shouldUseRelativePaths && !path.startsWith(tableLocation) ? tableLocation + "/" + path : path;
+    Path relativePath = Paths.get(path);
+    Path prefix = Paths.get(locationPrefix);
+    return !relativePath.startsWith(prefix) ? Paths.get(locationPrefix, path).toString() : path;
+  }
+
+  /**
+   * Convert manifest path to absolute path if necessary
+   * @param manifest manifest file
+   * @return new metadata path
+   */
+  public static String toAbsolutePath(ManifestFile manifest, String locationPrefix) {
+    Path metadataPath = Paths.get(manifest.path());
+    Path prefix = Paths.get(locationPrefix);
+    return !metadataPath.startsWith(prefix) ? Paths.get(locationPrefix, manifest.path()).toString() : manifest.path();
   }
 
   /**
@@ -57,15 +66,19 @@ public final class MetadataPathUtils {
    * @param tableLocation the base table location
    * @return relative path with respect to the base table location
    */
-  public static String toRelativePath(String path, String tableLocation, boolean shouldUseRelativePaths) {
+  public static String toRelativePath(String path, String locationPrefix, String tableLocation,
+      boolean useRelativePaths) {
     Preconditions.checkArgument(path != null && path.trim().length() > 0);
     // TODO: Fix this after tests are changed to always pass the table location. Table location cannot be null.
-    if (tableLocation == null) {
+    if (tableLocation == null || locationPrefix == null) {
       return path;
     }
+
     // convert to relative path by removing the table location
-    return shouldUseRelativePaths && path.startsWith(tableLocation) ?
-        path.substring(tableLocation.length() + 1) : path;
+    Path originalPath = Paths.get(path);
+    Path toRemove = Paths.get(locationPrefix, tableLocation);
+    return useRelativePaths && originalPath.startsWith(toRemove) ?
+        originalPath.relativize(toRemove).toString() : path;
   }
 
   /**

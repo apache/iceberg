@@ -219,7 +219,8 @@ public class TableTestBase {
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
     ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, snapshotId,
-        this.table.location(), MetadataPathUtils.shouldUseRelativePath(this.table.properties()));
+        this.table.locationPrefix(), this.table.location(),
+        MetadataPathUtils.shouldUseRelativePath(this.table.properties()));
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -249,12 +250,13 @@ public class TableTestBase {
     ManifestWriter<F> writer;
     if (entries[0].file() instanceof DataFile) {
       writer = (ManifestWriter<F>) ManifestFiles.write(
-              formatVersion, table.spec(), outputFile, snapshotId, this.table.location(),
+              formatVersion, table.spec(), outputFile, snapshotId, this.table.ops().current().locationPrefix(),
+          this.table.location(),
               this.table.ops().current().useRelativePaths());
     } else {
       writer = (ManifestWriter<F>) ManifestFiles.writeDeleteManifest(
-              formatVersion, table.spec(), outputFile, snapshotId, this.table.location(),
-              this.table.ops().current().useRelativePaths());
+              formatVersion, table.spec(), outputFile, snapshotId, this.table.ops().current().locationPrefix(),
+              this.table.location(), this.table.ops().current().useRelativePaths());
     }
     try {
       for (ManifestEntry<?> entry : entries) {
@@ -289,7 +291,8 @@ public class TableTestBase {
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
 
     ManifestWriter<DataFile> writer = ManifestFiles.write(formatVersion, table.spec(), outputFile, null,
-            this.table.location(), MetadataPathUtils.shouldUseRelativePath(this.table.properties()));
+            this.table.locationPrefix(), this.table.location(),
+        MetadataPathUtils.shouldUseRelativePath(this.table.properties()));
     try {
       for (DataFile file : files) {
         writer.add(file);

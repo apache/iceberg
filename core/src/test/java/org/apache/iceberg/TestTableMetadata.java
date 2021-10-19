@@ -62,6 +62,8 @@ import static org.apache.iceberg.TableMetadataParser.SNAPSHOTS;
 import static org.apache.iceberg.TestHelpers.assertSameSchemaList;
 
 public class TestTableMetadata {
+  // Prefix is optional
+  private static final String TEST_LOCATION_PREFIX = "s3:/bucket";
   private static final String TEST_LOCATION = "s3://bucket/test/location";
 
   private static final Schema TEST_SCHEMA = new Schema(7,
@@ -104,7 +106,8 @@ public class TestTableMetadata {
     Schema schema = new Schema(6,
         Types.NestedField.required(10, "x", Types.StringType.get()));
 
-    TableMetadata expected = new TableMetadata(null, 2, UUID.randomUUID().toString(), TEST_LOCATION,
+    TableMetadata expected = new TableMetadata(null, 2, UUID.randomUUID().toString(), TEST_LOCATION_PREFIX,
+        TEST_LOCATION,
         SEQ_NO, System.currentTimeMillis(), 3,
         7, ImmutableList.of(TEST_SCHEMA, schema),
         5, ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
@@ -119,6 +122,8 @@ public class TestTableMetadata {
         expected.formatVersion(), metadata.formatVersion());
     Assert.assertEquals("Table UUID should match",
         expected.uuid(), metadata.uuid());
+    Assert.assertEquals("Table location prefix should match",
+        expected.locationPrefix(), metadata.locationPrefix());
     Assert.assertEquals("Table location should match",
         expected.location(), metadata.location());
     Assert.assertEquals("Last sequence number should match",
@@ -178,7 +183,7 @@ public class TestTableMetadata {
         ops.io(), currentSnapshotId, previousSnapshotId, currentSnapshotId, null, null, null, ImmutableList.of(
           new GenericManifestFile(localInput("file:/tmp/manfiest.2.avro"), spec.specId())));
 
-    TableMetadata expected = new TableMetadata(null, 1, null, TEST_LOCATION,
+    TableMetadata expected = new TableMetadata(null, 1, null,  TEST_LOCATION_PREFIX, TEST_LOCATION,
         0, System.currentTimeMillis(), 3, TableMetadata.INITIAL_SCHEMA_ID,
         ImmutableList.of(schema), 6, ImmutableList.of(spec), spec.lastAssignedFieldId(),
         TableMetadata.INITIAL_SORT_ORDER_ID, ImmutableList.of(sortOrder), ImmutableMap.of("property", "value"),
@@ -191,6 +196,8 @@ public class TestTableMetadata {
     Assert.assertEquals("Format version should match",
         expected.formatVersion(), metadata.formatVersion());
     Assert.assertNull("Table UUID should not be assigned", metadata.uuid());
+    Assert.assertEquals("Table location prefix should match",
+        expected.locationPrefix(), metadata.locationPrefix());
     Assert.assertEquals("Table location should match",
         expected.location(), metadata.location());
     Assert.assertEquals("Last sequence number should default to 0",
@@ -300,8 +307,8 @@ public class TestTableMetadata {
     previousMetadataLog.add(new MetadataLogEntry(currentTimestamp,
         "/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
 
-    TableMetadata base = new TableMetadata(null, 1, UUID.randomUUID().toString(), TEST_LOCATION,
-        0, System.currentTimeMillis(), 3,
+    TableMetadata base = new TableMetadata(null, 1, UUID.randomUUID().toString(), TEST_LOCATION_PREFIX,
+        TEST_LOCATION, 0, System.currentTimeMillis(), 3,
         7, ImmutableList.of(TEST_SCHEMA), 5, ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
         3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
@@ -337,7 +344,7 @@ public class TestTableMetadata {
         "/tmp/000003-" + UUID.randomUUID().toString() + ".metadata.json");
 
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
-        TEST_LOCATION, 0, currentTimestamp - 80, 3,
+        TEST_LOCATION_PREFIX, TEST_LOCATION, 0, currentTimestamp - 80, 3,
         7, ImmutableList.of(TEST_SCHEMA), 5, ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
         3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of("property", "value"), currentSnapshotId,
         Arrays.asList(previousSnapshot, currentSnapshot), reversedSnapshotLog,
@@ -383,7 +390,7 @@ public class TestTableMetadata {
         "/tmp/000006-" + UUID.randomUUID().toString() + ".metadata.json");
 
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
-        TEST_LOCATION, 0, currentTimestamp - 50, 3,
+        TEST_LOCATION_PREFIX, TEST_LOCATION, 0, currentTimestamp - 50, 3,
         7, ImmutableList.of(TEST_SCHEMA), 5,
         ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(), 3, ImmutableList.of(SORT_ORDER_3),
         ImmutableMap.of("property", "value"), currentSnapshotId,
@@ -435,7 +442,7 @@ public class TestTableMetadata {
         "/tmp/000006-" + UUID.randomUUID().toString() + ".metadata.json");
 
     TableMetadata base = new TableMetadata(localInput(latestPreviousMetadata.file()), 1, UUID.randomUUID().toString(),
-        TEST_LOCATION, 0, currentTimestamp - 50, 3, 7, ImmutableList.of(TEST_SCHEMA), 2,
+        TEST_LOCATION_PREFIX, TEST_LOCATION, 0, currentTimestamp - 50, 3, 7, ImmutableList.of(TEST_SCHEMA), 2,
         ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
         TableMetadata.INITIAL_SORT_ORDER_ID, ImmutableList.of(SortOrder.unsorted()),
         ImmutableMap.of("property", "value"), currentSnapshotId,
@@ -462,7 +469,7 @@ public class TestTableMetadata {
   public void testV2UUIDValidation() {
     AssertHelpers.assertThrows("Should reject v2 metadata without a UUID",
         IllegalArgumentException.class, "UUID is required in format v2",
-        () -> new TableMetadata(null, 2, null, TEST_LOCATION, SEQ_NO, System.currentTimeMillis(),
+        () -> new TableMetadata(null, 2, null, TEST_LOCATION_PREFIX, TEST_LOCATION, SEQ_NO, System.currentTimeMillis(),
             LAST_ASSIGNED_COLUMN_ID, 7, ImmutableList.of(TEST_SCHEMA),
             SPEC_5.specId(), ImmutableList.of(SPEC_5), SPEC_5.lastAssignedFieldId(),
             3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of(), -1L,
@@ -475,7 +482,7 @@ public class TestTableMetadata {
     int unsupportedVersion = TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1;
     AssertHelpers.assertThrows("Should reject unsupported metadata",
         IllegalArgumentException.class, "Unsupported format version: v" + unsupportedVersion,
-        () -> new TableMetadata(null, unsupportedVersion, null, TEST_LOCATION, SEQ_NO,
+        () -> new TableMetadata(null, unsupportedVersion, null, TEST_LOCATION_PREFIX, TEST_LOCATION, SEQ_NO,
             System.currentTimeMillis(), LAST_ASSIGNED_COLUMN_ID,
             7, ImmutableList.of(TEST_SCHEMA), SPEC_5.specId(), ImmutableList.of(SPEC_5),
             SPEC_5.lastAssignedFieldId(), 3, ImmutableList.of(SORT_ORDER_3), ImmutableMap.of(), -1L,
