@@ -521,7 +521,9 @@ public class SparkTableUtil {
             Encoders.javaSerialization(DataFile.class));
 
     if (checkDuplicateFiles) {
-      Dataset<Row> importedFiles = filesToImport.map(f -> f.path().toString(), Encoders.STRING()).toDF("file_path");
+      Dataset<Row> importedFiles = filesToImport
+          .map((MapFunction<DataFile, String>) f -> f.path().toString(), Encoders.STRING())
+          .toDF("file_path");
       Dataset<Row> existingFiles = loadMetadataTable(spark, targetTable, MetadataTableType.ENTRIES);
       Column joinCond = existingFiles.col("data_file.file_path").equalTo(importedFiles.col("file_path"));
       Dataset<String> duplicates = importedFiles.join(existingFiles, joinCond)

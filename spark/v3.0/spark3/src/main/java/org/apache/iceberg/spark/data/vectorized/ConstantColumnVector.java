@@ -118,7 +118,7 @@ class ConstantColumnVector extends ColumnVector {
   }
 
   @Override
-  protected ColumnVector getChild(int ordinal) {
+  public ColumnVector getChild(int ordinal) {
     throw new UnsupportedOperationException("ConstantColumnVector only supports primitives");
   }
 }

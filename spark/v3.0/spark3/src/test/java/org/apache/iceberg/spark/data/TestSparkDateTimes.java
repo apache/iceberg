@@ -19,10 +19,12 @@
 
 package org.apache.iceberg.spark.data;
 
+import java.time.ZoneId;
 import java.util.TimeZone;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
+import org.apache.spark.sql.catalyst.util.TimestampFormatter;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -65,7 +67,9 @@ public class TestSparkDateTimes {
 
   public void checkSparkTimestamp(String timestampString, String sparkRepr) {
     Literal<Long> ts = Literal.of(timestampString).to(Types.TimestampType.withZone());
-    String sparkTimestamp = DateTimeUtils.timestampToString(ts.value());
+    ZoneId zoneId = DateTimeUtils.getZoneId("UTC");
+    TimestampFormatter formatter = TimestampFormatter.getFractionFormatter(zoneId);
+    String sparkTimestamp = DateTimeUtils.timestampToString(formatter, ts.value());
     System.err.println(timestampString + ": " + ts.value());
     Assert.assertEquals("Should be the same timestamp (" + ts.value() + ")",
         sparkRepr, sparkTimestamp);
