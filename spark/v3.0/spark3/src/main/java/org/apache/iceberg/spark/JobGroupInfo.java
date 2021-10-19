@@ -17,13 +17,32 @@
  * under the License.
  */
 
-// add enabled Spark version modules to the build
-def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
+package org.apache.iceberg.spark;
 
-if (jdkVersion == '8' && sparkVersions.contains("2.4")) {
-  apply from: file("$projectDir/v2.4/build.gradle")
-}
+/**
+ * Captures information about the current job
+ * which is used for displaying on the UI
+ */
+public class JobGroupInfo {
+  private String groupId;
+  private String description;
+  private boolean interruptOnCancel;
 
-if (sparkVersions.contains("3.0")) {
-  apply from: file("$projectDir/v3.0/build.gradle")
+  public JobGroupInfo(String groupId, String desc, boolean interruptOnCancel) {
+    this.groupId = groupId;
+    this.description = desc;
+    this.interruptOnCancel = interruptOnCancel;
+  }
+
+  public String groupId() {
+    return groupId;
+  }
+
+  public String description() {
+    return description;
+  }
+
+  public boolean interruptOnCancel() {
+    return interruptOnCancel;
+  }
 }

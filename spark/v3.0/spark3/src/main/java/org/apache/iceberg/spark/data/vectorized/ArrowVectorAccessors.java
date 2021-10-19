@@ -17,13 +17,24 @@
  * under the License.
  */
 
-// add enabled Spark version modules to the build
-def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
+package org.apache.iceberg.spark.data.vectorized;
 
-if (jdkVersion == '8' && sparkVersions.contains("2.4")) {
-  apply from: file("$projectDir/v2.4/build.gradle")
-}
+import org.apache.iceberg.arrow.vectorized.ArrowVectorAccessor;
+import org.apache.iceberg.arrow.vectorized.VectorHolder;
+import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.vectorized.ArrowColumnVector;
+import org.apache.spark.sql.vectorized.ColumnarArray;
+import org.apache.spark.unsafe.types.UTF8String;
 
-if (sparkVersions.contains("3.0")) {
-  apply from: file("$projectDir/v3.0/build.gradle")
+public class ArrowVectorAccessors {
+
+  private static final ArrowVectorAccessorFactory factory = new ArrowVectorAccessorFactory();
+
+  static ArrowVectorAccessor<Decimal, UTF8String, ColumnarArray, ArrowColumnVector>
+      getVectorAccessor(VectorHolder holder) {
+    return factory.getVectorAccessor(holder);
+  }
+
+  private ArrowVectorAccessors() {
+  }
 }

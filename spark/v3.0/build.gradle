@@ -37,12 +37,20 @@ project(':iceberg-spark:iceberg-spark3') {
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-arrow')
     implementation project(':iceberg-hive-metastore')
-    implementation project(':iceberg-spark')
 
+    compileOnly "com.google.errorprone:error_prone_annotations"
     compileOnly "org.apache.avro:avro"
     compileOnly("org.apache.spark:spark-hive_2.12:${project.ext.Spark30Version}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
+    }
+
+    implementation("org.apache.orc:orc-core::nohive") {
+      exclude group: 'org.apache.hadoop'
+      exclude group: 'commons-lang'
+      // These artifacts are shaded and included in the orc-core fat jar
+      exclude group: 'com.google.protobuf', module: 'protobuf-java'
+      exclude group: 'org.apache.hive', module: 'hive-storage-api'
     }
 
     implementation("org.apache.arrow:arrow-vector") {
@@ -51,13 +59,12 @@ project(':iceberg-spark:iceberg-spark3') {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
-    testImplementation project(path: ':iceberg-spark', configuration: 'testArtifacts')
-
     testImplementation("org.apache.hadoop:hadoop-minicluster") {
       exclude group: 'org.apache.avro', module: 'avro'
     }
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
     testImplementation "org.xerial:sqlite-jdbc"
   }
