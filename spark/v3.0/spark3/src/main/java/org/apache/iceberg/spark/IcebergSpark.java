@@ -17,13 +17,23 @@
  * under the License.
  */
 
-// add enabled Spark version modules to the build
-def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
+package org.apache.iceberg.spark;
 
-if (jdkVersion == '8' && sparkVersions.contains("2.4")) {
-  apply from: file("$projectDir/v2.4/build.gradle")
-}
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Type;
+import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DataTypes;
 
-if (sparkVersions.contains("3.0")) {
-  apply from: file("$projectDir/v3.0/build.gradle")
+public class IcebergSpark {
+  private IcebergSpark() {
+  }
+
+  public static void registerBucketUDF(SparkSession session, String funcName, DataType sourceType, int numBuckets) {
+    SparkTypeToType typeConverter = new SparkTypeToType();
+    Type sourceIcebergType = typeConverter.atomic(sourceType);
+    Transform<Object, Integer> bucket = Transforms.bucket(sourceIcebergType, numBuckets);
+    session.udf().register(funcName, bucket::apply, DataTypes.IntegerType);
+  }
 }

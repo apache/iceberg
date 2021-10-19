@@ -17,13 +17,30 @@
  * under the License.
  */
 
-// add enabled Spark version modules to the build
-def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
+package org.apache.iceberg.spark.actions;
 
-if (jdkVersion == '8' && sparkVersions.contains("2.4")) {
-  apply from: file("$projectDir/v2.4/build.gradle")
-}
+import java.util.Map;
+import org.apache.iceberg.actions.SnapshotUpdate;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.spark.sql.SparkSession;
 
-if (sparkVersions.contains("3.0")) {
-  apply from: file("$projectDir/v3.0/build.gradle")
+abstract class BaseSnapshotUpdateSparkAction<ThisT, R>
+    extends BaseSparkAction<ThisT, R> implements SnapshotUpdate<ThisT, R> {
+
+  private final Map<String, String> summary = Maps.newHashMap();
+
+  protected BaseSnapshotUpdateSparkAction(SparkSession spark) {
+    super(spark);
+  }
+
+  @Override
+  public ThisT snapshotProperty(String property, String value) {
+    summary.put(property, value);
+    return self();
+  }
+
+  protected void commit(org.apache.iceberg.SnapshotUpdate<?> update) {
+    summary.forEach(update::set);
+    update.commit();
+  }
 }

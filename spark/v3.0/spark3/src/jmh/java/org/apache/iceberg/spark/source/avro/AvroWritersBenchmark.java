@@ -17,13 +17,25 @@
  * under the License.
  */
 
-// add enabled Spark version modules to the build
-def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
+package org.apache.iceberg.spark.source.avro;
 
-if (jdkVersion == '8' && sparkVersions.contains("2.4")) {
-  apply from: file("$projectDir/v2.4/build.gradle")
-}
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.spark.source.WritersBenchmark;
 
-if (sparkVersions.contains("3.0")) {
-  apply from: file("$projectDir/v3.0/build.gradle")
+/**
+ * A benchmark that evaluates the performance of various Iceberg writers for Avro data.
+ *
+ * To run this benchmark for either spark-2 or spark-3:
+ * <code>
+ *   ./gradlew :iceberg-spark:iceberg-spark[2|3]:jmh
+ *       -PjmhIncludeRegex=AvroWritersBenchmark
+ *       -PjmhOutputPath=benchmark/avro-writers-benchmark-result.txt
+ * </code>
+ */
+public class AvroWritersBenchmark extends WritersBenchmark {
+
+  @Override
+  protected FileFormat fileFormat() {
+    return FileFormat.AVRO;
+  }
 }
