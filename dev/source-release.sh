@@ -93,13 +93,17 @@ git add "$projectdir/version.txt"
 git commit -m "Add version.txt for release $version" $projectdir/version.txt
 
 set_version_hash=$(git rev-list HEAD 2> /dev/null | head -n 1 )
+
+# We need to tag the release candidate, even in test mode, so the rest of the script works.
+echo "Tagging the release candidate"
 git tag -am "Apache Iceberg $version" $tagrc $set_version_hash
 
+# Only push the tag when we're not testing to keep remote environment pristine.
 if [ $testing != true ]; then
   echo "Pushing $tagrc to $remote..."
   git push $remote $tagrc
 else
-  echo "In test mode: skipping pushing $tagrc to $remote"
+  echo "In test mode: Not pushing the tagged release candidate to $remote. A tarball will be available at the end"
 fi
 
 release_hash=$(git rev-list "$tagrc" 2> /dev/null | head -n 1 )
@@ -179,7 +183,8 @@ if [ $testing != true ]; then
    echo "Please note that you must update the Nexus repository URL"
    echo "contained in the mail before sending it out."
 else
-   echo "In test mode: skipped committing a release candidate to the Apache artifacts repository"
+   echo "In test mode: Skipped committing a release candidate to the Apache artifacts repository"
+   echo "In test mode: The generated tarball and release email should be located in $projectdir"
 fi
 
 rm -rf "$tmpdir"
