@@ -31,15 +31,18 @@ usage () {
     echo "  -r      Release candidate number"
     echo "  -k      Specify signing key. Defaults to \"GPG default key\""
     echo "  -g      Specify Git remote name. Defaults to \"origin\""
+    # TODO - Not sure we need this one but might be nice to pass in.
     echo "  -b      Git branch to switch to. No-op action. Acts as a dry-run (as getopts won't support full flag names)."
+    echo "  -t      Enables TEST mode. Does not commit to Github or SVN. No-op action. Acts as a dry-run."
     echo "  -d      Turn on DEBUG output"
     exit 1
 }
 
-# Default repository remote name
-remote="apache"
+# Defaults
+remote="apache"  # Remote repository. Can use your fork for testing.
+testing=false
 
-while getopts "v:r:k:g:r:b:d" opt; do
+while getopts "v:r:k:g:r:b:td" opt; do
   case "${opt}" in
     v)
       version="${OPTARG}"
@@ -53,12 +56,14 @@ while getopts "v:r:k:g:r:b:d" opt; do
     g)
       remote="${OPTARG}"
       ;;
-    # TODO - This flag doesn't seem tow ork for me.
-    d)
-      set -x
-      ;;
     b)
       branch="${OPTARG}"
+      ;;
+    t)
+      testing=true
+      ;;
+    d)
+      set -x
       ;;
     *)
       usage
@@ -74,10 +79,15 @@ if [ -z "$version" ] || [ -z "$rc" ]; then
 fi
 
 # Check if we're in branch mode and create and switch to that branch. Error out if it already exists.
-if [ -z "$branch" ] && [ -n "$(git rev-parse --verify --quiet "${branch}")" ]
-then
-   echo "Branch name $branch already exists."
-fi
+# TODO - We add this, do we need a way to get back to the original branch? Maybe testing flag is enough.
+#if [ -z "$branch" ] && [ -n "$(git rev-parse --verify --quiet "${branch}")" ]
+#then
+#   echo "Cannot run: Specified branch name $branch already exists."
+#   exit 1
+#else
+#   git branch "$branch"
+#   git checkout "$branch"
+#fi
 
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 projectdir="$(dirname "$scriptdir")"
@@ -87,7 +97,7 @@ echo "scriptdir: $scriptdir"
 echo "projectdir: $projectdir"
 echo "tmpdir: $tmpdir"
 
-if [ -d $tmpdir ]; then
+if [ -d "$tmpdir" ]; then
   echo "Cannot run: $tmpdir already exists"
   exit 1
 fi
@@ -98,26 +108,33 @@ tagrc="${tag}-rc${rc}"
 echo "Preparing source for $tagrc"
 
 echo "Adding version.txt and tagging release..."
-echo $version > $projectdir/version.txt
-git add $projectdir/version.txt
+echo "$version" > "$projectdir/version.txt"
+git add "$projectdir/version.txt"
 git commit -m "Add version.txt for release $version" $projectdir/version.txt
 
 set_version_hash=`git rev-list HEAD 2> /dev/null | head -n 1 `
 git tag -am "Apache Iceberg $version" $tagrc $set_version_hash
 
-echo "Pushing $tagrc to $remote..."
-git push $remote $tagrc
+if [ $testing = true ]; then
+  echo "Pushing $tagrc to $remote..."
+  git push $remote $tagrc
+else
+  echo "In test mode. Skipping pushing $tagrc to $remote"
+fi
 
 release_hash=`git rev-list $tagrc 2> /dev/null | head -n 1 `
+echo "set_version_hash = $set_version_hash"
+echo "release_hash = $release_hash"
+exit 1
 
 if [ -z "$release_hash" ]; then
   echo "Cannot continue: unknown Git tag: $tag"
-  exit
+  exit 1
 fi
 
 # be conservative and use the release hash, even though git produces the same
 # archive (identical hashes) using the scm tag
-echo "Creating tarball ${tarball} using commit $release_hash"
+echo "Creating tarball ${tarball} using commit $release_hash from tag $tagrc"
 tarball=$tag.tar.gz
 git archive $release_hash --worktree-attributes --prefix $tag/ -o $projectdir/$tarball
 
@@ -130,11 +147,13 @@ shasum -a 512 ${projectdir}/$tarball > ${projectdir}/${tarball}.sha512
 echo "Checking out Iceberg RC subversion repo..."
 svn co --depth=empty https://dist.apache.org/repos/dist/dev/iceberg $tmpdir
 
-# TODO - This part needs to be skipped if you're not a committer (or in any dry-run situation).
 echo "Adding tarball to the Iceberg distribution Subversion repo..."
 mkdir -p $tmpdir/$tagrc
 cp $projectdir/${tarball}* $tmpdir/$tagrc
 svn add $tmpdir/$tagrc
+
+# TODO - This part needs to be skipped if you're not a committer (or in any dry-run situation).
+# TODO - We also might need instructions for setting up svn. System MacOS doesn't work and needs to be overridden.
 svn ci -m "Apache Iceberg $version RC${rc}" $tmpdir/$tagrc
 
 echo "Creating release-announcement-email.txt..."
