@@ -32,13 +32,16 @@ usage () {
     echo "  -k      Specify signing key. Defaults to \"GPG default key\""
     echo "  -g      Specify Git remote name. Defaults to \"origin\""
     echo "  -d      Turn on DEBUG output"
+    echo "  -b      Git branch to switch to. No-op action. Acts as a dry-run (as getopts won't support full flag names)."
     exit 1
 }
 
 # Default repository remote name
 remote="apache"
 
-while getopts "v:r:k:r:d" opt; do
+set -x
+
+while getopts "v:r:k:g:r:d:b" opt; do
   case "${opt}" in
     v)
       version="${OPTARG}"
@@ -52,8 +55,12 @@ while getopts "v:r:k:r:d" opt; do
     g)
       remote="${OPTARG}"
       ;;
+    # TODO - This flag doesn't seem tow ork for me.
     d)
       set -x
+      ;;
+    b)
+      branch="${OPTARG}"
       ;;
     *)
       usage
@@ -68,9 +75,19 @@ if [ -z "$version" ] || [ -z "$rc" ]; then
   usage
 fi
 
+# Check if we're in branch mode and create and switch to that branch. Error out if it already exists.
+if [ -z "$branch" ] && [ -n "$(git rev-parse --verify --quiet "${branch}")" ]
+then
+   echo "Branch name $branch already exists."
+fi
+
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 projectdir="$(dirname "$scriptdir")"
 tmpdir=$projectdir/tmp
+
+echo "scriptdir: $scriptdir"
+echo "projectdir: $projectdir"
+echo "tmpdir: $tmpdir"
 
 if [ -d $tmpdir ]; then
   echo "Cannot run: $tmpdir already exists"
@@ -109,7 +126,7 @@ git archive $release_hash --worktree-attributes --prefix $tag/ -o $projectdir/$t
 echo "Signing the tarball..."
 [[ -z "$keyid" ]] && keyopt="-u $keyid"
 gpg --detach-sig $keyopt --armor --output ${projectdir}/${tarball}.asc ${projectdir}/$tarball
-sha512sum ${projectdir}/$tarball > ${projectdir}/${tarball}.sha512
+shasum -a 512 ${projectdir}/$tarball > ${projectdir}/${tarball}.sha512
 
 
 echo "Checking out Iceberg RC subversion repo..."
