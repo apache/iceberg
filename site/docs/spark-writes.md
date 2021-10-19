@@ -168,9 +168,15 @@ Delete queries accept a filter to match rows to delete.
 ```sql
 DELETE FROM prod.db.table
 WHERE ts >= '2020-05-01 00:00:00' and ts < '2020-06-01 00:00:00'
+
+DELETE FROM prod.db.all_events
+WHERE session_time < (SELECT min(session_time) FROM prod.db.good_events)
+
+DELETE FROM prod.db.orders AS t1
+WHERE EXISTS (SELECT oid FROM prod.db.returned_orders WHERE t1.oid = oid)
 ```
 
-If the delte filter matches entire partitions of the table, Iceberg will perform a metadata-only delete. If the filter matches individual rows of a table, then Iceberg will rewrite only the affected data files.
+If the delete filter matches entire partitions of the table, Iceberg will perform a metadata-only delete. If the filter matches individual rows of a table, then Iceberg will rewrite only the affected data files.
 
 ### `UPDATE`
 
@@ -182,6 +188,14 @@ Update queries accept a filter to match rows to update.
 UPDATE prod.db.table
 SET c1 = 'update_c1', c2 = 'update_c2'
 WHERE ts >= '2020-05-01 00:00:00' and ts < '2020-06-01 00:00:00'
+
+UPDATE prod.db.all_events
+SET session_time = 0, ignored = true
+WHERE session_time < (SELECT min(session_time) FROM prod.db.good_events)
+
+UPDATE prod.db.orders AS t1
+SET order_status = 'returned'
+WHERE EXISTS (SELECT oid FROM prod.db.returned_orders WHERE t1.oid = oid)
 ```
 
 For more complex row-level updates based on incoming data, see the section on `MERGE INTO`.

@@ -41,6 +41,7 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.data.AvroDataTest;
@@ -323,7 +324,7 @@ public abstract class TestDataFrameWrites extends AvroDataTest {
     SparkSession newSparkSession = SparkSession.builder()
         .master("local[2]")
         .appName("NullableTest")
-        .config("spark.sql.iceberg.check-nullability", false)
+        .config(SparkSQLProperties.CHECK_NULLABILITY, false)
         .getOrCreate();
 
     // this is our iceberg dataset to which we will append data

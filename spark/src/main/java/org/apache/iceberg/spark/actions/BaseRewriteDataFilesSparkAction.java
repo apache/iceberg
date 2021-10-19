@@ -34,6 +34,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.BaseRewriteDataFilesFileGroupInfo;
@@ -43,6 +44,8 @@ import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.actions.RewriteStrategy;
+import org.apache.iceberg.actions.SortStrategy;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -52,14 +55,16 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.Tasks;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
@@ -83,12 +88,11 @@ abstract class BaseRewriteDataFilesSparkAction
   private int maxConcurrentFileGroupRewrites;
   private int maxCommits;
   private boolean partialProgressEnabled;
-  private RewriteStrategy strategy;
+  private RewriteStrategy strategy = null;
 
   protected BaseRewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
-    this.strategy = binPackStrategy();
   }
 
   protected Table table() {
@@ -100,9 +104,32 @@ abstract class BaseRewriteDataFilesSparkAction
    */
   protected abstract BinPackStrategy binPackStrategy();
 
+  /**
+   * The framework specific {@link SortStrategy}
+   */
+  protected abstract SortStrategy sortStrategy();
+
   @Override
   public RewriteDataFiles binPack() {
+    Preconditions.checkArgument(this.strategy == null,
+        "Cannot set strategy to binpack, it has already been set", this.strategy);
     this.strategy = binPackStrategy();
+    return this;
+  }
+
+  @Override
+  public RewriteDataFiles sort(SortOrder sortOrder) {
+    Preconditions.checkArgument(this.strategy == null,
+        "Cannot set strategy to sort, it has already been set to %s", this.strategy);
+    this.strategy = sortStrategy().sortOrder(sortOrder);
+    return this;
+  }
+
+  @Override
+  public RewriteDataFiles sort() {
+    Preconditions.checkArgument(this.strategy == null,
+        "Cannot set strategy to sort, it has already been set to %s", this.strategy);
+    this.strategy = sortStrategy();
     return this;
   }
 
@@ -119,6 +146,11 @@ abstract class BaseRewriteDataFilesSparkAction
     }
 
     long startingSnapshotId = table.currentSnapshot().snapshotId();
+
+    // Default to BinPack if no strategy selected
+    if (this.strategy == null) {
+      this.strategy = binPackStrategy();
+    }
 
     validateAndInitOptions();
     strategy = strategy.options(options());
@@ -149,10 +181,27 @@ abstract class BaseRewriteDataFilesSparkAction
         .planFiles();
 
     try {
-      Map<StructLike, List<FileScanTask>> filesByPartition = Streams.stream(fileScanTasks)
-          .collect(Collectors.groupingBy(task -> task.file().partition()));
+      StructType partitionType = table.spec().partitionType();
+      StructLikeMap<List<FileScanTask>> filesByPartition = StructLikeMap.create(partitionType);
+      StructLike emptyStruct = GenericRecord.create(partitionType);
 
-      Map<StructLike, List<List<FileScanTask>>> fileGroupsByPartition = Maps.newHashMap();
+      fileScanTasks.forEach(task -> {
+        // If a task uses an incompatible partition spec the data inside could contain values which
+        // belong to multiple partitions in the current spec. Treating all such files as un-partitioned and
+        // grouping them together helps to minimize new files made.
+        StructLike taskPartition = task.file().specId() == table.spec().specId() ?
+            task.file().partition() : emptyStruct;
+
+        List<FileScanTask> files = filesByPartition.get(taskPartition);
+        if (files == null) {
+          files = Lists.newArrayList();
+        }
+
+        files.add(task);
+        filesByPartition.put(taskPartition, files);
+      });
+
+      StructLikeMap<List<List<FileScanTask>>> fileGroupsByPartition = StructLikeMap.create(partitionType);
 
       filesByPartition.forEach((partition, tasks) -> {
         Iterable<FileScanTask> filtered = strategy.selectFilesToRewrite(tasks);

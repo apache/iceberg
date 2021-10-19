@@ -37,17 +37,10 @@ import org.apache.iceberg.types.Types;
 import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 
 public class FlinkOrcWriter implements OrcRowWriter<RowData> {
-  private final FlinkOrcWriters.StructWriter writer;
-  private final List<RowData.FieldGetter> fieldGetters;
+  private final FlinkOrcWriters.RowDataWriter writer;
 
   private FlinkOrcWriter(RowType rowType, Schema iSchema) {
-    this.writer = (FlinkOrcWriters.StructWriter) FlinkSchemaVisitor.visit(rowType, iSchema, new WriteBuilder());
-
-    List<LogicalType> fieldTypes = rowType.getChildren();
-    this.fieldGetters = Lists.newArrayListWithExpectedSize(fieldTypes.size());
-    for (int i = 0; i < fieldTypes.size(); i++) {
-      fieldGetters.add(RowData.createFieldGetter(fieldTypes.get(i), i));
-    }
+    this.writer = (FlinkOrcWriters.RowDataWriter) FlinkSchemaVisitor.visit(rowType, iSchema, new WriteBuilder());
   }
 
   public static OrcRowWriter<RowData> buildWriter(RowType rowType, Schema iSchema) {
@@ -55,16 +48,14 @@ public class FlinkOrcWriter implements OrcRowWriter<RowData> {
   }
 
   @Override
-  @SuppressWarnings("unchecked")
   public void write(RowData row, VectorizedRowBatch output) {
-    int rowId = output.size;
-    output.size += 1;
+    Preconditions.checkArgument(row != null, "value must not be null");
+    writer.writeRow(row, output);
+  }
 
-    List<OrcValueWriter<?>> writers = writer.writers();
-    for (int c = 0; c < writers.size(); ++c) {
-      OrcValueWriter child = writers.get(c);
-      child.write(rowId, fieldGetters.get(c).getFieldOrNull(row), output.cols[c]);
-    }
+  @Override
+  public List<OrcValueWriter<?>> writers() {
+    return writer.writers();
   }
 
   @Override

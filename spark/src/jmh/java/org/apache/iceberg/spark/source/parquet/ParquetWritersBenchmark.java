@@ -27,7 +27,7 @@ import org.apache.iceberg.spark.source.WritersBenchmark;
  *
  * To run this benchmark for either spark-2 or spark-3:
  * <code>
- *   ./gradlew :iceberg-spark[2|3]:jmh
+ *   ./gradlew :iceberg-spark:iceberg-spark[2|3]:jmh
  *       -PjmhIncludeRegex=ParquetWritersBenchmark
  *       -PjmhOutputPath=benchmark/parquet-writers-benchmark-result.txt
  * </code>
