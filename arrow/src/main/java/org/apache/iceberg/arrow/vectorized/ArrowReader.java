@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -204,7 +205,6 @@ public class ArrowReader extends CloseableGroup {
     private final int batchSize;
     private final boolean reuseContainers;
     private CloseableIterator<ColumnarBatch> currentIterator;
-    private ColumnarBatch current;
     private FileScanTask currentTask;
 
     /**
@@ -286,7 +286,6 @@ public class ArrowReader extends CloseableGroup {
       try {
         while (true) {
           if (currentIterator.hasNext()) {
-            this.current = currentIterator.next();
             return true;
           } else if (fileItr.hasNext()) {
             this.currentIterator.close();
@@ -308,7 +307,11 @@ public class ArrowReader extends CloseableGroup {
 
     @Override
     public ColumnarBatch next() {
-      return current;
+      if (hasNext()) {
+        return currentIterator.next();
+      } else {
+        throw new NoSuchElementException();
+      }
     }
 
     CloseableIterator<ColumnarBatch> open(FileScanTask task) {

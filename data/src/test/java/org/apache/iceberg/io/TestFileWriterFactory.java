@@ -33,11 +33,13 @@ import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -131,8 +133,6 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
   @Test
   public void testEqualityDeleteWriter() throws IOException {
-    Assume.assumeFalse("ORC delete files are not supported", fileFormat == FileFormat.ORC);
-
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
     Schema equalityDeleteRowSchema = table.schema().select("id");
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema(), equalityFieldIds, equalityDeleteRowSchema);
@@ -179,7 +179,6 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
   @Test
   public void testEqualityDeleteWriterWithMultipleSpecs() throws IOException {
-    Assume.assumeFalse("ORC delete files are not supported", fileFormat == FileFormat.ORC);
     Assume.assumeFalse("Table must start unpartitioned", partitioned);
 
     List<Integer> equalityFieldIds = ImmutableList.of(table.schema().findField("id").fieldId());
@@ -242,8 +241,6 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
   @Test
   public void testPositionDeleteWriter() throws IOException {
-    Assume.assumeFalse("ORC delete files are not supported", fileFormat == FileFormat.ORC);
-
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
 
     // write a data file
@@ -288,8 +285,6 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
 
   @Test
   public void testPositionDeleteWriterWithRow() throws IOException {
-    Assume.assumeFalse("ORC delete files are not supported", fileFormat == FileFormat.ORC);
-
     FileWriterFactory<T> writerFactory = newWriterFactory(table.schema(), table.schema());
 
     // write a data file
@@ -395,6 +390,15 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
         try (CloseableIterable<Record> records = Avro.read(inputFile)
             .project(schema)
             .createReaderFunc(DataReader::create)
+            .build()) {
+
+          return ImmutableList.copyOf(records);
+        }
+
+      case ORC:
+        try (CloseableIterable<Record> records = ORC.read(inputFile)
+            .project(schema)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
             .build()) {
 
           return ImmutableList.copyOf(records);

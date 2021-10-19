@@ -19,245 +19,115 @@
 
 package org.apache.iceberg.spark.data;
 
+import java.util.List;
 import java.util.stream.Stream;
-import org.apache.iceberg.DoubleFieldMetrics;
 import org.apache.iceberg.FieldMetrics;
-import org.apache.iceberg.FloatFieldMetrics;
+import org.apache.iceberg.orc.OrcValueWriter;
+import org.apache.orc.TypeDescription;
 import org.apache.orc.storage.common.type.HiveDecimal;
 import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 import org.apache.orc.storage.ql.exec.vector.DecimalColumnVector;
-import org.apache.orc.storage.ql.exec.vector.DoubleColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ListColumnVector;
-import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
-import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
+import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.unsafe.types.UTF8String;
 
 class SparkOrcValueWriters {
   private SparkOrcValueWriters() {
   }
 
-  static SparkOrcValueWriter booleans() {
-    return BooleanWriter.INSTANCE;
-  }
-
-  static SparkOrcValueWriter bytes() {
-    return ByteWriter.INSTANCE;
-  }
-
-  static SparkOrcValueWriter shorts() {
-    return ShortWriter.INSTANCE;
-  }
-
-  static SparkOrcValueWriter ints() {
-    return IntWriter.INSTANCE;
-  }
-
-  static SparkOrcValueWriter longs() {
-    return LongWriter.INSTANCE;
-  }
-
-  static SparkOrcValueWriter floats(int id) {
-    return new FloatWriter(id);
-  }
-
-  static SparkOrcValueWriter doubles(int id) {
-    return new DoubleWriter(id);
-  }
-
-  static SparkOrcValueWriter byteArrays() {
-    return BytesWriter.INSTANCE;
-  }
-
-  static SparkOrcValueWriter strings() {
+  static OrcValueWriter<?> strings() {
     return StringWriter.INSTANCE;
   }
 
-  static SparkOrcValueWriter timestampTz() {
+  static OrcValueWriter<?> timestampTz() {
     return TimestampTzWriter.INSTANCE;
   }
 
-  static SparkOrcValueWriter decimal(int precision, int scale) {
+  static OrcValueWriter<?> decimal(int precision, int scale) {
     if (precision <= 18) {
-      return new Decimal18Writer(precision, scale);
+      return new Decimal18Writer(scale);
     } else {
-      return new Decimal38Writer(precision, scale);
+      return new Decimal38Writer();
     }
   }
 
-  static SparkOrcValueWriter list(SparkOrcValueWriter element) {
-    return new ListWriter(element);
+  static OrcValueWriter<?> list(OrcValueWriter<?> element, List<TypeDescription> orcType) {
+    return new ListWriter<>(element, orcType);
   }
 
-  static SparkOrcValueWriter map(SparkOrcValueWriter keyWriter, SparkOrcValueWriter valueWriter) {
-    return new MapWriter(keyWriter, valueWriter);
+  static OrcValueWriter<?> map(OrcValueWriter<?> keyWriter, OrcValueWriter<?> valueWriter,
+      List<TypeDescription> orcTypes) {
+    return new MapWriter<>(keyWriter, valueWriter, orcTypes);
   }
 
-  private static class BooleanWriter implements SparkOrcValueWriter {
-    private static final BooleanWriter INSTANCE = new BooleanWriter();
-
-    @Override
-    public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
-      ((LongColumnVector) output).vector[rowId] = data.getBoolean(column) ? 1 : 0;
-    }
-  }
-
-  private static class ByteWriter implements SparkOrcValueWriter {
-    private static final ByteWriter INSTANCE = new ByteWriter();
-
-    @Override
-    public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
-      ((LongColumnVector) output).vector[rowId] = data.getByte(column);
-    }
-  }
-
-  private static class ShortWriter implements SparkOrcValueWriter {
-    private static final ShortWriter INSTANCE = new ShortWriter();
-
-    @Override
-    public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
-      ((LongColumnVector) output).vector[rowId] = data.getShort(column);
-    }
-  }
-
-  private static class IntWriter implements SparkOrcValueWriter {
-    private static final IntWriter INSTANCE = new IntWriter();
-
-    @Override
-    public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
-      ((LongColumnVector) output).vector[rowId] = data.getInt(column);
-    }
-  }
-
-  private static class LongWriter implements SparkOrcValueWriter {
-    private static final LongWriter INSTANCE = new LongWriter();
-
-    @Override
-    public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
-      ((LongColumnVector) output).vector[rowId] = data.getLong(column);
-    }
-  }
-
-  private static class FloatWriter implements SparkOrcValueWriter {
-    private final FloatFieldMetrics.Builder floatFieldMetricsBuilder;
-
-    private FloatWriter(int id) {
-      this.floatFieldMetricsBuilder = new FloatFieldMetrics.Builder(id);
-    }
-
-    @Override
-    public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
-      float floatValue = data.getFloat(column);
-      ((DoubleColumnVector) output).vector[rowId] = floatValue;
-      floatFieldMetricsBuilder.addValue(floatValue);
-    }
-
-    @Override
-    public Stream<FieldMetrics<?>> metrics() {
-      return Stream.of(floatFieldMetricsBuilder.build());
-    }
-  }
-
-  private static class DoubleWriter implements SparkOrcValueWriter {
-    private final DoubleFieldMetrics.Builder doubleFieldMetricsBuilder;
-
-    private DoubleWriter(int id) {
-      this.doubleFieldMetricsBuilder = new DoubleFieldMetrics.Builder(id);
-    }
-
-    @Override
-    public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
-      double doubleValue = data.getDouble(column);
-      ((DoubleColumnVector) output).vector[rowId] = doubleValue;
-      doubleFieldMetricsBuilder.addValue(doubleValue);
-    }
-
-    @Override
-    public Stream<FieldMetrics<?>> metrics() {
-      return Stream.of(doubleFieldMetricsBuilder.build());
-    }
-  }
-
-  private static class BytesWriter implements SparkOrcValueWriter {
-    private static final BytesWriter INSTANCE = new BytesWriter();
-
-    @Override
-    public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
-      // getBinary always makes a copy, so we don't need to worry about it
-      // being changed behind our back.
-      byte[] value = data.getBinary(column);
-      ((BytesColumnVector) output).setRef(rowId, value, 0, value.length);
-    }
-  }
-
-  private static class StringWriter implements SparkOrcValueWriter {
+  private static class StringWriter implements OrcValueWriter<UTF8String> {
     private static final StringWriter INSTANCE = new StringWriter();
 
     @Override
-    public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
-      byte[] value = data.getUTF8String(column).getBytes();
+    public void nonNullWrite(int rowId, UTF8String data, ColumnVector output) {
+      byte[] value = data.getBytes();
       ((BytesColumnVector) output).setRef(rowId, value, 0, value.length);
     }
+
   }
 
-  private static class TimestampTzWriter implements SparkOrcValueWriter {
+  private static class TimestampTzWriter implements OrcValueWriter<Long> {
     private static final TimestampTzWriter INSTANCE = new TimestampTzWriter();
 
     @Override
-    public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
+    public void nonNullWrite(int rowId, Long micros, ColumnVector output) {
       TimestampColumnVector cv = (TimestampColumnVector) output;
-      long micros = data.getLong(column); // it could be negative.
       cv.time[rowId] = Math.floorDiv(micros, 1_000); // millis
       cv.nanos[rowId] = (int) Math.floorMod(micros, 1_000_000) * 1_000; // nanos
     }
+
   }
 
-  private static class Decimal18Writer implements SparkOrcValueWriter {
-    private final int precision;
+  private static class Decimal18Writer implements OrcValueWriter<Decimal> {
     private final int scale;
 
-    Decimal18Writer(int precision, int scale) {
-      this.precision = precision;
+    Decimal18Writer(int scale) {
       this.scale = scale;
     }
 
     @Override
-    public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
+    public void nonNullWrite(int rowId, Decimal decimal, ColumnVector output) {
       ((DecimalColumnVector) output).vector[rowId].setFromLongAndScale(
-          data.getDecimal(column, precision, scale).toUnscaledLong(), scale);
+          decimal.toUnscaledLong(), scale);
     }
+
   }
 
-  private static class Decimal38Writer implements SparkOrcValueWriter {
-    private final int precision;
-    private final int scale;
-
-    Decimal38Writer(int precision, int scale) {
-      this.precision = precision;
-      this.scale = scale;
-    }
+  private static class Decimal38Writer implements OrcValueWriter<Decimal> {
 
     @Override
-    public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
+    public void nonNullWrite(int rowId, Decimal decimal, ColumnVector output) {
       ((DecimalColumnVector) output).vector[rowId].set(
-          HiveDecimal.create(data.getDecimal(column, precision, scale)
-              .toJavaBigDecimal()));
+          HiveDecimal.create(decimal.toJavaBigDecimal()));
     }
+
   }
 
-  private static class ListWriter implements SparkOrcValueWriter {
-    private final SparkOrcValueWriter writer;
+  private static class ListWriter<T> implements OrcValueWriter<ArrayData> {
+    private final OrcValueWriter<T> writer;
+    private final SparkOrcWriter.FieldGetter<T> fieldGetter;
 
-    ListWriter(SparkOrcValueWriter writer) {
+    @SuppressWarnings("unchecked")
+    ListWriter(OrcValueWriter<T> writer, List<TypeDescription> orcTypes) {
+      if (orcTypes.size() != 1) {
+        throw new IllegalArgumentException("Expected one (and same) ORC type for list elements, got: " + orcTypes);
+      }
       this.writer = writer;
+      this.fieldGetter = (SparkOrcWriter.FieldGetter<T>) SparkOrcWriter.createFieldGetter(orcTypes.get(0));
     }
 
     @Override
-    public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
-      ArrayData value = data.getArray(column);
+    public void nonNullWrite(int rowId, ArrayData value, ColumnVector output) {
       ListColumnVector cv = (ListColumnVector) output;
       // record the length and start of the list elements
       cv.lengths[rowId] = value.numElements();
@@ -267,7 +137,7 @@ class SparkOrcValueWriters {
       growColumnVector(cv.child, cv.childCount);
       // Add each element
       for (int e = 0; e < cv.lengths[rowId]; ++e) {
-        writer.write((int) (e + cv.offsets[rowId]), e, value, cv.child);
+        writer.write((int) (e + cv.offsets[rowId]), fieldGetter.getFieldOrNull(value, e), cv.child);
       }
     }
 
@@ -275,20 +145,28 @@ class SparkOrcValueWriters {
     public Stream<FieldMetrics<?>> metrics() {
       return writer.metrics();
     }
+
   }
 
-  private static class MapWriter implements SparkOrcValueWriter {
-    private final SparkOrcValueWriter keyWriter;
-    private final SparkOrcValueWriter valueWriter;
+  private static class MapWriter<K, V> implements OrcValueWriter<MapData> {
+    private final OrcValueWriter<K> keyWriter;
+    private final OrcValueWriter<V> valueWriter;
+    private final SparkOrcWriter.FieldGetter<K> keyFieldGetter;
+    private final SparkOrcWriter.FieldGetter<V> valueFieldGetter;
 
-    MapWriter(SparkOrcValueWriter keyWriter, SparkOrcValueWriter valueWriter) {
+    @SuppressWarnings("unchecked")
+    MapWriter(OrcValueWriter<K> keyWriter, OrcValueWriter<V> valueWriter, List<TypeDescription> orcTypes) {
+      if (orcTypes.size() != 2) {
+        throw new IllegalArgumentException("Expected two ORC type descriptions for a map, got: " + orcTypes);
+      }
       this.keyWriter = keyWriter;
       this.valueWriter = valueWriter;
+      this.keyFieldGetter = (SparkOrcWriter.FieldGetter<K>) SparkOrcWriter.createFieldGetter(orcTypes.get(0));
+      this.valueFieldGetter = (SparkOrcWriter.FieldGetter<V>) SparkOrcWriter.createFieldGetter(orcTypes.get(1));
     }
 
     @Override
-    public void nonNullWrite(int rowId, int column, SpecializedGetters data, ColumnVector output) {
-      MapData map = data.getMap(column);
+    public void nonNullWrite(int rowId, MapData map, ColumnVector output) {
       ArrayData key = map.keyArray();
       ArrayData value = map.valueArray();
       MapColumnVector cv = (MapColumnVector) output;
@@ -302,8 +180,8 @@ class SparkOrcValueWriters {
       // Add each element
       for (int e = 0; e < cv.lengths[rowId]; ++e) {
         int pos = (int) (e + cv.offsets[rowId]);
-        keyWriter.write(pos, e, key, cv.keys);
-        valueWriter.write(pos, e, value, cv.values);
+        keyWriter.write(pos, keyFieldGetter.getFieldOrNull(key, e), cv.keys);
+        valueWriter.write(pos, valueFieldGetter.getFieldOrNull(value, e), cv.values);
       }
     }
 
@@ -311,6 +189,7 @@ class SparkOrcValueWriters {
     public Stream<FieldMetrics<?>> metrics() {
       return Stream.concat(keyWriter.metrics(), valueWriter.metrics());
     }
+
   }
 
   private static void growColumnVector(ColumnVector cv, int requestedSize) {

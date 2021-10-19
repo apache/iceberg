@@ -76,3 +76,5 @@ AWS:
   - aws/**/*
 NESSIE:
   - nessie/**/*
+ALIYUN:
+  - aliyun/**/*

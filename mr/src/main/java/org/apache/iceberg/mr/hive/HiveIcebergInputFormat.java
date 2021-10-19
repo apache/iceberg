@@ -112,7 +112,7 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
       IcebergSplit icebergSplit = ((IcebergSplitContainer) split).icebergSplit();
       // bogus cast for favouring code reuse over syntax
       return (RecordReader) HIVE_VECTORIZED_RECORDREADER_CTOR.newInstance(
-              new org.apache.iceberg.mr.mapreduce.IcebergInputFormat<>(),
+              new IcebergInputFormat<>(),
               icebergSplit,
               job,
               reporter);

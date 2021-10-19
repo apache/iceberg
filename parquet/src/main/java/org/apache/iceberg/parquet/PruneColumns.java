@@ -19,12 +19,14 @@
 
 package org.apache.iceberg.parquet;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
@@ -49,12 +51,22 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
       Type field = fields.get(i);
       Integer fieldId = getId(originalField);
       if (fieldId != null && selectedIds.contains(fieldId)) {
-        builder.addField(originalField);
+        if (field != null) {
+          hasChange = true;
+          builder.addField(field);
+        } else {
+          if (isStruct(originalField)) {
+            hasChange = true;
+            builder.addField(originalField.asGroupType().withNewFields(Collections.emptyList()));
+          } else {
+            builder.addField(originalField);
+          }
+        }
         fieldCount += 1;
       } else if (field != null) {
+        hasChange = true;
         builder.addField(field);
         fieldCount += 1;
-        hasChange = true;
       }
     }
 
@@ -151,5 +163,16 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
 
   private Integer getId(Type type) {
     return type.getId() == null ? null : type.getId().intValue();
+  }
+
+  private boolean isStruct(Type field) {
+    if (field.isPrimitive()) {
+      return false;
+    } else {
+      GroupType groupType = field.asGroupType();
+      LogicalTypeAnnotation logicalTypeAnnotation = groupType.getLogicalTypeAnnotation();
+      return !logicalTypeAnnotation.equals(LogicalTypeAnnotation.mapType()) &&
+          !logicalTypeAnnotation.equals(LogicalTypeAnnotation.listType());
+    }
   }
 }

@@ -68,6 +68,8 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
       optional(2, "data", Types.StringType.get())
   );
 
+  private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).identity("id").build();
+
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
@@ -145,6 +147,31 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     Assert.assertEquals("Entries table should have one row", 1, expected.size());
     Assert.assertEquals("Actual results should have one row", 1, actual.size());
     TestHelpers.assertEqualsSafe(entriesTable.schema().asStruct(), expected.get(0), actual.get(0));
+  }
+
+  @Test
+  public void testEntriesTablePartitionedPrune() throws Exception {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_test");
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
+
+    List<SimpleRecord> records = Lists.newArrayList(new SimpleRecord(1, "1"));
+
+    Dataset<Row> inputDf = spark.createDataFrame(records, SimpleRecord.class);
+    inputDf.select("id", "data").write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+
+    table.refresh();
+
+    List<Row> actual = spark.read()
+        .format("iceberg")
+        .load(loadLocation(tableIdentifier, "entries"))
+        .select("status")
+        .collectAsList();
+
+    Assert.assertEquals("Results should contain only one status", 1, actual.size());
+    Assert.assertEquals("That status should be Added (1)", 1, actual.get(0).getInt(0));
   }
 
   @Test
@@ -312,7 +339,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   @Test
   public void testFilesTable() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_test");
-    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table entriesTable = loadTable(tableIdentifier, "entries");
     Table filesTable = loadTable(tableIdentifier, "files");
 
@@ -362,7 +389,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     spark.sql("DROP TABLE IF EXISTS parquet_table");
 
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_inheritance_test");
-    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     table.updateProperties()
         .set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true")
         .commit();
@@ -422,7 +449,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     spark.sql("DROP TABLE IF EXISTS parquet_table");
 
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "entries_inheritance_test");
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
+    PartitionSpec spec = SPEC;
     Table table = createTable(tableIdentifier, SCHEMA, spec);
 
     table.updateProperties()
@@ -523,7 +550,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   @Test
   public void testAllMetadataTablesWithStagedCommits() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "stage_aggregate_table_test");
-    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
 
     table.updateProperties().set(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED, "true").commit();
     spark.conf().set("spark.wap.id", "1234567");
@@ -567,7 +594,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   @Test
   public void testAllDataFilesTable() throws Exception {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "files_test");
-    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table entriesTable = loadTable(tableIdentifier, "entries");
     Table filesTable = loadTable(tableIdentifier, "all_data_files");
 
@@ -831,7 +858,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   @Test
   public void testManifestsTable() {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "manifests_test");
-    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table manifestTable = loadTable(tableIdentifier, "manifests");
     Dataset<Row> df1 = spark.createDataFrame(
         Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(null, "b")), SimpleRecord.class);
@@ -878,7 +905,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   @Test
   public void testPruneManifestsTable() {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "manifests_test");
-    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table manifestTable = loadTable(tableIdentifier, "manifests");
     Dataset<Row> df1 = spark.createDataFrame(
         Lists.newArrayList(new SimpleRecord(1, "a"), new SimpleRecord(null, "b")), SimpleRecord.class);
@@ -938,7 +965,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   @Test
   public void testAllManifestsTable() {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "manifests_test");
-    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table manifestTable = loadTable(tableIdentifier, "all_manifests");
     Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
 
@@ -1034,7 +1061,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   @Test
   public void testPartitionsTable() {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "partitions_test");
-    Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.builderFor(SCHEMA).identity("id").build());
+    Table table = createTable(tableIdentifier, SCHEMA, SPEC);
     Table partitionsTable = loadTable(tableIdentifier, "partitions");
     Dataset<Row> df1 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class);
     Dataset<Row> df2 = spark.createDataFrame(Lists.newArrayList(new SimpleRecord(2, "b")), SimpleRecord.class);

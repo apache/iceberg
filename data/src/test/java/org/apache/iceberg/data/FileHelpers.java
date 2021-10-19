@@ -26,6 +26,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
@@ -53,7 +54,9 @@ public class FileHelpers {
                                                                     List<Pair<CharSequence, Long>> deletes)
       throws IOException {
     PositionDeleteWriter<?> writer = Parquet.writeDeletes(out)
-        .forTable(table)
+        .withSpec(table.spec())
+        .setAll(table.properties())
+        .metricsConfig(MetricsConfig.forTable(table))
         .withPartition(partition)
         .overwrite()
         .buildPositionWriter();

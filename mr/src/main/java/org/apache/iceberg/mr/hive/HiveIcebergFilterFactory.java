@@ -130,7 +130,7 @@ public class HiveIcebergFilterFactory {
       case FLOAT:
         return leaf.getLiteral();
       case DATE:
-        if (leaf.getLiteral() instanceof java.sql.Date) {
+        if (leaf.getLiteral() instanceof Date) {
           return daysFromDate((Date) leaf.getLiteral());
         }
         return daysFromTimestamp((Timestamp) leaf.getLiteral());
