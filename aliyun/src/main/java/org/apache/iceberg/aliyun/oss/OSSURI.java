@@ -75,7 +75,7 @@ public class OSSURI {
     ValidationException.check(authoritySplit.length == 2,
             "Invalid bucket or key in OSS location: %s", location);
     ValidationException.check(!authoritySplit[1].trim().isEmpty(),
-            "Invalid key in OSS location: %s", location);
+            "Missing key in OSS location: %s", location);
     this.bucket = authoritySplit[0];
     OSSUtils.ensureBucketNameValid(bucket);
 

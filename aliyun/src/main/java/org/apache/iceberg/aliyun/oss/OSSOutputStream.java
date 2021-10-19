@@ -64,7 +64,6 @@ public class OSSOutputStream extends PositionOutputStream {
   }
 
   private static File newStagingFile(String ossStagingDirectory) {
-    Preconditions.checkArgument(ossStagingDirectory != null, "Invalid staging directory: null");
     try {
       File stagingFile = File.createTempFile("oss-file-io-", ".tmp", new File(ossStagingDirectory));
       stagingFile.deleteOnExit();

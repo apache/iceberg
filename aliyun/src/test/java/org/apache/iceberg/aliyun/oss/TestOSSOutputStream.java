@@ -77,8 +77,8 @@ public class TestOSSOutputStream extends AliyunOSSTestBase {
 
   private void writeAndVerify(OSS mock, OSSURI uri, byte[] data, boolean arrayWrite)
       throws IOException {
-    LOG.info("Write and verify for arguments uri: {}, data length: {}, arrayWrite: {}", uri, data.length,
-        arrayWrite);
+    LOG.info("Write and verify for arguments uri: {}, data length: {}, arrayWrite: {}",
+            uri, data.length, arrayWrite);
 
     try (OSSOutputStream out = new OSSOutputStream(mock, uri, props)) {
       if (arrayWrite) {
