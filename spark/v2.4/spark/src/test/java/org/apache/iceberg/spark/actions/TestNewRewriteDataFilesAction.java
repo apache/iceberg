@@ -162,7 +162,7 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     createPositionDeleteFiles(table);
     shouldHaveDeleteFile(table, 1);
     List<Object[]> expected = currentData();
-    Assert.assertEquals("Should delete 4 records", 1996, expected.size());
+    Assert.assertEquals("Should delete 4 records", 39996, expected.size());
 
     Result result = basicRewrite(table).execute();
     Assert.assertEquals("Action should rewrite 4 data files", 4, result.rewrittenDataFilesCount());
@@ -200,7 +200,8 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
     createPositionDeleteFiles(table);
     shouldHaveDeleteFile(table, 1);
     List<Object[]> expected = currentData();
-    Assert.assertEquals("Should delete 2 records", 1998, expected.size());
+    // math.ceil(math.sqrt(2000)) * math.ceil(math.sqrt(2000)) - 2 = 2023
+    Assert.assertEquals("Should delete 2 records", 2023, expected.size());
 
     Result result = basicRewrite(table).execute();
     Assert.assertEquals("Action should rewrite 8 data files", 8, result.rewrittenDataFilesCount());

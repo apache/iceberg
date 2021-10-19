@@ -51,34 +51,32 @@ public class TableScanUtil {
     return CloseableIterable.combine(splitTasks, tasks);
   }
 
-  private static CloseableIterable<CombinedScanTask> planTasks(
+  public static CloseableIterable<CombinedScanTask> planTasks(CloseableIterable<FileScanTask> splitFiles,
+                                                              long splitSize, int lookback, long openFileCost) {
+    return planTasks(splitFiles, splitSize, lookback, openFileCost, true);
+  }
+
+  public static CloseableIterable<CombinedScanTask> planTasks(
       CloseableIterable<FileScanTask> splitFiles, long splitSize, int lookback, long openFileCost,
-      Function<FileScanTask, Long> weightFunc) {
+      boolean planTasksIgnoreDeleteFiles) {
     Preconditions.checkArgument(splitSize > 0, "Invalid split size (negative or 0): %s", splitSize);
     Preconditions.checkArgument(lookback > 0, "Invalid split planning lookback (negative or 0): %s", lookback);
     Preconditions.checkArgument(openFileCost >= 0, "Invalid file open cost (negative): %s", openFileCost);
-    Preconditions.checkArgument(weightFunc != null, "WeightFunc could not be null");
+
+    Function<FileScanTask, Long> weightFunc;
+    if (planTasksIgnoreDeleteFiles) {
+      weightFunc = file -> Math.max(file.length(), openFileCost);
+    } else {
+      // Check the size of delete file as well to avoid unbalanced bin-packing
+      weightFunc = file -> Math.max(
+          file.length() + file.deletes().stream().mapToLong(ContentFile::fileSizeInBytes).sum(),
+          (1 + file.deletes().size()) * openFileCost);
+    }
 
     return CloseableIterable.transform(
         CloseableIterable.combine(
             new BinPacking.PackingIterable<>(splitFiles, splitSize, lookback, weightFunc, true),
             splitFiles),
         BaseCombinedScanTask::new);
-  }
-
-  public static CloseableIterable<CombinedScanTask> planTasks(CloseableIterable<FileScanTask> splitFiles,
-                                                              long splitSize, int lookback, long openFileCost) {
-    // Check the size of delete file as well to avoid unbalanced bin-packing
-    Function<FileScanTask, Long> weightFunc = file -> Math.max(
-        file.length() + file.deletes().stream().mapToLong(ContentFile::fileSizeInBytes).sum(),
-        (1 + file.deletes().size()) * openFileCost);
-
-    return planTasks(splitFiles, splitSize, lookback, openFileCost, weightFunc);
-  }
-
-  public static CloseableIterable<CombinedScanTask> planTasksIgnoreDeleteFiles(
-      CloseableIterable<FileScanTask> splitFiles, long splitSize, int lookback, long openFileCost) {
-    Function<FileScanTask, Long> weightFunc = file -> Math.max(file.length(), openFileCost);
-    return planTasks(splitFiles, splitSize, lookback, openFileCost, weightFunc);
   }
 }

@@ -67,12 +67,9 @@ class SparkFilesScan extends SparkBatchScan {
       CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(
           CloseableIterable.withNoopClose(files),
           splitSize);
-      CloseableIterable<CombinedScanTask> scanTasks;
-      if (planTasksIgnoreDeleteFiles) {
-        scanTasks = TableScanUtil.planTasksIgnoreDeleteFiles(splitFiles, splitSize, splitLookback, splitOpenFileCost);
-      } else {
-        scanTasks = TableScanUtil.planTasks(splitFiles, splitSize, splitLookback, splitOpenFileCost);
-      }
+      CloseableIterable<CombinedScanTask> scanTasks = TableScanUtil.planTasks(
+          splitFiles, splitSize, splitLookback, splitOpenFileCost, planTasksIgnoreDeleteFiles);
+
       this.tasks = Lists.newArrayList(scanTasks);
     }
 
