@@ -40,7 +40,7 @@ class SparkFilesScan extends SparkBatchScan {
   private final long splitSize;
   private final int splitLookback;
   private final long splitOpenFileCost;
-  private final boolean planTasksIgnoreDeleteFiles;
+  private final boolean planTasksIgnoreDeleteFilesWeight;
 
   private List<CombinedScanTask> tasks = null; // lazy cache of tasks
 
@@ -52,7 +52,8 @@ class SparkFilesScan extends SparkBatchScan {
     this.splitSize = readConf.splitSize();
     this.splitLookback = readConf.splitLookback();
     this.splitOpenFileCost = readConf.splitOpenFileCost();
-    this.planTasksIgnoreDeleteFiles = options.getBoolean(SparkReadOptions.PLAN_TASKS_IGNORE_DELETE_FILES, false);
+    this.planTasksIgnoreDeleteFilesWeight = options.getBoolean(
+        SparkReadOptions.PLAN_TASKS_IGNORE_DELETE_FILES_WEIGHT, false);
   }
 
   @Override
@@ -68,7 +69,7 @@ class SparkFilesScan extends SparkBatchScan {
           CloseableIterable.withNoopClose(files),
           splitSize);
       CloseableIterable<CombinedScanTask> scanTasks = TableScanUtil.planTasks(
-          splitFiles, splitSize, splitLookback, splitOpenFileCost, planTasksIgnoreDeleteFiles);
+          splitFiles, splitSize, splitLookback, splitOpenFileCost, planTasksIgnoreDeleteFilesWeight);
 
       this.tasks = Lists.newArrayList(scanTasks);
     }
