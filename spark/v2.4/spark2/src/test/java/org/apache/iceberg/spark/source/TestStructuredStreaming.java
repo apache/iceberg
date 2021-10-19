@@ -46,10 +46,11 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
+import scala.collection.JavaConversions;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public abstract class TestStructuredStreaming {
+public class TestStructuredStreaming {
 
   private static final Configuration CONF = new Configuration();
   private static final Schema SCHEMA = new Schema(
@@ -77,10 +78,6 @@ public abstract class TestStructuredStreaming {
     TestStructuredStreaming.spark = null;
     currentSpark.stop();
   }
-
-  protected abstract <T> MemoryStream<T> newMemoryStream(int id, SQLContext sqlContext, Encoder<T> encoder);
-
-  protected abstract <T> void send(List<T> records, MemoryStream<T> stream);
 
   @Test
   public void testStreamingWriteAppendMode() throws Exception {
@@ -295,5 +292,13 @@ public abstract class TestStructuredStreaming {
         query.stop();
       }
     }
+  }
+
+  private <T> MemoryStream<T> newMemoryStream(int id, SQLContext sqlContext, Encoder<T> encoder) {
+    return new MemoryStream<>(id, sqlContext, encoder);
+  }
+
+  private <T> void send(List<T> records, MemoryStream<T> stream) {
+    stream.addData(JavaConversions.asScalaBuffer(records));
   }
 }

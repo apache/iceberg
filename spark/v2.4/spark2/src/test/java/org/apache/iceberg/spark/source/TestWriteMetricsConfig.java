@@ -57,7 +57,7 @@ import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-public abstract class TestWriteMetricsConfig {
+public class TestWriteMetricsConfig {
 
   private static final Configuration CONF = new Configuration();
   private static final Schema SIMPLE_SCHEMA = new Schema(

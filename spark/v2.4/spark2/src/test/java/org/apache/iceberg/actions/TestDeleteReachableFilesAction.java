@@ -42,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Before;
@@ -51,7 +52,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public abstract class TestDeleteReachableFilesAction extends SparkTestBase {
+public class TestDeleteReachableFilesAction extends SparkTestBase {
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA = new Schema(
       optional(1, "c1", Types.IntegerType.get()),
@@ -338,5 +339,7 @@ public abstract class TestDeleteReachableFilesAction extends SparkTestBase {
     return ((HasTableOperations) tbl).operations().current().metadataFileLocation();
   }
 
-  abstract ActionsProvider sparkActions();
+  private ActionsProvider sparkActions() {
+    return SparkActions.get();
+  }
 }

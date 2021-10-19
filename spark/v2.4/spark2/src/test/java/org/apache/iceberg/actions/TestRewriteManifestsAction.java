@@ -52,7 +52,7 @@ import org.junit.runners.Parameterized;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 @RunWith(Parameterized.class)
-public abstract class TestRewriteManifestsAction extends SparkTestBase {
+public class TestRewriteManifestsAction extends SparkTestBase {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA = new Schema(

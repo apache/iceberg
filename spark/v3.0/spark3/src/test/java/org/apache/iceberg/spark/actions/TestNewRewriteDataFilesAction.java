@@ -56,6 +56,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.spark.FileRewriteCoordinator;
+import org.apache.iceberg.spark.FileScanTaskSetManager;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Comparators;
@@ -82,10 +84,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
 
-public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
-
-  protected abstract ActionsProvider actions();
-  protected abstract Set<String> cacheContents(Table table);
+public class TestNewRewriteDataFilesAction extends SparkTestBase {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA = new Schema(
@@ -97,6 +96,8 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
 
+  private final FileRewriteCoordinator coordinator = FileRewriteCoordinator.get();
+  private final FileScanTaskSetManager manager = FileScanTaskSetManager.get();
   private String tableLocation = null;
 
   @Before
@@ -988,6 +989,17 @@ public abstract class TestNewRewriteDataFilesAction extends SparkTestBase {
         .format("iceberg")
         .mode("append")
         .save(tableLocation);
+  }
+
+  private ActionsProvider actions() {
+    return SparkActions.get();
+  }
+
+  private Set<String> cacheContents(Table table) {
+    return ImmutableSet.<String>builder()
+        .addAll(manager.fetchSetIDs(table))
+        .addAll(coordinator.fetchSetIDs(table))
+        .build();
   }
 
   class GroupInfoMatcher implements ArgumentMatcher<RewriteFileGroup> {

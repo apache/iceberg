@@ -30,7 +30,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.junit.After;
 import org.junit.BeforeClass;
 
-public abstract class TestIcebergSourceHiveTables extends TestIcebergSourceTablesBase {
+public class TestIcebergSourceHiveTables extends TestIcebergSourceTablesBase {
 
   private static TableIdentifier currentIdentifier;
 
