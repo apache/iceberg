@@ -32,6 +32,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.ExpireSnapshotResult;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -60,7 +61,7 @@ import static org.apache.iceberg.TableProperties.MIN_SNAPSHOTS_TO_KEEP;
 import static org.apache.iceberg.TableProperties.MIN_SNAPSHOTS_TO_KEEP_DEFAULT;
 
 @SuppressWarnings("UnnecessaryAnonymousClass")
-class RemoveSnapshots implements ExpireSnapshots {
+public class RemoveSnapshots implements ExpireSnapshots {
   private static final Logger LOG = LoggerFactory.getLogger(RemoveSnapshots.class);
 
   // Creates an executor service that runs each task in the thread that invokes execute/submit.
@@ -79,10 +80,11 @@ class RemoveSnapshots implements ExpireSnapshots {
   private TableMetadata base;
   private long expireOlderThan;
   private int minNumSnapshots;
+  private ExpireSnapshotResult expireSnapshotResult;
   private Consumer<String> deleteFunc = defaultDelete;
   private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
 
-  RemoveSnapshots(TableOperations ops) {
+  public RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
     this.base = ops.current();
 
@@ -186,11 +188,12 @@ class RemoveSnapshots implements ExpireSnapshots {
         });
     LOG.info("Committed snapshot changes");
 
-    if (cleanExpiredFiles) {
+/*    if (cleanExpiredFiles) {
       cleanExpiredSnapshots();
     } else {
       LOG.info("Cleaning up manifest and data files disabled, leaving them in place");
-    }
+    }*/
+    cleanExpiredSnapshots();
   }
 
   private void cleanExpiredSnapshots() {
@@ -222,13 +225,30 @@ class RemoveSnapshots implements ExpireSnapshots {
       return;
     }
 
-    LOG.info("Committed snapshot changes; cleaning up expired manifests and data files.");
+    LOG.info("Committed snapshot changes.");
 
-    removeExpiredFiles(current.snapshots(), validIds, expiredIds);
+    if (cleanExpiredFiles) {
+      LOG.info("Cleaning up expired manifests and data files.");
+      removeExpiredFiles(current.snapshots(), validIds, expiredIds);
+    } else {
+      LOG.info("Cleaning up manifest and data files disabled, leaving them in place, updating them.");
+      this.expireSnapshotResult = findAllFilesToExpire(current.snapshots(), validIds, expiredIds);
+    }
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private void removeExpiredFiles(List<Snapshot> snapshots, Set<Long> validIds, Set<Long> expiredIds) {
+    ExpireSnapshotResult result = findAllFilesToExpire(snapshots, validIds, expiredIds);
+    Set<String> filesToDelete = result.getFilesToDelete();
+    Set<String> manifestListsToDelete = result.getManifestListsToDelete();
+    Set<String> manifestsToDelete = result.getManifestsToDelete();
+    deleteDataFiles(filesToDelete);
+    deleteMetadataFiles(manifestsToDelete, manifestListsToDelete);
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  private ExpireSnapshotResult findAllFilesToExpire(List<Snapshot> snapshots, Set<Long> validIds,
+                                                    Set<Long> expiredIds) {
     // Reads and deletes are done using Tasks.foreach(...).suppressFailureWhenFinished to complete
     // as much of the delete work as possible and avoid orphaned data or manifest files.
 
@@ -359,10 +379,20 @@ class RemoveSnapshots implements ExpireSnapshots {
                 }
               }
             });
-    deleteDataFiles(manifestsToScan, manifestsToRevert, validIds);
-    deleteMetadataFiles(manifestsToDelete, manifestListsToDelete);
+
+    Set<String> filesToDelete = findFilesToDelete(manifestsToScan, manifestsToRevert, validIds);
+    expireSnapshotResult = ExpireSnapshotResult
+        .builder()
+        .addManifestFiles(manifestsToDelete)
+        .addManifestListFiles(manifestListsToDelete)
+        .addDataFiles(filesToDelete)
+        .build();
+    return expireSnapshotResult;
   }
 
+  public ExpireSnapshotResult findExpiredSnapshotResult() {
+    return expireSnapshotResult;
+  }
   private void deleteMetadataFiles(Set<String> manifestsToDelete, Set<String> manifestListsToDelete) {
     LOG.warn("Manifests to delete: {}", Joiner.on(", ").join(manifestsToDelete));
     LOG.warn("Manifests Lists to delete: {}", Joiner.on(", ").join(manifestListsToDelete));
@@ -383,6 +413,14 @@ class RemoveSnapshots implements ExpireSnapshots {
   private void deleteDataFiles(Set<ManifestFile> manifestsToScan, Set<ManifestFile> manifestsToRevert,
                                Set<Long> validIds) {
     Set<String> filesToDelete = findFilesToDelete(manifestsToScan, manifestsToRevert, validIds);
+    Tasks.foreach(filesToDelete)
+        .executeWith(deleteExecutorService)
+        .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()
+        .onFailure((file, exc) -> LOG.warn("Delete failed for data file: {}", file, exc))
+        .run(file -> deleteFunc.accept(file));
+  }
+
+  private void deleteDataFiles(Set<String> filesToDelete) {
     Tasks.foreach(filesToDelete)
         .executeWith(deleteExecutorService)
         .retry(3).stopRetryOn(NotFoundException.class).suppressFailureWhenFinished()

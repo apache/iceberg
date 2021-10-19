@@ -48,6 +48,10 @@ import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.sink.expire.snapshot.ExpireSnapshotGenerator;
+import org.apache.iceberg.flink.sink.expire.snapshot.ExpireSnapshotMessage.CommonControllerMessage;
+import org.apache.iceberg.flink.sink.expire.snapshot.ExpireSnapshotMessage.EndCheckpoint;
+import org.apache.iceberg.flink.sink.expire.snapshot.ExpireSnapshotOperator;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -71,6 +75,8 @@ public class FlinkSink {
 
   private static final String ICEBERG_STREAM_WRITER_NAME = IcebergStreamWriter.class.getSimpleName();
   private static final String ICEBERG_FILES_COMMITTER_NAME = IcebergFilesCommitter.class.getSimpleName();
+  private static final String EXPIRE_SNAPSHOT_GENERATOR = ExpireSnapshotGenerator.class.getSimpleName();
+  private static final String EXPIRE_SNAPSHOT_OPERATOR = ExpireSnapshotOperator.class.getSimpleName();
 
   private FlinkSink() {
   }
@@ -295,10 +301,17 @@ public class FlinkSink {
 
       // Add single-parallelism committer that commits files
       // after successful checkpoint or end of input
-      SingleOutputStreamOperator<Void> committerStream = appendCommitter(writerStream);
+      SingleOutputStreamOperator<EndCheckpoint> committerStream = appendCommitter(writerStream);
+
+      //  Add single-parallelism expire snapshots generator
+      SingleOutputStreamOperator<CommonControllerMessage> expireSnapshotStream =
+              appendExpireGenerator(committerStream);
+
+      //  Add parallel delete expire snapshots files operator
+      SingleOutputStreamOperator<Void> deleteStream = appendExpireOperator(expireSnapshotStream.broadcast());
 
       // Add dummy discard sink
-      return appendDummySink(committerStream);
+      return appendDummySink(deleteStream);
     }
 
     /**
@@ -338,10 +351,45 @@ public class FlinkSink {
       return resultStream;
     }
 
-    private SingleOutputStreamOperator<Void> appendCommitter(SingleOutputStreamOperator<WriteResult> writerStream) {
+    private SingleOutputStreamOperator<Void> appendExpireOperator(
+            DataStream<CommonControllerMessage> snapshotStream) {
+      ExpireSnapshotOperator expireSnapshotOperator = new ExpireSnapshotOperator(tableLoader);
+      SingleOutputStreamOperator<Void> deleteStream = snapshotStream
+              .transform(
+                      operatorName(EXPIRE_SNAPSHOT_OPERATOR),
+                      Types.VOID,
+                      expireSnapshotOperator
+              );
+
+      if (uidPrefix != null) {
+        deleteStream = deleteStream.uid(uidPrefix + "-delete_snapshot");
+      }
+      return deleteStream;
+    }
+
+    private SingleOutputStreamOperator<CommonControllerMessage> appendExpireGenerator(
+            SingleOutputStreamOperator<EndCheckpoint> committerStream) {
+      ExpireSnapshotGenerator expireSnapshotGenerator = new ExpireSnapshotGenerator(tableLoader);
+      SingleOutputStreamOperator<CommonControllerMessage> snapshotStream = committerStream
+              .transform(operatorName(EXPIRE_SNAPSHOT_GENERATOR),
+                      TypeInformation.of(CommonControllerMessage.class),
+                      expireSnapshotGenerator
+              )
+              .setParallelism(1)
+              .setMaxParallelism(1);
+
+      if (uidPrefix != null) {
+        snapshotStream = snapshotStream.uid(uidPrefix + "-expire-snapshot-generator");
+      }
+      return snapshotStream;
+    }
+
+    private SingleOutputStreamOperator<EndCheckpoint> appendCommitter(
+        SingleOutputStreamOperator<WriteResult> writerStream) {
       IcebergFilesCommitter filesCommitter = new IcebergFilesCommitter(tableLoader, overwrite);
-      SingleOutputStreamOperator<Void> committerStream = writerStream
-          .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME), Types.VOID, filesCommitter)
+      SingleOutputStreamOperator<EndCheckpoint> committerStream = writerStream
+          .transform(operatorName(ICEBERG_FILES_COMMITTER_NAME),
+              TypeInformation.of(EndCheckpoint.class), filesCommitter)
           .setParallelism(1)
           .setMaxParallelism(1);
       if (uidPrefix != null) {
