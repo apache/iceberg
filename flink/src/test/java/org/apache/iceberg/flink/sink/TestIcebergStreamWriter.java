@@ -48,6 +48,12 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.SimpleDataUtil;
+import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.sink.compact.CompactFileGenerator;
+import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.CommonControllerMessage;
+import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.CompactionUnit;
+import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.EndCheckpoint;
+import org.apache.iceberg.flink.sink.compact.SmallFilesMessage.EndCompaction;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -55,6 +61,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SmallFileUtil;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
@@ -333,6 +340,67 @@ public class TestIcebergStreamWriter {
     SimpleDataUtil.assertTableRecords(location, expected);
   }
 
+  @Test
+  public void testTableCompact() throws Exception {
+    if (format == FileFormat.ORC) {
+      return;
+    }
+    // Adjust table properties.
+    table.updateProperties()
+        .set(TableProperties.WRITE_FLINK_AUTO_COMPACT_ENABLED, "true")
+        .set(TableProperties.WRITE_FLINK_COMPACT_INTERVAL_MS, "10000")
+        .set(TableProperties.WRITE_FLINK_COMPACT_LAST_REWRITE_MS, "-1")
+        .set(TableProperties.WRITE_FLINK_COMPACT_SMALL_FILE_SIZE_BYTES, "10")
+        .set(TableProperties.WRITE_FLINK_COMPACT_SMALL_FILE_NUMS, "1")
+        .set(TableProperties.WRITE_TARGET_FILE_SIZE_BYTES, "4") // ~4 bytes; low enough to trigger
+        .set(TableProperties.WRITE_FLINK_COMPACT_TARGET_FILE_SIZE_BYTES, "400000000")
+        .commit();
+
+    List<RowData> rows = Lists.newArrayListWithCapacity(8000);
+    for (int i = 0; i < 2000; i++) {
+      for (String data : new String[] {"a", "b", "c", "d"}) {
+        rows.add(SimpleDataUtil.createRowData(i, data));
+      }
+    }
+
+    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness = createIcebergStreamWriter()) {
+      for (RowData row : rows) {
+        testHarness.processElement(row, 1);
+      }
+
+      // snapshot the operator.
+      testHarness.prepareSnapshotPreBarrier(1);
+      WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
+      Assert.assertEquals(0, result.deleteFiles().length);
+      Assert.assertEquals(8, result.dataFiles().length);
+
+      // Assert that the data file have the expected records.
+      for (DataFile dataFile : result.dataFiles()) {
+        Assert.assertEquals(1000, dataFile.recordCount());
+      }
+
+      // Commit the iceberg transaction.
+      AppendFiles appendFiles = table.newAppend();
+      Arrays.stream(result.dataFiles()).forEach(appendFiles::appendFile);
+      appendFiles.commit();
+
+      //  Determine whether should merge small files
+      table.refresh();
+      long currentTimestamp = System.currentTimeMillis();
+      boolean shouldMerge = SmallFileUtil.shouldMergeSmallFiles(table);
+      Assert.assertTrue("Should merge small files", shouldMerge);
+
+      OneInputStreamOperatorTestHarness<EndCheckpoint, CommonControllerMessage> harness = createCompactGenerator();
+
+      EndCheckpoint endCheckpoint = new EndCheckpoint(1, 1, 16);
+      harness.processElement(endCheckpoint, currentTimestamp);
+      List<CommonControllerMessage> outputMessages = harness.extractOutputValues();
+
+      Assert.assertTrue(outputMessages.get(0) instanceof CompactionUnit);
+      Assert.assertTrue(outputMessages.get(outputMessages.size() - 1) instanceof EndCompaction);
+    }
+  }
+
   private OneInputStreamOperatorTestHarness<RowData, WriteResult> createIcebergStreamWriter() throws Exception {
     return createIcebergStreamWriter(table, SimpleDataUtil.FLINK_SCHEMA);
   }
@@ -347,6 +415,19 @@ public class TestIcebergStreamWriter {
     harness.setup();
     harness.open();
 
+    return harness;
+  }
+
+
+  private OneInputStreamOperatorTestHarness<EndCheckpoint, CommonControllerMessage> createCompactGenerator()
+      throws Exception {
+    TableLoader tableLoader = TableLoader.fromHadoopTable(tablePath);
+    CompactFileGenerator compactFileGenerator = new CompactFileGenerator(tableLoader);
+
+    OneInputStreamOperatorTestHarness<EndCheckpoint, CommonControllerMessage> harness =
+        new OneInputStreamOperatorTestHarness<>(compactFileGenerator, 1, 1, 0);
+    harness.setup();
+    harness.open();
     return harness;
   }
 }

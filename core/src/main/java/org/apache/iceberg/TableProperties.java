@@ -244,4 +244,22 @@ public class TableProperties {
 
   public static final String UPSERT_MODE_ENABLE = "write.upsert.enable";
   public static final boolean UPSERT_MODE_ENABLE_DEFAULT = false;
+
+  //  compact small files
+  public static final String WRITE_FLINK_AUTO_COMPACT_ENABLED = "write.flink.auto-compact.enabled";
+  public static final boolean WRITE_FLINK_AUTO_COMPACT_ENABLED_DEFAULT = false;
+
+  public static final String WRITE_FLINK_COMPACT_LAST_REWRITE_MS = "write.flink.compact.last-rewrite-ms";
+  public static final long WRITE_FLINK_COMPACT_LAST_REWRITE_MS_DEFAULT = -1;
+
+  public static final String WRITE_FLINK_COMPACT_INTERVAL_MS = "write.flink.compact.interval-ms";
+  public static final long WRITE_FLINK_COMPACT_INTERVAL_MS_DEFAULT = 5 * 60 * 1000;
+
+  public static final String WRITE_FLINK_COMPACT_TARGET_FILE_SIZE_BYTES = "write.flink.compact.target-file-size-bytes";
+
+  public static final String WRITE_FLINK_COMPACT_SMALL_FILE_SIZE_BYTES = "write.flink.compact.small-file-size-bytes";
+  public static final long WRITE_FLINK_COMPACT_SMALL_FILE_SIZE_BYTES_DEFAULT = 128 * 1024 * 1024; // 128 MB
+
+  public static final String WRITE_FLINK_COMPACT_SMALL_FILE_NUMS = "write.flink.compact.small-file-nums";
+  public static final long WRITE_FLINK_COMPACT_SMALL_FILE_NUMS_DEFAULT = 1;
 }
