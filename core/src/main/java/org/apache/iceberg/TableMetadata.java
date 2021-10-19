@@ -67,7 +67,7 @@ public class TableMetadata implements Serializable {
                                                Map<String, String> properties) {
     int formatVersion = PropertyUtil.propertyAsInt(properties, TableProperties.FORMAT_VERSION,
         DEFAULT_TABLE_FORMAT_VERSION);
-    return newTableMetadata(schema, spec, sortOrder, location, unreservedProperties(properties), formatVersion);
+    return newTableMetadata(schema, spec, sortOrder, null, location, unreservedProperties(properties), formatVersion);
   }
 
   public static TableMetadata newTableMetadata(Schema schema,
@@ -77,7 +77,7 @@ public class TableMetadata implements Serializable {
     SortOrder sortOrder = SortOrder.unsorted();
     int formatVersion = PropertyUtil.propertyAsInt(properties, TableProperties.FORMAT_VERSION,
         DEFAULT_TABLE_FORMAT_VERSION);
-    return newTableMetadata(schema, spec, sortOrder, location, unreservedProperties(properties), formatVersion);
+    return newTableMetadata(schema, spec, sortOrder, null, location, unreservedProperties(properties), formatVersion);
   }
 
   private static Map<String, String> unreservedProperties(Map<String, String> rawProperties) {
@@ -87,8 +87,18 @@ public class TableMetadata implements Serializable {
   }
 
   static TableMetadata newTableMetadata(Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      String location,
+      Map<String, String> properties,
+      int formatVersion) {
+    return newTableMetadata(schema, spec, sortOrder, null, location, properties, formatVersion);
+  }
+
+  static TableMetadata newTableMetadata(Schema schema,
                                         PartitionSpec spec,
                                         SortOrder sortOrder,
+                                        String locationPrefix,
                                         String location,
                                         Map<String, String> properties,
                                         int formatVersion) {
@@ -121,7 +131,7 @@ public class TableMetadata implements Serializable {
     // break existing tables.
     MetricsConfig.fromProperties(properties).validateReferencedColumns(schema);
 
-    return new TableMetadata(null, formatVersion, UUID.randomUUID().toString(), location,
+    return new TableMetadata(null, formatVersion, UUID.randomUUID().toString(), locationPrefix, location,
         INITIAL_SEQUENCE_NUMBER, System.currentTimeMillis(),
         lastColumnId.get(), freshSchema.schemaId(), ImmutableList.of(freshSchema),
         freshSpec.specId(), ImmutableList.of(freshSpec), freshSpec.lastAssignedFieldId(),
@@ -231,6 +241,7 @@ public class TableMetadata implements Serializable {
   private final String metadataFileLocation;
   private final int formatVersion;
   private final String uuid;
+  private final String locationPrefix;
   private final String location;
   private final long lastSequenceNumber;
   private final long lastUpdatedMillis;
@@ -256,6 +267,7 @@ public class TableMetadata implements Serializable {
   TableMetadata(InputFile file,
                 int formatVersion,
                 String uuid,
+                String locationPrefix,
                 String location,
                 long lastSequenceNumber,
                 long lastUpdatedMillis,
@@ -285,6 +297,7 @@ public class TableMetadata implements Serializable {
     this.file = file;
     this.metadataFileLocation = file != null ? file.location() : null;
     this.uuid = uuid;
+    this.locationPrefix = locationPrefix;
     this.location = location;
     this.lastSequenceNumber = lastSequenceNumber;
     this.lastUpdatedMillis = lastUpdatedMillis;
@@ -435,6 +448,10 @@ public class TableMetadata implements Serializable {
     return sortOrdersById;
   }
 
+  public String locationPrefix() {
+    return locationPrefix;
+  }
+
   public String location() {
     return location;
   }
@@ -483,7 +500,7 @@ public class TableMetadata implements Serializable {
     if (uuid != null) {
       return this;
     } else {
-      return new TableMetadata(null, formatVersion, UUID.randomUUID().toString(), location,
+      return new TableMetadata(null, formatVersion, UUID.randomUUID().toString(), locationPrefix, location,
           lastSequenceNumber, lastUpdatedMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
           lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties,
           currentSnapshotId, snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
@@ -508,7 +525,7 @@ public class TableMetadata implements Serializable {
       builder.add(new Schema(newSchemaId, newSchema.columns(), newSchema.identifierFieldIds()));
     }
 
-    return new TableMetadata(null, formatVersion, uuid, location,
+    return new TableMetadata(null, formatVersion, uuid, locationPrefix, location,
         lastSequenceNumber, System.currentTimeMillis(), newLastColumnId,
         newSchemaId, builder.build(), defaultSpecId, updatedSpecs, lastAssignedPartitionId,
         defaultSortOrderId, updatedSortOrders, properties, currentSnapshotId, snapshots, snapshotLog,
@@ -546,7 +563,7 @@ public class TableMetadata implements Serializable {
       builder.add(freshSpec(newDefaultSpecId, schema, newPartitionSpec));
     }
 
-    return new TableMetadata(null, formatVersion, uuid, location,
+    return new TableMetadata(null, formatVersion, uuid, locationPrefix, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, newDefaultSpecId,
         builder.build(), Math.max(lastAssignedPartitionId, newPartitionSpec.lastAssignedFieldId()),
         defaultSortOrderId, sortOrders, properties,
@@ -585,7 +602,7 @@ public class TableMetadata implements Serializable {
       }
     }
 
-    return new TableMetadata(null, formatVersion, uuid, location,
+    return new TableMetadata(null, formatVersion, uuid, locationPrefix, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, newOrderId, builder.build(), properties, currentSnapshotId, snapshots, snapshotLog,
         addPreviousFile(file, lastUpdatedMillis));
@@ -601,7 +618,7 @@ public class TableMetadata implements Serializable {
         .add(snapshot)
         .build();
 
-    return new TableMetadata(null, formatVersion, uuid, location,
+    return new TableMetadata(null, formatVersion, uuid, locationPrefix, location,
         snapshot.sequenceNumber(), snapshot.timestampMillis(), lastColumnId,
         currentSchemaId, schemas, defaultSpecId, specs, lastAssignedPartitionId,
         defaultSortOrderId, sortOrders, properties, currentSnapshotId, newSnapshots, snapshotLog,
@@ -627,7 +644,7 @@ public class TableMetadata implements Serializable {
         .add(new SnapshotLogEntry(snapshot.timestampMillis(), snapshot.snapshotId()))
         .build();
 
-    return new TableMetadata(null, formatVersion, uuid, location,
+    return new TableMetadata(null, formatVersion, uuid, locationPrefix, location,
         snapshot.sequenceNumber(), snapshot.timestampMillis(), lastColumnId,
         currentSchemaId, schemas, defaultSpecId, specs, lastAssignedPartitionId,
         defaultSortOrderId, sortOrders, properties, snapshot.snapshotId(), newSnapshots, newSnapshotLog,
@@ -641,13 +658,13 @@ public class TableMetadata implements Serializable {
   public TableMetadata convertAbsolutePathsToRelativePaths() {
     List<Snapshot> newUpdatedSnapshots = Lists.newArrayListWithCapacity(snapshots.size());
     for (Snapshot snapshot : snapshots) {
-      String manifestListLocation = MetadataPathUtils.toRelativePath(snapshot.manifestListLocation(), location,
-          useRelativePaths());
+      String manifestListLocation = MetadataPathUtils.toRelativePath(snapshot.manifestListLocation(), locationPrefix,
+          location, useRelativePaths());
       newUpdatedSnapshots.add(new BaseSnapshot(snapshot.io(), snapshot.sequenceNumber(),
           snapshot.snapshotId(), snapshot.parentId(), snapshot.timestampMillis(), snapshot.operation(),
-          snapshot.summary(), snapshot.schemaId(), manifestListLocation, location, useRelativePaths()));
+          snapshot.summary(), snapshot.schemaId(), locationPrefix, location, useRelativePaths(), manifestListLocation));
     }
-    return new TableMetadata(file, formatVersion, uuid, location,
+    return new TableMetadata(file, formatVersion, uuid, locationPrefix, location,
         lastSequenceNumber, lastUpdatedMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId, newUpdatedSnapshots,
         snapshotLog, previousFiles);
@@ -661,13 +678,14 @@ public class TableMetadata implements Serializable {
     List<Snapshot> newUpdatedSnapshots = Lists.newArrayListWithCapacity(snapshots.size());
     for (Snapshot snapshot : snapshots) {
       String newManifestListLocation = MetadataPathUtils.toAbsolutePath(snapshot.manifestListLocation(),
-          location, useRelativePaths());
+          locationPrefix);
       newUpdatedSnapshots.add(new BaseSnapshot(snapshot.io(), snapshot.sequenceNumber(),
           snapshot.snapshotId(), snapshot.parentId(), snapshot.timestampMillis(), snapshot.operation(),
-          snapshot.summary(), snapshot.schemaId(), newManifestListLocation, location, useRelativePaths()));
+          snapshot.summary(), snapshot.schemaId(), locationPrefix, location, useRelativePaths(),
+          newManifestListLocation));
     }
 
-    return new TableMetadata(file, formatVersion, uuid, location,
+    return new TableMetadata(file, formatVersion, uuid, locationPrefix, location,
         lastSequenceNumber, lastUpdatedMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId, newUpdatedSnapshots,
         snapshotLog, previousFiles);
@@ -700,7 +718,7 @@ public class TableMetadata implements Serializable {
       }
     }
 
-    return new TableMetadata(null, formatVersion, uuid, location,
+    return new TableMetadata(null, formatVersion, uuid, locationPrefix, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId, filtered,
         ImmutableList.copyOf(newSnapshotLog), addPreviousFile(file, lastUpdatedMillis));
@@ -724,7 +742,7 @@ public class TableMetadata implements Serializable {
         .add(new SnapshotLogEntry(nowMillis, snapshot.snapshotId()))
         .build();
 
-    return new TableMetadata(null, formatVersion, uuid, location,
+    return new TableMetadata(null, formatVersion, uuid, locationPrefix, location,
         lastSequenceNumber, nowMillis, lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, snapshot.snapshotId(), snapshots,
         newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
@@ -733,7 +751,7 @@ public class TableMetadata implements Serializable {
   public TableMetadata replaceProperties(Map<String, String> rawProperties) {
     ValidationException.check(rawProperties != null, "Cannot set properties to null");
     Map<String, String> newProperties = unreservedProperties(rawProperties);
-    TableMetadata metadata = new TableMetadata(null, formatVersion, uuid, location,
+    TableMetadata metadata = new TableMetadata(null, formatVersion, uuid, locationPrefix, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, newProperties, currentSnapshotId, snapshots,
         snapshotLog, addPreviousFile(file, lastUpdatedMillis, newProperties));
@@ -759,7 +777,7 @@ public class TableMetadata implements Serializable {
             Iterables.getLast(newSnapshotLog).snapshotId() == currentSnapshotId,
         "Cannot set invalid snapshot log: latest entry is not the current snapshot");
 
-    return new TableMetadata(null, formatVersion, uuid, location,
+    return new TableMetadata(null, formatVersion, uuid, locationPrefix, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
         snapshots, newSnapshotLog, addPreviousFile(file, lastUpdatedMillis));
@@ -886,7 +904,7 @@ public class TableMetadata implements Serializable {
       schemasBuilder.add(new Schema(freshSchemaId, freshSchema.columns(), freshSchema.identifierFieldIds()));
     }
 
-    TableMetadata metadata = new TableMetadata(null, formatVersion, uuid, newLocation,
+    TableMetadata metadata = new TableMetadata(null, formatVersion, uuid, locationPrefix, newLocation,
         lastSequenceNumber, System.currentTimeMillis(), newLastColumnId.get(), freshSchemaId, schemasBuilder.build(),
         specId, specListBuilder.build(), Math.max(lastAssignedPartitionId, newSpec.lastAssignedFieldId()),
         orderId, sortOrdersBuilder.build(), ImmutableMap.copyOf(newProperties),
@@ -900,7 +918,7 @@ public class TableMetadata implements Serializable {
   }
 
   public TableMetadata updateLocation(String newLocation) {
-    return new TableMetadata(null, formatVersion, uuid, newLocation,
+    return new TableMetadata(null, formatVersion, uuid, locationPrefix, newLocation,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
         snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
@@ -917,7 +935,7 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    return new TableMetadata(null, newFormatVersion, uuid, location,
+    return new TableMetadata(null, newFormatVersion, uuid, locationPrefix, location,
         lastSequenceNumber, System.currentTimeMillis(), lastColumnId, currentSchemaId, schemas, defaultSpecId, specs,
         lastAssignedPartitionId, defaultSortOrderId, sortOrders, properties, currentSnapshotId,
         snapshots, snapshotLog, addPreviousFile(file, lastUpdatedMillis));
@@ -944,7 +962,7 @@ public class TableMetadata implements Serializable {
       newMetadataLog = Lists.newArrayList(previousFiles);
     }
     newMetadataLog.add(new MetadataLogEntry(timestampMillis,
-        MetadataPathUtils.toRelativePath(previousFile.location(), location, useRelativePaths())));
+        MetadataPathUtils.toRelativePath(previousFile.location(), locationPrefix, location, useRelativePaths())));
 
     return newMetadataLog;
   }

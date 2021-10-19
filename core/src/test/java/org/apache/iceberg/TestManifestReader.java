@@ -48,8 +48,8 @@ public class TestManifestReader extends TableTestBase {
   @Test
   public void testManifestReaderWithEmptyInheritableMetadata() throws IOException {
     ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 1000L, FILE_A));
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO, table.location(),
-        table.ops().current().useRelativePaths())) {
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO, table.locationPrefix(),
+        table.location(), table.ops().current().useRelativePaths())) {
       ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
       Assert.assertEquals(Status.EXISTING, entry.status());
       Assert.assertEquals(FILE_A.path(), entry.file().path());
@@ -60,8 +60,7 @@ public class TestManifestReader extends TableTestBase {
   @Test
   public void testReaderWithFilterWithoutSelect() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE_A, FILE_B, FILE_C);
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO, table.location(),
-        table.ops().current().useRelativePaths())
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)
         .filterRows(Expressions.equal("id", 0))) {
       List<String> files = Streams.stream(reader)
           .map(file -> file.path().toString())
@@ -80,14 +79,13 @@ public class TestManifestReader extends TableTestBase {
     AssertHelpers.assertThrows(
         "Should not be possible to read manifest without explicit snapshot ids and inheritable metadata",
         IllegalArgumentException.class, "Cannot read from ManifestFile with null (unassigned) snapshot ID",
-        () -> ManifestFiles.read(manifest, FILE_IO, table.location(), table.ops().current().useRelativePaths()));
+        () -> ManifestFiles.read(manifest, FILE_IO));
   }
 
   @Test
   public void testManifestReaderWithPartitionMetadata() throws IOException {
     ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 123L, FILE_A));
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO, table.location(),
-        table.ops().current().useRelativePaths())) {
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
       ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
       Assert.assertEquals(123L, (long) entry.snapshotId());
 
@@ -108,8 +106,7 @@ public class TestManifestReader extends TableTestBase {
     table.ops().commit(table.ops().current(), table.ops().current().updatePartitionSpec(spec));
 
     ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 123L, FILE_A));
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO,
-        table.location(), table.ops().current().useRelativePaths())) {
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
       ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
       Assert.assertEquals(123L, (long) entry.snapshotId());
 
@@ -128,8 +125,7 @@ public class TestManifestReader extends TableTestBase {
   @Test
   public void testDataFilePositions() throws IOException {
     ManifestFile manifest = writeManifest(1000L, FILE_A, FILE_B, FILE_C);
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO, table.location(),
-        table.ops().current().useRelativePaths())) {
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
       long expectedPos = 0L;
       for (DataFile file : reader) {
         Assert.assertEquals("Position should match", (Long) expectedPos, file.pos());

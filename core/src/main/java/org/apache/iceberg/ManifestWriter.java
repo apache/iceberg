@@ -42,6 +42,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private final Long snapshotId;
   private final GenericManifestEntry<F> reused;
   private final PartitionSummary stats;
+  private final String locationPrefix;
   private final String tableLocation;
   private final boolean shouldUseRelativePaths;
   private boolean closed = false;
@@ -53,7 +54,19 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private long deletedRows = 0L;
   private Long minSequenceNumber = null;
 
-  private ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId,
+  private ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
+    this.file = file;
+    this.specId = spec.specId();
+    this.writer = newAppender(spec, file);
+    this.snapshotId = snapshotId;
+    this.reused = new GenericManifestEntry<>(spec.partitionType());
+    this.stats = new PartitionSummary(spec);
+    this.locationPrefix = null;
+    this.tableLocation = null;
+    this.shouldUseRelativePaths = false;
+  }
+
+  private ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId, String locationPrefix,
       String tableLocation, boolean shouldUseRelativePaths) {
     this.file = file;
     this.specId = spec.specId();
@@ -61,6 +74,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     this.snapshotId = snapshotId;
     this.reused = new GenericManifestEntry<>(spec.partitionType());
     this.stats = new PartitionSummary(spec);
+    this.locationPrefix = locationPrefix;
     this.tableLocation = tableLocation;
     this.shouldUseRelativePaths = shouldUseRelativePaths;
   }
@@ -96,7 +110,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
       BaseFile<?> entryFile = (BaseFile<?>) entry.file();
       // Update path to use relative location if needed.
       entryFile.setFilePath(MetadataPathUtils.toRelativePath(entryFile.path().toString(),
-          tableLocation, shouldUseRelativePaths));
+            locationPrefix, tableLocation, shouldUseRelativePaths));
     }
     writer.add(prepare(entry));
   }
@@ -192,8 +206,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     private final V2Metadata.IndexedManifestEntry<DataFile> entryWrapper;
 
     V2Writer(PartitionSpec spec, OutputFile file, Long snapshotId,
-        String tableLocation, boolean shouldUseRelativePaths) {
-      super(spec, file, snapshotId, tableLocation, shouldUseRelativePaths);
+        String locationPrefix, String tableLocation, boolean shouldUseRelativePaths) {
+      super(spec, file, snapshotId, locationPrefix, tableLocation, shouldUseRelativePaths);
       this.entryWrapper = new V2Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
     }
 
@@ -226,8 +240,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     private final V2Metadata.IndexedManifestEntry<DeleteFile> entryWrapper;
 
     V2DeleteWriter(PartitionSpec spec, OutputFile file, Long snapshotId,
-        String tableLocation, boolean shouldUseRelativePaths) {
-      super(spec, file, snapshotId, tableLocation, shouldUseRelativePaths);
+        String locationPrefix, String tableLocation, boolean shouldUseRelativePaths) {
+      super(spec, file, snapshotId, locationPrefix, tableLocation, shouldUseRelativePaths);
       this.entryWrapper = new V2Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
     }
 
@@ -264,9 +278,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V1Writer extends ManifestWriter<DataFile> {
     private final V1Metadata.IndexedManifestEntry entryWrapper;
 
-    V1Writer(PartitionSpec spec, OutputFile file, Long snapshotId,
-        String tableLocation, boolean shouldUseRelativePaths) {
-      super(spec, file, snapshotId, tableLocation, shouldUseRelativePaths);
+    V1Writer(PartitionSpec spec, OutputFile file, Long snapshotId) {
+      super(spec, file, snapshotId);
       this.entryWrapper = new V1Metadata.IndexedManifestEntry(spec.partitionType());
     }
 

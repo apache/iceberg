@@ -58,28 +58,29 @@ class ManifestGroup {
   private boolean ignoreResiduals;
   private List<String> columns;
   private boolean caseSensitive;
+  private String tableLocationPrefix;
   private String tableLocation;
   private boolean useRelativePaths;
   private ExecutorService executorService;
 
   ManifestGroup(FileIO io, Iterable<ManifestFile> manifests) {
-    this(io, manifests, null, false);
+    this(io, manifests, null, null, false);
   }
 
-  ManifestGroup(FileIO io, Iterable<ManifestFile> manifests, String tableLocation,
+  ManifestGroup(FileIO io, Iterable<ManifestFile> manifests, String tableLocationPrefix,  String tableLocation,
       Boolean useRelativePaths) {
     this(io,
         Iterables.filter(manifests, manifest -> manifest.content() == ManifestContent.DATA),
-        Iterables.filter(manifests, manifest -> manifest.content() == ManifestContent.DELETES), tableLocation,
-        useRelativePaths);
+        Iterables.filter(manifests, manifest -> manifest.content() == ManifestContent.DELETES), tableLocationPrefix,
+        tableLocation, useRelativePaths);
   }
 
   ManifestGroup(FileIO io, Iterable<ManifestFile> dataManifests, Iterable<ManifestFile> deleteManifests) {
-    this(io, dataManifests, deleteManifests, null, false);
+    this(io, dataManifests, deleteManifests, null, null, false);
   }
 
   ManifestGroup(FileIO io, Iterable<ManifestFile> dataManifests, Iterable<ManifestFile> deleteManifests,
-      String tableLocation, boolean useRelativePaths) {
+      String tableLocationPrefix, String tableLocation, boolean useRelativePaths) {
     this.io = io;
     this.dataManifests = Sets.newHashSet(dataManifests);
     this.deleteIndexBuilder = DeleteFileIndex.builderFor(io, deleteManifests);
@@ -93,6 +94,7 @@ class ManifestGroup {
     this.caseSensitive = true;
     this.manifestPredicate = m -> true;
     this.manifestEntryPredicate = e -> true;
+    this.tableLocationPrefix = tableLocationPrefix;
     this.tableLocation = tableLocation;
     this.useRelativePaths = useRelativePaths;
   }
@@ -257,8 +259,8 @@ class ManifestGroup {
     return Iterables.transform(
         matchingManifests,
         manifest -> {
-          ManifestReader<DataFile> reader = ManifestFiles.read(manifest, io, specsById, tableLocation,
-              useRelativePaths)
+          ManifestReader<DataFile> reader = ManifestFiles.read(manifest, io, specsById, tableLocationPrefix,
+              tableLocation, useRelativePaths)
               .filterRows(dataFilter)
               .filterPartitions(partitionFilter)
               .caseSensitive(caseSensitive)

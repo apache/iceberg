@@ -89,6 +89,11 @@ abstract class BaseMetadataTable implements Table, HasTableOperations, Serializa
   }
 
   @Override
+  public String locationPrefix() {
+    return table().locationPrefix();
+  }
+
+  @Override
   public String location() {
     return table().location();
   }

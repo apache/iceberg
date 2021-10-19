@@ -111,7 +111,8 @@ public class ManifestEntriesTable extends BaseMetadataTable {
 
       return CloseableIterable.transform(manifests, manifest ->
           new ManifestReadTask(ops.io(), manifest, schema(), schemaString, specString, residuals,
-              ops.current().specsById()));
+              ops.current().specsById(), ops.current().locationPrefix(), ops.current().location(),
+              ops.current().useRelativePaths()));
     }
   }
 
@@ -121,14 +122,22 @@ public class ManifestEntriesTable extends BaseMetadataTable {
     private final FileIO io;
     private final ManifestFile manifest;
     private final Map<Integer, PartitionSpec> specsById;
+    private final String tablePrefix;
+    private final String tableLocation;
+    private final boolean useRelativePaths;
+
 
     ManifestReadTask(FileIO io, ManifestFile manifest, Schema schema, String schemaString,
-                     String specString, ResidualEvaluator residuals, Map<Integer, PartitionSpec> specsById) {
+                     String specString, ResidualEvaluator residuals, Map<Integer, PartitionSpec> specsById,
+                     String tablePrefix, String tableLocation, boolean useRelativePaths) {
       super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
       this.schema = schema;
       this.io = io;
       this.manifest = manifest;
       this.specsById = specsById;
+      this.tablePrefix = tablePrefix;
+      this.tableLocation = tableLocation;
+      this.useRelativePaths = useRelativePaths;
 
       Type fileProjection = schema.findType("data_file");
       this.fileSchema = fileProjection != null ? new Schema(fileProjection.asStructType().fields()) : new Schema();
@@ -139,11 +148,11 @@ public class ManifestEntriesTable extends BaseMetadataTable {
       // Project data-file fields
       CloseableIterable<StructLike> prunedRows;
       if (manifest.content() == ManifestContent.DATA) {
-        prunedRows = CloseableIterable.transform(ManifestFiles.read(manifest, io, null,
-            false).project(fileSchema).entries(), file -> (GenericManifestEntry<DataFile>) file);
+        prunedRows = CloseableIterable.transform(ManifestFiles.read(manifest, io, tablePrefix, tableLocation,
+            useRelativePaths).project(fileSchema).entries(), file -> (GenericManifestEntry<DataFile>) file);
       } else {
         prunedRows = CloseableIterable.transform(ManifestFiles.readDeleteManifest(manifest, io, specsById,
-            null, false).project(fileSchema).entries(),
+            tablePrefix, tableLocation, false).project(fileSchema).entries(),
             file -> (GenericManifestEntry<DeleteFile>) file);
       }
 

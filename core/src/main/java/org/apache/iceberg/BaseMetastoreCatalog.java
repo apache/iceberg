@@ -110,6 +110,7 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     private PartitionSpec spec = PartitionSpec.unpartitioned();
     private SortOrder sortOrder = SortOrder.unsorted();
     private String location = null;
+    private String locationPrefix = null;
 
     public BaseMetastoreCatalogTableBuilder(TableIdentifier identifier, Schema schema) {
       Preconditions.checkArgument(isValidIdentifier(identifier), "Invalid table identifier: %s", identifier);
@@ -133,6 +134,12 @@ public abstract class BaseMetastoreCatalog implements Catalog {
     @Override
     public TableBuilder withLocation(String newLocation) {
       this.location = newLocation;
+      return this;
+    }
+
+    @Override
+    public TableBuilder withLocationPrefix(String prefix) {
+      this.locationPrefix = prefix;
       return this;
     }
 
