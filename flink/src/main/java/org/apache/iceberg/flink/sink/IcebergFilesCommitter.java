@@ -282,7 +282,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
         // merged one will lead to the incorrect delete semantic.
         WriteResult result = e.getValue();
 
-        // row delta validations are not needed for streaming changes that write equality deletes. Equality deletes
+        // Row delta validations are not needed for streaming changes that write equality deletes. Equality deletes
         // are applied to data in all previous sequence numbers, so retries may push deletes further in the future,
         // but do not affect correctness. Position deletes committed to the table in this path are used only to delete
         // rows from data files that are being added in this commit. There is no way for data files added along with
