@@ -56,7 +56,7 @@ import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
 @RunWith(Parameterized.class)
-public abstract class TestSparkDataWrite {
+public class TestSparkDataWrite {
   private static final Configuration CONF = new Configuration();
   private final FileFormat format;
   private static SparkSession spark = null;

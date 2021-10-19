@@ -57,7 +57,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
+public class TestRemoveOrphanFilesAction extends SparkTestBase {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   protected static final Schema SCHEMA = new Schema(

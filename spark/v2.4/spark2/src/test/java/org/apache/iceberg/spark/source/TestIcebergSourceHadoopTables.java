@@ -28,7 +28,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.junit.Before;
 
-public abstract class TestIcebergSourceHadoopTables extends TestIcebergSourceTablesBase {
+public class TestIcebergSourceHadoopTables extends TestIcebergSourceTablesBase {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
 

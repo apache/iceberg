@@ -67,7 +67,7 @@ import org.junit.runners.Parameterized;
 import static org.apache.iceberg.Files.localOutput;
 
 @RunWith(Parameterized.class)
-public abstract class TestTimestampWithoutZone extends SparkTestBase {
+public class TestTimestampWithoutZone extends SparkTestBase {
   private static final Configuration CONF = new Configuration();
   private static final HadoopTables TABLES = new HadoopTables(CONF);
 

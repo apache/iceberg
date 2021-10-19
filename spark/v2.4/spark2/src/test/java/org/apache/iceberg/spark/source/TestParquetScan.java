@@ -55,7 +55,7 @@ import org.junit.runners.Parameterized;
 import static org.apache.iceberg.Files.localOutput;
 
 @RunWith(Parameterized.class)
-public abstract class TestParquetScan extends AvroDataTest {
+public class TestParquetScan extends AvroDataTest {
   private static final Configuration CONF = new Configuration();
 
   private static SparkSession spark = null;

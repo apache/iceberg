@@ -31,7 +31,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-public abstract class TestIcebergSpark {
+public class TestIcebergSpark {
 
   private static SparkSession spark = null;
 

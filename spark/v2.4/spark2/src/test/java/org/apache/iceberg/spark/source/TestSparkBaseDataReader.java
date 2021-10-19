@@ -51,7 +51,7 @@ import org.junit.rules.TemporaryFolder;
 import static org.apache.iceberg.FileFormat.PARQUET;
 import static org.apache.iceberg.Files.localOutput;
 
-public abstract class TestSparkBaseDataReader {
+public class TestSparkBaseDataReader {
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();

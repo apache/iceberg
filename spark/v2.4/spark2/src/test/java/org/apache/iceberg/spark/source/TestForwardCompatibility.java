@@ -59,11 +59,12 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import scala.collection.JavaConversions;
 
 import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.Files.localOutput;
 
-public abstract class TestForwardCompatibility {
+public class TestForwardCompatibility {
   private static final Configuration CONF = new Configuration();
 
   private static final Schema SCHEMA = new Schema(
@@ -93,10 +94,6 @@ public abstract class TestForwardCompatibility {
     TestForwardCompatibility.spark = null;
     currentSpark.stop();
   }
-
-  protected abstract <T> MemoryStream<T> newMemoryStream(int id, SQLContext sqlContext, Encoder<T> encoder);
-
-  protected abstract <T> void send(List<T> records, MemoryStream<T> stream);
 
   @Test
   public void testSparkWriteFailsUnknownTransform() throws IOException {
@@ -206,5 +203,13 @@ public abstract class TestForwardCompatibility {
     for (int i = 0; i < expected.size(); i += 1) {
       TestHelpers.assertEqualsSafe(table.schema().asStruct(), expected.get(i), rows.get(i));
     }
+  }
+
+  private <T> MemoryStream<T> newMemoryStream(int id, SQLContext sqlContext, Encoder<T> encoder) {
+    return new MemoryStream<>(id, sqlContext, encoder);
+  }
+
+  private <T> void send(List<T> records, MemoryStream<T> stream) {
+    stream.addData(JavaConversions.asScalaBuffer(records));
   }
 }

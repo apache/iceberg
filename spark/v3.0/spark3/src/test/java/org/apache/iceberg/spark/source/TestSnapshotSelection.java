@@ -44,7 +44,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-public abstract class TestSnapshotSelection {
+public class TestSnapshotSelection {
 
   private static final Configuration CONF = new Configuration();
   private static final Schema SCHEMA = new Schema(

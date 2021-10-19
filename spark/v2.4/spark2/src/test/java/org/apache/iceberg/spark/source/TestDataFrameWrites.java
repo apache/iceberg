@@ -73,7 +73,7 @@ import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsSafe;
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 
 @RunWith(Parameterized.class)
-public abstract class TestDataFrameWrites extends AvroDataTest {
+public class TestDataFrameWrites extends AvroDataTest {
   private static final Configuration CONF = new Configuration();
 
   private final String format;
