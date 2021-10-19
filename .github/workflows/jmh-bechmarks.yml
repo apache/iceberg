@@ -17,15 +17,19 @@
 # under the License.
 #
 
-name: "Java CI Benchmark"
+name: "JMH Benchmarks"
 on:
-  pull_request:
-    types: [ labeled, opened, synchronize, reopened ]
-    paths-ignore:
-    - '.github/workflows/python-ci.yml'
-    - 'python/**'
-    - 'python_legacy/**'
-    - 'site/**'
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: 'Repo name with owner, such as apache/iceberg'
+        required: true
+      ref:
+        description: 'The branch name'
+        required: true
+      benchmarks:
+        description: 'A list of comma-separated double-quoted Benchmark names, such as "IcebergSourceFlatParquetDataReadBenchmark", "IcebergSourceFlatParquetDataFilterBenchmark"'
+        required: true
 
 jobs:
   matrix:
@@ -35,12 +39,12 @@ jobs:
       foundlabel: ${{ steps.set-matrix.outputs.foundlabel }}
     steps:
       - uses: actions/checkout@v2
+        with:
+          repository: ${{ github.event.inputs.repo }}
+          ref: ${{ github.event.inputs.ref }}
       - id: set-matrix
         run: |
-          cat <<EOF > labels.json
-          ${{ toJson(github.event.pull_request.labels.*) }}
-          EOF
-          matrix=$(cat labels.json | jq '.[] | select(.name | startswith("benchmark-")) | .name' | jq .)
+          matrix=$(echo '[${{ github.event.inputs.benchmarks }}]' | jq '.[] | select(endswith("Benchmark")) | .')
           matrix=$(echo $matrix | sed 's/ /,/g' | sed 's/"/\"/g')
           echo "::set-output name=matrix::[$matrix]"
           echo "::set-output name=foundlabel::$(echo "[$matrix]" | jq 'if . | length > 0 then true else false end')"
@@ -50,14 +54,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          echo ${{ needs.matrix.outputs.matrix }}
-          echo ${{ needs.matrix.outputs.foundlabel }}
+          echo "Repo: ${{ github.event.inputs.repo }}"
+          echo "Ref: ${{ github.event.inputs.ref }}"
+          echo "Benchmarks: ${{ needs.matrix.outputs.matrix }}"
+          echo "Found Benchmarks? ${{ needs.matrix.outputs.foundlabel }}"
 
   run-benchmark:
     if: ${{ needs.matrix.outputs.foundlabel == 'true' }}
     needs: matrix
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         benchmark: ${{ fromJson(needs.matrix.outputs.matrix) }}
     env:
@@ -74,16 +81,11 @@ jobs:
         restore-keys: ${{ runner.os }}-gradle
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
 
-    - name: Get Benchmark to run
-      id: get_benchmark
-      run: |
-        benchmark=$(echo ${{ matrix.benchmark }} | sed 's/benchmark-//g')
-        echo "::set-output name=BENCHMARK::${benchmark}Benchmark"
-
     - name: Run Benchmark
-      run: ./gradlew :iceberg-spark:iceberg-spark3:jmh -PjmhIncludeRegex=${{ steps.get_benchmark.outputs.BENCHMARK }} -PjmhOutputPath=benchmark/${{ steps.get_benchmark.outputs.BENCHMARK }}.txt
+      run: ./gradlew :iceberg-spark:iceberg-spark3:jmh -PjmhIncludeRegex=${{ matrix.benchmark }} -PjmhOutputPath=benchmark/${{ matrix.benchmark }}.txt
 
     - uses: actions/upload-artifact@v2
+      if: ${{ always() }}
       with:
         name: benchmark-results
         path: |
