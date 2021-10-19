@@ -19,14 +19,18 @@
 
 package org.apache.iceberg.spark;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.Transaction;
@@ -39,6 +43,7 @@ import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -46,6 +51,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.StagedSparkTable;
+import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
@@ -80,6 +87,9 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  */
 public class SparkCatalog extends BaseCatalog {
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
+  private static final Splitter COMMA = Splitter.on(",");
+  private static final Pattern AT_TIME = Pattern.compile("at(?:_(?:time(?:stamp)?)?)?_?(\\d+)");
+  private static final Pattern SNAPSHOT_ID = Pattern.compile("s(?:nap(?:shot)?)?(?:_id)?_?(\\d+)");
 
   private String catalogName = null;
   private Catalog icebergCatalog = null;
@@ -118,14 +128,8 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public SparkTable loadTable(Identifier ident) throws NoSuchTableException {
     try {
-      Table icebergTable = load(ident);
-      Long snapshotId = null;
-      Long asOfTimestamp = null;
-      if (ident instanceof SnapshotAwareIdentifier) {
-        snapshotId = ((SnapshotAwareIdentifier) ident).snapshotId();
-        asOfTimestamp = ((SnapshotAwareIdentifier) ident).asOfTimestamp();
-      }
-      return new SparkTable(icebergTable, snapshotId, asOfTimestamp, !cacheEnabled);
+      Pair<Table, Long> icebergTable = load(ident);
+      return new SparkTable(icebergTable.first(), icebergTable.second(), !cacheEnabled);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
     }
@@ -226,7 +230,7 @@ public class SparkCatalog extends BaseCatalog {
     }
 
     try {
-      Table table = load(ident);
+      Table table = load(ident).first();
       commitChanges(table, setLocation, setSnapshotId, pickSnapshotId, propertyChanges, schemaChanges);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
@@ -262,7 +266,7 @@ public class SparkCatalog extends BaseCatalog {
   @Override
   public void invalidateTable(Identifier ident) {
     try {
-      load(ident).refresh();
+      load(ident).first().refresh();
     } catch (org.apache.iceberg.exceptions.NoSuchTableException ignored) {
       // ignore if the table doesn't exist, it is not cached
     }
@@ -462,10 +466,97 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
-  private Table load(Identifier ident) {
-    return isPathIdentifier(ident) ?
-        tables.load(((PathIdentifier) ident).location()) :
-        icebergCatalog.loadTable(buildIdentifier(ident));
+  private Pair<Table, Long> load(Identifier ident) {
+    if (isPathIdentifier(ident)) {
+      return loadFromPathIdentifier((PathIdentifier) ident);
+    }
+
+    try {
+      return Pair.of(icebergCatalog.loadTable(buildIdentifier(ident)), null);
+
+    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      // if the original load didn't work, the identifier may be extended and include a snapshot selector
+      TableIdentifier namespaceAsIdent = buildIdentifier(namespaceToIdentifier(ident.namespace()));
+      Table table;
+      try {
+        table = icebergCatalog.loadTable(namespaceAsIdent);
+      } catch (org.apache.iceberg.exceptions.NoSuchTableException ignored) {
+        // the namespace does not identify a table, so it cannot be a table with a snapshot selector
+        // throw the original exception
+        throw e;
+      }
+
+      // loading the namespace as a table worked, check the name to see if it is a valid selector
+      Matcher at = AT_TIME.matcher(ident.name());
+      if (at.matches()) {
+        long asOfTimestamp = Long.parseLong(at.group(1));
+        return Pair.of(table, SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp));
+      }
+
+      Matcher id = SNAPSHOT_ID.matcher(ident.name());
+      if (id.matches()) {
+        long snapshotId = Long.parseLong(id.group(1));
+        return Pair.of(table, snapshotId);
+      }
+
+      // the name wasn't a valid snapshot selector. throw the original exception
+      throw e;
+    }
+  }
+
+  private Pair<String, List<String>> parseLocationString(String location) {
+    int hashIndex = location.lastIndexOf('#');
+    if (hashIndex != -1 && !location.endsWith("#")) {
+      String baseLocation = location.substring(0, hashIndex);
+      List<String> metadata = COMMA.splitToList(location.substring(hashIndex + 1));
+      return Pair.of(baseLocation, metadata);
+    } else {
+      return Pair.of(location, ImmutableList.of());
+    }
+  }
+
+  private Pair<Table, Long> loadFromPathIdentifier(PathIdentifier ident) {
+    Pair<String, List<String>> parsed = parseLocationString(ident.location());
+
+    String metadataTableName = null;
+    Long asOfTimestamp = null;
+    Long snapshotId = null;
+    for (String meta : parsed.second()) {
+      if (MetadataTableType.from(meta) != null) {
+        metadataTableName = meta;
+        continue;
+      }
+
+      Matcher at = AT_TIME.matcher(meta);
+      if (at.matches()) {
+        asOfTimestamp = Long.parseLong(at.group(1));
+        continue;
+      }
+
+      Matcher id = SNAPSHOT_ID.matcher(meta);
+      if (id.matches()) {
+        snapshotId = Long.parseLong(id.group(1));
+      }
+    }
+
+    Preconditions.checkArgument(asOfTimestamp == null || snapshotId == null,
+        "Cannot specify as-of-timestamp and snapshot-id: %s", ident.location());
+
+    Table table = tables.load(parsed.first() + (metadataTableName != null ? "#" + metadataTableName : ""));
+
+    if (snapshotId != null) {
+      return Pair.of(table, snapshotId);
+    } else if (asOfTimestamp != null) {
+      return Pair.of(table, SnapshotUtil.snapshotIdAsOfTime(table, asOfTimestamp));
+    } else {
+      return Pair.of(table, null);
+    }
+  }
+
+  private Identifier namespaceToIdentifier(String[] namespace) {
+    String[] ns = Arrays.copyOf(namespace, namespace.length - 1);
+    String name = namespace[ns.length];
+    return Identifier.of(ns, name);
   }
 
   private Catalog.TableBuilder newBuilder(Identifier ident, Schema schema) {

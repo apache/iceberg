@@ -27,8 +27,10 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkFilters;
@@ -78,19 +80,17 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   private final Table icebergTable;
   private final Long snapshotId;
-  private final Long asOfTimestamp;
   private final boolean refreshEagerly;
   private StructType lazyTableSchema = null;
   private SparkSession lazySpark = null;
 
   public SparkTable(Table icebergTable, boolean refreshEagerly) {
-    this(icebergTable, null, null, refreshEagerly);
+    this(icebergTable, null, refreshEagerly);
   }
 
-  public SparkTable(Table icebergTable, Long snapshotId, Long asOfTimestamp, boolean refreshEagerly) {
+  public SparkTable(Table icebergTable, Long snapshotId, boolean refreshEagerly) {
     this.icebergTable = icebergTable;
     this.snapshotId = snapshotId;
-    this.asOfTimestamp = asOfTimestamp;
     this.refreshEagerly = refreshEagerly;
   }
 
@@ -112,7 +112,7 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   }
 
   private Schema snapshotSchema() {
-    return SnapshotUtil.schemaFor(icebergTable, snapshotId, asOfTimestamp);
+    return SnapshotUtil.schemaFor(icebergTable, snapshotId, null);
   }
 
   @Override
@@ -169,11 +169,15 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
       icebergTable.refresh();
     }
 
-    return new SparkScanBuilder(sparkSession(), icebergTable, options);
+    return new SparkScanBuilder(sparkSession(), icebergTable, addSnapshotId(options, snapshotId));
   }
 
   @Override
   public WriteBuilder newWriteBuilder(LogicalWriteInfo info) {
+    Preconditions.checkArgument(
+        snapshotId == null,
+        "Cannot write to table at a specific snapshot: %s", snapshotId);
+
     if (info.options().containsKey(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID)) {
       // replace data files in the given file scan task set with new files
       return new SparkRewriteBuilder(sparkSession(), icebergTable, info);
@@ -184,6 +188,10 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   @Override
   public MergeBuilder newMergeBuilder(String operation, LogicalWriteInfo info) {
+    Preconditions.checkArgument(
+        snapshotId == null,
+        "Cannot write to table at a specific snapshot: %s", snapshotId);
+
     String mode = getRowLevelOperationMode(operation);
     ValidationException.check(mode.equals("copy-on-write"), "Unsupported mode for %s: %s", operation, mode);
     return new SparkMergeBuilder(sparkSession(), icebergTable, operation, info);
@@ -204,6 +212,10 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
 
   @Override
   public boolean canDeleteWhere(Filter[] filters) {
+    Preconditions.checkArgument(
+        snapshotId == null,
+        "Cannot delete from table at a specific snapshot: %s", snapshotId);
+
     if (table().specs().size() > 1) {
       // cannot guarantee a metadata delete will be successful if we have multiple specs
       return false;
@@ -274,5 +286,35 @@ public class SparkTable implements org.apache.spark.sql.connector.catalog.Table,
   public int hashCode() {
     // use only name in order to correctly invalidate Spark cache
     return icebergTable.name().hashCode();
+  }
+
+  private static CaseInsensitiveStringMap addSnapshotId(CaseInsensitiveStringMap options, Long snapshotId) {
+    if (snapshotId != null) {
+      // If the table is loaded using the Spark DataFrame API, and option("snapshot-id", <snapshot_id>)
+      // or option("as-of-timestamp", <timestamp>)  is applied to the DataFrameReader, SparkTable will be
+      // constructed with a non-null snapshotId. Subsequently SparkTable#newScanBuilder will be called
+      // with the options, which will include "snapshot-id" or "as-of-timestamp".
+      // On the other hand, if the table is loaded using SQL, with the table suffixed with a snapshot
+      // or timestamp selector, then SparkTable will be constructed with a non-null snapshotId, but
+      // SparkTable#newScanBuilder will be called without the "snapshot-id" or "as-of-timestamp" option.
+      // We therefore add a "snapshot-id" option here in this latter case.
+      // As a consistency check, if "snapshot-id" is in the options, the id must match what we already
+      // have.
+      Long snapshotIdFromOptions = Spark3Util.propertyAsLong(options, SparkReadOptions.SNAPSHOT_ID, null);
+      Long asOfTimestamp = Spark3Util.propertyAsLong(options, SparkReadOptions.AS_OF_TIMESTAMP, null);
+      Preconditions.checkArgument(
+          snapshotIdFromOptions == null || snapshotIdFromOptions.longValue() == snapshotId.longValue(),
+          "Cannot override snapshot ID more than once: %s", snapshotIdFromOptions);
+
+      Map<String, String> scanOptions = Maps.newHashMap();
+      scanOptions.putAll(options.asCaseSensitiveMap());
+      if (snapshotIdFromOptions == null && asOfTimestamp == null) {
+        scanOptions.put(SparkReadOptions.SNAPSHOT_ID, String.valueOf(snapshotId));
+      }
+
+      return new CaseInsensitiveStringMap(scanOptions);
+    }
+
+    return options;
   }
 }
