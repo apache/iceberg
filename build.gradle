@@ -282,6 +282,7 @@ project(':iceberg-aliyun') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
+    implementation project(':iceberg-core')
     implementation project(':iceberg-common')
 
     compileOnly 'com.aliyun.oss:aliyun-sdk-oss'
@@ -296,6 +297,7 @@ project(':iceberg-aliyun') {
     }
 
     testImplementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-xml'
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation 'org.springframework:spring-web'
     testImplementation('org.springframework.boot:spring-boot-starter-jetty') {
       exclude module: 'logback-classic'

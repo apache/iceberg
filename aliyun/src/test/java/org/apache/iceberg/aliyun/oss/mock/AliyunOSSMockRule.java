@@ -47,6 +47,11 @@ public class AliyunOSSMockRule implements AliyunOSSTestRule {
   }
 
   @Override
+  public String keyPrefix() {
+    return "mock-objects/";
+  }
+
+  @Override
   public void start() {
     ossMockApp = AliyunOSSMockApp.start(properties);
   }
