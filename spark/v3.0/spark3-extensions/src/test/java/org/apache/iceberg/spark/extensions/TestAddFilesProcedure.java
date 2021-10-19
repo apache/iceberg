@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -46,6 +47,7 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -119,6 +121,10 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void addAvroFile() throws Exception {
+    // Spark Session Catalog cannot load metadata tables
+    // with "The namespace in session catalog must have exactly one name part"
+    Assume.assumeFalse(catalogName.equals("spark_catalog"));
+
     Schema schema = new Schema(
         Types.NestedField.required(1, "id", Types.LongType.get()),
         Types.NestedField.optional(2, "data", Types.StringType.get()));
@@ -161,15 +167,18 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         new Object[]{1L, "a"},
         new Object[]{2L, "b"}
     );
+
     assertEquals("Iceberg table contains correct data",
         expected,
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
-    List<Object[]> expectedCount = Lists.newArrayList();
-    expectedCount.add(new Object[]{2L});
-    assertEquals("Iceberg table has correct count",
-        expectedCount,
-        sql("SELECT COUNT(*) FROM %s", tableName));
+    List<Object[]> actualRecordCount = sql("select %s from %s.files",
+        DataFile.RECORD_COUNT.name(),
+        tableName);
+    List<Object[]> expectedRecordCount = Lists.newArrayList();
+    expectedRecordCount.add(new Object[]{2L});
+    assertEquals("Iceberg file metadata should have correct metadata count",
+        expectedRecordCount, actualRecordCount);
   }
 
   // TODO Adding spark-avro doesn't work in tests

@@ -119,7 +119,7 @@ public class DataFiles {
     private PartitionData partitionData;
     private String filePath = null;
     private FileFormat format = null;
-    private Long recordCount = null;
+    private long recordCount = -1L;
     private long fileSizeInBytes = -1L;
     private Integer sortOrderId = SortOrder.unsorted().orderId();
 
@@ -285,12 +285,7 @@ public class DataFiles {
       }
       Preconditions.checkArgument(format != null, "File format is required");
       Preconditions.checkArgument(fileSizeInBytes >= 0, "File size is required");
-      Preconditions.checkArgument(recordCount != null, "Record count is required");
-      // MetricsEvaluator skips using other metrics, if record count is -1
-      Preconditions.checkArgument(recordCount >= 0 ||
-              (recordCount == -1 && valueCounts == null && columnSizes == null && nanValueCounts == null &&
-                      lowerBounds == null && upperBounds == null),
-          "Metrics cannot be set if record count is -1.");
+      Preconditions.checkArgument(recordCount >= 0, "Record count is required");
 
       return new GenericDataFile(
           specId, filePath, format, isPartitioned ? partitionData.copy() : null,
