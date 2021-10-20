@@ -24,9 +24,13 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaHook;
+import org.apache.hadoop.hive.ql.exec.TableScanOperator;
+import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.HiveStorageHandler;
 import org.apache.hadoop.hive.ql.metadata.HiveStoragePredicateHandler;
+import org.apache.hadoop.hive.ql.metadata.InputEstimator;
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc;
 import org.apache.hadoop.hive.ql.plan.TableDesc;
@@ -47,7 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializationUtil;
 
-public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, HiveStorageHandler {
+public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, HiveStorageHandler, InputEstimator {
   private static final Splitter TABLE_NAME_SPLITTER = Splitter.on("..");
   private static final String TABLE_NAME_SEPARATOR = "..";
 
@@ -158,6 +162,32 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   }
 
   /**
+   * Estimate input size based on filter and projection on table scan operator
+   *
+   *
+   */
+
+  /**
+   * Estimate input size based on filter and projection on table scan operator
+   * @param job The configuration used to get the data from
+   * @param ts The name of the table we need as returned by TableDesc.getTableName()
+   * @param remaining Early exit condition. If it has positive value, further estimation
+   *    can be canceled on the point of exceeding it. In this case,
+   *    return any bigger length value then this (Long.MAX_VALUE, for eaxmple).
+   * @return The Estimation
+   */
+  @Override
+  public Estimation estimate(JobConf job, TableScanOperator ts, long remaining) throws HiveException {
+    long totalSize = job.getLong("totalSize", 0);
+    int numRows = job.getInt("numRows", 0);
+    long bytesPerReducer = job.getLong(HiveConf.ConfVars.BYTESPERREDUCER.varname,
+            Long.parseLong(HiveConf.ConfVars.BYTESPERREDUCER.getDefaultValue()));
+    int reducerCount = job.getInt("mapred.reduce.tasks", -1);
+    long totalLength = reducerCount == -1 ? totalSize : reducerCount * bytesPerReducer;
+    return new Estimation(numRows, totalLength);
+  }
+
+  /**
    * Returns the Table serialized to the configuration based on the table name.
    * @param config The configuration used to get the data from
    * @param name The name of the table we need as returned by TableDesc.getTableName()
@@ -238,4 +268,6 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
     // this is an exception to the interface documentation, but it's a safe operation to add this property
     props.put(InputFormatConfig.TABLE_SCHEMA, schemaJson);
   }
+
+
 }
