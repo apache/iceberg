@@ -21,9 +21,18 @@ package org.apache.iceberg.spark.extensions;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
@@ -33,15 +42,27 @@ import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.DatumWriter;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.ql.exec.vector.DoubleColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.LongColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.orc.GenericOrcWriter;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.iceberg.types.Types;
 import org.apache.orc.OrcFile;
+import org.apache.orc.Reader;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
 import org.apache.spark.sql.Dataset;
@@ -59,6 +80,8 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
 
 public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
@@ -655,6 +678,42 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
   }
 
+
+  @Test
+  public void addOrcFileWithDoubleAndFloatColumns() throws Exception {
+    // Spark Session Catalog cannot load metadata tables
+    // with "The namespace in session catalog must have exactly one name part"
+    Assume.assumeFalse(catalogName.equals("spark_catalog"));
+
+    // Create an ORC file
+    File outputFile = temp.newFile("test.orc");
+    List<Record> expectedRecords = createOrcInputFile(outputFile);
+    String createIceberg =
+        "CREATE TABLE %s (x float, y double, z long) USING iceberg";
+    sql(createIceberg, tableName);
+
+    Object result = scalarSql("CALL %s.system.add_files('%s', '`orc`.`%s`')",
+        catalogName, tableName, outputFile.getPath());
+    Assert.assertEquals(1L, result);
+
+    List<Object[]> expected = Lists.newArrayList(
+        new Object[]{1L, "a"},
+        new Object[]{2L, "b"}
+    );
+
+    assertEquals("Iceberg table contains correct data",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    List<Object[]> actualRecordCount = sql("select %s from %s.files",
+        DataFile.RECORD_COUNT.name(),
+        tableName);
+    List<Object[]> expectedRecordCount = Lists.newArrayList();
+    expectedRecordCount.add(new Object[]{2L});
+    assertEquals("Iceberg file metadata should have correct metadata count",
+        expectedRecordCount, actualRecordCount);
+  }
+
   private static final StructField[] struct = {
       new StructField("id", DataTypes.IntegerType, false, Metadata.empty()),
       new StructField("name", DataTypes.StringType, false, Metadata.empty()),
@@ -745,24 +804,101 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     partitionedDF.write().insertInto(sourceTableName);
   }
 
-  private void createOrcFile(Path orcFilePath) throws IOException {
+  public List<Record> createOrcInputFile(File orcFile) throws IOException {
+    if (orcFile.exists()) {
+      orcFile.delete();
+    }
+    // final org.apache.iceberg.Schema icebergSchema = new org.apache.iceberg.Schema(
+    //     optional(1, "_boolean", Types.BooleanType.get()),
+    //     optional(2, "_int", Types.IntegerType.get()),
+    //     optional(3, "_long", Types.LongType.get()),
+    //     optional(4, "_float", Types.FloatType.get()),
+    //     optional(5, "_double", Types.DoubleType.get()),
+    //     optional(6, "_date", Types.DateType.get()),
+    //     optional(7, "_time", Types.TimeType.get()),
+    //     optional(8, "_timestamp", Types.TimestampType.withoutZone()),
+    //     optional(9, "_timestamptz", Types.TimestampType.withZone()),
+    //     optional(10, "_string", Types.StringType.get()),
+    //     optional(11, "_uuid", Types.UUIDType.get()),
+    //     optional(12, "_fixed", Types.FixedType.ofLength(4)),
+    //     optional(13, "_binary", Types.BinaryType.get()),
+    //     optional(14, "_int_decimal", Types.DecimalType.of(8, 2)),
+    //     optional(15, "_long_decimal", Types.DecimalType.of(14, 2)),
+    //     optional(16, "_fixed_decimal", Types.DecimalType.of(31, 2))
+    // );
+    final org.apache.iceberg.Schema icebergSchema = new org.apache.iceberg.Schema(
+        optional(1, "x", Types.FloatType.get()),
+        optional(2, "y", Types.DoubleType.get()),
+        optional(3, "z", Types.LongType.get())
+    );
+
+    // final LocalDate date =  LocalDate.parse("2018-06-29", DateTimeFormatter.ISO_LOCAL_DATE);
+    // final LocalTime time = LocalTime.parse("10:02:34.000000", DateTimeFormatter.ISO_LOCAL_TIME);
+    // final OffsetDateTime timestamptz = OffsetDateTime.parse("2018-06-29T10:02:34.000000+00:00",
+    //     DateTimeFormatter.ISO_DATE_TIME);
+    // final LocalDateTime timestamp = LocalDateTime.parse("2018-06-29T10:02:34.000000",
+    //     DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+    // final byte[] fixed = "abcd".getBytes(StandardCharsets.UTF_8);
+
+    List<Record> records = new ArrayList<>();
+    // create 50 records
+    for (int i = 0; i < 5; i += 1) {
+      Record record = org.apache.iceberg.data.GenericRecord.create(icebergSchema);
+      record.setField("x",((float) (100 - i)) / 100F + 1.0F); // 2.0f, 1.99f, 1.98f, ...
+      record.setField("y",((double) i) / 100.0D + 2.0D); // 2.0d, 2.01d, 2.02d, ...
+      record.setField("z", 5_000_000_000L + i);
+      // record.setField("_boolean", false);
+      // record.setField("_int", i);
+      // record.setField("_long", 5_000_000_000L + i);
+      // record.setField("_float", ((float) (100 - i)) / 100F + 1.0F); // 2.0f, 1.99f, 1.98f, ...
+      // record.setField("_double", ((double) i) / 100.0D + 2.0D); // 2.0d, 2.01d, 2.02d, ...
+      // record.setField("_date", date);
+      // record.setField("_time", time);
+      // record.setField("_timestamp", timestamp);
+      // record.setField("_timestamptz", timestamptz);
+      // record.setField("_string", "tapir");
+      // record.setField("_fixed", fixed);
+      // record.setField("_binary", ByteBuffer.wrap("xyz".getBytes(StandardCharsets.UTF_8)));
+      // record.setField("_int_decimal", new BigDecimal("77.77"));
+      // record.setField("_long_decimal", new BigDecimal("88.88"));
+      // record.setField("_fixed_decimal", new BigDecimal("99.99"));
+      records.add(record);
+    }
+
+    OutputFile outFile = Files.localOutput(orcFile);
+    try (FileAppender<Record> appender = org.apache.iceberg.orc.ORC.write(outFile)
+        .schema(icebergSchema)
+        .metricsConfig(MetricsConfig.fromProperties(ImmutableMap.of("write.metadata.metrics.default", "none")))
+        .createWriterFunc(GenericOrcWriter::buildWriter)
+        .build()) {
+      appender.addAll(records);
+    }
+
+    return records;
+  }
+
+  private org.apache.hadoop.fs.Path createOrcFile(File orcFileDir, String fileName) throws IOException {
     Configuration conf = new Configuration();
-    TypeDescription schema = TypeDescription.fromString("struct<x:float,y:double,z:long>");
-    Writer writer = OrcFile.createWriter(new org.apache.hadoop.fs.Path(orcFilePath.toUri()),
+    String schemaFromDemo = "struct<x:int,y:int>";
+    String schemaDesired = "struct<x:float,y:double,z:long>"; // TODO - Maybe remove the long
+    TypeDescription schema = TypeDescription.fromString(schemaFromDemo);
+    org.apache.hadoop.fs.Path orcFile = new org.apache.hadoop.fs.Path(orcFileDir.getAbsolutePath(), fileName);
+    Writer writer = OrcFile.createWriter(
+        orcFile,
         OrcFile.writerOptions(conf)
             .setSchema(schema));
 
-    int numRows = 100;
+    int numRows = 4;
     VectorizedRowBatch batch = schema.createRowBatch();
     // Orc implements both Float and Double as DoubleColumnVector
     DoubleColumnVector x = (DoubleColumnVector) batch.cols[0];
     DoubleColumnVector y = (DoubleColumnVector) batch.cols[1];
     LongColumnVector z = (LongColumnVector) batch.cols[2];
-    for (int r=0; r < 100; ++r) {
+    for (int r = 0; r < numRows; ++r) {
       int row = batch.size++;
-      x.vector[row] = r + 0.5;
-      y.vector[row] = r * 3;
-      z.vector[row] = r * 4 + 2;
+      x.vector[row] = r;
+      y.vector[row] = r * 2;
+      z.vector[row] = r + 3;
       // If the batch is full, write it out and start over.
       if (batch.size == batch.getMaxSize()) {
         writer.addRowBatch(batch);
@@ -774,5 +910,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
       batch.reset();
     }
     writer.close();
+
+    return orcFile;
   }
 }
