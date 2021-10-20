@@ -78,16 +78,6 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles> 
   }
 
   @Override
-  @Deprecated
-  public OverwriteFiles validateNoConflictingAppends(Long newReadSnapshotId, Expression newConflictDetectionFilter) {
-    if (newReadSnapshotId != null) {
-      validateFromSnapshot(newReadSnapshotId);
-    }
-    validateNoConflictingAppends(newConflictDetectionFilter);
-    return this;
-  }
-
-  @Override
   public OverwriteFiles validateFromSnapshot(long snapshotId) {
     this.startingSnapshotId = snapshotId;
     return this;
