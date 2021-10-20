@@ -28,6 +28,7 @@ project(':iceberg-flink') {
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-hive-metastore')
 
+    compileOnly "org.apache.flink:flink-connector-base"
     compileOnly "org.apache.flink:flink-streaming-java_2.12"
     compileOnly "org.apache.flink:flink-streaming-java_2.12::tests"
     compileOnly "org.apache.flink:flink-table-api-java-bridge_2.12"
@@ -56,6 +57,7 @@ project(':iceberg-flink') {
       exclude group: 'org.apache.hive', module: 'hive-storage-api'
     }
 
+    testImplementation "org.apache.flink:flink-connector-test-utils"
     testImplementation "org.apache.flink:flink-core"
     testImplementation "org.apache.flink:flink-runtime_2.12"
     testImplementation "org.apache.flink:flink-table-planner-blink_2.12"
