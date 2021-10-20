@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.extensions;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -31,10 +32,18 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.DatumWriter;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.ql.exec.vector.DoubleColumnVector;
+import org.apache.hadoop.hive.ql.exec.vector.LongColumnVector;
+import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.orc.OrcFile;
+import org.apache.orc.TypeDescription;
+import org.apache.orc.Writer;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
@@ -170,7 +179,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   }
 
   // TODO Adding spark-avro doesn't work in tests
-  @Ignore
+  @Test
   public void addDataUnpartitionedAvro() {
     createUnpartitionedFileTable("avro");
 
@@ -734,5 +743,36 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     partitionedDF.write().insertInto(sourceTableName);
     partitionedDF.write().insertInto(sourceTableName);
+  }
+
+  private void createOrcFile(Path orcFilePath) throws IOException {
+    Configuration conf = new Configuration();
+    TypeDescription schema = TypeDescription.fromString("struct<x:float,y:double,z:long>");
+    Writer writer = OrcFile.createWriter(new org.apache.hadoop.fs.Path(orcFilePath.toUri()),
+        OrcFile.writerOptions(conf)
+            .setSchema(schema));
+
+    int numRows = 100;
+    VectorizedRowBatch batch = schema.createRowBatch();
+    // Orc implements both Float and Double as DoubleColumnVector
+    DoubleColumnVector x = (DoubleColumnVector) batch.cols[0];
+    DoubleColumnVector y = (DoubleColumnVector) batch.cols[1];
+    LongColumnVector z = (LongColumnVector) batch.cols[2];
+    for (int r=0; r < 100; ++r) {
+      int row = batch.size++;
+      x.vector[row] = r + 0.5;
+      y.vector[row] = r * 3;
+      z.vector[row] = r * 4 + 2;
+      // If the batch is full, write it out and start over.
+      if (batch.size == batch.getMaxSize()) {
+        writer.addRowBatch(batch);
+        batch.reset();
+      }
+    }
+    if (batch.size != 0) {
+      writer.addRowBatch(batch);
+      batch.reset();
+    }
+    writer.close();
   }
 }
