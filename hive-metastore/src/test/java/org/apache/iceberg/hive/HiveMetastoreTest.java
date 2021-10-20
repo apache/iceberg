@@ -25,6 +25,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogType;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.AfterClass;
@@ -50,7 +51,7 @@ public abstract class HiveMetastoreTest {
     Database db = new Database(DB_NAME, "description", dbPath, new HashMap<>());
     metastoreClient.createDatabase(db);
     HiveMetastoreTest.catalog = (HiveCatalog)
-        CatalogUtil.loadCatalog(HiveCatalog.class.getName(), CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE, ImmutableMap.of(
+        CatalogUtil.loadCatalog(HiveCatalog.class.getName(), CatalogType.HIVE.typeName(), ImmutableMap.of(
                 CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS, String.valueOf(EVICTION_INTERVAL)), hiveConf);
   }
 

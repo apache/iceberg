@@ -54,7 +54,7 @@ Both catalogs are configured using properties nested under the catalog name. Com
 
 | Property                                           | Values                        | Description                                                          |
 | -------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------- |
-| spark.sql.catalog._catalog-name_.type              | `hive` or `hadoop`            | The underlying Iceberg catalog implementation, `HiveCatalog`, `HadoopCatalog` or left unset if using a custom catalog |
+| spark.sql.catalog._catalog-name_.type              | `hive`, `hadoop`, `nessie`, `jdbc`, `glue` or `dynamodb`| Represents the underlying Iceberg catalog implementation. For example - `HiveCatalog` for `hive` and `HadoopCatalog` for `hadoop`.<br>Leave unset if using a custom catalog via the conf `catalog-impl`. |
 | spark.sql.catalog._catalog-name_.catalog-impl      |                               | The underlying Iceberg catalog implementation.|
 | spark.sql.catalog._catalog-name_.default-namespace | default                       | The default current namespace for the catalog |
 | spark.sql.catalog._catalog-name_.uri               | thrift://host:port            | Metastore connect URI; default from `hive-site.xml` |

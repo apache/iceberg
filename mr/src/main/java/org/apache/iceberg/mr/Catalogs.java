@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogType;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
@@ -204,11 +205,11 @@ public final class Catalogs {
     String catalogName = props.getProperty(InputFormatConfig.CATALOG_NAME);
     String catalogType = getCatalogType(conf, catalogName);
     if (catalogType != null) {
-      return CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE.equalsIgnoreCase(catalogType);
+      return CatalogType.HIVE.typeName().equalsIgnoreCase(catalogType);
     }
     catalogType = getCatalogType(conf, ICEBERG_DEFAULT_CATALOG_NAME);
     if (catalogType != null) {
-      return CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE.equalsIgnoreCase(catalogType);
+      return CatalogType.HIVE.typeName().equalsIgnoreCase(catalogType);
     }
     return getCatalogProperties(conf, catalogName, catalogType).get(CatalogProperties.CATALOG_IMPL) == null;
   }
@@ -252,7 +253,7 @@ public final class Catalogs {
   private static Map<String, String> addCatalogPropertiesIfMissing(Configuration conf, String catalogType,
                                                                    Map<String, String> catalogProperties) {
     if (catalogType != null) {
-      catalogProperties.putIfAbsent(CatalogUtil.ICEBERG_CATALOG_TYPE, catalogType);
+      catalogProperties.putIfAbsent(CatalogProperties.CATALOG_TYPE, catalogType);
     }
 
     String legacyCatalogImpl = conf.get(InputFormatConfig.CATALOG_LOADER_CLASS);
@@ -279,7 +280,7 @@ public final class Catalogs {
   private static String getCatalogType(Configuration conf, String catalogName) {
     if (catalogName != null) {
       String catalogType = conf.get(InputFormatConfig.catalogPropertyConfigKey(
-          catalogName, CatalogUtil.ICEBERG_CATALOG_TYPE));
+          catalogName, CatalogProperties.CATALOG_TYPE));
       if (catalogName.equals(ICEBERG_HADOOP_TABLE_NAME)) {
         return NO_CATALOG_TYPE;
       } else {

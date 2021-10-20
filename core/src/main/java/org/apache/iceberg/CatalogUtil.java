@@ -20,7 +20,6 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.apache.hadoop.conf.Configurable;
@@ -55,12 +54,6 @@ public class CatalogUtil {
    *   <li>hadoop: org.apache.iceberg.hadoop.HadoopCatalog</li>
    * </ul>
    */
-  public static final String ICEBERG_CATALOG_TYPE = "type";
-  public static final String ICEBERG_CATALOG_TYPE_HADOOP = "hadoop";
-  public static final String ICEBERG_CATALOG_TYPE_HIVE = "hive";
-  public static final String ICEBERG_CATALOG_HIVE = "org.apache.iceberg.hive.HiveCatalog";
-  public static final String ICEBERG_CATALOG_HADOOP = "org.apache.iceberg.hadoop.HadoopCatalog";
-
   private CatalogUtil() {
   }
 
@@ -197,9 +190,9 @@ public class CatalogUtil {
   /**
    * Build an Iceberg {@link Catalog} based on a map of catalog properties and optional Hadoop configuration.
    * <p>
-   * This method examines both the {@link #ICEBERG_CATALOG_TYPE} and {@link CatalogProperties#CATALOG_IMPL} properties
-   * to determine the catalog implementation to load.
-   * If nothing is specified for both properties, Hive catalog will be loaded by default.
+   * This method examines both the {@link CatalogProperties#CATALOG_TYPE} and
+   * {@link CatalogProperties#CATALOG_IMPL} properties to determine the catalog implementation to
+   * load. If nothing is specified for both properties, Hive catalog will be loaded by default.
    *
    * @param name catalog name
    * @param options catalog properties
@@ -208,23 +201,14 @@ public class CatalogUtil {
    */
   public static Catalog buildIcebergCatalog(String name, Map<String, String> options, Configuration conf) {
     String catalogImpl = options.get(CatalogProperties.CATALOG_IMPL);
+    String catalogType = options.get(CatalogProperties.CATALOG_TYPE);
+    Preconditions.checkArgument(catalogImpl == null || catalogType == null,
+            "Cannot create catalog %s, both type and catalog-impl are set: type=%s, catalog-impl=%s",
+            name, catalogType, catalogImpl);
+
     if (catalogImpl == null) {
-      String catalogType = PropertyUtil.propertyAsString(options, ICEBERG_CATALOG_TYPE, ICEBERG_CATALOG_TYPE_HIVE);
-      switch (catalogType.toLowerCase(Locale.ENGLISH)) {
-        case ICEBERG_CATALOG_TYPE_HIVE:
-          catalogImpl = ICEBERG_CATALOG_HIVE;
-          break;
-        case ICEBERG_CATALOG_TYPE_HADOOP:
-          catalogImpl = ICEBERG_CATALOG_HADOOP;
-          break;
-        default:
-          throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
-      }
-    } else {
-      String catalogType = options.get(ICEBERG_CATALOG_TYPE);
-      Preconditions.checkArgument(catalogType == null,
-          "Cannot create catalog %s, both type and catalog-impl are set: type=%s, catalog-impl=%s",
-          name, catalogType, catalogImpl);
+      catalogType = (catalogType == null) ? CatalogType.HIVE.typeName() : catalogType;
+      catalogImpl = CatalogType.getCatalogImpl(catalogType);
     }
 
     return CatalogUtil.loadCatalog(catalogImpl, name, options, conf);

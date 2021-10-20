@@ -561,5 +561,4 @@ public class TestJdbcCatalog {
     String nsString = JdbcUtil.namespaceToString(ns);
     Assert.assertEquals(ns, JdbcUtil.stringToNamespace(nsString));
   }
-
 }

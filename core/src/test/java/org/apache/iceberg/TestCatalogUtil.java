@@ -163,7 +163,7 @@ public class TestCatalogUtil {
   public void buildCustomCatalog_withTypeSet() {
     Map<String, String> options = new HashMap<>();
     options.put(CatalogProperties.CATALOG_IMPL, "CustomCatalog");
-    options.put(CatalogUtil.ICEBERG_CATALOG_TYPE, "hive");
+    options.put(CatalogProperties.CATALOG_TYPE, "hive");
     Configuration hadoopConf = new Configuration();
     String name = "custom";
 

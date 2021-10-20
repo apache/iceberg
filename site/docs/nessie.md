@@ -73,7 +73,7 @@ and in Spark:
 conf.set("spark.sql.catalog.nessie.warehouse", "/path/to/warehouse");
 conf.set("spark.sql.catalog.nessie.uri", "http://localhost:19120/api/v1")
 conf.set("spark.sql.catalog.nessie.ref", "main")
-conf.set("spark.sql.catalog.nessie.catalog-impl", "org.apache.iceberg.nessie.NessieCatalog")
+conf.set("spark.sql.catalog.nessie.type", "nessie")
 conf.set("spark.sql.catalog.nessie", "org.apache.iceberg.spark.SparkCatalog")
 conf.set("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions,org.projectnessie.spark.extensions.NessieSparkSessionExtensions")
 ```

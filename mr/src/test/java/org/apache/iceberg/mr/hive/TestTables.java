@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogType;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
@@ -367,8 +368,8 @@ abstract class TestTables {
     @Override
     public Map<String, String> properties() {
       return ImmutableMap.of(
-          InputFormatConfig.catalogPropertyConfigKey(catalog, CatalogUtil.ICEBERG_CATALOG_TYPE),
-          CatalogUtil.ICEBERG_CATALOG_TYPE_HADOOP,
+          InputFormatConfig.catalogPropertyConfigKey(catalog, CatalogProperties.CATALOG_TYPE),
+          CatalogType.HADOOP.typeName(),
           InputFormatConfig.catalogPropertyConfigKey(catalog, CatalogProperties.WAREHOUSE_LOCATION),
           warehouseLocation
       );
@@ -414,14 +415,14 @@ abstract class TestTables {
   static class HiveTestTables extends TestTables {
 
     HiveTestTables(Configuration conf, TemporaryFolder temp, String catalogName) {
-      super(CatalogUtil.loadCatalog(HiveCatalog.class.getName(), CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
+      super(CatalogUtil.loadCatalog(HiveCatalog.class.getName(), CatalogType.HIVE.typeName(),
               ImmutableMap.of(), conf), temp, catalogName);
     }
 
     @Override
     public Map<String, String> properties() {
-      return ImmutableMap.of(InputFormatConfig.catalogPropertyConfigKey(catalog, CatalogUtil.ICEBERG_CATALOG_TYPE),
-          CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE);
+      return ImmutableMap.of(InputFormatConfig.catalogPropertyConfigKey(catalog, CatalogProperties.CATALOG_TYPE),
+              CatalogType.HIVE.typeName());
     }
 
     @Override
