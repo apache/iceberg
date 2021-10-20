@@ -85,6 +85,12 @@ fi
 tag="apache-iceberg-$version"
 tagrc="${tag}-rc${rc}"
 
+# Get original version hash to return to in test mode
+original_version_hash=$(git rev-list HEAD 2> /dev/null | head -n 1 )
+if [ $testing = true ]; then
+  echo "In test mode: will revert to $original_version_hash when done"
+fi
+
 echo "Preparing source for $tagrc"
 
 echo "Adding version.txt and tagging release..."
@@ -185,6 +191,14 @@ if [ $testing != true ]; then
 else
    echo "In test mode: Skipped committing a release candidate to the Apache artifacts repository"
    echo "In test mode: The generated tarball and release email should be located in $projectdir"
+fi
+
+# Cleanup as needed from test mode.
+if [ $testing = true ]; then
+  echo "Test mode cleanup: Removing git tag generated in test mode and temporary files"
+  git tag -d "$tagrc"
+  rm "$projectdir/version.txt"
+  git reset --hard "$original_version_hash"
 fi
 
 rm -rf "$tmpdir"
