@@ -42,8 +42,6 @@ import org.apache.spark.unsafe.types.UTF8String
 abstract class IcebergTransformExpression
   extends UnaryExpression with CodegenFallback with NullIntolerant {
 
-  override def nullable: Boolean = child.nullable
-
   @transient lazy val icebergInputType: Type = SparkSchemaUtil.convert(child.dataType)
 }
 
@@ -65,24 +63,40 @@ case class IcebergYearTransform(child: Expression)
   extends IcebergTimeTransform {
 
   @transient lazy val transform: Transform[Any, Integer] = Transforms.year[Any](icebergInputType)
+
+  override protected def withNewChildInternal(newChild: Expression): Expression = {
+    copy(child = newChild)
+  }
 }
 
 case class IcebergMonthTransform(child: Expression)
   extends IcebergTimeTransform {
 
   @transient lazy val transform: Transform[Any, Integer] = Transforms.month[Any](icebergInputType)
+
+  override protected def withNewChildInternal(newChild: Expression): Expression = {
+    copy(child = newChild)
+  }
 }
 
 case class IcebergDayTransform(child: Expression)
   extends IcebergTimeTransform {
 
   @transient lazy val transform: Transform[Any, Integer] = Transforms.day[Any](icebergInputType)
+
+  override protected def withNewChildInternal(newChild: Expression): Expression = {
+    copy(child = newChild)
+  }
 }
 
 case class IcebergHourTransform(child: Expression)
   extends IcebergTimeTransform {
 
   @transient lazy val transform: Transform[Any, Integer] = Transforms.hour[Any](icebergInputType)
+
+  override protected def withNewChildInternal(newChild: Expression): Expression = {
+    copy(child = newChild)
+  }
 }
 
 case class IcebergBucketTransform(numBuckets: Int, child: Expression) extends IcebergTransformExpression {
@@ -106,6 +120,10 @@ case class IcebergBucketTransform(numBuckets: Int, child: Expression) extends Ic
   }
 
   override def dataType: DataType = IntegerType
+
+  override protected def withNewChildInternal(newChild: Expression): Expression = {
+    copy(child = newChild)
+  }
 }
 
 case class IcebergTruncateTransform(child: Expression, width: Int) extends IcebergTransformExpression {
@@ -134,4 +152,8 @@ case class IcebergTruncateTransform(child: Expression, width: Int) extends Icebe
   }
 
   override def dataType: DataType = child.dataType
+
+  override protected def withNewChildInternal(newChild: Expression): Expression = {
+    copy(child = newChild)
+  }
 }
