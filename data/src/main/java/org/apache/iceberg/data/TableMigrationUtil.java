@@ -36,7 +36,7 @@ import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.avro.AvroIO;
+import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
@@ -93,11 +93,8 @@ public class TableMigrationUtil {
       return Arrays.stream(fs.listStatus(partition, HIDDEN_PATH_FILTER))
           .filter(FileStatus::isFile)
           .map(stat -> {
-            InputFile inFile = HadoopInputFile.fromLocation(stat.getPath().toString(), conf);
-            long length = inFile.getLength();
-
-            // Seeking to the end will count all the rows.
-            long rowCount = AvroIO.findStartingRowPos(inFile::newStream, length);
+            InputFile file = HadoopInputFile.fromLocation(stat.getPath().toString(), conf);
+            long rowCount = Avro.rowCount(file);
             Metrics metrics = new Metrics(rowCount, null, null, null);
             String partitionKey = spec.fields().stream()
                 .map(PartitionField::name)

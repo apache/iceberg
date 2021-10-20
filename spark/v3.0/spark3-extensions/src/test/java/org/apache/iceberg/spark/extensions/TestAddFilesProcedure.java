@@ -24,20 +24,17 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.avro.Schema;
+import org.apache.avro.SchemaBuilder;
+import org.apache.avro.file.DataFileWriter;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericDatumWriter;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.Files;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.Record;
-import org.apache.iceberg.io.DataWriter;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
@@ -125,42 +122,33 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     // with "The namespace in session catalog must have exactly one name part"
     Assume.assumeFalse(catalogName.equals("spark_catalog"));
 
-    Schema schema = new Schema(
-        Types.NestedField.required(1, "id", Types.LongType.get()),
-        Types.NestedField.optional(2, "data", Types.StringType.get()));
+    // Create an Avro file
 
-    GenericRecord baseRecord = GenericRecord.create(schema);
+    Schema schema = SchemaBuilder.record("record").fields()
+        .requiredInt("id")
+        .requiredString("data")
+        .endRecord();
+    GenericRecord record1 = new GenericData.Record(schema);
+    record1.put("id", 1L);
+    record1.put("data", "a");
+    GenericRecord record2 = new GenericData.Record(schema);
+    record2.put("id", 2L);
+    record2.put("data", "b");
+    File outputFile = temp.newFile("test.avro");
 
-    ImmutableList.Builder<Record> builder = ImmutableList.builder();
-    builder.add(baseRecord.copy(ImmutableMap.of("id", 1L, "data", "a")));
-    builder.add(baseRecord.copy(ImmutableMap.of("id", 2L, "data", "b")));
-    List<Record> records = builder.build();
-
-    OutputFile file = Files.localOutput(temp.newFile());
-
-    DataWriter<Record> dataWriter = Avro.writeData(file)
-        .schema(schema)
-        .createWriterFunc(org.apache.iceberg.data.avro.DataWriter::create)
-        .overwrite()
-        .withSpec(PartitionSpec.unpartitioned())
-        .build();
-
-    try {
-      for (Record record : records) {
-        dataWriter.add(record);
-      }
-    } finally {
-      dataWriter.close();
-    }
-
-    String path = dataWriter.toDataFile().path().toString();
+    DatumWriter<GenericRecord> datumWriter = new GenericDatumWriter(schema);
+    DataFileWriter<GenericRecord> dataFileWriter = new DataFileWriter(datumWriter);
+    dataFileWriter.create(schema, outputFile);
+    dataFileWriter.append(record1);
+    dataFileWriter.append(record2);
+    dataFileWriter.close();
 
     String createIceberg =
         "CREATE TABLE %s (id Long, data String) USING iceberg";
     sql(createIceberg, tableName);
 
     Object result = scalarSql("CALL %s.system.add_files('%s', '`avro`.`%s`')",
-        catalogName, tableName, path);
+        catalogName, tableName, outputFile.getPath());
     Assert.assertEquals(1L, result);
 
     List<Object[]> expected = Lists.newArrayList(
