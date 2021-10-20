@@ -23,52 +23,15 @@ import java.util.Map;
 import java.util.Properties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 final class JdbcUtil {
-  protected static final String CATALOG_TABLE_NAME = "iceberg_tables";
-  protected static final String CATALOG_NAME = "catalog_name";
-  protected static final String TABLE_NAMESPACE = "table_namespace";
-  protected static final String TABLE_NAME = "table_name";
-  protected static final String METADATA_LOCATION = "metadata_location";
-  protected static final String PREVIOUS_METADATA_LOCATION = "previous_metadata_location";
-  public static final String DO_COMMIT_SQL = "UPDATE " + CATALOG_TABLE_NAME +
-      " SET " + METADATA_LOCATION + " = ? , " + PREVIOUS_METADATA_LOCATION + " = ? " +
-      " WHERE " + CATALOG_NAME + " = ? AND " +
-      TABLE_NAMESPACE + " = ? AND " +
-      TABLE_NAME + " = ? AND " +
-      METADATA_LOCATION + " = ?";
-  protected static final String CREATE_CATALOG_TABLE =
-      "CREATE TABLE " + CATALOG_TABLE_NAME +
-          "(" +
-          CATALOG_NAME + " VARCHAR(255) NOT NULL," +
-          TABLE_NAMESPACE + " VARCHAR(255) NOT NULL," +
-          TABLE_NAME + " VARCHAR(255) NOT NULL," +
-          METADATA_LOCATION + " VARCHAR(5500)," +
-          PREVIOUS_METADATA_LOCATION + " VARCHAR(5500)," +
-          "PRIMARY KEY (" + CATALOG_NAME + ", " + TABLE_NAMESPACE + ", " + TABLE_NAME + ")" +
-          ")";
-  protected static final String GET_TABLE_SQL = "SELECT * FROM " + CATALOG_TABLE_NAME +
-      " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " = ? AND " + TABLE_NAME + " = ? ";
-  protected static final String LIST_TABLES_SQL = "SELECT * FROM " + CATALOG_TABLE_NAME +
-      " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " = ?";
-  protected static final String RENAME_TABLE_SQL = "UPDATE " + CATALOG_TABLE_NAME +
-      " SET " + TABLE_NAMESPACE + " = ? , " + TABLE_NAME + " = ? " +
-      " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " = ? AND " + TABLE_NAME + " = ? ";
-  protected static final String DROP_TABLE_SQL = "DELETE FROM " + CATALOG_TABLE_NAME +
-      " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " = ? AND " + TABLE_NAME + " = ? ";
-  protected static final String GET_NAMESPACE_SQL = "SELECT " + TABLE_NAMESPACE + " FROM " + CATALOG_TABLE_NAME +
-      " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " LIKE ? LIMIT 1";
-  protected static final String LIST_NAMESPACES_SQL = "SELECT DISTINCT " + TABLE_NAMESPACE +
-      " FROM " + CATALOG_TABLE_NAME +
-      " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " LIKE ?";
-  protected static final String DO_COMMIT_CREATE_TABLE_SQL = "INSERT INTO " + CATALOG_TABLE_NAME +
-      " (" + CATALOG_NAME + ", " + TABLE_NAMESPACE + ", " + TABLE_NAME +
-      ", " + METADATA_LOCATION + ", " + PREVIOUS_METADATA_LOCATION + ") " +
-      " VALUES (?,?,?,?,null)";
   private static final Joiner JOINER_DOT = Joiner.on('.');
   private static final Splitter SPLITTER_DOT = Splitter.on('.');
 
@@ -98,5 +61,32 @@ final class JdbcUtil {
     });
 
     return result;
+  }
+  
+  static RuntimeException toIcebergExceptionIfPossible(
+          CatalogDbException fromDb,
+          Namespace expectedExistingNamespace,
+          TableIdentifier expectedExistingTable,
+          TableIdentifier expectedNewTable) {
+    switch (fromDb.getErrorCode()) {
+      case NOT_EXISTS:
+        if (expectedExistingTable != null) {
+          return new NoSuchTableException(fromDb, "Table does not exist: %s", expectedExistingTable);
+        }
+        if (expectedExistingNamespace != null) {
+          return new NoSuchNamespaceException(fromDb, "Namespace doesn't exist: %s", expectedExistingNamespace);
+        }
+        break;
+      case ALREADY_EXISTS:
+        if (expectedNewTable != null) {
+          return new AlreadyExistsException(fromDb, "Table already exists: %s", expectedNewTable);
+        }
+        break;
+      case INTERRUPTED:
+        Thread.currentThread().interrupt();
+        break;
+      // TODO handle retry by code TIME_OUT ?
+    }
+    return new RuntimeException(fromDb.getMessage(), fromDb.getCause());
   }
 }

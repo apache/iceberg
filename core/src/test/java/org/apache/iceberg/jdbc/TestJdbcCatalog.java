@@ -352,9 +352,7 @@ public class TestJdbcCatalog {
     catalog.dropTable(testTable);
     Assert.assertFalse(catalog.listTables(testTable.namespace()).contains(testTable));
     catalog.dropTable(testTable2);
-    AssertHelpers.assertThrows("should throw exception", NoSuchNamespaceException.class,
-        "not exist", () -> catalog.listTables(testTable2.namespace())
-    );
+    AssertHelpers.assertThrows("should throw exception", NoSuchNamespaceException.class, () -> catalog.listTables(testTable2.namespace()));
 
     Assert.assertFalse(catalog.dropTable(TableIdentifier.of("db", "tbl-not-exists")));
   }
@@ -377,8 +375,7 @@ public class TestJdbcCatalog {
     // rename table to existing table name!
     TableIdentifier from2 = TableIdentifier.of("db", "tbl2");
     catalog.createTable(from2, SCHEMA, PartitionSpec.unpartitioned());
-    AssertHelpers.assertThrows("should throw exception", UncheckedSQLException.class,
-        "Failed to rename db.tbl2 to db.tbl2-newtable", () -> catalog.renameTable(from2, to)
+    AssertHelpers.assertThrows("should throw exception", RuntimeException.class, () -> catalog.renameTable(from2, to)
     );
   }
 
@@ -404,8 +401,7 @@ public class TestJdbcCatalog {
     Assert.assertEquals(tbls2.size(), 1);
     Assert.assertEquals("tbl3", tbls2.get(0).name());
 
-    AssertHelpers.assertThrows("should throw exception", NoSuchNamespaceException.class,
-        "does not exist", () -> catalog.listTables(Namespace.of("db", "ns1", "ns2")));
+    AssertHelpers.assertThrows("should throw exception", NoSuchNamespaceException.class, () -> catalog.listTables(Namespace.of("db", "ns1", "ns2")));
   }
 
   @Test
@@ -547,12 +543,9 @@ public class TestJdbcCatalog {
         catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned())
     );
 
-    AssertHelpers.assertThrows("Should fail to drop namespace has tables", NamespaceNotEmptyException.class,
-        "is not empty. 2 tables exist.", () -> catalog.dropNamespace(tbl1.namespace()));
-    AssertHelpers.assertThrows("Should fail to drop namespace has tables", NamespaceNotEmptyException.class,
-        "is not empty. 1 tables exist.", () -> catalog.dropNamespace(tbl2.namespace()));
-    AssertHelpers.assertThrows("Should fail to drop namespace has tables", NamespaceNotEmptyException.class,
-        "is not empty. 1 tables exist.", () -> catalog.dropNamespace(tbl4.namespace()));
+    AssertHelpers.assertThrows("Should fail to drop namespace has tables", NamespaceNotEmptyException.class, () -> catalog.dropNamespace(tbl1.namespace()));
+    AssertHelpers.assertThrows("Should fail to drop namespace has tables", NamespaceNotEmptyException.class, () -> catalog.dropNamespace(tbl2.namespace()));
+    AssertHelpers.assertThrows("Should fail to drop namespace has tables", NamespaceNotEmptyException.class, () -> catalog.dropNamespace(tbl4.namespace()));
   }
 
   @Test

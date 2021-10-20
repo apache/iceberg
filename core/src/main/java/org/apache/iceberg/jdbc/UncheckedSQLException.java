@@ -23,10 +23,6 @@ import com.google.errorprone.annotations.FormatMethod;
 
 public class UncheckedSQLException extends RuntimeException {
 
-  @FormatMethod
-  public UncheckedSQLException(String message, Object... args) {
-    super(String.format(message, args));
-  }
 
   @FormatMethod
   public UncheckedSQLException(Throwable cause, String message, Object... args) {
