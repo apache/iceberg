@@ -18,9 +18,9 @@
  */
 
 def sparkProjects = [
-    project(':iceberg-spark:iceberg-spark-32'),
-    project(":iceberg-spark:iceberg-spark-32-extensions"),
-    project(':iceberg-spark:iceberg-spark-32-runtime')
+    project(':iceberg-spark:iceberg-spark-3.2'),
+    project(":iceberg-spark:iceberg-spark-3.2-extensions"),
+    project(':iceberg-spark:iceberg-spark-3.2-runtime')
 ]
 
 configure(sparkProjects) {
@@ -38,7 +38,7 @@ configure(sparkProjects) {
   }
 }
 
-project(':iceberg-spark:iceberg-spark-32') {
+project(':iceberg-spark:iceberg-spark-3.2') {
   apply plugin: 'scala'
 
   sourceSets {
@@ -103,7 +103,7 @@ project(':iceberg-spark:iceberg-spark-32') {
   }
 }
 
-project(":iceberg-spark:iceberg-spark-32-extensions") {
+project(":iceberg-spark:iceberg-spark-3.2-extensions") {
   apply plugin: 'java-library'
   apply plugin: 'scala'
   apply plugin: 'antlr'
@@ -127,7 +127,7 @@ project(":iceberg-spark:iceberg-spark-32-extensions") {
     compileOnly project(':iceberg-api')
     compileOnly project(':iceberg-core')
     compileOnly project(':iceberg-common')
-    compileOnly project(':iceberg-spark:iceberg-spark-32')
+    compileOnly project(':iceberg-spark:iceberg-spark-3.2')
     compileOnly project(':iceberg-hive-metastore')
     compileOnly("org.apache.spark:spark-hive_2.12:${sparkVersion}") {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -138,7 +138,7 @@ project(":iceberg-spark:iceberg-spark-32-extensions") {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-    testImplementation project(path: ':iceberg-spark:iceberg-spark-32', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-spark:iceberg-spark-3.2', configuration: 'testArtifacts')
 
     testImplementation "org.apache.avro:avro"
 
@@ -154,7 +154,7 @@ project(":iceberg-spark:iceberg-spark-32-extensions") {
   }
 }
 
-project(':iceberg-spark:iceberg-spark-32-runtime') {
+project(':iceberg-spark:iceberg-spark-3.2-runtime') {
   apply plugin: 'com.github.johnrengelman.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
@@ -188,8 +188,8 @@ project(':iceberg-spark:iceberg-spark-32-runtime') {
 
   dependencies {
     api project(':iceberg-api')
-    implementation project(':iceberg-spark:iceberg-spark-32')
-    implementation project(':iceberg-spark:iceberg-spark-32-extensions')
+    implementation project(':iceberg-spark:iceberg-spark-3.2')
+    implementation project(':iceberg-spark:iceberg-spark-3.2-extensions')
     implementation project(':iceberg-aws')
     implementation(project(':iceberg-nessie')) {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
@@ -200,11 +200,11 @@ project(':iceberg-spark:iceberg-spark-32-runtime') {
     integrationImplementation 'org.slf4j:slf4j-simple'
     integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     integrationImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-spark:iceberg-spark-32', configuration: 'testArtifacts')
-    integrationImplementation project(path: ':iceberg-spark:iceberg-spark-32-extensions', configuration: 'testArtifacts')
+    integrationImplementation project(path: ':iceberg-spark:iceberg-spark-3.2', configuration: 'testArtifacts')
+    integrationImplementation project(path: ':iceberg-spark:iceberg-spark-3.2-extensions', configuration: 'testArtifacts')
     // Not allowed on our classpath, only the runtime jar is allowed
-    integrationCompileOnly project(':iceberg-spark:iceberg-spark-32-extensions')
-    integrationCompileOnly project(':iceberg-spark:iceberg-spark-32')
+    integrationCompileOnly project(':iceberg-spark:iceberg-spark-3.2-extensions')
+    integrationCompileOnly project(':iceberg-spark:iceberg-spark-3.2')
     integrationCompileOnly project(':iceberg-api')
   }
 

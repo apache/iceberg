@@ -24,8 +24,6 @@ public class SparkSQLProperties {
   private SparkSQLProperties() {
   }
 
-  public static final String PREFIX = "spark.sql.iceberg.";
-
   // Controls whether vectorized reads are enabled
   public static final String VECTORIZATION_ENABLED = "spark.sql.iceberg.vectorization.enabled";
 
