@@ -21,8 +21,9 @@ package org.apache.iceberg.flink.source.reader;
 
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.flink.source.RowDataFileScanTaskReader;
 import org.apache.iceberg.flink.source.ScanContext;
@@ -31,15 +32,17 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
   private final Table table;
   private final ScanContext scanContext;
+  private final Schema readSchema;
 
   public RowDataReaderFunction(
       Configuration config,
       Table table,
-      ScanContext scanContext,
-      RowType rowType) {
-    super(new ArrayPoolDataIteratorBatcher<>(config, new RowDataRecordFactory(rowType)));
+      ScanContext scanContext) {
+    super(new ArrayPoolDataIteratorBatcher<>(config, new RowDataRecordFactory(
+        FlinkSchemaUtil.convert(readSchema(table, scanContext)))));
     this.table = table;
     this.scanContext = scanContext;
+    this.readSchema = readSchema(table, scanContext);
   }
 
   @Override
@@ -47,11 +50,16 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
     return new DataIterator<>(
         new RowDataFileScanTaskReader(
             table.schema(),
-            scanContext.project(),
+            readSchema,
             scanContext.nameMapping(),
             scanContext.caseSensitive()),
         split.task(),
         table.io(),
         table.encryption());
   }
+
+  private static Schema readSchema(Table table, ScanContext scanContext) {
+    return scanContext.project() == null ? table.schema() : scanContext.project();
+  }
+
 }

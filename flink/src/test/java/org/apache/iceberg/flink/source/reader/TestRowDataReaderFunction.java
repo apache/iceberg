@@ -50,7 +50,7 @@ public class TestRowDataReaderFunction extends ReaderFunctionTestBase<RowData> {
 
   @Override
   protected ReaderFunction<RowData> readerFunction() {
-    return new RowDataReaderFunction(new Configuration(), tableResource.table(), scanContext, rowType);
+    return new RowDataReaderFunction(new Configuration(), tableResource.table(), scanContext);
   }
 
   @Override

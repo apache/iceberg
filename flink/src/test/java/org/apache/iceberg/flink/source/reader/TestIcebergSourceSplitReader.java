@@ -30,14 +30,12 @@ import org.apache.flink.connector.file.src.util.RecordAndPosition;
 import org.apache.flink.connector.testutils.source.reader.TestingReaderContext;
 import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.HadoopTableResource;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
@@ -104,9 +102,8 @@ public class TestIcebergSourceSplitReader {
 
   private IcebergSourceSplitReader createSplitReader() {
     final Configuration config = new Configuration();
-    RowType rowType = FlinkSchemaUtil.convert(tableResource.table().schema());
     return new IcebergSourceSplitReader(
-        new RowDataReaderFunction(config, tableResource.table(), scanContext, rowType),
+        new RowDataReaderFunction(config, tableResource.table(), scanContext),
         new TestingReaderContext(),
         new IcebergSourceReaderMetrics(new UnregisteredMetricsGroup()));
   }
