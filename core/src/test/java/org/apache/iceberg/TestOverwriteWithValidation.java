@@ -252,6 +252,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
     table.newOverwrite()
         .deleteFile(FILE_DAY_2)
         .addFile(FILE_DAY_2_MODIFIED)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
         .validateNoConflictingAppends(alwaysTrue())
         .commit();
 
@@ -271,6 +272,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
     table.newOverwrite()
         .deleteFile(FILE_DAY_2)
         .addFile(FILE_DAY_2_MODIFIED)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
         .validateNoConflictingAppends(EXPRESSION_DAY_2)
         .commit();
 
@@ -310,6 +312,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
     OverwriteFiles overwrite = table.newOverwrite()
         .deleteFile(FILE_DAY_2)
         .addFile(FILE_DAY_2_MODIFIED)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
         .validateNoConflictingAppends(alwaysTrue());
 
     table.newAppend()
@@ -337,6 +340,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
     OverwriteFiles overwrite = table.newOverwrite()
         .deleteFile(FILE_DAY_2)
         .addFile(FILE_DAY_2_MODIFIED)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
         .validateNoConflictingAppends(EXPRESSION_DAY_2);
 
     table.newAppend()
@@ -361,6 +365,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
     OverwriteFiles overwrite = table.newOverwrite()
         .deleteFile(FILE_DAY_2)
         .addFile(FILE_DAY_2_MODIFIED)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
         .validateNoConflictingAppends(EXPRESSION_DAY_2);
 
     table.newDelete()
@@ -383,6 +388,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
 
     OverwriteFiles overwrite = table.newOverwrite()
         .addFile(FILE_DAY_2_MODIFIED)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
         .validateNoConflictingAppends(EXPRESSION_DAY_2);
 
     table.newAppend()
@@ -411,6 +417,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
     OverwriteFiles overwrite = table.newOverwrite()
         .deleteFile(FILE_DAY_2)
         .addFile(FILE_DAY_2_MODIFIED)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
         .validateNoConflictingAppends(EXPRESSION_DAY_2);
 
     table.newDelete()
@@ -439,6 +446,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
     OverwriteFiles overwrite = table.newOverwrite()
         .deleteFile(FILE_DAY_2)
         .addFile(FILE_DAY_2_MODIFIED)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
         .validateNoConflictingAppends(EXPRESSION_DAY_2);
 
     table.newRewrite()
@@ -463,6 +471,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
     OverwriteFiles overwrite = table.newOverwrite()
         .deleteFile(FILE_DAY_2)
         .addFile(FILE_DAY_2_MODIFIED)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
         .validateNoConflictingAppends(EXPRESSION_DAY_2);
 
     table.newAppend()
@@ -491,6 +500,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
     OverwriteFiles overwrite = table.newOverwrite()
         .deleteFile(FILE_DAY_2)
         .addFile(FILE_DAY_2_MODIFIED)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
         .validateNoConflictingAppends(EXPRESSION_DAY_2);
 
     table.newDelete()
@@ -515,6 +525,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
     Snapshot baseSnapshot = table.currentSnapshot();
     OverwriteFiles overwrite = table.newOverwrite()
         .addFile(FILE_DAY_2_MODIFIED)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
         .validateNoConflictingAppends(EXPRESSION_DAY_2);
 
     table.newAppend()
@@ -616,6 +627,7 @@ public class TestOverwriteWithValidation extends TableTestBase {
     OverwriteFiles overwrite = txn.newOverwrite()
         .deleteFile(FILE_DAY_2)
         .addFile(FILE_DAY_2_MODIFIED)
+        .validateFromSnapshot(baseSnapshot.snapshotId())
         .validateNoConflictingAppends(EXPRESSION_DAY_2);
 
     table.newAppend()
