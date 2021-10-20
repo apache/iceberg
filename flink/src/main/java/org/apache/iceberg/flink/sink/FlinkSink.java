@@ -73,9 +73,10 @@ public class FlinkSink {
   private static final String ICEBERG_STREAM_REWRITER_NAME = IcebergStreamRewriter.class.getSimpleName();
   private static final String ICEBERG_REWRITE_FILES_COMMITTER_NAME = IcebergRewriteFilesCommitter.class.getSimpleName();
 
-
   public static final String STREAMING_REWRITE_ENABLE = "flink.rewrite.enable";
   public static final boolean STREAMING_REWRITE_ENABLE_DEFAULT = false;
+  public static final String STREAMING_REWRITE_PARALLELISM = "flink.rewrite.parallelism";
+  public static final Integer STREAMING_REWRITE_PARALLELISM_DEFAULT = null;  // use flink job default parallelism
 
   private FlinkSink() {
   }
@@ -378,15 +379,24 @@ public class FlinkSink {
       boolean streamingRewriteEnable = rewrite || PropertyUtil.propertyAsBoolean(table.properties(),
           STREAMING_REWRITE_ENABLE, STREAMING_REWRITE_ENABLE_DEFAULT);
       if (!streamingRewriteEnable) {
+        // return upstream if streaming rewrite is unable
         return committerStream;
+      }
+
+      Integer fileRewriterParallelism = rewriteParallelism;
+      if (fileRewriterParallelism == null) {
+        // Fallback to use rewrite parallelism parsed from table properties if don't specify in job level.
+        String parallelism = table.properties().get(STREAMING_REWRITE_PARALLELISM);
+        fileRewriterParallelism = parallelism != null ? Integer.valueOf(parallelism) :
+            STREAMING_REWRITE_PARALLELISM_DEFAULT;
       }
 
       IcebergStreamRewriter fileRewriter = new IcebergStreamRewriter(tableLoader);
       SingleOutputStreamOperator<RewriteResult> rewrittenStream = committerStream
           .keyBy(CommitResult::partition)
           .transform(operatorName(ICEBERG_STREAM_REWRITER_NAME), TypeInformation.of(RewriteResult.class), fileRewriter);
-      if (rewriteParallelism != null) {
-        rewrittenStream = rewrittenStream.setParallelism(rewriteParallelism);
+      if (fileRewriterParallelism != null) {
+        rewrittenStream = rewrittenStream.setParallelism(fileRewriterParallelism);
       }
       if (uidPrefix != null) {
         rewrittenStream = rewrittenStream.uid(uidPrefix + "-rewriter");

@@ -155,8 +155,8 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
         .map(ContentFile::fileSizeInBytes)
         .reduce(0L, (acc, size) -> acc += size);
     DeltaManifests deltaManifests = FlinkManifestUtil.writeExistingFiles(
-        result.snapshotId(), result.sequenceNumber(),
-        result.writeResult(), () -> manifestOutputFileFactory.createTmp(), table.specs().get(result.specId())
+        result.snapshotId(), result.sequenceNumber(), result.writeResult(),
+        () -> manifestOutputFileFactory.createTmp(), table.specs().get(result.specId())
     );
     fileGroup.append(dataFilesCount, dataFilesSize, result.snapshotId(), result.sequenceNumber(), deltaManifests);
 

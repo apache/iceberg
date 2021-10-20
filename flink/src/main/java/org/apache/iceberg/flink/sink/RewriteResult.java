@@ -20,7 +20,6 @@
 package org.apache.iceberg.flink.sink;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
