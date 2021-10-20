@@ -196,11 +196,17 @@ public class OrcMetrics {
         min = Math.toIntExact((long) min);
       }
     } else if (columnStats instanceof DoubleColumnStatistics) {
-      // since Orc includes NaN for upper/lower bounds of floating point columns, and we don't want this behavior,
-      // we have tracked metrics for such columns ourselves and thus do not need to rely on Orc's column statistics.
-      Preconditions.checkNotNull(fieldMetrics,
-          "[BUG] Float or double type columns should have metrics being tracked by Iceberg Orc writers");
-      min = fieldMetrics.lowerBound();
+      if (fieldMetrics != null) {
+        // since Orc includes NaN for upper/lower bounds of floating point columns, and we don't want this behavior,
+        // we have tracked metrics for such columns ourselves and thus do not need to rely on Orc's column statistics.
+        min = fieldMetrics.lowerBound();
+      } else {
+        // imported files will not have metrics that were tracked by Iceberg, so fall back to the file's metrics.
+        min = ((DoubleColumnStatistics) columnStats).getMinimum();
+        if (type.typeId() == Type.TypeID.FLOAT) {
+          min = ((Double) min).floatValue();
+        }
+      }
     } else if (columnStats instanceof StringColumnStatistics) {
       min = ((StringColumnStatistics) columnStats).getMinimum();
     } else if (columnStats instanceof DecimalColumnStatistics) {

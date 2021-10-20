@@ -70,6 +70,7 @@ public abstract class SparkCatalogTestBase extends SparkTestBase {
             "type", "hive",
             "default-namespace", "default",
             "parquet-enabled", "true",
+            "orc-enabled", "true",
             "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
         ) }
     };

@@ -76,6 +76,8 @@ public class TestCreateActions extends SparkCatalogTestBase {
       "PARTITIONED BY (id INT) STORED AS parquet LOCATION '%s'";
   private static final String CREATE_HIVE_PARQUET = "CREATE TABLE %s (data STRING) " +
       "PARTITIONED BY (id INT) STORED AS parquet";
+  private static final String CREATE_ORC = "CREATE TABLE %s(x FLOAT, y DOUBLE) " +
+      "using orc LOCATION '%s'";
 
   private static final String NAMESPACE = "default";
 
@@ -92,6 +94,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
             "type", "hadoop",
             "default-namespace", "default",
             "parquet-enabled", "true",
+            "orc-enabled", "true",
             "cache-enabled", "false" // Spark will delete tables using v1, leaving the cache out of sync
         )},
         new Object[] { "testhive", SparkCatalog.class.getName(), ImmutableMap.of(
@@ -354,6 +357,16 @@ public class TestCreateActions extends SparkCatalogTestBase {
   }
 
   @Test
+  public void testMigrateOrcTableWithFloatAndDoubleColumns() throws Exception {
+    Assume.assumeTrue("Cannot migrate to a hadoop based catalog", !type.equals("hadoop"));
+    Assume.assumeTrue("Can only migrate from Spark Session catalog", catalog.name().equals("spark_catalog"));
+    String source = sourceName("test_migrate_orc_float_double");
+    String dest = source;
+    createSourceTable(CREATE_ORC, source, "orc");
+    assertMigratedFileCount(Actions.migrate(source), source, dest);
+  }
+
+  @Test
   public void testSnapshotPartitioned() throws Exception {
     Assume.assumeTrue("Cannot snapshot with arbitrary location in a hadoop based catalog",
         !type.equals("hadoop"));
@@ -574,15 +587,20 @@ public class TestCreateActions extends SparkCatalogTestBase {
     return spark.sessionState().catalog().getTableMetadata(new TableIdentifier(identifier.name(), namespace));
   }
 
+  private void createSourceTable(String createStatement, String tableName, String format)
+      throws IOException, NoSuchTableException, NoSuchDatabaseException, ParseException {
+      File location = temp.newFolder();
+      spark.sql(String.format(createStatement, tableName, location));
+      CatalogTable table = loadSessionTable(tableName);
+      Seq<String> partitionColumns = table.partitionColumnNames();
+      spark.table(baseTableName).write().mode(SaveMode.Append).format(format).partitionBy(partitionColumns)
+          .saveAsTable(tableName);
+    }
+
+  // Everything uses parquet but the one orc test
   private void createSourceTable(String createStatement, String tableName)
       throws IOException, NoSuchTableException, NoSuchDatabaseException, ParseException {
-    File location = temp.newFolder();
-    spark.sql(String.format(createStatement, tableName, location));
-    CatalogTable table = loadSessionTable(tableName);
-    Seq<String> partitionColumns = table.partitionColumnNames();
-    String format = table.provider().get();
-    spark.table(baseTableName).write().mode(SaveMode.Append).format(format).partitionBy(partitionColumns)
-        .saveAsTable(tableName);
+    createSourceTable(createStatement, tableName, "parquet");
   }
 
   // Counts the number of files in the source table, makes sure the same files exist in the destination table
