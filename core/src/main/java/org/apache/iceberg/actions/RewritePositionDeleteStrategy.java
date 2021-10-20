@@ -24,7 +24,10 @@ import java.util.Set;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Table;
 
-public interface RewriteDeleteStrategy {
+/**
+ * A strategy for an action to rewrite position delete files.
+ */
+public interface RewritePositionDeleteStrategy {
 
   /**
    * Returns the name of this rewrite deletes strategy
@@ -45,22 +48,15 @@ public interface RewriteDeleteStrategy {
   /**
    * Sets options to be used with this strategy
    */
-  RewriteDeleteStrategy options(Map<String, String> options);
+  RewritePositionDeleteStrategy options(Map<String, String> options);
 
   /**
    * Select the delete files to rewrite.
    *
+   * @param deleteFiles iterable of delete files in a group.
    * @return iterable of original delete file to be replaced.
    */
-  Iterable<DeleteFile> selectDeleteFiles();
-
-  /**
-   * Define how to rewrite the deletes.
-   *
-   * @param deleteFilesToRewrite a group of files to be rewritten together
-   * @return iterable of delete files used to replace the original delete files.
-   */
-  Iterable<DeleteFile> rewriteDeleteFiles(Iterable<DeleteFile> deleteFilesToRewrite);
+  Iterable<DeleteFile> selectDeleteFiles(Iterable<DeleteFile> deleteFiles);
 
   /**
    * Groups into lists which will be processed in a single executable unit. Each group will end up being
@@ -71,4 +67,12 @@ public interface RewriteDeleteStrategy {
    * @return iterable of lists of FileScanTasks which will be processed together
    */
   Iterable<Iterable<DeleteFile>> planDeleteFileGroups(Iterable<DeleteFile> deleteFiles);
+
+  /**
+   * Define how to rewrite the deletes.
+   *
+   * @param deleteFilesToRewrite a group of files to be rewritten together
+   * @return iterable of delete files used to replace the original delete files.
+   */
+  Iterable<DeleteFile> rewriteDeleteFiles(Iterable<DeleteFile> deleteFilesToRewrite);
 }

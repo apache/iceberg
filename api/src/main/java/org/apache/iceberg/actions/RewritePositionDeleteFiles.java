@@ -22,22 +22,18 @@ package org.apache.iceberg.actions;
 import org.apache.iceberg.expressions.Expression;
 
 /**
- * An action for rewriting the position delete files.
+ * An action for rewriting position delete files.
  * <p>
- * Generally used for optimizing the sizing and layout of position delete files within a table.
+ * Generally used for optimizing the size and layout of position delete files within a table.
  */
 public interface RewritePositionDeleteFiles
     extends SnapshotUpdate<RewritePositionDeleteFiles, RewritePositionDeleteFiles.Result> {
 
   /**
-   * bin-pack the position deletes.
-   *
-   * @return this for method chaining
-   */
-  RewritePositionDeleteFiles binPackPositionDeletes();
-
-  /**
    * A row filter for finding deletes to rewrite.
+   * <p>
+   * The row filter will be converted to a partition filter with an inclusive projection, so that candidate deletes are
+   * selected if any row match the expression. The matching delete files will be rewritten.
    *
    * @param expression An iceberg expression used to find deletes.
    * @return this for method chaining
@@ -46,6 +42,8 @@ public interface RewritePositionDeleteFiles
 
   /**
    * A partition filter for finding deletes to rewrite.
+   * <p>
+   * The matching delete files will be rewritten.
    *
    * @param expression An iceberg expression used to find deletes.
    * @return this for method chaining

@@ -29,6 +29,9 @@ public interface ConvertEqualityDeleteFiles
 
   /**
    * A row filter for finding the equality deletes to convert.
+   * <p>
+   * The row filter will be converted to a partition filter with an inclusive projection, so that candidate deletes are
+   * selected if any row match the expression. The matching delete files will be converted to position delete files.
    *
    * @param expression An iceberg expression used to find deletes.
    * @return this for method chaining
@@ -37,6 +40,8 @@ public interface ConvertEqualityDeleteFiles
 
   /**
    * A partition filter for finding the equality deletes to convert.
+   * <p>
+   * The matching delete files will be converted to position delete files.
    *
    * @param expression An iceberg expression used to find deletes.
    * @return this for method chaining

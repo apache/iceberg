@@ -49,22 +49,15 @@ public interface ConvertEqualityDeleteStrategy {
   /**
    * Sets options to be used with this strategy
    */
-  RewriteDeleteStrategy options(Map<String, String> options);
+  RewritePositionDeleteStrategy options(Map<String, String> options);
 
   /**
    * Select the delete files to convert.
    *
+   * @param deleteFiles iterable of delete files in a group.
    * @return iterable of original delete file to be converted.
    */
-  Iterable<DeleteFile> selectDeleteFiles();
-
-  /**
-   * Define how to convert the deletes.
-   *
-   * @param deleteFilesToConvert a group of files to be converted together
-   * @return iterable of delete files used to replace the original delete files.
-   */
-  Iterable<DeleteFile> convertDeleteFiles(Iterable<DeleteFile> deleteFilesToConvert);
+  Iterable<DeleteFile> selectDeleteFiles(Iterable<DeleteFile> deleteFiles);
 
   /**
    * Groups delete files into lists which will be processed in a single executable unit. Each group will end up being
@@ -75,4 +68,12 @@ public interface ConvertEqualityDeleteStrategy {
    * @return iterable of lists of FileScanTasks which will be processed together
    */
   Iterable<Iterable<FileScanTask>> planDeleteFileGroups(Iterable<FileScanTask> dataFiles);
+
+  /**
+   * Define how to convert the deletes.
+   *
+   * @param deleteFilesToConvert a group of files to be converted together
+   * @return iterable of delete files used to replace the original delete files.
+   */
+  Iterable<DeleteFile> convertDeleteFiles(Iterable<DeleteFile> deleteFilesToConvert);
 }
