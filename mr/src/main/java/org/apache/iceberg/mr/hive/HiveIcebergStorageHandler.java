@@ -163,17 +163,11 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
 
   /**
    * Estimate input size based on filter and projection on table scan operator
-   *
-   *
-   */
-
-  /**
-   * Estimate input size based on filter and projection on table scan operator
    * @param job The configuration used to get the data from
    * @param ts The name of the table we need as returned by TableDesc.getTableName()
    * @param remaining Early exit condition. If it has positive value, further estimation
-   *    can be canceled on the point of exceeding it. In this case,
-   *    return any bigger length value then this (Long.MAX_VALUE, for eaxmple).
+   *        can be canceled on the point of exceeding it. In this case,
+   *        return any bigger length value then this (Long.MAX_VALUE, for eaxmple).
    * @return The Estimation
    */
   @Override
