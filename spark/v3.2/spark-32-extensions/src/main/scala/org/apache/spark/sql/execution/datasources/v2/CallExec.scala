@@ -27,7 +27,7 @@ import org.apache.spark.sql.connector.iceberg.catalog.Procedure
 case class CallExec(
     output: Seq[Attribute],
     procedure: Procedure,
-    input: InternalRow) extends V2CommandExec {
+    input: InternalRow) extends LeafV2CommandExec {
 
   override protected def run(): Seq[InternalRow] = {
     procedure.call(input)

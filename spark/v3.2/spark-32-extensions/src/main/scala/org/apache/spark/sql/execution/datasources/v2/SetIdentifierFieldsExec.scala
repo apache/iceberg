@@ -28,7 +28,7 @@ import org.apache.spark.sql.connector.catalog.TableCatalog
 case class SetIdentifierFieldsExec(
     catalog: TableCatalog,
     ident: Identifier,
-    fields: Seq[String]) extends V2CommandExec {
+    fields: Seq[String]) extends LeafV2CommandExec {
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil

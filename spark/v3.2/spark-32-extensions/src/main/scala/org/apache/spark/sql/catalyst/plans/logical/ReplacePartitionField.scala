@@ -26,7 +26,7 @@ case class ReplacePartitionField(
     table: Seq[String],
     transformFrom: Transform,
     transformTo: Transform,
-    name: Option[String]) extends Command {
+    name: Option[String]) extends LeafCommand {
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil

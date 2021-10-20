@@ -24,7 +24,7 @@ import org.apache.spark.sql.catalyst.expressions.Expression
 /**
  * A CALL statement, as parsed from SQL.
  */
-case class CallStatement(name: Seq[String], args: Seq[CallArgument]) extends ParsedStatement
+case class CallStatement(name: Seq[String], args: Seq[CallArgument]) extends LeafParsedStatement
 
 /**
  * An argument in a CALL statement.

@@ -32,7 +32,7 @@ import org.apache.spark.sql.connector.expressions.Transform
 case class DropPartitionFieldExec(
     catalog: TableCatalog,
     ident: Identifier,
-    transform: Transform) extends V2CommandExec {
+    transform: Transform) extends LeafV2CommandExec {
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil

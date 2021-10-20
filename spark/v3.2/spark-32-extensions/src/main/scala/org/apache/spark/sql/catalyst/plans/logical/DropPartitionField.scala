@@ -22,7 +22,7 @@ package org.apache.spark.sql.catalyst.plans.logical
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.expressions.Transform
 
-case class DropPartitionField(table: Seq[String], transform: Transform) extends Command {
+case class DropPartitionField(table: Seq[String], transform: Transform) extends LeafCommand {
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   override lazy val output: Seq[Attribute] = Nil
