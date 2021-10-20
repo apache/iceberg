@@ -23,15 +23,12 @@ import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -49,8 +46,6 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS %s_BACKUP_", tableName);
-    sql("DROP TABLE IF EXISTS %s", "default.orc_tbl");
-    sql("DROP TABLE IF EXISTS %s_BACKUP_", "default.orc_tbl");
   }
 
   @Test
@@ -137,34 +132,6 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should override user value", "true", table.properties().get("migrated"));
-  }
-
-  @Test
-  public void testMigrateOrcFileWithFloatAndDoubleColumns() throws IOException {
-    Assume.assumeTrue(catalogName.equals("spark_catalog"));
-    String location = temp.newFolder().toString();
-    String orcTableName = "default.orc_tbl";
-    sql("CREATE DATABASE IF NOT EXISTS orc_test");
-    sql("CREATE TABLE IF NOT EXISTS %s (id float, data double) USING orc LOCATION '%s'", orcTableName, location);
-    sql("INSERT INTO TABLE %s VALUES (1, 1.42), (2, 2.42)", orcTableName);
-    Object result = scalarSql("CALL %s.system.migrate('%s')", catalogName, orcTableName);
-
-    Assert.assertEquals("Should have added one file", 1L, result);
-    TableIdentifier orcTableIdent = TableIdentifier.of(Namespace.of("default"), "orc_tbl");
-    Table createdTable = validationCatalog.loadTable(orcTableIdent);
-
-    String tableLocation = createdTable.location().replace("file:", "");
-    Assert.assertEquals("Table should have original location", location, tableLocation);
-
-    // sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
-
-    assertEquals("Should have expected rows",
-        ImmutableList.of(row(1L, 1.42d), row(2L, 2.42d)),
-        sql("SELECT * FROM %s ORDER BY id", orcTableName));
-
-    sql("DROP TABLE IF EXISTS %s", orcTableName);
-    sql("DROP TABLE IF EXISTS %s", orcTableName + "_BACKUP_");
-    // sql("DROP DATABASE IF EXISTS %s", database);
   }
 
   @Test

@@ -240,11 +240,17 @@ public class OrcMetrics {
         max = Math.toIntExact((long) max);
       }
     } else if (columnStats instanceof DoubleColumnStatistics) {
-      // since Orc includes NaN for upper/lower bounds of floating point columns, and we don't want this behavior,
-      // we have tracked metrics for such columns ourselves and thus do not need to rely on Orc's column statistics.
-      Preconditions.checkNotNull(fieldMetrics,
-          "[BUG] Float or double type columns should have metrics being tracked by Iceberg Orc writers");
-      max = fieldMetrics.upperBound();
+      if (fieldMetrics != null) {
+        // since Orc includes NaN for upper/lower bounds of floating point columns, and we don't want this behavior,
+        // we have tracked metrics for such columns ourselves and thus do not need to rely on Orc's column statistics.
+        max = fieldMetrics.upperBound();
+      } else {
+        // imported files will not have metrics that were tracked by Iceberg, so fall back to the file's metrics.
+        max = ((DoubleColumnStatistics) columnStats).getMaximum();
+        if (type.typeId() == Type.TypeID.FLOAT) {
+          max = ((Double) max).floatValue();
+        }
+      }
     } else if (columnStats instanceof StringColumnStatistics) {
       max = ((StringColumnStatistics) columnStats).getMaximum();
     } else if (columnStats instanceof DecimalColumnStatistics) {

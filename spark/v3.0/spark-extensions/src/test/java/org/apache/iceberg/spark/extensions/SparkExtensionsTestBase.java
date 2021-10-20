@@ -51,9 +51,7 @@ public abstract class SparkExtensionsTestBase extends SparkCatalogTestBase {
         .config("spark.sql.extensions", IcebergSparkSessionExtensions.class.getName())
         .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
         .config("spark.sql.shuffle.partitions", "4")
-        .config("spark.sql.orc.enableVectorizedReader", "false")
         .config("spark.sql.hive.metastorePartitionPruningFallbackOnException", "true")
-        .config("spark.sql.hive.convertMetastoreOrc", "false")
         .enableHiveSupport()
         .getOrCreate();
 

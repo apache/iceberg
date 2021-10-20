@@ -23,7 +23,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Metrics;
@@ -39,7 +38,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
-
 import org.junit.Assert;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -68,31 +66,6 @@ public class TestOrcMetrics extends TestMetrics {
     String filename = UUID.randomUUID().toString();
     return Files.localOutput(new File(tmpFolder, FileFormat.ORC.addExtension(filename)));
   }
-
-  // public void createOrcFile(String input) throws IOException {
-  //   String typeStr = "struct";
-  //   TypeInfo typeInfo = TypeInfoUtils.getTypeInfoFromTypeString(typeStr);
-  //   ObjectInspector inspector = OrcStruct.createObjectInspector(typeInfo);
-  //
-  //   String[] inputTokens = input.split("\\t");
-  //
-  //   OrcStruct orcLine = OrcUtils.createOrcStruct(
-  //       typeInfo,
-  //       new Text(inputTokens[0]),
-  //       new ShortWritable(Short.valueOf(inputTokens[1])),
-  //       new IntWritable(Integer.valueOf(inputTokens[2])),
-  //       new LongWritable(Long.valueOf(inputTokens[3])),
-  //       new DoubleWritable(Double.valueOf(inputTokens[4])),
-  //       new FloatWritable(Float.valueOf(inputTokens[5])));
-  //   Configuration conf = new Configuration();
-  //   Path tempPath = new Path("/tmp/test.orc");
-  //
-  //   Writer writer = OrcFile
-  //       .createWriter(tempPath,
-  //           OrcFile.writerOptions(new Configuration()).inspector(inspector).stripeSize(100000).bufferSize(10000));
-  //   writer.addRow(orcLine);
-  //   writer.close();
-  // }
 
   @Override
   public FileFormat fileFormat() {
