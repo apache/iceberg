@@ -28,16 +28,16 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SaveMode;
+import org.apache.spark.sql.catalyst.expressions.DateAdd;
 import org.apache.spark.sql.types.DataTypes;
 import org.openjdk.jmh.annotations.Setup;
 
 import static org.apache.spark.sql.functions.col;
-import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.lit;
 import static org.apache.spark.sql.functions.pmod;
 import static org.apache.spark.sql.functions.to_date;
 import static org.apache.spark.sql.functions.to_timestamp;
-import static org.apache.spark.sql.functions.when;
 
 /**
  * Benchmark to compare performance of reading Parquet dictionary encoded data with a flat schema using vectorized
@@ -88,8 +88,12 @@ public class VectorizedReadDictionaryEncodedFlatParquetDataBenchmark extends Vec
         .save(table().location());
   }
 
-  private static final Column modColumn() {
+  private static Column modColumn() {
     return pmod(col("id"), lit(9));
+  }
+
+  private static Column date_add(Column start, Column days) {
+    return new Column(new DateAdd(start.expr(), days.expr()));
   }
 
   private Dataset<Row> idDF() {
@@ -119,13 +123,13 @@ public class VectorizedReadDictionaryEncodedFlatParquetDataBenchmark extends Vec
   }
 
   private static Dataset<Row> withDateColumnDictEncoded(Dataset<Row> df) {
-    Column dateAdd = modColumn().cast(DataTypes.ShortType);
-    return df.withColumn("dateCol", date_add(to_date(lit("04/12/2019"), "MM/dd/yyyy"), dateAdd));
+    Column days = modColumn().cast(DataTypes.ShortType);
+    return df.withColumn("dateCol", date_add(to_date(lit("04/12/2019"), "MM/dd/yyyy"), days));
   }
 
   private static Dataset<Row> withTimestampColumnDictEncoded(Dataset<Row> df) {
-    Column dateAdd = modColumn().cast(DataTypes.ShortType);
-    return df.withColumn("timestampCol", to_timestamp(date_add(to_date(lit("04/12/2019"), "MM/dd/yyyy"), dateAdd)));
+    Column days = modColumn().cast(DataTypes.ShortType);
+    return df.withColumn("timestampCol", to_timestamp(date_add(to_date(lit("04/12/2019"), "MM/dd/yyyy"), days)));
   }
 
   private static Dataset<Row> withStringColumnDictEncoded(Dataset<Row> df) {
