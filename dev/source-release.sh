@@ -73,6 +73,12 @@ if [ -z "$version" ] || [ -z "$rc" ]; then
   usage
 fi
 
+log_if_test() {
+  if [ $testing = true ]; then
+    echo "In test mode: $*"
+  fi
+}
+
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 projectdir="$(dirname "$scriptdir")"
 tmpdir=$projectdir/tmp
@@ -87,9 +93,7 @@ tagrc="${tag}-rc${rc}"
 
 # Get original version hash to return to in test mode
 original_version_hash=$(git rev-list HEAD 2> /dev/null | head -n 1 )
-if [ $testing = true ]; then
-  echo "In test mode: will revert back to current git sha $original_version_hash when done"
-fi
+log_if_test "will revert back to current git sha $original_version_hash when done"
 
 echo "Preparing source for $tagrc"
 
