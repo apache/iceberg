@@ -35,7 +35,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.DelegatingInputStream;
 import org.apache.iceberg.io.SeekableInputStream;
 
-public class AvroIO {
+class AvroIO {
   private static final byte[] AVRO_MAGIC = new byte[] { 'O', 'b', 'j', 1 };
   private static final ValueReader<byte[]> MAGIC_READER = ValueReaders.fixed(AVRO_MAGIC.length);
   private static final ValueReader<Map<String, String>> META_READER = ValueReaders.map(
@@ -146,7 +146,7 @@ public class AvroIO {
     }
   }
 
-  public static long findStartingRowPos(Supplier<SeekableInputStream> open, long start) {
+  static long findStartingRowPos(Supplier<SeekableInputStream> open, long start) {
     long totalRows = 0;
     try (SeekableInputStream in = open.get()) {
       // use a direct decoder that will not buffer so the position of the input stream is accurate
