@@ -40,7 +40,6 @@ import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.data.RowData;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -49,7 +48,6 @@ import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.TableTestBase;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestHelpers;
@@ -733,14 +731,15 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
   private DeleteFile writeEqDeleteFile(FileAppenderFactory<RowData> appenderFactory,
                                        String filename, List<RowData> deletes) throws IOException {
-    return SimpleDataUtil.writeEqDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory, deletes);
+    return SimpleDataUtil
+        .writeEqDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory, null, deletes);
   }
 
   private DeleteFile writePosDeleteFile(FileAppenderFactory<RowData> appenderFactory,
                                         String filename,
                                         List<Pair<CharSequence, Long>> positions) throws IOException {
-    return SimpleDataUtil.writePosDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory,
-        positions);
+    return SimpleDataUtil
+        .writePosDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory, null, positions);
   }
 
   private FileAppenderFactory<RowData> createDeletableAppenderFactory() {

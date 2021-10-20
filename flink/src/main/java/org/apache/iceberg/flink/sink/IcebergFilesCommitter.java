@@ -349,16 +349,17 @@ class IcebergFilesCommitter extends AbstractStreamOperator<CommitResult>
       Collections.addAll(referencedDataFilesSet, writeResult.referencedDataFiles());
     }
 
-    for (Pair<Integer, StructLike> partitionKey : dataFilesByPartition.keys()) {
-      Collection<DataFile> dataFiles = dataFilesByPartition.get(partitionKey);
-      Collection<DeleteFile> deleteFiles = deleteFilesByPartition.get(partitionKey);
+    Set<Pair<Integer, StructLike>> pairs = Sets.union(dataFilesByPartition.keySet(), deleteFilesByPartition.keySet());
+    for (Pair<Integer, StructLike> pair : pairs) {
+      Collection<DataFile> dataFiles = dataFilesByPartition.get(pair);
+      Collection<DeleteFile> deleteFiles = deleteFilesByPartition.get(pair);
       Collection<CharSequence> referencedDataFiles = dataFiles.stream()
           .map(file -> referencedDataFilesSet.contains(file.path()) ? file.path() : null)
           .filter(Objects::nonNull)
           .collect(Collectors.toList());
 
       CommitResult commitResult = CommitResult.builder(event.snapshotId(), event.sequenceNumber())
-          .partition(partitionKey.first(), partitionKey.second())
+          .partition(pair.first(), pair.second())
           .addDataFile(dataFiles)
           .addDeleteFile(deleteFiles)
           .addReferencedDataFile(referencedDataFiles)

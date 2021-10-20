@@ -229,13 +229,14 @@ public class TestFlinkManifest {
   }
 
   private DeleteFile writeEqDeleteFile(String filename, List<RowData> deletes) throws IOException {
-    return SimpleDataUtil.writeEqDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory, deletes);
+    return SimpleDataUtil
+        .writeEqDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory, null, deletes);
   }
 
   private DeleteFile writePosDeleteFile(String filename, List<Pair<CharSequence, Long>> positions)
       throws IOException {
     return SimpleDataUtil
-        .writePosDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory, positions);
+        .writePosDeleteFile(table, FileFormat.PARQUET, tablePath, filename, appenderFactory, null, positions);
   }
 
   private List<DataFile> generateDataFiles(int fileNum) throws IOException {

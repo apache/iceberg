@@ -76,7 +76,7 @@ class DataFileGroup implements KryoSerializable {
 
   void append(int dataFilesCount, long dataFliesSize, long snapshotId, long sequenceNumber,
               DeltaManifests deltaManifests) throws IOException {
-    if (deltaManifests == null || deltaManifests.dataManifest() == null) {
+    if (deltaManifests == null || deltaManifests.manifests().isEmpty()) {
       return;
     }
 

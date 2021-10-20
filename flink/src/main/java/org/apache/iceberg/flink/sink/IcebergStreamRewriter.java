@@ -93,6 +93,7 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
 
   private transient int maxFilesCount;
   private transient long targetSizeInBytes;
+  private transient long maxFileSizeInBytes;
   private transient Integer splitLookback;
   private transient Long splitOpenFileCost;
 
@@ -219,7 +220,7 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
 
     CloseableIterable<FileScanTask> splitFiles = TableScanUtil.splitFiles(fileScanTasks, targetSizeInBytes);
     CloseableIterable<CombinedScanTask> scanTasks = TableScanUtil.planTasks(
-        splitFiles, targetSizeInBytes, splitLookback, splitOpenFileCost);
+        splitFiles, maxFileSizeInBytes, splitLookback, splitOpenFileCost);
 
     List<DataFile> addedDataFiles = Lists.newArrayList();
     for (CombinedScanTask task : scanTasks) {
@@ -293,7 +294,10 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
     Preconditions.checkArgument(targetFileSize > 0,
         "Cannot set %s to a negative number, %d < 0", TARGET_FILE_SIZE, targetFileSize);
 
-    targetSizeInBytes = Math.max(splitSize, targetFileSize);
+    targetSizeInBytes = Math.min(splitSize, targetFileSize);
+
+    // Use a larger max target file size than target size to avoid creating tiny remainder files.
+    maxFileSizeInBytes = (long) (targetFileSize * 1.5);
 
     splitLookback = PropertyUtil.propertyAsInt(properties, SPLIT_LOOKBACK, SPLIT_LOOKBACK_DEFAULT);
     Preconditions.checkArgument(splitLookback > 0,
