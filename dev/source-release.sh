@@ -88,7 +88,7 @@ tagrc="${tag}-rc${rc}"
 # Get original version hash to return to in test mode
 original_version_hash=$(git rev-list HEAD 2> /dev/null | head -n 1 )
 if [ $testing = true ]; then
-  echo "In test mode: will revert to $original_version_hash when done"
+  echo "In test mode: will revert to current hash $original_version_hash when done"
 fi
 
 echo "Preparing source for $tagrc"
