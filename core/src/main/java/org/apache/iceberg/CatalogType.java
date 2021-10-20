@@ -19,7 +19,9 @@
 
 package org.apache.iceberg;
 
+import java.util.Arrays;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 public enum CatalogType {
   HIVE("org.apache.iceberg.hive.HiveCatalog"),
@@ -35,12 +37,12 @@ public enum CatalogType {
     this.catalogImpl = catalogImpl;
   }
 
-  public String typeName() {
-    return this.name().toLowerCase(Locale.ENGLISH);
+  public String getTypeName() {
+    return name().toLowerCase(Locale.ENGLISH);
   }
 
   public String getCatalogImpl() {
-    return this.catalogImpl;
+    return catalogImpl;
   }
 
   public static String getCatalogImpl(String inputType) {
@@ -51,7 +53,9 @@ public enum CatalogType {
       CatalogType type = CatalogType.valueOf(inputType.toUpperCase(Locale.ENGLISH));
       return type.getCatalogImpl();
     } catch (IllegalArgumentException e) {
-      throw new UnsupportedOperationException("Unknown catalog type: " + inputType);
+      throw new UnsupportedOperationException(
+          String.format("Unknown catalog type: %s. Valid values are [%s]", inputType,
+              Arrays.stream(values()).map(CatalogType::getTypeName).collect(Collectors.joining(", "))));
     }
   }
 }

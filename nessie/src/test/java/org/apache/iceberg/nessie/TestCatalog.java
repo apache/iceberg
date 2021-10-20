@@ -28,7 +28,7 @@ public class TestCatalog {
   @Test
   public void testCatalogTypeImpl() {
     Assertions.assertThat(
-        CatalogType.getCatalogImpl(CatalogType.NESSIE.typeName()))
+        CatalogType.getCatalogImpl(CatalogType.NESSIE.getTypeName()))
         .isEqualTo(NessieCatalog.class.getName());
   }
 }

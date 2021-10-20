@@ -19,11 +19,10 @@
 
 package org.apache.iceberg;
 
-import java.util.List;
+import java.util.stream.Stream;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.assertj.core.api.Assertions;
-import org.assertj.core.util.Lists;
 import org.junit.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -38,8 +37,8 @@ public class TestCatalogType {
     Assertions.assertThat(CatalogType.getCatalogImpl(inputType)).isEqualTo(inputCase.get()[1]);
   }
 
-  private List<Arguments> mixedCaseCatalogTypeImpls() {
-    return Lists.newArrayList(Arguments.of("hadoop", HadoopCatalog.class.getName()),
+  static Stream<Arguments> mixedCaseCatalogTypeImpls() {
+    return Stream.of(Arguments.of("hadoop", HadoopCatalog.class.getName()),
         Arguments.of("HADOOP", HadoopCatalog.class.getName()),
         Arguments.of("HaDoOp", HadoopCatalog.class.getName()),
         Arguments.of("jdbc", JdbcCatalog.class.getName()),
@@ -57,18 +56,19 @@ public class TestCatalogType {
   public void testUnknownCatalog() {
     Assertions.assertThatThrownBy(() -> CatalogType.getCatalogImpl("FOO"))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Unknown catalog type: FOO");
+        .hasMessage(
+            "Unknown catalog type: FOO. Valid values are [hive, hadoop, glue, nessie, dynamodb, jdbc]");
   }
 
   @ParameterizedTest
   @MethodSource("typeWithNames")
   public void testTypeNames(Arguments inputCase) {
-    Assertions.assertThat(((CatalogType) inputCase.get()[0]).typeName())
+    Assertions.assertThat(((CatalogType) inputCase.get()[0]).getTypeName())
         .isEqualTo(inputCase.get()[1]);
   }
 
-  private List<Arguments> typeWithNames() {
-    return Lists.newArrayList(
+  static Stream<Arguments> typeWithNames() {
+    return Stream.of(
         Arguments.of(CatalogType.DYNAMODB, "dynamodb"),
         Arguments.of(CatalogType.GLUE, "glue"),
         Arguments.of(CatalogType.HADOOP, "hadoop"),

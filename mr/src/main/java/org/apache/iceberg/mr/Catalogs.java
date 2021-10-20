@@ -205,11 +205,11 @@ public final class Catalogs {
     String catalogName = props.getProperty(InputFormatConfig.CATALOG_NAME);
     String catalogType = getCatalogType(conf, catalogName);
     if (catalogType != null) {
-      return CatalogType.HIVE.typeName().equalsIgnoreCase(catalogType);
+      return CatalogType.HIVE.getTypeName().equalsIgnoreCase(catalogType);
     }
     catalogType = getCatalogType(conf, ICEBERG_DEFAULT_CATALOG_NAME);
     if (catalogType != null) {
-      return CatalogType.HIVE.typeName().equalsIgnoreCase(catalogType);
+      return CatalogType.HIVE.getTypeName().equalsIgnoreCase(catalogType);
     }
     return getCatalogProperties(conf, catalogName, catalogType).get(CatalogProperties.CATALOG_IMPL) == null;
   }

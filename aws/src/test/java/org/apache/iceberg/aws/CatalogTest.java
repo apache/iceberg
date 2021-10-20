@@ -30,14 +30,14 @@ public class CatalogTest {
   @Test
   public void testGlueCatalogTypeImpl() {
     Assertions.assertThat(
-        CatalogType.getCatalogImpl(CatalogType.GLUE.typeName()))
+        CatalogType.getCatalogImpl(CatalogType.GLUE.getTypeName()))
         .isEqualTo(GlueCatalog.class.getName());
   }
 
   @Test
   public void testDynamoCatalogTypeImpl() {
     Assertions.assertThat(
-        CatalogType.getCatalogImpl(CatalogType.DYNAMODB.typeName()))
+        CatalogType.getCatalogImpl(CatalogType.DYNAMODB.getTypeName()))
         .isEqualTo(DynamoDbCatalog.class.getName());
   }
 }

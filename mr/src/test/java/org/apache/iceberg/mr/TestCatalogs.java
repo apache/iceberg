@@ -203,7 +203,7 @@ public class TestCatalogs {
 
   @Test
   public void testLegacyLoadCatalogHive() {
-    conf.set(InputFormatConfig.CATALOG, CatalogType.HIVE.typeName());
+    conf.set(InputFormatConfig.CATALOG, CatalogType.HIVE.getTypeName());
     Optional<Catalog> hiveCatalog = Catalogs.loadCatalog(conf, null);
     Assert.assertTrue(hiveCatalog.isPresent());
     Assertions.assertThat(hiveCatalog.get()).isInstanceOf(HiveCatalog.class);
@@ -212,7 +212,7 @@ public class TestCatalogs {
 
   @Test
   public void testLegacyLoadCatalogHadoop() {
-    conf.set(InputFormatConfig.CATALOG, CatalogType.HADOOP.typeName());
+    conf.set(InputFormatConfig.CATALOG, CatalogType.HADOOP.getTypeName());
     conf.set(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION, "/tmp/mylocation");
     Optional<Catalog> hadoopCatalog = Catalogs.loadCatalog(conf, null);
     Assert.assertTrue(hadoopCatalog.isPresent());
@@ -260,7 +260,7 @@ public class TestCatalogs {
   public void testLoadCatalogHive() {
     String catalogName = "barCatalog";
     conf.set(InputFormatConfig.catalogPropertyConfigKey(catalogName, CatalogProperties.CATALOG_TYPE),
-        CatalogType.HIVE.typeName());
+        CatalogType.HIVE.getTypeName());
     Optional<Catalog> hiveCatalog = Catalogs.loadCatalog(conf, catalogName);
     Assert.assertTrue(hiveCatalog.isPresent());
     Assertions.assertThat(hiveCatalog.get()).isInstanceOf(HiveCatalog.class);
@@ -273,7 +273,7 @@ public class TestCatalogs {
   public void testLegacyLoadCustomCatalogWithHiveCatalogTypeSet() {
     String catalogName = "barCatalog";
     conf.set(InputFormatConfig.catalogPropertyConfigKey(catalogName, CatalogProperties.CATALOG_TYPE),
-            CatalogType.HIVE.typeName());
+            CatalogType.HIVE.getTypeName());
     conf.set(InputFormatConfig.CATALOG_LOADER_CLASS, CustomHadoopCatalog.class.getName());
     conf.set(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION, "/tmp/mylocation");
     AssertHelpers.assertThrows("Should complain about both configs being set", IllegalArgumentException.class,
@@ -284,7 +284,7 @@ public class TestCatalogs {
   public void testLoadCatalogHadoop() {
     String catalogName = "barCatalog";
     conf.set(InputFormatConfig.catalogPropertyConfigKey(catalogName, CatalogProperties.CATALOG_TYPE),
-            CatalogType.HADOOP.typeName());
+            CatalogType.HADOOP.getTypeName());
     conf.set(InputFormatConfig.catalogPropertyConfigKey(catalogName, CatalogProperties.WAREHOUSE_LOCATION),
         "/tmp/mylocation");
     Optional<Catalog> hadoopCatalog = Catalogs.loadCatalog(conf, catalogName);
@@ -300,7 +300,7 @@ public class TestCatalogs {
   public void testLoadCatalogHadoopWithLegacyWarehouseLocation() {
     String catalogName = "barCatalog";
     conf.set(InputFormatConfig.catalogPropertyConfigKey(catalogName, CatalogProperties.CATALOG_TYPE),
-            CatalogType.HADOOP.typeName());
+            CatalogType.HADOOP.getTypeName());
     conf.set(InputFormatConfig.HADOOP_CATALOG_WAREHOUSE_LOCATION, "/tmp/mylocation");
     Optional<Catalog> hadoopCatalog = Catalogs.loadCatalog(conf, catalogName);
     Assert.assertTrue(hadoopCatalog.isPresent());
@@ -343,7 +343,7 @@ public class TestCatalogs {
   @Test
   public void testCatalogTypeImpl() {
     Assertions.assertThat(
-            CatalogType.getCatalogImpl(CatalogType.JDBC.typeName())).isEqualTo(JdbcCatalog.class.getName());
+            CatalogType.getCatalogImpl(CatalogType.JDBC.getTypeName())).isEqualTo(JdbcCatalog.class.getName());
   }
 
   public static class CustomHadoopCatalog extends HadoopCatalog {

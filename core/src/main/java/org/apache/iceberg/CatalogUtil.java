@@ -203,11 +203,11 @@ public class CatalogUtil {
     String catalogImpl = options.get(CatalogProperties.CATALOG_IMPL);
     String catalogType = options.get(CatalogProperties.CATALOG_TYPE);
     Preconditions.checkArgument(catalogImpl == null || catalogType == null,
-            "Cannot create catalog %s, both type and catalog-impl are set: type=%s, catalog-impl=%s",
-            name, catalogType, catalogImpl);
+        "Cannot create catalog %s, both type and catalog-impl are set: type=%s, catalog-impl=%s",
+        name, catalogType, catalogImpl);
 
     if (catalogImpl == null) {
-      catalogType = (catalogType == null) ? CatalogType.HIVE.typeName() : catalogType;
+      catalogType = (catalogType == null) ? CatalogType.HIVE.getTypeName() : catalogType;
       catalogImpl = CatalogType.getCatalogImpl(catalogType);
     }
 
