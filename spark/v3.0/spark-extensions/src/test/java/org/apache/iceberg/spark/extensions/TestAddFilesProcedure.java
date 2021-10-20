@@ -656,7 +656,6 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
   }
 
-
   @Test
   public void addOrcFileWithDoubleAndFloatColumns() throws Exception {
     // Spark Session Catalog cannot load metadata tables
