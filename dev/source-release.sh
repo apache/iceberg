@@ -77,7 +77,7 @@ scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 projectdir="$(dirname "$scriptdir")"
 tmpdir=$projectdir/tmp
 
-if [ -d "$tmpdir" ]; then
+if [ -d $tmpdir ]; then
   echo "Cannot run: $tmpdir already exists"
   exit 1
 fi
@@ -88,7 +88,7 @@ tagrc="${tag}-rc${rc}"
 # Get original version hash to return to in test mode
 original_version_hash=$(git rev-list HEAD 2> /dev/null | head -n 1 )
 if [ $testing = true ]; then
-  echo "In test mode: will revert to current hash $original_version_hash when done"
+  echo "In test mode: will revert back to current git sha $original_version_hash when done"
 fi
 
 echo "Preparing source for $tagrc"
@@ -112,7 +112,7 @@ else
   echo "In test mode: Not pushing the tagged release candidate to $remote. A tarball will be available at the end"
 fi
 
-release_hash=$(git rev-list "$tagrc" 2> /dev/null | head -n 1 )
+release_hash=`git rev-list $tagrc 2> /dev/null | head -n 1 `
 
 if [ -z "$release_hash" ]; then
   echo "Cannot continue: unknown Git tag: $tag"
@@ -121,9 +121,9 @@ fi
 
 # be conservative and use the release hash, even though git produces the same
 # archive (identical hashes) using the scm tag
-echo "Creating tarball ${tarball} using commit $release_hash from tag $tagrc"
+echo "Creating tarball ${tarball} using commit $release_hash"
 tarball=$tag.tar.gz
-git archive "$release_hash" --worktree-attributes --prefix "$tag"/ -o "$projectdir"/"$tarball"
+git archive $release_hash --worktree-attributes --prefix $tag/ -o $projectdir/$tarball
 
 echo "Signing the tarball..."
 [[ -z "$keyid" ]] && keyopt="-u $keyid"
@@ -139,8 +139,9 @@ mkdir -p $tmpdir/$tagrc
 cp $projectdir/${tarball}* $tmpdir/$tagrc
 
 if [ $testing != true ]; then
-   svn add $tmpdir/$tagrc
-   svn ci -m "Apache Iceberg $version RC${rc}" $tmpdir/$tagrc
+  echo "Adding tarball to the Iceberg distribution Subversion repo..."
+  svn add $tmpdir/$tagrc
+  svn ci -m "Apache Iceberg $version RC${rc}" $tmpdir/$tagrc
 else
   echo "In test mode: skipping sending tarball to the Iceberg distribution Subversion repo..."
 fi
@@ -178,19 +179,19 @@ Please vote in the next 72 hours.
 EOF
 
 if [ $testing != true ]; then
-   echo "Success! The release candidate is available here:"
-   echo "  https://dist.apache.org/repos/dist/dev/iceberg/$tagrc"
-   echo ""
-   echo "Commit SHA1: $release_hash"
-   echo ""
-   echo "We have generated a release announcement email for you here:"
-   echo "$projectdir/release_announcement_email.txt"
-   echo ""
-   echo "Please note that you must update the Nexus repository URL"
-   echo "contained in the mail before sending it out."
+  echo "Success! The release candidate is available here:"
+  echo "  https://dist.apache.org/repos/dist/dev/iceberg/$tagrc"
+  echo ""
+  echo "Commit SHA1: $release_hash"
+  echo ""
+  echo "We have generated a release announcement email for you here:"
+  echo "$projectdir/release_announcement_email.txt"
+  echo ""
+  echo "Please note that you must update the Nexus repository URL"
+  echo "contained in the mail before sending it out."
 else
-   echo "In test mode: Skipped committing a release candidate to the Apache artifacts repository"
-   echo "In test mode: The generated tarball and release email should be located in $projectdir"
+  echo "In test mode: Skipped committing a release candidate to the Apache artifacts repository"
+  echo "In test mode: The generated tarball and release email should be located in $projectdir"
 fi
 
 # Cleanup as needed from test mode.
