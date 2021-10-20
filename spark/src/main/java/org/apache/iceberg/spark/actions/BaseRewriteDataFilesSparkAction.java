@@ -119,6 +119,7 @@ abstract class BaseRewriteDataFilesSparkAction
     }
 
     long startingSnapshotId = table.currentSnapshot().snapshotId();
+    long replaceSequenceNumber = table.currentSnapshot().sequenceNumber();
 
     validateAndInitOptions();
     strategy = strategy.options(options());
@@ -133,7 +134,7 @@ abstract class BaseRewriteDataFilesSparkAction
 
     Stream<RewriteFileGroup> groupStream = toGroupStream(ctx, fileGroupsByPartition);
 
-    RewriteDataFilesCommitManager commitManager = commitManager(startingSnapshotId);
+    RewriteDataFilesCommitManager commitManager = commitManager(startingSnapshotId, replaceSequenceNumber);
     if (partialProgressEnabled) {
       return doExecuteWithPartialProgress(ctx, groupStream, commitManager);
     } else {
@@ -195,8 +196,8 @@ abstract class BaseRewriteDataFilesSparkAction
   }
 
   @VisibleForTesting
-  RewriteDataFilesCommitManager commitManager(long startingSnapshotId) {
-    return new RewriteDataFilesCommitManager(table, startingSnapshotId);
+  RewriteDataFilesCommitManager commitManager(long startingSnapshotId, long replaceSequenceNumber) {
+    return new RewriteDataFilesCommitManager(table, startingSnapshotId, replaceSequenceNumber);
   }
 
   private Result doExecute(RewriteExecutionContext ctx, Stream<RewriteFileGroup> groupStream,

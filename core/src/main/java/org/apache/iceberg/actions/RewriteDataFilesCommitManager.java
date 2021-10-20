@@ -48,15 +48,17 @@ public class RewriteDataFilesCommitManager {
 
   private final Table table;
   private final long startingSnapshotId;
+  private final long replaceSeqNumber;
 
   // constructor used for testing
   public RewriteDataFilesCommitManager(Table table) {
-    this(table, table.currentSnapshot().snapshotId());
+    this(table, table.currentSnapshot().snapshotId(), table.currentSnapshot().sequenceNumber());
   }
 
-  public RewriteDataFilesCommitManager(Table table, long startingSnapshotId) {
+  public RewriteDataFilesCommitManager(Table table, long startingSnapshotId, long replaceSeqNumber) {
     this.table = table;
     this.startingSnapshotId = startingSnapshotId;
+    this.replaceSeqNumber = replaceSeqNumber;
   }
 
   /**
@@ -74,6 +76,7 @@ public class RewriteDataFilesCommitManager {
 
     RewriteFiles rewrite = table.newRewrite()
         .validateFromSnapshot(startingSnapshotId)
+        .setSequenceNumber(replaceSeqNumber)
         .rewriteFiles(rewrittenDataFiles, addedDataFiles);
     rewrite.commit();
   }
