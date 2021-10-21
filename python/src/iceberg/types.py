@@ -28,14 +28,18 @@ class Type(object):
         return self._type_string
 
     @property
-    def is_primitive(self):
+    def is_primitive(self) -> bool:
         return self._is_primitive
 
 
 class FixedType(Type):
     def __init__(self, length: int):
-        super().__init__(f"fixed[{length}]", f"FixedType[{length}]", is_primitive=True)
+        super().__init__(f"fixed[{length}]", f"FixedType({length})", is_primitive=True)
         self._length = length
+
+    @property
+    def length(self) -> int:
+        return self._length
 
 
 class DecimalType(Type):
@@ -44,10 +48,12 @@ class DecimalType(Type):
         self._precision = precision
         self._scale = scale
 
-    def precision(self):
+    @property
+    def precision(self) -> int:
         return self._precision
 
-    def scale(self):
+    @property
+    def scale(self) -> int:
         return self._scale
 
 
@@ -60,47 +66,68 @@ class NestedField(object):
         self._doc = doc
 
     @property
-    def is_optional(self):
+    def is_optional(self) -> bool:
         return self._is_optional
 
     @property
-    def is_required(self):
+    def is_required(self) -> bool:
         return not self._is_optional
 
     @property
-    def field_id(self):
+    def field_id(self) -> int:
         return self._id
 
     @property
-    def type(self):
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def type(self) -> Type:
         return self._type
 
     def __repr__(self):
-        return f"{self._id}: {self._name}: {'optional' if self._is_optional else 'required'} {self._type}" \
-               "" if self._doc is None else f" ({self._doc})"
+        return (f"NestedField({self._is_optional}, {self._id}, "
+                f"{repr(self._name)}, {repr(self._type)}, {repr(self._doc)})")
 
     def __str__(self):
-        return self.__repr__()
+        return (f"{self._id}: {self._name}: {'optional' if self._is_optional else 'required'} {self._type}"
+                "" if self._doc is None else f" ({self._doc})")
 
 
 class StructType(Type):
     def __init__(self, fields: list):
-        super().__init__(f"struct<{', '.join(map(str, fields))}>", f"StructType<{', '.join(map(str, fields))}>")
+        super().__init__(f"struct<{', '.join(map(str, fields))}>", f"StructType({repr(fields)})")
         self._fields = fields
+
+    @property
+    def fields(self) -> list:
+        return self._fields
 
 
 class ListType(Type):
     def __init__(self, element_field: NestedField):
-        super().__init__(f"list<{element_field.type}>", f"ListType<{element_field.type}>")
+        super().__init__(f"list<{element_field.type}>", f"ListType({repr(element_field)})")
         self._element_field = element_field
+
+    @property
+    def element(self) -> NestedField:
+        return self._element_field
 
 
 class MapType(Type):
     def __init__(self, key_field: NestedField, value_field: NestedField):
         super().__init__(f"map<{key_field.type}, {value_field.type}>",
-                         f"MapType<{key_field.type}, {value_field.type}>")
+                         f"MapType({repr(key_field)}, {repr(value_field)})")
         self._key_field = key_field
         self._value_field = value_field
+
+    @property
+    def key(self) -> NestedField:
+        return self._key_field
+
+    @property
+    def value(self) -> NestedField:
+        return self._value_field
 
 
 BooleanType = Type("boolean", "BooleanType", is_primitive=True)
