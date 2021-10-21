@@ -179,38 +179,32 @@ public class RowDataProjection implements RowData {
 
   @Override
   public TimestampData getTimestamp(int pos, int precision) {
-//    return getValue(pos, TimestampData.class);
     return (TimestampData) getValue(pos);
   }
 
   @Override
   @SuppressWarnings("unchecked")
   public <T> RawValueData<T> getRawValue(int pos) {
-//    return getValue(pos, RawValueData.class);
     return (RawValueData<T>) getValue(pos);
   }
 
   @Override
   public byte[] getBinary(int pos) {
-//    return getValue(pos, byte[].class);
     return (byte[]) getValue(pos);
   }
 
   @Override
   public ArrayData getArray(int pos) {
-//    return getValue(pos, ArrayData.class);
     return (ArrayData) getValue(pos);
   }
 
   @Override
   public MapData getMap(int pos) {
-//    return getValue(pos, MapData.class);
     return (MapData) getValue(pos);
   }
 
   @Override
   public RowData getRow(int pos, int numFields) {
-//    return getValue(pos, RowData.class);
     return (RowData) getValue(pos);
   }
 }
