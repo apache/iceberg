@@ -189,7 +189,7 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
         .add("filesCount", fileGroup.filesCount())
         .add("filesSize", fileGroup.filesSize())
         .toString();
-    LOG.info("Rewriting file group {} of table {}.", description, table);
+    LOG.info("Rewriting file group of table {}: {}.", table, description);
 
     long start = System.currentTimeMillis();
     try {
@@ -207,7 +207,7 @@ class IcebergStreamRewriter extends AbstractStreamOperator<RewriteResult>
       try {
         table.io().deleteFile(file.path());
       } catch (Exception e) {
-        LOG.warn("The file group {} has been rewritten, but we failed to clean the temporary flink manifests: {}",
+        LOG.warn("The file group {} has been rewritten, but we failed to clean the temporary manifests: {}",
             description, file.path(), e);
       }
     }

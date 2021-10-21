@@ -73,7 +73,6 @@ import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
 public class TestIcebergStreamRewriter {
-  private static final Configuration CONF = new Configuration();
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -111,7 +110,6 @@ public class TestIcebergStreamRewriter {
   @Before
   public void setupTable() throws IOException {
     File tableDir = temp.newFolder();
-    File metadataDir = new File(tableDir, "metadata");
     Assert.assertTrue(tableDir.delete());
 
     tablePath = tableDir.getAbsolutePath();
@@ -677,11 +675,6 @@ public class TestIcebergStreamRewriter {
     return new FlinkAppenderFactory(table.schema(),
         FlinkSchemaUtil.convert(table.schema()), table.properties(), table.spec(), equalityFieldIds,
         table.schema(), null);
-  }
-
-  private ManifestFile createTestingManifestFile(Path manifestPath) {
-    return new GenericManifestFile(manifestPath.toAbsolutePath().toString(), manifestPath.toFile().length(), 0,
-        ManifestContent.DATA, 0, 0, 0L, 0, 0, 0, 0, 0, 0, null, null);
   }
 
   private List<Path> assertFlinkManifests(int expectedCount) throws IOException {

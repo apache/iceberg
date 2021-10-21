@@ -143,13 +143,13 @@ class FlinkManifestUtil {
     ManifestFile dataManifest = null;
     ManifestFile deleteManifest = null;
 
-    // Write the completed data files into a newly created data manifest file.
+    // Write the exists data files into a newly created data manifest file.
     if (result.dataFiles() != null && result.dataFiles().length > 0) {
       dataManifest = referenceDataFiles(outputFileSupplier.get(), snapshotId, sequenceNumber, spec,
           Lists.newArrayList(result.dataFiles()));
     }
 
-    // Write the completed delete files into a newly created delete manifest file.
+    // Write the exists delete files into a newly created delete manifest file.
     if (result.deleteFiles() != null && result.deleteFiles().length > 0) {
       deleteManifest = referenceDeleteFiles(outputFileSupplier.get(), snapshotId, sequenceNumber, spec,
           Lists.newArrayList(result.deleteFiles()));

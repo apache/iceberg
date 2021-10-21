@@ -86,21 +86,29 @@ class IcebergRewriteFilesCommitter extends AbstractStreamOperator<Void>
   }
 
   private void commitRewriteGroups() {
-    RewriteResult result = RewriteResult.builder().addAll(rewriteResults).build();
+    List<RewriteResult> pendingRewriteResults = Lists.newArrayList(rewriteResults);
+    rewriteResults.clear();
+
+    LOG.info("Committing rewrite file groups of table {}: {}.", table, pendingRewriteResults);
+    long start = System.currentTimeMillis();
+    RewriteResult result = RewriteResult.builder().addAll(pendingRewriteResults).build();
     try {
       RewriteFiles rewriteFiles = table.newRewrite()
           .validateFromSnapshot(result.startingSnapshotId())
           .rewriteFiles(Sets.newHashSet(result.deletedDataFiles()), Sets.newHashSet(result.addedDataFiles()));
       rewriteFiles.commit();
     } catch (Exception e) {
-      LOG.error("Cannot commit {}, attempting to clean up written files", result, e);
+      LOG.error("Cannot commit rewrite file groups, attempting to clean up written files.", e);
 
       Tasks.foreach(Iterables.transform(result.addedDataFiles(), f -> f.path().toString()))
           .noRetry()
           .suppressFailureWhenFinished()
           .onFailure((location, exc) -> LOG.warn("Failed to delete: {}", location, exc))
           .run(ops.io()::deleteFile);
+      return;
     }
+    long duration = System.currentTimeMillis() - start;
+    LOG.info("Committed rewrite file groups in {} ms.", duration);
   }
 
   @Override
