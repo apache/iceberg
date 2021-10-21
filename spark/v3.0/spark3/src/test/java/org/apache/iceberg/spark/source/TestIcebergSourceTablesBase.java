@@ -43,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTestBase;
@@ -1111,7 +1112,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     // check time travel
     List<Row> actualAfterFirstCommit = spark.read()
         .format("iceberg")
-        .option("snapshot-id", String.valueOf(firstCommitId))
+        .option(SparkReadOptions.SNAPSHOT_ID, String.valueOf(firstCommitId))
         .load(loadLocation(tableIdentifier, "partitions"))
         .orderBy("partition.id")
         .collectAsList();
