@@ -19,7 +19,9 @@
 
 package org.apache.iceberg.hadoop;
 
+import com.github.benmanes.caffeine.cache.Cache;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Locale;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
@@ -31,6 +33,8 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Test;
+import org.apache.iceberg.util.FakeTicker;
+
 
 public class TestCachingCatalog extends HadoopTableTestBase {
 
@@ -135,5 +139,35 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     TableIdentifier snapshotsTableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl", "snapshots");
     Table snapshotsTable = catalog.loadTable(snapshotsTableIdent);
     Assert.assertEquals("Name must match", "hadoop.db.ns1.ns2.tbl.snapshots", snapshotsTable.name());
+  }
+
+  @Test
+  public void testTableDropsAfterInaccessWhenConfigured() throws Exception {
+    // TODO - Can I possibly assert Java9+ and use the dedicated System timer thread instead?
+    Configuration conf = new Configuration();
+    String warehousePath = temp.newFolder().getAbsolutePath();
+
+    HadoopCatalog hadoopCatalog = new HadoopCatalog(conf, warehousePath);
+    Catalog catalog = CachingCatalog.wrap(hadoopCatalog);
+
+    TableIdentifier tableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl");
+    catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of("key2", "value2"));
+
+    Table table = catalog.loadTable(tableIdent);
+    Assert.assertTrue(table.currentSnapshot() == null);  // Table is empty
+
+    // Writing should update the Cache TTL
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot oldSnapshot = table.currentSnapshot();
+
+    // TODO - Assert on the state of the cache if possible. See testing library.
+    TableIdentifier filesMetaTableIdent = TableIdentifier.of("db", "ns1", "ns2", "tbl", "files");
+    Table filesMetaTable = catalog.loadTable(filesMetaTableIdent);
+  }
+
+  @Test
+  public void testTableExpiration() {
+    long expirationMillis = Duration.ofSeconds(100).toMillis();
+    Cache<TableIdentifier, Table> cache = CachingCatalog.createTableCache(true, expirationMillis, new FakeTicker());
   }
 }

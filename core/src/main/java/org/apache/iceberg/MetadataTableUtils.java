@@ -30,6 +30,10 @@ public class MetadataTableUtils {
     return MetadataTableType.from(identifier.name()) != null;
   }
 
+  public static boolean isMetadataTable(TableIdentifier identifier) {
+    return MetadataTableType.from(identifier.name()) != null;
+  }
+
   public static Table createMetadataTableInstance(Table table, MetadataTableType type) {
     if (table instanceof BaseTable) {
       TableOperations ops = ((BaseTable) table).operations();

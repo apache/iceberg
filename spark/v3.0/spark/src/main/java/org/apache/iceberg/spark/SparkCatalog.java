@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import jline.internal.Preconditions;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
@@ -83,7 +84,9 @@ public class SparkCatalog extends BaseCatalog {
 
   private String catalogName = null;
   private Catalog icebergCatalog = null;
-  private boolean cacheEnabled = true;
+  private boolean cacheEnabled = CatalogProperties.TABLE_CACHE_ENABLED_DEFAULT;
+  private boolean cacheExpirationEnabled = CatalogProperties.TABLE_CACHE_EXPIRATION_ENABLED_DEFAULT;
+  private long cacheExpirationIntervalMillis = -1;  // Disabled. TODO - Maybe just set as default?
   private SupportsNamespaces asNamespaceCatalog = null;
   private String[] defaultNamespace = null;
   private HadoopTables tables;
@@ -384,7 +387,21 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
-    this.cacheEnabled = Boolean.parseBoolean(options.getOrDefault("cache-enabled", "true"));
+    this.cacheEnabled = Boolean.parseBoolean(options.getOrDefault(
+        CatalogProperties.TABLE_CACHE_ENABLED, String.valueOf(CatalogProperties.TABLE_CACHE_ENABLED_DEFAULT)));
+    this.cacheExpirationEnabled = Boolean.parseBoolean(options.getOrDefault(
+        CatalogProperties.TABLE_CACHE_EXPIRATION_ENABLED,
+        String.valueOf(CatalogProperties.TABLE_CACHE_EXPIRATION_ENABLED_DEFAULT)));
+    // TODO - Better error message.
+    // TODO - Wrap this into its own utility function so it can be used by Flink.
+    Preconditions.checkArguments(!cacheEnabled || !cacheExpirationEnabled, "Table cache expiration cannot be enabled " +
+        " cannot be enabled if caching is not enabled");
+
+    this.cacheExpirationIntervalMillis =
+      cacheEnabled ? Long.parseLong(options.getOrDefault(CatalogProperties.TABLE_CACHE_EXPIRY_MS,
+            String.valueOf(CatalogProperties.TABLE_CACHE_EXPIRATION_ENABLED_DEFAULT)))
+                   : -1;
+
     Catalog catalog = buildIcebergCatalog(name, options);
 
     this.catalogName = name;

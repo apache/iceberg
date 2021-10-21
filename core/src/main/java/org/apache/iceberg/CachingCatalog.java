@@ -21,6 +21,12 @@ package org.apache.iceberg;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Expiry;
+import com.github.benmanes.caffeine.cache.RemovalCause;
+import com.github.benmanes.caffeine.cache.RemovalListener;
+import com.github.benmanes.caffeine.cache.Ticker;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -29,24 +35,89 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class CachingCatalog implements Catalog {
+
+  private static final Logger LOG = LoggerFactory.getLogger(CachingCatalog.class);
+
+  // TODO - Make a Builder.
   public static Catalog wrap(Catalog catalog) {
-    return wrap(catalog, true);
+    return wrap(catalog, true, false, -1);
   }
 
-  public static Catalog wrap(Catalog catalog, boolean caseSensitive) {
-    return new CachingCatalog(catalog, caseSensitive);
+  // TODO - Probably just extend this class as ExpiringCachingCatalog.
+  public static Catalog wrap(Catalog catalog, boolean expirationEnabled, long expirationIntervalMilllis) {
+    return wrap(catalog, true, expirationEnabled, expirationIntervalMilllis);
   }
 
-  private final Cache<TableIdentifier, Table> tableCache = Caffeine.newBuilder().softValues().build();
+  public static Catalog wrap(Catalog catalog, boolean caseSensitive, boolean expirationEnabled,
+      long expirationIntervalMillis) {
+    return new CachingCatalog(catalog, caseSensitive, expirationEnabled, expirationIntervalMillis);
+  }
+
+  // TODO - Add these as config values and then try to have a background thread refreshing for the streaming case.
+  //        If Java9+, use System in built ones. See the Caffeine wiki:
+  //        https://github.com/ben-manes/caffeine/wiki/Removal
+  private final Cache<TableIdentifier, Table> tableCache = createTableCache(false, -1);
+  // private final Cache<TableIdentifier, Table> tableCache = Caffeine
+  //     .newBuilder()
+  //     .softValues()
+  //     // TODO - Implement removalListener (check if there's another Listener... I think so)
+  //     //        to remove metadata tables as well on expiration / refresh.
+  //     //        Possibly reimplement the cache so that metadata tables are loaded and removed atomically so that
+  //     //        we can depend on cache expiration provided by Caffine?
+  //     // .removalListener((RemovalListener<TableIdentifier, Table>) (key, value, cause) -> {
+  //     //   if (MetadataTableUtils.hasMetadataTableName()) {
+  //     //
+  //     //   }
+  //     // })
+  //     .build();
+
   private final Catalog catalog;
   private final boolean caseSensitive;
+  private final boolean expirationEnabled;
+  private final long expirationIntervalMillis;
 
-  private CachingCatalog(Catalog catalog, boolean caseSensitive) {
+  private CachingCatalog(Catalog catalog, boolean caseSensitive, boolean expirationEnabled,
+      long expirationIntervalMillis) {
     this.catalog = catalog;
     this.caseSensitive = caseSensitive;
+    this.expirationEnabled = expirationEnabled;
+    this.expirationIntervalMillis = expirationIntervalMillis;
+  }
+
+  private static Cache<TableIdentifier, Table> createTableCache(boolean expirationEnabled,
+      long expirationIntervalMillis) {
+    return createTableCache(expirationEnabled, expirationIntervalMillis, null);
+  }
+  @VisibleForTesting
+  public static Cache<TableIdentifier, Table> createTableCache(boolean expirationEnabled, long expirationMillis,
+      Ticker ticker) {
+    // TODO - move this somewhere better - this is just for getting tests to work.
+    Preconditions.checkArgument(!expirationEnabled || expirationMillis > 0L,
+        "The cache expiration time must be greater than zero if cache expiration is enabled");
+    Caffeine<Object, Object> cacheBuilder = Caffeine
+      .newBuilder()
+      .softValues();
+
+    if (expirationEnabled) {
+      LOG.info("Instantiating CachingCatalog with a cache expiration interval of {} milliseconds", expirationMillis);
+      cacheBuilder = cacheBuilder.expireAfterAccess(Duration.ofMillis(expirationMillis));
+    }
+
+    if (ticker != null) {
+      LOG.info(
+        "Received a non-null Ticker when instantiating the CachingCatalog's tableCache. This should only happen " +
+            "during tests. If you see this log outside of tests, there is potentially a bug.");
+
+      cacheBuilder = cacheBuilder.ticker(ticker);
+    }
+    return cacheBuilder.build();
   }
 
   private TableIdentifier canonicalizeIdentifier(TableIdentifier tableIdentifier) {
