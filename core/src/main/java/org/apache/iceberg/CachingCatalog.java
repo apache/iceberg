@@ -21,6 +21,8 @@ package org.apache.iceberg;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Ticker;
+import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -29,24 +31,86 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class CachingCatalog implements Catalog {
+
+  private static final Logger LOG = LoggerFactory.getLogger(CachingCatalog.class);
+
   public static Catalog wrap(Catalog catalog) {
-    return wrap(catalog, true);
+    return wrap(catalog, false, 0);
   }
 
-  public static Catalog wrap(Catalog catalog, boolean caseSensitive) {
-    return new CachingCatalog(catalog, caseSensitive);
+  public static Catalog wrap(Catalog catalog, boolean expirationEnabled, long expirationIntervalMilllis) {
+    return wrap(catalog, true, expirationEnabled, expirationIntervalMilllis);
   }
 
-  private final Cache<TableIdentifier, Table> tableCache = Caffeine.newBuilder().softValues().build();
+  public static Catalog wrap(Catalog catalog, boolean caseSensitive, boolean expirationEnabled,
+      long expirationIntervalMillis) {
+    return new CachingCatalog(catalog, caseSensitive, expirationEnabled, expirationIntervalMillis);
+  }
+
   private final Catalog catalog;
   private final boolean caseSensitive;
+  private final boolean expirationEnabled;
+  private final long expirationIntervalMillis;
+  private Cache<TableIdentifier, Table> tableCache;
 
-  private CachingCatalog(Catalog catalog, boolean caseSensitive) {
+  private CachingCatalog(Catalog catalog, boolean caseSensitive, boolean isExpirationEnabled,
+      long expirationIntervalInMillis) {
     this.catalog = catalog;
     this.caseSensitive = caseSensitive;
+    this.expirationEnabled = isExpirationEnabled;
+    this.expirationIntervalMillis = expirationIntervalInMillis;
+
+    this.tableCache = createTableCache(expirationEnabled, expirationIntervalMillis);
+  }
+
+  // The tableCache should only be passed in during tests, so that a mocked ticker can be used
+  // to control for cache entry expiration.
+  // VisibleForTesting
+  public CachingCatalog(Catalog catalog, boolean caseSensitive, boolean isExpirationEnabled,
+      long expirationIntervalMillis, Cache<TableIdentifier, Table> tableCache) {
+    this.catalog = catalog;
+    this.caseSensitive = caseSensitive;
+    this.expirationEnabled = isExpirationEnabled;
+    this.expirationIntervalMillis = expirationIntervalMillis;
+    this.tableCache = tableCache;
+  }
+
+  private Cache<TableIdentifier, Table> createTableCache(boolean isExpirationEnabled, long expirationMillis) {
+    return createTableCache(isExpirationEnabled, expirationMillis, null, false);
+  }
+
+  // VisibleForTesting
+  public static Cache<TableIdentifier, Table> createTableCache(boolean expirationEnabled, long expirationMillis,
+      Ticker ticker, boolean recordTableStats) {
+    Preconditions.checkArgument(!expirationEnabled || expirationMillis > 0L,
+        "The cache expiration time must be greater than zero if cache expiration is enabled");
+
+    Caffeine<Object, Object> cacheBuilder = Caffeine.newBuilder().softValues();
+
+    if (expirationEnabled) {
+      // TODO - Update this to be a write expiration so that it matches current semantics.
+      LOG.info("Instantiating CachingCatalog with a cache expiration interval of {} milliseconds", expirationMillis);
+      cacheBuilder = cacheBuilder.expireAfterWrite(Duration.ofMillis(expirationMillis));
+    }
+
+    if (recordTableStats) {
+      LOG.info("Instantiating CachingCatalog's internal table cache with statistics recording enabled");
+      cacheBuilder = cacheBuilder.recordStats();
+    }
+
+    if (ticker != null) {
+      LOG.info(
+          "Received a non-null Ticker when instantiating the CachingCatalog's tableCache. This should only happen " +
+          "during tests. If you see this log outside of tests, there is potentially a bug.");
+      cacheBuilder = cacheBuilder.ticker(ticker);
+    }
+    return cacheBuilder.build();
   }
 
   private TableIdentifier canonicalizeIdentifier(TableIdentifier tableIdentifier) {
