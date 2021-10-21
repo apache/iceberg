@@ -22,18 +22,36 @@ on:
   push:
     paths-ignore:
     - '.github/workflows/python-ci.yml'
+    - '.github/workflows/spark-ci.yml'
+    - '.github/workflows/flink-ci.yml'
+    - '.github/workflows/hive-ci.yml'
+    - 'mr/**'
+    - 'hive3/**'
+    - 'hive3-orc-bundle/**'
+    - 'hive-runtime/**'
+    - 'spark/**'
+    - 'flink/**'
     - 'python/**'
     - 'python_legacy/**'
     - 'site/**'
   pull_request:
     paths-ignore:
     - '.github/workflows/python-ci.yml'
+    - '.github/workflows/spark-ci.yml'
+    - '.github/workflows/flink-ci.yml'
+    - '.github/workflows/hive-ci.yml'
+    - 'mr/**'
+    - 'hive3/**'
+    - 'hive3-orc-bundle/**'
+    - 'hive-runtime/**'
+    - 'spark/**'
+    - 'flink/**'
     - 'python/**'
     - 'python_legacy/**'
     - 'site/**'
 
 jobs:
-  run-tests:
+  core-tests:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -51,7 +69,7 @@ jobs:
         key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
         restore-keys: ${{ runner.os }}-gradle
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-    - run: ./gradlew check -Pquick=true -x javadoc
+    - run: ./gradlew check -DsparkVersions= -DhiveVersions= -DflinkVersions= -Pquick=true -x javadoc 
     - uses: actions/upload-artifact@v2
       if: failure()
       with:
@@ -59,14 +77,14 @@ jobs:
         path: |
           **/build/testlogs
 
-  extra-checks:
+  build-checks:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
     - uses: actions/setup-java@v1
       with:
         java-version: 8
-    - run: ./gradlew build -x test -x javadoc -x integrationTest -x testSpark31 -x spark31IntegrationTest
+    - run: ./gradlew build -x test -x javadoc -x integrationTest
 
   build-javadoc:
     runs-on: ubuntu-latest

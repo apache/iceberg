@@ -42,7 +42,7 @@ public class StructProjection implements StructLike {
    */
   public static StructProjection create(Schema schema, Set<Integer> ids) {
     StructType structType = schema.asStruct();
-    return new StructProjection(structType, TypeUtil.select(structType, ids));
+    return new StructProjection(structType, TypeUtil.project(structType, ids));
   }
 
   /**

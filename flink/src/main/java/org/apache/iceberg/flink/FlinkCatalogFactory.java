@@ -83,6 +83,10 @@ public class FlinkCatalogFactory implements CatalogFactory {
   static CatalogLoader createCatalogLoader(String name, Map<String, String> properties, Configuration hadoopConf) {
     String catalogImpl = properties.get(CatalogProperties.CATALOG_IMPL);
     if (catalogImpl != null) {
+      String catalogType = properties.get(ICEBERG_CATALOG_TYPE);
+      Preconditions.checkArgument(catalogType == null,
+          "Cannot create catalog %s, both catalog-type and catalog-impl are set: catalog-type=%s, catalog-impl=%s",
+          name, catalogType, catalogImpl);
       return CatalogLoader.custom(name, properties, hadoopConf, catalogImpl);
     }
 
@@ -99,7 +103,8 @@ public class FlinkCatalogFactory implements CatalogFactory {
         return CatalogLoader.hadoop(name, hadoopConf, properties);
 
       default:
-        throw new UnsupportedOperationException("Unknown catalog type: " + catalogType);
+        throw new UnsupportedOperationException("Unknown catalog-type: " + catalogType +
+            " (Must be 'hive' or 'hadoop')");
     }
   }
 

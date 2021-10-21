@@ -433,12 +433,11 @@ public class Avro {
     }
 
     public <T> EqualityDeleteWriter<T> buildEqualityWriter() throws IOException {
-      Preconditions.checkState(rowSchema != null, "Cannot create equality delete file without a schema`");
+      Preconditions.checkState(rowSchema != null, "Cannot create equality delete file without a schema");
       Preconditions.checkState(equalityFieldIds != null, "Cannot create equality delete file without delete field ids");
       Preconditions.checkState(createWriterFunc != null,
           "Cannot create equality delete file unless createWriterFunc is set");
-      Preconditions.checkArgument(spec != null,
-          "Spec must not be null when creating equality delete writer");
+      Preconditions.checkArgument(spec != null, "Spec must not be null when creating equality delete writer");
       Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
           "Partition must not be null for partitioned writes");
 
@@ -459,10 +458,11 @@ public class Avro {
 
     public <T> PositionDeleteWriter<T> buildPositionWriter() throws IOException {
       Preconditions.checkState(equalityFieldIds == null, "Cannot create position delete file using delete field ids");
-      Preconditions.checkArgument(spec != null,
-          "Spec must not be null when creating position delete writer");
+      Preconditions.checkArgument(spec != null, "Spec must not be null when creating position delete writer");
       Preconditions.checkArgument(spec.isUnpartitioned() || partition != null,
           "Partition must not be null for partitioned writes");
+      Preconditions.checkArgument(rowSchema == null || createWriterFunc != null,
+          "Create function should be provided if we write row data");
 
       meta("delete-type", "position");
 
@@ -476,6 +476,7 @@ public class Avro {
       } else {
         appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
 
+        // We ignore the 'createWriterFunc' and 'rowSchema' even if is provided, since we do not write row data itself
         appenderBuilder.createWriterFunc(ignored -> new PositionDatumWriter());
       }
 
@@ -643,4 +644,12 @@ public class Avro {
     }
   }
 
+  /**
+   * Returns number of rows in specified Avro file
+   * @param file Avro file
+   * @return number of rows in file
+   */
+  public static long rowCount(InputFile file) {
+    return AvroIO.findStartingRowPos(file::newStream, Long.MAX_VALUE);
+  }
 }

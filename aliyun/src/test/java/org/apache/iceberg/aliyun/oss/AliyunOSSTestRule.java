@@ -56,6 +56,18 @@ public interface AliyunOSSTestRule extends TestRule {
   }
 
   /**
+   * Returns the common key prefix for those newly created objects in test cases. For example, we set the test bucket
+   * to be 'oss-testing-bucket' and the key prefix to be 'iceberg-objects/', then the produced objects in test cases
+   * will be:
+   * <pre>
+   *   oss://oss-testing-bucket/iceberg-objects/a.dat
+   *   oss://oss-testing-bucket/iceberg-objects/b.dat
+   *   ...
+   * </pre>
+   */
+  String keyPrefix();
+
+  /**
    * Start the Aliyun Object storage services application that the OSS client could connect to.
    */
   void start();

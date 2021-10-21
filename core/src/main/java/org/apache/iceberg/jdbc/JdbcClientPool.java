@@ -39,7 +39,7 @@ class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
   }
 
   JdbcClientPool(int poolSize, String dbUrl, Map<String, String> props) {
-    super(poolSize, SQLNonTransientConnectionException.class);
+    super(poolSize, SQLNonTransientConnectionException.class, true);
     properties = props;
     this.dbUrl = dbUrl;
   }
