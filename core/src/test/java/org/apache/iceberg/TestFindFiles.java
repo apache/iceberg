@@ -81,6 +81,7 @@ public class TestFindFiles extends TableTestBase {
                 null, // no column sizes
                 ImmutableMap.of(1, 3L), // value count
                 ImmutableMap.of(1, 0L), // null count
+                null,
                 ImmutableMap.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)),  // lower bounds
                 ImmutableMap.of(1, Conversions.toByteBuffer(Types.IntegerType.get(), 5)))) // lower bounds
             .build())
