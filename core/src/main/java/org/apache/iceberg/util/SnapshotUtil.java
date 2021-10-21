@@ -19,10 +19,6 @@
 
 package org.apache.iceberg.util;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.iceberg.DataFile;
@@ -38,8 +34,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 public class SnapshotUtil {
   private SnapshotUtil() {
   }
-
-  private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
   /**
    * Returns whether ancestorSnapshotId is an ancestor of snapshotId.
@@ -171,7 +165,7 @@ public class SnapshotUtil {
     }
 
     Preconditions.checkArgument(snapshotId != null,
-        "Cannot find a snapshot older than %s", formatTimestampMillis(timestampMillis));
+        "Cannot find a snapshot older than %s", DateTimeUtil.formatTimestampMillis(timestampMillis));
     return snapshotId;
   }
 
@@ -197,35 +191,5 @@ public class SnapshotUtil {
 
     // TODO: recover the schema by reading previous metadata files
     return table.schema();
-  }
-
-  /**
-   * Convenience method for returning the schema of the table for a snapshot,
-   * when we have a snapshot id or a timestamp. Only one of them should be specified
-   * (non-null), or an IllegalArgumentException is thrown.
-   *
-   * @param table a {@link Table}
-   * @param snapshotId the ID of the snapshot
-   * @param timestampMillis the timestamp in millis since the Unix epoch
-   * @return the schema
-   * @throws IllegalArgumentException if both snapshotId and timestampMillis are non-null
-   */
-  public static Schema schemaFor(Table table, Long snapshotId, Long timestampMillis) {
-    Preconditions.checkArgument(snapshotId == null || timestampMillis == null,
-        "Cannot use both snapshot id and timestamp to find a schema");
-
-    if (snapshotId != null) {
-      return schemaFor(table, snapshotId);
-    }
-
-    if (timestampMillis != null) {
-      return schemaFor(table, snapshotIdAsOfTime(table, timestampMillis));
-    }
-
-    return table.schema();
-  }
-
-  public static String formatTimestampMillis(long millis) {
-    return DATE_FORMAT.format(LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC));
   }
 }

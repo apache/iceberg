@@ -50,7 +50,6 @@ import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.SparkException;
-import org.apache.spark.package$;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -58,7 +57,6 @@ import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.types.StructType;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -85,11 +83,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
   );
 
   private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).identity("id").build();
-
-  // for temporary use until reading a snapshot using the snapshot schema is implemented in Spark 3
-  private static boolean isSpark2() {
-    return package$.MODULE$.SPARK_VERSION_SHORT().startsWith("2");
-  }
 
   @Rule
   public TemporaryFolder temp = new TemporaryFolder();
@@ -1162,7 +1155,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public synchronized void testSnapshotReadAfterAddColumn() {
-    Assume.assumeTrue(isSpark2());
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
 
@@ -1227,7 +1219,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public synchronized void testSnapshotReadAfterDropColumn() {
-    Assume.assumeTrue(isSpark2());
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
     Table table = createTable(tableIdentifier, SCHEMA2, PartitionSpec.unpartitioned());
 
@@ -1302,7 +1293,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
   @Test
   public synchronized void testSnapshotReadAfterAddAndDropColumn() {
-    Assume.assumeTrue(isSpark2());
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
     Table table = createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
 
