@@ -19,6 +19,10 @@
 
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
+### [Using Debezium to Create a Data Lake with Apache Iceberg](https://debezium.io/blog/2021/10/20/using-debezium-create-data-lake-with-apache-iceberg/)
+**Date**: October 20th, 2021, **Company**: Memiiso Community
+**Author**: [Ismail Simsek](https://www.linkedin.com/in/ismailsimsek/)
+
 ### [Apache Iceberg: An Architectural Look Under the Covers](https://www.dremio.com/apache-iceberg-an-architectural-look-under-the-covers/)
 **Date**: July 6th, 2021, **Company**: Dremio
 
