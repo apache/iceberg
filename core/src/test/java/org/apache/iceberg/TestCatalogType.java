@@ -48,8 +48,7 @@ public class TestCatalogType {
         Arguments.of("dynamodb", "org.apache.iceberg.aws.dynamodb.DynamoDbCatalog"),
         Arguments.of("DYNAMODB", "org.apache.iceberg.aws.dynamodb.DynamoDbCatalog"),
         Arguments.of("glue", "org.apache.iceberg.aws.glue.GlueCatalog"),
-        Arguments.of("GLUE", "org.apache.iceberg.aws.glue.GlueCatalog"),
-        Arguments.of(null, null));
+        Arguments.of("GLUE", "org.apache.iceberg.aws.glue.GlueCatalog"));
   }
 
   @Test

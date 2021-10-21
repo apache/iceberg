@@ -343,7 +343,8 @@ public class TestCatalogs {
   @Test
   public void testCatalogTypeImpl() {
     Assertions.assertThat(
-            CatalogType.getCatalogImpl(CatalogType.JDBC.getTypeName())).isEqualTo(JdbcCatalog.class.getName());
+        CatalogType.getCatalogImpl(CatalogType.JDBC.getTypeName()))
+        .isEqualTo(JdbcCatalog.class.getName());
   }
 
   public static class CustomHadoopCatalog extends HadoopCatalog {
