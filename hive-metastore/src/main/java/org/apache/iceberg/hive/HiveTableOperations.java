@@ -499,11 +499,21 @@ public class HiveTableOperations extends BaseMetastoreTableOperations {
   }
 
   @VisibleForTesting
-  void doUnlock(long lockId) throws TException, InterruptedException {
-    metaClients.run(client -> {
-      client.unlock(lockId);
-      return null;
-    });
+  void doUnlock(long lockId) throws TException {
+    boolean released = false;
+    while (!released) {
+      try {
+        released = metaClients.run(client -> {
+          client.unlock(lockId);
+          return true;
+        });
+      } catch (InterruptedException ie) {
+        Thread.currentThread().interrupt();
+        LOG.warn("Interrupted for waiting an available meta client to release lock {}, but still retry!", lockId);
+      } catch (RuntimeException e) {
+        throw e;
+      }
+    }
   }
 
   static void validateTableIsIceberg(Table table, String fullName) {
