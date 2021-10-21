@@ -365,7 +365,7 @@ Migrate `db.sample` in the current catalog to an Iceberg table without adding an
 CALL catalog_name.system.migrate('db.sample')
 ```
 
-### add_files
+### `add_files`
 
 Attempts to directly add files from a Hive or file based table into a given Iceberg table. Unlike migrate or
 snapshot, `add_files` can import files from a specific partition or partitions and does not create a new Iceberg table.
@@ -380,7 +380,7 @@ will then treat these files as if they are part of the set of files  owned by Ic
 | Argument Name | Required? | Type | Description |
 |---------------|-----------|------|-------------|
 | `table`       | ✔️  | string | Table which will have files added to|
-| `source_table`| ✔️  | string | Table where files should come from, paths are also possible in the form of `file_format`.`path |
+| `source_table`| ✔️  | string | Table where files should come from, paths are also possible in the form of \`file_format\`.\`path\` |
 | `partition_filter`  | ️   | map<string, string> | A map of partitions in the source table to import from |
 
 Warning : Schema is not validated, adding files with different schema to the Iceberg table will cause issues.
