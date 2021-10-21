@@ -197,6 +197,7 @@ public class TestCatalogs {
     Optional<Catalog> defaultCatalog = Catalogs.loadCatalog(conf, null);
     Assert.assertTrue(defaultCatalog.isPresent());
     Assertions.assertThat(defaultCatalog.get()).isInstanceOf(HiveCatalog.class);
+    Assert.assertTrue(Catalogs.hiveCatalog(conf, new Properties()));
   }
 
   @Test
@@ -205,6 +206,7 @@ public class TestCatalogs {
     Optional<Catalog> hiveCatalog = Catalogs.loadCatalog(conf, null);
     Assert.assertTrue(hiveCatalog.isPresent());
     Assertions.assertThat(hiveCatalog.get()).isInstanceOf(HiveCatalog.class);
+    Assert.assertTrue(Catalogs.hiveCatalog(conf, new Properties()));
   }
 
   @Test
@@ -214,6 +216,7 @@ public class TestCatalogs {
     Optional<Catalog> hadoopCatalog = Catalogs.loadCatalog(conf, null);
     Assert.assertTrue(hadoopCatalog.isPresent());
     Assertions.assertThat(hadoopCatalog.get()).isInstanceOf(HadoopCatalog.class);
+    Assert.assertFalse(Catalogs.hiveCatalog(conf, new Properties()));
   }
 
   @Test
@@ -223,12 +226,14 @@ public class TestCatalogs {
     Optional<Catalog> customHadoopCatalog = Catalogs.loadCatalog(conf, null);
     Assert.assertTrue(customHadoopCatalog.isPresent());
     Assertions.assertThat(customHadoopCatalog.get()).isInstanceOf(CustomHadoopCatalog.class);
+    Assert.assertFalse(Catalogs.hiveCatalog(conf, new Properties()));
   }
 
   @Test
   public void testLegacyLoadCatalogLocation() {
     conf.set(InputFormatConfig.CATALOG, Catalogs.LOCATION);
     Assert.assertFalse(Catalogs.loadCatalog(conf, null).isPresent());
+    Assert.assertFalse(Catalogs.hiveCatalog(conf, new Properties()));
   }
 
   @Test
@@ -241,9 +246,13 @@ public class TestCatalogs {
 
   @Test
   public void testLoadCatalogDefault() {
-    Optional<Catalog> defaultCatalog = Catalogs.loadCatalog(conf, "barCatalog");
+    String catalogName = "barCatalog";
+    Optional<Catalog> defaultCatalog = Catalogs.loadCatalog(conf, catalogName);
     Assert.assertTrue(defaultCatalog.isPresent());
     Assertions.assertThat(defaultCatalog.get()).isInstanceOf(HiveCatalog.class);
+    Properties properties = new Properties();
+    properties.put(InputFormatConfig.CATALOG_NAME, catalogName);
+    Assert.assertTrue(Catalogs.hiveCatalog(conf, properties));
   }
 
   @Test
@@ -254,6 +263,9 @@ public class TestCatalogs {
     Optional<Catalog> hiveCatalog = Catalogs.loadCatalog(conf, catalogName);
     Assert.assertTrue(hiveCatalog.isPresent());
     Assertions.assertThat(hiveCatalog.get()).isInstanceOf(HiveCatalog.class);
+    Properties properties = new Properties();
+    properties.put(InputFormatConfig.CATALOG_NAME, catalogName);
+    Assert.assertTrue(Catalogs.hiveCatalog(conf, properties));
   }
 
   @Test
@@ -278,6 +290,9 @@ public class TestCatalogs {
     Assert.assertTrue(hadoopCatalog.isPresent());
     Assertions.assertThat(hadoopCatalog.get()).isInstanceOf(HadoopCatalog.class);
     Assert.assertEquals("HadoopCatalog{name=barCatalog, location=/tmp/mylocation}", hadoopCatalog.get().toString());
+    Properties properties = new Properties();
+    properties.put(InputFormatConfig.CATALOG_NAME, catalogName);
+    Assert.assertFalse(Catalogs.hiveCatalog(conf, properties));
   }
 
   @Test
@@ -290,6 +305,9 @@ public class TestCatalogs {
     Assert.assertTrue(hadoopCatalog.isPresent());
     Assertions.assertThat(hadoopCatalog.get()).isInstanceOf(HadoopCatalog.class);
     Assert.assertEquals("HadoopCatalog{name=barCatalog, location=/tmp/mylocation}", hadoopCatalog.get().toString());
+    Properties properties = new Properties();
+    properties.put(InputFormatConfig.CATALOG_NAME, catalogName);
+    Assert.assertFalse(Catalogs.hiveCatalog(conf, properties));
   }
 
   @Test
@@ -302,6 +320,9 @@ public class TestCatalogs {
     Optional<Catalog> customHadoopCatalog = Catalogs.loadCatalog(conf, catalogName);
     Assert.assertTrue(customHadoopCatalog.isPresent());
     Assertions.assertThat(customHadoopCatalog.get()).isInstanceOf(CustomHadoopCatalog.class);
+    Properties properties = new Properties();
+    properties.put(InputFormatConfig.CATALOG_NAME, catalogName);
+    Assert.assertFalse(Catalogs.hiveCatalog(conf, properties));
   }
 
   @Test
