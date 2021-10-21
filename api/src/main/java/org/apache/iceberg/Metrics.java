@@ -48,6 +48,18 @@ public class Metrics implements Serializable {
                  Map<Integer, Long> columnSizes,
                  Map<Integer, Long> valueCounts,
                  Map<Integer, Long> nullValueCounts,
+                 Map<Integer, Long> nanValueCounts) {
+    this.rowCount = rowCount;
+    this.columnSizes = columnSizes;
+    this.valueCounts = valueCounts;
+    this.nullValueCounts = nullValueCounts;
+    this.nanValueCounts = nanValueCounts;
+  }
+
+  public Metrics(Long rowCount,
+                 Map<Integer, Long> columnSizes,
+                 Map<Integer, Long> valueCounts,
+                 Map<Integer, Long> nullValueCounts,
                  Map<Integer, Long> nanValueCounts,
                  Map<Integer, ByteBuffer> lowerBounds,
                  Map<Integer, ByteBuffer> upperBounds) {
