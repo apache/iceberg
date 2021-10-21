@@ -813,22 +813,15 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       // 1. snapshotState for checkpoint#1
       harness.snapshot(checkpoint, ++timestamp);
-      List<Path> manifestPaths = assertFlinkManifests(formatVersion < 2 ? 1 : 2);
-      Path manifestPath = manifestPaths.get(0);
-      Assert.assertEquals("File name should have the expected pattern.",
-          String.format("%s-%05d-%d-%d-%05d.avro", jobId, 0, 0, checkpoint, 1), manifestPath.getFileName().toString());
+      assertFlinkManifests(formatVersion < 2 ? 1 : 2);
 
-      // 2. read the data files from manifests and assert.
-      List<DataFile> dataFiles = FlinkManifestUtil.readDataFiles(createTestingManifestFile(manifestPath), table.io());
-      Assert.assertEquals(1, dataFiles.size());
-
-      // 3. notifyCheckpointComplete for checkpoint
+      // 2. notifyCheckpointComplete for checkpoint
       harness.notifyOfCompletedCheckpoint(checkpoint);
       SimpleDataUtil.assertTableRows(table, expected);
       assertMaxCommittedCheckpointId(jobId, checkpoint);
       assertFlinkManifests(0);
 
-      // 4. emit commit results
+      // 3. emit commit results
       List<CommitResult> commitResults = harness.extractOutputValues();
 
       long snapshotId = table.currentSnapshot().snapshotId();
@@ -936,25 +929,15 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       // 1. snapshotState for checkpoint#1
       harness.snapshot(checkpoint, ++timestamp);
+      assertFlinkManifests(formatVersion < 2 ? 1 : 2);
 
-      // 2. read the data files from manifests and assert.
-      List<Path> manifestPaths = assertFlinkManifests(formatVersion < 2 ? 1 : 2);
-      manifestPaths.sort(Comparator.comparing(path -> path.getFileName().toString()));
-      for (int i = 0; i < manifestPaths.size(); i++) {
-        Path path = manifestPaths.get(i);
-        Assert.assertEquals("File name should have the expected pattern.",
-            String.format("%s-%05d-%d-%d-%05d.avro", jobId, 0, 0, checkpoint, i + 1), path.getFileName().toString());
-        List<DataFile> dataFiles = FlinkManifestUtil.readDataFiles(createTestingManifestFile(path), table.io());
-        Assert.assertEquals(2, dataFiles.size());
-      }
-
-      // 3. notifyCheckpointComplete for checkpoint
+      // 2. notifyCheckpointComplete for checkpoint
       harness.notifyOfCompletedCheckpoint(checkpoint);
       SimpleDataUtil.assertTableRows(table, expected);
       assertMaxCommittedCheckpointId(jobId, checkpoint);
       assertFlinkManifests(0);
 
-      // 4. emit commit results
+      // 3. emit commit results
       List<CommitResult> commitResults = harness.extractOutputValues();
       Assert.assertEquals(2, commitResults.size());
       commitResults.sort(Comparator.comparing(o -> o.partition().get(0, String.class)));
