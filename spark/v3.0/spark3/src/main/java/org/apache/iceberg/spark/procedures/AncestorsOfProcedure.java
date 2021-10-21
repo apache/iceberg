@@ -40,7 +40,8 @@ public class AncestorsOfProcedure extends BaseProcedure {
   };
 
   private static final StructType OUTPUT_TYPE = new StructType(new StructField[] {
-      new StructField("snapshot_id_new_to_old ↓", DataTypes.LongType, true, Metadata.empty()),
+      new StructField("snapshot_id", DataTypes.LongType, true, Metadata.empty()),
+      new StructField("timestamp", DataTypes.LongType, true, Metadata.empty())
   });
 
   private AncestorsOfProcedure(TableCatalog tableCatalog) {
@@ -80,7 +81,7 @@ public class AncestorsOfProcedure extends BaseProcedure {
 
     List<Long> snapshotIds = SnapshotUtil.snapshotIdsBetween(icebergTable, 0L, toSnapshotId);
 
-    return toOutPutRow(snapshotIds);
+    return toOutPutRow(icebergTable, snapshotIds);
   }
 
   @Override
@@ -88,15 +89,15 @@ public class AncestorsOfProcedure extends BaseProcedure {
     return "AncestorsOf";
   }
 
-  private InternalRow[] toOutPutRow(List<Long> snapshotIds) {
+  private InternalRow[] toOutPutRow(Table table, List<Long> snapshotIds) {
     if (snapshotIds.isEmpty()) {
       return new InternalRow[0];
     }
 
     InternalRow[] internalRows = new InternalRow[snapshotIds.size()];
-    internalRows[0] = newInternalRow(snapshotIds.get(0));
-    for (int i = 1; i < snapshotIds.size(); i++) {
-      internalRows[i] = newInternalRow(snapshotIds.get(i));
+    for (int i = 0; i < snapshotIds.size(); i++) {
+      internalRows[i] = newInternalRow(snapshotIds.get(i),
+          table.snapshot(snapshotIds.get(i)).timestampMillis());
     }
 
     return internalRows;

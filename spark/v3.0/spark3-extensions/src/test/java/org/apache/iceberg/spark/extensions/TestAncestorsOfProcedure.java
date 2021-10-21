@@ -50,14 +50,16 @@ public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
     Long currentSnapshotId = table.currentSnapshot().snapshotId();
+    Long currentTimestamp = table.currentSnapshot().timestampMillis();
     Long preSnapshotId = table.currentSnapshot().parentId();
+    Long preTimeStamp = table.snapshot(table.currentSnapshot().parentId()).timestampMillis();
 
     List<Object[]> output = sql("CALL %s.system.ancestors_of('%s')",
         catalogName, tableIdent);
 
     assertEquals(
         "Procedure output must match",
-        ImmutableList.of(row(currentSnapshotId), row(preSnapshotId)),
+        ImmutableList.of(row(currentSnapshotId, currentTimestamp), row(preSnapshotId, preTimeStamp)),
         output);
   }
 
@@ -69,16 +71,18 @@ public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
     Long currentSnapshotId = table.currentSnapshot().snapshotId();
+    Long currentTimestamp = table.currentSnapshot().timestampMillis();
     Long preSnapshotId = table.currentSnapshot().parentId();
+    Long preTimeStamp = table.snapshot(table.currentSnapshot().parentId()).timestampMillis();
 
     assertEquals(
         "Procedure output must match",
-        ImmutableList.of(row(currentSnapshotId), row(preSnapshotId)),
+        ImmutableList.of(row(currentSnapshotId, currentTimestamp), row(preSnapshotId, preTimeStamp)),
         sql("CALL %s.system.ancestors_of('%s', %dL)", catalogName, tableIdent, currentSnapshotId));
 
     assertEquals(
         "Procedure output must match",
-        ImmutableList.of(row(preSnapshotId)),
+        ImmutableList.of(row(preSnapshotId, preTimeStamp)),
         sql("CALL %s.system.ancestors_of('%s', %dL)", catalogName, tableIdent, preSnapshotId));
   }
 
@@ -89,12 +93,15 @@ public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
     table.refresh();
     Long firstSnapshotId = table.currentSnapshot().snapshotId();
+    Long firstTimestamp = table.currentSnapshot().timestampMillis();
     sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
     table.refresh();
     Long secondSnapshotId = table.currentSnapshot().snapshotId();
+    Long secondTimestamp = table.currentSnapshot().timestampMillis();
     sql("INSERT INTO TABLE %s VALUES (3, 'c')", tableName);
     table.refresh();
     Long thirdSnapshotId = table.currentSnapshot().snapshotId();
+    Long thirdTimestamp = table.currentSnapshot().timestampMillis();
 
     // roll back
     sql("CALL %s.system.rollback_to_snapshot('%s', %dL)",
@@ -103,15 +110,20 @@ public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
     sql("INSERT INTO TABLE %s VALUES (4, 'd')", tableName);
     table.refresh();
     Long fourthSnapshotId = table.currentSnapshot().snapshotId();
+    Long fourthTimestamp = table.currentSnapshot().timestampMillis();
 
     assertEquals(
         "Procedure output must match",
-        ImmutableList.of(row(fourthSnapshotId), row(secondSnapshotId), row(firstSnapshotId)),
+        ImmutableList.of(row(fourthSnapshotId, fourthTimestamp), row(secondSnapshotId, secondTimestamp), row(
+            firstSnapshotId,
+            firstTimestamp)),
         sql("CALL %s.system.ancestors_of('%s', %dL)", catalogName, tableIdent, fourthSnapshotId));
 
     assertEquals(
         "Procedure output must match",
-        ImmutableList.of(row(thirdSnapshotId), row(secondSnapshotId), row(firstSnapshotId)),
+        ImmutableList.of(row(thirdSnapshotId, thirdTimestamp), row(secondSnapshotId, secondTimestamp), row(
+            firstSnapshotId,
+            firstTimestamp)),
         sql("CALL %s.system.ancestors_of('%s', %dL)", catalogName, tableIdent, thirdSnapshotId));
   }
 
@@ -122,10 +134,11 @@ public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
     Long firstSnapshotId = table.currentSnapshot().snapshotId();
+    Long firstTimestamp = table.currentSnapshot().timestampMillis();
 
     assertEquals(
         "Procedure output must match",
-        ImmutableList.of(row(firstSnapshotId)),
+        ImmutableList.of(row(firstSnapshotId, firstTimestamp)),
         sql("CALL %s.system.ancestors_of(snapshot_id => %dL, table => '%s')",
             catalogName, firstSnapshotId, tableIdent));
   }
