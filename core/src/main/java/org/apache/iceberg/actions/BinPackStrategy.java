@@ -191,6 +191,10 @@ public abstract class BinPackStrategy implements RewriteStrategy {
     return fileToRewrite.stream().mapToLong(FileScanTask::length).sum();
   }
 
+  protected long maxGroupSize() {
+    return maxGroupSize;
+  }
+
   /**
    * Estimates a larger max target file size than our target size used in task creation to avoid
    * tasks which are predicted to have a certain size, but exceed that target size when serde is complete creating

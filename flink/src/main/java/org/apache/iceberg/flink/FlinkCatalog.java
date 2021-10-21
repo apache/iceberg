@@ -278,7 +278,7 @@ public class FlinkCatalog extends AbstractCatalog {
           asNamespaceCatalog.removeProperties(namespace, removals);
         }
 
-      } catch (org.apache.iceberg.exceptions.NoSuchNamespaceException e) {
+      } catch (NoSuchNamespaceException e) {
         if (!ignoreIfNotExists) {
           throw new DatabaseNotExistException(getName(), name, e);
         }

@@ -25,7 +25,16 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 class GetProjectedIds extends TypeUtil.SchemaVisitor<Set<Integer>> {
+  private final boolean includeStructIds;
   private final Set<Integer> fieldIds = Sets.newHashSet();
+
+  GetProjectedIds() {
+    this(false);
+  }
+
+  GetProjectedIds(boolean includeStructIds) {
+    this.includeStructIds = includeStructIds;
+  }
 
   @Override
   public Set<Integer> schema(Schema schema, Set<Integer> structResult) {
@@ -39,7 +48,7 @@ class GetProjectedIds extends TypeUtil.SchemaVisitor<Set<Integer>> {
 
   @Override
   public Set<Integer> field(Types.NestedField field, Set<Integer> fieldResult) {
-    if (fieldResult == null) {
+    if ((includeStructIds && field.type().isStructType()) || field.type().isPrimitiveType()) {
       fieldIds.add(field.fieldId());
     }
     return fieldIds;

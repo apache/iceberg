@@ -190,9 +190,29 @@ For more details, please refer to the [Python Table API](https://ci.apache.org/p
 
 Flink 1.11 support to create catalogs by using flink sql.
 
+### Catalog Configuration
+
+A catalog is created and named by executing the following query (replace `<catalog_name>` with your catalog name and
+`<config_key>`=`<config_value>` with catalog implementation config):   
+
+```sql
+CREATE CATALOG <catalog_name> WITH (
+  'type'='iceberg',
+  `<config_key>`=`<config_value>`
+); 
+```
+
+The following properties can be set globally and are not limited to a specific catalog implementation:
+
+* `type`: Must be `iceberg`. (required)
+* `catalog-type`: `hive` or `hadoop` for built-in catalogs, or left unset for custom catalog implementations using catalog-impl. (Optional)
+* `catalog-impl`: The fully-qualified class name custom catalog implementation, must be set if `catalog-type` is unset. (Optional)
+* `property-version`: Version number to describe the property version. This property can be used for backwards compatibility in case the property format changes. The current property version is `1`. (Optional)
+* `cache-enabled`: Whether to enable catalog cache, default value is `true`
+
 ### Hive catalog
 
-This creates an iceberg catalog named `hive_catalog` that loads tables from a hive metastore:
+This creates an iceberg catalog named `hive_catalog` that can be configured using `'catalog-type'='hive'`, which loads tables from a hive metastore:
 
 ```sql
 CREATE CATALOG hive_catalog WITH (
@@ -205,14 +225,12 @@ CREATE CATALOG hive_catalog WITH (
 );
 ```
 
-* `type`: Please just use `iceberg` for iceberg table format. (Required)
-* `catalog-type`: Iceberg currently support `hive` or `hadoop` catalog type. (Required)
+The following properties can be set if using the Hive catalog:
+
 * `uri`: The Hive metastore's thrift URI. (Required)
 * `clients`: The Hive metastore client pool size, default value is 2. (Optional)
-* `property-version`: Version number to describe the property version. This property can be used for backwards compatibility in case the property format changes. The current property version is `1`. (Optional)
 * `warehouse`: The Hive warehouse location, users should specify this path if neither set the `hive-conf-dir` to specify a location containing a `hive-site.xml` configuration file nor add a correct `hive-site.xml` to classpath.
 * `hive-conf-dir`: Path to a directory containing a `hive-site.xml` configuration file which will be used to provide custom Hive configuration values. The value of `hive.metastore.warehouse.dir` from `<hive-conf-dir>/hive-site.xml` (or hive configure file from classpath) will be overwrote with the `warehouse` value if setting both `hive-conf-dir` and `warehouse` when creating iceberg catalog.
-* `cache-enabled`: Whether to enable catalog cache, default value is `true`
 
 ### Hadoop catalog
 
@@ -227,14 +245,15 @@ CREATE CATALOG hadoop_catalog WITH (
 );
 ```
 
+The following properties can be set if using the Hadoop catalog:
+
 * `warehouse`: The HDFS directory to store metadata files and data files. (Required)
 
 We could execute the sql command `USE CATALOG hive_catalog` to set the current catalog.
 
 ### Custom catalog
 
-Flink also supports loading a custom Iceberg `Catalog` implementation by specifying the `catalog-impl` property.
-When `catalog-impl` is set, the value of `catalog-type` is ignored. Here is an example:
+Flink also supports loading a custom Iceberg `Catalog` implementation by specifying the `catalog-impl` property. Here is an example:
 
 ```sql
 CREATE CATALOG my_catalog WITH (
