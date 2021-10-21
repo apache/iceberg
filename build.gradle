@@ -429,18 +429,6 @@ project(':iceberg-hive-metastore') {
   }
 }
 
-// add enabled Hive version modules to the build
-def hiveVersions = (System.getProperty("hiveVersions") != null ? System.getProperty("hiveVersions") : System.getProperty("defaultHiveVersions")).split(",")
-
-// hive 3 depends on hive 2, so always add hive 2 if hive3 is enabled
-if (hiveVersions.contains("2") || hiveVersions.contains("3")) {
-  apply from: file("$projectDir/hive2.gradle")
-}
-
-if (jdkVersion == '8' && hiveVersions.contains("3")) {
-  apply from: file("$projectDir/hive3.gradle")
-}
-
 project(':iceberg-orc') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
