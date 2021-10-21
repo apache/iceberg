@@ -24,8 +24,17 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.avro.Schema;
+import org.apache.avro.SchemaBuilder;
+import org.apache.avro.file.DataFileWriter;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericDatumWriter;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.AssertHelpers;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
@@ -35,6 +44,7 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -104,6 +114,59 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     assertEquals("Iceberg table contains correct data",
         sql("SELECT * FROM %s ORDER BY id", sourceTableName),
         sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @Test
+  public void addAvroFile() throws Exception {
+    // Spark Session Catalog cannot load metadata tables
+    // with "The namespace in session catalog must have exactly one name part"
+    Assume.assumeFalse(catalogName.equals("spark_catalog"));
+
+    // Create an Avro file
+
+    Schema schema = SchemaBuilder.record("record").fields()
+        .requiredInt("id")
+        .requiredString("data")
+        .endRecord();
+    GenericRecord record1 = new GenericData.Record(schema);
+    record1.put("id", 1L);
+    record1.put("data", "a");
+    GenericRecord record2 = new GenericData.Record(schema);
+    record2.put("id", 2L);
+    record2.put("data", "b");
+    File outputFile = temp.newFile("test.avro");
+
+    DatumWriter<GenericRecord> datumWriter = new GenericDatumWriter(schema);
+    DataFileWriter<GenericRecord> dataFileWriter = new DataFileWriter(datumWriter);
+    dataFileWriter.create(schema, outputFile);
+    dataFileWriter.append(record1);
+    dataFileWriter.append(record2);
+    dataFileWriter.close();
+
+    String createIceberg =
+        "CREATE TABLE %s (id Long, data String) USING iceberg";
+    sql(createIceberg, tableName);
+
+    Object result = scalarSql("CALL %s.system.add_files('%s', '`avro`.`%s`')",
+        catalogName, tableName, outputFile.getPath());
+    Assert.assertEquals(1L, result);
+
+    List<Object[]> expected = Lists.newArrayList(
+        new Object[]{1L, "a"},
+        new Object[]{2L, "b"}
+    );
+
+    assertEquals("Iceberg table contains correct data",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+
+    List<Object[]> actualRecordCount = sql("select %s from %s.files",
+        DataFile.RECORD_COUNT.name(),
+        tableName);
+    List<Object[]> expectedRecordCount = Lists.newArrayList();
+    expectedRecordCount.add(new Object[]{2L});
+    assertEquals("Iceberg file metadata should have correct metadata count",
+        expectedRecordCount, actualRecordCount);
   }
 
   // TODO Adding spark-avro doesn't work in tests
