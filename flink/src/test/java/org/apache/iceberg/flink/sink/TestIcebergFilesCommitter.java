@@ -936,14 +936,16 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       // 1. snapshotState for checkpoint#1
       harness.snapshot(checkpoint, ++timestamp);
-      List<Path> manifestPaths = assertFlinkManifests(formatVersion < 2 ? 1 : 2);
-      Path manifestPath = manifestPaths.get(0);
-      Assert.assertEquals("File name should have the expected pattern.",
-          String.format("%s-%05d-%d-%d-%05d.avro", jobId, 0, 0, checkpoint, 1), manifestPath.getFileName().toString());
 
       // 2. read the data files from manifests and assert.
-      List<DataFile> dataFiles = FlinkManifestUtil.readDataFiles(createTestingManifestFile(manifestPath), table.io());
-      Assert.assertEquals(2, dataFiles.size());
+      List<Path> manifestPaths = assertFlinkManifests(formatVersion < 2 ? 1 : 2);
+      for (int i = 0; i < manifestPaths.size(); i++) {
+        Path path = manifestPaths.get(i);
+        Assert.assertEquals("File name should have the expected pattern.",
+            String.format("%s-%05d-%d-%d-%05d.avro", jobId, 0, 0, checkpoint, i + 1), path.getFileName().toString());
+        List<DataFile> dataFiles = FlinkManifestUtil.readDataFiles(createTestingManifestFile(path), table.io());
+        Assert.assertEquals(2, dataFiles.size());
+      }
 
       // 3. notifyCheckpointComplete for checkpoint
       harness.notifyOfCompletedCheckpoint(checkpoint);
