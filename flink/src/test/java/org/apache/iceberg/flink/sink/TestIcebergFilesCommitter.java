@@ -939,6 +939,7 @@ public class TestIcebergFilesCommitter extends TableTestBase {
 
       // 2. read the data files from manifests and assert.
       List<Path> manifestPaths = assertFlinkManifests(formatVersion < 2 ? 1 : 2);
+      manifestPaths.sort(Comparator.comparing(path -> path.getFileName().toString()));
       for (int i = 0; i < manifestPaths.size(); i++) {
         Path path = manifestPaths.get(i);
         Assert.assertEquals("File name should have the expected pattern.",
