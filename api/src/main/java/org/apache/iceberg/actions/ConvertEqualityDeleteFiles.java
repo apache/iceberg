@@ -39,16 +39,6 @@ public interface ConvertEqualityDeleteFiles
   ConvertEqualityDeleteFiles rowFilter(Expression expression);
 
   /**
-   * A partition filter for finding the equality deletes to convert.
-   * <p>
-   * The matching delete files will be converted to position delete files.
-   *
-   * @param expression An iceberg expression used to find deletes.
-   * @return this for method chaining
-   */
-  ConvertEqualityDeleteFiles partitionFilter(Expression expression);
-
-  /**
    * The action result that contains a summary of the execution.
    */
   interface Result {

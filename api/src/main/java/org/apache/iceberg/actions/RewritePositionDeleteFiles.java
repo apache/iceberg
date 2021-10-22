@@ -41,16 +41,6 @@ public interface RewritePositionDeleteFiles
   RewritePositionDeleteFiles rowFilter(Expression expression);
 
   /**
-   * A partition filter for finding deletes to rewrite.
-   * <p>
-   * The matching delete files will be rewritten.
-   *
-   * @param expression An iceberg expression used to find deletes.
-   * @return this for method chaining
-   */
-  RewritePositionDeleteFiles partitionFilter(Expression expression);
-
-  /**
    * The action result that contains a summary of the execution.
    */
   interface Result {
