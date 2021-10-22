@@ -221,6 +221,10 @@ project(':iceberg-core') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
+    // TODO - If we move the REST client to its own package, make this optional for alternative implementations
+    //        and possibly consider OkHTTP for HTTP2 support etc
+    implementation 'org.apache.httpcomponents.client5:httpclient5'
+
     testImplementation "org.xerial:sqlite-jdbc"
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
