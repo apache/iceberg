@@ -20,9 +20,7 @@
 package org.apache.iceberg.jdbc;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import java.io.UncheckedIOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import org.apache.iceberg.catalog.Namespace;
@@ -66,6 +64,11 @@ final class JdbcUtil {
       " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " = ? AND " + TABLE_NAME + " = ? ";
   protected static final String DROP_TABLE_SQL = "DELETE FROM " + CATALOG_TABLE_NAME +
       " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " = ? AND " + TABLE_NAME + " = ? ";
+  protected static final String GET_NAMESPACE_SQL = "SELECT " + TABLE_NAMESPACE + " FROM " + CATALOG_TABLE_NAME +
+      " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " LIKE ? LIMIT 1";
+  protected static final String LIST_NAMESPACES_SQL = "SELECT DISTINCT " + TABLE_NAMESPACE +
+      " FROM " + CATALOG_TABLE_NAME +
+      " WHERE " + CATALOG_NAME + " = ? AND " + TABLE_NAMESPACE + " LIKE ?";
   protected static final String DO_COMMIT_CREATE_TABLE_SQL = "INSERT INTO " + CATALOG_TABLE_NAME +
       " (" + CATALOG_NAME + ", " + TABLE_NAMESPACE + ", " + TABLE_NAME +
       ", " + METADATA_LOCATION + ", " + PREVIOUS_METADATA_LOCATION + ") " +
@@ -75,7 +78,9 @@ final class JdbcUtil {
   protected static final String CATALOG_NAMESPACE_TABLE_NAME = "iceberg_namespaces";
   protected static final String NAMESPACE_NAME = "namespace_name";
   protected static final String NAMESPACE_METADATA = "metadata";
-  protected static final String NAMESPACE_PROPERTIES = "properties";
+  protected static final String NAMESPACE_PROPERTIES_TABLE_NAME = "namespace_properties";
+  protected static final String NAMESPACE_PROPERTY_KEY = "key";
+  protected static final String NAMESPACE_PROPERTY_VALUE = "value";
 
   protected static final String CREATE_NAMESPACE_TABLE =
       "CREATE TABLE " + CATALOG_NAMESPACE_TABLE_NAME +
@@ -83,32 +88,21 @@ final class JdbcUtil {
           CATALOG_NAME + " VARCHAR(255) NOT NULL," +
           NAMESPACE_NAME + " VARCHAR(255) NOT NULL," +
           NAMESPACE_METADATA + " VARCHAR(65535)," +
-          NAMESPACE_PROPERTIES + " VARCHAR(65535)," +
           "PRIMARY KEY (" + CATALOG_NAME + ", " + NAMESPACE_NAME + ")" +
           ")";
-  protected static final String GET_NAMESPACE_SQL = "SELECT " + NAMESPACE_NAME + " FROM " +
-      CATALOG_NAMESPACE_TABLE_NAME + " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME +
-      " LIKE ? LIMIT 1";
-
-  protected static final String LIST_NAMESPACES_SQL = "SELECT DISTINCT " + NAMESPACE_NAME +
-      " FROM " + CATALOG_NAMESPACE_TABLE_NAME +
-      " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " LIKE ?";
+  protected static final String CREATE_NAMESPACE_PROPERTIES_TABLE =
+      "CREATE TABLE " + NAMESPACE_PROPERTIES_TABLE_NAME +
+          "(" +
+          CATALOG_NAME + " VARCHAR(255) NOT NULL," +
+          NAMESPACE_NAME + " VARCHAR(255) NOT NULL," +
+          NAMESPACE_PROPERTY_KEY + " VARCHAR(5500)," +
+          NAMESPACE_PROPERTY_VALUE + " VARCHAR(5500)," +
+          "PRIMARY KEY (" + CATALOG_NAME + ", " + NAMESPACE_NAME + ")" +
+          ")";
 
   protected static final String DO_COMMIT_CREATE_NAMESPACE_SQL = "INSERT INTO " + CATALOG_NAMESPACE_TABLE_NAME +
-      " (" + CATALOG_NAME + ", " + NAMESPACE_NAME + ", " + NAMESPACE_METADATA +
-      ", " + NAMESPACE_PROPERTIES + ") " +
-      " VALUES (?,?,?,?)";
-
-  protected static final String DELETE_NAMESPACE_SQL = "DELETE FROM " + CATALOG_NAMESPACE_TABLE_NAME +
-      " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " = ?";
-
-  protected static final String UPDATE_NAMESPACE_PROPERTIES_SQL = "UPDATE " + CATALOG_NAMESPACE_TABLE_NAME +
-      " SET " + NAMESPACE_PROPERTIES + " = ? " + " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME +
-      " = ? ";
-
-  protected static final String GET_NAMESPACE_PROPERTIES_SQL = "SELECT " + NAMESPACE_NAME + " , " +
-      NAMESPACE_PROPERTIES + " FROM " +
-      CATALOG_NAMESPACE_TABLE_NAME + " WHERE " + CATALOG_NAME + " = ? AND " + NAMESPACE_NAME + " = ? ";
+      " (" + CATALOG_NAME + ", " + NAMESPACE_NAME + ", " + NAMESPACE_METADATA + ") " +
+      " VALUES (?,?,?)";
 
   // Utilities
   private static final Joiner JOINER_DOT = Joiner.on('.');
@@ -141,19 +135,6 @@ final class JdbcUtil {
 
     return result;
   }
-
-  public static Map<String, String> convertJsonStringToMap(String jsonString) {
-    Map<String, String> resultMap;
-    try {
-      resultMap = JsonUtil.mapper().readValue(
-              jsonString, new TypeReference<HashMap<String, String>>() {
-              });
-    } catch (JsonProcessingException e) {
-      throw new UncheckedIOException(e);
-    }
-    return resultMap;
-  }
-
   public static String convertMapToJsonString(Map<String, String> inputMap) {
     String resultJsonString;
     try {

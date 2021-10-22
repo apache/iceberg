@@ -47,17 +47,6 @@ public class TestJdbcUtil {
   }
 
   @Test
-  public void testCovertJsonStringToMap() {
-    String inputJsonString = "{\"name\":\"foo\",\"age\":\"37\"}";
-    Map<String, String> expectedMap = new HashMap<>();
-    expectedMap.put("name", "foo");
-    expectedMap.put("age", "37");
-    Map<String, String> actualMap = JdbcUtil.convertJsonStringToMap(inputJsonString);
-
-    Assertions.assertThat(expectedMap).isEqualTo(actualMap);
-  }
-
-  @Test
   public void testConvertMapToJsonString() {
     Map<String, String> inputMap = new HashMap<>();
     inputMap.put("name", "foo");

@@ -132,6 +132,20 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
           JdbcUtil.CATALOG_NAMESPACE_TABLE_NAME);
       return conn.prepareStatement(JdbcUtil.CREATE_NAMESPACE_TABLE).execute();
     });
+
+    connections.run(conn -> {
+      DatabaseMetaData dbMeta = conn.getMetaData();
+      ResultSet tableExists = dbMeta.getTables(null, null,
+          JdbcUtil.CREATE_NAMESPACE_PROPERTIES_TABLE, null);
+
+      if (tableExists.next()) {
+        return true;
+      }
+
+      LOG.debug("Creating table {} to store iceberg catalog namespaces properties",
+          JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME);
+      return conn.prepareStatement(JdbcUtil.CREATE_NAMESPACE_PROPERTIES_TABLE).execute();
+    });
   }
 
   @Override
@@ -279,7 +293,6 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
           sql.setString(1, catalogName);
           sql.setString(2, namespaceName);
           sql.setString(3, JdbcUtil.convertMapToJsonString(metadata));
-          sql.setString(4, null);
           return sql.executeUpdate();
         }
       });
@@ -313,7 +326,7 @@ public class JdbcCatalog extends BaseMetastoreCatalog implements Configurable, S
           sql.setString(2, JdbcUtil.namespaceToString(namespace) + "%");
           ResultSet rs = sql.executeQuery();
           while (rs.next()) {
-            result.add(JdbcUtil.stringToNamespace(rs.getString(JdbcUtil.NAMESPACE_NAME)));
+            result.add(JdbcUtil.stringToNamespace(rs.getString(JdbcUtil.TABLE_NAMESPACE)));
           }
           rs.close();
         }
